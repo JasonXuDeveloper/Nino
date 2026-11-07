@@ -1,28 +1,28 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using static Nino.UnitTests.Rt;
 using Nino.UnitTests.Subset.Deep;
 
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class DeepLink
 {
     public int Value;
     public DeepLink Next;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class DeepTree
 {
     public int Value;
     public List<DeepTree> Children;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class DeepTreeLeaf : DeepTree
 {
     public string Tag;
@@ -43,7 +43,7 @@ public sealed class DeepKeyed
     public DeepKeyed Next;
 }
 
-[NinoType(trackReferences: true)]
+[NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
 public sealed class DeepTracked
 {
     public int Value;
@@ -51,17 +51,17 @@ public sealed class DeepTracked
     public DeepTracked Prev;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class DeepObject
 {
     public int Value;
     public object Next;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed record DeepRecord(int Value, DeepRecord Next);
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class DeepHashed
 {
     public int Value;
@@ -116,7 +116,7 @@ public sealed class DeepLevelV2
 
 // A class with no class members (it nests nothing): its formatter skips the depth count, which must not change
 // the bytes or where the bodies around it are deferred.
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class DeepPayload
 {
     public int A;
@@ -124,7 +124,7 @@ public sealed class DeepPayload
     public List<int> Items;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class DeepCarrier
 {
     public int Value;
@@ -148,28 +148,7 @@ public sealed class DeepTolerantCarrier
 [TestClass]
 public class DeepNestingTests
 {
-    private const int SmallStack = 512 * 1024;
     private const int NinoDepthInline = 128;
-
-    private static void OnSmallStack(Action action)
-    {
-        Exception error = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception e)
-            {
-                error = e;
-            }
-        }, SmallStack);
-        thread.Start();
-        thread.Join();
-        if (error != null)
-            throw new AssertFailedException("failed on the small stack: " + error, error);
-    }
 
     private static PlainLink PlainChain(int length, int seed = 0)
     {

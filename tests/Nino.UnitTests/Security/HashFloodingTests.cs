@@ -12,7 +12,7 @@ using static Nino.UnitTests.Rt;
 namespace Nino.UnitTests;
 
 /// <summary>A key whose hash code is one of 7: many keys share one, as keys built to collide do.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class FloodKey : IEquatable<FloodKey>
 {
     public int Id;
@@ -24,7 +24,7 @@ public sealed class FloodKey : IEquatable<FloodKey>
     public override int GetHashCode() => Id % 7;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class FloodHolder
 {
     public Dictionary<long, int> Map;
@@ -100,6 +100,10 @@ public class HashFloodingTests
         var set = new HashSet<long>(new LongComparer()) { 5 };
         Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize(NinoSerializer.Serialize(Colliding(Max + 2).ToHashSet()), ref set));
+        // Raw keys and strings, merged by their own loop.
+        var strings = new Dictionary<long, string> { [5] = "5" };
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(
+            NinoSerializer.Serialize(Colliding(Max + 2).ToDictionary(k => k, k => "v")), ref strings));
         var holder = new FloodHolder { Map = new Dictionary<long, int> { [1] = 1 } };
         var flooded = NinoSerializer.Serialize(new FloodHolder { Map = Colliding(Max + 2).ToDictionary(k => k, k => 1) });
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(flooded, ref holder));

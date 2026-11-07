@@ -63,7 +63,7 @@ namespace Layout
             Assert.AreEqual("raw(8){VelocityX:float@0:raw(4),VelocityY:float@4:raw(4)}", move.Members);
 
             var player = Layout(assembly, "Layout.Player");
-            Assert.AreEqual(NinoHeader.NullFlag, player.Header);
+            Assert.AreEqual(NinoHeader.Presence, player.Header);
             Assert.IsFalse(player.Raw);
             Assert.AreEqual("Id:Layout.PlayerId:raw(8){Value:long@0:raw(8)};Name:string:utf8;" +
                             "Path:System.Collections.Generic.List<Layout.Move>:" +
@@ -185,7 +185,8 @@ namespace Deferral
 }");
             var node = Layout(assembly, "Deferral.Node");
             Assert.IsTrue(node.Deferrable);
-            StringAssert.Contains(node.ToString(), "; typeId=0x" + node.Id.ToString("X8") + "; deferrable=true; members=");
+            StringAssert.Contains(node.ToString(), "header=Presence; trackReferences=false; raw=false; id=0x" +
+                                                   node.Id.ToString("X8") + "; deferrable=true; members=");
             // Re-created through its constructor, compared by value, never created, a struct: never deferred.
             foreach (string type in new[] { "Deferral.Point", "Deferral.Shape", "Deferral.Pair" })
             {
@@ -208,18 +209,18 @@ namespace Deferral
 namespace Nino.Core
 {
     public enum NinoFormat { Positional, VersionTolerant, Keyed }
-    public enum NinoHeader { None, NullFlag, TypeId }
+    public enum NinoHeader { None, Presence, TypeId }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Struct | System.AttributeTargets.Interface)]
     public sealed class NinoTypeAttribute : System.Attribute
     {
         public NinoTypeAttribute(bool autoCollect = true, bool includeNonPublicMembers = false,
-            bool allowInheritance = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false) { }
+            bool inheritedBySubtypes = true, NinoFormat format = NinoFormat.Positional, bool trackReferences = false) { }
     }
     [System.AttributeUsage(System.AttributeTargets.Assembly, AllowMultiple = true)]
     public sealed class NinoTypeLayoutAttribute : System.Attribute
     {
         public NinoTypeLayoutAttribute(System.Type type, NinoFormat format, NinoHeader header, bool trackReferences,
-            bool raw, int typeId, string members) { }
+            bool raw, int id, string members) { }
     }
 }";
             var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
@@ -248,6 +249,32 @@ namespace Deferral
             Assert.IsFalse(layout.Contains("Deferrable"));
         }
 
+        /// <summary>
+        /// <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> on a string member is read as <c>[NinoUtf8]</c>:
+        /// the generator writes the same code, not a call to the formatter (NINO031 suggests the attribute).
+        /// </summary>
+        [TestMethod]
+        public void Utf8FormatterGeneratesWhatNinoUtf8Does()
+        {
+            static string Generated(string source)
+            {
+                var compilation = TestCompilation.Create("Utf8Spellings",
+                    new[] { CSharpSyntaxTree.ParseText(source, TestCompilation.Parse, "Types.cs") });
+                return string.Join("\n", TestCompilation.Generate(compilation).GeneratedTrees
+                    .Select(t => t.ToString()));
+            }
+
+            const string attribute = "[NinoUtf8]";
+            string types = Types.Replace(attribute + " public string Name",
+                attribute + " public string Name; " + attribute + " public System.Collections.Generic.List<string> Tags");
+            string generated = Generated(types);
+            StringAssert.Contains(generated, "WriteUtf8(");
+            Assert.AreEqual(generated, Generated(types.Replace(attribute,
+                "[NinoMemberFormatter(typeof(Utf8StringFormatter))]")
+                .Replace("[NinoMemberFormatter(typeof(Utf8StringFormatter))] public System.Collections.Generic.List<string> Tags",
+                    "[NinoUtf8] public System.Collections.Generic.List<string> Tags")));
+        }
+
         [TestMethod]
         public void ChangesExactlyWhenTheBytesDo()
         {
@@ -257,6 +284,9 @@ namespace Deferral
             // Renaming the namespace of an unrelated type, or reformatting the source, changes nothing.
             Assert.AreEqual(baseline, Of(Types.Replace("public float VelocityY; }", "public float VelocityY;\n}"),
                 "Layout.Player"));
+            // A member formatter of Utf8StringFormatter is [NinoUtf8] (NINO031): the same bytes, so the same layout.
+            Assert.AreEqual(baseline, Of(Types.Replace("[NinoUtf8] public string Name",
+                "[NinoMemberFormatter(typeof(Utf8StringFormatter))] public string Name"), "Layout.Player"));
             // Each of these changes the bytes, and the layout.
             Assert.AreNotEqual(baseline, Of(Types.Replace("[NinoUtf8] public string Name", "public string Name"),
                 "Layout.Player"));

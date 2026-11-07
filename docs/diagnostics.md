@@ -38,6 +38,9 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO027](#nino027) | Warning | `[NinoFormerName]` on a generic type written with its type id |
 | [NINO028](#nino028) | Warning | `[NinoMember]` on a member that is never serialized 🔧 |
 | [NINO029](#nino029) | Error | `Vector<T>` cannot be serialized |
+| [NINO030](#nino030) | Warning | `[NinoUtf8]` has no effect 🔧 |
+| [NINO031](#nino031) | Info | `[NinoMemberFormatter(typeof(Utf8StringFormatter))]`: use `[NinoUtf8]` 🔧 |
+| [NINO032](#nino032) | Error | `WEAK_VERSION_TOLERANCE` was removed: a positional type would stop reading its data 🔧 |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -64,7 +67,7 @@ containing it must be `partial`. 🔧 Make them partial.
 
 ### NINO003
 
-The base type or interface is a NinoType with `allowInheritance: false`, so this subtype gets no formatter of its
+The base type or interface is a NinoType with `inheritedBySubtypes: false`, so this subtype gets no formatter of its
 own: writing one (through the base, an interface or `object`) throws `InvalidOperationException`. 🔧 Add `[NinoType]`.
 
 ## Construction
@@ -123,9 +126,27 @@ generic). That member is not skipped: it is written, and null works, but writing
 `InvalidOperationException` ("no formatter for System.Action"). Only a type argument the closed type's formatter
 writes is reported: one that a serialized member writes (its own or a `[NinoType]` base's, directly, in an array, a
 collection, a dictionary, a tuple or `Nullable`, or through another generic `[NinoType]` that writes it), the elements
-of a collection class, or one a generic subtype writes. A type parameter used only by `[NinoIgnore]` members, methods,
-constraints or a nested generic that never writes it is not (`Tag<Action>` of `class Tag<T> { int X; }`, nor
-`Outer<Action>` of `class Outer<T> { Tag<T> Inner; }`, nor anything inside it, `Tag<Box<Action>>`).
+of a collection class, or what a generic subtype writes of it. A slot (an interface, an abstract or unsealed class)
+holds the generic subtypes whose base matches its argument, at any depth of inheritance, and they write the part of
+the argument they match: with `class TagShelf<U> : Shelf<Tag<U>> { public U Value; }`, a `Shelf<Tag<Action>>` is
+reported though `Tag<T>` writes no `T`, and a `Shelf<Box<Action>>` is not when no subtype of that shape writes it.
+The argument must be one the subtype can give its base: with `class Fixed<U> : Shelf<KeyValuePair<int, U[]>>` a
+`Shelf<KeyValuePair<long, Action[]>>` is not reported, nor with `class Same<U> : Shelf<KeyValuePair<U, U>>` a
+`Shelf<KeyValuePair<int, Action>>`. These are the closed subtypes the generated registry maps from their type ids. A
+type parameter used only by `[NinoIgnore]` members, methods, constraints or a nested generic that never writes it is
+not (`Tag<Action>` of `class Tag<T> { int X; }`, nor `Outer<Action>` of `class Outer<T> { Tag<T> Inner; }`, nor
+anything inside it, `Tag<Box<Action>>`).
+
+Types in referenced assemblies are read from their symbols, with two limits. A compilation sees only the public and
+protected members of a referenced class, so a private serialized member is read from the layout Nino publishes for
+the type (`[assembly: NinoTypeLayout]`): every type argument such a member's type names counts as written, and every
+type argument of a referenced generic class without a layout does. Subtypes are searched in the compilation and in
+every referenced assembly that is the base's or references it; a subtype declared in an assembly that references this
+one, and a subtype's type parameter its base does not name (`class S<U, W> : Shelf<U>` writing `W`), cannot be seen
+from the slot, and are not reported there. A subtype that holds its base over its own type parameter matches
+arguments nested without end (`Tag<Tag<...>>`): beyond a few levels, every type inside the argument counts. A generic
+that is not a `[NinoType]` writes every type argument: Nino.Core's formatters (collections, dictionaries, `Nullable`,
+tuples, `KeyValuePair`) write them all, and refuse any other such generic with `Vector<T>` in an argument.
 
 ### NINO008
 
@@ -185,20 +206,37 @@ auto-property, give a constructor a parameter of its name; otherwise 🔧 remove
 ### NINO029
 
 A member, a `NinoSerializer`/`NinoDeserializer` call, or Nino.Core's own formatters and `Writer`/`Reader` methods used
-by hand (`new UnmanagedFormatter<Vector<int>>()`, `default(...)`, `[NinoMemberFormatter(typeof(...))]`,
-`writer.Write(vector)`, `reader.Read(out Vector<int> v)`) need `System.Numerics.Vector<T>`: the type is one or holds
+by hand (`new UnmanagedFormatter<Vector<int>>()`, `default(...)`, a field, property or local of that type, which a
+formatter struct needs no constructor call to fill, `[NinoMemberFormatter(typeof(...))]`, `writer.Write(vector)`,
+`reader.Read(out Vector<int> v)`) need `System.Numerics.Vector<T>`: the type is one or holds
 one (as an element, a type argument, a base type or a field of a plain struct), and `Vector<T>` is 16, 32 or 64 bytes
 by the CPU, so Nino serializes no such type; the runtime throws `NotSupportedException` for it. A generic
 `[NinoType]` counts when its formatter writes the type argument, by the same rule as NINO007's type arguments:
 `Box<Vector<int>>` of `class Box<T> { public T Value; }` is reported, and so is `ListBox<Vector<short>>` of
-`class ListBox<T> : Box<List<T>>`; `Outer<Vector<int>>` of `class Outer<T> { Tag<T> Inner; }` is not when `Tag<T>`
-writes no `T`. The message reads: "... cannot be serialized: '{type}' is a Vector<T> (or holds
+`class ListBox<T> : Box<List<T>>`, and `Shelf<Tag<Vector<int>>>` when a subtype `class TagShelf<U> : Shelf<Tag<U>>`
+writes `U`; `Outer<Vector<int>>` of `class Outer<T> { Tag<T> Inner; }` is not when `Tag<T>` writes no `T`. The message reads: "... cannot be serialized: '{type}' is a Vector<T> (or holds
 '...'), and Vector<T> is 16, 32 or 64 bytes by the CPU; store a fixed number of lanes (an array, a fixed buffer,
 Vector128<T> or Vector256<T>) and view them as Vector<T> in [NinoIgnore] members". A formatter of your
 own that writes the lanes its way is never reported, nor a Nino.Core collection formatter over it. Store a fixed
 number of lanes and expose the vectors through `[NinoIgnore]` members: [pitfalls.md, "`Vector<T>` is not
 serializable"](pitfalls.md#vectort-is-not-serializable) has why and the example.
 There is no code fix: the stored form is yours to choose.
+
+### NINO030
+
+`[NinoUtf8]` changes nothing on this member: its type holds no string Nino writes (an `int`, a `[NinoType]`, which
+writes its own strings by its own members' attributes, or a collection of neither), or a `[NinoMemberFormatter]`
+writes the member, which decides the encoding itself. `[NinoUtf8]` reaches every string the built-in formatters write
+in the member's type: the member itself, the elements of arrays and collections, dictionary keys and values, tuple
+items. The bytes are the same without it. 🔧 Remove it.
+
+### NINO031
+
+`[NinoMemberFormatter(typeof(Utf8StringFormatter))]` on a string member: `Utf8StringFormatter` is what generated code
+uses for `[NinoUtf8]`, and the generator reads this attribute as `[NinoUtf8]` (the same bytes, the same layout,
+`utf8`, and the same code). `[NinoUtf8]` says it directly and also reaches the strings inside collections.
+🔧 Use `[NinoUtf8]` (with `[NinoUtf8]` already on the member, the formatter attribute is removed). On a member that is
+not a string, the formatter cannot write it: NINO008.
 
 ## Features
 
@@ -245,6 +283,17 @@ this also applies to subtypes of a tracked type. Make the members assignable.
 
 A `[NinoFactory]` factory must be `public static`, non-generic, callable without arguments (parameterless, or every
 parameter optional, like ET's `static T Create(bool isFromPool = false)`) and return the containing type.
+
+### NINO032
+
+The project defines `WEAK_VERSION_TOLERANCE`, which until 4.0 made every positional `[NinoType]` of its assembly
+version tolerant. 4.0 removed it: the type is now written positionally, without the body length, so it can no longer
+read the data it wrote. Reported on each positional type's own `[NinoType]`; a type that takes its `[NinoType]` from
+another type of the project is covered by that type's fix. 🔧 Add `format: NinoFormat.VersionTolerant` (fix all:
+every type of the document, project or solution), which generates exactly the code the symbol did, so the bytes stay.
+A type that takes its `[NinoType]` from a type in another assembly is reported on the type: 🔧 declare
+`[NinoType(..., format: NinoFormat.VersionTolerant)]` on it with the options it took (the message spells them out).
+Then remove the symbol from the project. Keyed and version-tolerant types are not affected.
 
 ## Pooling
 

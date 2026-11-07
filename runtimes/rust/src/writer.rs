@@ -207,6 +207,19 @@ impl<'a> Writer<'a> {
         self.i32(-1);
     }
 
+    /// A value whose null is the null length (a collection, a bit array, a grid): the value, or -1. What every such
+    /// type's [`NinoWrite::write_option`] writes.
+    #[inline]
+    pub(crate) fn or_null_length<T: NinoWrite>(&mut self, value: Option<&'a T>) -> Result<()> {
+        match value {
+            Some(v) => v.write(self),
+            None => {
+                self.null_length();
+                Ok(())
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ strings
 
     /// A string in the default encoding: one byte per char when every char is at most U+00FF (Latin-1), else

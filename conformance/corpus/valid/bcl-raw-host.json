@@ -11,7 +11,7 @@
   "size": 273,
   "roundTrip": true,
   "layouts": {
-    "Conformance.BclRawHost": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x5358D4FF; deferrable=true; members=Wide:Conformance.HoldsWide:raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}};Pointers:Conformance.HoldsPointers:raw(24){A:int@0:raw(4),B:System.IntPtr@8:raw(8),C:System.UIntPtr@16:raw(8)};Wides:Conformance.HoldsWide[]:seq(raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}});Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})"
+    "Conformance.BclRawHost": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x5358D4FF; deferrable=true; members=Wide:Conformance.HoldsWide:raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}};Pointers:Conformance.HoldsPointers:raw(24){A:int@0:raw(4),B:System.IntPtr@8:raw(8),C:System.UIntPtr@16:raw(8)};Wides:Conformance.HoldsWide[]:seq(raw(48){A:byte@0:raw(1),B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)},C:System.UInt128@32:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}});Gaps:System.Nullable<System.Int128>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}})"
   },
   "value": {
     "$type": "Conformance.BclRawHost",

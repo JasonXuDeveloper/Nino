@@ -247,6 +247,11 @@
 # done (run 41802774827; lines 1-2 drew no Xeon): cpu='Xeon' 0af6bb5e e15d812e 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf addresses copy 2
 # done (run 41802774827; lines 1-2 drew no Xeon): cpu='Xeon' 0af6bb5e 8750dad1 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf writer moved
 # r127-perf round 5 (Xeon only): run 41802774827 (6973P) printed each process's addresses: the writer's 320 KB pooled buffer sits at 1356 within a 4 KB page in rc.7's processes and 1948 in main's, set by what Nino rents from ArrayPool.Shared in SimpleTest's static constructor; rc.7's own processes ran 9.2-9.6 ns or 10.7-12.0 by where the writer object fell. More processes per binary: e15d812e (main + address print + legacy) and c9c405ff (the same with a large array allocated first)
-cpu='Xeon' 0af6bb5e e15d812e 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf addresses copy 3
-cpu='Xeon' 0af6bb5e c9c405ff 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf large array first copy 1
-cpu='Xeon' 0af6bb5e c9c405ff 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf large array first copy 2
+# done (run 41806557589): cpu='Xeon' 0af6bb5e e15d812e 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf addresses copy 3
+# done (run 41806557589): cpu='Xeon' 0af6bb5e c9c405ff 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf large array first copy 1
+# done (run 41806557589): cpu='Xeon' 0af6bb5e c9c405ff 20 *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.MemoryPackSerializeSimpleStructs # r127-perf large array first copy 2
+# r129-perf: an Untrusted bool joins a wider check pass (8ab71205) against main 79fdcd8a, main against itself (floor),
+# and the line again for a second Arm64 job; 12 rounds each.
+cpu='EPYC|Xeon|Neoverse' 79fdcd8a 8ab71205 12 *UntrustedTest* # r129-perf bool join
+cpu='EPYC|Xeon|Neoverse' 79fdcd8a 79fdcd8a 12 *UntrustedTest* # r129-perf floor
+cpu='EPYC|Xeon|Neoverse' 79fdcd8a 8ab71205 12 *UntrustedTest* # r129-perf bool join copy 2

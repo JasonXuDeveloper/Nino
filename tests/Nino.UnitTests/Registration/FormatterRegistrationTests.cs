@@ -53,7 +53,7 @@ public struct RingFormatter<T, TFormatter> : INinoFormatter<Ring<T>> where TForm
             default(TFormatter).Serialize(item, ref writer);
     }
 
-    public void Deserialize(ref Ring<T> value, ref Reader reader)
+    public void Deserialize(ref Reader reader, ref Ring<T> value)
     {
         reader.Read(out int capacity);
         if (capacity < 0)
@@ -67,13 +67,13 @@ public struct RingFormatter<T, TFormatter> : INinoFormatter<Ring<T>> where TForm
         for (int i = 0; i < count; i++)
         {
             T item = default;
-            default(TFormatter).Deserialize(ref item, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref item);
             value.Push(item);
         }
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class RingHolder
 {
     public Ring<int> Ints;
@@ -85,30 +85,30 @@ public sealed class RingHolder
 /// A generic holder: its member is formatted by the formatter its closed type names, which the runtime resolver
 /// chooses for instances the generator did not see.
 /// </summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class RuntimeBox<T>
 {
     public T Value;
 }
 
-[NinoType] public sealed class RingBox { public Ring<int> Value; }
-[NinoType] public sealed class NullableListBox { public List<int?> Value; }
-[NinoType] public sealed class NestedDictionaryBox { public Dictionary<string, List<int>> Value; }
-[NinoType] public sealed class ListInterfaceBox { public IList<string> Value; }
-[NinoType] public sealed class SetInterfaceBox { public ISet<int> Value; }
-[NinoType] public sealed class SortedSetBox { public SortedSet<int> Value; }
-[NinoType] public sealed class LinkedListBox { public LinkedList<string> Value; }
-[NinoType] public sealed class ConcurrentQueueBox { public ConcurrentQueue<int> Value; }
-[NinoType] public sealed class SortedDictionaryBox { public SortedDictionary<int, string> Value; }
-[NinoType] public sealed class TupleBox { public (int, string) Value; }
-[NinoType] public sealed class MatrixBox { public int[,] Value; }
-[NinoType] public sealed class PairBox { public KeyValuePair<int, string> Value; }
-[NinoType] public sealed class DerivedListBox { public DerivedIntList Value; }
-[NinoType] public sealed class OffsetBox { public DateTimeOffset Value; }
-[NinoType] public sealed class ImmutableArrayBox { public ImmutableArray<string> Value; }
-[NinoType] public sealed class ImmutableListBox { public ImmutableList<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class RingBox { public Ring<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class NullableListBox { public List<int?> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class NestedDictionaryBox { public Dictionary<string, List<int>> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ListInterfaceBox { public IList<string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class SetInterfaceBox { public ISet<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class SortedSetBox { public SortedSet<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class LinkedListBox { public LinkedList<string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ConcurrentQueueBox { public ConcurrentQueue<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class SortedDictionaryBox { public SortedDictionary<int, string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class TupleBox { public (int, string) Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class MatrixBox { public int[,] Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class PairBox { public KeyValuePair<int, string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class DerivedListBox { public DerivedIntList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class OffsetBox { public DateTimeOffset Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ImmutableArrayBox { public ImmutableArray<string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ImmutableListBox { public ImmutableList<int> Value; }
 #if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
-[NinoType] public sealed class PriorityQueueBox { public PriorityQueue<string, int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class PriorityQueueBox { public PriorityQueue<string, int> Value; }
 #endif
 
 public sealed class DerivedIntList : List<int>
@@ -213,20 +213,18 @@ public class FormatterRegistrationTests
 #endif
     }
 
-    private static string Hex(byte[] bytes) => BitConverter.ToString(bytes).Replace("-", "");
-
     // The wire format of the formatters that used to be generated into each assembly is unchanged.
     [TestMethod]
     public void MovedFormattersKeepTheirBytes()
     {
         Assert.AreEqual("020000000100000002000000",
-            Hex(NinoSerializer.Serialize(ImmutableArray.Create(1, 2))));
-        Assert.AreEqual("FFFFFFFF", Hex(NinoSerializer.Serialize(default(ImmutableArray<int>))));
-        Assert.AreEqual("0100000005000000", Hex(NinoSerializer.Serialize(ImmutableList.Create(5))));
+            Rt.ToHex(NinoSerializer.Serialize(ImmutableArray.Create(1, 2))));
+        Assert.AreEqual("FFFFFFFF", Rt.ToHex(NinoSerializer.Serialize(default(ImmutableArray<int>))));
+        Assert.AreEqual("0100000005000000", Rt.ToHex(NinoSerializer.Serialize(ImmutableList.Create(5))));
 #if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD
         var queue = new PriorityQueue<int, int>();
         queue.Enqueue(7, 3);
-        Assert.AreEqual("010000000700000003000000", Hex(NinoSerializer.Serialize(queue)));
+        Assert.AreEqual("010000000700000003000000", Rt.ToHex(NinoSerializer.Serialize(queue)));
         var back = NinoDeserializer.Deserialize<PriorityQueue<int, int>>(NinoSerializer.Serialize(queue));
         Assert.IsTrue(back.TryDequeue(out int element, out int priority));
         Assert.AreEqual((7, 3), (element, priority));
@@ -241,7 +239,7 @@ public class FormatterRegistrationTests
     {
         public void Serialize(TryRegisterTarget value, ref Writer writer) => writer.Write(0);
 
-        public void Deserialize(ref TryRegisterTarget value, ref Reader reader) => reader.Read(out int _);
+        public void Deserialize(ref Reader reader, ref TryRegisterTarget value) => reader.Read(out int _);
     }
 
     [TestMethod]

@@ -184,7 +184,7 @@ public class DescendingDictionary : SortedDictionary<int, string>
 
 #region Shapes
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class NamedList : List<int>
 {
     public string Name;
@@ -285,7 +285,7 @@ public class CountingObservable : ObservableCollection<string>
     public CountingObservable() => CollectionChanged += (_, _) => Changes++;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class KeyedItem
 {
     public int Id;
@@ -333,19 +333,19 @@ public class NullableRawList : List<long?>
 {
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public abstract class Shape
 {
     public int Id;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class Circle : Shape
 {
     public float Radius;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class Square : Shape
 {
     public float Side;
@@ -375,13 +375,13 @@ public class PooledCollection : Collection<int>, INinoPooled
 
 #region Holders (generated path; RuntimeBox<T> is the runtime path)
 
-[NinoType] public sealed class OptionalCtorHolder { public OptionalCtorList Value; }
-[NinoType] public sealed class FactoryOnlyHolder { public FactoryOnlyList Value; }
-[NinoType] public sealed class FactoryAndCtorHolder { public FactoryAndCtorList Value; }
-[NinoType] public sealed class ArgumentFactoryHolder { public ArgumentFactoryList Value; }
-[NinoType] public sealed class NullFactoryHolder { public NullFactoryList Value; }
-[NinoType] public sealed class BaseFactoryHolder { public BaseFactoryList Value; }
-[NinoType] public sealed class DirtyHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class OptionalCtorHolder { public OptionalCtorList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class FactoryOnlyHolder { public FactoryOnlyList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class FactoryAndCtorHolder { public FactoryAndCtorList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ArgumentFactoryHolder { public ArgumentFactoryList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class NullFactoryHolder { public NullFactoryList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class BaseFactoryHolder { public BaseFactoryList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class DirtyHolder
 {
     public DirtyList List;
     public DirtyRawList Raw;
@@ -392,7 +392,7 @@ public class PooledCollection : Collection<int>, INinoPooled
     public DirtyQueue Queue;
     public DirtyConcurrentBag Bag;
 }
-[NinoType] public sealed class PlainHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class PlainHolder
 {
     public List<string> List;
     public List<int> Raw;
@@ -403,30 +403,30 @@ public class PooledCollection : Collection<int>, INinoPooled
     public Queue<int> Queue;
     public ConcurrentBag<int> Bag;
 }
-[NinoType] public sealed class ComparerHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ComparerHolder
 {
     public CaseInsensitiveDictionary Dictionary;
     public CaseInsensitiveSet Set;
     public DescendingSet Sorted;
     public DescendingDictionary SortedMap;
 }
-[NinoType] public sealed class NamedListHolder { public NamedList Value; }
-[NinoType] public sealed class ConstrainedHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class NamedListHolder { public NamedList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ConstrainedHolder
 {
     public StructOnlyList<int> Structs;
     public ClassOnlyList<string> Classes;
     public Outer<long>.Inner Nested;
 }
-[NinoType] public sealed class ExplicitHolder { public ExplicitCollection Value; }
-[NinoType] public sealed class FrozenHolder { public FrozenCollection Value; }
-[NinoType] public sealed class ObjectModelHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ExplicitHolder { public ExplicitCollection Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class FrozenHolder { public FrozenCollection Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ObjectModelHolder
 {
     public CountingCollection Counting;
     public CountingObservable Observable;
     public KeyedItems Keyed;
 }
-[NinoType] public sealed class TreeHolder { public Tree Value; }
-[NinoType] public sealed class BclSubclassHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class TreeHolder { public Tree Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class BclSubclassHolder
 {
     public IntStack Stack;
     public NameQueue Queue;
@@ -434,7 +434,7 @@ public class PooledCollection : Collection<int>, INinoPooled
     public NameLinkedList Linked;
     public NameSortedList Sorted;
 }
-[NinoType] public sealed class BclHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class BclHolder
 {
     public Stack<int> Stack;
     public Queue<string> Queue;
@@ -442,32 +442,32 @@ public class PooledCollection : Collection<int>, INinoPooled
     public LinkedList<string> Linked;
     public SortedList<string, int> Sorted;
 }
-[NinoType] public sealed class RawListHolder { public RawList Value; }
-[NinoType] public sealed class IntListHolder { public List<int> Value; }
-[NinoType] public sealed class NullableRawHolder { public NullableRawList Value; }
-[NinoType] public sealed class NullableListHolder { public List<long?> Value; }
-[NinoType] public sealed class ShapeListHolder { public ShapeList Value; }
-[NinoType] public sealed class ListOfListsHolder { public ListOfLists Value; }
-[NinoType] public sealed class StringListHolder { public StringList Value; }
-[NinoType] public sealed class DeclaredHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class RawListHolder { public RawList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class IntListHolder { public List<int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class NullableRawHolder { public NullableRawList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class NullableListHolder { public List<long?> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ShapeListHolder { public ShapeList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class ListOfListsHolder { public ListOfLists Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class StringListHolder { public StringList Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class DeclaredHolder
 {
     public List<int> AsList;
     public IList<int> AsInterface;
 }
-[NinoType] public sealed class AliasHolder
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class AliasHolder
 {
     public RawList First;
     public RawList Second;
 }
-[NinoType(trackReferences: true)] public sealed class TrackedAliasHolder
+[NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)] public sealed class TrackedAliasHolder
 {
     public RawList First;
     public RawList Second;
 }
-[NinoType] public sealed class StringDictionaryHolder { public Dictionary<string, int> Value; }
-[NinoType] public sealed class CaseInsensitiveHolder { public CaseInsensitiveDictionary Value; }
-[NinoType] public sealed class StringSetHolder { public HashSet<string> Value; }
-[NinoType] public sealed class CaseInsensitiveSetHolder { public CaseInsensitiveSet Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class StringDictionaryHolder { public Dictionary<string, int> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class CaseInsensitiveHolder { public CaseInsensitiveDictionary Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class StringSetHolder { public HashSet<string> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class CaseInsensitiveSetHolder { public CaseInsensitiveSet Value; }
 
 #endregion
 

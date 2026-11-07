@@ -19,7 +19,13 @@ internal static class CornerCompiler
 {
     public sealed class Result
     {
-        public ImmutableArray<Diagnostic> AnalyzerDiagnostics;
+        /// <summary>
+        /// The analyzer's diagnostics on <see cref="Compilation"/>, computed on first use: a pass over the whole
+        /// compilation, which most callers (ShapeMatrixTests' rows among them) never read.
+        /// </summary>
+        public ImmutableArray<Diagnostic> AnalyzerDiagnostics => _analyzerDiagnostics.Value;
+
+        internal Lazy<ImmutableArray<Diagnostic>> _analyzerDiagnostics;
         public ImmutableArray<Diagnostic> Errors;
         public string GeneratedCode;
         public Assembly Assembly;
@@ -58,7 +64,8 @@ internal static class CornerCompiler
         var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new Generator.Analysis.NinoAnalyzer());
         var result = new Result
         {
-            AnalyzerDiagnostics = compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().Result,
+            _analyzerDiagnostics = new Lazy<ImmutableArray<Diagnostic>>(() =>
+                compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().Result),
             GeneratedCode = string.Concat(run.GeneratedTrees.Select(t => t.ToString())),
             Compilation = compilation,
         };

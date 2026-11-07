@@ -290,7 +290,7 @@ public partial class TestClass
         var code = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: true)]
+[NinoType(inheritedBySubtypes: true)]
 public interface IBase
 {
 }
@@ -307,7 +307,7 @@ public abstract class AbstractClass : IBase
     public string B;
 }
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public abstract class AbstractClass2
 {
     public int A;
@@ -342,7 +342,7 @@ public class Something
         var code = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public interface IBase
 {
     int A { get; set; }
@@ -386,12 +386,12 @@ public enum NotAType
         var code = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public interface IBase
 {
 }
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public class Base : IBase
 {
     public int A;
@@ -902,7 +902,7 @@ public class TestClass
 
     #endregion
 
-    #region Members (NINO007-NINO013, NINO022-NINO023, NINO029)
+    #region Members (NINO007-NINO013, NINO022-NINO023, NINO029-NINO031)
 
     [TestMethod]
     public async Task NINO007_UnserializableMember()
@@ -1066,6 +1066,43 @@ public class Holder
     }
 
     [TestMethod]
+    public async Task NINO007_PartsOfArgumentsSubtypesWrite()
+    {
+        // A part of a slot's argument a subtype writes (TagShelf<U> : Shelf<Tag<U>> in a Shelf<Tag<Action>>) needs a
+        // formatter; one no subtype writes (QuietShelf<U> : Shelf<Box<U>>) does not.
+        var code = @"
+using System;
+using Nino.Core;
+
+[NinoType]
+public abstract class Shelf<T> { public int Id; }
+
+[NinoType]
+public class Tag<T> { public int Id; }
+
+[NinoType]
+public class Box<T> { public int Id; }
+
+[NinoType]
+public class TagShelf<U> : Shelf<Tag<U>> { public U Value; }
+
+[NinoType]
+public class QuietShelf<U> : Shelf<Box<U>> { public int Count; }
+
+[NinoType]
+public class Holder
+{
+    public Shelf<Tag<Action>> {|#0:Written|};
+    public Shelf<Box<Action>> NeverWritten;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Written", "System.Action", "Holder",
+                ", a type argument of 'Shelf<Tag<System.Action>>',", "writing a value of it throws")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO007_PropertiesAndInheritedMembers()
     {
         var code = @"
@@ -1105,13 +1142,13 @@ using Nino.Core;
 public struct StringFormatter : INinoFormatter<string>
 {
     public void Serialize(string value, ref Writer writer) { }
-    public void Deserialize(ref string value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref string value) { }
 }
 
 public struct IntFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
-    public void Deserialize(ref int value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
 }
 
 public class NotAFormatter
@@ -1146,26 +1183,26 @@ using Nino.Core;
 public struct IntFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
-    public void Deserialize(ref int value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
 }
 
 public struct NullableIntFormatter : INinoFormatter<int?>
 {
     public void Serialize(int? value, ref Writer writer) { }
-    public void Deserialize(ref int? value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int? value) { }
 }
 
 // A class implementing the interface is not accepted: custom formatters are inlined structs.
 public sealed class ClassIntFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
-    public void Deserialize(ref int value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
 }
 
 public struct GenericFormatter<T> : INinoFormatter<T>
 {
     public void Serialize(T value, ref Writer writer) { }
-    public void Deserialize(ref T value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref T value) { }
 }
 
 [NinoType]
@@ -1470,6 +1507,108 @@ public class TestClass
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO011").WithLocation(0).WithArguments("A", "TestClass"),
             Verify.Diagnostic("NINO011").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO030_Utf8WithoutEffect()
+    {
+        var code = @"
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [{|#0:NinoUtf8|}] public int A;
+    // A [NinoType] writes its own strings: the attribute does not reach them.
+    [{|#1:NinoUtf8|}] public Inner B;
+    [{|#2:NinoUtf8|}] [NinoMemberFormatter(typeof(Latin))] public string C;
+    [{|#3:Nino.Core.NinoUtf8Attribute|}] public Dictionary<int, long> D;
+}
+
+[NinoType]
+public class Inner
+{
+    public string S;
+}
+
+public struct Latin : INinoFormatter<string>
+{
+    public void Serialize(string value, ref Writer writer) { }
+    public void Deserialize(ref Reader reader, ref string value) { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO030").WithLocation(0).WithArguments("A", "TestClass",
+                "its type 'int' holds no string Nino writes"),
+            Verify.Diagnostic("NINO030").WithLocation(1).WithArguments("B", "TestClass",
+                "its type 'Inner' holds no string Nino writes"),
+            Verify.Diagnostic("NINO030").WithLocation(2).WithArguments("C", "TestClass",
+                "its [NinoMemberFormatter] writes it"),
+            Verify.Diagnostic("NINO030").WithLocation(3).WithArguments("D", "TestClass",
+                "its type 'System.Collections.Generic.Dictionary<int, long>' holds no string Nino writes")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO030_NotWhereTheStringsAreWritten()
+    {
+        // Strings anywhere the built-in formatters write them: alone, in collections, dictionaries, tuples, arrays.
+        var code = @"
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoUtf8] public string A;
+    [NinoUtf8] public List<string> B;
+    [NinoUtf8] public Dictionary<int, string[]> C;
+    [NinoUtf8] public (int, string) D;
+    [NinoUtf8] public string[][] E;
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO031_Utf8FormatterByHand()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [{|#0:NinoMemberFormatter(typeof(Utf8StringFormatter))|}] public string A;
+    // With [NinoUtf8] already there, only the formatter is reported (removing it is the fix).
+    [NinoUtf8] [{|#1:Nino.Core.NinoMemberFormatter(typeof(Nino.Core.Utf8StringFormatter))|}] public string B { get; set; }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO031").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO031").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO031_NotOnOtherMembers()
+    {
+        // Not a string member: Utf8StringFormatter cannot write it (NINO008), so it is not read as [NinoUtf8].
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoMemberFormatter(typeof(Utf8StringFormatter))] public int {|#0:A|};
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("Nino.Core.Utf8StringFormatter", "int", "A", "TestClass"))
+            .RunAsync();
     }
 
     [TestMethod]
@@ -1919,7 +2058,7 @@ public class UsesTag { public Tag<Vector<int>> Tagged; }
 public struct VectorFormatter : INinoFormatter<Vector<int>>
 {
     public void Serialize(Vector<int> value, ref Writer writer) { }
-    public void Deserialize(ref Vector<int> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Vector<int> value) { }
 }
 
 [NinoType]
@@ -2064,6 +2203,235 @@ public class Holder
             Nino029(8, "InRing", "Holder", "G0<System.Numerics.Vector<int>>", Vector)).RunAsync();
     }
 
+    [TestMethod]
+    [Timeout(60000)]
+    public async Task NINO029_PartsOfArgumentsSubtypesWrite()
+    {
+        // A slot holds the generic subtypes whose base matches its argument, and they write what they write of it,
+        // to any depth: TagShelf<U> : Shelf<Tag<U>> writes the X of a Shelf<Tag<X>> though Tag<T> writes nothing of
+        // its own; through a base between them (Deep<U> : Middle<U> : Shelf<Tag<U[]>>), an interface, a type nested
+        // in a generic one, a generic that passes its argument to the slot (Outer<T> { Shelf<T> S; }), and a subtype
+        // holding its base over its own parameter, which matches Tag<Tag<...>> at every depth (every type inside the
+        // argument then counts).
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+[NinoType]
+public abstract class Shelf<T> { public int Id; }
+
+[NinoType]
+public class Tag<T> { public int Id; }
+
+[NinoType]
+public class TagShelf<U> : Shelf<Tag<U>> { public U Value; }
+
+[NinoType]
+public abstract class Middle<V> : Shelf<Tag<V[]>> { }
+
+[NinoType]
+public class Deep<U> : Middle<U> { public List<U> Items; }
+
+[NinoType]
+public interface ICarrier<T> { }
+
+[NinoType]
+public class Carrier<U> : ICarrier<Dictionary<int, Tag<U>>> { public U Value; }
+
+public class Container<T>
+{
+    [NinoType]
+    public class Inner : Shelf<KeyValuePair<string, T>> { public T Value; }
+}
+
+[NinoType]
+public class Outer<T> { public Shelf<T> Inner; }
+
+[NinoType]
+public abstract class Rack<T> { public int Id; }
+
+[NinoType]
+public class SelfRack<U> : Rack<Tag<U>> { public U Value; public Rack<U> Next; }
+
+[NinoType]
+public class Holder
+{
+    public Shelf<Tag<Vector<int>>> {|#0:ThroughTag|};
+    public Shelf<Tag<Vector<int>[]>> {|#1:ThroughMiddle|};
+    public ICarrier<Dictionary<int, Tag<Vector<int>>>> {|#2:ThroughInterface|};
+    public Shelf<KeyValuePair<string, Vector<int>>> {|#3:ThroughNested|};
+    public Outer<Tag<Vector<int>>> {|#4:ThroughOuter|};
+    public Rack<Tag<Tag<Tag<Tag<Tag<Tag<Tag<Tag<Vector<int>>>>>>>>>> {|#5:AtAnyDepth|};
+}
+";
+
+        const string Vector = "System.Numerics.Vector<int>";
+        await SetUpAnalyzerTest(code,
+            Nino029(0, "ThroughTag", "Holder", "Shelf<Tag<System.Numerics.Vector<int>>>", Vector),
+            Nino029(1, "ThroughMiddle", "Holder", "Shelf<Tag<System.Numerics.Vector<int>[]>>", Vector),
+            Nino029(2, "ThroughInterface", "Holder",
+                "ICarrier<System.Collections.Generic.Dictionary<int, Tag<System.Numerics.Vector<int>>>>", Vector),
+            Nino029(3, "ThroughNested", "Holder",
+                "Shelf<System.Collections.Generic.KeyValuePair<string, System.Numerics.Vector<int>>>", Vector),
+            Nino029(4, "ThroughOuter", "Holder", "Outer<Tag<System.Numerics.Vector<int>>>", Vector),
+            Nino029(5, "AtAnyDepth", "Holder",
+                "Rack<Tag<Tag<Tag<Tag<Tag<Tag<Tag<Tag<System.Numerics.Vector<int>>>>>>>>>>", Vector)).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_NotForPartsSubtypesNeverWrite()
+    {
+        // The parts of a slot's argument no subtype writes: a subtype that writes nothing of its parameter, an
+        // argument of another shape than every subtype's base (no such subtype fits the slot), a subtype's
+        // parameter in a position of its base's argument that is matched but not written (Pair<U, int>'s int),
+        // and a sealed class, which has no subtypes.
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+[NinoType]
+public class Tag<T> { public int Id; }
+
+[NinoType]
+public class Box<T> { public T Value; }
+
+[NinoType]
+public abstract class Rack<T> { public int Id; }
+
+[NinoType]
+public class TagRack<U> : Rack<Tag<U>> { public U Value; }
+
+[NinoType]
+public class QuietRack<U> : Rack<Box<U>> { public int Count; }
+
+[NinoType]
+public abstract class Pairs<T> { public int Id; }
+
+[NinoType]
+public class FirstOnly<U, W> : Pairs<KeyValuePair<U, W>> { public U First; }
+
+[NinoType]
+public sealed class Sealed<T> { public int Id; }
+
+[NinoType]
+public class Holder
+{
+    public Rack<Box<Vector<int>>> Quiet;
+    public Rack<List<Vector<int>>> OtherShape;
+    public Rack<Tag<int>> NoVector;
+    public Pairs<KeyValuePair<int, Vector<int>>> SecondNeverWritten;
+    public Sealed<Tag<Vector<int>>> NoSubtypes;
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_OnlyArgumentsASubtypeCanBe()
+    {
+        // A slot holds a subtype only when its argument can be what the subtype gives its base: a parameter the base
+        // names twice (Same<U> : Shelf<KeyValuePair<U, U>>, TwinOf<U> : Twin<U, U>) stands for one type in every
+        // place, and a fixed type (Fixed<U> : Shelf<KeyValuePair<int, U[]>>) must be that type. Arguments no
+        // subtype can be are not searched.
+        var code = @"
+using System.Collections.Generic;
+using System.Numerics;
+using Nino.Core;
+
+[NinoType]
+public abstract class Shelf<T> { public int Id; }
+
+[NinoType]
+public class Same<U> : Shelf<KeyValuePair<U, U>> { public U Value; }
+
+[NinoType]
+public class Fixed<U> : Shelf<KeyValuePair<int, U[]>> { public U[] Values; }
+
+[NinoType]
+public abstract class Twin<A, B> { public int Id; }
+
+[NinoType]
+public class TwinOf<U> : Twin<U, U> { public U Value; }
+
+[NinoType]
+public class Holder
+{
+    public Shelf<KeyValuePair<Vector<int>, Vector<int>>> {|#0:SameFits|};
+    public Shelf<KeyValuePair<int, Vector<int>[]>> {|#1:FixedFits|};
+    public Twin<Vector<int>, Vector<int>> {|#2:TwinFits|};
+    public Shelf<KeyValuePair<long, Vector<int>[]>> NeitherFits;
+    public Shelf<KeyValuePair<int, Vector<int>>> NotTheSame;
+    public Twin<int, Vector<int>> TwinNeverHolds;
+}
+";
+
+        const string Vector = "System.Numerics.Vector<int>";
+        await SetUpAnalyzerTest(code,
+            Nino029(0, "SameFits", "Holder",
+                "Shelf<System.Collections.Generic.KeyValuePair<System.Numerics.Vector<int>, System.Numerics.Vector<int>>>", Vector),
+            Nino029(1, "FixedFits", "Holder",
+                "Shelf<System.Collections.Generic.KeyValuePair<int, System.Numerics.Vector<int>[]>>", Vector),
+            Nino029(2, "TwinFits", "Holder", "Twin<System.Numerics.Vector<int>, System.Numerics.Vector<int>>", Vector))
+            .RunAsync();
+    }
+
+    [TestMethod]
+    public void NINO029_AcrossAssemblies()
+    {
+        // A referenced class's private members are not in its symbols (a compilation imports only public and
+        // protected members of referenced classes): its published layout names them, so Hidden<Vector<int>> is
+        // reported and Quiet<Vector<int>>, whose private T is not serialized, is not. A subtype in another referenced
+        // assembly that references the base's writes the part of the argument it matches.
+        var contracts = CornerCompiler.Compile(@"
+using Nino.Core;
+
+namespace Contracts
+{
+    [NinoType] public abstract class Shelf<T> { public int Id; }
+    [NinoType] public class Tag<T> { public int Id; }
+    [NinoType(includeNonPublicMembers: true)] public partial class Hidden<T> { public int Id; private T _value; }
+    [NinoType] public class Quiet<T> { public int Id; [NinoIgnore] private T _scratch; }
+    [NinoType] public class Visible<T> { public T Value; }
+}
+", load: false);
+        Assert.AreEqual("", contracts.ErrorText);
+        var shelves = CornerCompiler.CompileAgainst(@"
+using Nino.Core;
+using Contracts;
+
+namespace Shelves
+{
+    [NinoType] public class TagShelf<U> : Shelf<Tag<U>> { public U Value; }
+}
+", contracts);
+        Assert.AreEqual("", shelves.ErrorText);
+        var app = CornerCompiler.CompileAgainst(@"
+using System.Numerics;
+using Nino.Core;
+using Contracts;
+
+namespace App
+{
+    [NinoType]
+    public class Holder
+    {
+        public Shelf<Tag<Vector<int>>> InSubtype;
+        public Hidden<Vector<int>> InPrivate;
+        public Visible<Vector<int>> InPublic;
+        public Quiet<Vector<int>> NotWritten;
+        public Tag<Vector<int>> NotWrittenEither;
+    }
+}
+", contracts, shelves);
+        var reported = app.AnalyzerDiagnostics.Where(d => d.Id == "NINO029")
+            .Select(d => d.GetMessage().Split(' ')[1]).OrderBy(m => m).ToArray();
+        CollectionAssert.AreEqual(new[] { "'InPrivate'", "'InPublic'", "'InSubtype'" }, reported,
+            string.Join("\n", app.AnalyzerDiagnostics));
+    }
+
     /// <summary>A NINO029 on a formatter or a call used by hand: its value <paramref name="value"/>.</summary>
     private static DiagnosticResult Nino029ByHand(int location, string what, string value, string vector = null) =>
         Verify.Diagnostic("NINO029").WithLocation(location).WithArguments(what, value,
@@ -2095,15 +2463,17 @@ public static class ByHand
     public static void Run(ref Writer writer, ref Reader reader, Vector<int> v, Raw raw)
     {
         {|#1:new UnmanagedFormatter<Vector<int>>()|}.Serialize(v, ref writer);
-        UnmanagedFormatter<Raw> f = {|#2:default|};
+        Take({|#2:default(UnmanagedFormatter<Raw>)|});
         {|#3:default(ArrayFormatter<Vector<int>, UnmanagedFormatter<Vector<int>>>)|}.Serialize(null, ref writer);
-        var list = {|#4:new UnmanagedListFormatter<List<Raw>, Raw>()|};
+        Take({|#4:new UnmanagedListFormatter<List<Raw>, Raw>()|});
         {|#5:writer.Write(v)|};
         {|#6:writer.Write(new[] { raw })|};
         {|#7:reader.Read(out Vector<long> back)|};
         {|#8:reader.Read<Raw>()|};
         {|#9:NinoDirect.Serialize<Vector<int>, UnmanagedFormatter<Vector<int>>>(v)|};
     }
+
+    private static void Take<T>(T formatter) { }
 }
 ";
 
@@ -2122,6 +2492,96 @@ public static class ByHand
     }
 
     [TestMethod]
+    public async Task NINO029_FormattersHeldInFieldsPropertiesAndLocals()
+    {
+        // A formatter struct is ready to use without a constructor call: a field, property or local of one is reported
+        // at its declaration, once, whether or not a new or default fills it (that value is not reported again).
+        var code = @"
+using System.Numerics;
+using Nino.Core;
+
+public struct Raw { public int A; public Vector<int> V; }
+
+[NinoType]
+public class Stored
+{
+    [NinoIgnore] public UnmanagedFormatter<Vector<int>> {|#7:Ignored|};
+    public UnmanagedFormatter<Vector<int>> {|#8:Written|};
+}
+
+public class Cache
+{
+    private static readonly UnmanagedFormatter<Vector<int>> {|#0:Lanes|};
+    private UnmanagedFormatter<Raw> {|#1:Raws|} = new UnmanagedFormatter<Raw>();
+    public static UnmanagedArrayFormatter<Vector<long>> {|#2:Arrays|} { get; } = default;
+    private ArrayFormatter<Vector<int>, UnmanagedFormatter<Vector<int>>> {|#3:Nested|};
+
+    public Cache() => Raws = default;
+
+    public void Run(ref Writer writer, Vector<int> v)
+    {
+        Lanes.Serialize(v, ref writer);
+        UnmanagedFormatter<Vector<short>> {|#4:local|};
+        local.Serialize(default, ref writer);
+        var {|#5:made|} = new UnmanagedFormatter<Vector<byte>>();
+        made = new UnmanagedFormatter<Vector<byte>>();
+        {|#6:new UnmanagedFormatter<Vector<byte>>()|}.Serialize(default, ref writer);
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Nino029ByHand(0, "The UnmanagedFormatter<T> in 'Cache.Lanes'", "System.Numerics.Vector<int>"),
+            Nino029ByHand(1, "The UnmanagedFormatter<T> in 'Cache.Raws'", "Raw", "System.Numerics.Vector<int>"),
+            Nino029ByHand(2, "The UnmanagedArrayFormatter<T> in 'Cache.Arrays'", "System.Numerics.Vector<long>"),
+            Nino029ByHand(3, "The ArrayFormatter<T, TFormatter> in 'Cache.Nested'", "System.Numerics.Vector<int>"),
+            Nino029ByHand(4, "The UnmanagedFormatter<T> in 'local'", "System.Numerics.Vector<short>"),
+            Nino029ByHand(5, "The UnmanagedFormatter<T> in 'made'", "System.Numerics.Vector<byte>"),
+            Nino029ByHand(6, "The value of this UnmanagedFormatter<T>", "System.Numerics.Vector<byte>"),
+            Nino029ByHand(7, "The UnmanagedFormatter<T> in 'Stored.Ignored'", "System.Numerics.Vector<int>"),
+            // A serialized member: the member rule's diagnostic alone.
+            Nino029(8, "Written", "Stored", "Nino.Core.UnmanagedFormatter<System.Numerics.Vector<int>>",
+                "System.Numerics.Vector<int>")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO029_NotForFormattersHeldOverOtherTypes()
+    {
+        // Fields, properties and locals of Nino.Core formatters over fixed-size vectors, of the user's own Vector<T>
+        // formatter and of a collection formatter over it, and of a generic formatter over a type parameter.
+        var code = @"
+using System.Numerics;
+using System.Runtime.Intrinsics;
+using Nino.Core;
+
+public struct VectorFormatter : INinoFormatter<Vector<int>>
+{
+    public void Serialize(Vector<int> value, ref Writer writer) { }
+    public void Deserialize(ref Reader reader, ref Vector<int> value) { }
+}
+
+public class Cache<T> where T : unmanaged
+{
+    private static readonly UnmanagedFormatter<Vector128<int>> Fixed;
+    private VectorFormatter Own;
+    public ArrayFormatter<Vector<int>, VectorFormatter> OverOwn { get; set; }
+    private UnmanagedFormatter<T> Open;
+    private UnmanagedFormatter<Vector4> Four = new UnmanagedFormatter<Vector4>();
+
+    public void Run(ref Writer writer)
+    {
+        UnmanagedFormatter<long> local;
+        local.Serialize(1, ref writer);
+        Vector<int> zero = default;
+        Own.Serialize(zero, ref writer);
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO029_NotForOtherFormattersByHand()
     {
         // Fixed-size vectors and Vector4 through the same calls, a collection formatter over the user's own
@@ -2137,7 +2597,7 @@ using Nino.Core.CompilerServices;
 public struct VectorFormatter : INinoFormatter<Vector<int>>
 {
     public void Serialize(Vector<int> value, ref Writer writer) { }
-    public void Deserialize(ref Vector<int> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Vector<int> value) { }
 }
 
 public struct Box<T> { public T Value; }
@@ -2978,7 +3438,7 @@ public sealed class Box<T> { public T Value; }
 public class ClassFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
-    public void Deserialize(ref int value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
 }
 
 public struct NotAFormatter { }
@@ -2986,20 +3446,20 @@ public struct NotAFormatter { }
 public struct BoxFormatter<T, TF> : INinoFormatter<Box<T>> where TF : struct, INinoFormatter<T>
 {
     public void Serialize(Box<T> value, ref Writer writer) { }
-    public void Deserialize(ref Box<T> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Box<T> value) { }
 }
 
 public struct Uninferable<T, TExtra> : INinoFormatter<Box<T>>
 {
     public void Serialize(Box<T> value, ref Writer writer) { }
-    public void Deserialize(ref Box<T> value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref Box<T> value) { }
 }
 
 public struct AnyListFormatter<TList, T, TF> : INinoFormatter<TList>
     where TList : class, IEnumerable<T> where TF : struct, INinoFormatter<T>
 {
     public void Serialize(TList value, ref Writer writer) { }
-    public void Deserialize(ref TList value, ref Reader reader) { }
+    public void Deserialize(ref Reader reader, ref TList value) { }
 }
 ";
 

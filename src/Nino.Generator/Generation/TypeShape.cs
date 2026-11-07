@@ -20,16 +20,16 @@ internal sealed class TypeShape
         Options = attr;
         Generic = TypeNames.AllTypeArguments(type).Count != 0;
         Tracked = TypeRules.IsTracked(type);
-        Tolerant = facts.IsTolerant(attr);
+        Format = attr.Format;
         GeneratedHere = facts.Visibility.IsGeneratedHere(type);
         RawStruct = facts.Raw.IsRawStruct(type);
         if (Kind is not (FormatterKind.Class or FormatterKind.SealedClass))
             return;
         Collection = facts.Resolver.ResolveCollection(type);
         MembersOpenBodies = facts.Members.Of(type, attr).Any(member =>
-            NinoSymbols.Has(member, facts.Symbols.CustomFormatter) ||
+            facts.Symbols.HasCustomFormatter(member) ||
             MemberCollector.MemberType(member) is { } memberType &&
-            facts.Resolver.Resolve(memberType, NinoSymbols.Has(member, facts.Symbols.Utf8)) is { OpensBodies: true });
+            facts.Resolver.Resolve(memberType, facts.Symbols.WritesUtf8(member)) is { OpensBodies: true });
     }
 
     public FormatterKind Kind { get; }
@@ -46,10 +46,13 @@ internal sealed class TypeShape
     /// <summary>Whether objects of it are written with a reference header: tracked, and not a struct.</summary>
     public bool TrackReferences => Tracked && Kind != FormatterKind.Struct;
 
-    /// <summary>Version tolerant: so marked, or WEAK_VERSION_TOLERANCE (<see cref="TypeFacts.IsTolerant"/>).</summary>
-    public bool Tolerant { get; }
+    /// <summary>The format it is written in (its <c>[NinoType]</c>'s, its own or inherited).</summary>
+    public NinoFormat Format { get; }
 
-    public bool Keyed => Options.Keyed;
+    /// <summary>Version tolerant: <see cref="NinoFormat.VersionTolerant"/>.</summary>
+    public bool Tolerant => Format == NinoFormat.VersionTolerant;
+
+    public bool Keyed => Format == NinoFormat.Keyed;
 
     /// <summary>Whether its formatter is generated in this compilation.</summary>
     public bool GeneratedHere { get; }

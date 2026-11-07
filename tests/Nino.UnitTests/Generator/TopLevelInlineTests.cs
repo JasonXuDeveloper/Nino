@@ -11,8 +11,8 @@ namespace Nino.UnitTests;
 
 /// <summary>
 /// Sealed classes that nest nothing get a <c>__Top</c> twin of their formatter, which the interceptors of top-level
-/// calls use: no depth check, and a small body is inlined into the caller. This assembly defines
-/// WEAK_VERSION_TOLERANCE (no type here has one), so the types are compiled here, and their bytes and reads through
+/// calls use: no depth check, and a small body is inlined into the caller. Positional types: they are compiled here
+/// (this assembly's types are version tolerant, and no such type has one), and their bytes and reads through
 /// <c>__Top</c> compared with the regular formatter's.
 /// </summary>
 [TestClass]

@@ -80,7 +80,14 @@ namespace Nino.Core
             if (ConcurrentTables.Plan<TKey, TValue>.Builds)
                 return CreateConcurrentBuilt(length, ref reader);
             if (ConcurrentTables.Plan<TKey, TValue>.Walks)
-                return CreateConcurrentWalked(length, ref reader);
+            {
+                // Where the table can be read but not built: a pair at a time through TryAdd (a lock per pair), each
+                // key's bucket walked after it is added.
+                var walked = ConcurrentTables.Create<TKey, TValue>(length);
+                ReadConcurrent(walked, length, ref reader);
+                return walked;
+            }
+
             var pairs = NinoCollections.ReadPairsRented<TKey, TValue, TKeyFormatter, TValueFormatter>(length,
                 ref reader);
             try
@@ -124,8 +131,8 @@ namespace Nino.Core
             {
                 TKey key = default;
                 TValue item = default;
-                default(TKeyFormatter).Deserialize(ref key, ref local);
-                default(TValueFormatter).Deserialize(ref item, ref local);
+                default(TKeyFormatter).Deserialize(ref local, ref key);
+                default(TValueFormatter).Deserialize(ref local, ref item);
                 if (key == null)
                     NinoThrow.NullKey(concurrent);
                 if (nodes == IntPtr.Zero)
@@ -138,33 +145,6 @@ namespace Nino.Core
                 }
                 else if (!builder.Add(key, item))
                     NinoThrow.DuplicateKey(concurrent.GetType());
-            }
-
-            local.CopyTo(ref reader);
-            return concurrent;
-        }
-
-        /// <summary>
-        /// Where the table can be read but not built: a pair at a time through TryAdd (a lock per pair), each key's
-        /// bucket walked after it is added.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ConcurrentDictionary<TKey, TValue> CreateConcurrentWalked(int length, ref Reader reader)
-        {
-            var concurrent = ConcurrentTables.Create<TKey, TValue>(length);
-            Reader local = default;
-            reader.CopyTo(ref local);
-            for (int i = 0; i < length; i++)
-            {
-                TKey key = default;
-                TValue item = default;
-                default(TKeyFormatter).Deserialize(ref key, ref local);
-                default(TValueFormatter).Deserialize(ref item, ref local);
-                if (key == null)
-                    NinoThrow.NullKey(concurrent);
-                if (!concurrent.TryAdd(key, item))
-                    NinoThrow.DuplicateKey(concurrent.GetType());
-                ConcurrentTables.Walk(concurrent, key);
             }
 
             local.CopyTo(ref reader);
@@ -225,8 +205,8 @@ namespace Nino.Core
             {
                 TKey key = default;
                 TValue item = default;
-                default(TKeyFormatter).Deserialize(ref key, ref local);
-                default(TValueFormatter).Deserialize(ref item, ref local);
+                default(TKeyFormatter).Deserialize(ref local, ref key);
+                default(TValueFormatter).Deserialize(ref local, ref item);
                 if (key == null)
                     NinoThrow.NullKey(concurrent);
                 if (!concurrent.TryAdd(key, item))

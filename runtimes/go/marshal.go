@@ -183,7 +183,7 @@ func lookupRegisteredType(t reflect.Type) *registered {
 }
 
 // Register registers types that interface fields may hold, by a value of each: a nil pointer (*Dog)(nil) for a
-// class, a zero value Circle{} for a struct. Each type's id is its layout's typeId or its NinoTypeID. The plan of
+// class, a zero value Circle{} for a struct. Each type's id is its layout's id or its NinoTypeID. The plan of
 // each type is built and checked now. Registering a type again is a no-op; two types with one id are an error.
 func Register(values ...any) error {
 	for _, v := range values {
@@ -203,7 +203,7 @@ func Register(values ...any) error {
 			return err
 		}
 		if c.plan == nil || !c.plan.hasID {
-			return &TagError{Type: t, Detail: "no type id: declare typeId in NinoLayout, implement NinoTypeID, or use RegisterID"}
+			return &TagError{Type: t, Detail: "no type id: declare id in NinoLayout, implement NinoTypeID, or use RegisterID"}
 		}
 		if err := RegisterID(c.plan.id, v); err != nil {
 			return err
@@ -213,7 +213,7 @@ func Register(values ...any) error {
 }
 
 // RegisterID is [Register] of one type under the id given (for a closed generic type, whose layout publishes
-// typeId 0: its id is TypeID of its .NET name).
+// id 0: its id is TypeID of its .NET name).
 func RegisterID(id int32, v any) error {
 	t := reflect.TypeOf(v)
 	if t == nil {

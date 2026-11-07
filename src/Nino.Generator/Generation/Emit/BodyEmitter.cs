@@ -79,7 +79,7 @@ internal sealed class BodyEmitter
     private IEnumerable<MemberModel> OwnMembers => Delegates ? _m.Members.Skip(_m.Inheritance.BaseMemberCount) : _m.Members;
 
     private string Formatter(MemberModel member) =>
-        _names.Use(_mode.Shallow ? member.ShallowFormatter : member.Formatter);
+        (_mode.Shallow ? member.ShallowFormatter : member.Formatter).ToString();
 
     private string CollectionFormatter
     {
@@ -158,7 +158,8 @@ internal sealed class BodyEmitter
             return $"public void {name}({forwarded})";
         string body = "__" + name;
         string target = _m.InlineBody ? body + "Inline" : body;
-        _w.Line($"public void {name}({forwarded}) => {target}({value}, ref {(write ? "writer" : "reader")});");
+        // Reads take the reader first, writes the value first, as the formatter interfaces do.
+        _w.Line($"public void {name}({forwarded}) => {target}({(write ? $"{value}, ref writer" : "ref reader, ref value")});");
         _w.Line();
         if (_m.InlineBody)
         {
@@ -171,7 +172,7 @@ internal sealed class BodyEmitter
             return $"private static void {body}({parameters})";
         // The members are written or read by the inlinable twin (__Top's, or one made for this), through the local.
         _w.Block($"private static void {body}({parameters})", () => OnLocalCopy(_w, reader: !write,
-            () => _w.Line($"{body}Inline({value}, ref {(write ? "__w" : "__r")});")));
+            () => _w.Line($"{body}Inline({(write ? $"{value}, ref __w" : "ref __r, ref value")});")));
         _w.Line();
         _w.Line(_names.Inline);
         return $"private static void {body}Inline({parameters})";
@@ -290,10 +291,10 @@ internal sealed class BodyEmitter
             return;
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Line($"internal static void WriteMembers({Signature.WriteParameters(T)}) => default({self}).WriteBody(value, ref writer);");
+        _w.Line($"{Signature.WriteMembers(T)} => default({self}).WriteBody(value, ref writer);");
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Block($"internal static void ReadMembers({T} value, ref {Core}Reader reader)",
+        _w.Block(Signature.ReadMembers(T),
             () => EmitMemberReads("reader", inPlace: true, eof: "return;"));
     }
 
@@ -302,11 +303,11 @@ internal sealed class BodyEmitter
     {
         // Inlined so the writer/reader state stays in registers across levels, as if the members were written inline.
         _w.Line(_names.Inline);
-        _w.Block($"internal static void WriteMembers({Signature.WriteParameters(T)})", EmitMemberWrites);
+        _w.Block(Signature.WriteMembers(T), EmitMemberWrites);
         _w.Line();
         _w.Line(_names.Inline);
         // Version tolerant: reading the region of the type that called it, which may end before any member.
-        _w.Block($"internal static void ReadMembers({T} value, ref {Core}Reader reader)",
+        _w.Block(Signature.ReadMembers(T),
             () => EmitMemberReads("reader", inPlace: true, eof: "return;"));
     }
 
@@ -335,7 +336,7 @@ internal sealed class BodyEmitter
             else if (member.Raw != null)
                 symbolic.Add(member.Raw.Expression);
             else if (IsBlockItem(member))
-                symbolic.Add($"{CoreCompilerServices}NinoBlocks.Size<{member.TypeName}, {Formatter(member)}>()");
+                symbolic.Add($"{CoreCompilerServices}NinoBlocks.FixedSize<{member.TypeName}, {Formatter(member)}>()");
             else
                 symbolic.Add($"default({Formatter(member)}).FixedSize");
         }
@@ -368,7 +369,7 @@ internal sealed class BodyEmitter
             string formatter = Formatter(member);
             string at = $"ref {CoreCompilerServices}NinoUnsafe.Add(ref destination, {offset})";
             lines.Add(IsBlockItem(member)
-                ? $"{CoreCompilerServices}NinoBlocks.Write<{member.TypeName}, {formatter}>({Get(_m, member, "value")}, {at});"
+                ? $"{CoreCompilerServices}NinoBlocks.WriteFixed<{member.TypeName}, {formatter}>({Get(_m, member, "value")}, {at});"
                 : $"default({formatter}).WriteFixed({Get(_m, member, "value")}, {at});");
         }
 
@@ -448,7 +449,7 @@ internal sealed class BodyEmitter
                     continue;
                 }
 
-                string read = $"{CoreCompilerServices}NinoBlocks.Read<{member.TypeName}, {Formatter(member)}>(ref ";
+                string read = $"{CoreCompilerServices}NinoBlocks.ReadBlock<{member.TypeName}, {Formatter(member)}>(ref ";
                 string at = $", ref {CoreCompilerServices}NinoUnsafe.Add(ref source, {offset}));";
                 if (Ref(_m, member, "value") is { } field)
                 {
@@ -733,19 +734,19 @@ internal sealed class BodyEmitter
         {
             _w.Line($"var __p = {T}.RentFromNinoPool();");
             _w.Open("if (__p == null)");
-            _w.Line($"{body}Fresh(ref value, ref reader);");
+            _w.Line($"{body}Fresh(ref reader, ref value);");
             _w.Line("return;");
             _w.Close();
             _w.Line("value = __p;");
         }
         else
         {
-            _w.Line($"{body}Fresh(ref value, ref reader);");
+            _w.Line($"{body}Fresh(ref reader, ref value);");
             _w.Line("return;");
         }
 
         _w.Close();
-        _w.Line($"{body}(ref value, ref reader);");
+        _w.Line($"{body}(ref reader, ref value);");
     }
 
     private void EmitSplitReadBody()
@@ -774,7 +775,7 @@ internal sealed class BodyEmitter
         {
             // The new-instance read is also __ReadTop's: inlinable, called here on a local copy of the reader.
             _w.Block($"private static void {body}Fresh({parameters})",
-                () => OnLocalCopy(_w, reader: true, () => _w.Line($"{body}FreshInline(ref value, ref __r);")));
+                () => OnLocalCopy(_w, reader: true, () => _w.Line($"{body}FreshInline(ref __r, ref value);")));
             _w.Line();
             _w.Line(_names.Inline);
             _w.Open($"private static void {body}FreshInline({parameters})");
@@ -823,7 +824,7 @@ internal sealed class BodyEmitter
             r = BeginRegionRead(r);
         if (_m.IsCollection)
         {
-            _w.Line($"default({CollectionFormatter}).Deserialize(ref value, ref {r});");
+            _w.Line($"default({CollectionFormatter}).Deserialize(ref {r}, ref value);");
             // The elements are the object: a count of -1 (null) would leave nothing to read the members into.
             _w.Line($"{CoreCompilerServices}NinoObject.EnsureElements(value);");
         }
@@ -832,7 +833,7 @@ internal sealed class BodyEmitter
             r = BeginRegionRead(r);
 
         if (_m.Inheritance.EmitMembers && !_mode.Shallow && !_mode.Fresh)
-            _w.Line($"ReadMembers({_mode.Target}, ref {r});");
+            _w.Line($"ReadMembers(ref {r}, {_mode.Target});");
         else
             EmitMemberReads(r, inPlace: true, eof: $"goto {EndLabel};");
 
@@ -922,7 +923,7 @@ internal sealed class BodyEmitter
         bool delegates = inPlace && Delegates;
         var members = inPlace ? OwnMembers : _m.Members;
         if (delegates)
-            _w.Line($"{BaseFormatter}.ReadMembers({_mode.Target}, ref {r});");
+            _w.Line($"{BaseFormatter}.ReadMembers(ref {r}, {_mode.Target});");
 
         if (_m.Keyed)
         {
@@ -1001,6 +1002,19 @@ internal sealed class BodyEmitter
 
         // An existing instance's string is passed in, and kept when unchanged; a new instance's is null.
         bool existing = inPlace && !(_mode.Fresh && member.Fresh);
+        if (existing && member.IsString && member.PlainStore)
+        {
+            // An unchanged string (kept by the read) is not stored again: a store into an existing object is a write
+            // barrier call. Only where the store does nothing else (a field, an auto-property's setter).
+            _w.Open();
+            _w.Line($"var __c = {Get(_m, member, _mode.Target)};");
+            _w.Line($"var __s = {DirectRead(member, r, "__c")};");
+            _w.Line("if (!object.ReferenceEquals(__s, __c))");
+            _w.Line("    " + Set(_m, member, _mode.Target, "__s"));
+            _w.Close();
+            return;
+        }
+
         var direct = DirectRead(member, r, existing ? Get(_m, member, _mode.Target) : null);
         if (direct != null)
         {
@@ -1011,7 +1025,7 @@ internal sealed class BodyEmitter
         string formatter = Formatter(member);
         if (!inPlace)
         {
-            _w.Line($"default({formatter}).Deserialize(ref {Local(member)}, ref {r});");
+            _w.Line($"default({formatter}).Deserialize(ref {r}, ref {Local(member)});");
             return;
         }
 
@@ -1021,7 +1035,7 @@ internal sealed class BodyEmitter
             // so its reuse path folds away; then stored.
             _w.Open();
             _w.Line($"{member.TypeName} __t = null;");
-            _w.Line($"default({formatter}).Deserialize(ref __t, ref {r});");
+            _w.Line($"default({formatter}).Deserialize(ref {r}, ref __t);");
             _w.Line(Set(_m, member, _mode.Target, "__t"));
             _w.Close();
             return;
@@ -1030,14 +1044,14 @@ internal sealed class BodyEmitter
         var reference = Ref(_m, member, _mode.Target);
         if (reference != null)
         {
-            _w.Line($"default({formatter}).Deserialize(ref {reference}, ref {r});");
+            _w.Line($"default({formatter}).Deserialize(ref {r}, ref {reference});");
             return;
         }
 
         // Properties: read through a local so the existing instance is reused, then assign it back.
         _w.Open();
         _w.Line($"var __t = {Get(_m, member, _mode.Target)};");
-        _w.Line($"default({formatter}).Deserialize(ref __t, ref {r});");
+        _w.Line($"default({formatter}).Deserialize(ref {r}, ref __t);");
         _w.Line(Set(_m, member, _mode.Target, "__t"));
         _w.Close();
     }
@@ -1091,6 +1105,7 @@ internal sealed class BodyEmitter
         _w.Line($"var __m = {r}.ReadRegion();");
         if (members.Count != 0)
         {
+            // A member's value fills its entry exactly; an unknown member is skipped with its entry.
             _w.Open("switch (__key)");
             foreach (var member in members)
             {
@@ -1098,14 +1113,17 @@ internal sealed class BodyEmitter
                 // Data written before a [NinoFormerName] rename; writes always use the current name.
                 foreach (int formerKey in member.FormerKeys)
                     _w.Line($"case {formerKey}:");
-                _w.Open();
-                EmitMemberRead(member, "__m", inPlace);
-                _w.Line($"{r}.EndMember(in __m);");
-                _w.Line("break;");
-                _w.Close();
+                _w.Indented(() =>
+                {
+                    EmitMemberRead(member, "__m", inPlace);
+                    _w.Line("break;");
+                });
             }
 
+            _w.Line("default:");
+            _w.Indented(() => _w.Line("continue;"));
             _w.Close();
+            _w.Line($"{r}.EndMember(in __m);");
         }
 
         _w.Close();

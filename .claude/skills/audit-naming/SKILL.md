@@ -30,6 +30,12 @@ A name is the first doc a reader sees.
 - **Call sites**: does it read well in the docs' examples and the tests?
 - **History**: a name that no longer matches what the code does after a refactor; a file not named after the type or
   concern inside.
+- **Inherited names**: a new member name must not hide one of its base's: renaming `NinoTypeLayoutAttribute.Id` to
+  `TypeId` hid `System.Attribute.TypeId` (CS0114; through an `Attribute` reference `TypeId` is the attribute's
+  identity object, not the id), found only at the build of the rename; the owner kept `Id` and renamed the
+  constructor parameter and the layout text to `id` instead (r128 A11). Check the base's members (`Attribute`:
+  `TypeId`, `Match`, `IsDefaultAttribute`) before proposing. An enum alias (two names, one value) makes
+  `Enum.ToString` name either: text written from the enum spells its names out.
 
 ## Output and applying
 
@@ -52,3 +58,9 @@ A name is the first doc a reader sees.
   bytecode length (V8 inlines by bytecode size, and a method's name is a constant-pool entry, not bytes). Rust
   constants and file moves leave no trace in the machine code. Round 102 (Rust `INLINE_DEPTH`/`MAX_DEPTH`,
   TypeScript `beginRegion`/`exitBody`): 1,584 functions, 146,729 bytes before and after.
+- Reorder parameters across the code base with a Roslyn rewriter, never `sed`: swap the declarations' pairs, then
+  only the calls of methods so declared (an unrelated `(ref a, ref r)` of one type would swap silently), and run
+  it once per preprocessor configuration (.NET, netstandard, `NINO_GENERATOR`, Unity): code under an inactive
+  `#if` is trivia to the parser. The compiler finds the rest (a reader named `local`, `deep` or `this`); the
+  emitters' text and the tests' source strings are done by hand. Round 128's reader-first formatters: 118
+  declarations, 152 calls by the tool, about 40 by hand.

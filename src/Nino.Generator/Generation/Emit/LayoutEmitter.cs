@@ -16,11 +16,11 @@ internal static class LayoutEmitter
 {
     public static string Emit(TypeModel m)
     {
-        string format = m.Keyed ? "Keyed" : m.VersionTolerant ? "VersionTolerant" : "Positional";
+        string format = m.Format.ToString();
         string header = m.Kind switch
         {
             FormatterKind.Struct => "None",
-            FormatterKind.SealedClass => "NullFlag",
+            FormatterKind.SealedClass => "Presence",
             _ => "TypeId",
         };
         return $"[assembly: {Core}NinoTypeLayout(typeof({m.OpenTypeName}), {Core}NinoFormat.{format}, " +

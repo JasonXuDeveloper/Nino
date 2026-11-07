@@ -98,7 +98,7 @@ namespace Nino.CodeGen
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        public void Deserialize(ref {type} value, ref Reader reader)\n");
+            sb.Append($"        public void Deserialize(ref Reader reader, ref {type} value)\n");
             sb.Append("        {\n");
             if (arity > 1)
             {
@@ -113,10 +113,10 @@ namespace Nino.CodeGen
             }
 
             foreach (int i in Items(arity))
-                sb.Append($"            default(TF{i}).Deserialize(ref value.Item{i}, ref reader);\n");
+                sb.Append($"            default(TF{i}).Deserialize(ref reader, ref value.Item{i});\n");
             sb.Append("        }\n");
             sb.Append("\n");
-            string allRaw = arity > 1 ? AllRaw(arity) : "RawFormatter.Is<T1, TF1>()";
+            string allRaw = AllRaw(arity), notAllRaw = arity > 1 ? $"!({allRaw})" : "!" + allRaw;
             sb.Append($"        int INinoFixedSizeFormatter<{type}>.FixedSize\n");
             sb.Append("        {\n");
             sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
@@ -125,7 +125,7 @@ namespace Nino.CodeGen
             sb.Append("\n");
             sb.Append($"        NinoBlockMap INinoBlockFormatter<{type}>.BlockMap()\n");
             sb.Append("        {\n");
-            sb.Append($"            if (!({allRaw}))\n");
+            sb.Append($"            if ({notAllRaw})\n");
             sb.Append("                return null;\n");
             sb.Append($"            var value = default({type});\n");
             sb.Append("            return new NinoBlockMap()");
@@ -174,10 +174,10 @@ namespace Nino.CodeGen
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        public void Deserialize(ref {type} value, ref Reader reader)\n");
+            sb.Append($"        public void Deserialize(ref Reader reader, ref {type} value)\n");
             sb.Append("        {\n");
             foreach (int i in Items(arity))
-                sb.Append($"            default(TF{i}).Deserialize(ref value.{(i == arity ? "Rest" : $"Item{i}")}, ref reader);\n");
+                sb.Append($"            default(TF{i}).Deserialize(ref reader, ref value.{(i == arity ? "Rest" : $"Item{i}")});\n");
             sb.Append("        }\n");
             sb.Append("    }\n");
         }
@@ -198,7 +198,7 @@ namespace Nino.CodeGen
                 sb.Append($"            default(TF{i}).Serialize(value.Item{i}, ref writer);\n");
             sb.Append("        }\n");
             sb.Append("\n");
-            sb.Append($"        public void Deserialize(ref {type} value, ref Reader reader)\n");
+            sb.Append($"        public void Deserialize(ref Reader reader, ref {type} value)\n");
             sb.Append("        {\n");
             sb.Append("            if (!reader.TryReadPresent(ref value))\n");
             sb.Append("                return;\n");
@@ -207,7 +207,7 @@ namespace Nino.CodeGen
             foreach (int i in Items(arity))
             {
                 sb.Append($"            T{i} item{i} = default;\n");
-                sb.Append($"            default(TF{i}).Deserialize(ref item{i}, ref reader);\n");
+                sb.Append($"            default(TF{i}).Deserialize(ref reader, ref item{i});\n");
             }
 
             sb.Append($"            NinoRecycler.Replace(ref value, new {type}({List(arity, "item{0}")}));\n");

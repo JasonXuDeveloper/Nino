@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Nino.Core;
 
-// Deeply nested types without WEAK_VERSION_TOLERANCE (no regions): their deferred bodies follow the top-level
+// Deeply nested positional types (no regions): their deferred bodies follow the top-level
 // object instead of a region's section.
 namespace Nino.UnitTests.Subset.Deep
 {

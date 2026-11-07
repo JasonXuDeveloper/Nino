@@ -225,7 +225,7 @@ namespace Nino.Core.CompilerServices
                 return NinoUntrusted.Read<T, TFormatter>(data);
             var reader = new Reader(data);
             T value = default;
-            default(TFormatter).Deserialize(ref value, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref value);
             reader.ReleaseReferences();
             return value;
         }
@@ -278,20 +278,20 @@ namespace Nino.Core.CompilerServices
             }
 
             var reader = new Reader(data);
-            default(TFormatter).Deserialize(ref value, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref value);
             reader.ReleaseReferences();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Deserialize<T, TFormatter>(ref T value, ref Reader reader)
+        public static void Deserialize<T, TFormatter>(ref Reader reader, ref T value)
             where TFormatter : struct, INinoFormatter<T> =>
-            default(TFormatter).Deserialize(ref value, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>
         {
             T value = default;
-            Deserialize<T, TFormatter>(ref value, ref reader);
+            Deserialize<T, TFormatter>(ref reader, ref value);
             return value;
         }
     }

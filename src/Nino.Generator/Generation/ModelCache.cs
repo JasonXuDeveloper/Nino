@@ -17,9 +17,11 @@ namespace Nino.Generator.Generation;
 /// model stays valid while every tree it depends on is still part of the compilation.
 /// </para>
 /// <para>
-/// The top-level <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls are bound again on every change too, and are
-/// cached the same way by file and position (<see cref="GetOrBuildCall"/>): what a call registers and how it is
-/// intercepted depends on its own tree (its location), the method it binds to, and the trees of the type it names.
+/// The top-level <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls are cached by file and position
+/// (<see cref="GetOrBuildCall"/>): what a call registers and how it is intercepted depends on its own tree (its
+/// location), the method it binds to, and the declarations of the type it names. Binding them was most of the
+/// generator's time on every keystroke, so a call is not even bound again while its tree is the same and no other
+/// tree's declarations changed (<see cref="CompilationState.Epoch"/>).
 /// </para>
 /// </summary>
 internal static class ModelCache
@@ -35,6 +37,9 @@ internal static class ModelCache
     {
         /// <summary>The tree of the call: the same instance means the same text, location and parse options.</summary>
         public SyntaxTree Tree = null!;
+
+        /// <summary>The declarations it was last seen under (<see cref="CompilationState.Epoch"/>).</summary>
+        public int Epoch;
 
         /// <summary>The method it binds to, with the type it names (<see cref="CallIdentity"/>).</summary>
         public string Method = "";
@@ -68,6 +73,20 @@ internal static class ModelCache
         /// <summary>Call count at which stale calls are swept next. Guarded by <see cref="Lock"/>.</summary>
         public int CallSweepAt = MinSweep;
 
+        /// <summary>
+        /// The trees of the compilation the current <see cref="Epoch"/> was last seen in, or null before the first.
+        /// Guarded by <see cref="Lock"/>.
+        /// </summary>
+        public SyntaxTree[]? Declared;
+
+        /// <summary>
+        /// Counts the changes of declarations: a compilation whose trees all declare what <see cref="Declared"/>
+        /// declares (<see cref="SyntaxTree.IsEquivalentTo"/> at the top level, which ignores method bodies and the
+        /// initializers of fields other than constants) keeps it, any other starts the next. Guarded by
+        /// <see cref="Lock"/>.
+        /// </summary>
+        public int Epoch;
+
         public bool SameAs(ProjectState other)
         {
             if (ProjectKey != other.ProjectKey || Rules != other.Rules ||
@@ -92,8 +111,20 @@ internal static class ModelCache
     /// <summary>Entries a project holds before the first sweep.</summary>
     private const int MinSweep = 64;
 
+    /// <summary>The state of a compilation's project, and the declarations it holds.</summary>
+    private sealed class CompilationState
+    {
+        public ProjectState Project = null!;
+
+        /// <summary>
+        /// The <see cref="ProjectState.Epoch"/> of the compilation: two compilations of a project with the same epoch
+        /// declare the same symbols, so a call in a tree both share binds to the same method in both.
+        /// </summary>
+        public int Epoch;
+    }
+
     private static readonly object Lock = new();
-    private static readonly ConditionalWeakTable<Compilation, ProjectState> States = new();
+    private static readonly ConditionalWeakTable<Compilation, CompilationState> States = new();
     private static readonly ConditionalWeakTable<ParseOptions, string> SymbolKeys = new();
     /// <summary>The latest state of each project (by <see cref="ProjectState.ProjectKey"/>), weakly. Guarded by <see cref="Lock"/>.</summary>
     private static readonly Dictionary<string, System.WeakReference<ProjectState>> LatestState = new();
@@ -112,7 +143,7 @@ internal static class ModelCache
     public static TypeModel? GetOrBuild(INamedTypeSymbol type, Compilation compilation, ParseOptions? options,
         System.Func<TypeModel?> build)
     {
-        var state = GetState(compilation);
+        var state = GetState(compilation).Project;
         string symbols = SymbolKey(options);
         var key = TypeNames.Global(type.OriginalDefinition);
 
@@ -138,30 +169,53 @@ internal static class ModelCache
     }
 
     /// <summary>
-    /// The result of the top-level call <paramref name="call"/>, bound to <paramref name="method"/> and naming
-    /// <paramref name="type"/> (its type argument, or its <c>typeof</c> argument): the one built for the same call
-    /// before, while its tree, the method, the type and the trees the type reaches are the same; otherwise
-    /// <paramref name="build"/>'s.
+    /// The result of the top-level call <paramref name="call"/>: the one built for the same call before, while its tree
+    /// is the same and so are the declarations of every other tree, without binding it; otherwise
+    /// <paramref name="bind"/> gives the method it binds to and the type it names (its type argument, or its
+    /// <c>typeof</c> argument), null for a call that names none, and the result is the one built before while the
+    /// method, the type and the trees the type reaches are the same, else <paramref name="build"/>'s.
     /// </summary>
-    public static TopLevelCall? GetOrBuildCall(SyntaxNode call, IMethodSymbol method, ITypeSymbol type,
-        Compilation compilation, System.Func<TopLevelCall?> build)
+    public static TopLevelCall? GetOrBuildCall(SyntaxNode call, Compilation compilation,
+        System.Func<(IMethodSymbol Method, ITypeSymbol Type)?> bind,
+        System.Func<IMethodSymbol, ITypeSymbol, TopLevelCall?> build)
     {
-        var state = GetState(compilation);
+        var known = GetState(compilation);
+        var state = known.Project;
         var tree = call.SyntaxTree;
         var key = (tree.FilePath, call.SpanStart);
-        string identity = CallIdentity(method, type);
+        CallEntry? entry;
         lock (Lock)
         {
-            if (state.Calls.TryGetValue(key, out var entry) && entry.Tree == tree && entry.Method == identity &&
-                ContainsAll(compilation, entry.Trees))
+            // What a call binds to and builds depends on declarations only (no method body is read).
+            if (state.Calls.TryGetValue(key, out entry) && entry.Tree == tree && entry.Epoch == known.Epoch)
                 return entry.Call;
         }
 
-        var result = build();
-        var trees = Dependencies(type, compilation);
+        var bound = bind();
+        string identity = bound is { } named ? CallIdentity(named.Method, named.Type) : "";
         lock (Lock)
         {
-            state.Calls[key] = new CallEntry { Tree = tree, Method = identity, Trees = trees, Call = result };
+            if (entry != null && entry.Tree == tree && entry.Method == identity && ContainsAll(compilation, entry.Trees))
+            {
+                entry.Epoch = known.Epoch;
+                return entry.Call;
+            }
+        }
+
+        TopLevelCall? result = null;
+        var trees = System.Array.Empty<SyntaxTree>();
+        if (bound is { } found)
+        {
+            result = build(found.Method, found.Type);
+            trees = Dependencies(found.Type, compilation);
+        }
+
+        lock (Lock)
+        {
+            state.Calls[key] = new CallEntry
+            {
+                Tree = tree, Epoch = known.Epoch, Method = identity, Trees = trees, Call = result,
+            };
             if (state.Calls.Count >= state.CallSweepAt)
             {
                 // Calls whose file changed are bound again under their new positions: drop the old ones.
@@ -217,7 +271,7 @@ internal static class ModelCache
         state.SweepAt = System.Math.Max(MinSweep, state.Entries.Count * 2);
     }
 
-    private static ProjectState GetState(Compilation compilation)
+    private static CompilationState GetState(Compilation compilation)
     {
         lock (Lock)
         {
@@ -242,20 +296,58 @@ internal static class ModelCache
             Rules = FormatterRules.OwnSignature(compilation, TypeFacts.For(compilation, options).Symbols),
         };
 
+        ProjectState? latest;
+        SyntaxTree[]? declared;
+        lock (Lock)
+        {
+            if (States.TryGetValue(compilation, out var known))
+                return known;
+            latest = Latest(state.ProjectKey);
+            declared = latest?.Declared;
+        }
+
+        // Outside the lock: comparing an edited tree walks its declarations.
+        var trees = compilation.SyntaxTrees.ToArray();
+        bool sameDeclarations = latest != null && latest.SameAs(state) && declared != null &&
+                                DeclareTheSame(declared, trees);
+
         lock (Lock)
         {
             if (States.TryGetValue(compilation, out var known))
                 return known;
             // Reuse the previous state object while nothing project-wide changed, so its entries stay valid;
             // otherwise the new state starts empty and every model of this project is rebuilt once.
-            if (Latest(state.ProjectKey) is { } latest && latest.SameAs(state))
-                state = latest;
+            if (Latest(state.ProjectKey) is { } current && current.SameAs(state))
+                state = current;
             else
                 LatestState[state.ProjectKey] = new System.WeakReference<ProjectState>(state);
+            // Compared against the trees another compilation may have replaced meanwhile: then a new epoch.
+            if (!sameDeclarations || state != latest || state.Declared != declared)
+                state.Epoch++;
+            state.Declared = trees;
             Touch(state);
-            States.Add(compilation, state);
-            return state;
+            var created = new CompilationState { Project = state, Epoch = state.Epoch };
+            States.Add(compilation, created);
+            return created;
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="now"/> declares what <paramref name="before"/> declares, tree by tree in the same order:
+    /// the same instance, or a tree equivalent at the top level (an edit inside a method body or a comment).
+    /// </summary>
+    private static bool DeclareTheSame(SyntaxTree[] before, SyntaxTree[] now)
+    {
+        if (before.Length != now.Length)
+            return false;
+        for (int i = 0; i < now.Length; i++)
+        {
+            if (!ReferenceEquals(before[i], now[i]) &&
+                (before[i].FilePath != now[i].FilePath || !now[i].IsEquivalentTo(before[i], topLevel: true)))
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>The latest state of the project <paramref name="key"/>, if it is still alive. Guarded by <see cref="Lock"/>.</summary>

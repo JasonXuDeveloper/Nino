@@ -34,11 +34,38 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .WithTrackingName("ProjectFacts");
         var enabled = project.Select(static (p, _) => p.Enabled);
 
-        // Types marked [NinoType] directly.
+        var models = TypeModels(context, project, enabled);
+        RegisterFormatters(context, models);
+        var calls = TopLevelCalls(context);
+        // Built-in generic types used directly with the top-level APIs (e.g. NinoSerializer.Serialize(list)):
+        // register closed formatters so AOT platforms have them and generator-only formatters are found.
+        var usages = calls.Where(static c => c.Usage != null).Select(static (c, _) => c.Usage!).Collect()
+            .WithTrackingName("Usages");
+        RegisterNesting(context, models, usages, enabled);
+        RegisterUsages(context, models, usages, project, enabled);
+#if ROSLYN4_8
+        RegisterInterceptors(context, models, calls, enabled);
+#endif
+        RegisterDispatch(context, models, enabled);
+        RegisterRegistry(context, models, FunctionPointerFieldsOf(context, project), project, enabled);
+    }
+
+    /// <summary>
+    /// The models of the <c>[NinoType]</c>s declared here, in two streams that produce the same models: the types
+    /// marked directly, and those that inherit the attribute. Roslyn 4.3 cannot concatenate value providers, so every
+    /// output is registered for (or collected from) each of them.
+    /// </summary>
+    private static IncrementalValuesProvider<TypeModel>[] TypeModels(IncrementalGeneratorInitializationContext context,
+        IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled)
+    {
+        // Types marked [NinoType] directly, with their names as the compiler binds the attribute: unlike the
+        // syntactic check below, this sees aliases (using NT = Nino.Core.NinoTypeAttribute), so their subtypes are
+        // found too.
         var marked = context.SyntaxProvider.ForAttributeWithMetadataName(
             NinoNames.NinoTypeAttributeMetadataName,
             static (node, _) => node is TypeDeclarationSyntax,
-            static (ctx, ct) => Transform(ctx.TargetSymbol as INamedTypeSymbol, ctx.SemanticModel, ct))
+            static (ctx, ct) => (Name: ((TypeDeclarationSyntax)ctx.TargetNode).Identifier.ValueText,
+                Model: Transform(ctx.TargetSymbol as INamedTypeSymbol, ctx.SemanticModel, ct)))
             .WithTrackingName("NinoType");
 
         // Types that inherit [NinoType] from a base class or an interface. Candidates are found from syntax alone
@@ -54,13 +81,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Where(static d => d != null)
             .Collect();
         var referencedNinoTypes = project.Select(static (p, _) => p.ReferencedNinoTypes);
-        // Names of the types marked [NinoType], as the compiler binds the attribute: unlike the syntactic check
-        // above, this sees aliases (using NT = Nino.Core.NinoTypeAttribute), so their subtypes are found too.
-        var markedNames = context.SyntaxProvider.ForAttributeWithMetadataName(
-                NinoNames.NinoTypeAttributeMetadataName,
-                static (node, _) => node is TypeDeclarationSyntax,
-                static (ctx, _) => ((TypeDeclarationSyntax)ctx.TargetNode).Identifier.ValueText)
-            .Collect();
+        var markedNames = marked.Select(static (m, _) => m.Name).Collect();
         var candidates = declarations.Combine(referencedNinoTypes).Combine(markedNames)
             .Select(static (x, _) => InheritedCandidates.Find(x.Left.Left!, x.Left.Right, x.Right))
             .WithTrackingName("InheritedCandidates");
@@ -89,15 +110,22 @@ public sealed class NinoGenerator : IIncrementalGenerator
             })
             .WithTrackingName("InheritedNinoType");
 
-        // Both streams produce the same models; Roslyn 4.3 cannot concatenate value providers, so every output
-        // below is registered for (or collected from) each of them.
         // NinoPrefetchLargeCollections (an MSBuild property): only then do classes' formatters implement
         // INinoPrefetchFormatter and the interceptors of their arrays and lists prefetch; otherwise the models carry
         // no prefetch, and the generated code is what it is without the property.
         var prefetching = context.AnalyzerConfigOptionsProvider.Select(static (o, _) =>
             o.GlobalOptions.TryGetValue("build_property." + PrefetchProperty, out var value) &&
             string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
-        var models = new[] { Gate(marked, enabled, prefetching), Gate(inherited, enabled, prefetching) };
+        return new[]
+        {
+            Gate(marked.Select(static (m, _) => m.Model), enabled, prefetching), Gate(inherited, enabled, prefetching),
+        };
+    }
+
+    /// <summary>One formatter file per model.</summary>
+    private static void RegisterFormatters(IncrementalGeneratorInitializationContext context,
+        IncrementalValuesProvider<TypeModel>[] models)
+    {
         // Hint names are compared ignoring case (and so are file names on Windows and macOS): formatter names that
         // differ only by case (types RawS and Raws) take a suffix of their own. Usually empty, so an edit that changes
         // no such name re-emits nothing.
@@ -109,36 +137,34 @@ public sealed class NinoGenerator : IIncrementalGenerator
         foreach (var stream in models)
             context.RegisterImplementationSourceOutput(stream.Combine(clashing),
                 static (spc, x) => Emit(spc, x.Left, x.Right.Contains(x.Left.FormatterName)));
+    }
 
-        var options = project.Select(static (p, _) => p.Options);
-
-        var entries = CollectAll(models, static m => ToEntry(m))
-            .Select(static (x, _) => new EquatableArray<RegistryEntry>(
-                x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
-            .WithTrackingName("RegistryEntries");
-
-        // The top-level NinoSerializer/NinoDeserializer calls that name a type (Serialize, Deserialize, GetFixedSize<T>,
-        // and the boxed methods and IsSupported given a typeof), bound once for what they register and (Roslyn 4.8+,
-        // Serialize and Deserialize) how they are intercepted. Narrowed by syntax first (binding every Serialize call of
-        // other libraries on each edit is not free), to the receivers that may name them: NinoSerializer or
-        // NinoDeserializer, an identifier (a using alias), or none (using static); the bound method decides.
-        var calls = context.SyntaxProvider.CreateSyntaxProvider(
+    /// <summary>
+    /// The top-level NinoSerializer/NinoDeserializer calls that name a type (Serialize, Deserialize, GetFixedSize&lt;T&gt;,
+    /// and the boxed methods and IsSupported given a typeof), bound once for what they register and (Roslyn 4.8+,
+    /// Serialize and Deserialize) how they are intercepted. Narrowed by syntax first (binding every Serialize call of
+    /// other libraries on each edit is not free), to the receivers that may name them: NinoSerializer or
+    /// NinoDeserializer, an identifier (a using alias), or none (using static); the bound method decides.
+    /// </summary>
+    private static IncrementalValuesProvider<TopLevelCall> TopLevelCalls(IncrementalGeneratorInitializationContext context) =>
+        context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is InvocationExpressionSyntax invocation && MayCallNino(invocation),
                 static (ctx, ct) => TransformCall(ctx, ct))
             .WithTrackingName("TopLevelCall")
             .Where(static c => c != null)
             .Select(static (c, _) => c!);
 
-        // Built-in generic types used directly with the top-level APIs (e.g. NinoSerializer.Serialize(list)):
-        // register closed formatters so AOT platforms have them and generator-only formatters are found.
-        var usages = calls.Where(static c => c.Usage != null).Select(static (c, _) => c.Usage!).Collect()
-            .WithTrackingName("Usages");
-
-        // Closed built-in formatters used by members: registered once per assembly here rather than by every
-        // type that uses them (the same List<int> formatter is typically used by many types); creators of the
-        // collections those formatters create (NinoActivator<T>), registered the same way; and closed generic
-        // [NinoType]s named anywhere above, registered by type id (they have no registration of their own: a
-        // polymorphic read must be able to map their id back to the type).
+    /// <summary>
+    /// NinoGen.Usages.g.cs: closed built-in formatters used by members, registered once per assembly here rather than
+    /// by every type that uses them (the same List&lt;int&gt; formatter is typically used by many types); creators of
+    /// the collections those formatters create (NinoActivator&lt;T&gt;), registered the same way; closed generic
+    /// [NinoType]s named anywhere, registered by type id (they have no registration of their own: a polymorphic read
+    /// must be able to map their id back to the type); and the structs whose layout the runtime measures.
+    /// </summary>
+    private static void RegisterUsages(IncrementalGeneratorInitializationContext context,
+        IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<ImmutableArray<UsageRegistration>> usages,
+        IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled)
+    {
         var registrations = Merge(usages, CollectAll(models, static m => m.Registrations.Formatters),
             static u => u.Formatter is { } f ? new[] { f } : Array.Empty<FormatterRegistration>(),
             static all => all.OrderBy(u => u.TypeName, StringComparer.Ordinal)
@@ -162,8 +188,76 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 : EquatableArray<string>.Empty)
             .WithTrackingName("LayoutTypes");
 
-        // The nesting formatters of the types that hold themselves (FormatterResolver.NestingFormattersNamedIn), declared once: one per
-        // name, whose body models built in different compilations may have resolved differently (both correct).
+        context.RegisterImplementationSourceOutput(
+            registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled),
+            static (spc, x) =>
+            {
+                var ((((formatters, creators), closed), kept), on) = x;
+                if (on)
+                    spc.AddSource("NinoGen.Usages.g.cs",
+                        RegistryEmitter.EmitUsages(formatters, creators, closed, kept));
+            });
+    }
+
+    /// <summary>
+    /// The function pointer fields of structs, registered by the registry for Nino.Core's layouts
+    /// (NinoFunctionPointerFields): of every struct this compilation can see, named here or not, since generic code
+    /// (Save&lt;T&gt; calling Serialize&lt;T&gt;) reaches structs no member or call names.
+    /// </summary>
+    private static IncrementalValueProvider<EquatableArray<string>> FunctionPointerFieldsOf(
+        IncrementalGeneratorInitializationContext context, IncrementalValueProvider<ProjectFacts> project)
+    {
+        // Those declared here, found from syntax; with an alias of a function pointer type (C# 12), every struct
+        // declared here, from the compilation.
+        var declaredPointers = context.SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) => FunctionPointerFields.IsDeclaredIn(node),
+                static (ctx, ct) => ctx.SemanticModel.GetDeclaredSymbol(ctx.Node, ct) is INamedTypeSymbol type
+                    ? FunctionPointerFields.Of(type)
+                    : null)
+            .Where(static p => p != null)
+            .Collect();
+#if ROSLYN4_8
+        var aliasedPointers = context.SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) => FunctionPointerFields.IsAlias(node), static (_, _) => true)
+            .Collect()
+            .Select(static (aliases, _) => aliases.Length != 0)
+            .Combine(context.CompilationProvider)
+            .Select(static (x, ct) => x.Left
+                ? LayoutTypes.ToArray(FunctionPointerFields.In(x.Right.Assembly, ct))
+                : EquatableArray<string>.Empty)
+            .WithTrackingName("AliasedFunctionPointerFields");
+#endif
+        // And those of every reference, read once per reference (unchanged while typing), in a compilation that
+        // references Nino.Core: they are the structs generic code reaches from another assembly, and private fields
+        // are in their metadata only.
+        var referencedPointers = context.MetadataReferencesProvider
+            .Combine(project.Select(static (p, _) => p.Enabled ? p.Options.AssemblyName : null))
+            .Select(static (x, ct) => x.Right != null
+                ? FunctionPointerFields.In(x.Left, x.Right, ct)
+                : EquatableArray<string>.Empty)
+            .WithTrackingName("ReferencedFunctionPointerFields")
+            .Collect();
+        return declaredPointers.Combine(referencedPointers)
+#if ROSLYN4_8
+            .Combine(aliasedPointers)
+            .Select(static (x, _) => LayoutTypes.ToArray(x.Left.Left.Select(static p => p!)
+                .Concat(x.Left.Right.SelectMany(static r => r)).Concat(x.Right)))
+#else
+            .Select(static (x, _) => LayoutTypes.ToArray(x.Left.Select(static p => p!)
+                .Concat(x.Right.SelectMany(static r => r))))
+#endif
+            .WithTrackingName("FunctionPointerFields");
+    }
+
+    /// <summary>
+    /// NinoGen.Nesting.g.cs: the nesting formatters of the types that hold themselves
+    /// (FormatterResolver.NestingFormattersNamedIn), declared once: one per name, whose body models built in different
+    /// compilations may have resolved differently (both correct).
+    /// </summary>
+    private static void RegisterNesting(IncrementalGeneratorInitializationContext context,
+        IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<ImmutableArray<UsageRegistration>> usages,
+        IncrementalValueProvider<bool> enabled)
+    {
         var nesting = Merge(usages, CollectAll(models, static m => m.Registrations.Nesting), static u => u.Nesting,
                 static all => all.GroupBy(static n => n.Name)
                     .Select(static g => g.OrderBy(static n => n.Body, StringComparer.Ordinal).First())
@@ -174,19 +268,17 @@ public sealed class NinoGenerator : IIncrementalGenerator
             if (x.Right && x.Left.Length != 0)
                 spc.AddSource("NinoGen.Nesting.g.cs", NestingEmitter.Emit(x.Left));
         });
-
-        context.RegisterImplementationSourceOutput(
-            registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled),
-            static (spc, x) =>
-            {
-                var ((((formatters, creators), closed), kept), on) = x;
-                if (on)
-                    spc.AddSource("NinoGen.Usages.g.cs",
-                        RegistryEmitter.EmitUsages(formatters, creators, closed, kept));
-            });
+    }
 
 #if ROSLYN4_8
-        // Top-level calls with a known type argument call the resolved formatter directly (where enabled).
+    /// <summary>
+    /// NinoGen.Interceptors.g.cs: top-level calls with a known type argument call the resolved formatter directly
+    /// (where enabled).
+    /// </summary>
+    private static void RegisterInterceptors(IncrementalGeneratorInitializationContext context,
+        IncrementalValuesProvider<TypeModel>[] models, IncrementalValuesProvider<TopLevelCall> calls,
+        IncrementalValueProvider<bool> enabled)
+    {
         var intercepted = calls.Where(static c => c.Intercepted != null).Select(static (c, _) => c.Intercepted!)
             .Collect()
             .Select(static (x, _) => new EquatableArray<InterceptedCall>(x.Distinct()
@@ -210,9 +302,16 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     spc.AddSource("NinoGen.Interceptors.g.cs",
                         Interceptors.Emit(calls, local, tops, twins, prefetchers));
             });
-
+    }
 #endif
-        // Bases dispatch the subtypes of this assembly through generated code; any other subtype through the registry.
+
+    /// <summary>
+    /// NinoGen.Dispatch.g.cs: bases dispatch the subtypes of this assembly through generated code; any other subtype
+    /// through the registry.
+    /// </summary>
+    private static void RegisterDispatch(IncrementalGeneratorInitializationContext context,
+        IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<bool> enabled)
+    {
         var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName,
                 m.TypeParameterList, m.TypeId, m.IsDispatchRoot, m.IsDispatchTarget, m.Inheritance.NinoBaseClasses,
                 m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors, m.RawBody))
@@ -224,14 +323,25 @@ public sealed class NinoGenerator : IIncrementalGenerator
             if (x.Right)
                 spc.AddSource("NinoGen.Dispatch.g.cs", DispatchEmitter.Emit(x.Left));
         });
+    }
 
-        context.RegisterImplementationSourceOutput(entries.Combine(options).Combine(enabled), static (spc, x) =>
-        {
-            var ((list, opts), on) = x;
-            if (!on)
-                return;
-            spc.AddSource("NinoGen.Registry.g.cs", RegistryEmitter.EmitRegistry(opts, list));
-        });
+    /// <summary>NinoGen.Registry.g.cs: the assembly's formatters, its options and the function pointer fields.</summary>
+    private static void RegisterRegistry(IncrementalGeneratorInitializationContext context,
+        IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<EquatableArray<string>> pointerFields,
+        IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled)
+    {
+        var entries = CollectAll(models, static m => ToEntry(m))
+            .Select(static (x, _) => new EquatableArray<RegistryEntry>(
+                x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
+            .WithTrackingName("RegistryEntries");
+        var options = project.Select(static (p, _) => p.Options);
+        context.RegisterImplementationSourceOutput(entries.Combine(options).Combine(pointerFields).Combine(enabled),
+            static (spc, x) =>
+            {
+                var (((list, opts), pointers), on) = x;
+                if (on)
+                    spc.AddSource("NinoGen.Registry.g.cs", RegistryEmitter.EmitRegistry(opts, list, pointers));
+            });
     }
 
     /// <summary>The models of a stream, in compilations that reference Nino.Core.</summary>
@@ -331,7 +441,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
     /// Whether the declaration has an attribute named like <c>[NinoType]</c>. A syntax-only hint, which keeps
     /// marked types from being bound as inheritance candidates: it misses aliased attributes, whose types then
     /// become candidates and are skipped once bound, and whose names reach <see cref="InheritedCandidates.Find"/>
-    /// through the bound attribute instead.
+    /// through the bound attribute instead (the names of the marked types' stream).
     /// </summary>
     private static bool HasNinoTypeSyntax(TypeDeclarationSyntax syntax)
     {
@@ -362,29 +472,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     private static TopLevelCall? TransformCall(GeneratorSyntaxContext ctx, CancellationToken ct)
     {
-        if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol method)
-            return null;
+        var compilation = ctx.SemanticModel.Compilation;
         var options = ctx.SemanticModel.SyntaxTree.Options;
-        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, options);
-        var owner = method.ContainingType;
-        if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
-            !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
-            return null;
-        // The type the call needs a formatter for: its type argument, or the type of its typeof argument (the boxed
-        // methods and IsSupported).
-        ITypeSymbol? type = method.IsGenericMethod
-            ? method.TypeArguments[0]
-            : TypeOfArgument(((InvocationExpressionSyntax)ctx.Node).ArgumentList) is { } typeOf
-                ? ctx.SemanticModel.GetTypeInfo(typeOf.Type, ct).Type
-                : null;
-        if (type is null or { TypeKind: TypeKind.Error or TypeKind.Pointer or TypeKind.FunctionPointer } or
-            { SpecialType: SpecialType.System_Void } or INamedTypeSymbol { IsUnboundGenericType: true })
-            return null;
-        // Vector<T>, alone or inside (NINO029): nothing to register or intercept, the regular call refuses it.
-        if (facts.Raw.HostSizedVectorIn(type) != null)
-            return null;
-        return ModelCache.GetOrBuildCall(ctx.Node, method, type, ctx.SemanticModel.Compilation, () =>
+        return ModelCache.GetOrBuildCall(ctx.Node, compilation, () => BindCall(ctx, ct), (method, type) =>
         {
+            var facts = TypeFacts.For(compilation, options);
             var usage = TransformUsage(type, facts);
 #if ROSLYN4_8
             // Only Serialize and Deserialize have NinoDirect counterparts to intercept with.
@@ -396,6 +488,34 @@ public sealed class NinoGenerator : IIncrementalGenerator
 #endif
             return usage == null && intercepted == null ? null : new TopLevelCall(usage, intercepted);
         });
+    }
+
+    /// <summary>
+    /// The <c>NinoSerializer</c> / <c>NinoDeserializer</c> method a call binds to and the type it needs a formatter
+    /// for (its type argument, or the type of its <c>typeof</c> argument), or null when it is not such a call or names
+    /// no type Nino can register.
+    /// </summary>
+    private static (IMethodSymbol Method, ITypeSymbol Type)? BindCall(GeneratorSyntaxContext ctx, CancellationToken ct)
+    {
+        if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol method)
+            return null;
+        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
+        var owner = method.ContainingType;
+        if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
+            !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
+            return null;
+        ITypeSymbol? type = method.IsGenericMethod
+            ? method.TypeArguments[0]
+            : TypeOfArgument(((InvocationExpressionSyntax)ctx.Node).ArgumentList) is { } typeOf
+                ? ctx.SemanticModel.GetTypeInfo(typeOf.Type, ct).Type
+                : null;
+        if (type is null or { TypeKind: TypeKind.Error or TypeKind.Pointer or TypeKind.FunctionPointer } or
+            { SpecialType: SpecialType.System_Void } or INamedTypeSymbol { IsUnboundGenericType: true })
+            return null;
+        // Vector<T>, alone or inside (NINO029): nothing to register or intercept, the regular call refuses it.
+        if (facts.Raw.HostSizedVectorIn(type) != null)
+            return null;
+        return (method, type);
     }
 
     private static UsageRegistration? TransformUsage(ITypeSymbol type, TypeFacts facts)

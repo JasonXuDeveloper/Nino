@@ -116,7 +116,7 @@ namespace Nino.Core.CompilerServices
         /// slower.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadExact<TBase, TSub, TFormatter>(ref TBase value, ref Reader reader)
+        public static void ReadExact<TBase, TSub, TFormatter>(ref Reader reader, ref TBase value)
             where TBase : class
             where TSub : class, TBase
             where TFormatter : struct, INinoBodyFormatter<TSub>
@@ -124,24 +124,24 @@ namespace Nino.Core.CompilerServices
             var old = value;
             if (old != null && old.GetType() != typeof(TSub))
             {
-                ReadReplacing<TBase, TSub, TFormatter>(ref value, ref reader);
+                ReadReplacing<TBase, TSub, TFormatter>(ref reader, ref value);
                 return;
             }
 
             // The slot itself, seen as a TSub slot (it now holds null or a TSub): a local copy would reach the body
             // by address, an untracked GC slot zeroed in the prolog (and stored back through a second write barrier).
-            ReadExactBody<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
+            ReadExactBody<TSub, TFormatter>(ref reader, ref Unsafe.As<TBase, TSub>(ref value));
         }
 
         /// <summary><see cref="ReadExact{TBase,TSub,TFormatter}"/> into a slot holding an instance of another type.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadReplacing<TBase, TSub, TFormatter>(ref TBase value, ref Reader reader)
+        private static void ReadReplacing<TBase, TSub, TFormatter>(ref Reader reader, ref TBase value)
             where TBase : class
             where TSub : class, TBase
             where TFormatter : struct, INinoBodyFormatter<TSub>
         {
             NinoRecycler.Discard(ref value);
-            ReadExactBody<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
+            ReadExactBody<TSub, TFormatter>(ref reader, ref Unsafe.As<TBase, TSub>(ref value));
         }
 
         /// <summary>
@@ -199,7 +199,7 @@ namespace Nino.Core.CompilerServices
         /// in the prolog).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void ReadExactBody<T, TFormatter>(ref T value, ref Reader reader)
+        private static void ReadExactBody<T, TFormatter>(ref Reader reader, ref T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
@@ -213,18 +213,18 @@ namespace Nino.Core.CompilerServices
                     reader.DeferBody<T, TFormatter>(value);
                 }
                 else
-                    ReadTooDeep<T, TFormatter>(ref value, ref reader);
+                    ReadTooDeep<T, TFormatter>(ref reader, ref value);
                 return;
             }
 
             if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
-                default(TFormatter).ReadBody(ref value, ref reader);
+                default(TFormatter).ReadBody(ref reader, ref value);
                 return;
             }
 
             reader.Depth = depth + 1;
-            default(TFormatter).ReadBody(ref value, ref reader);
+            default(TFormatter).ReadBody(ref reader, ref value);
             reader.ExitBody(depth);
         }
 
@@ -298,7 +298,7 @@ namespace Nino.Core.CompilerServices
         /// later.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadBody<T, TFormatter>(ref T value, ref Reader reader)
+        public static void ReadBody<T, TFormatter>(ref Reader reader, ref T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
@@ -321,7 +321,7 @@ namespace Nino.Core.CompilerServices
                     // inlined would keep the JIT from holding them in registers.
                     var instance = value;
                     var deep = reader;
-                    ReadTooDeep<T, TFormatter>(ref instance, ref deep);
+                    ReadTooDeep<T, TFormatter>(ref deep, ref instance);
                     reader = deep;
                     value = instance;
                 }
@@ -332,18 +332,18 @@ namespace Nino.Core.CompilerServices
             if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 // Nothing nests in this body: the depth it would count is seen by no other body.
-                default(TFormatter).ReadBody(ref value, ref reader);
+                default(TFormatter).ReadBody(ref reader, ref value);
                 return;
             }
 
             reader.Depth = depth + 1;
-            default(TFormatter).ReadBody(ref value, ref reader);
+            default(TFormatter).ReadBody(ref reader, ref value);
             reader.ExitBody(depth);
         }
 
         /// <summary>A body that cannot be deferred, read in place up to <see cref="NinoSettings.MaxDepth"/>.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadTooDeep<T, TFormatter>(ref T value, ref Reader reader)
+        private static void ReadTooDeep<T, TFormatter>(ref Reader reader, ref T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
@@ -353,7 +353,7 @@ namespace Nino.Core.CompilerServices
             if (depth + reader.OpenStructs >= NinoLimits.MaxDepth || !NinoDepth.StackLeft())
                 NinoThrow.TooDeep(typeof(T));
             reader.Depth = depth + 1;
-            default(TFormatter).ReadBody(ref value, ref reader);
+            default(TFormatter).ReadBody(ref reader, ref value);
             reader.ExitBody(depth);
         }
 
@@ -402,7 +402,7 @@ namespace Nino.Core.CompilerServices
         /// <typeparamref name="T"/>'s own; false otherwise, for the caller to dispatch.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool TryReadOwn<T, TFormatter>(int id, ref T value, ref Reader reader)
+        public static bool TryReadOwn<T, TFormatter>(int id, ref Reader reader, ref T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
@@ -410,7 +410,7 @@ namespace Nino.Core.CompilerServices
                 return false;
             // ReadBody takes null or exactly T: an instance of a subtype is recycled here.
             NinoRecycler.ReuseExact(ref value, typeof(T));
-            ReadBody<T, TFormatter>(ref value, ref reader);
+            ReadBody<T, TFormatter>(ref reader, ref value);
             return true;
         }
 
@@ -436,13 +436,13 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>Non-sealed class: reads what <see cref="Serialize{T,TFormatter}"/> wrote.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Deserialize<T, TFormatter>(ref T value, ref Reader reader)
+        public static void Deserialize<T, TFormatter>(ref Reader reader, ref T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             int id = reader.UnsafeRead<int>();
-            if (!TryReadOwn<T, TFormatter>(id, ref value, ref reader))
-                NinoSubtypes<T>.Deserialize(id, ref value, ref reader);
+            if (!TryReadOwn<T, TFormatter>(id, ref reader, ref value))
+                NinoSubtypes<T>.Deserialize(id, ref reader, ref value);
         }
 
         /// <summary>
@@ -467,13 +467,13 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>Reads what <see cref="SerializeReferenced{T,TFormatter}"/> wrote.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeReferenced<T, TFormatter>(ref T value, ref Reader reader)
+        public static void DeserializeReferenced<T, TFormatter>(ref Reader reader, ref T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             int id = reader.UnsafeRead<int>();
-            if (!TryReadOwn<T, TFormatter>(id, ref value, ref reader))
-                NinoSubtypes<T>.DeserializeReferenced(id, ref value, ref reader);
+            if (!TryReadOwn<T, TFormatter>(id, ref reader, ref value))
+                NinoSubtypes<T>.DeserializeReferenced(id, ref reader, ref value);
         }
 
         /// <summary>Sealed class: a presence byte, then the body.</summary>
@@ -554,7 +554,7 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>Reads what <see cref="SerializeSealed{T,TFormatter,TShallow}"/> wrote, choosing the same way.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeSealed<T, TFormatter, TShallow>(ref T value, ref Reader reader, int bound)
+        public static void DeserializeSealed<T, TFormatter, TShallow>(ref Reader reader, ref T value, int bound)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
             where TShallow : struct, INinoBodyFormatter<T>
@@ -564,11 +564,11 @@ namespace Nino.Core.CompilerServices
 
             if (reader.Depth < NinoDepth.Inline - bound)
             {
-                default(TShallow).ReadBody(ref value, ref reader);
+                default(TShallow).ReadBody(ref reader, ref value);
                 return;
             }
 
-            ReadBody<T, TFormatter>(ref value, ref reader);
+            ReadBody<T, TFormatter>(ref reader, ref value);
         }
 
         /// <summary>
@@ -592,26 +592,26 @@ namespace Nino.Core.CompilerServices
         /// top-level call just created (see <see cref="SerializeTop{T,TFormatter}"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeTop<T, TFormatter>(ref T value, ref Reader reader)
+        public static void DeserializeTop<T, TFormatter>(ref Reader reader, ref T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
-            default(TFormatter).ReadBody(ref value, ref reader);
+            default(TFormatter).ReadBody(ref reader, ref value);
         }
 
         /// <summary>Sealed class: reads what <see cref="SerializeSealed{T,TFormatter}"/> wrote.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeSealed<T, TFormatter>(ref T value, ref Reader reader)
+        public static void DeserializeSealed<T, TFormatter>(ref Reader reader, ref T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
-            ReadBody<T, TFormatter>(ref value, ref reader);
+            ReadBody<T, TFormatter>(ref reader, ref value);
         }
     }
 }

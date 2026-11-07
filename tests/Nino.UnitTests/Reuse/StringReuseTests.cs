@@ -5,7 +5,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class StringReuseHolder
     {
         public string Field;
@@ -20,6 +20,27 @@ namespace Nino.UnitTests
     {
         public string Name;
         [NinoUtf8] public string Code;
+    }
+
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public class StringReuseSetters
+    {
+        private string _named;
+
+        public string Field;
+        public string Auto { get; set; }
+
+        public string Named
+        {
+            get => _named;
+            set
+            {
+                _named = value;
+                Sets++;
+            }
+        }
+
+        [NinoIgnore] public int Sets;
     }
 
     [TestClass]
@@ -47,6 +68,30 @@ namespace Nino.UnitTests
             Assert.AreSame(tag0, target.Tags[0]);
             Assert.AreSame(ascii, target.Ascii);
             Assert.AreEqual("wide 中文1", target.Wide);
+        }
+
+        [TestMethod]
+        public void UnchangedStringsAreNotStoredAgainButSettersStillRun()
+        {
+            // A field and an auto-property keep the same string without a store; a setter with a body still runs,
+            // with the string it already held.
+            var bytes = NinoSerializer.Serialize(new StringReuseSetters { Field = "field", Auto = "auto", Named = "named" });
+            var target = new StringReuseSetters
+                { Field = new string('f', 1) + "ield", Auto = new string('a', 1) + "uto", Named = new string('n', 1) + "amed" };
+            var (field, auto, named) = (target.Field, target.Auto, target.Named);
+            target.Sets = 0;
+            NinoDeserializer.Deserialize(bytes, ref target);
+            Assert.AreSame(field, target.Field);
+            Assert.AreSame(auto, target.Auto);
+            Assert.AreSame(named, target.Named);
+            Assert.AreEqual(1, target.Sets);
+
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new StringReuseSetters { Field = "f2", Auto = "a2", Named = "n2" }),
+                ref target);
+            Assert.AreEqual("f2", target.Field);
+            Assert.AreEqual("a2", target.Auto);
+            Assert.AreEqual("n2", target.Named);
+            Assert.AreEqual(2, target.Sets);
         }
 
         [TestMethod]
@@ -86,6 +131,52 @@ namespace Nino.UnitTests
             Assert.AreSame(name, target.Name);
             Assert.AreSame(code, target.Code);
             Assert.AreEqual("CODE", target.Code);
+        }
+
+        [TestMethod]
+        public void ShortLatin1StringsAreKeptOrReplaced()
+        {
+            // Every length a one-byte Latin-1 header holds (compared inline) and around it: ASCII text is kept when
+            // unchanged (Latin-1 text above ASCII may be read again), one char changed anywhere replaces it, longer
+            // and shorter text replaces it, data cut short throws.
+            for (int length = 1; length <= 66; length++)
+            {
+                foreach (bool ascii in new[] { true, false })
+                {
+                    var chars = new char[length];
+                    for (int i = 0; i < length; i++)
+                        chars[i] = (char)(ascii || i % 2 == 0 ? 'a' + i % 26 : 0xE0 + i % 32);
+                    string text = new string(chars);
+                    var bytes = NinoSerializer.Serialize(new StringReuseKeyed { Name = text });
+                    var target = new StringReuseKeyed { Name = new string(chars) };
+                    var kept = target.Name;
+                    NinoDeserializer.Deserialize(bytes, ref target);
+                    Assert.AreEqual(text, target.Name, $"{length}");
+                    if (ascii)
+                        Assert.AreSame(kept, target.Name, $"{length}");
+
+                    for (int at = 0; at < length; at++)
+                    {
+                        var changed = (char[])chars.Clone();
+                        changed[at] = (char)(changed[at] ^ 1);
+                        target = new StringReuseKeyed { Name = new string(changed) };
+                        NinoDeserializer.Deserialize(bytes, ref target);
+                        Assert.AreEqual(text, target.Name, $"{length} at {at}");
+                    }
+
+                    foreach (string other in new[] { text + "x", text.Substring(1) })
+                    {
+                        target = new StringReuseKeyed { Name = other };
+                        NinoDeserializer.Deserialize(bytes, ref target);
+                        Assert.AreEqual(text, target.Name, $"{length}: {other.Length}");
+                    }
+
+                    target = new StringReuseKeyed { Name = text };
+                    var cut = bytes;
+                    Assert.ThrowsExactly<NinoDataException>(() =>
+                        NinoDeserializer.Deserialize(new System.ReadOnlySpan<byte>(cut, 0, cut.Length - 1), ref target));
+                }
+            }
         }
 
         [TestMethod]

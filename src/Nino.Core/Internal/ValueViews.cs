@@ -36,23 +36,16 @@ namespace Nino.Core.Internal
 
         private static int[] FindDateTimeOffset()
         {
-            try
-            {
-                int size = Unsafe.SizeOf<DateTimeOffset>();
-                for (int utcAt = 0; utcAt + 8 <= size; utcAt += 4)
-                    for (int minutesAt = 0; minutesAt + 2 <= size; minutesAt += 2)
-                    {
-                        if (minutesAt + 2 > utcAt && minutesAt < utcAt + 8)
-                            continue;
-                        int minutesSize = MinutesSize(minutesAt, utcAt, size);
-                        if (DateTimeOffsetMatches(utcAt, minutesAt, minutesSize))
-                            return new[] { utcAt, minutesAt, minutesSize };
-                    }
-            }
-            catch
-            {
-                // Not found.
-            }
+            int size = Unsafe.SizeOf<DateTimeOffset>();
+            for (int utcAt = 0; utcAt + 8 <= size; utcAt += 4)
+                for (int minutesAt = 0; minutesAt + 2 <= size; minutesAt += 2)
+                {
+                    if (minutesAt + 2 > utcAt && minutesAt < utcAt + 8)
+                        continue;
+                    int minutesSize = MinutesSize(minutesAt, utcAt, size);
+                    if (ObjectTypes.Passes(() => DateTimeOffsetMatches(utcAt, minutesAt, minutesSize)))
+                        return new[] { utcAt, minutesAt, minutesSize };
+                }
 
             return new[] { -1, -1, 0 };
         }

@@ -246,11 +246,9 @@ internal static class RawLayout
         type is INamedTypeSymbol { TypeKind: TypeKind.Struct, Arity: 0 } named &&
         TypeNames.HasMetadataName(named, "System.DateTimeOffset");
 
-    /// <summary><c>System.ValueTuple</c> of any arity: <c>[StructLayout(LayoutKind.Auto)]</c> in every runtime.</summary>
+    /// <summary>A generic <c>System.ValueTuple</c>: <c>[StructLayout(LayoutKind.Auto)]</c> in every runtime.</summary>
     private static bool IsValueTuple(ITypeSymbol type) =>
-        type is INamedTypeSymbol { TypeKind: TypeKind.Struct } named &&
-        named.OriginalDefinition.ContainingNamespace?.ToDisplayString() == "System" &&
-        named.OriginalDefinition.MetadataName.StartsWith("ValueTuple", System.StringComparison.Ordinal);
+        type is INamedTypeSymbol { TypeKind: TypeKind.Struct } named && TypeNames.IsValueTuple(named.OriginalDefinition);
 
     private static ITypeSymbol? PropertyType(INamedTypeSymbol type, string name) =>
         type.GetMembers(name).OfType<IPropertySymbol>().FirstOrDefault()?.Type;

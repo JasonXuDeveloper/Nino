@@ -24,8 +24,7 @@ namespace Nino.UnitTests
     /// through the base, the type between, itself and object, by the boxed API, alone and as a list element, plus null and data of another
     /// type. A combination nobody thought of is still in the matrix: add a dimension here when a feature adds one.
     /// </summary>
-    [TestClass]
-    public class ShapeMatrixTests
+    public static class ShapeMatrixTests
     {
         private enum Kind { Abstract, Class, Interface, Record }
 
@@ -36,24 +35,65 @@ namespace Nino.UnitTests
         // Rows 0 to 3 and 8 to 11: each kind of base, its subtypes in its assembly; rows 4 to 7 and 12 to 15: in another
         // assembly. Rows 0 to 7 declare the shapes in a namespace or the global namespace, rows 8 to 15 nested in a class
         // or a generic class: a row compiles some 70 shapes at once, where every place at once took gigabytes.
-        [TestMethod]
-        [DataRow(0)]
-        [DataRow(1)]
-        [DataRow(2)]
-        [DataRow(3)]
-        [DataRow(4)]
-        [DataRow(5)]
-        [DataRow(6)]
-        [DataRow(7)]
-        [DataRow(8)]
-        [DataRow(9)]
-        [DataRow(10)]
-        [DataRow(11)]
-        [DataRow(12)]
-        [DataRow(13)]
-        [DataRow(14)]
-        [DataRow(15)]
-        public void EveryShapeCompilesAndRoundTrips(int row)
+        // Two rows a class: the suite runs classes side by side and the methods of a class one after another
+        // (Infrastructure/MSTestSettings.cs), and a row takes seconds of Roslyn, so the rows share out over the cores.
+        [TestClass]
+        public class Rows0And1
+        {
+            [TestMethod, DataRow(0), DataRow(1)]
+            public void EveryShapeCompilesAndRoundTrips(int row) => Run(row);
+        }
+
+        [TestClass]
+        public class Rows2And3
+        {
+            [TestMethod, DataRow(2), DataRow(3)]
+            public void EveryShapeCompilesAndRoundTrips(int row) => Run(row);
+        }
+
+        [TestClass]
+        public class Rows4And5
+        {
+            [TestMethod, DataRow(4), DataRow(5)]
+            public void EveryShapeCompilesAndRoundTrips(int row) => Run(row);
+        }
+
+        [TestClass]
+        public class Rows6And7
+        {
+            [TestMethod, DataRow(6), DataRow(7)]
+            public void EveryShapeCompilesAndRoundTrips(int row) => Run(row);
+        }
+
+        [TestClass]
+        public class Rows8And9
+        {
+            [TestMethod, DataRow(8), DataRow(9)]
+            public void EveryShapeCompilesAndRoundTrips(int row) => Run(row);
+        }
+
+        [TestClass]
+        public class Rows10And11
+        {
+            [TestMethod, DataRow(10), DataRow(11)]
+            public void EveryShapeCompilesAndRoundTrips(int row) => Run(row);
+        }
+
+        [TestClass]
+        public class Rows12And13
+        {
+            [TestMethod, DataRow(12), DataRow(13)]
+            public void EveryShapeCompilesAndRoundTrips(int row) => Run(row);
+        }
+
+        [TestClass]
+        public class Rows14And15
+        {
+            [TestMethod, DataRow(14), DataRow(15)]
+            public void EveryShapeCompilesAndRoundTrips(int row) => Run(row);
+        }
+
+        private static void Run(int row)
         {
             int kind = row % 4;
             bool otherAssembly = row % 8 >= 4;

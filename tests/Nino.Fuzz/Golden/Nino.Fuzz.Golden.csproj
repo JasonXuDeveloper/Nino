@@ -1,13 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!-- The golden-bytes corpus of the unit tests (tests/Nino.UnitTests/Serialization/GoldenBytesTests.cs), compiled
-         as it is there: with WEAK_VERSION_TOLERANCE, which makes every type of this assembly version tolerant. That is
-         why it is an assembly of its own: the fuzzer's own types keep their positional, keyed and raw formats. -->
+         as it is there: its types are version tolerant, each marked so. -->
     <PropertyGroup>
         <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
-        <DefineConstants>$(DefineConstants);WEAK_VERSION_TOLERANCE</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>

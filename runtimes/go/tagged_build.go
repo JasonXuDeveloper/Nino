@@ -397,7 +397,7 @@ func (b *builder) class(c *codec, p *plan) error {
 	t := p.typ
 	if p.header == headerTypeID {
 		if !p.hasID {
-			return typeErr(t, "header=TypeId but no type id: give the layout a typeId or implement NinoTypeID")
+			return typeErr(t, "header=TypeId but no type id: give the layout an id or implement NinoTypeID")
 		}
 		c.min = 4
 		id := p.id
@@ -451,7 +451,7 @@ func (b *builder) class(c *codec, p *plan) error {
 
 // valueStruct: a struct held by value.
 func (b *builder) valueStruct(c *codec, p *plan) error {
-	if p.header == headerNullFlag || p.header == headerTypeID {
+	if p.header == headerPresence || p.header == headerTypeID {
 		return typeErr(c.typ, "its layout declares a class (header=%s): hold it through a pointer", headerName(p.header))
 	}
 	c.plan = p
@@ -502,8 +502,8 @@ func headerName(h int) string {
 	switch h {
 	case headerNone:
 		return "None"
-	case headerNullFlag:
-		return "NullFlag"
+	case headerPresence:
+		return "Presence"
 	case headerTypeID:
 		return "TypeId"
 	}

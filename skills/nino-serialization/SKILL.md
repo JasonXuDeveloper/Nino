@@ -1,58 +1,80 @@
 ---
 name: nino-serialization
-description: "Write correct, fast code with Nino v4 (the source-generated binary serializer for C# on NuGet as Nino, in Unity from OpenUPM) - [NinoType] classes, structs, records and interfaces, member order, constructors, positional / version-tolerant / keyed formats, polymorphism, reference tracking, [NinoUtf8], [NinoPooled] and reuse deserialization, custom formatters, NinoSettings for untrusted input, ASP.NET Core bodies, and TypeScript, Go and Rust codecs from nino-gen - and fix what the NINO analyzer reports. Use when writing, reviewing or migrating code that uses Nino, or choosing a binary format for .NET, Unity, Godot or HybridCLR data. Triggers: a project referencing Nino, Nino.Serialization, Nino.Core, Nino.AspNetCore or Nino.Codegen, [NinoType], NinoSerializer, NinoDeserializer, NinoDataException, a NINO0xx or NINOGEN diagnostic, application/x-nino, nino-gen, 用 Nino 序列化, Nino 反序列化, 二进制序列化, 给类型加 NinoType."
+description: "Write correct, fast C# with Nino v4, the source-generated binary serializer (NuGet Nino, Unity via OpenUPM): [NinoType] types, positional / version-tolerant / keyed formats for saves and messages that outlive a release, polymorphism, zero-allocation buffers and pooling, raw structs and Vector-of-T (NINO029), NinoSettings.Untrusted for data from players or the network, Unity/IL2CPP/Burst/HybridCLR, ASP.NET Core, and TypeScript, Go and Rust codecs from nino-gen. Use this skill whenever code uses or should use Nino - writing, reviewing, debugging or porting to it (from MemoryPack, MessagePack or Nino v3), fixing a NINO0xx/NINOGEN diagnostic or a NinoDataException - even when the user just says 'the serializer' in a project referencing Nino. Triggers: Nino, Nino.Core, [NinoType], [NinoMember], NinoSerializer, NinoDeserializer, NinoArrayBufferWriter, NinoSettings, NinoDataException, NINO0xx, nino-gen, application/x-nino, 用 Nino 序列化, Nino 反序列化, 给类型加 NinoType, Nino 存档, Nino 网络消息."
 ---
 
-# Nino rules for AI assistants
+# Writing code with Nino v4
 
-Rules for writing code that uses Nino v4 (namespace `Nino.Core`). Docs: https://nino.xgamedev.net/en/docs/v4 (pages
-for models: https://nino.xgamedev.net/llms.txt, full text: https://nino.xgamedev.net/llms-full.txt). Every page is
-also served as Markdown: add `.md` to its URL (`https://nino.xgamedev.net/en/docs/v4/start.md`). Per-id diagnostics:
-[references/diagnostics.md](references/diagnostics.md); TypeScript, Go and Rust: [references/other-languages.md](references/other-languages.md).
+Nino v4 (namespace `Nino.Core`) generates a serializer for every `[NinoType]` at compile time. The bytes carry no
+schema and no member names, so most mistakes are not compile errors: they are data that cannot be read after the next
+release, objects that come back as the wrong type, or hostile input that reads without the checks it needed. The
+decisions below prevent those. Docs: https://nino.xgamedev.net/en/docs/v4 (every page also as Markdown: add `.md`,
+e.g. `https://nino.xgamedev.net/en/docs/v4/start.md`; index for models: https://nino.xgamedev.net/llms.txt).
+
+Read a reference when the task reaches it:
+
+| Reference | Read it when |
+| --- | --- |
+| [references/types.md](references/types.md) | a member type is unusual (BCL types, collections, `object`, pointers, `Vector<T>`), structs are copied raw, NINO007/NINO029, or data crosses runtimes (Mono, IL2CPP, 32-bit, other languages) |
+| [references/performance.md](references/performance.md) | zero allocation, per-frame/per-tick messages, buffer reuse, reuse deserialization, `[NinoPooled]`, `[NinoFactory]`, several values in one buffer, build settings |
+| [references/platforms.md](references/platforms.md) | Unity, IL2CPP, Burst, HybridCLR, Native AOT, Godot, ASP.NET Core |
+| [references/custom-formatters.md](references/custom-formatters.md) | a member needs its own encoding, or a type Nino does not know |
+| [references/diagnostics.md](references/diagnostics.md) | any `NINO0xx`/`NINOGEN` diagnostic or a runtime error message from Nino |
+| [references/other-languages.md](references/other-languages.md) | TypeScript, Go or Rust must read or write the same bytes (nino-gen) |
 
 ## Install
 
-- .NET and Godot 4 (.NET): `dotnet add package Nino --prerelease` in **every project that declares `[NinoType]`s**, so
-  the generator runs there. v4 is a prerelease: without `--prerelease` NuGet installs 3.9.x, which cannot read or
-  write v4 data. `Nino` brings `Nino.Serialization` (the runtime, `Nino.Core.dll`) and `Nino.Generator` (generator,
-  analyzers, code fixes).
-- Optional: `Nino.Immutable` (`System.Collections.Immutable` types), `Nino.AspNetCore` (`application/x-nino` bodies,
-  `net8.0`/`net10.0`), `Nino.Codegen` (TypeScript, Go or Rust after each build), and the `nino-gen` tool
-  (`dotnet tool install -g Nino.Codegen.Tool --prerelease`). All with `--prerelease`.
-- Unity 2022.3+: `openupm add com.jasonxudeveloper.nino` (runtime, generator, code fixes and `Nino.UnityTypes.dll`).
-- Requirements: Roslyn 4.3+ for the generator and `LangVersion` 9 or later in the declaring project (old .NET
-  Framework projects default to 7.3). `Nino.Core` targets `netstandard2.0`, `netstandard2.1`, `net8.0`, `net10.0`; every
-  target, runtime and CPU writes identical bytes.
-- Nothing to register or initialize: generated registries load on first use. Optional startup calls only:
-  `NinoSettings`, `NinoPolymorphic.Register<T>()`, `NinoRegistry.EnsureInitialized(assembly)`.
+- .NET and Godot 4: `dotnet add package Nino --prerelease` in **every project that declares `[NinoType]`s** (the
+  generator runs per project). v4 is a prerelease: without `--prerelease` NuGet installs 3.9.x, which cannot read or
+  write v4 data. Optional, also `--prerelease`: `Nino.Immutable`, `Nino.AspNetCore`, `Nino.Codegen`, the `nino-gen`
+  tool (`Nino.Codegen.Tool`).
+- Unity 2022.3+: `openupm add com.jasonxudeveloper.nino`.
+- Requirements: Roslyn 4.3+ and `LangVersion` 9+ in the declaring project (old .NET Framework projects default to
+  7.3). Every target framework, runtime and CPU writes identical bytes.
+- Nothing to register or initialize: generated registries load on first use.
+
+## Decide in this order
+
+1. **How long does the data live?** Pick the format before anything is stored, because changing it later makes
+   existing data unreadable (table below). Messages between builds you ship together: positional. Saves or
+   messages between versions: `VersionTolerant` or `Keyed`.
+2. **Who wrote the bytes?** Anything a player, client or other party could craft (network messages, shared saves,
+   uploads, request bodies) is untrusted: `NinoSettings.Untrusted = true` at startup and catch `NinoDataException`
+   ([Untrusted input](#untrusted-input)).
+3. **Is a slot polymorphic?** Seal every class without subtypes; serialize through the common `[NinoType]` base.
+4. **Is it a hot path?** Reuse one buffer writer and deserialize into existing instances
+   ([references/performance.md](references/performance.md)).
+5. **Where does it run?** Unity and other pre-.NET 8 targets need `partial` types for private members; IL2CPP and AOT
+   need every type visible to the generator ([references/platforms.md](references/platforms.md)).
+6. **Any structs, SIMD vectors or pointers?** Structs of raw fields are copied as memory in one canonical layout;
+   `Vector<T>` is refused (NINO029) because its size depends on the CPU
+   ([references/types.md](references/types.md)).
 
 ## Declaring types
 
 - `[NinoType]` on a `class`, `struct`, `record`, `record struct` or `interface`. The type and every type containing it
   are `public` or `internal`, never a `static` class or `ref struct` (NINO001).
-- Options: `[NinoType(autoCollect: true, includeNonPublicMembers: false, allowInheritance: true, format:
-  NinoFormat.Positional, trackReferences: false)]`; use named arguments.
-- With `autoCollect: true` every public field and every public property with a getter and a `set`/`init` is written:
+- Options, as named arguments: `[NinoType(autoCollect: true, includeNonPublicMembers: false, allowInheritance: true,
+  format: NinoFormat.Positional, trackReferences: false)]`.
+- `autoCollect: true` (default) writes every public field and every public property with a getter and a `set`/`init`:
   `[NinoType]` base classes first (root first), then the type's own members in declaration order. Get-only
-  auto-properties are skipped unless a constructor parameter has the same name (ignoring case); explicit interface
-  implementations are skipped; a member of a type Nino cannot write is skipped with NINO007.
+  auto-properties are skipped unless a constructor parameter has the same name (ignoring case), and so are explicit
+  interface implementations; a member of a type Nino cannot write is skipped with NINO007 (delegates, `Task`,
+  pointers, `Type`, `Span<T>`: add `[NinoIgnore]`).
 - `[NinoIgnore]` drops a member. `[NinoType(false)]` writes only `[NinoMember(index)]` members, by index ascending
-  (`[property: NinoMember(n)]` on record parameters). Don't mix them up: NINO010 to NINO013.
-- Non-public members need `includeNonPublicMembers: true` (a non-public `[NinoMember]` without it: NINO009). Before
-  .NET 8 (Unity, .NET Framework, `netstandard`), and for generic types before .NET 9, the type and every containing type
-  must be `partial` (NINO002). Write `partial` on such types anyway when the code may build for Unity.
-- Subtypes inherit `[NinoType]` and its options from the nearest `[NinoType]` base class or interface. A subtype's own
+  (`[property: NinoMember(n)]` on record parameters). Mixing them up: NINO010 to NINO013.
+- Non-public members need `includeNonPublicMembers: true` (else NINO009). Before .NET 8 (Unity, .NET Framework,
+  `netstandard`), and for generic types before .NET 9, the type and every containing type must be `partial`
+  (NINO002): write `partial` anyway when the code may build for Unity.
+- Subtypes inherit `[NinoType]` and its options from the nearest `[NinoType]` base or interface. A subtype's own
   `[NinoType]` replaces the inherited options (repeat `format:`); `trackReferences` is inherited regardless.
   `allowInheritance: false` makes subtypes declare their own (NINO003).
-- Generic types work (`Box<T>`); type arguments must be serializable. A closed generic type the process only *reads*
-  through a base and never names: `NinoPolymorphic.Register<Box<int>>()` at startup.
+- Generic types work (`Box<T>`) when their type arguments are serializable. A closed generic type the process only
+  *reads* through a base and never names in code: `NinoPolymorphic.Register<Box<int>>()` at startup.
 - Strings: one byte per char when every char is at most U+00FF, UTF-16 otherwise. `[NinoUtf8]` on a member writes
-  UTF-8 (its strings, and the strings of a collection or tuple member): for mostly-ASCII text with a few wider chars;
-  not for mostly-CJK text. Adding or removing it changes the bytes.
-- Structs have no header. An unmanaged, sequential, positional struct whose fields are all raw is copied as raw memory
-  (one block per array or list): its field order, `Pack` and `Size` are the format. Order fields to avoid padding. A
-  struct that serializes no member is NINO023. `Nullable<T>`, tuples, `KeyValuePair`, `nint`, `DateTimeOffset` are
-  never raw.
+  UTF-8: for mostly-ASCII text with some wider chars, not for mostly-CJK text.
+- Structs have no header; an unmanaged struct of raw fields is copied as one block in a layout that is the same on
+  every runtime (details, padding, `bool` flags and pointers: [references/types.md](references/types.md)).
 
 ```csharp
 [NinoType]
@@ -74,275 +96,124 @@ public partial class Account { private long _balance; public int Id; }
 
 ### Constructors
 
-Order of choice: a constructor or static factory marked `[NinoConstructor]`; else, when every member is assignable, a
-constructor callable without arguments (or a `[NinoFactory]`), then members are filled; else the accessible
-constructor with the most parameters matching serialized members by name (ignoring case; a positional record's
-primary constructor); structs fall back to `new T()`; otherwise NINO004.
-- `[NinoConstructor(nameof(Id), nameof(Name))]` lists members when parameter names differ. Each must match a member
-  (NINO005); the constructor must be `public`/`internal` (NINO021). A read-only member that is not a parameter is read
-  and dropped (NINO006).
+Nino uses, in order: a constructor or static factory marked `[NinoConstructor]`; else, when every member is
+assignable, a constructor callable without arguments (or a `[NinoFactory]`), then fills the members; else the
+accessible constructor with the most parameters matching serialized members by name (ignoring case; a positional
+record's primary constructor); structs fall back to `new T()`; otherwise NINO004.
+- `[NinoConstructor(nameof(Id), nameof(Name))]` lists members when parameter names differ (NINO005); it must be
+  `public`/`internal` (NINO021). A read-only member that is not a parameter is read and dropped (NINO006).
 - `required` members: a `[SetsRequiredMembers]` constructor, or every required member serialized and settable.
-- Types re-created through a constructor (records, `init`/get-only/`readonly` members) are re-created even by reuse
-  deserialization, and cannot use `trackReferences` (NINO016) or `[NinoPooled]` (NINO018). Hot-path types: a
-  parameterless constructor and settable members.
+- Types re-created through a constructor (records, `init`/get-only/`readonly` members) cannot be filled in place,
+  tracked (NINO016) or pooled (NINO018). Give hot-path types a parameterless constructor and settable members.
 
 ### Formats: choose before data is stored
 
 | | `Positional` (default) | `VersionTolerant` | `Keyed` |
 | --- | --- | --- | --- |
-| Change members | nothing (renaming a member is free: names are not written) | append to the most derived type only; renaming is free | add, remove, reorder; rename with `[NinoFormerName("Old")]` |
+| Change members | nothing (renaming is free: names are not written) | append to the most derived type only; renaming is free | add, remove, reorder; rename with `[NinoFormerName("Old")]` |
 | Cost | none | 4 bytes per object | 4 per object + 8 per member |
-| For | same-build messages, rebuildable caches | messages between versions, saves that only grow | config, documents, data edited for years |
+| For | same-build messages, rebuildable caches | messages between versions, saves that only grow | config, documents, saves edited for years |
 
 - Changing a type's `format` makes its existing data unreadable. Changing a member's type is never tolerated.
-- Version-tolerant hierarchy: never append to a base class with subclasses (it shifts their members, silently).
-  Use `Keyed` for that. Missing members keep their initializer or existing value.
-- Two keyed names hashing alike: NINO014. Member `[NinoFormerName]` on a non-keyed type: NINO024.
-- Renaming or moving a type changes its type id (written whenever the slot is not sealed): keep it with
+- Version-tolerant hierarchy: never append to a base class with subclasses (it shifts their members, silently); use
+  `Keyed`. Missing members keep their initializer or existing value.
+- Keyed: two names hashing alike is NINO014; member `[NinoFormerName]` on a non-keyed type is NINO024.
+- Renaming or moving a *type* changes its type id (written whenever the slot is not sealed): keep it with
   `[NinoFormerName("Old.Namespace.Type")]` on the type, runtime form (`+` for nested, no `global::`), one per type
   (NINO026), not on generic types written by type id (NINO027). `NinoTypeId.Of(typeof(T))` returns the id.
-- `WEAK_VERSION_TOLERANCE` makes the project's positional types version-tolerant; prefer the per-type option.
+- `WEAK_VERSION_TOLERANCE` was removed in 4.0: where it is still defined, error NINO032's code fix marks each type
+  `format: NinoFormat.VersionTolerant`, which keeps its bytes.
 - Every build records each type's layout as `[assembly: NinoTypeLayout]`; compare `layout.ToString()` between releases
   in CI to catch byte changes.
 
 ### Polymorphism and references
 
 - A slot declared as a non-sealed class, abstract class or interface writes a 4-byte type id (FNV-1a of the full
-  name), and reads back the runtime type; a sealed class writes a presence byte. **Seal classes without subtypes.**
+  name) and reads back the runtime type; a sealed class writes only a presence byte. **Seal classes without
+  subtypes.**
 - Serialize and deserialize through the common `[NinoType]` base (`Serialize<Message>(msg)`,
-  `Deserialize<Message>(bytes)`), never `object`: `Serialize<object>` accepts only `[NinoType]` values and dispatches
-  through the global registry. `SerializeBoxed(value, type)` / `DeserializeBoxed(data, type)` only for a type known
-  only as a `Type` with no common base, read with the same type.
-- Subtypes in other assemblies (plugins, HybridCLR) are found when the assembly is loaded; the generator must run in
-  that assembly too.
+  `Deserialize<Message>(bytes)`), never `object`. `SerializeBoxed(value, type)` / `DeserializeBoxed(data, type)` only
+  for a type known only as a `Type`, read with the same type.
+- Subtypes in other assemblies (plugins, HybridCLR) are found once the assembly is loaded; the generator must run
+  there too.
 - Without tracking, a shared object is written twice and a cycle throws `InvalidOperationException` while writing.
-  `[NinoType(trackReferences: true)]` on the shared or cyclic class (classes only, NINO015) keeps identity: 4 bytes and
-  a lookup per tracked object. Collections are never tracked. Trees need no tracking; depth is unbounded (objects past
-  128 levels are deferred).
+  `[NinoType(trackReferences: true)]` on the shared or cyclic class (classes only, NINO015) keeps identity: 4 bytes
+  and a lookup per tracked object. Collections are never tracked. Trees need no tracking.
 
 ## The API
 
 ```csharp
 byte[] bytes = NinoSerializer.Serialize(order);              // a new byte[] of exactly the data's size
-NinoSerializer.Serialize(order, bufferWriter);               // any IBufferWriter<byte>; 0 B
+NinoSerializer.Serialize(order, bufferWriter);               // any IBufferWriter<byte>: 0 B with a reused one
 Order copy = NinoDeserializer.Deserialize<Order>(bytes);     // from any ReadOnlySpan<byte>
 NinoDeserializer.Deserialize(bytes, ref copy);               // reuse: fills copy in place (null: creates it)
 ```
 
-- `NinoSerializer` / `NinoDeserializer` are static and thread safe. There are no `Stream`, `ReadOnlySequence<byte>` or
-  `out` overloads: copy a multi-segment sequence into one block (or pass `First.Span` when `IsSingleSegment`).
-- Hot paths: one `NinoArrayBufferWriter` per thread or connection (not thread safe), `ResetWrittenCount()` before each
-  message, send `WrittenSpan`, `Dispose()` at the end (returns its array to the pool). `new
-  NinoArrayBufferWriter(capacity, pool)` rents from your own `ArrayPool<byte>`. Nino writes into it in place; any other
-  `IBufferWriter<byte>` (a `PipeWriter`) costs one copy. Call `Serialize(value)` only when an API needs a `byte[]`.
-- Build settings: Release, tiered compilation and Dynamic PGO left on (never `TieredCompilation` false), Native AOT
-  with `<IlcInstructionSet>` for AVX2/AVX-512, Unity IL2CPP Release/Master with Burst; Rust, Go and TypeScript in
-  https://nino.xgamedev.net/en/docs/v4/advanced/build-configuration.
-- Several values in one buffer: `var w = new Writer(buffer);` then `NinoSerializer.Serialize(a, ref w)`..., then
-  `w.Flush(); w.ReleaseReferences();`; read with `var r = new Reader(span);`, `Deserialize<T>(ref r)`, then
-  `r.ReleaseReferences()`. Release once per logical message.
-- `NinoSerializer.GetFixedSize<T>()` gives the size of a fixed-size type; `NinoSerializer.IsSupported(type)` whether
-  Nino can write a type.
-- Reuse deserialization fills the instance, its nested objects, lists (by index) and dictionaries (merged by key);
-  unchanged strings are kept. Dropped instances go to `NinoSettings.SetRecycler<T>(handler)` for the slot's declared
-  type, else `ReturnToPool()` of an `INinoPooled`, else the GC. Use `List<T>` for varying counts: an array is reused
-  only at the same length.
-- `[NinoType, NinoPooled] public sealed partial class X` gets a built-in pool: Nino takes new instances from it and
-  returns dropped ones; you call `x.ReturnToPool()` once (twice throws). Implement both hooks (NINO019):
+- Static and thread safe. There are no `Stream`, async, `ReadOnlySequence<byte>` or `out` overloads: read a stream
+  or pipe into one buffer first (a multi-segment sequence: copy it, or `First.Span` when `IsSingleSegment`).
+- Hot paths: one `NinoArrayBufferWriter` per thread or connection, `ResetWrittenCount()` before each message, send
+  `WrittenSpan`, `Dispose()` at the end; deserialize into an existing instance. More, with pooling:
+  [references/performance.md](references/performance.md).
 
-```csharp
-[NinoType, NinoPooled]
-public sealed partial class Alert
-{
-    public int DeviceId;
-    public float Value;
+## Untrusted input
 
-    private static partial IEnumerable<Alert> OnNinoPoolWarmup() => Enumerable.Range(0, 64).Select(_ => new Alert());
-    private partial void OnNinoPoolReturn() { } // release state Nino does not deserialize
-}
-```
-
-- Pooled classes are sealed, partial and assignable (NINO018). A class holding pooled children should be pooled too.
-  `NinoPool<T>.Shared.Clear()` empties a pool (Unity with domain reload off).
-- `[NinoFactory] public static T Rent()` (public, static, callable without arguments, returns the type, never null:
-  NINO017) is called whenever Nino needs a new instance; also for your own collection types (implement `INinoPooled`
-  so dropped ones come back). Not together with `[NinoConstructor]` (NINO025).
-
-### Settings and untrusted input
-
-Nino is built for untrusted input: lengths are checked against the bytes left before allocating, the stack is bounded,
-data names only type ids of declared subtypes (never type names), and **every invalid input throws
+Nino is built for untrusted input: lengths are checked against the bytes left before allocating, the stack is
+bounded, data names only type ids of declared subtypes (never type names), and **every invalid input throws
 `NinoDataException`** (derives from `InvalidOperationException`, message starts with `Nino:`). Catch it at the
-boundary. Caller mistakes and write failures (untracked cycle, too deep) stay `InvalidOperationException`.
+boundary. Caller mistakes (untracked cycle, too deep while writing) stay `InvalidOperationException`.
 
 ```csharp
-// At startup, before the first Nino call on any thread: these freeze on first use; setting one later throws.
-NinoSettings.Untrusted = true;              // seeded hashing of int/char/Guid/string keys, raw value checks, no trailing bytes
-NinoSettings.MaxCollectionLength = 100_000; // default int.MaxValue
+// At startup, before the first Nino call on any thread: settings freeze on first use, setting one later throws.
+NinoSettings.Untrusted = true;              // adds only: seeded hashing of int/char/Guid/string keys,
+                                            // checks of values copied as raw bytes, no bytes after the value
+NinoSettings.MaxCollectionLength = 100_000; // default int.MaxValue; the three limits apply in every mode
 NinoSettings.MaxDepth = 512;                // default 512, at least 128
 NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 ```
 
-- Data from an untrusted source must be read with `NinoSettings.Untrusted = true`. The default mode copies a raw
-  struct as one block, so a `bool` field or a `Nullable` flag inside one is not checked: a byte other than 0 or 1
-  there is undefined behavior to the .NET JIT, not only a wrong value (the struct can compare unequal to itself and
-  be lost in a `Dictionary`). Untrusted mode rejects it, and also bytes after the value and out-of-range `decimal`,
-  `DateTime`, `DateOnly` and `TimeOnly`.
-- Pool settings (`PoolMaxRetained`, `SetPoolMaxRetained<T>`, `SetRecycler<T>`) are also startup-only.
-- Still your job: validate values (a negative health, an unnamed enum value), cap frame or request sizes before
-  buffering, and version payloads yourself (the bytes carry no schema: data for another type with a compatible layout
-  reads without error; put a magic number and version in front of stored files).
-
-## Types Nino writes
-
-- Primitives, enums, `decimal`, `DateTime`, `TimeSpan`, `Guid`, unmanaged structs (Unity and `System.Numerics`
-  vectors), `string`, `T?`, `ValueTuple`/`Tuple` (1-7), `KeyValuePair`, `DateTimeOffset`, `nint`, `BigInteger`,
-  `Version`, `Uri`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>`.
-- `T[]`, `T[,]` to `T[,,,]`, `ArraySegment<T>`, `Memory<T>`, `ReadOnlyMemory<T>`, `ReadOnlySequence<T>`, `List<T>`,
-  `HashSet<T>`, `Queue<T>`, `Stack<T>`, `LinkedList<T>`, `SortedSet<T>`, `Dictionary`, `SortedDictionary`,
-  `SortedList`, the concurrent collections, `BlockingCollection<T>`, `PriorityQueue` (.NET 8+ builds only, not Unity),
-  `ILookup`, `IGrouping`, read-only wrappers, immutable collections (with `Nino.Immutable`), and any class with a
-  public parameterless constructor (or `[NinoFactory]`) implementing `ICollection<T>`, `IDictionary<K,V>` or
-  `IProducerConsumerCollection<T>`. Interfaces read back as `List<T>`, `HashSet<T>`, `Dictionary<K,V>`.
-- `object` members hold any `[NinoType]` (by type id), nothing else.
-- Not supported (NINO007, member skipped): delegates, `Task`, pointers, `Span<T>`, `System.Type` (on purpose: store
-  your own id), non-generic collections, abstract or struct collections, Unity/Godot classes except Unity's
-  `AnimationCurve`, `Gradient`, `RectOffset`. Fix with `[NinoIgnore]` or a custom formatter.
-- Never serializable (NINO029, an error; `NotSupportedException` at run time): `System.Numerics.Vector<T>`, alone or
-  inside anything (arrays, collections and classes deriving from one, tuples, `T?`, plain structs, a generic
-  `[NinoType]` whose members name `T`, as `Box<Vector<int>>`): it is 16, 32 or 64 bytes, chosen by the CPU. `Vector64<T>` to `Vector512<T>` are fixed size and fine. Store 16 lanes of a 4-byte type (whole
-  vectors on every CPU) and view them as vectors ([why](https://nino.xgamedev.net/en/docs/v4/struct-layouts#vector-t)):
-
-  ```csharp
-  [NinoType]
-  public sealed partial class Particle
-  {
-      public float[] Lanes = new float[16]; // serialized: 64 bytes on every host
-
-      [NinoIgnore] // 4, 2 or 1 vectors by the CPU
-      public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());
-  }
-  ```
-
-### Custom formatters
-
-A formatter is a **struct** implementing `INinoFormatter<T>` (`Serialize(T, ref Writer)`, `Deserialize(ref T, ref
-Reader)`), called as `default(F)`: no instance state. Read exactly what you wrote, in order.
-- One member: `[NinoMemberFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
-- A type Nino does not know: `[assembly: NinoFormatter(typeof(F<,>))]`, generic formatters as open definitions; a
-  type parameter constrained `struct, INinoFormatter<E>` gets the element formatter; `[NinoRaw]` and `[NinoCreated]`
-  narrow what binds. Invalid registrations: NINO020. There is no runtime registration call.
-- Use `writer.WriteLength(n)` / `WriteNullLength()` and `reader.ReadLength(minElementSize)` (checked against the bytes
-  left), and hand dropped instances to `NinoRecycler.Discard(ref value)` / `NinoRecycler.Replace(ref value, x)`.
-  Nested values: `NinoSerializer.Serialize(v, ref writer)`, `NinoDeserializer.Deserialize(ref v, ref reader)`.
-
-```csharp
-public struct ZigZagLongFormatter : INinoFormatter<long>
-{
-    public void Serialize(long value, ref Writer writer)
-    {
-        ulong v = (ulong)((value << 1) ^ (value >> 63));
-        while (v >= 0x80) { writer.Write((byte)(v | 0x80)); v >>= 7; }
-        writer.Write((byte)v);
-    }
-
-    public void Deserialize(ref long value, ref Reader reader)
-    {
-        ulong v = 0; int shift = 0; byte b;
-        do { reader.Read(out b); v |= (ulong)(b & 0x7F) << shift; shift += 7; } while ((b & 0x80) != 0 && shift < 70);
-        value = (long)(v >> 1) ^ -(long)(v & 1);
-    }
-}
-
-[NinoType]
-public sealed class BalanceChange
-{
-    public int AccountId;
-    [NinoMemberFormatter(typeof(ZigZagLongFormatter))] public long DeltaCents;
-}
-```
-
-## Unity, IL2CPP, HybridCLR, AOT
-
-- Unity compiles against .NET Standard: no `[UnsafeAccessor]`, so private members and `[NinoPooled]` need `partial`
-  (NINO002); no interceptors (same bytes). Assembly definitions need `Nino.Core.dll` (Auto Referenced, or listed under
-  Override References; also `Nino.UnityTypes.dll` for the Unity classes).
-- Install `com.unity.burst` 1.8+ for speed: Burst SIMD kernels then register on their own (`Nino.Burst.NinoBurst`) for
-  tuples, padded structs, Latin-1 strings and the ASCII text of `[NinoUtf8]` strings; include SSE4 and AVX2 in Burst
-  AOT Settings for x64 players. Without Burst, IL2CPP and Mono players take Nino's scalar paths (the same bytes);
-  WebGL players built with WebAssembly SIMD get the same kernels from `Nino.WebGL` with no setup.
-- IL2CPP and Native AOT: no reflection at serialization time; types must appear in code the generator sees (a member
-  type, the type argument of a `NinoSerializer`/`NinoDeserializer` call, or the `typeof` argument of `SerializeBoxed`,
-  `DeserializeBoxed` or `IsSupported`; a `Type` known only at run time registers nothing). Native AOT on x64 takes
-  Nino's SSSE3 paths on CPUs that have SSSE3; its AVX2 and AVX-512 paths need `<IlcInstructionSet>` (`x86-64-v3`,
-  `x86-64-v4` or `native`), which makes the app require those CPUs. HybridCLR: `Assembly.Load` is enough, no init call;
-  `NinoRegistry.EnsureInitialized(asm)` / `EnsureAllInitialized()` only to pay the registry load on a loading screen.
-- Godot 4 .NET: a normal NuGet project; engine objects (`Node`, `Resource`) are not serialized, math structs are raw.
-
-## ASP.NET Core (Nino.AspNetCore)
-
-```csharp
-builder.Services.AddControllers().AddNinoFormatters(); // MVC: application/x-nino in and out, JSON stays the default
-app.MapPost("/orders", (NinoBody<Order> order) => NinoResults.Ok(order.Value));
-app.MapGet("/shape", () => NinoResults.Ok<Shape>(new Circle())); // give T to write a subtype as its base
-```
-
-Invalid bodies become 400 (`NinoBody<T>`: 415 for another content type). By hand:
-`request.ReadFromNinoAsync<T>(ct)`, `response.WriteAsNinoAsync(value, ct)`, `NinoMediaTypes.Application`.
-
-## Other languages
-
-Nino.Codegen writes your `[NinoType]`s as TypeScript, Go or Rust types with codecs, from the built assembly's layouts:
-`<NinoCodegen Include="typescript|go|rust" Out="..." />` items in the project (or `nino-gen --assembly x.dll --lang
-ts|go|rust --out dir`). Runtimes: `nino.ts` (written next to the code, or npm `nino-serialization`), Go module
-`github.com/JasonXuDeveloper/Nino/runtimes/go/v4`, Rust crate `nino-serialization` (library `nino`). Unsupported
-types are left out with NINOGEN002. Details: [references/other-languages.md](references/other-languages.md).
-
-## Diagnostics
-
-`NINO0xx` come from the analyzer as you type; many have a code fix. Errors mean the type cannot work, warnings mean
-data is silently dropped or an attribute does nothing: never suppress NINO006 or NINO007 blindly.
-- **Type shape** (NINO001, 002, 003, 022, 023): make it public/internal, `partial`, add `[NinoType]`, rename a hidden
-  member, serialize at least one struct member.
-- **Construction** (NINO004, 005, 006, 021, 025): give a usable constructor, match `[NinoConstructor]` names, make
-  read-only members parameters or settable, make it public, pick one of `[NinoConstructor]` / `[NinoFactory]`.
-- **Members** (NINO007 to 013, 028, 029): an unsupported member type, a formatter for the wrong type, inconsistent
-  `[NinoMember]`/`[NinoIgnore]`, duplicate indices, `[NinoMember]` on what is never written, `Vector<T>` (below).
-- **Features** (NINO014 to 017, 024, 026, 027): keyed name collisions, `trackReferences` on structs or re-created types,
-  invalid factories, misplaced `[NinoFormerName]`.
-- **Pooling and formatters** (NINO018, 019, 020): pooled types must be sealed, partial, assignable and implement both
-  hooks; `[assembly: NinoFormatter]` must name a usable struct.
-- **nino-gen** (NINOGEN001 error: bad option or unreadable assembly; 002: type left out; 003: old `NinoTypeScript*`
-  properties; 004: Nino.Codegen without a `<NinoCodegen>` item).
+- **Read anything an outsider could craft with `NinoSettings.Untrusted = true`.** The default mode already rejects a
+  `bool` or presence byte other than 0 or 1 in members, values and arrays, but it copies a raw struct as one block
+  (any plain unmanaged struct, including one with `bool` or `T?` fields), so a `bool` field or a `Nullable` flag
+  *inside* it is not checked. A byte other than 0 or 1 there is undefined behavior to the .NET JIT, not only a wrong
+  value (the struct can compare unequal to itself and be lost in a `Dictionary`). Untrusted mode rejects it, and also
+  bytes after the value and out-of-range `decimal`, `DateTime`, `DateOnly`, `TimeOnly` copied as bytes. It is one
+  process-wide setting: set it once at startup, not per call.
+- Still your job: validate values (a negative health, an unnamed enum value, an array of the wrong length), cap frame
+  or request sizes before buffering, and version payloads yourself: the bytes carry no schema, so data for another
+  type with a compatible layout reads without error. Put a magic number and version in front of stored files.
 
 ## Pitfalls
 
-- A bare `[NinoType]` is positional: adding, removing or reordering members breaks stored data (throws, or worse,
-  wrong values). Pick `VersionTolerant` or `Keyed` before shipping anything stored or exchanged across versions.
-- Raw structs: reordering fields or changing `StructLayout` changes the bytes. Their layout is 64-bit CoreCLR's on
-  every runtime (Mono, IL2CPP, .NET Framework and 32-bit hosts convert), so data moves between them.
-- `Vector<T>` members: NINO029 (Types Nino writes). Never write `new Vector<float>(lanes)` assuming 8 lanes:
-  `Vector<float>.Count` is 4, 8 or 16 by the CPU.
-- `Serialize<object>`, `object` members and the boxed API in message code: use a common `[NinoType]` base.
-- Write and read with the same declared type: `Serialize<Base>` then `Deserialize<Base>`.
-- `int?[]` / `List<int?>` and `IList<int?>` write different bytes; so do `[NinoUtf8]` and the default.
-- `NinoSettings` changed after the first Nino call throws; set it at startup.
-- Sharing one `NinoArrayBufferWriter` between threads, or using `WrittenSpan`/`WrittenMemory` after the next write or
-  `ResetWrittenCount()`.
-- A recycler or `ReturnToPool()` on instances still referenced elsewhere: the pool hands them out again.
-- If the project sets `InterceptorsNamespaces` itself, append (`$(InterceptorsNamespaces);Mine`), don't replace.
-- Arrays or `List<T>` of classes much larger than the CPU cache, whose objects were replaced, shuffled or sorted:
-  `<NinoPrefetchLargeCollections>true</NinoPrefetchLargeCollections>` in the calling project makes their top-level
-  calls prefetch (same bytes; .NET 8+ through the interceptors, nothing in Unity). Short collections get a few % slower.
+- A bare `[NinoType]` is positional: adding, removing or reordering members breaks stored data.
+- `System.Numerics.Vector<T>` anywhere in a serialized type: NINO029, an error. It is 16, 32 or 64 bytes by the CPU;
+  store 16 lanes of a 4-byte type (`float[16]`) and expose `Span<Vector<float>>` through a `[NinoIgnore]` member
+  ([references/types.md](references/types.md#vectort-is-never-serializable-nino029)). `Vector128<T>` and the other
+  fixed-size vectors are fine.
+- `Serialize<object>`, `object` members and the boxed API in message code: use a common `[NinoType]` base, and write
+  and read with the same declared type (`Serialize<Base>` then `Deserialize<Base>`).
+- `NinoSettings` changed after the first Nino call throws.
+- Sharing one `NinoArrayBufferWriter` between threads, or using `WrittenSpan` after the next write or reset.
+- `int?[]` / `List<int?>` and `IList<int?>` write different bytes; so do `[NinoUtf8]` and the default; so does a raw
+  struct made `VersionTolerant`.
 - v3 code: `Serializer.Serialize` / `Deserializer.Deserialize(data, out v)` are now `NinoSerializer.Serialize` /
   `NinoDeserializer.Deserialize<T>(data)`; `[NinoExplicitOrder]` is gone (`[NinoType(false)]` + `[NinoMember]`). v4
   cannot read v3 data. Beta names: `[NinoRefDeserialization]` is `[NinoFactory]`, `DeserializeRef` is
   `Deserialize(data, ref value)`.
+- Porting from MemoryPack: the bytes differ, so stored data needs a one-time conversion (reference both, read with
+  MemoryPack, write with Nino, add a file header). `[MemoryPackable] partial` → `[NinoType]`, `[MemoryPackIgnore]` →
+  `[NinoIgnore]`, `[MemoryPackOrder(n)]` → `[NinoType(false)]` + `[NinoMember(n)]`, `[MemoryPackConstructor]` →
+  `[NinoConstructor]`, `[MemoryPackUnion]` → nothing (subtypes inherit the base's `[NinoType]`),
+  `GenerateType.VersionTolerant` → `NinoFormat.Keyed`, `GenerateType.CircularReference` → `trackReferences: true`,
+  `Serialize(bufferWriter, value)` → `Serialize(value, bufferWriter)` (value first). Invalid data throws
+  `NinoDataException`. Full table: https://nino.xgamedev.net/en/docs/v4/vs-memorypack.md
+
+Diagnostics: errors mean the type cannot work, warnings mean data is silently dropped or an attribute does nothing.
+Never suppress NINO006 or NINO007 blindly. Each id and its fix: [references/diagnostics.md](references/diagnostics.md).
 
 ## What Nino does not do
 
-- No `Stream`, async or multi-segment APIs (wrap `IBufferWriter<byte>` / `ReadOnlySpan<byte>`), no compression, no
-  callbacks, no `System.Type`, no schema in the bytes, no human-readable output, no reading of v3 data.
+- No `Stream`, async or multi-segment APIs, no compression, no callbacks, no `System.Type`, no schema in the bytes,
+  no human-readable output, no reading of v3 data.
 - No runtime registration of formatters and no reflection fallback: the generator must see every type.
 - No languages besides .NET, TypeScript/JavaScript, Go and Rust (use Protocol Buffers or MessagePack there).
 

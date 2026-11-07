@@ -21,9 +21,9 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref ValueTuple<T1> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ValueTuple<T1> value)
         {
-            default(TF1).Deserialize(ref value.Item1, ref reader);
+            default(TF1).Deserialize(ref reader, ref value.Item1);
         }
 
         int INinoFixedSizeFormatter<ValueTuple<T1>>.FixedSize
@@ -34,7 +34,7 @@ namespace Nino.Core
 
         NinoBlockMap INinoBlockFormatter<ValueTuple<T1>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>()))
+            if (!RawFormatter.Is<T1, TF1>())
                 return null;
             var value = default(ValueTuple<T1>);
             return new NinoBlockMap()
@@ -66,14 +66,14 @@ namespace Nino.Core
             default(TF1).Serialize(value.Item1, ref writer);
         }
 
-        public void Deserialize(ref Tuple<T1> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Tuple<T1> value)
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref item1, ref reader);
+            default(TF1).Deserialize(ref reader, ref item1);
             NinoRecycler.Replace(ref value, new Tuple<T1>(item1));
         }
     }
@@ -100,7 +100,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref ValueTuple<T1, T2> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2> value)
         {
             if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>())
             {
@@ -110,8 +110,8 @@ namespace Nino.Core
                 return;
             }
 
-            default(TF1).Deserialize(ref value.Item1, ref reader);
-            default(TF2).Deserialize(ref value.Item2, ref reader);
+            default(TF1).Deserialize(ref reader, ref value.Item1);
+            default(TF2).Deserialize(ref reader, ref value.Item2);
         }
 
         int INinoFixedSizeFormatter<ValueTuple<T1, T2>>.FixedSize
@@ -159,16 +159,16 @@ namespace Nino.Core
             default(TF2).Serialize(value.Item2, ref writer);
         }
 
-        public void Deserialize(ref Tuple<T1, T2> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Tuple<T1, T2> value)
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref item1, ref reader);
+            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref item2, ref reader);
+            default(TF2).Deserialize(ref reader, ref item2);
             NinoRecycler.Replace(ref value, new Tuple<T1, T2>(item1, item2));
         }
     }
@@ -198,7 +198,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref ValueTuple<T1, T2, T3> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3> value)
         {
             if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>())
             {
@@ -209,9 +209,9 @@ namespace Nino.Core
                 return;
             }
 
-            default(TF1).Deserialize(ref value.Item1, ref reader);
-            default(TF2).Deserialize(ref value.Item2, ref reader);
-            default(TF3).Deserialize(ref value.Item3, ref reader);
+            default(TF1).Deserialize(ref reader, ref value.Item1);
+            default(TF2).Deserialize(ref reader, ref value.Item2);
+            default(TF3).Deserialize(ref reader, ref value.Item3);
         }
 
         int INinoFixedSizeFormatter<ValueTuple<T1, T2, T3>>.FixedSize
@@ -264,18 +264,18 @@ namespace Nino.Core
             default(TF3).Serialize(value.Item3, ref writer);
         }
 
-        public void Deserialize(ref Tuple<T1, T2, T3> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3> value)
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref item1, ref reader);
+            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref item2, ref reader);
+            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref item3, ref reader);
+            default(TF3).Deserialize(ref reader, ref item3);
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3>(item1, item2, item3));
         }
     }
@@ -308,7 +308,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref ValueTuple<T1, T2, T3, T4> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4> value)
         {
             if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>())
             {
@@ -320,10 +320,10 @@ namespace Nino.Core
                 return;
             }
 
-            default(TF1).Deserialize(ref value.Item1, ref reader);
-            default(TF2).Deserialize(ref value.Item2, ref reader);
-            default(TF3).Deserialize(ref value.Item3, ref reader);
-            default(TF4).Deserialize(ref value.Item4, ref reader);
+            default(TF1).Deserialize(ref reader, ref value.Item1);
+            default(TF2).Deserialize(ref reader, ref value.Item2);
+            default(TF3).Deserialize(ref reader, ref value.Item3);
+            default(TF4).Deserialize(ref reader, ref value.Item4);
         }
 
         int INinoFixedSizeFormatter<ValueTuple<T1, T2, T3, T4>>.FixedSize
@@ -381,20 +381,20 @@ namespace Nino.Core
             default(TF4).Serialize(value.Item4, ref writer);
         }
 
-        public void Deserialize(ref Tuple<T1, T2, T3, T4> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3, T4> value)
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref item1, ref reader);
+            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref item2, ref reader);
+            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref item3, ref reader);
+            default(TF3).Deserialize(ref reader, ref item3);
             T4 item4 = default;
-            default(TF4).Deserialize(ref item4, ref reader);
+            default(TF4).Deserialize(ref reader, ref item4);
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4>(item1, item2, item3, item4));
         }
     }
@@ -430,7 +430,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref ValueTuple<T1, T2, T3, T4, T5> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4, T5> value)
         {
             if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>())
             {
@@ -443,11 +443,11 @@ namespace Nino.Core
                 return;
             }
 
-            default(TF1).Deserialize(ref value.Item1, ref reader);
-            default(TF2).Deserialize(ref value.Item2, ref reader);
-            default(TF3).Deserialize(ref value.Item3, ref reader);
-            default(TF4).Deserialize(ref value.Item4, ref reader);
-            default(TF5).Deserialize(ref value.Item5, ref reader);
+            default(TF1).Deserialize(ref reader, ref value.Item1);
+            default(TF2).Deserialize(ref reader, ref value.Item2);
+            default(TF3).Deserialize(ref reader, ref value.Item3);
+            default(TF4).Deserialize(ref reader, ref value.Item4);
+            default(TF5).Deserialize(ref reader, ref value.Item5);
         }
 
         int INinoFixedSizeFormatter<ValueTuple<T1, T2, T3, T4, T5>>.FixedSize
@@ -510,22 +510,22 @@ namespace Nino.Core
             default(TF5).Serialize(value.Item5, ref writer);
         }
 
-        public void Deserialize(ref Tuple<T1, T2, T3, T4, T5> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3, T4, T5> value)
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref item1, ref reader);
+            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref item2, ref reader);
+            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref item3, ref reader);
+            default(TF3).Deserialize(ref reader, ref item3);
             T4 item4 = default;
-            default(TF4).Deserialize(ref item4, ref reader);
+            default(TF4).Deserialize(ref reader, ref item4);
             T5 item5 = default;
-            default(TF5).Deserialize(ref item5, ref reader);
+            default(TF5).Deserialize(ref reader, ref item5);
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5>(item1, item2, item3, item4, item5));
         }
     }
@@ -564,7 +564,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref ValueTuple<T1, T2, T3, T4, T5, T6> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4, T5, T6> value)
         {
             if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>())
             {
@@ -578,12 +578,12 @@ namespace Nino.Core
                 return;
             }
 
-            default(TF1).Deserialize(ref value.Item1, ref reader);
-            default(TF2).Deserialize(ref value.Item2, ref reader);
-            default(TF3).Deserialize(ref value.Item3, ref reader);
-            default(TF4).Deserialize(ref value.Item4, ref reader);
-            default(TF5).Deserialize(ref value.Item5, ref reader);
-            default(TF6).Deserialize(ref value.Item6, ref reader);
+            default(TF1).Deserialize(ref reader, ref value.Item1);
+            default(TF2).Deserialize(ref reader, ref value.Item2);
+            default(TF3).Deserialize(ref reader, ref value.Item3);
+            default(TF4).Deserialize(ref reader, ref value.Item4);
+            default(TF5).Deserialize(ref reader, ref value.Item5);
+            default(TF6).Deserialize(ref reader, ref value.Item6);
         }
 
         int INinoFixedSizeFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.FixedSize
@@ -651,24 +651,24 @@ namespace Nino.Core
             default(TF6).Serialize(value.Item6, ref writer);
         }
 
-        public void Deserialize(ref Tuple<T1, T2, T3, T4, T5, T6> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3, T4, T5, T6> value)
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref item1, ref reader);
+            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref item2, ref reader);
+            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref item3, ref reader);
+            default(TF3).Deserialize(ref reader, ref item3);
             T4 item4 = default;
-            default(TF4).Deserialize(ref item4, ref reader);
+            default(TF4).Deserialize(ref reader, ref item4);
             T5 item5 = default;
-            default(TF5).Deserialize(ref item5, ref reader);
+            default(TF5).Deserialize(ref reader, ref item5);
             T6 item6 = default;
-            default(TF6).Deserialize(ref item6, ref reader);
+            default(TF6).Deserialize(ref reader, ref item6);
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5, T6>(item1, item2, item3, item4, item5, item6));
         }
     }
@@ -710,7 +710,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4, T5, T6, T7> value)
         {
             if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() && RawFormatter.Is<T7, TF7>())
             {
@@ -725,13 +725,13 @@ namespace Nino.Core
                 return;
             }
 
-            default(TF1).Deserialize(ref value.Item1, ref reader);
-            default(TF2).Deserialize(ref value.Item2, ref reader);
-            default(TF3).Deserialize(ref value.Item3, ref reader);
-            default(TF4).Deserialize(ref value.Item4, ref reader);
-            default(TF5).Deserialize(ref value.Item5, ref reader);
-            default(TF6).Deserialize(ref value.Item6, ref reader);
-            default(TF7).Deserialize(ref value.Item7, ref reader);
+            default(TF1).Deserialize(ref reader, ref value.Item1);
+            default(TF2).Deserialize(ref reader, ref value.Item2);
+            default(TF3).Deserialize(ref reader, ref value.Item3);
+            default(TF4).Deserialize(ref reader, ref value.Item4);
+            default(TF5).Deserialize(ref reader, ref value.Item5);
+            default(TF6).Deserialize(ref reader, ref value.Item6);
+            default(TF7).Deserialize(ref reader, ref value.Item7);
         }
 
         int INinoFixedSizeFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.FixedSize
@@ -804,26 +804,26 @@ namespace Nino.Core
             default(TF7).Serialize(value.Item7, ref writer);
         }
 
-        public void Deserialize(ref Tuple<T1, T2, T3, T4, T5, T6, T7> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Tuple<T1, T2, T3, T4, T5, T6, T7> value)
         {
             if (!reader.TryReadPresent(ref value))
                 return;
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref item1, ref reader);
+            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref item2, ref reader);
+            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref item3, ref reader);
+            default(TF3).Deserialize(ref reader, ref item3);
             T4 item4 = default;
-            default(TF4).Deserialize(ref item4, ref reader);
+            default(TF4).Deserialize(ref reader, ref item4);
             T5 item5 = default;
-            default(TF5).Deserialize(ref item5, ref reader);
+            default(TF5).Deserialize(ref reader, ref item5);
             T6 item6 = default;
-            default(TF6).Deserialize(ref item6, ref reader);
+            default(TF6).Deserialize(ref reader, ref item6);
             T7 item7 = default;
-            default(TF7).Deserialize(ref item7, ref reader);
+            default(TF7).Deserialize(ref reader, ref item7);
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5, T6, T7>(item1, item2, item3, item4, item5, item6, item7));
         }
     }
@@ -854,16 +854,16 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value)
         {
-            default(TF1).Deserialize(ref value.Item1, ref reader);
-            default(TF2).Deserialize(ref value.Item2, ref reader);
-            default(TF3).Deserialize(ref value.Item3, ref reader);
-            default(TF4).Deserialize(ref value.Item4, ref reader);
-            default(TF5).Deserialize(ref value.Item5, ref reader);
-            default(TF6).Deserialize(ref value.Item6, ref reader);
-            default(TF7).Deserialize(ref value.Item7, ref reader);
-            default(TF8).Deserialize(ref value.Rest, ref reader);
+            default(TF1).Deserialize(ref reader, ref value.Item1);
+            default(TF2).Deserialize(ref reader, ref value.Item2);
+            default(TF3).Deserialize(ref reader, ref value.Item3);
+            default(TF4).Deserialize(ref reader, ref value.Item4);
+            default(TF5).Deserialize(ref reader, ref value.Item5);
+            default(TF6).Deserialize(ref reader, ref value.Item6);
+            default(TF7).Deserialize(ref reader, ref value.Item7);
+            default(TF8).Deserialize(ref reader, ref value.Rest);
         }
     }
 }

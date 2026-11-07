@@ -24,7 +24,7 @@ namespace Nino.Core
         /// formatters reuse it where possible; what they drop follows the ownership rules of <see cref="NinoRecycler"/>
         /// (each dropped instance is recycled exactly once).
         /// </summary>
-        void Deserialize(ref T value, ref Reader reader);
+        void Deserialize(ref Reader reader, ref T value);
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ namespace Nino.Core
     }
 
     /// <summary>The formatter of a type, for code that only has a <see cref="Type"/>.</summary>
-    internal abstract class NinoFormatter
+    internal abstract class NinoFormatterBase
     {
         /// <summary>
         /// The boxed entry point of the formatter's type, created where the type is a generic argument rather than
@@ -117,13 +117,13 @@ namespace Nino.Core
     /// around a struct formatter, called virtually. Every formatter users write is a struct
     /// <see cref="INinoFormatter{T}"/>; this class is only the dispatch carrier and is not part of the API.
     /// </summary>
-    internal abstract class NinoFormatter<T> : NinoFormatter, INinoFormatter<T>
+    internal abstract class NinoFormatterBase<T> : NinoFormatterBase, INinoFormatter<T>
     {
         internal sealed override BoxedFormatter CreateBoxed() => new BoxedFormatter<T>();
 
         public abstract void Serialize(T value, ref Writer writer);
 
-        public abstract void Deserialize(ref T value, ref Reader reader);
+        public abstract void Deserialize(ref Reader reader, ref T value);
 
         /// <summary>
         /// Writes <paramref name="value"/> as a whole payload into <paramref name="buffer"/> (the top-level calls): the
@@ -167,7 +167,7 @@ namespace Nino.Core
         /// This formatter, counting each read toward the depth limit, for a type that can hold itself through
         /// collections (<see cref="NinoNesting"/>); the formatter itself where it cannot be wrapped.
         /// </summary>
-        internal virtual NinoFormatter<T> Counted() => this;
+        internal virtual NinoFormatterBase<T> Counted() => this;
     }
 
     /// <summary>Formatters of arrays whose elements are written as one raw block.</summary>
@@ -226,7 +226,7 @@ namespace Nino.Core
     /// but its leaves are: <see cref="NinoTopFormatter{T}.Formatter"/> holds one of them, whose exact class Tier1 code
     /// knows, so these calls are devirtualized there as they were when each leaf declared them.
     /// </summary>
-    internal abstract class StructFormatterBase<T, TFormatter> : NinoFormatter<T>
+    internal abstract class StructFormatterBase<T, TFormatter> : NinoFormatterBase<T>
         where TFormatter : struct, INinoFormatter<T>
     {
         internal sealed override Type StructType => typeof(TFormatter);
@@ -236,8 +236,8 @@ namespace Nino.Core
             default(TFormatter).Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public sealed override void Deserialize(ref T value, ref Reader reader) =>
-            default(TFormatter).Deserialize(ref value, ref reader);
+        public sealed override void Deserialize(ref Reader reader, ref T value) =>
+            default(TFormatter).Deserialize(ref reader, ref value);
 
         internal override void Write(T value, NinoArrayBufferWriter buffer) =>
             NinoDirect.Write<T, TFormatter>(value, buffer);
@@ -245,11 +245,11 @@ namespace Nino.Core
         internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
     }
 
-    /// <summary>Wraps a struct formatter as a <see cref="NinoFormatter{T}"/>.</summary>
+    /// <summary>Wraps a struct formatter as a <see cref="NinoFormatterBase{T}"/>.</summary>
     internal sealed class StructFormatter<T, TFormatter> : StructFormatterBase<T, TFormatter>
         where TFormatter : struct, INinoFormatter<T>
     {
-        internal override NinoFormatter<T> Counted() => new NestingFormatter<T, TFormatter>();
+        internal override NinoFormatterBase<T> Counted() => new NestingFormatter<T, TFormatter>();
 
         internal override bool IsRaw => RawFormatter.Is<T, TFormatter>();
 
@@ -272,7 +272,7 @@ namespace Nino.Core
     /// too (<see cref="Writer.EnterStruct"/>): an object graph nested too deep, or a collection that holds itself,
     /// throws <see cref="InvalidOperationException"/> instead of overflowing the stack.
     /// </summary>
-    internal sealed class NestingFormatter<T, TFormatter> : NinoFormatter<T>
+    internal sealed class NestingFormatter<T, TFormatter> : NinoFormatterBase<T>
         where TFormatter : struct, INinoFormatter<T>
     {
         public override void Serialize(T value, ref Writer writer)
@@ -282,10 +282,10 @@ namespace Nino.Core
             writer.ExitStruct();
         }
 
-        public override void Deserialize(ref T value, ref Reader reader)
+        public override void Deserialize(ref Reader reader, ref T value)
         {
             reader.EnterStruct(typeof(T));
-            default(TFormatter).Deserialize(ref value, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref value);
             reader.ExitStruct();
         }
 
@@ -336,7 +336,7 @@ namespace Nino.Core
         public void Serialize(T value, ref Writer writer) => NinoTopFormatter<T>.Formatter.Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T value, ref Reader reader) =>
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+        public void Deserialize(ref Reader reader, ref T value) =>
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
     }
 }

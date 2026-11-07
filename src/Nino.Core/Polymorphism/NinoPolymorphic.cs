@@ -48,32 +48,32 @@ namespace Nino.Core
             writer.ExitBody(depth);
         }
 
-        public override void Deserialize(ref object value, ref Reader reader)
+        public override void Deserialize(ref Reader reader, ref object value)
         {
             if (!typeof(TSub).IsValueType)
             {
                 int depth = reader.Depth;
                 if (depth >= NinoDepth.Inline)
                 {
-                    ReadDeep(ref value, ref reader);
+                    ReadDeep(ref reader, ref value);
                     return;
                 }
 
                 // value is null or exactly a TSub, and the body stores a TSub: the slot is read as a TSub slot.
                 if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
                 {
-                    default(TFormatter).ReadBody(ref Unsafe.As<object, TSub>(ref value), ref reader);
+                    default(TFormatter).ReadBody(ref reader, ref Unsafe.As<object, TSub>(ref value));
                     return;
                 }
 
                 reader.Depth = depth + 1;
-                default(TFormatter).ReadBody(ref Unsafe.As<object, TSub>(ref value), ref reader);
+                default(TFormatter).ReadBody(ref reader, ref Unsafe.As<object, TSub>(ref value));
                 reader.ExitBody(depth);
                 return;
             }
 
             TSub sub = value == null ? default : As(ref value);
-            default(TFormatter).ReadBody(ref sub, ref reader);
+            default(TFormatter).ReadBody(ref reader, ref sub);
             value = sub;
         }
 
@@ -82,8 +82,8 @@ namespace Nino.Core
             NinoObject.WriteBody<object, ClassBody>(value, ref writer);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadDeep(ref object value, ref Reader reader) =>
-            NinoObject.ReadBody<object, ClassBody>(ref value, ref reader);
+        private static void ReadDeep(ref Reader reader, ref object value) =>
+            NinoObject.ReadBody<object, ClassBody>(ref reader, ref value);
 
         /// <summary><typeparamref name="TFormatter"/> over <c>object</c>, for a class <typeparamref name="TSub"/>.</summary>
         private struct ClassBody : INinoBodyFormatter<object>
@@ -97,16 +97,16 @@ namespace Nino.Core
             public void WriteBody(object value, ref Writer writer) =>
                 default(TFormatter).WriteBody(Unsafe.As<object, TSub>(ref value), ref writer);
 
-            public void ReadBody(ref object value, ref Reader reader)
+            public void ReadBody(ref Reader reader, ref object value)
             {
                 TSub sub = value == null ? default : Unsafe.As<object, TSub>(ref value);
-                default(TFormatter).ReadBody(ref sub, ref reader);
+                default(TFormatter).ReadBody(ref reader, ref sub);
                 value = sub;
             }
 
             public void Serialize(object value, ref Writer writer) => WriteBody(value, ref writer);
 
-            public void Deserialize(ref object value, ref Reader reader) => ReadBody(ref value, ref reader);
+            public void Deserialize(ref Reader reader, ref object value) => ReadBody(ref reader, ref value);
         }
 
         // The caller guarantees the exact runtime type, so reference types skip the cast check.
@@ -138,14 +138,14 @@ namespace Nino.Core
                 NinoObject.WriteBody<TSub, TFormatter>(Unsafe.As<TSub>(value), ref writer);
         }
 
-        public override void Deserialize(ref object value, ref Reader reader)
+        public override void Deserialize(ref Reader reader, ref object value)
         {
             var sub = Unsafe.As<TSub>(value);
             // A back reference must be a TSub (ReadReference checks it); the old instance is not recycled, since
             // it may be referenced elsewhere in the graph.
             if (reader.ReadReference(ref sub, out int index))
             {
-                NinoObject.ReadBody<TSub, TFormatter>(ref sub, ref reader);
+                NinoObject.ReadBody<TSub, TFormatter>(ref reader, ref sub);
                 reader.EndReference(index, sub);
             }
 
@@ -158,10 +158,10 @@ namespace Nino.Core
             NinoObject.WriteBody<TSub, TFormatter>(Unsafe.As<TSub>(value), ref writer);
         }
 
-        internal override void DeserializeReferenced(ref object value, ref Reader reader)
+        internal override void DeserializeReferenced(ref Reader reader, ref object value)
         {
             var sub = Unsafe.As<TSub>(value);
-            NinoObject.ReadBody<TSub, TFormatter>(ref sub, ref reader);
+            NinoObject.ReadBody<TSub, TFormatter>(ref reader, ref sub);
             value = sub;
         }
     }
@@ -191,8 +191,8 @@ namespace Nino.Core
             NinoSubtypes<object>.Register(new TrackedSubtypeHandler<TSub, TFormatter>(id));
         }
 
-        /// <summary>Registers <typeparamref name="T"/> for polymorphic use; see <see cref="Register(Type)"/>.</summary>
-        public static bool Register<T>() => Register(typeof(T));
+        /// <summary>Registers <typeparamref name="T"/> for polymorphic use; see <see cref="TryRegister(Type)"/>.</summary>
+        public static bool TryRegister<T>() => TryRegister(typeof(T));
 
         /// <summary>
         /// Registers a <c>[NinoType]</c>, typically a closed generic such as <c>Box&lt;int&gt;</c>, so that it can be
@@ -205,9 +205,10 @@ namespace Nino.Core
         /// assembly or through reflection). Generic types are closed with <c>MakeGenericType</c>, which needs dynamic
         /// code: without it (NativeAOT), only the generated registrations are found.
         /// </para>
-        /// Returns false when the type cannot be written polymorphically (abstract, open, or not a <c>[NinoType]</c>).
+        /// Returns true when the type is registered (now or before), false when it cannot be written polymorphically
+        /// (abstract, open, or not a <c>[NinoType]</c>), or, without dynamic code, when no generated code registers it.
         /// </summary>
-        public static bool Register(Type type)
+        public static bool TryRegister(Type type)
         {
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
@@ -263,7 +264,7 @@ namespace Nino.Core
             {
                 if (type.IsGenericType && !type.IsAbstract && !type.IsInterface &&
                     NinoTypeId.Of(type) == id && NinoReflection.IsNinoType(type))
-                    return Register(type);
+                    return TryRegister(type);
             }
 
             return false;

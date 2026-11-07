@@ -32,7 +32,8 @@ Model/                       the IR: language-neutral, built once, read by every
                              FNV-1a hash of ids and keys
 Targets/                     what each language can express and how (NINOGEN002 for what it cannot)
   CodegenTarget.cs           the base of the three: which types are written (the rest left out with a warning),
-                             the warnings, the names of the generated types
+                             the closed generic types, the warnings, the names of the generated types; ResolveTypes,
+                             how every Render starts
   TypeScriptTarget.cs        classes, `as const` enums and a NinoCodec per type (TsShape, TsClass, ...)
   GoTarget.cs                structs with nino tags and NinoLayout, codecs in the style of runtimes/go/internal/sample
   RustTarget.cs              structs and NinoReadBody / NinoWriteBody impls in the shape of

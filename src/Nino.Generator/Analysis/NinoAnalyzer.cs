@@ -40,6 +40,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 start.RegisterOperationAction(c => AnalyzeCall(c, symbols), OperationKind.Invocation);
                 start.RegisterOperationAction(c => AnalyzeFormatter(c, core), OperationKind.ObjectCreation,
                     OperationKind.DefaultValue);
+                start.RegisterSymbolAction(c => AnalyzeFormatterStorage(c, core), SymbolKind.Field, SymbolKind.Property);
+                start.RegisterOperationAction(c => AnalyzeFormatterLocal(c, core), OperationKind.VariableDeclarator);
             }
         });
     }
@@ -110,24 +112,152 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
 
     /// <summary>
     /// One of Nino.Core's generic formatters made by hand (<c>new UnmanagedFormatter&lt;Vector&lt;int&gt;&gt;()</c>,
-    /// <c>default(...)</c>) whose value is or holds <c>Vector&lt;T&gt;</c> (NINO029): it throws when used.
+    /// <c>default(...)</c>) whose value is or holds <c>Vector&lt;T&gt;</c> (NINO029): it throws when used. A value
+    /// stored straight into a field, property or local of its own type is reported there instead
+    /// (<see cref="AnalyzeFormatterStorage"/>), once.
     /// </summary>
     private static void AnalyzeFormatter(OperationAnalysisContext context, IAssemblySymbol core)
     {
         // Cheapest rejection first: a generic type of Nino.Core.
-        if (context.Operation.Type is not INamedTypeSymbol { IsGenericType: true } formatter ||
-            !SymbolEqualityComparer.Default.Equals(formatter.ContainingAssembly, core))
+        if (!IsCoreGeneric(context.Operation.Type, core, out var formatter) ||
+            StoredIntoItsOwnType(context.Operation, formatter))
             return;
-        if (Raw(context, context.Operation).HostSizedVectorWrittenBy(formatter, out var type) is { } vector &&
-            type != null)
-            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.HostSizedVector,
-                context.Operation.Syntax.GetLocation(),
-                $"The value of this {formatter.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}",
+        ReportFormatter(context.ReportDiagnostic, context.Compilation, context.Operation.Syntax, formatter,
+            $"The value of this {Display(formatter)}");
+    }
+
+    /// <summary>
+    /// A field or property whose type is one of Nino.Core's generic formatters over <c>Vector&lt;T&gt;</c> (NINO029):
+    /// a formatter struct needs no constructor call (a field of one is ready to use as it is), so the declaration is
+    /// reported, not only the <c>new</c> or <c>default</c> that may fill it.
+    /// </summary>
+    private static void AnalyzeFormatterStorage(SymbolAnalysisContext context, IAssemblySymbol core)
+    {
+        var symbol = context.Symbol;
+        var type = symbol switch
+        {
+            IFieldSymbol { IsImplicitlyDeclared: false } field => field.Type,
+            IPropertySymbol property => property.Type,
+            _ => null,
+        };
+        if (!IsCoreGeneric(type, core, out var formatter) ||
+            symbol.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(context.CancellationToken) is not { } syntax)
+            return;
+        // A serialized member of a [NinoType] whose type holds the vector is reported by the member rule, once.
+        var facts = TypeFacts.For(context.Compilation, syntax.SyntaxTree.Options);
+        if (symbol.ContainingType.GetNinoTypeOptions() is { } attr &&
+            !facts.Symbols.HasCustomFormatter(symbol) && facts.Raw.HostSizedVectorIn(formatter) != null &&
+            facts.Members.Of(symbol.ContainingType, attr).Contains(symbol, SymbolEqualityComparer.Default))
+            return;
+        ReportFormatter(context.ReportDiagnostic, context.Compilation, syntax, formatter,
+                $"The {Display(formatter)} in '{symbol.ContainingType.Name}.{symbol.Name}'", symbol.Locations[0]);
+    }
+
+    /// <summary><see cref="AnalyzeFormatterStorage"/> for a local (<c>UnmanagedFormatter&lt;Vector&lt;int&gt;&gt; f;</c>).</summary>
+    private static void AnalyzeFormatterLocal(OperationAnalysisContext context, IAssemblySymbol core)
+    {
+        var local = ((IVariableDeclaratorOperation)context.Operation).Symbol;
+        if (IsCoreGeneric(local.Type, core, out var formatter))
+            ReportFormatter(context.ReportDiagnostic, context.Compilation, context.Operation.Syntax, formatter,
+                $"The {Display(formatter)} in '{local.Name}'", local.Locations[0]);
+    }
+
+    private static bool IsCoreGeneric(ITypeSymbol? type, IAssemblySymbol core, out INamedTypeSymbol formatter)
+    {
+        formatter = (type as INamedTypeSymbol)!;
+        return formatter is { IsGenericType: true } &&
+               SymbolEqualityComparer.Default.Equals(formatter.ContainingAssembly, core);
+    }
+
+    private static string Display(INamedTypeSymbol formatter) =>
+        formatter.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+    /// <summary>
+    /// Whether <paramref name="value"/> goes straight into a field, property or local declared in source with its own
+    /// type <paramref name="formatter"/>, whose declaration NINO029 reports.
+    /// </summary>
+    private static bool StoredIntoItsOwnType(IOperation value, INamedTypeSymbol formatter)
+    {
+        // A default literal reaches its target through an implicit conversion.
+        while (value.Parent is IConversionOperation { IsImplicit: true } conversion)
+            value = conversion;
+        ISymbol? target = value.Parent switch
+        {
+            IFieldInitializerOperation initializer => initializer.InitializedFields.FirstOrDefault(),
+            IPropertyInitializerOperation initializer => initializer.InitializedProperties.FirstOrDefault(),
+            IVariableInitializerOperation { Parent: IVariableDeclaratorOperation declarator } => declarator.Symbol,
+            ISimpleAssignmentOperation assignment when assignment.Value == value => assignment.Target switch
+            {
+                IFieldReferenceOperation field => field.Field,
+                IPropertyReferenceOperation property => property.Property,
+                ILocalReferenceOperation local => local.Local,
+                _ => null,
+            },
+            _ => null,
+        };
+        var type = target switch
+        {
+            IFieldSymbol field => field.Type,
+            IPropertySymbol property => property.Type,
+            ILocalSymbol local => local.Type,
+            _ => null,
+        };
+        return type != null && SymbolEqualityComparer.Default.Equals(type, formatter) &&
+               target!.Locations.Any(static l => l.IsInSource);
+    }
+
+    private static void ReportFormatter(System.Action<Diagnostic> report, Compilation compilation, SyntaxNode syntax,
+        INamedTypeSymbol formatter, string what, Location? location = null)
+    {
+        if (TypeFacts.For(compilation, syntax.SyntaxTree.Options).Raw.HostSizedVectorWrittenBy(formatter, out var type)
+                is { } vector && type != null)
+            report(Diagnostic.Create(NinoDiagnostics.HostSizedVector, location ?? syntax.GetLocation(), what,
                 type.ToDisplayString(), NinoDiagnostics.HoldsVector(type, vector)));
     }
 
     private static RawRules Raw(OperationAnalysisContext context, IOperation operation) =>
         TypeFacts.For(context.Compilation, operation.Syntax.SyntaxTree.Options).Raw;
+
+    /// <summary>
+    /// NINO032: a positional NinoType of a compilation that defines <c>WEAK_VERSION_TOLERANCE</c>, which made it
+    /// version tolerant until 4.0. Reported where the fix goes: on the type's own <c>[NinoType]</c>; for a type
+    /// that takes its <c>[NinoType]</c> from another of this compilation's types, nowhere (that type's fix covers
+    /// it); for one that takes it from another assembly, on the type, with the <c>[NinoType]</c> to declare (the
+    /// options it takes, and the format) in <see cref="NinoDiagnostics.NinoTypeToAdd"/>: the generated code is the
+    /// same as with the symbol.
+    /// </summary>
+    private static void ReportRemovedWeakTolerance(SymbolAnalysisContext context, INamedTypeSymbol type,
+        NinoTypeOptions attr, TypeFacts facts)
+    {
+        var source = type.NinoTypeSource();
+        if (SymbolEqualityComparer.Default.Equals(source, type) &&
+            type.GetDirectNinoTypeAttribute()?.ApplicationSyntaxReference is { } syntax)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.WeakToleranceRemoved,
+                Location.Create(syntax.SyntaxTree, syntax.Span), type.ToDisplayString(),
+                "add format: NinoFormat.VersionTolerant to its [NinoType]"));
+            return;
+        }
+
+        if (source == null || SymbolEqualityComparer.Default.Equals(source.ContainingAssembly, context.Compilation.Assembly) ||
+            !facts.Visibility.IsGeneratedHere(type))
+            return;
+        var arguments = new List<string>();
+        if (!attr.AutoCollect)
+            arguments.Add("autoCollect: false");
+        if (attr.IncludeNonPublicMembers)
+            arguments.Add("includeNonPublicMembers: true");
+        if (!attr.InheritedBySubtypes)
+            arguments.Add("inheritedBySubtypes: false");
+        arguments.Add("format: NinoFormat.VersionTolerant");
+        if (attr.TrackReferences)
+            arguments.Add("trackReferences: true");
+        string ninoType = $"NinoType({string.Join(", ", arguments)})";
+        context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.WeakToleranceRemoved, type.Locations.FirstOrDefault(),
+            ImmutableDictionary<string, string?>.Empty.Add(NinoDiagnostics.NinoTypeToAdd, ninoType),
+            type.ToDisplayString(),
+            $"declare [{ninoType}] on it (the options it takes from '{source.ToDisplayString()}' in another assembly)"));
+    }
 
     private static void AnalyzeType(SymbolAnalysisContext context)
     {
@@ -141,7 +271,11 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         }
 
         // The Nino attribute types and the members collected are shared with the generator's model builds.
-        var facts = TypeFacts.For(context.Compilation, type.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree.Options);
+        var options = type.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree.Options;
+        var facts = TypeFacts.For(context.Compilation, options);
+        if (attr.Format == NinoFormat.Positional &&
+            options?.PreprocessorSymbolNames.Contains(NinoDiagnostics.RemovedWeakTolerance) == true)
+            ReportRemovedWeakTolerance(context, type, attr, facts);
         // Collecting the findings also caches the members, so the model build below reuses them.
         var findings = facts.Members.FindingsOf(type, attr);
 

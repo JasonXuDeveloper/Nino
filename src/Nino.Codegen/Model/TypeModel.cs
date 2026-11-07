@@ -21,10 +21,10 @@ namespace Nino.Codegen.Model
         None = TypeLayout.NoHeader,
 
         /// <summary>A presence byte: a sealed class.</summary>
-        NullFlag = TypeLayout.NullFlag,
+        Presence = TypeLayout.PresenceHeader,
 
         /// <summary>The type id: a class that is not sealed, an abstract class, an interface.</summary>
-        TypeId = TypeLayout.TypeId,
+        TypeId = TypeLayout.TypeIdHeader,
     }
 
     /// <summary>A <c>[NinoType]</c> as its published layout describes it.</summary>
@@ -223,7 +223,7 @@ namespace Nino.Codegen.Model
 
     /// <summary>
     /// A closed generic <c>[NinoType]</c> the assembly names (<c>Box&lt;int&gt;</c>, from <c>new Box&lt;int&gt;()</c>
-    /// or <c>NinoPolymorphic.Register&lt;Box&lt;int&gt;&gt;()</c>): written behind its own type id, the hash of its
+    /// or <c>NinoPolymorphic.TryRegister&lt;Box&lt;int&gt;&gt;()</c>): written behind its own type id, the hash of its
     /// closed .NET name, where a polymorphic slot holds it. Its body is its definition's with these arguments.
     /// </summary>
     public sealed class ClosedTypeModel

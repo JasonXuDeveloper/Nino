@@ -30,7 +30,7 @@ public struct SpecialValueFormatter : INinoFormatter<SpecialValue>
         }
     }
 
-    public void Deserialize(ref SpecialValue value, ref Reader reader)
+    public void Deserialize(ref Reader reader, ref SpecialValue value)
     {
         reader.Read(out int intValue);
         reader.Read(out int labelLength);
@@ -60,7 +60,7 @@ public struct CompactIntFormatter : INinoFormatter<int>
         writer.Write((byte)value);
     }
 
-    public void Deserialize(ref int value, ref Reader reader)
+    public void Deserialize(ref Reader reader, ref int value)
     {
         value = 0;
         int shift = 0;
@@ -93,7 +93,7 @@ public struct ZigZagLongFormatter : INinoFormatter<long>
         writer.Write((byte)v);
     }
 
-    public void Deserialize(ref long value, ref Reader reader)
+    public void Deserialize(ref Reader reader, ref long value)
     {
         ulong v = 0;
         int shift = 0;
@@ -110,7 +110,7 @@ public struct ZigZagLongFormatter : INinoFormatter<long>
 }
 
 /// <summary>Example type using custom formatters.</summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class ExampleWithCustomFormatters
 {
     public int NormalField;
@@ -124,7 +124,7 @@ public class ExampleWithCustomFormatters
     public int CompactInt;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class ExampleWithStructFormatter
 {
     [NinoMemberFormatter(typeof(ZigZagLongFormatter))]

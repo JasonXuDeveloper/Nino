@@ -32,13 +32,13 @@ namespace Nino.Codegen.Layouts
         public WireEncoding? RawEncoding;
 
         public const int Positional = 0, VersionTolerant = 1, Keyed = 2;
-        public const int NoHeader = 0, NullFlag = 1, TypeId = 2;
+        public const int NoHeader = 0, PresenceHeader = 1, TypeIdHeader = 2;
 
         /// <summary>The layout as <c>NinoTypeLayoutAttribute.ToString()</c> writes it, part for part.</summary>
         public string Text =>
             $"format={FormatName(Format)}; header={HeaderName(Header)}; " +
             $"trackReferences={(TrackReferences ? "true" : "false")}; raw={(Raw ? "true" : "false")}; " +
-            $"typeId=0x{Id:X8}; " + (Deferrable is { } d ? d ? "deferrable=true; " : "deferrable=false; " : "") +
+            $"id=0x{Id:X8}; " + (Deferrable is { } d ? d ? "deferrable=true; " : "deferrable=false; " : "") +
             $"members={MembersText}";
 
         public static string FormatName(int format) => format switch
@@ -52,8 +52,8 @@ namespace Nino.Codegen.Layouts
         public static string HeaderName(int header) => header switch
         {
             NoHeader => "None",
-            NullFlag => "NullFlag",
-            TypeId => "TypeId",
+            PresenceHeader => "Presence",
+            TypeIdHeader => "TypeId",
             _ => header.ToString(CultureInfo.InvariantCulture),
         };
     }

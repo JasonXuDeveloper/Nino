@@ -17,12 +17,15 @@ internal static class LayoutTypes
     // Bounded for recursive generic structs (S<T> holding an S<S<T>>...); real nesting is far shallower.
     private const int MaxDepth = 8;
 
-    /// <summary>Adds the measured structs that <paramref name="type"/> names (itself, type arguments, elements, fields).</summary>
+    /// <summary>
+    /// Adds the measured structs that <paramref name="type"/> names (itself, type arguments, elements, fields) to
+    /// <paramref name="into"/> where generated code can name them.
+    /// </summary>
     public static void Collect(ITypeSymbol type, TypeFacts facts, ICollection<string> into) =>
         Walk(type, facts, into, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
 
-    private static void Walk(ITypeSymbol type, TypeFacts facts, ICollection<string> into,
-        HashSet<ITypeSymbol> visited, int depth)
+    private static void Walk(ITypeSymbol type, TypeFacts facts, ICollection<string> into, HashSet<ITypeSymbol> visited,
+        int depth)
     {
         if (depth > MaxDepth || !visited.Add(type))
             return;
@@ -34,10 +37,11 @@ internal static class LayoutTypes
             case INamedTypeSymbol named:
                 foreach (var arg in TypeNames.AllTypeArguments(named))
                     Walk(arg, facts, into, visited, depth);
-                if (named.TypeKind != TypeKind.Struct || !named.IsUnmanagedType || RawLayout.Leaf(named) != NinoLeaf.None ||
-                    !facts.Visibility.CanName(named))
+                if (named.TypeKind != TypeKind.Struct || !named.IsUnmanagedType || RawLayout.Leaf(named) != NinoLeaf.None)
                     return;
-                into.Add(TypeNames.Global(named));
+                // A struct generated code cannot name is still measured (inside one it can), and so are its fields.
+                if (facts.Visibility.CanName(named))
+                    into.Add(TypeNames.Global(named));
                 foreach (var member in named.GetMembers())
                 {
                     if (member is IFieldSymbol { IsStatic: false } field)

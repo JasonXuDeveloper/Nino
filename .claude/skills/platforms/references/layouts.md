@@ -30,13 +30,43 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   the no-AVX2 unit tests (16), the default (32), and 64 in the net10.0 unit-test job (`VectorTTests`) and the Linux
   runtime-internals job (Nino.RuntimeTests, which must print Count 16). GitHub's x64 runners are Xeon 6973P-C
   (AVX-512) or EPYC 7763 (none): a check that needs AVX-512 asks `.github/scripts/has_avx512.sh` (F, BW, CD, DQ, VL,
-  as .NET needs) and posts a notice instead of failing without it.
+  as .NET needs) and posts a notice instead of failing without it. A job's runner is drawn at random (3 of 7 net10.0
+  jobs on main ran on an EPYC, round 121), so a path only one CPU kind takes is checked from several jobs: the
+  no-avx512, no-avx2 and no-simd jobs rerun the vector-path tests with every set on when their runner has AVX-512
+  ("Test the AVX-512 paths"), and a run misses the net10.0 AVX-512 paths only when all four x64 jobs drew EPYCs. Do not add a pinned
+  AVX-512 runner or Intel SDE for certainty: the owner decided against it (round 121).
 - Never read a pointer field by reflection: `FieldInfo.GetValue` on `IntPtr`'s `void*` crashed Mono 6.8 with SIGSEGV.
-- Read every field type a layout needs through `NinoReflection.LayoutFieldType`: a function pointer (`delegate*`) is a
-  pointer, 8 bytes zero-extended as the generator publishes it, but .NET 8 and later report the field as a function
-  pointer type (`IsFunctionPointer`; `IsClass` true, `IsValueType` false, no base type), which `NinoLayout` took for
-  unsupported and copied as it lay in memory (4 bytes on 32-bit), and .NET Framework and .NET 7 report `IntPtr`
-  (sign-extended), which only the field's signature tells apart (`Module.ResolveSignature` of its FieldDef token,
-  ELEMENT_TYPE_FNPTR 0x1B after any modifier; Mono resolves only StandAloneSig tokens, IL2CPP none, so there it stays
-  an `IntPtr`). Mono 6.8 overflows its stack loading any struct with a `delegate*` field, even one only a generated
-  registry names: tests/Nino.RuntimeTests declares its case in net10.0 only (r105: ok on x64 and on Arm32 under qemu).
+- Take a fact about a type that the generator sees from generated code, never from reflection at run time (the
+  owner's rule): reflection differs per runtime, NativeAOT keeps only the metadata it is asked for, and every probe
+  costs at startup. A function pointer (`delegate*`) is a pointer, 8 bytes zero-extended, but .NET 8 and later report
+  its field as a function pointer type (`IsClass` true, `IsValueType` false, no base type) and .NET Framework, .NET 7,
+  Mono and IL2CPP as an `IntPtr`, which a 32-bit host sign-extended (r105 told them apart by `IsFunctionPointer` and
+  `Module.ResolveSignature`'s ELEMENT_TYPE_FNPTR; Mono resolves no FieldDef signature, IL2CPP none, so a 32-bit Unity
+  player wrote FF FF FF FF over an address's high half). Now the generator lists the `delegate*` fields of every
+  struct the compilation can see, named or not (`FunctionPointerFields` in src/Nino.Generator, by assembly and runtime
+  name so that registering loads no type), in the registry's static constructor: the project's own from syntax (a
+  `using unsafe` alias of a `delegate*` makes it walk every struct the project declares; a primary constructor's
+  captured field is `<p>P`), and every reference's from its metadata (`MetadataReferencesProvider`, read once per
+  reference with System.Reflection.Metadata: Roslyn's symbols of a metadata reference omit private fields, so
+  `[NinoType] class H { Lib.S s; }` with a private `delegate*` in `Lib.S` went unregistered until r126).
+  `NinoFunctionPointerFields.Register` merges what several registries register for one struct.
+  `NinoReflection.LayoutFieldType`, which every layout reads field types through, asks `NinoFunctionPointerFields`
+  for a field reported as an `IntPtr` or a base-less class. Left out, as no generator compiles against them (stated
+  in docs/pitfalls.md with the workaround): a struct of an assembly no loaded generator-built assembly references, a
+  field the compile-time metadata hides (placeholder fields of a GenAPI-style reference assembly; Roslyn's refout
+  keeps every struct field, checked in r126) or a struct another source generator adds. Do not close them with
+  reflection (the rule above): Mono's `FieldType` is `IntPtr`, and neither Mono nor IL2CPP resolves the signature. Evidence (r118): 32-bit Mono 6.12 on x86 read the canonical bytes of a field reported as an
+  `IntPtr` as "an integer too large" without the registration and wrote and read them with it; NativeAOT (with the
+  registry's `[DynamicDependency]`) and Arm32 .NET 10 under qemu wrote the same bytes as x64 (`Nino.AotTests`,
+  tests/Nino.RuntimeTests). Stock Mono (6.8 on x64, 6.12 on x64 and x86) overflows its stack on any use of a struct
+  with a `delegate*` field, even `sizeof`: tests/Nino.RuntimeTests declares one in net10.0 only and tests Mono with a
+  registered `IntPtr` field. Unity compiles C# 9: its Mono (play mode) and IL2CPP (the player) run declared
+  `delegate*` fields in Unity's FunctionPointerTests (src/Nino.Unity), with a pointer taken with `&` called after the
+  round trip; only unity.yml on `main` runs them. Read pointer values in tests from a `static readonly ulong` at run time: Roslyn folds both `(nuint)0x87654321u`
+  and `(nuint)0x87654321UL` to `ldc.i4` and `conv.u`, which IL2CPP's players sign-extend (the field held
+  0xFFFFFFFF87654321 on 2022.3 and 6000.3 while Mono held 0x87654321; runs 41494277688 and 41501012528). 32-bit Mono 6.12 runs without installing it: `dpkg -x` the i386 debs of
+  download.mono-project.com's stable-bionic (mono-runtime-sgen and its closure, the Facades from mono-devel) and
+  bionic's libc6, libgcc1, libstdc++6, zlib1g, then run `root/lib/ld-linux.so.2 --library-path ... mono-sgen` with
+  `MONO_PATH=root/usr/lib/mono/4.5:.../Facades` (else it loads /usr/lib/mono's corlib); there tests/Nino.RuntimeTests also
+  failed its Waypoint cases (`Sys` type initializer: no libmono-native in that root) and found no Dictionary fast
+  paths (not examined).

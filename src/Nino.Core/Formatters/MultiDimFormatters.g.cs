@@ -21,7 +21,7 @@ namespace Nino.Core
                 NinoElements.Write<T, TFormatter>(ref value[0, 0], value.Length, ref writer);
         }
 
-        public void Deserialize(ref T[,] value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref T[,] value)
         {
             if (!MultiDim.TryReadShape(ref reader, 2, NinoElements.MinWireSize<T, TFormatter>(), out var shape))
             {
@@ -66,7 +66,7 @@ namespace Nino.Core
                 NinoElements.Write<T, TFormatter>(ref value[0, 0, 0], value.Length, ref writer);
         }
 
-        public void Deserialize(ref T[,,] value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref T[,,] value)
         {
             if (!MultiDim.TryReadShape(ref reader, 3, NinoElements.MinWireSize<T, TFormatter>(), out var shape))
             {
@@ -111,7 +111,7 @@ namespace Nino.Core
                 NinoElements.Write<T, TFormatter>(ref value[0, 0, 0, 0], value.Length, ref writer);
         }
 
-        public void Deserialize(ref T[,,,] value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref T[,,,] value)
         {
             if (!MultiDim.TryReadShape(ref reader, 4, NinoElements.MinWireSize<T, TFormatter>(), out var shape))
             {

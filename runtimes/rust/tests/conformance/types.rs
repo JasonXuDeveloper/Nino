@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 
 use super::json::{hex, Visit, J};
 
-/// `Conformance.BigValues`: Positional, header NullFlag.
+/// `Conformance.BigValues`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BigValues {
@@ -55,7 +55,7 @@ impl J for BigValues {
     }
 }
 
-/// `Conformance.BlueLink`: Positional, header NullFlag.
+/// `Conformance.BlueLink`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BlueLink {
@@ -106,7 +106,7 @@ impl J for BlueLink {
     }
 }
 
-/// `Conformance.Bytes`: Positional, header NullFlag.
+/// `Conformance.Bytes`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Bytes {
@@ -157,7 +157,7 @@ impl J for Bytes {
     }
 }
 
-/// `Conformance.Cat`: Positional, header NullFlag.
+/// `Conformance.Cat`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Cat {
@@ -204,7 +204,7 @@ impl J for Cat {
     }
 }
 
-/// `Conformance.Chain`: Positional, header NullFlag.
+/// `Conformance.Chain`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Chain {
@@ -289,7 +289,7 @@ impl J for Circle {
     }
 }
 
-/// `Conformance.Collections`: Positional, header NullFlag.
+/// `Conformance.Collections`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Collections {
@@ -412,7 +412,7 @@ impl J for Collections {
     }
 }
 
-/// `Conformance.Dates`: Positional, header NullFlag.
+/// `Conformance.Dates`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Dates {
@@ -505,7 +505,7 @@ impl J for Dog {
     }
 }
 
-/// `Conformance.Empties`: Positional, header NullFlag.
+/// `Conformance.Empties`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Empties {
@@ -560,7 +560,7 @@ impl J for Empties {
     }
 }
 
-/// `Conformance.Empty`: Positional, header NullFlag.
+/// `Conformance.Empty`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Empty {}
@@ -600,7 +600,7 @@ impl J for Empty {
     }
 }
 
-/// `Conformance.Enums`: Positional, header NullFlag.
+/// `Conformance.Enums`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Enums {
@@ -683,7 +683,7 @@ impl J for Enums {
     }
 }
 
-/// `Conformance.Floats`: Positional, header NullFlag.
+/// `Conformance.Floats`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Floats {
@@ -734,7 +734,7 @@ impl J for Floats {
     }
 }
 
-/// `Conformance.Inner`: Positional, header NullFlag.
+/// `Conformance.Inner`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Inner {
@@ -785,7 +785,7 @@ impl J for Inner {
     }
 }
 
-/// `Conformance.Integers`: Positional, header NullFlag.
+/// `Conformance.Integers`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Integers {
@@ -864,7 +864,7 @@ impl J for Integers {
     }
 }
 
-/// `Conformance.KeyedChain`: Keyed, header NullFlag.
+/// `Conformance.KeyedChain`: Keyed, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedChain {
@@ -932,7 +932,7 @@ impl J for KeyedChain {
     }
 }
 
-/// `Conformance.KeyedHolder`: Positional, header NullFlag.
+/// `Conformance.KeyedHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedHolder {
@@ -1056,7 +1056,7 @@ impl J for KeyedStruct {
     }
 }
 
-/// `Conformance.KeyedV1`: Keyed, header NullFlag.
+/// `Conformance.KeyedV1`: Keyed, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedV1 {
@@ -1138,7 +1138,7 @@ impl J for KeyedV1 {
     }
 }
 
-/// `Conformance.KeyedV2`: Keyed, header NullFlag.
+/// `Conformance.KeyedV2`: Keyed, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyedV2 {
@@ -1272,7 +1272,7 @@ impl J for Label {
     }
 }
 
-/// `Conformance.Middle`: Positional, header NullFlag.
+/// `Conformance.Middle`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Middle {
@@ -1323,7 +1323,7 @@ impl J for Middle {
     }
 }
 
-/// `Conformance.Nullables`: Positional, header NullFlag.
+/// `Conformance.Nullables`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Nullables {
@@ -1414,7 +1414,7 @@ impl J for Nullables {
     }
 }
 
-/// `Conformance.Outer`: Positional, header NullFlag.
+/// `Conformance.Outer`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Outer {
@@ -1499,7 +1499,7 @@ impl J for Plain {
     }
 }
 
-/// `Conformance.Point`: Positional, header NullFlag.
+/// `Conformance.Point`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Point {
@@ -1546,7 +1546,7 @@ impl J for Point {
     }
 }
 
-/// `Conformance.Puppy`: Positional, header NullFlag.
+/// `Conformance.Puppy`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Puppy {
@@ -1597,7 +1597,7 @@ impl J for Puppy {
     }
 }
 
-/// `Conformance.RecordChain`: Positional, header NullFlag.
+/// `Conformance.RecordChain`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct RecordChain {
@@ -1648,7 +1648,7 @@ impl J for RecordChain {
     }
 }
 
-/// `Conformance.RedLink`: Positional, header NullFlag.
+/// `Conformance.RedLink`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct RedLink {
@@ -1695,7 +1695,7 @@ impl J for RedLink {
     }
 }
 
-/// `Conformance.Scalars`: Positional, header NullFlag.
+/// `Conformance.Scalars`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Scalars {
@@ -1762,7 +1762,7 @@ impl J for Scalars {
     }
 }
 
-/// `Conformance.Square`: Positional, header NullFlag.
+/// `Conformance.Square`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Square {
@@ -1809,7 +1809,7 @@ impl J for Square {
     }
 }
 
-/// `Conformance.StringCollections`: Positional, header NullFlag.
+/// `Conformance.StringCollections`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct StringCollections {
@@ -1868,7 +1868,7 @@ impl J for StringCollections {
     }
 }
 
-/// `Conformance.Strings`: Positional, header NullFlag.
+/// `Conformance.Strings`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Strings {
@@ -1915,7 +1915,7 @@ impl J for Strings {
     }
 }
 
-/// `Conformance.Structs`: Positional, header NullFlag.
+/// `Conformance.Structs`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Structs {
@@ -2010,7 +2010,7 @@ impl J for Structs {
     }
 }
 
-/// `Conformance.Targets.AnimalSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.AnimalSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TAnimalSlot {
@@ -2053,7 +2053,7 @@ impl J for TAnimalSlot {
     }
 }
 
-/// `Conformance.Targets.BigSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.BigSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TBigSlot {
@@ -2096,7 +2096,7 @@ impl J for TBigSlot {
     }
 }
 
-/// `Conformance.Targets.BoolArray`: Positional, header NullFlag.
+/// `Conformance.Targets.BoolArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TBoolArray {
@@ -2139,7 +2139,7 @@ impl J for TBoolArray {
     }
 }
 
-/// `Conformance.Targets.BoolValue`: Positional, header NullFlag.
+/// `Conformance.Targets.BoolValue`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TBoolValue {
@@ -2182,7 +2182,7 @@ impl J for TBoolValue {
     }
 }
 
-/// `Conformance.Targets.ByteArray`: Positional, header NullFlag.
+/// `Conformance.Targets.ByteArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TByteArray {
@@ -2225,7 +2225,7 @@ impl J for TByteArray {
     }
 }
 
-/// `Conformance.Targets.DogSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.DogSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TDogSlot {
@@ -2268,7 +2268,7 @@ impl J for TDogSlot {
     }
 }
 
-/// `Conformance.Targets.Grid`: Positional, header NullFlag.
+/// `Conformance.Targets.Grid`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TGrid {
@@ -2311,7 +2311,7 @@ impl J for TGrid {
     }
 }
 
-/// `Conformance.Targets.IntArray`: Positional, header NullFlag.
+/// `Conformance.Targets.IntArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TIntArray {
@@ -2354,7 +2354,7 @@ impl J for TIntArray {
     }
 }
 
-/// `Conformance.Targets.IntMap`: Positional, header NullFlag.
+/// `Conformance.Targets.IntMap`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TIntMap {
@@ -2397,7 +2397,7 @@ impl J for TIntMap {
     }
 }
 
-/// `Conformance.Targets.IntSet`: Positional, header NullFlag.
+/// `Conformance.Targets.IntSet`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TIntSet {
@@ -2440,7 +2440,7 @@ impl J for TIntSet {
     }
 }
 
-/// `Conformance.Targets.LongList`: Positional, header NullFlag.
+/// `Conformance.Targets.LongList`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TLongList {
@@ -2483,7 +2483,7 @@ impl J for TLongList {
     }
 }
 
-/// `Conformance.Targets.MaybeInt`: Positional, header NullFlag.
+/// `Conformance.Targets.MaybeInt`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TMaybeInt {
@@ -2526,7 +2526,7 @@ impl J for TMaybeInt {
     }
 }
 
-/// `Conformance.Targets.MaybeIntArray`: Positional, header NullFlag.
+/// `Conformance.Targets.MaybeIntArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TMaybeIntArray {
@@ -2569,7 +2569,7 @@ impl J for TMaybeIntArray {
     }
 }
 
-/// `Conformance.Targets.ObjectSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.ObjectSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TObjectSlot {
@@ -2612,7 +2612,7 @@ impl J for TObjectSlot {
     }
 }
 
-/// `Conformance.Targets.PaddedArray`: Positional, header NullFlag.
+/// `Conformance.Targets.PaddedArray`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TPaddedArray {
@@ -2655,7 +2655,7 @@ impl J for TPaddedArray {
     }
 }
 
-/// `Conformance.Targets.PointList`: Positional, header NullFlag.
+/// `Conformance.Targets.PointList`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TPointList {
@@ -2698,7 +2698,7 @@ impl J for TPointList {
     }
 }
 
-/// `Conformance.Targets.ShapeSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.ShapeSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TShapeSlot {
@@ -2741,7 +2741,7 @@ impl J for TShapeSlot {
     }
 }
 
-/// `Conformance.Targets.SortedMap`: Positional, header NullFlag.
+/// `Conformance.Targets.SortedMap`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TSortedMap {
@@ -2784,7 +2784,7 @@ impl J for TSortedMap {
     }
 }
 
-/// `Conformance.Targets.StringList`: Positional, header NullFlag.
+/// `Conformance.Targets.StringList`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TStringList {
@@ -2827,7 +2827,7 @@ impl J for TStringList {
     }
 }
 
-/// `Conformance.Targets.StringMap`: Positional, header NullFlag.
+/// `Conformance.Targets.StringMap`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TStringMap {
@@ -2870,7 +2870,7 @@ impl J for TStringMap {
     }
 }
 
-/// `Conformance.Targets.StringSet`: Positional, header NullFlag.
+/// `Conformance.Targets.StringSet`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TStringSet {
@@ -2913,7 +2913,7 @@ impl J for TStringSet {
     }
 }
 
-/// `Conformance.Targets.TextValue`: Positional, header NullFlag.
+/// `Conformance.Targets.TextValue`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TTextValue {
@@ -2956,7 +2956,7 @@ impl J for TTextValue {
     }
 }
 
-/// `Conformance.Targets.Utf8Value`: Positional, header NullFlag.
+/// `Conformance.Targets.Utf8Value`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TUtf8Value {
@@ -2999,7 +2999,7 @@ impl J for TUtf8Value {
     }
 }
 
-/// `Conformance.Targets.VersionSlot`: Positional, header NullFlag.
+/// `Conformance.Targets.VersionSlot`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TVersionSlot {
@@ -3082,7 +3082,7 @@ impl J for TolerantBase {
     }
 }
 
-/// `Conformance.TolerantChain`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantChain`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantChain {
@@ -3137,7 +3137,7 @@ impl J for TolerantChain {
     }
 }
 
-/// `Conformance.TolerantEmpty`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantEmpty`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantEmpty {}
@@ -3179,7 +3179,7 @@ impl J for TolerantEmpty {
     }
 }
 
-/// `Conformance.TolerantHolder`: Positional, header NullFlag.
+/// `Conformance.TolerantHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantHolder {
@@ -3234,7 +3234,7 @@ impl J for TolerantHolder {
     }
 }
 
-/// `Conformance.TolerantLeaf`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantLeaf`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantLeaf {
@@ -3289,7 +3289,7 @@ impl J for TolerantLeaf {
     }
 }
 
-/// `Conformance.TolerantRoot`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantRoot`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantRoot {
@@ -3350,7 +3350,7 @@ impl J for TolerantRoot {
     }
 }
 
-/// `Conformance.TolerantV1`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantV1`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantV1 {
@@ -3405,7 +3405,7 @@ impl J for TolerantV1 {
     }
 }
 
-/// `Conformance.TolerantV2`: VersionTolerant, header NullFlag.
+/// `Conformance.TolerantV2`: VersionTolerant, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TolerantV2 {
@@ -3472,7 +3472,7 @@ impl J for TolerantV2 {
     }
 }
 
-/// `Conformance.TreeHolder`: Positional, header NullFlag.
+/// `Conformance.TreeHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TreeHolder {
@@ -3519,7 +3519,7 @@ impl J for TreeHolder {
     }
 }
 
-/// `Conformance.TreeNode`: Positional, header NullFlag.
+/// `Conformance.TreeNode`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TreeNode {
@@ -3566,7 +3566,7 @@ impl J for TreeNode {
     }
 }
 
-/// `Conformance.Zoo`: Positional, header NullFlag.
+/// `Conformance.Zoo`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct Zoo {
@@ -3641,7 +3641,7 @@ impl J for Zoo {
     }
 }
 
-/// `Conformance.Box<Conformance.Vec2>`: Positional, header NullFlag.
+/// `Conformance.Box<Conformance.Vec2>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BoxOfVec2 {
@@ -3688,7 +3688,7 @@ impl J for BoxOfVec2 {
     }
 }
 
-/// `Conformance.Box<System.Collections.Generic.List<Conformance.Point>>`: Positional, header NullFlag.
+/// `Conformance.Box<System.Collections.Generic.List<Conformance.Point>>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BoxOfListOfPoint {
@@ -3735,7 +3735,7 @@ impl J for BoxOfListOfPoint {
     }
 }
 
-/// `Conformance.Box<System.Int32>`: Positional, header NullFlag.
+/// `Conformance.Box<System.Int32>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BoxOfInt32 {
@@ -3782,7 +3782,7 @@ impl J for BoxOfInt32 {
     }
 }
 
-/// `Conformance.Box<System.String>`: Positional, header NullFlag.
+/// `Conformance.Box<System.String>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct BoxOfString {

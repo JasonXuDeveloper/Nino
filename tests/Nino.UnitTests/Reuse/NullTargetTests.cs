@@ -10,7 +10,7 @@ namespace Nino.UnitTests;
 /// An existing instance whose members are null: the reuse read of the outer instance reads each member into a null
 /// slot, through its formatter (the <c>__Shallow</c> twin where the member has one).
 /// </summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class NullTargetOuter
 {
     public int Id;
@@ -99,7 +99,7 @@ public class NullTargetTests
 
         value = null;
         var reader = new Reader(data);
-        NinoDeserializer.Deserialize(ref value, ref reader);
+        NinoDeserializer.Deserialize(ref reader, ref value);
         check(value);
 
         object boxed = null;
@@ -108,7 +108,7 @@ public class NullTargetTests
 
         boxed = null;
         reader = new Reader(data);
-        NinoDeserializer.DeserializeBoxed(ref boxed, ref reader, typeof(T));
+        NinoDeserializer.DeserializeBoxed(ref reader, ref boxed, typeof(T));
         check((T)boxed);
 
         check(NinoDeserializer.Deserialize<T>(data));
@@ -154,7 +154,7 @@ public class NullTargetTests
         slot.ReturnToPool();
         PooledPacket other = null;
         var reader = new Reader(data);
-        NinoDeserializer.Deserialize(ref other, ref reader);
+        NinoDeserializer.Deserialize(ref reader, ref other);
         Assert.AreSame(returned, other);
         AssertPacket(other, 6);
 

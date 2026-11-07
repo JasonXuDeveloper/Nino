@@ -44,6 +44,7 @@ builds of Nino.Core, Mono).
 | Arm64 | build `-r linux-arm64`, run under `qemu-aarch64-static -cpu neoverse-n1` |
 | Arm32 | build `-r linux-arm`, run under `qemu-arm-static` with `DOTNET_EnableWriteXorExecute=0` and `DOTNET_INTERNAL_ThreadSuspendInjection=0` |
 | Mono | the `net472` build of `tests/Nino.RuntimeTests` under `mono` (also `MONO_GC_DEBUG=verify-before-collections`) |
+| Mono 32-bit (x86) | Mono 6.12's i386 debs extracted, run through their own `ld-linux.so.2` with `MONO_PATH` (references/layouts.md, the `delegate*` bullet) |
 | .NET Framework 4.8, Windows x86 | CI's "Runtime internals" job (`-p:NinoX86=true` builds the 32-bit exe) |
 | Go 386, Arm32, s390x (big-endian) | `runtimes.yml`; locally `GOARCH=386`, `GOARCH=arm` / `s390x` under qemu |
 | Rust Arm64 (NEON kernels) | no cross C toolchain needed: `rustup target add aarch64-unknown-linux-musl`, then `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=rust-lld CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER="qemu-aarch64 -cpu neoverse-n1" cargo test --release --target aarch64-unknown-linux-musl --all-features` (debug: the simd tests ran over an hour; release, all tests, ~5 min); `cargo +nightly miri test --lib --target aarch64-unknown-linux-gnu simd` for the unsafe code; asm with `cargo rustc --release --lib --target aarch64-unknown-linux-gnu -- --emit asm`, cycles with `llvm-mca -mcpu=neoverse-n2` over the executed instruction stream (`optimize-runtimes`, references/strings.md, the per-char decoder bullet) |
@@ -63,8 +64,9 @@ about to run or change: most of these cost a session before they were written do
 - **Struct layouts and vectors** ([references/layouts.md](references/layouts.md)): take a BCL struct's layout from
   docs/layouts.md, never from memory or reference assemblies; check every CI runtime against CoreCLR x64's bytes
   (`BclFixtures.cs`) and `NinoLayout` against random shapes; never measure a vector by its declared fields, and test
-  every `Vector<T>` width on one machine; never read a pointer field by reflection; read field types through
-  `NinoReflection.LayoutFieldType`.
+  every `Vector<T>` width on one machine; never read a pointer field by reflection; take what the generator sees
+  (`delegate*` fields) from generated code, not from reflection, and read field types through
+  `NinoReflection.LayoutFieldType`; run 32-bit Mono from extracted debs.
 - **Mono, Unity, IL2CPP and WebGL** ([references/mono-unity.md](references/mono-unity.md)): gate every netstandard
   `Vector<T>` operation on what Mono accelerates, not on `IsHardwareAccelerated`; no module initializers on HybridCLR;
   no run-time decisions from attributes on generic parameters (IL2CPP keeps none); never throw from a generic cache's

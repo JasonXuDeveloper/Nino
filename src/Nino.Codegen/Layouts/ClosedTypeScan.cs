@@ -12,7 +12,7 @@ namespace Nino.Codegen.Layouts
     /// <summary>
     /// The closed generic types an assembly's metadata names: in a type, field, method, property or local signature,
     /// a type specification (<c>new Box&lt;int&gt;()</c>, <c>typeof</c>, a member of a closed type) or a generic
-    /// method's arguments (<c>NinoPolymorphic.Register&lt;Box&lt;int&gt;&gt;()</c>). These are the closed types of the
+    /// method's arguments (<c>NinoPolymorphic.TryRegister&lt;Box&lt;int&gt;&gt;()</c>). These are the closed types of the
     /// generic <c>[NinoType]</c>s the assembly's code can create or register, so the ones a polymorphic slot can hold:
     /// their type ids hash their closed .NET names, which a reader in another language cannot form from the
     /// definition. Types with a type parameter in them are left out.

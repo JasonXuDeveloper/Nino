@@ -42,7 +42,9 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              CoreCLR's bytes in BclFixtures.cs, of the types in BclFixtureTypes.cs (both shared with
                              tests/Nino.RuntimeTests, which links them and rewrites BclFixtures.cs: --write-fixtures);
                              a [NinoRaw] formatter of the user's bound at run time by the marks its registry
-                             registers; logs this runtime's layouts), run in play mode and in the IL2CPP player
+                             registers; logs this runtime's layouts), FunctionPointerTests (C# 9 delegate* fields in a
+                             raw struct: 8 bytes zero-extended from the registry's registration, a pointer taken with &
+                             still callable after the round trip), run in play mode and in the IL2CPP player
   Runtime/Burst/             BurstKernelTests (the kernels against the scalar paths, byte for byte; asserts the pointer
                              calls), BurstBenchmark (only in the release benchmark's player: NINO_UNITY_BENCH) and its
                              BenchClasses (SimpleClass, as in the .NET suite)
@@ -83,9 +85,19 @@ UnityEngineStub/             UnityEngine.CoreModule.csproj + UnityEngine.cs: a r
 
 ## Rules for these files
 
-- The DLLs under `Runtime/` and `package.json`'s version change only in the release's bump commit (release.yml,
-  `.github/scripts/bump_version.py`); CI copies fresh builds over them before every test run, so a change to the
-  code needs no DLL commit.
+- The DLLs under `Runtime/` carry the public API of this commit's sources: Unity compiles the package's own sources
+  (Nino.Burst, Nino.WebGL), generated code and users' code against them, and a project that installs the package from
+  the repository gets them as committed (after rc.7, Nino.Burst named `NinoKernels`, which rc.7's Nino.Core.dll did
+  not have). `UnityPackageDllTests` compares the committed Nino.Core.dll (in the `-p:NinoCoreTfm=netstandard2.1` run)
+  and Nino.UnityTypes.dll with the builds; bytes cannot be compared, since each DLL carries the commit it was built
+  from. A change to their public API refreshes all four in its series, as release.yml's "Copy the Unity DLLs" does:
+  `GITHUB_ACTIONS=true dotnet build -c Release`, then copy `src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll`,
+  `src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll`,
+  `src/Nino.Generator.CodeFixes/bin/Release/netstandard2.0/Nino.Generator.CodeFixes.dll` and
+  `src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll` into `Runtime/` (a `build(unity)` commit).
+  `package.json`'s version changes only in the release's bump commit (`.github/scripts/bump_version.py`), which
+  refreshes the DLLs too. CI copies fresh builds over them before every Unity test run, so the tests run on the
+  commit's code either way.
 - Unity's compiler loads the Roslyn 4.3 generator only: no interceptors, no `[UnsafeAccessor]` (private members need
   the type to be partial, NINO002).
 - A new Unity test asmdef or Burst path keeps the scalar fallback: the kernels register only where Burst runs and

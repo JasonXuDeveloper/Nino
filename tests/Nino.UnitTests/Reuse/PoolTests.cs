@@ -7,7 +7,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType, NinoPooled]
+[NinoType(format: NinoFormat.VersionTolerant), NinoPooled]
 public sealed partial class PooledPacket
 {
     public static int Warmups, Returns;
@@ -32,7 +32,7 @@ public sealed partial class PooledPacket
     }
 }
 
-[NinoType, NinoPooled]
+[NinoType(format: NinoFormat.VersionTolerant), NinoPooled]
 public sealed partial class PooledChild
 {
     public static int Returns;
@@ -44,7 +44,7 @@ public sealed partial class PooledChild
     private partial void OnNinoPoolReturn() => Returns++;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class PooledOwner
 {
     public PooledChild Child;

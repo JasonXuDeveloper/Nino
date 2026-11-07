@@ -425,7 +425,7 @@ public partial class Outer
         var code = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public class Base
 {
     public int A;
@@ -439,7 +439,7 @@ public class {|#0:Derived|} : Base
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType(allowInheritance: false)]
+[NinoType(inheritedBySubtypes: false)]
 public class Base
 {
     public int A;
@@ -462,7 +462,7 @@ public class Derived : Base
     {
         // The using directive and the attribute take the file's line breaks, on any machine.
         var code = @"
-[Nino.Core.NinoType(allowInheritance: false)]
+[Nino.Core.NinoType(inheritedBySubtypes: false)]
 public interface IBase
 {
 }
@@ -475,7 +475,7 @@ public class {|#0:Implementation|} : IBase
         var fixedCode = @"
 using Nino.Core;
 
-[Nino.Core.NinoType(allowInheritance: false)]
+[Nino.Core.NinoType(inheritedBySubtypes: false)]
 public interface IBase
 {
 }
@@ -488,6 +488,274 @@ public class Implementation : IBase
 
         await SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO003").WithLocation(0).WithArguments("Implementation", "IBase")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task AllowInheritance_RenamedToInheritedBySubtypes()
+    {
+        // The name before 4.0 is a compiler error (CS1739); the fix renames it, the value stays.
+        var code = @"
+using Nino.Core;
+
+[NinoType({|#0:allowInheritance|}: false, format: NinoFormat.Keyed)]
+public class Base
+{
+    public int A;
+}
+
+[Nino.Core.NinoTypeAttribute({|#1:allowInheritance|}: true)]
+public class Other
+{
+    public int B;
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType(inheritedBySubtypes: false, format: NinoFormat.Keyed)]
+public class Base
+{
+    public int A;
+}
+
+[Nino.Core.NinoTypeAttribute(inheritedBySubtypes: true)]
+public class Other
+{
+    public int B;
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            DiagnosticResult.CompilerError("CS1739").WithLocation(0).WithArguments("NinoTypeAttribute", "allowInheritance"),
+            DiagnosticResult.CompilerError("CS1739").WithLocation(1).WithArguments("NinoTypeAttribute", "allowInheritance"))
+            .RunAsync();
+    }
+
+    #endregion
+
+    #region NINO030 / NINO031 - [NinoUtf8]
+
+    [TestMethod]
+    public async Task NINO030_RemoveNinoUtf8()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [{|#0:NinoUtf8|}]
+    public int A;
+
+    public string B;
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    public int A;
+
+    public string B;
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO030").WithLocation(0)
+                .WithArguments("A", "TestClass", "its type 'int' holds no string Nino writes")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO031_UseNinoUtf8()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [{|#0:NinoMemberFormatter(typeof(Utf8StringFormatter))|}]
+    public string A;
+
+    [System.ComponentModel.Description(""b""), {|#1:Nino.Core.NinoMemberFormatterAttribute(typeof(Utf8StringFormatter))|}] public string B;
+
+    [NinoUtf8]
+    [{|#2:NinoMemberFormatter(typeof(Utf8StringFormatter))|}]
+    public string C;
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoUtf8]
+    public string A;
+
+    [System.ComponentModel.Description(""b""), Nino.Core.NinoUtf8] public string B;
+
+    [NinoUtf8]
+    public string C;
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO031").WithLocation(0).WithArguments("A", "TestClass"),
+            VerifyCF.Diagnostic("NINO031").WithLocation(1).WithArguments("B", "TestClass"),
+            VerifyCF.Diagnostic("NINO031").WithLocation(2).WithArguments("C", "TestClass")).RunAsync();
+    }
+
+    #endregion
+
+    #region NINO032 - WEAK_VERSION_TOLERANCE was removed
+
+    /// <summary>A test whose project defines WEAK_VERSION_TOLERANCE, before the fix and after it.</summary>
+    private CSharpCodeFixTest<Generator.Analysis.NinoAnalyzer, Generator.NinoCodeFixProvider, DefaultVerifier>
+        WeakToleranceTest(string code, string fixedCode, params DiagnosticResult[] diagnostics)
+    {
+        var test = SetUpCodeFixTest(code, fixedCode, diagnostics);
+        test.SolutionTransforms.Add((solution, project) => solution.WithProjectParseOptions(project,
+            ((Microsoft.CodeAnalysis.CSharp.CSharpParseOptions)solution.GetProject(project)!.ParseOptions!)
+            .WithPreprocessorSymbols("WEAK_VERSION_TOLERANCE")));
+        return test;
+    }
+
+    private const string KeepBytes = "add format: NinoFormat.VersionTolerant to its [NinoType]";
+
+    [TestMethod]
+    public async Task NINO032_MakeVersionTolerant()
+    {
+        // Each positional NinoType gets the format the symbol gave it; keyed and tolerant ones, and types that take
+        // their [NinoType] from one of this project's types, keep theirs.
+        var code = @"
+using Nino.Core;
+
+[{|#0:NinoType|}]
+public class Plain
+{
+    public int A;
+}
+
+public class Derived : Plain
+{
+    public int B;
+}
+
+[{|#1:NinoType(false)|}]
+public struct Point
+{
+    [NinoMember(0)] public int X;
+    [NinoMember(1)] public int Y;
+}
+
+[{|#2:Nino.Core.NinoType(true, false, true, Nino.Core.NinoFormat.Positional)|}]
+public interface IShape
+{
+}
+
+[NinoType(format: NinoFormat.Keyed)]
+public class Keyed
+{
+    public int A;
+}
+
+[NinoType(format: NinoFormat.VersionTolerant)]
+public class Tolerant
+{
+    public int A;
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType(format: NinoFormat.VersionTolerant)]
+public class Plain
+{
+    public int A;
+}
+
+public class Derived : Plain
+{
+    public int B;
+}
+
+[NinoType(false, format: NinoFormat.VersionTolerant)]
+public struct Point
+{
+    [NinoMember(0)] public int X;
+    [NinoMember(1)] public int Y;
+}
+
+[Nino.Core.NinoType(true, false, true, Nino.Core.NinoFormat.VersionTolerant)]
+public interface IShape
+{
+}
+
+[NinoType(format: NinoFormat.Keyed)]
+public class Keyed
+{
+    public int A;
+}
+
+[NinoType(format: NinoFormat.VersionTolerant)]
+public class Tolerant
+{
+    public int A;
+}";
+
+        await WeakToleranceTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO032").WithLocation(0).WithArguments("Plain", KeepBytes),
+            VerifyCF.Diagnostic("NINO032").WithLocation(1).WithArguments("Point", KeepBytes),
+            VerifyCF.Diagnostic("NINO032").WithLocation(2).WithArguments("IShape", KeepBytes)).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO032_DeclaresTheInheritedOptions()
+    {
+        // The [NinoType] comes from another assembly (built without the symbol): the type declares one with the
+        // options it took, and the format.
+        var code = @"
+using Nino.Core;
+
+public partial class {|#0:Derived|} : Nino.UnitTests.Subset.SubsetClassWithPrivateField
+{
+    [NinoMember(10)] public int Extra;
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false, includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
+public partial class Derived : Nino.UnitTests.Subset.SubsetClassWithPrivateField
+{
+    [NinoMember(10)] public int Extra;
+}";
+
+        const string attribute = "NinoType(autoCollect: false, includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)";
+        var test = WeakToleranceTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO032").WithLocation(0).WithArguments("Derived",
+                $"declare [{attribute}] on it (the options it takes from " +
+                "'Nino.UnitTests.Subset.SubsetClassWithPrivateField' in another assembly)"));
+        var subset = Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(
+            typeof(Nino.UnitTests.Subset.SubsetClassWithPrivateField).Assembly.Location);
+        test.TestState.AdditionalReferences.Add(subset);
+        test.FixedState.AdditionalReferences.Add(subset);
+        await test.RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO032_NotWithoutTheSymbol()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class Plain
+{
+    public int A;
+}";
+
+        await SetUpCodeFixTest(code, code).RunAsync();
     }
 
     #endregion

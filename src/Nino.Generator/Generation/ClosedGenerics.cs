@@ -12,7 +12,7 @@ namespace Nino.Generator.Generation;
 /// polymorphic read would have no way to map the id of <c>Box&lt;int&gt;</c> back to the type, and AOT runtimes would
 /// have to close the formatter with <c>MakeGenericType</c>. Instantiations created only at run time (from type
 /// parameters, or by reflection) are still found by the runtime when they are written, or through
-/// <c>NinoPolymorphic.Register(Type)</c>.
+/// <c>NinoPolymorphic.TryRegister(Type)</c>.
 /// </summary>
 internal static class ClosedGenerics
 {
@@ -85,63 +85,78 @@ internal static class ClosedGenerics
     /// The closed types of the generic <c>[NinoType]</c> definitions that derive from <paramref name="slot"/>'s
     /// definition, with the arguments that make them assignable to <paramref name="slot"/>
     /// (<c>ListShelf&lt;T&gt; : Shelf&lt;T&gt;</c> in a <c>Shelf&lt;string&gt;</c> slot: <c>ListShelf&lt;string&gt;</c>).
-    /// A definition whose arguments the slot does not fix, or whose constraints they may not meet, is left out.
+    /// The definitions are those the analyzer follows (<see cref="TypeFacts.GenericSubtypesOf"/>: this compilation and
+    /// every referenced assembly that is the slot's or references it, nested in generic types too, whose containing
+    /// types' parameters the slot binds like the subtype's own), so what is registered by id is what NINO007 and
+    /// NINO029 search. A definition whose arguments the slot does not fix, or whose constraints they may not meet, is
+    /// left out.
     /// </summary>
     private static IEnumerable<INamedTypeSymbol> ClosedSubtypes(INamedTypeSymbol slot, TypeFacts facts)
     {
-        var definition = slot.OriginalDefinition;
-        foreach (var candidate in facts.GenericDefinitionsFor(definition.ContainingAssembly))
+        var want = TypeNames.AllTypeArguments(slot);
+        foreach (var (candidate, ancestor) in facts.GenericSubtypesOf(slot.OriginalDefinition))
         {
-            if (SymbolEqualityComparer.Default.Equals(candidate, definition) || candidate.IsAbstract)
+            if (candidate.IsAbstract)
                 continue;
-            var parameters = candidate.TypeParameters;
-            foreach (var ancestor in Ancestors(candidate))
-            {
-                if (!SymbolEqualityComparer.Default.Equals(ancestor.OriginalDefinition, definition))
-                    continue;
-                var bound = new ITypeSymbol?[parameters.Length];
-                bool unified = true;
-                var have = TypeNames.AllTypeArguments(ancestor).ToList();
-                var want = TypeNames.AllTypeArguments(slot).ToList();
-                for (int i = 0; i < have.Count && unified; i++)
-                    unified = Unify(have[i], want[i], candidate, bound);
-                if (unified && bound.All(b => b != null) && Satisfies(parameters, bound))
-                    yield return candidate.Construct(bound!);
-                break;
-            }
+            var parameters = TypeNames.AllTypeParameters(candidate);
+            var bound = new ITypeSymbol?[parameters.Count];
+            var have = TypeNames.AllTypeArguments(ancestor);
+            bool unified = have.Count == want.Count;
+            for (int i = 0; i < have.Count && unified; i++)
+                unified = Unify(have[i], want[i], parameters, bound);
+            if (unified && bound.All(b => b != null) && Satisfies(parameters, bound!))
+                yield return Construct(candidate, bound!);
         }
     }
 
-    private static IEnumerable<INamedTypeSymbol> Ancestors(INamedTypeSymbol type)
+    /// <summary>
+    /// <paramref name="definition"/> closed over <paramref name="arguments"/>, which hold the parameters of its
+    /// containing types first (<see cref="TypeNames.AllTypeParameters"/>): <c>Outer&lt;int&gt;.Inner&lt;string&gt;</c>.
+    /// </summary>
+    private static INamedTypeSymbol Construct(INamedTypeSymbol definition, ITypeSymbol[] arguments)
     {
-        for (var b = type.BaseType; b != null; b = b.BaseType)
-            yield return b;
-        foreach (var i in type.AllInterfaces)
-            yield return i;
+        var chain = new Stack<INamedTypeSymbol>();
+        for (var level = definition; level != null; level = level.ContainingType)
+            chain.Push(level);
+        INamedTypeSymbol? closed = null;
+        int next = 0;
+        foreach (var level in chain)
+        {
+            var open = closed == null
+                ? level
+                : closed.GetTypeMembers(level.Name, level.Arity)
+                    .First(t => SymbolEqualityComparer.Default.Equals(t.OriginalDefinition, level));
+            closed = level.Arity == 0 ? open : open.Construct(arguments.Skip(next).Take(level.Arity).ToArray());
+            next += level.Arity;
+        }
+
+        return closed!;
     }
 
-    /// <summary>Binds the type parameters of <paramref name="owner"/> in <paramref name="pattern"/> to make it <paramref name="actual"/>.</summary>
-    private static bool Unify(ITypeSymbol pattern, ITypeSymbol actual, INamedTypeSymbol owner, ITypeSymbol?[] bound)
+    /// <summary>Binds <paramref name="parameters"/> in <paramref name="pattern"/> to make it <paramref name="actual"/>.</summary>
+    private static bool Unify(ITypeSymbol pattern, ITypeSymbol actual, List<ITypeParameterSymbol> parameters,
+        ITypeSymbol?[] bound)
     {
         switch (pattern)
         {
-            case ITypeParameterSymbol p when SymbolEqualityComparer.Default.Equals(p.ContainingSymbol, owner):
-                if (bound[p.Ordinal] is { } already)
+            case ITypeParameterSymbol p when parameters.IndexOf(p) is var i and >= 0:
+                if (bound[i] is { } already)
                     return SymbolEqualityComparer.Default.Equals(already, actual);
-                bound[p.Ordinal] = actual;
+                bound[i] = actual;
                 return true;
             case IArrayTypeSymbol pa:
-                return actual is IArrayTypeSymbol aa && pa.Rank == aa.Rank && Unify(pa.ElementType, aa.ElementType, owner, bound);
+                return actual is IArrayTypeSymbol aa && pa.Rank == aa.Rank &&
+                       Unify(pa.ElementType, aa.ElementType, parameters, bound);
             case INamedTypeSymbol { IsGenericType: true } pn:
             {
                 if (actual is not INamedTypeSymbol { IsGenericType: true } an ||
                     !SymbolEqualityComparer.Default.Equals(pn.OriginalDefinition, an.OriginalDefinition))
                     return false;
-                var ps = TypeNames.AllTypeArguments(pn).ToList();
-                var acts = TypeNames.AllTypeArguments(an).ToList();
+                var ps = TypeNames.AllTypeArguments(pn);
+                var acts = TypeNames.AllTypeArguments(an);
                 for (int i = 0; i < ps.Count; i++)
                 {
-                    if (!Unify(ps[i], acts[i], owner, bound))
+                    if (!Unify(ps[i], acts[i], parameters, bound))
                         return false;
                 }
 
@@ -156,21 +171,13 @@ internal static class ClosedGenerics
     /// Whether <paramref name="arguments"/> meet the constraints of <paramref name="parameters"/>; a constraint type that
     /// names a type parameter is not checked here, and counts as unmet.
     /// </summary>
-    private static bool Satisfies(IReadOnlyList<ITypeParameterSymbol> parameters, ITypeSymbol?[] arguments)
+    private static bool Satisfies(List<ITypeParameterSymbol> parameters, ITypeSymbol[] arguments)
     {
         for (int i = 0; i < parameters.Count; i++)
         {
-            var (p, a) = (parameters[i], arguments[i]!);
-            if (a is ITypeParameterSymbol || a.IsRefLikeType || a.SpecialType == SpecialType.System_Void)
-                return false;
-            if (p.HasReferenceTypeConstraint && !a.IsReferenceType ||
-                p.HasValueTypeConstraint && (!a.IsValueType ||
-                    a.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T) ||
-                p.HasUnmanagedTypeConstraint && !a.IsUnmanagedType)
-                return false;
-            if (p.HasConstructorConstraint && !a.IsValueType &&
-                (a.IsAbstract || a is not INamedTypeSymbol named ||
-                 !named.InstanceConstructors.Any(c => c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public)))
+            var (p, a) = (parameters[i], arguments[i]);
+            if (a is ITypeParameterSymbol || a.IsRefLikeType || a.SpecialType == SpecialType.System_Void ||
+                !NinoSymbols.MeetsCSharpConstraints(p, a))
                 return false;
             foreach (var constraint in p.ConstraintTypes)
             {

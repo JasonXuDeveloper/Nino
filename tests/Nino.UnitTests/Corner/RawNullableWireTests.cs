@@ -10,7 +10,7 @@ namespace Nino.UnitTests
     /// A <c>T?</c> sequence of a raw [NinoType] struct is written at the fixed stride of its layout (a has-value byte,
     /// padding, then the value, zero when null) whoever binds the formatter: the generated code of a member, or the
     /// runtime resolver for a type no generated code names (<c>Point?[]</c> here, through its Type).
-    /// Compiled on its own: this assembly's WEAK_VERSION_TOLERANCE makes its own structs not raw.
+    /// Compiled on its own: this assembly's structs are version tolerant, so not raw.
     /// </summary>
     [TestClass]
     public class RawNullableWireTests

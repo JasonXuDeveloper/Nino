@@ -20,7 +20,7 @@ namespace Nino.Core
         public void Serialize(TInterface value, ref Writer writer) =>
             NinoCollections.WriteInterface<T, TFormatter>(value, ref writer);
 
-        public void Deserialize(ref TInterface value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TInterface value)
         {
             // The read-only wrappers: a new one over what is read, never a List (an array wraps without a copy).
             if (typeof(TInterface) == typeof(ReadOnlyCollection<T>) ||
@@ -37,7 +37,7 @@ namespace Nino.Core
 
             // A List<T> is handed to its formatter (which reuses or drops it); another collection is recycled here.
             var list = NinoRecycler.Reuse<TInterface, List<T>>(ref value);
-            default(ListFormatter<List<T>, T, TFormatter>).Deserialize(ref list, ref reader);
+            default(ListFormatter<List<T>, T, TFormatter>).Deserialize(ref reader, ref list);
             value = (TInterface)(object)list;
         }
     }
@@ -61,11 +61,11 @@ namespace Nino.Core
             NinoCollections.WriteInterface<T, TFormatter>(value, ref writer);
         }
 
-        public void Deserialize(ref TInterface value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TInterface value)
         {
             // A HashSet<T> is handed to its formatter (which reuses or drops it); another collection is recycled here.
             var set = NinoRecycler.Reuse<TInterface, HashSet<T>>(ref value);
-            default(HashSetFormatter<HashSet<T>, T, TFormatter>).Deserialize(ref set, ref reader);
+            default(HashSetFormatter<HashSet<T>, T, TFormatter>).Deserialize(ref reader, ref set);
             value = (TInterface)(object)set;
         }
     }

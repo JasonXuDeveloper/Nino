@@ -8,11 +8,11 @@ audits the structure, `audit-security` the fuzzer and the hostile-input tests; t
 
 ```
 Nino.UnitTests/              the main suite (net8.0, net10.0; netstandard2.1 compile-only, as Unity builds it);
-                             WEAK_VERSION_TOLERANCE makes its types version tolerant; -p:NinoCoreTfm picks a Nino.Core
+                             its types are marked version tolerant; -p:NinoCoreTfm picks a Nino.Core
                              build; folders below
-Nino.UnitTests.Subset/       netstandard2.1 library of types the main suite needs in an assembly without
-                             WEAK_VERSION_TOLERANCE or with a newer C# (raw, fixed-size, block and deep types,
-                             required members, primary constructors), compiled with the Roslyn 4.3 generator
+Nino.UnitTests.Subset/       netstandard2.1 library of types the main suite needs positional (raw, fixed-size, block
+                             and deep types) or compiled with a newer C# (required members, primary constructors),
+                             compiled with the Roslyn 4.3 generator
 Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.0 builds) that CI's "Runtime internals"
                              job runs on .NET (x64, Arm64, Arm32 under qemu, Windows x86), Mono and .NET Framework 4.8:
                              the same bytes everywhere, and every fast path through a runtime's internals taken
@@ -22,7 +22,10 @@ Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.
                              (BclFixtures.cs and BclFixtureTypes.cs, linked from Unity's Assets/Test/Runtime, which
                              shares them; `--write-fixtures` rewrites BclFixtures.cs), and each runtime's layout of them
                              (`# layout` lines; layouts.py turns CI's into docs/layouts.md's tables); FunctionPointers.cs:
-                             a delegate* inside a raw struct, 8 bytes zero-extended (net10.0 only: Mono 6.8 cannot load
+                             function pointers in raw structs, 8 bytes zero-extended from the generated registry: a
+                             field reported as an IntPtr (as Mono and IL2CPP report one; every build) and declared
+                             delegate* fields, directly, through an alias and captured by a primary constructor, the
+                             last two reached only by generic code (net10.0 only: stock Mono 6.8 and 6.12 cannot load
                              such a struct)
 Nino.AotTests/               a program over every kind of type, published trimmed and with NativeAOT (warnings are
                              errors); prints a hash of everything written to compare runs, and checks that the block
@@ -69,10 +72,13 @@ Corner/                      corner cases compiled in memory (CornerCompiler): S
                              type hierarchy, generated, compiled and round-tripped), construction, members, generics,
                              pooling, references, versioning, concurrency, unloading, layout metadata, raw-rule
                              agreement between generator and runtime, cross-assembly raw structs
-Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/), HybridCLR hot-update
+Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/; UnityPackageDllTests: the
+                             Unity package's committed DLLs have the public API of their sources), HybridCLR hot-update
                              assemblies, the NinoKernels hook, ET framework collection shapes
-Infrastructure/              shared helpers: Rt (round trips), SharedTypes, TestCompilation, TestReferences
-Nino.UnitTests.csproj        targets, WEAK_VERSION_TOLERANCE, references (Nino.Core, Immutable, UnityTypes, the
+Infrastructure/              shared helpers: Rt (round trips, FromHex/ToHex, OnSmallStack), SharedTypes,
+                             TestCompilation, TestReferences (the analyzer tests' references, created once),
+                             MSTestSettings (classes run in parallel)
+Nino.UnitTests.csproj        targets, references (Nino.Core, Immutable, UnityTypes, the
                              generator's Roslyn 4.3 build, tools/CodeGen templates)
 ```
 
@@ -82,7 +88,12 @@ Nino.UnitTests.csproj        targets, WEAK_VERSION_TOLERANCE, references (Nino.C
   mistakes and the write side throw `InvalidOperationException`.
 - A new way to declare a type adds a dimension to `Corner/ShapeMatrixTests.cs`; a new path through a runtime's
   internals adds a case with known contents and a `FastPaths` row to `Nino.RuntimeTests`.
-- A test that needs a type outside `WEAK_VERSION_TOLERANCE` (raw, fixed size, block) puts it in
-  `Nino.UnitTests.Subset`.
+- Test classes run side by side, the methods of one class in sequence (`Infrastructure/MSTestSettings.cs`). A test
+  that changes or measures process-wide state (`NinoKernels`, the shared pools, the whole heap, unloading) is
+  `[DoNotParallelize]` (it then runs alone, after the others); counters shared by the methods of one class need
+  nothing. Split a slow data-driven test over classes, as `ShapeMatrixTests` puts two rows in each, so its rows
+  share out over the cores.
+- A type of the main suite is `[NinoType(format: NinoFormat.VersionTolerant)]` (keyed where a test needs it); a test
+  that needs a positional type (raw, fixed size, block) puts it in `Nino.UnitTests.Subset`.
 - Committed generated files are checked, never edited by hand: `GeneratedFilesTests` (runtimes/), the
   `*FormattersGenerationTests` (Nino.Core's `.g.cs`).

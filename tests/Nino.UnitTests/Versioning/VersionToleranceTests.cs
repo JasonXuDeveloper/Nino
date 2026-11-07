@@ -39,23 +39,13 @@ public class VersionToleranceTests
             1, 0, 0, 0, // Id
             5, 4, 84, 101, 115, 116 // Name (UTF-8: char count plus one, byte count, bytes)
         };
-        //require symbol WEAK_VERSION_TOLERANCE to be defined
-#if WEAK_VERSION_TOLERANCE
         SaveData result = NinoDeserializer.Deserialize<SaveData>(oldData);
         Assert.AreEqual(data.Id, result.Id);
         Assert.AreEqual(data.Name, result.Name);
         Assert.AreEqual(default, result.NewField1);
         Assert.AreEqual(default, result.NewField2);
-#else
-        //should throw out of range exception
-        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
-        {
-            var _ = NinoDeserializer.Deserialize<SaveData>(oldData);
-        });
-#endif
     }
 
-#if WEAK_VERSION_TOLERANCE
     [TestMethod]
     public void TestModifyListMemberDataStructure2()
     {
@@ -121,5 +111,4 @@ public class VersionToleranceTests
             }
         }
     }
-#endif
 }

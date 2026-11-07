@@ -73,7 +73,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PCompBase
     {
         public static int Created;
@@ -87,7 +87,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PComp : PCompBase
     {
         public new static int Created;
@@ -103,7 +103,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PCompAlt : PCompBase
     {
         public new static int Created;
@@ -117,7 +117,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PUnit
     {
         public static int Created;

@@ -24,7 +24,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   runtimes.yml per runtime (Miri only for the crate's library code), codeql.yml per language (every language
   weekly). A folder another workflow owns is excluded with `!`, and a file a job links from it is re-included on
   the line after (later patterns win): ci.yml leaves out `src/Nino.Unity/**` (unity.yml's; a Burst or Unity test
-  edit had started ci.yml's 16 jobs) but takes `Assets/Test/Runtime/BclFixture*.cs`, which Nino.RuntimeTests links.
+  edit had started ci.yml's 16 jobs) but takes `Assets/Test/Runtime/BclFixture*.cs`, which Nino.RuntimeTests links,
+  and the package's `Runtime/*.dll`, which `UnityPackageDllTests` reads.
 - **Green**: never push a change whose workflow was not run locally in its parts (`verify`); `actionlint` (1.7.12 or newer: 1.7.7 and 1.7.8
   reject the YAML anchors of the path filters with "must be sequence node but got alias node"; `go install
   github.com/rhysd/actionlint/cmd/actionlint@latest`) with `.github/actionlint.yaml` after any workflow edit; a step that pipes a command keeps its failure (`bash -eo
@@ -41,7 +42,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 - **Pinned**: every action by commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
   Dependabot updates both, grouped.
 - **Least privilege**: `permissions: contents: read` unless a job writes; no ref taken from an input runs code in
-  a cache scope that is not its own (cache poisoning); publishing goes through Trusted Publishing (NuGet, crates.io,
+  a cache scope that is not its own (cache poisoning): a job that checks out an input's ref restores caches with
+  `actions/cache/restore` and saves them with `actions/cache/save` only when it runs its own commit, validates the
+  ref's form first, and names the input for what it holds (`tag`, not `ref`: CodeQL's
+  actions/cache-poisoning/direct-cache counts a checkout `ref` from an input named like `*ref*`, `*head*` or
+  `*branch*` as untrusted; unity.yml's `ref` input raised code scanning alert #7); publishing goes through Trusted Publishing (NuGet, crates.io,
   npm), never a stored key in a file.
 - **Unity**: `unity.yml` runs one Unity version at a time (`max-parallel: 1`) and is never cancelled while running, so
   CI holds at most one license seat; `report.yml`'s Unity section the same. `unity.yml` also builds a WebGL player per
@@ -49,7 +54,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   runner's Chrome, `.github/scripts/webgl_run.mjs`, which must exit as soon as the player reports done: a pending
   `setTimeout` kept Node, and with it the run that holds the `unity-license` group, for 40 more minutes). An agent
   session's GitHub integration cannot `workflow_dispatch` (403 "Resource not accessible by integration", also after
-  `add_repo` with push access): to run unity.yml on an experiment, push a branch whose own unity.yml adds it to
+  `add_repo` with push access; the response's `X-Accepted-GitHub-Permissions: actions=write` names the token's missing
+  permission, not the workflow: ab-bench.yml is active with `workflow_dispatch` and no environment, round 124): to run unity.yml on an experiment, push a branch whose own unity.yml adds it to
   `on.push.branches`, check first that no Unity run is queued (a newer pending run in the `unity-license` group replaces
   an older pending one), and name the branch in the report: the session cannot delete it either (`git push --delete`
   returned 403). Pin `cliVersion` on every game-ci action that runs the game-ci CLI (unity-test-runner 4.4+,
@@ -79,7 +85,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   job's own log prints the editor's log only after the editor exits.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
-  `unity.yml` called with `ref`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
+  `unity.yml` called with `tag`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
   actions and scripts by their pinned SHA, never `./.github/actions/...` or a script the tag may lack (tags up to
   v4.0.0-rc.7 have no `.github/actions/setup-dotnet`); steps such a workflow repeats across its jobs share one YAML
   anchor instead (`unity.yml`'s `&setup-dotnet` and `&build-dlls`, with the job's `NINO_CONFIG`).
@@ -91,7 +97,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   How workers share the budget: `benchmark`, "Spend CI as a budget".
 - **A/B workflows** live on the test branch: `runtime-ab.yml` reads `.github/ab-request.txt` (Go, Rust and
   TypeScript lines), `dotnet-ab.yml` reads `.github/dotnet-ab-request.txt` (.NET lines); how to write a line is
-  `benchmark`. `ab-bench.yml` on main compares a ref with the previous release or its base.
+  `benchmark`. `ab-bench.yml` on main compares a ref with the previous release or its base. An A/B workflow never
+  reports a comparison it did not make: a side that cannot be built or measured fails its job with an `::error::`,
+  and the summary shows head against base only when every shard that measured head measured base (`ab.py` with one
+  report prints head alone, never head against itself). Why: ab-bench fell back to head alone when v4.0.0-rc.7 did not
+  build head's benchmarks and printed `ab.py head.md head.md`, a table of 1.00x that read as a comparison (round 124).
 
 ## Look for
 

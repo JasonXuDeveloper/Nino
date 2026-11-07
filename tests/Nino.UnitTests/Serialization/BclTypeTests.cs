@@ -17,7 +17,7 @@ using static Nino.UnitTests.Rt;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class BclTypeHolder
 {
     public BigInteger Big;

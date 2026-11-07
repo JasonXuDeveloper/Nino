@@ -239,7 +239,7 @@ namespace Nino.Core.Internal
             }
 
             for (int i = 0; i < count; i++)
-                default(TFormatter).Deserialize(ref Unsafe.Add(ref first, i), ref reader);
+                default(TFormatter).Deserialize(ref reader, ref Unsafe.Add(ref first, i));
 #else
             Read<T, TFormatter>(MemoryMarshal.CreateSpan(ref first, count), ref reader);
 #endif
@@ -402,7 +402,7 @@ namespace Nino.Core.Internal
             // load it back (List<(int, long)>: 2x faster).
             ref T item = ref MemoryMarshal.GetReference(values); // by reference, see WriteOnLocal
             for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
             return reader;
         }
 

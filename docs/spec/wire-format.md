@@ -372,9 +372,9 @@ runtime that writes or reads it. Implementations MUST compute it as follows (`Ni
 - **Leaves** (size, alignment): 1-byte types (1, 1). 2-byte types (2, 2). 4-byte types (4, 4). 8-byte primitives,
   `DateTime` and `TimeSpan` (8, 8). `decimal` (16, 8). `Guid` (16, 4). `Int128` and `UInt128` (16, 16). Enums are
   their underlying type. `nint`, `nuint`, pointers and function pointers (`delegate*`) (8, 8): `nint` sign-extended,
-  the others zero-extended where the host's pointer is 4 bytes. (Mono and IL2CPP report a `delegate*` field as an
-  `IntPtr`, so the .NET reader and writer there sign-extend it: the same bytes on 64-bit hosts; on a 32-bit Unity
-  player an address with its top bit set differs.) `Vector64<T>` (8, 8), `Vector128<T>` (16, 16), `Vector256<T>` (32, 32), `Vector512<T>`
+  the others zero-extended where the host's pointer is 4 bytes. (.NET knows a `delegate*` field from the generated
+  registry, not from reflection, which reports it as an `IntPtr` on Mono and IL2CPP: every runtime zero-extends it.)
+  `Vector64<T>` (8, 8), `Vector128<T>` (16, 16), `Vector256<T>` (32, 32), `Vector512<T>`
   (64, 64): x64 CoreCLR's alignments (Arm64 aligns the last two to 16, Arm32 every one to 8). `Vector<T>` is not a
   leaf: a struct holding one is not serializable (§3).
 - **BCL structs of private fields**, as .NET 10 declares them: `KeyValuePair<K, V>` is sequential `{ K key; V value; }`;
@@ -713,9 +713,9 @@ header | i32 L | members of the whole hierarchy, root first (L bytes)
 - Only members appended to the most derived type are tolerated. An appended base member shifts every derived
   member that follows it.
 - A version-tolerant struct has no header: `TolStruct { int X = 1 }` → `04 00 00 00 01 00 00 00`.
-- **`WEAK_VERSION_TOLERANCE`.** When the project that defines the types sets this compile-time symbol, every
-  positional type of that assembly becomes version tolerant. Its structs are then never raw. The layout metadata
-  shows the result (`format=VersionTolerant`).
+- A version-tolerant struct is never raw. Only the type's own `format` makes it version tolerant (before 4.0 the
+  compile-time symbol `WEAK_VERSION_TOLERANCE` did so for a whole assembly; it was removed). The layout metadata shows
+  the format (`format=VersionTolerant`).
 
 ### 7.6 Keyed format (`format=Keyed`)
 
@@ -1293,8 +1293,9 @@ readers of layouts or data from earlier builds.
     0 or 1 read in the default mode is JIT undefined behavior: the value can be unequal to itself, for example lost in
     a `Dictionary`. Untrusted data must use `NinoSettings.Untrusted`.
 13. **`object` resolves any loaded type** (§9.6).
-14. **`WEAK_VERSION_TOLERANCE` changes the format per assembly** (§7.5). The same source compiled in two projects can
-    produce two formats. The layout shows the effective format.
+14. **`WEAK_VERSION_TOLERANCE` was removed** (§7.5). Before 4.0 it made an assembly's positional types version
+    tolerant; data written so reads only with `format: NinoFormat.VersionTolerant` on each type (.NET reports NINO032
+    where the symbol is still defined). The layout shows the format.
 15. **`[NinoFormerName]` on a generic type** replaces the whole id name, arguments included, so every closed type of
     that definition gets the same id. **(unverified: not run.)**
 16. **Hash collisions between type ids** of different types are not detected across assemblies. Within one
@@ -1352,7 +1353,8 @@ AC 2B C0 ED                   type id of "Spec.Circle" (0xEDC02BAC)
 00 00 00 00                   null
 ```
 
-A non-sealed base held as itself also writes its id: `[NinoType] class Open { int A; }`, `new Open { A = 1 }` →
+The same `Circle` declared as itself (sealed) writes a presence byte and no id: `new Circle { Id = 1, R = 1f }` →
+`01 01 00 00 00 00 00 80 3F`; `null` → `00`. A non-sealed base held as itself also writes its id: `[NinoType] class Open { int A; }`, `new Open { A = 1 }` →
 `32 CC 13 82 01 00 00 00`. A generic type under `object`: `(object)new Box<int> { Value = 3 }` →
 `38 EE 81 67 03 00 00 00` (`Spec.Box<System.Int32>`).
 
@@ -1387,6 +1389,13 @@ as TolBase:   77 30 46 2B | 08 00 00 00 | 01 00 00 00 07 00 00 00     (type id o
 ```
 A `TolBase`-only reader of the second payload reads `A = 1` and skips the 4 bytes of `B`.
 
+Appending a member to the base shifts the derived members (§7.5). Version 2 declares `TolBase { int A; int R; }`:
+```
+new TolLeaf { A = 1, R = 2, B = 7 }, as TolLeaf:   01 | 0C 00 00 00 | 01 00 00 00 02 00 00 00 07 00 00 00
+```
+A version-1 reader of it reads `B = 2` (the bytes of `R`) and skips the last 4 bytes; a version-2 reader of the
+version-1 payload above reads `R = 7` and leaves `B` at its default.
+
 ### A.4 Strings in each encoding
 
 ```csharp
@@ -1415,14 +1424,14 @@ new Strings { Def = "x", U8 = "é😀" }
 ```csharp
 [NinoType(trackReferences: true)] public sealed class Node { public int V; public Node Next; }
 [NinoType] public sealed class Holder { public object Any; public Node N; }
-var n = new Node { V = 5 }; new Holder { Any = n, N = n }
+var n = new Node { V = 5 }; n.Next = n; new Holder { Any = n, N = n }
 ```
 ```
 01                    Holder presence
 06 2E 6C 29           Any: type id of Spec.Node (slot "object" is untracked: id first)
 FF FF FF FF           reference header: new object #1
 05 00 00 00           V = 5
-00 00 00 00           Next: reference header 0 = null
+01 00 00 00           Next: reference header 1 = object #1 (the cycle)
 01 00 00 00           N: reference header 1 = object #1
 ```
 

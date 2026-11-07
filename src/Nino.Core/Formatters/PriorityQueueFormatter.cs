@@ -53,7 +53,7 @@ namespace Nino.Core
             }
         }
 
-        public void Deserialize(ref PriorityQueue<TElement, TPriority> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref PriorityQueue<TElement, TPriority> value)
         {
             // Each pair takes at least its fewest bytes, which bounds what the queue allocates ahead of them.
             int minPair = NinoElements.MinWireSize<TElement, TElementFormatter>() +
@@ -86,8 +86,8 @@ namespace Nino.Core
             {
                 TElement element = default;
                 TPriority priority = default;
-                default(TElementFormatter).Deserialize(ref element, ref local);
-                default(TPriorityFormatter).Deserialize(ref priority, ref local);
+                default(TElementFormatter).Deserialize(ref local, ref element);
+                default(TPriorityFormatter).Deserialize(ref local, ref priority);
                 queue.Enqueue(element, priority);
             }
 

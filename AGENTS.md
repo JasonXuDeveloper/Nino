@@ -74,7 +74,7 @@ links to the same files for other agents, and anyone can follow them as checklis
 |---|---|---|
 | [`audit-analyzer`](.claude/skills/audit-analyzer/SKILL.md) | Audit Nino's diagnostics (NINO rules in src/Nino.Generator/Analysis), the suppressor and the code fixes | when adding or changing a rule or code fix, when users hit a runtime error a rule could have caught, or when a rule fires wrongly |
 | [`audit-ci`](.claude/skills/audit-ci/SKILL.md) | Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, ab-bench.yml and the test branch's A/B workflows) | when changing a workflow, when CI is slow or red, or before a release |
-| [`audit-code`](.claude/skills/audit-code/SKILL.md) | Audit Nino's code for cleanliness and maintainability and fix it | for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry |
+| [`audit-code`](.claude/skills/audit-code/SKILL.md) | Audit Nino's code for cleanliness and maintainability and fix it | for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry, or when the test suite is slow |
 | [`audit-core`](.claude/skills/audit-core/SKILL.md) | Audit Nino's runtime libraries (src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design | for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration |
 | [`audit-docs`](.claude/skills/audit-docs/SKILL.md) | Audit and write all of Nino's docs | once the code is final (the docs pass), after a user-facing change lands, and before a release |
 | [`audit-generated-code`](.claude/skills/audit-generated-code/SKILL.md) | Audit what the generators write | when changing an emitter or a template, when generated code is slow, large or hard to read, or when a type's serializer is slower than a hand-written one |
@@ -125,7 +125,8 @@ reusing is written down before the task ends, in the same series of commits as t
   holds what users' agents need. Search before adding a rule: extend the existing one.
 - **Descriptions decide when a skill runs**: what it does, `Use when ...`, and `Triggers:` with the paths it owns,
   the symptoms, and the owner's words in English and Chinese. A skill that did not run when it should have gets the
-  missing trigger.
+  missing trigger (the prompt hook `.claude/hooks/skill-hint.py` matches an English word or phrase as whole
+  words, so `NINO0xx` never matched `NINO029`: end a prefix with `*`, `NINO0*`).
 - **Split, never shrink.** A skill that has grown past one concern is split by concern (every line moves, the old
   skill keeps a pointer, `audit` gains the scope, `tools/agents.sh` the index).
 - **Decide, then say.** Do what clearly fits the project's rules without asking; ask only what is the owner's to

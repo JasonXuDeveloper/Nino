@@ -11,7 +11,7 @@ namespace Nino.UnitTests
     }
 
     // https://github.com/JasonXuDeveloper/Nino/issues/166
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public partial class SyncList<T> : List<T>, ISyncList<T>
     {
         [NinoIgnore] private string _fieldName;
@@ -48,7 +48,7 @@ namespace Nino.UnitTests
     {
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public partial class SyncListHolder
     {
         public SyncList<long> Ids;

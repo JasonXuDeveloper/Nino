@@ -10,7 +10,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class BclStructs
     {
         public Half H;

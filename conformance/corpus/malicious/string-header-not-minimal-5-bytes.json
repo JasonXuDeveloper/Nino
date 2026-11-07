@@ -6,7 +6,7 @@
   "exercises": "The header 129 written in five bytes (81 81 00 00 00).",
   "size": 70,
   "layouts": {
-    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string"
+    "Conformance.Targets.TextValue": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x825A7C6C; deferrable=true; members=Value:string:string"
   },
   "dotnet": {
     "outcome": "error",

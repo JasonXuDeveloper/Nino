@@ -8,20 +8,20 @@ namespace Nino.UnitTests
     // Derived formatters delegate inherited members to the base formatter when the base members are reachable
     // (and no raw block straddles the boundary); the bytes must be the same as writing every member inline.
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DelegLevel1
     {
         public int A;
         public string Name;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DelegLevel2 : DelegLevel1
     {
         public List<int> Items;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DelegLevel3 : DelegLevel2
     {
         public double D;
@@ -48,7 +48,7 @@ namespace Nino.UnitTests
 
     // Private base members are not part of the derived layout, so the derived member list is not an extension of
     // the base list: the derived formatter must write its members inline instead of delegating.
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public partial class DelegPrivateBase
     {
         private int _secret;
@@ -58,7 +58,7 @@ namespace Nino.UnitTests
         public void SetSecret(int value) => _secret = value;
     }
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public partial class DelegPrivateDerived : DelegPrivateBase
     {
         public int Extra;
@@ -103,13 +103,11 @@ namespace Nino.UnitTests
                 NinoSerializer.Serialize(new List<int> { 1 }),
                 NinoSerializer.Serialize(2.5), NinoSerializer.Serialize(7L)
             };
-#if WEAK_VERSION_TOLERANCE
-            // Under WEAK_VERSION_TOLERANCE the whole body (every level, root first) is prefixed with one length.
+            // Version tolerant: the whole body (every level, root first) is prefixed with one length.
             int length = 0;
             foreach (var m in members)
                 length += m.Length;
             writer.AddRange(System.BitConverter.GetBytes(length));
-#endif
             foreach (var m in members)
                 writer.AddRange(m);
 
@@ -191,7 +189,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(5, baseResult.Visible);
         }
 
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public interface IBase
         {
             public int Val { get; set; }
@@ -203,7 +201,7 @@ namespace Nino.UnitTests
             public override string ToString() => $"{Val}";
         }
 
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public abstract class ABase
         {
             public abstract int Val { get; set; }
@@ -215,13 +213,13 @@ namespace Nino.UnitTests
             public override string ToString() => $"{Val}";
         }
         
-        [NinoType(allowInheritance: false)]
+        [NinoType(inheritedBySubtypes: false, format: NinoFormat.VersionTolerant)]
         public abstract class ABase2
         {
             public abstract int Val { get; set; }
         }
         
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public class ABase2Ins : ABase2
         {
             public override int Val { get; set; }
@@ -246,7 +244,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(iBaseIns.ToString(), NinoDeserializer.Deserialize<IBaseIns>(NinoSerializer.Serialize(iBaseIns)).ToString());
             Assert.AreEqual(aBaseIns.ToString(), NinoDeserializer.Deserialize<ABaseIns>(NinoSerializer.Serialize(aBaseIns)).ToString());
             Assert.AreEqual(aBase2Ins.ToString(), NinoDeserializer.Deserialize<ABase2Ins>(NinoSerializer.Serialize(aBase2Ins)).ToString());
-            // ABase2Ins2 has no CachedSerializer because ABase2 has allowInheritance=false, so it throws Exception
+            // ABase2Ins2 has no CachedSerializer because ABase2 has inheritedBySubtypes: false, so it throws Exception
             Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(aBase2Ins2));
         }
     }

@@ -90,7 +90,7 @@ The generated API of each language is on the site; these are the decisions behin
 ### Generic types
 
 A generic `[NinoType]` is a generic type in each language, whose codec is built from the codecs of its type arguments,
-as .NET builds `NinoFormatter<Box<T>>` from the formatter of `T`. The IR gives each type argument the encoding .NET's
+as .NET builds the formatter of `Box<T>` from the formatter of `T`. The IR gives each type argument the encoding .NET's
 formatter for it writes: a `T?[]` or `List<T?>` of an unmanaged `T` as raw `T`s with a flag each, a `HashSet<T?>` or
 a dictionary's values item by item, a `KeyValuePair` as its key then its value (`CodegenModel.Generic`).
 

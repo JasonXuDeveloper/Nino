@@ -60,7 +60,7 @@ namespace Nino.CodeGen
             sb.Append($"                NinoElements.Write<T, TFormatter>(ref value[{first}], value.Length, ref writer);\n");
             sb.Append("        }\n");
             sb.Append("\n");
-            sb.Append($"        public void Deserialize(ref {type} value, ref Reader reader)\n");
+            sb.Append($"        public void Deserialize(ref Reader reader, ref {type} value)\n");
             sb.Append("        {\n");
             sb.Append($"            if (!MultiDim.TryReadShape(ref reader, {rank}, NinoElements.MinWireSize<T, TFormatter>(), out var shape))\n");
             sb.Append("            {\n");

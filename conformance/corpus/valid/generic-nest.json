@@ -8,8 +8,8 @@
   "size": 33,
   "roundTrip": true,
   "layouts": {
-    "Conformance.Nest<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; deferrable=true; members=Value:T:type(T);Deeper:Conformance.Nest<System.Collections.Generic.List<T>>:type(Conformance.Nest<System.Collections.Generic.List<T>>)",
-    "Conformance.NestHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xE929FD9A; deferrable=true; members=Nest:Conformance.Nest<int>:type(Conformance.Nest<int>)"
+    "Conformance.Nest<T>": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T);Deeper:Conformance.Nest<System.Collections.Generic.List<T>>:type(Conformance.Nest<System.Collections.Generic.List<T>>)",
+    "Conformance.NestHolder": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xE929FD9A; deferrable=true; members=Nest:Conformance.Nest<int>:type(Conformance.Nest<int>)"
   },
   "typeIds": {
     "Conformance.Nest<System.Collections.Generic.List<System.Collections.Generic.List<System.Int32>>>": "0x8CCF5AA1",

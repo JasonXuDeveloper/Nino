@@ -26,7 +26,7 @@ namespace Nino.Codegen.Tests
             var expected = new[]
             {
                 (typeof(Type), "type"), (typeof(NinoFormat), "format"), (typeof(NinoHeader), "header"),
-                (typeof(bool), "trackReferences"), (typeof(bool), "raw"), (typeof(int), "typeId"),
+                (typeof(bool), "trackReferences"), (typeof(bool), "raw"), (typeof(int), "id"),
                 (typeof(string), "members"),
             };
             var constructors = typeof(NinoTypeLayoutAttribute).GetConstructors();
@@ -61,7 +61,7 @@ namespace Nino.Codegen.Tests
             CollectionAssert.AreEquivalent(
                 new[]
                 {
-                    ("None", TypeLayout.NoHeader), ("NullFlag", TypeLayout.NullFlag), ("TypeId", TypeLayout.TypeId),
+                    ("None", TypeLayout.NoHeader), ("Presence", TypeLayout.PresenceHeader), ("TypeId", TypeLayout.TypeIdHeader),
                 },
                 Enum.GetValues<NinoHeader>().Select(v => (v.ToString(), (int)v)).ToArray());
     }

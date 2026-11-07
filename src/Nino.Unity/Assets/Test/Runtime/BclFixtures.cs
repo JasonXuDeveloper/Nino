@@ -7,6 +7,15 @@ using System.Collections.Generic;
 /// </summary>
 public static class BclFixtures
 {
+    /// <summary>The bytes of a case's hex (Convert.FromHexString, which Unity and .NET Framework lack).</summary>
+    public static byte[] FromHex(string hex)
+    {
+        var bytes = new byte[hex.Length / 2];
+        for (int i = 0; i < bytes.Length; i++)
+            bytes[i] = System.Convert.ToByte(hex.Substring(2 * i, 2), 16);
+        return bytes;
+    }
+
     public static readonly Dictionary<string, string> Bytes = new Dictionary<string, string>
     {
         ["Around<(int,long)>[]"] = "0200000001000000000000000000000000000080FFFFFFFF00000000FFFFFFFF00000000FE0000000000000008070605040302010200000000000000FFFFFF7F00000000",

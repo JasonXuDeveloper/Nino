@@ -11,7 +11,7 @@ using Nino.Core.Internal;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class PrefetchItem
 {
     public int Id;
@@ -20,26 +20,26 @@ public class PrefetchItem
     public long Value;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class PrefetchHolder
 {
     public PrefetchItem[] Items;
     public List<PrefetchItem> List;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public abstract class PrefetchShape
 {
     public string Tag;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class PrefetchCircle : PrefetchShape
 {
     public float Radius;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class PrefetchSquare : PrefetchShape
 {
     public int Side;
@@ -387,7 +387,7 @@ public class PrefetchTests
         // Two reference members at most, fields and auto-properties only, read directly.
         string item = Output("Item");
         // 16 (header) + 4 + 8 + two references of 8 + 64: 172 bytes.
-        StringAssert.Contains(item, "INinoPrefetchFormatter.PrefetchBytes => 172;");
+        StringAssert.Contains(item, "public int PrefetchBytes => 172;");
         StringAssert.Contains(item,
             "sum += global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Name) + global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Values);");
         string computed = Output("Computed");

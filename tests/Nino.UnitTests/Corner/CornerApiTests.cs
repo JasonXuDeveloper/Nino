@@ -31,7 +31,7 @@ namespace Nino.UnitTests
         public Span<byte> GetSpan(int sizeHint = 0) => GetMemory(sizeHint).Span;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ApiPayload
     {
         public int Id;
@@ -269,8 +269,8 @@ namespace Nino.UnitTests
             writer.Flush();
             var reader = new Reader(writerBuffer.WrittenSpan);
             object first = null, second = new SquareShape();
-            NinoDeserializer.DeserializeBoxed(ref first, ref reader, typeof(AbstractShape));
-            NinoDeserializer.DeserializeBoxed(ref second, ref reader, typeof(AbstractShape));
+            NinoDeserializer.DeserializeBoxed(ref reader, ref first, typeof(AbstractShape));
+            NinoDeserializer.DeserializeBoxed(ref reader, ref second, typeof(AbstractShape));
             Assert.AreEqual(4, ((SquareShape)first).Side);
             Assert.IsNull(second);
 

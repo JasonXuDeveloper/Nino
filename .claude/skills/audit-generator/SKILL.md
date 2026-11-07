@@ -19,7 +19,7 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   from the model's rules (`DispatchesSubtypes`, `IsDispatchRoot`, ...), not from a new check next to them.
 - A feature that adds a way to declare a type (a kind, an attribute option, a place) adds a dimension to
   `tests/Nino.UnitTests/Corner/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
-- Generated registration code may call back into Nino.Core (`NinoPolymorphic.Register(Type)`), which asks every
+- Generated registration code may call back into Nino.Core (`NinoPolymorphic.TryRegister(Type)`), which asks every
   registry again: anything a registry calls must be re-entrant (`NinoRegistry.RegisterType` guards it per thread).
 - Register every closed type a public `NinoSerializer` / `NinoDeserializer` method names, by type argument or by
   `typeof` argument: a new such method goes into `NinoGenerator.NamesType` (the syntax filter) and is covered by
@@ -28,6 +28,17 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   `SerializeBoxed(v, typeof(Pair<int, long>))` threw "no formatter" only after `PublishAot` until the filter matched
   more than `Serialize` and `Deserialize`. A generic `[NinoType]` is never of fixed size (`TypeFacts.IsFixedSize`):
   `GetFixedSize` of one is -1 on every runtime.
+- Register by id exactly the closed subtypes the analyzer searches: `ClosedGenerics` takes a slot's generic subtypes
+  from `TypeFacts.GenericSubtypesOf` (this compilation and every referenced assembly that is the slot's or references
+  it, nested in generic types too, the containing types' parameters bound like the subtype's own). Its own pass saw
+  only this compilation and the slot's assembly and skipped nested types, so `XListShelf<int>` of a plugin, and
+  `SlotOuter<SlotArg>.Inner`, were checked by NINO029 but unreadable from their ids
+  (`ClosedSubtypesFromAnotherReferencedAssemblyAreRegistered`, `ClosedSubtypesOfAGenericSlotAreReadableFromTheirIdsAlone`,
+  round 121).
+- Never pack a fact per type parameter into a bit of an `int`: C# masks a shift count to five bits, so `1 << 32` is
+  bit 0 and a formatter's 33rd parameter took the first one's marks without a word (`[NinoRaw]` on `T33` of a
+  34-parameter formatter registered `T1` as raw). Keep one value per position (`NinoParameterMarks.Register(typeof(F<>),
+  marks...)`, `FormatterRules.OwnMarks`; `NinoParameterMarksTests.MarksOfParametersPastTheThirtySecondAreTheirOwn`).
 - Registration works without module initializers (HybridCLR, `platforms`); interceptors are always on with Roslyn
   4.8+ and the regular entry points must agree with them (the `-p:NinoRegularCalls=true` run of `verify`).
 - Partial, nested, generic, record, struct, abstract and interface types, types in other assemblies, and every
@@ -52,6 +63,21 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - No display strings for comparisons (`SymbolEqualityComparer`, metadata names), no `ToFullString()` /
   `NormalizeWhitespace()` in transforms; one `StringBuilder` per output, one file per model, deterministic and
   culture-invariant output, unique hint names.
+- Bind as few nodes as syntax allows. A syntax provider's semantic transform reruns for every match on every
+  compilation change, and `GetSymbolInfo` of a call binds its statement: binding the top-level calls was most of the
+  generator's time on tests/Nino.UnitTests (about 2,400 calls; local trace, round 128), more than building the models.
+  Skipping identifier receivers that are neither `NinoSerializer`/`NinoDeserializer` nor a `using` alias of one
+  (alias names from syntax, per compilation) measured within the noise on `GeneratorBenchmark --calls` (a call in a
+  one-statement method binds in microseconds) and was not kept (round 128). Look a transform's result up before
+  binding anything: a call is reused unbound while its tree is the same instance and no tree's declarations changed
+  (`ModelCache` epochs: `SyntaxTree.IsEquivalentTo(topLevel: true)`, which ignores method bodies and non-constant
+  field initializers), which only holds for a result read from declarations; models are not (`ConstructsDefaults`,
+  `StartsDefault` and `IsAutoProperty` read constructor bodies, initializers and accessors) and keep the tree check.
+  Chained comment edits on tests/Nino.UnitTests took 150 ms instead of 520 ms, TopLevelCall 2 ms instead of 290 ms
+  (round 129). Measure edits there, not on `GeneratorBenchmark` alone: its comment edit lands in the file of every
+  model, which rebuilds them all.
+- Walk an assembly's types only through `AssemblyTypes.Of`; per-compilation setup still costs about 9 ms an edit in
+  `FormatterRules`' constructor, which reads every referenced assembly's attributes again (round 129, not cached yet).
 - `cancellationToken.ThrowIfCancellationRequested()` in loops over members and types.
 - `WithTrackingName` on every stage; `tests/Nino.UnitTests/Generator/IncrementalGeneratorTests.cs` asserts that
   edits elsewhere and in method bodies hit the cache for every tracked stage (a rerun that returns an equal model is
@@ -64,7 +90,16 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
-the error. A new stage gets input in the incremental tests, or its caching assertion checks nothing.
+the error. `--generics` adds generic slots, subtypes and closed members, which make the analyzer run
+`WrittenParameters` and its subtype scan; pass `--generator <base Nino.Generator.dll>` for the base side.
+On a real project: `ReportAnalyzer` (set in tests/Nino.UnitTests) prints the generator's and the analyzer's time per
+compilation in a `dotnet build -v:d` log; to see the stages, rebuild the compilation from that log's `csc` line
+(`CSharpCommandLineParser`, with its analyzer config files as an `AnalyzerConfigOptionsProvider`), run the driver with
+`trackIncrementalGeneratorSteps: true` and sum each `TrackedSteps` entry's `ElapsedTime`, parsing the files again for
+every run (`ModelCache` reuses models by tree instance), and hash the generated sources to prove base and head write the
+same text. Untracked time there is Roslyn's own (declaring the compilation's symbols, binding), which the first stage
+to ask pays. The Debug and Release builds of the generator take the same time on that compilation (binding
+dominates; round 128). A new stage gets input in the incremental tests, or its caching assertion checks nothing.
 
 ## Look for
 

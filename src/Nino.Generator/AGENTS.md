@@ -52,6 +52,7 @@ NinoGenerator.cs             the IIncrementalGenerator: one formatter file per [
                              NinoGen.Nesting.g.cs
 ProjectFacts.cs              what is read from the whole compilation in one step (enabled, options, referenced NinoTypes)
 AssemblyReferences.cs        the assemblies an assembly references (only those referencing Nino.Core matter)
+AssemblyTypes.cs             every type an assembly declares, nested ones included (the one namespace walk)
 InheritedCandidates.cs       types that may inherit [NinoType], found from syntax without binding
 ClosedGenerics.cs            the closed generic [NinoType]s a compilation names, for registration by type id
 TypeFacts.cs                 everything model builds ask about one compilation's symbols, memoized and shared
@@ -78,6 +79,9 @@ RawLayout.cs                 whether a struct's memory is the same on every runt
 PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoPrefetchFormatter):
                              the object's estimated bytes for the cache budget, and which members' objects it prefetches
 LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
+FunctionPointerFields.cs     the delegate* fields of every struct a compilation sees, registered by the registry: the
+                             project's from syntax (aliases: every struct it declares), every reference's from its
+                             metadata
 WireEncoding.cs              a member's encoding as the published layout shows it ([NinoTypeLayout])
 TypeNames.cs                 type names as generated code and the runtime spell them, and the ids hashed from them
 Visibility.cs                what generated code in one assembly can name, read and assign
@@ -101,8 +105,8 @@ DispatchEmitter.cs           per-assembly subtype dispatch of base formatters (t
 RegistryEmitter.cs           the assembly registry and the registrations of built-in formatters it uses
 LayoutEmitter.cs             the [assembly: NinoTypeLayout] of a type
 NestingEmitter.cs            the nesting formatters: a struct per type that holds itself, counting each level
-FormatterNames.cs            file-local using aliases for long formatter names
-GeneratedCode.cs             the header and aliases every generated file shares
+FormatterNames.cs            what a formatter file aliases: the inlining attributes, its generic member formatters
+GeneratedCode.cs             the header every generated file shares, and the short names of its body (aliases)
 Signature.cs                 the signatures of the formatter methods generated code implements
 CodeWriter.cs                C# source line by line with indentation
 ```

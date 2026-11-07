@@ -33,7 +33,7 @@ namespace Nino.Core.CompilerServices
         /// Reads what <see cref="Serialize"/> wrote after the type id (which has been consumed) into
         /// <paramref name="value"/>, which is null or an instance of exactly <see cref="Type"/> to reuse.
         /// </summary>
-        public abstract void Deserialize(ref object value, ref Reader reader);
+        public abstract void Deserialize(ref Reader reader, ref object value);
 
         /// <summary>
         /// Writes the type id and the body without a reference header: called through a tracked declared type,
@@ -42,7 +42,7 @@ namespace Nino.Core.CompilerServices
         internal virtual void SerializeReferenced(object value, ref Writer writer) => Serialize(value, ref writer);
 
         /// <summary>Reads what <see cref="SerializeReferenced"/> wrote after the type id.</summary>
-        internal virtual void DeserializeReferenced(ref object value, ref Reader reader) =>
-            Deserialize(ref value, ref reader);
+        internal virtual void DeserializeReferenced(ref Reader reader, ref object value) =>
+            Deserialize(ref reader, ref value);
     }
 }

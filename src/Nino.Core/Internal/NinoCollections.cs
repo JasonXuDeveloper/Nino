@@ -319,7 +319,7 @@ namespace Nino.Core.Internal
         public static T[] ReadArray<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>
         {
             T[] array = null;
-            default(ArrayFormatter<T, TFormatter>).Deserialize(ref array, ref reader);
+            default(ArrayFormatter<T, TFormatter>).Deserialize(ref reader, ref array);
             return array;
         }
     }

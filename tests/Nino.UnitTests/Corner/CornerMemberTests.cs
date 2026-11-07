@@ -9,20 +9,20 @@ namespace Nino.UnitTests
 {
     // ---- `new` hiding ----
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class HideBase
     {
         public int Value;
         public string Name;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class HideSameType : HideBase
     {
         public new int Value;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class HideOtherType : HideBase
     {
         public new string Value;
@@ -31,7 +31,7 @@ namespace Nino.UnitTests
 
     // ---- same-named private fields at several levels ----
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public partial class PrivLevel1
     {
         private int _x;
@@ -39,7 +39,7 @@ namespace Nino.UnitTests
         public void SetX1(int v) => _x = v;
     }
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public partial class PrivLevel2 : PrivLevel1
     {
         private int _x;
@@ -47,7 +47,7 @@ namespace Nino.UnitTests
         public void SetX2(int v) => _x = v;
     }
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public partial class PrivLevel3 : PrivLevel2
     {
         private string _x;
@@ -62,20 +62,20 @@ namespace Nino.UnitTests
         int Id { get; set; }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ExplicitImpl : IHasId
     {
         int IHasId.Id { get; set; }
         public int Other;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public interface INinoIdentified
     {
         int Id { get; set; }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ImplicitNinoInterfaceImpl : INinoIdentified
     {
         public int Id { get; set; }
@@ -84,7 +84,7 @@ namespace Nino.UnitTests
 
     // ---- getter-only / computed ----
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public partial class GetterBacked
     {
         private int _count;
@@ -92,7 +92,7 @@ namespace Nino.UnitTests
         public void SetCount(int c) => _count = c;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ComputedProperty
     {
         public int A;
@@ -102,7 +102,7 @@ namespace Nino.UnitTests
 
     // ---- init / readonly ----
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class InitMixed
     {
         public int A { get; init; }
@@ -110,7 +110,7 @@ namespace Nino.UnitTests
         public string S;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ReadonlyFields
     {
         public readonly int A;
@@ -126,7 +126,7 @@ namespace Nino.UnitTests
 
     // ---- static, const, indexer ----
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class WithStatics
     {
         public static int StaticField = 5;
@@ -142,7 +142,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class OnlyV
     {
         public int V;
@@ -150,7 +150,7 @@ namespace Nino.UnitTests
 
     // ---- generic parameter members ----
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class GenericMembers<T>
     {
         public T Value;
@@ -159,14 +159,14 @@ namespace Nino.UnitTests
         public Dictionary<int, T> Map;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class SimpleNode
     {
         public int Id;
         public string Name;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct SimpleStructNode
     {
         public int A;
@@ -175,7 +175,7 @@ namespace Nino.UnitTests
 
     // ---- object members ----
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ObjectHolder
     {
         public object Value;
@@ -183,13 +183,13 @@ namespace Nino.UnitTests
         public List<object> List;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ObjectNodeA
     {
         public int A;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ObjectNodeB : ObjectNodeA
     {
         public string B;
@@ -197,7 +197,7 @@ namespace Nino.UnitTests
 
     // ---- delegates are skipped ----
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class WithDelegate
     {
         [NinoIgnore] public Action Ignored;
@@ -207,7 +207,7 @@ namespace Nino.UnitTests
 
     // ---- restricted setters ----
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public partial class RestrictedSetters
     {
         public int PrivateSet { get; private set; }
@@ -224,7 +224,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public readonly struct ReadonlyStruct
     {
         public readonly int A;
@@ -237,7 +237,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct StructWithReferences
     {
         public List<int> List;
@@ -246,7 +246,7 @@ namespace Nino.UnitTests
     }
 
     // Member names that collide with names generated code uses.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class AwkwardNames
     {
         public int value;
@@ -263,7 +263,7 @@ namespace Nino.UnitTests
         public string Deserialize;
     }
 
-    [NinoType(includeNonPublicMembers: true)]
+    [NinoType(includeNonPublicMembers: true, format: NinoFormat.VersionTolerant)]
     public partial class AwkwardPrivateNames
     {
         private int value;

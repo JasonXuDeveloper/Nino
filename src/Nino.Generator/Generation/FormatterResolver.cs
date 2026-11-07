@@ -400,17 +400,10 @@ internal sealed class FormatterResolver
 
     private bool Satisfies(ITypeParameterSymbol parameter, ITypeSymbol type, ITypeSymbol[] types)
     {
-        if (parameter.HasReferenceTypeConstraint && !type.IsReferenceType)
-            return false;
-        if (parameter.HasValueTypeConstraint &&
-            (!type.IsValueType || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T))
+        if (!NinoSymbols.MeetsCSharpConstraints(parameter, type))
             return false;
         // `unmanaged` is C#'s; [NinoRaw] means "copied as raw memory", which is stricter.
-        if (parameter.HasUnmanagedTypeConstraint && !type.IsUnmanagedType)
-            return false;
         if (NinoSymbols.Has(parameter, _symbols.Raw) && !_raw.IsRawUnmanaged(type))
-            return false;
-        if (parameter.HasConstructorConstraint && !HasPublicDefaultConstructor(type))
             return false;
         if (IsCreated(parameter) && !IsCreatable(type))
             return false;
@@ -423,12 +416,4 @@ internal sealed class FormatterResolver
 
         return true;
     }
-
-    private static bool HasPublicDefaultConstructor(ITypeSymbol type) => type switch
-    {
-        { IsValueType: true } => true,
-        INamedTypeSymbol { TypeKind: TypeKind.Class, IsAbstract: false } named => named.InstanceConstructors.Any(c =>
-            c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public),
-        _ => false,
-    };
 }

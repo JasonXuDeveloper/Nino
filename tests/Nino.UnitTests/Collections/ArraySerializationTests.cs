@@ -6,7 +6,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class JaggedArrays
 {
     public int[][] Jagged;

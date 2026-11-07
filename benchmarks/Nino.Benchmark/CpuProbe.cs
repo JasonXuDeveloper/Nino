@@ -1,3 +1,5 @@
+// Nino.Core.CompilerServices is newer than v4.0.0-rc.7: left out of A/B runs against older releases.
+#if !NINO_BENCH_LEGACY
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -319,8 +321,10 @@ public unsafe class TupleCostProbe
         for (int i = 0; i < Count; i++)
             list.Add((i, i * 31L));
         fixed ((int, long)* at = CollectionsMarshal.AsSpan(list))
-            Console.WriteLine($"// probe a new list's values at {(nuint)at % 64} past a line; X86Base " +
-                              $"{System.Runtime.Intrinsics.X86.X86Base.CpuId(1, 0).Eax:X}");
+            Console.WriteLine($"// probe a new list's values at {(nuint)at % 64} past a line" +
+                              (System.Runtime.Intrinsics.X86.X86Base.IsSupported
+                                  ? $"; X86Base {System.Runtime.Intrinsics.X86.X86Base.CpuId(1, 0).Eax:X}"
+                                  : ""));
     }
 
     [GlobalSetup]
@@ -482,3 +486,4 @@ public unsafe class RawCopyProbe
         return Bytes;
     }
 }
+#endif

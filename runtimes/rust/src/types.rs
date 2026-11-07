@@ -787,13 +787,7 @@ impl NinoWrite for Version {
     }
 
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        match value {
-            Some(v) => v.write(w),
-            None => {
-                w.null_length();
-                Ok(())
-            }
-        }
+        w.or_null_length(value)
     }
 }
 
@@ -1030,13 +1024,7 @@ impl NinoWrite for BitArray {
     }
 
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        match value {
-            Some(v) => v.write(w),
-            None => {
-                w.null_length();
-                Ok(())
-            }
-        }
+        w.or_null_length(value)
     }
 }
 
@@ -1178,13 +1166,7 @@ impl<T: Raw> NinoWrite for RawNullables<T> {
     }
 
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        match value {
-            Some(v) => v.write(w),
-            None => {
-                w.null_length();
-                Ok(())
-            }
-        }
+        w.or_null_length(value)
     }
 }
 
@@ -1257,12 +1239,6 @@ impl<T: NinoWrite, const R: usize> NinoWrite for Grid<T, R> {
     }
 
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        match value {
-            Some(v) => v.write(w),
-            None => {
-                w.null_length();
-                Ok(())
-            }
-        }
+        w.or_null_length(value)
     }
 }

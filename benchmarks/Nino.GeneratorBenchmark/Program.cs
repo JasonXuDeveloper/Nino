@@ -13,13 +13,21 @@ using Microsoft.CodeAnalysis.Text;
 // Measures the Nino source generator on a synthetic workload: generator time, size of the generated code,
 // time to compile (emit) it, analyzer time, and re-generation after edits.
 //
-// Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generator <Nino.Generator.dll>] [--core <Nino.Core.dll>]
-//                           [--dump <dir>]
+// Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generics] [--calls] [--generator <Nino.Generator.dll>]
+//                           [--core <Nino.Core.dll>] [--dump <dir>]
+// --generics adds generic [NinoType]s per root: a polymorphic generic base with generic subtypes (one through a
+// constructed argument), a type holding itself over a bigger argument and members closing them, which make the
+// analyzer decide what each closed generic writes (WrittenParameters: the definitions and their subtypes).
+// --calls adds, per root, top-level NinoSerializer/NinoDeserializer calls (bound, registered and intercepted) and as
+// many calls of another serializer's static Serialize/Deserialize, as a project using both has, in a file of their
+// own: binding calls is what an edit of their file or of a declaration costs the generator in such projects (an
+// edit elsewhere that keeps every declaration binds none again).
 // Without --generator/--core it uses the generator and runtime of this repository. To measure another
 // version (e.g. v3), build its Nino.Generator and Nino.Core and pass their paths.
 
 int roots = 30, depth = 8;
 string generatorPath = null, corePath = null, dump = null;
+bool generics = false, calls = false;
 var positional = new List<string>();
 for (int i = 0; i < args.Length; i++)
 {
@@ -28,6 +36,8 @@ for (int i = 0; i < args.Length; i++)
         case "--generator": generatorPath = args[++i]; break;
         case "--core": corePath = args[++i]; break;
         case "--dump": dump = args[++i]; break;
+        case "--generics": generics = true; break;
+        case "--calls": calls = true; break;
         default: positional.Add(args[i]); break;
     }
 }
@@ -36,7 +46,9 @@ if (positional.Count > 0) roots = int.Parse(positional[0]);
 if (positional.Count > 1) depth = int.Parse(positional[1]);
 
 // N roots, each with a chain of `depth` subclasses, a sealed leaf and a struct.
-var src = new StringBuilder("using System; using System.Collections.Generic; using Nino.Core;\nnamespace Syn {\n");
+const string header = "using System; using System.Collections.Generic; using Nino.Core;\nnamespace Syn {\n";
+var src = new StringBuilder(header);
+var callSrc = new StringBuilder(header);
 for (int r = 0; r < roots; r++)
 {
     src.AppendLine($"[NinoType] public partial struct S{r} {{ public int A; public float B; public long C; }}");
@@ -50,9 +62,24 @@ for (int r = 0; r < roots; r++)
     }
 
     src.AppendLine($"[NinoType] public sealed partial class Leaf{r} : {parent} {{ public int[] Arr; public List<R{r}> Kids {{ get; set; }} }}");
+    if (calls)
+        callSrc.AppendLine($"public static class Use{r} {{ public static byte[] W(Leaf{r} v) => NinoSerializer.Serialize(v); " +
+                       $"public static Leaf{r} R(byte[] b) => NinoDeserializer.Deserialize<Leaf{r}>(b); " +
+                       $"public static string T(Leaf{r} v) => Json.Serialize(v); public static Leaf{r} U(string s) => Json.Deserialize<Leaf{r}>(s); }}");
+    if (!generics)
+        continue;
+    src.AppendLine($"[NinoType] public abstract partial class Shelf{r}<T> {{ public int Id; }}");
+    src.AppendLine($"[NinoType] public partial class ListShelf{r}<T> : Shelf{r}<T> {{ public List<T> Items; }}");
+    src.AppendLine($"[NinoType] public partial class Tag{r}<T> {{ public int Id; }}");
+    src.AppendLine($"[NinoType] public partial class TagShelf{r}<U> : Shelf{r}<Tag{r}<U>> {{ public U Value; }}");
+    src.AppendLine($"[NinoType] public partial class Box{r}<T> {{ public T Value; public Box{r}<List<T>> Next; }}");
+    src.AppendLine($"[NinoType] public partial class GHolder{r} {{ public Shelf{r}<int> A; public Shelf{r}<Tag{r}<string>> B; public Box{r}<S{r}> C; public List<Shelf{r}<R{r}>> D; }}");
 }
 
+if (calls)
+    callSrc.AppendLine("public static class Json { public static string Serialize<T>(T value) => null; public static T Deserialize<T>(string text) => default; }");
 src.AppendLine("}");
+callSrc.AppendLine("}");
 
 var types = generatorPath == null ? typeof(Nino.Generator.Analysis.NinoAnalyzer).Assembly.GetTypes() : LoadTypes(generatorPath);
 var generators = types
@@ -75,16 +102,22 @@ var refs = tpa.Where(p => !Path.GetFileName(p).StartsWith("Nino.", StringCompari
 refs.Add(MetadataReference.CreateFromFile(corePath));
 
 var parseOptions = new CSharpParseOptions(LanguageVersion.Preview);
-var tree = CSharpSyntaxTree.ParseText(src.ToString(), parseOptions);
-var compilation = CSharpCompilation.Create("Syn.Test", new[] { tree }, refs,
+var tree = CSharpSyntaxTree.ParseText(src.ToString(), parseOptions, "User.cs");
+var trees = new List<SyntaxTree> { tree };
+if (calls)
+    trees.Add(CSharpSyntaxTree.ParseText(callSrc.ToString(), parseOptions, "Calls.cs"));
+var compilation = CSharpCompilation.Create("Syn.Test", trees, refs,
     new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
 if (dump != null)
 {
     Directory.CreateDirectory(dump);
     File.WriteAllText(Path.Combine(dump, "User.cs"), src.ToString());
+    if (calls)
+        File.WriteAllText(Path.Combine(dump, "Calls.cs"), callSrc.ToString());
 }
 
-Console.WriteLine($"types: {roots * (depth + 3)} ({roots} roots x depth {depth})");
+Console.WriteLine($"types: {roots * (depth + 3 + (generics ? 6 : 0))} ({roots} roots x depth {depth}" +
+                  (generics ? ", generics)" : ")"));
 for (int iteration = 0; iteration < 5; iteration++)
 {
     GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: parseOptions);

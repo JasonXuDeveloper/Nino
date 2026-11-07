@@ -18,7 +18,7 @@ namespace Nino.Core
     /// <para>
     /// Trimming and NativeAOT: everything here closes generic formatter definitions over runtime types, so it is
     /// <see cref="RequiresDynamicCodeAttribute"/>: where the runtime cannot compile code (NativeAOT, iOS), the callers
-    /// (<see cref="NinoFormatterCache{T}"/>, <see cref="NinoPolymorphic.Register(Type)"/>, <see cref="BoxedFormatter"/>)
+    /// (<see cref="NinoFormatterCache{T}"/>, <see cref="NinoPolymorphic.TryRegister(Type)"/>, <see cref="BoxedFormatter"/>)
     /// check <c>RuntimeFeature.IsDynamicCodeSupported</c> and use only the generated registrations, so NativeAOT drops
     /// this class. A trimmed app that runs on a JIT keeps it; what the trimmer cannot see is justified at each
     /// suppression below: the formatter definitions come from <see cref="NinoFormatterAttribute"/> (annotated), the

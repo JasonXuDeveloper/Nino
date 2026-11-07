@@ -850,7 +850,7 @@ namespace Nino.Core
         public void Read<T>(out T[] value) where T : unmanaged
         {
             value = null;
-            default(UnmanagedArrayFormatter<T>).Deserialize(ref value, ref this);
+            default(UnmanagedArrayFormatter<T>).Deserialize(ref this, ref value);
         }
 
         /// <summary>Reads a string written by <see cref="Writer.Write(string)"/>.</summary>
@@ -887,17 +887,29 @@ namespace Nino.Core
         /// rarely short: only the call and the position's update inline. The data, not the reader, goes to the call, so the
         /// reader stays in registers.
         /// </summary>
+        // Null, the usual case of such a string, inline: a call for it made TimeZoneInfo reads 1.09-1.17 times as long
+        // as rc.7's, which read it inline.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal string ReadStringOutOfLine()
         {
-            string value = ReadStringAt(ref Cur, Avail, out int size);
-            Skip(size);
-            return value;
+            if (Avail > 0 && Cur == NinoStrings.NullHeader)
+            {
+                Skip(1);
+                return null;
+            }
+
+            SizedString read = ReadStringAt(ref Cur, Avail);
+            Skip(read.Size);
+            return read.Value;
         }
 
+        // Returned in registers: an out size kept a stack slot in the caller.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static string ReadStringAt(ref byte source, int available, out int size) =>
-            NinoStrings.Read(ref source, available, null, out size, share: false);
+        private static SizedString ReadStringAt(ref byte source, int available)
+        {
+            string value = NinoStrings.Read(ref source, available, null, out int size, share: false);
+            return new SizedString(value, size);
+        }
 
         /// <summary>
         /// Reads <paramref name="count"/> strings into the slots starting at <paramref name="first"/> (the
@@ -971,6 +983,62 @@ namespace Nino.Core
 
             return pos;
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Merges <paramref name="count"/> pairs of a raw key and a string into an existing
+        /// <paramref name="dictionary"/> (NinoDictionary.Refill): each key into <paramref name="seen"/>, each value read
+        /// over the one the key maps to (kept when the data holds the same chars). Returns how many keys were already
+        /// there. <see cref="ReadStringPairs{TKey}(System.Collections.Generic.Dictionary{TKey, string}, int)"/> for a
+        /// dictionary read again.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal int RefillStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary, TKey[] seen,
+            int count)
+        {
+            ulong done = RefillStringPairs(dictionary, seen, ref Cur, Avail, count);
+            Skip((int)(done >> 32));
+            return (int)done;
+        }
+
+        // One loop with the data, the position and the end in registers, the value read inline with the compare its
+        // only call: through the general merge each value took the reader's copy in memory and two calls
+        // (ReadStringOver, then SameLatin1), and a pooled class with such a dictionary read in 1.11 to 1.20 times
+        // rc.7's time (dotnet-ab run 41413072278). Returns the bytes read (high half) and the keys matched (low half).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ulong RefillStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary,
+            TKey[] seen, ref byte data, int end, int count)
+        {
+            int keySize = Unsafe.SizeOf<TKey>();
+            int pos = 0;
+            int matched = 0;
+            bool walk = Internal.HashTables.Plan<TKey, string>.Walks;
+            ref TKey slot = ref NinoUnsafe.GetArrayDataReference(seen);
+            for (int i = 0; i < count; i++)
+            {
+                if ((uint)(end - pos) < (uint)keySize)
+                    NinoThrow.EndOfData();
+                if (!NinoLayout<TKey>.CopiesAsIs)
+                    NinoChecks.Values<TKey>(ref Unsafe.Add(ref data, pos), 1, keySize);
+                TKey key = NinoUnsafe.Read<TKey>(ref Unsafe.Add(ref data, pos));
+                pos += keySize;
+                Unsafe.Add(ref slot, i) = key;
+                ref string value = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault(
+                    dictionary, key, out bool exists);
+                if (exists)
+                    matched++;
+                else if (walk)
+                    Internal.HashTables.Walk(dictionary, key);
+                string read = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, value, out int size);
+                pos += size;
+                // An unchanged value (the usual case) is not stored again: no write barrier.
+                if (!ReferenceEquals(read, value))
+                    value = read;
+            }
+
+            return ((ulong)(uint)pos << 32) | (uint)matched;
+        }
+#endif
 
         /// <summary>
         /// Reads <paramref name="count"/> pairs of strings into <paramref name="dictionary"/>: <see cref="ReadStrings"/>
@@ -1111,6 +1179,12 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static SizedString ReadStringOver(ref byte source, int available, string current)
         {
+            // The same short Latin-1 string again (a reused object's names, ids, keys) compared inline: through
+            // NinoStrings.Read it took a second call (SameLatin1), where rc.7 read the header inline and made one, and
+            // items read into existing objects took up to 1.14 times rc.7's time on Neoverse-N2 (dotnet-ab run
+            // 41413072278). Here, out of line, it costs the callers' inlining budgets nothing.
+            if (NinoStrings.Same(ref source, available, current, out int same))
+                return new SizedString(current, same);
             string value = NinoStrings.Read(ref source, available, current, out int size);
             return new SizedString(value, size);
         }

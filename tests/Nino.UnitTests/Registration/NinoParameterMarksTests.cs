@@ -6,6 +6,7 @@ using Nino.UnitTests;
 
 // A formatter of the user's whose parameter is [NinoRaw] (and unmanaged): the generated registry registers its marks.
 [assembly: NinoFormatter(typeof(CellFormatter<>))]
+[assembly: NinoFormatter(typeof(WideFormatter<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>))]
 
 namespace Nino.UnitTests
 {
@@ -25,11 +26,34 @@ namespace Nino.UnitTests
                 writer.WriteValue(value.Value);
         }
 
-        public void Deserialize(ref Cell<T> value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref Cell<T> value)
         {
             reader.Read(out bool present);
             value = present ? new Cell<T> { Value = reader.ReadValue<T>() } : null;
         }
+    }
+
+    /// <summary>A type with more type parameters than an int has bits: their marks are registered by position.</summary>
+    public sealed class Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+        T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33>
+    {
+        public T33 Last;
+    }
+
+    /// <summary>Writes <c>Wide</c>'s last value raw: only its last parameter is [NinoRaw] and unmanaged.</summary>
+    public struct WideFormatter<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+        T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, [NinoRaw] T33>
+        : INinoFormatter<Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+            T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33>>
+        where T33 : unmanaged
+    {
+        public void Serialize(Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+            T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33> value, ref Writer writer) => writer.WriteValue(value.Last);
+
+        public void Deserialize(ref Reader reader, ref Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+            T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33> value) =>
+            value = new Wide<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16,
+                T17, T18, T19, T20, T21, T22, T23, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33> { Last = reader.ReadValue<T33>() };
     }
 
     /// <summary>
@@ -70,6 +94,21 @@ namespace Nino.UnitTests
             Assert.IsFalse(NinoParameterMarks.Registered(parameter, NinoParameterMarks.Mark.Created));
             var cell = NinoDeserializer.Deserialize<Cell<long>>(NinoSerializer.Serialize(new Cell<long> { Value = -7 }));
             Assert.AreEqual(-7L, cell.Value);
+        }
+
+        [TestMethod]
+        public void MarksOfParametersPastTheThirtySecondAreTheirOwn()
+        {
+            // A bit per parameter in an int wrapped at 32: [NinoRaw] on parameter 33 marked parameter 1 instead.
+            NinoRegistry.EnsureInitialized(typeof(WideFormatter<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>).Assembly);
+            var parameters = typeof(WideFormatter<,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,>).GetGenericArguments();
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                bool marked = i == 33;
+                Assert.AreEqual(marked, NinoParameterMarks.Registered(parameters[i], NinoParameterMarks.Mark.Raw), $"T{i}");
+                Assert.AreEqual(marked, NinoParameterMarks.Registered(parameters[i], NinoParameterMarks.Mark.Unmanaged), $"T{i}");
+                Assert.IsFalse(NinoParameterMarks.Registered(parameters[i], NinoParameterMarks.Mark.Created), $"T{i}");
+            }
         }
     }
 }

@@ -132,14 +132,12 @@ namespace Nino.Codegen.Integration.Tests
             Chars = new List<char> { 'a', '中' },
         };
 
-        private static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
-
         private static List<(string Hex, string Json, string Error)> RunNode(List<(string Codec, byte[] Bytes)> cases,
             string directory = null)
         {
             directory ??= _directory;
             string input = Path.Combine(directory, "cases.json");
-            File.WriteAllText(input, JsonSerializer.Serialize(cases.Select(c => new { codec = c.Codec, hex = Hex(c.Bytes) })));
+            File.WriteAllText(input, JsonSerializer.Serialize(cases.Select(c => new { codec = c.Codec, hex = GenericSamples.Hex(c.Bytes) })));
             var start = new ProcessStartInfo("node",
                 new[] { "--no-warnings", "harness.ts", input, directory == _typed ? "typed" : "plain" })
             {
@@ -230,7 +228,7 @@ namespace Nino.Codegen.Integration.Tests
         private static void RoundTrips(List<(string, byte[])> cases, List<(string Hex, string Json, string Error)> results)
         {
             for (int i = 0; i < cases.Count; i++)
-                Assert.AreEqual(Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Json}");
+                Assert.AreEqual(GenericSamples.Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Json}");
 
             string full = results[0].Json;
             foreach (string expected in new[]
@@ -283,7 +281,7 @@ namespace Nino.Codegen.Integration.Tests
                 .Select(c => (c.Type.Substring("Samples.".Length) + "Codec", c.Bytes)).ToList();
             var results = RunNode(cases);
             for (int i = 0; i < cases.Count; i++)
-                Assert.AreEqual(Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Error}");
+                Assert.AreEqual(GenericSamples.Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Error}");
 
             // The last case is the full value (the harness adds a value of its own after the cases).
             string full = results[cases.Count - 1].Json;
@@ -310,7 +308,7 @@ namespace Nino.Codegen.Integration.Tests
             // block past 64 bytes; enums keep their constants' type.
             var typedResults = RunNode(cases, _typed);
             for (int i = 0; i < cases.Count; i++)
-                Assert.AreEqual(Hex(cases[i].Item2), typedResults[i].Hex, $"typed case {i} ({cases[i].Item1}): {typedResults[i].Error}");
+                Assert.AreEqual(GenericSamples.Hex(cases[i].Item2), typedResults[i].Hex, $"typed case {i} ({cases[i].Item1}): {typedResults[i].Error}");
             Assert.AreEqual(full, typedResults[cases.Count - 1].Json);
             string typed = File.ReadAllText(Path.Combine(_typed, "Nino.Codegen.Integration.Tests.ts"));
             StringAssert.Contains(typed, "export class BoxInt32Array extends Box<Int32Array | null> {}");
@@ -442,7 +440,7 @@ namespace Nino.Codegen.Integration.Tests
             for (int i = 0; i < cases.Count; i++)
             {
                 Assert.AreEqual("", results[i].Error, $"case {i} ({cases[i].Item1})");
-                Assert.AreEqual(Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1})");
+                Assert.AreEqual(GenericSamples.Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1})");
             }
         }
 
@@ -523,7 +521,7 @@ namespace Nino.Codegen.Integration.Tests
                 if (throws)
                     StringAssert.StartsWith(results[i].Error, "NinoError: ", $"case {i} ({codec})");
                 else
-                    Assert.AreEqual(Hex(NinoSerializer.Serialize(NinoDeserializer.Deserialize<Chain>(bytes))),
+                    Assert.AreEqual(GenericSamples.Hex(NinoSerializer.Serialize(NinoDeserializer.Deserialize<Chain>(bytes))),
                         results[i].Hex, $"case {i} ({codec}): {results[i].Error}");
             }
         }

@@ -38,7 +38,7 @@ namespace Nino.Core
         // Inlined into the caller, where T is usually exact: the formatter cache is then a static field load rather
         // than a generic dictionary lookup (T a reference type makes this method shared code).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        // The formatter creates the reader (NinoFormatter.Read): a reader created here would reach its call by address.
+        // The formatter creates the reader (NinoFormatterBase.Read): a reader created here would reach its call by address.
         private static T DeserializeFormatted<T>(ReadOnlySpan<byte> data) => NinoTopFormatter<T>.Formatter.Read(data);
 
         /// <summary>
@@ -68,7 +68,7 @@ namespace Nino.Core
             }
 
             var reader = new Reader(data);
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
             reader.ReleaseReferences();
         }
 
@@ -82,7 +82,7 @@ namespace Nino.Core
 
         /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Deserialize<T>(ref T value, ref Reader reader)
+        public static void Deserialize<T>(ref Reader reader, ref T value)
         {
             if (NinoRaw.IsRead<T>())
             {
@@ -90,7 +90,7 @@ namespace Nino.Core
                 return;
             }
 
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
         }
 
         /// <summary>Deserializes a new value with an existing reader.</summary>
@@ -101,7 +101,7 @@ namespace Nino.Core
                 return reader.UnsafeRead<T>();
 
             T value = default;
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
             return value;
         }
 
@@ -149,7 +149,7 @@ namespace Nino.Core
             }
 
             var reader = new Reader(data);
-            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+            BoxedFormatter.Get(type).Deserialize(ref reader, ref value);
             reader.ReleaseReferences();
         }
 
@@ -158,11 +158,11 @@ namespace Nino.Core
         /// For types known only at runtime that share no <c>[NinoType]</c> base; otherwise prefer
         /// <c>Deserialize&lt;TBase&gt;</c> (see <see cref="DeserializeBoxed(ReadOnlySpan{byte}, Type)"/>).
         /// </remarks>
-        public static void DeserializeBoxed(ref object value, ref Reader reader, Type type)
+        public static void DeserializeBoxed(ref Reader reader, ref object value, Type type)
         {
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
-            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+            BoxedFormatter.Get(type).Deserialize(ref reader, ref value);
         }
     }
 }

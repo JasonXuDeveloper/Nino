@@ -50,7 +50,6 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<TypeModel, List<TsDerived>> _derived = new();
         private readonly Dictionary<string, TsDerived> _closedByKey = new(StringComparer.Ordinal);
         private readonly List<TsDerived> _closed = new();
-        private readonly HashSet<ClosedTypeModel> _closedSupported = new();
         private readonly List<TsSlotClosed> _slotClosed = new();
         // The slots of closed generic types written behind type ids that the values hold (slot$0...).
         private readonly Dictionary<SlotModel, TsSlot> _slotByModel = new();
@@ -82,10 +81,7 @@ namespace Nino.Codegen.Targets
         /// <summary>The generated file for the types of the model.</summary>
         public string Render(string source)
         {
-            ResolveSupported();
-            ResolveClosed();
-            var layouts = _model.Types.Where(_supported.Contains).ToList();
-            AssignNames(layouts.Select(t => (object)t).Concat(_enums).Concat(_rawStructs.Select(r => r.Struct)));
+            var layouts = ResolveTypes();
             NameClosed(layouts);
 
             var enums = _enums.OrderBy(e => Name(e), StringComparer.Ordinal)
@@ -169,29 +165,10 @@ namespace Nino.Codegen.Targets
             _slots.Clear();
         }
 
-        /// <summary>
-        /// The closed generic types the assembly names (<see cref="CodegenModel.ClosedTypes"/>) that TypeScript can
-        /// write behind their type ids, in the polymorphic slots (and the registry) they are assignable to.
-        /// </summary>
-        private void ResolveClosed()
-        {
-            foreach (var closed in _model.ClosedTypes)
-            {
-                if (!_supported.Contains(closed.Definition))
-                    continue;
-                try
-                {
-                    ClosedShape(closed);
-                    _closedSupported.Add(closed);
-                }
-                catch (UnsupportedException e)
-                {
-                    WarnClosed(closed, e.Message);
-                }
-            }
+        protected override void ShapeClosed(ClosedTypeModel closed) => ClosedShape(closed);
 
-            ResetResolved();
-        }
+        protected override IEnumerable<object> Declared =>
+            _enums.Cast<object>().Concat(_rawStructs.Select(r => r.Struct));
 
         /// <summary>
         /// A closed generic type in a slot: the shapes of its arguments and of the slots its codecs need (its codecs
@@ -528,11 +505,11 @@ namespace Nino.Codegen.Targets
             {
                 HeaderKind.None => new TsShape("type") { Type = type, Header = "none", Opens = body, Reaches = reaches },
                 // A tracked sealed class: its reference header instead of the presence byte.
-                HeaderKind.NullFlag when type.TrackReferences => new TsShape("type")
+                HeaderKind.Presence when type.TrackReferences => new TsShape("type")
                 {
                     Type = type, Header = "ref", Opens = body, Reaches = reaches,
                 },
-                HeaderKind.NullFlag => Nullable(new TsShape("type")
+                HeaderKind.Presence => Nullable(new TsShape("type")
                 {
                     Type = type, Header = "null", Opens = body, Reaches = reaches,
                 }),
@@ -785,9 +762,11 @@ namespace Nino.Codegen.Targets
         // ---------------------------------------------------------------- helpers
 
         /// <summary>
-        /// The name of the function that reads (<paramref name="mode"/> <c>read</c>) or writes a value of
-        /// <paramref name="shape"/>, shared by every value of the same shape. A new one is numbered after the
-        /// functions its own code calls, and the template writes them all in that order after the types.
+        /// The name of the function that reads (<paramref name="mode"/> <c>read</c>), reads into an existing value
+        /// (<c>readinto</c>) or writes a value of <paramref name="shape"/>, shared by every value of the same shape and
+        /// numbered by the shape (<c>read$3</c>, <c>readInto$3</c> and <c>write$3</c> are one shape's). A new one is
+        /// listed after the functions its own code calls, and the template writes them all in that order after the
+        /// types.
         /// </summary>
         private string Helper(TsShape shape, string mode)
         {
@@ -806,8 +785,8 @@ namespace Nino.Codegen.Targets
                     break;
             }
 
-            helper = new TsHelper((mode == "read" ? "read$" : mode == "readinto" ? "readInto$" : "write$") + _helpers.Count, mode,
-                shape);
+            helper = new TsHelper((mode == "read" ? "read$" : mode == "readinto" ? "readInto$" : "write$") +
+                ShapeNumber(shape.Identity), mode, shape);
             if (shape.Context is { } context)
             {
                 // The code of a value holding a type parameter takes the codecs of the type's arguments.
@@ -1345,7 +1324,7 @@ namespace Nino.Codegen.Targets
         /// <summary><c>none</c>, <c>null</c> (a presence byte) or <c>typeid</c>.</summary>
         public string Header => Model.Header switch
         {
-            HeaderKind.NullFlag => "null",
+            HeaderKind.Presence => "null",
             HeaderKind.TypeId => "typeid",
             _ => "none",
         };

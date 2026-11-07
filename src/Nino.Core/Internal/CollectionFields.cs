@@ -60,7 +60,7 @@ namespace Nino.Core.Internal
 
             public void ReadBlock(ref SetEntry<T> value, ref byte source) => throw new NotSupportedException();
             public void Serialize(SetEntry<T> value, ref Writer writer) => throw new NotSupportedException();
-            public void Deserialize(ref SetEntry<T> value, ref Reader reader) => throw new NotSupportedException();
+            public void Deserialize(ref Reader reader, ref SetEntry<T> value) => throw new NotSupportedException();
         }
 
         /// <summary>
@@ -93,7 +93,7 @@ namespace Nino.Core.Internal
 
             public void Serialize(MapEntry<TKey, TValue> value, ref Writer writer) => throw new NotSupportedException();
 
-            public void Deserialize(ref MapEntry<TKey, TValue> value, ref Reader reader) =>
+            public void Deserialize(ref Reader reader, ref MapEntry<TKey, TValue> value) =>
                 throw new NotSupportedException();
         }
 

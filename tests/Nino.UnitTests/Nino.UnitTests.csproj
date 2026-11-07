@@ -31,12 +31,6 @@
         <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
     </PropertyGroup>
 
-    <!-- WEAK_VERSION_TOLERANCE: the generator makes the types of this assembly version tolerant (those of
-         Nino.UnitTests.Subset, built without it, are not). Appended: the configuration's DEBUG stays. -->
-    <PropertyGroup>
-      <DefineConstants>$(DefineConstants);WEAK_VERSION_TOLERANCE</DefineConstants>
-    </PropertyGroup>
-
     <!-- The intercepted top-level calls of long arrays and lists of classes prefetch (PrefetchTests): the bytes are
          the same, so every test here runs them too. Nino.UnitTests.Subset is built without it. -->
     <PropertyGroup>

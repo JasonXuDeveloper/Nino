@@ -199,7 +199,7 @@ namespace Nino.Core.Internal
                     ahead = left - Run;
                 }
 
-                default(TFormatter).Deserialize(ref item, ref reader);
+                default(TFormatter).Deserialize(ref reader, ref item);
             }
 
             return reader;

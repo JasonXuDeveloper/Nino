@@ -46,11 +46,30 @@ host's memory:
   layout is the canonical one copies the struct; every other one finds its field offsets once from an instance
   (`MeasureMemory`) and converts field by field. A raw `[NinoType]` struct requires all of its fields to be raw, so
   one holding a tuple, pair or nullable is written member by member.
-- A function pointer (`delegate*`) is a pointer: 8 bytes, zero-extended. Each runtime reports its field differently
-  (.NET 8+ a function pointer type, .NET Framework and .NET 7 an `IntPtr` only its signature tells apart), so layouts
-  read field types through `NinoReflection.LayoutFieldType`. Mono and IL2CPP cannot resolve the signature and see an
-  `IntPtr`, which they sign-extend: the same bytes on 64-bit hosts, different on a 32-bit Unity player only for an
-  address with its top bit set.
+- A function pointer (`delegate*`) is a pointer: 8 bytes, zero-extended, on every runtime. Reflection reports its
+  field differently (.NET 8+ a function pointer type; .NET Framework, Mono and IL2CPP an `IntPtr`, which would be
+  sign-extended), so the generator, which sees the field's type, lists the `delegate*` fields of every struct the
+  compilation can see in the assembly's registry (`NinoFunctionPointerFields`), whether or not anything names it:
+  those declared in the project (also through a `using unsafe F = delegate*<...>;` alias, and the field a primary
+  constructor captures), and those of every assembly it references, read from their metadata (private and internal
+  structs and fields too). Layouts read field types through `NinoReflection.LayoutFieldType`, which asks that list.
+  So a struct reached only through generic code (`Save<T>` calling `Serialize<T>`) is covered when it is declared
+  in a project with Nino's generator or in an assembly such a project references. What stays out, because no
+  generator compiles against its declaration:
+  - a struct of an assembly that no assembly built with Nino's generator references at compile time, or whose
+    referencing assemblies are not loaded yet when the struct is first serialized (a plugin or HybridCLR hot-update
+    assembly loaded by name);
+  - a field the compile-time metadata hides: a reference assembly that replaces private fields with placeholders
+    (as .NET's own reference packs do; Roslyn's reference assemblies keep every struct field), or another version of
+    the assembly at run time;
+  - a struct another source generator adds to a project, reached only through generic code (Roslyn gives no
+    generator the others' output); a project that references this one covers it.
+
+  There .NET 8+ refuses the struct (no formatter), and the other runtimes sign-extend the field, which differs from
+  the canonical bytes on a 32-bit host only for an address with its top bit set (64-bit hosts copy both the same
+  way; a 32-bit host reading the canonical bytes of such an address rejects them as too large for the field). Add
+  Nino's generator to the project that declares the struct, or reference that project from one that has it and is
+  loaded by then (the entry assembly always is).
 - `Vector<T>` is not serializable (next section).
 
 ### `Vector<T>` is not serializable
@@ -205,10 +224,13 @@ Generated code is compiled with the user's warning settings, which may include w
 emit labels such as `__end` and `__keyed` when they are jumped to, and avoid any construct that warns in
 some configurations.
 
-### `WEAK_VERSION_TOLERANCE` is per assembly
+### `WEAK_VERSION_TOLERANCE` was removed
 
-The symbol only applies to types in the assembly that defines it. Types from referenced assemblies keep
-their own format, including raw copying.
+Before 4.0 the symbol made every positional type of the assembly that defined it version tolerant. It does nothing
+now, so a project that still defines it would write those types positionally and stop reading its stored data:
+NINO032 is an error on each such type, and its code fix adds `format: NinoFormat.VersionTolerant`, which generates
+the same code and the same bytes. A type that takes its `[NinoType]` from another assembly gets one of its own, with
+the options it took.
 
 ### Base-class members break raw blocks
 

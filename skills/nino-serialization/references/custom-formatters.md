@@ -1,0 +1,44 @@
+# Custom formatters
+
+Read this when a member needs its own encoding (varints, compression of one field, a third-party type Nino does not
+know) or NINO007, NINO008 or NINO020 appears. Full page: https://nino.xgamedev.net/en/docs/v4/custom-formatters.md
+
+A formatter is a **struct** implementing `INinoFormatter<T>` (`Serialize(T, ref Writer)`, `Deserialize(ref T, ref
+Reader)`), called as `default(F)`: no instance state. Read exactly what you wrote, in order, and bound every loop by
+the input (the data may be hostile).
+
+- One member: `[NinoMemberFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
+- A type Nino does not know: `[assembly: NinoFormatter(typeof(F<,>))]`, generic formatters as open definitions; a
+  type parameter constrained `struct, INinoFormatter<E>` gets the element formatter; `[NinoRaw]` and `[NinoCreated]`
+  narrow what binds. Invalid registrations: NINO020. There is no runtime registration call.
+- Lengths: `writer.WriteLength(n)` / `WriteNullLength()` and `reader.ReadLength(minElementSize)` (checked against the
+  bytes left before you allocate). Dropped instances: `NinoRecycler.Discard(ref value)` /
+  `NinoRecycler.Replace(ref value, x)`. Nested values: `NinoSerializer.Serialize(v, ref writer)`,
+  `NinoDeserializer.Deserialize(ref v, ref reader)`.
+- nino-gen leaves members written by custom formatters out of TypeScript (NINOGEN002).
+
+```csharp
+public struct ZigZagLongFormatter : INinoFormatter<long>
+{
+    public void Serialize(long value, ref Writer writer)
+    {
+        ulong v = (ulong)((value << 1) ^ (value >> 63));
+        while (v >= 0x80) { writer.Write((byte)(v | 0x80)); v >>= 7; }
+        writer.Write((byte)v);
+    }
+
+    public void Deserialize(ref long value, ref Reader reader)
+    {
+        ulong v = 0; int shift = 0; byte b;
+        do { reader.Read(out b); v |= (ulong)(b & 0x7F) << shift; shift += 7; } while ((b & 0x80) != 0 && shift < 70);
+        value = (long)(v >> 1) ^ -(long)(v & 1);
+    }
+}
+
+[NinoType]
+public sealed class BalanceChange
+{
+    public int AccountId;
+    [NinoMemberFormatter(typeof(ZigZagLongFormatter))] public long DeltaCents;
+}
+```

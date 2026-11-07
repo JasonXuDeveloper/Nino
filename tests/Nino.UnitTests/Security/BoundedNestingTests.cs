@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using static Nino.UnitTests.Rt;
 
 #nullable disable
 namespace Nino.UnitTests;
@@ -11,7 +11,7 @@ namespace Nino.UnitTests;
 // that counts and checks no depth where the bound is known to stay below NinoDepth.Inline. Bounds: BoundLeaf 0,
 // BoundMid 1, BoundStruct 1 (a struct counts no level), BoundTop 2, BoundTolerant 2, BoundKeyed 2.
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class BoundLeaf
 {
     public int A;
@@ -19,7 +19,7 @@ public sealed class BoundLeaf
     public List<int> Items;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class BoundMid
 {
     public int V;
@@ -29,7 +29,7 @@ public sealed class BoundMid
     public Dictionary<int, BoundLeaf> Map;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct BoundStruct
 {
     public int X;
@@ -37,7 +37,7 @@ public struct BoundStruct
     public BoundMid Mid;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class BoundTop
 {
     public int V;
@@ -65,7 +65,7 @@ public sealed class BoundKeyed
 }
 
 // Unbounded (recursive) chains holding bounded types: those near NinoDepth.Inline take the counting path and defer.
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class BoundChain
 {
     public int V;
@@ -94,7 +94,7 @@ public sealed class BoundKeyedChain
 }
 
 // A bounded type holding an unbounded one is unbounded: it always counts.
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class BoundHoldsChain
 {
     public BoundMid Mid;
@@ -104,28 +104,6 @@ public sealed class BoundHoldsChain
 [TestClass]
 public class BoundedNestingTests
 {
-    private const int SmallStack = 512 * 1024;
-
-    private static void OnSmallStack(Action action)
-    {
-        Exception error = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception e)
-            {
-                error = e;
-            }
-        }, SmallStack);
-        thread.Start();
-        thread.Join();
-        if (error != null)
-            throw new AssertFailedException("failed on the small stack: " + error, error);
-    }
-
     private static uint Checksum(byte[] bytes)
     {
         uint h = 2166136261;
@@ -345,8 +323,8 @@ public class BoundedNestingTests
     {
         OnSmallStack(() =>
         {
-            // (length, FNV-1a) of the three chains' bytes, as written before bounded types had twins (this project
-            // defines WEAK_VERSION_TOLERANCE: every type here is version tolerant).
+            // (length, FNV-1a) of the three chains' bytes, as written before bounded types had twins (every
+            // type here is version tolerant).
             var expected = new Dictionary<int, (int, uint, int, uint, int, uint)>
             {
                 [1] = (3143, 2296704423, 504, 414289861, 915, 3230055819),

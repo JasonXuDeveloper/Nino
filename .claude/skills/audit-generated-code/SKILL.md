@@ -26,7 +26,21 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `GeneratedCode.File`, and `GeneratedCode.WithAliases` rewrites a body's repeated names (the type's own as `__NinoT`,
   `Writer`, `Reader`, `NinoObject`, `NinoUnsafe`, ...) where the alias makes the file shorter: write full names in
   emitters and add a name to its table, never a second alias mechanism. It rewrites string literals too, so a
-  message names a type without `global::` ("cannot construct __NinoT" shipped that way).
+  message names a type without `global::` ("cannot construct __NinoT" shipped that way). The generic member
+  formatters go through the same rule (`__NinoF0`...; round 128 removed `FormatterNames`' own rule, any name over 48
+  characters, used once or not); a non-generic formatter stays its type name, which is what a reader wants. The
+  generated types lose `global::NinoGen.` there (every body is in that namespace), and a formatter names its own
+  twins `__Top` / `__Shallow`. A text-based alias matches whole names at both ends: the struct's own declaration
+  once became `struct __NinoF0` when a self-holding type's formatter was a candidate. Member formatters are numbered in member order and
+  declared without `global::NinoGen.` (alias declarations are inside the namespace too); the inlining attributes are
+  `[__NinoInline(AggressiveInlining)]` through `using static ...MethodImplOptions` (round 129: 4% of the unit tests'
+  output was the second alias's name).
+- **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
+  pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
+  signature generated code repeats is written once in `Signature`.
+- **Layout**: a statement per line, as a formatter would leave it (no `{ int id = ...; if (...) { ... } }` on one
+  line); a method with nothing to decide is one line (`=> NinoSubtypes<T>.Serialize(...)`: the dispatch of a base
+  with no subtype in the assembly, nearly all of them).
 - **No line that does nothing**: no identity copy, no unread local, no empty method, no `x = default` the
   constructor gives, no parameter nobody reads. Each local also counts toward the JIT's tracking limit.
 - **Say a value once**: constants in place, setup that does not change per member written once, a table declared once
@@ -39,9 +53,16 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   opening brace, before a closing one and next to another (round 103: 65 of 533 unit-test files had one there,
   mostly interface formatters whose body is only their entry points). A cast of a constant is the constant
   (`Remaining >= 8`, not `>= (uint)(8)`; the parenthesized form stays for a size with `SizeOf<T>()` in it).
-- **Names a reader can follow**: locals after the member they hold.
+- **Names a reader can follow**: locals after the member they hold; numbered helpers numbered by what they are for,
+  so one shape's read and write carry one number (nino-gen's Go `readV3`/`writeV3`/`decodeV3`/`encodeV3` and
+  TypeScript `read$3`/`readInto$3`/`write$3`, `CodegenTarget.ShapeNumber`; until round 128 one counter ran across
+  all of them and `read$0` sat next to `readInto$1`).
 - **Generate once, refer to it**: a form that needs code another file generates names that code instead of copying
-  it; a family that differs only by type comes from one template.
+  it; a family that differs only by type comes from one template. A twin forwards to its formatter's member
+  (`default(Self).X(...)`, AggressiveInlining both) rather than repeating its body: the `PrefetchMembers` loop was
+  written up to three times per type (538 copies, 4.7% of the unit tests' output) until round 128, and with the
+  forwarders `NinoPrefetch.Ahead`'s FullOpts listings stayed byte for byte the same. A switch whose cases end the
+  same way ends it once after the switch (`default: continue;` for the keys it skips; the keyed fallback loop).
   One act is one member, taking a struct by reference: a block struct's collections and its top-level and member
   writes all call `WriteFixed(in T value, ref byte destination)` (`INinoBlockFormatter` extends
   `INinoFixedSizeFormatter`; round 101 merged `BlockSize`/`WriteBlock` into it). A by-value `WriteFixed` that the
@@ -79,7 +100,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   as keyed types) on both, `ilspycmd -il <dll> > side.il` (a dotnet tool), and `diff`: empty. The test DLL holds the
   tests too, so drop the `// Method begins at RVA` lines and compare the IL of each `NinoGen` class; a changed
   test moves every RVA after it. `diff -rB` of the two `generated/` folders shows what changed beyond blank lines. (`-p:DebugType=none`
-  to compare the DLLs' bytes fails: Nino.Core embeds its sources.) Save the base side's `.il`, generated files and
+  to compare the DLLs' bytes fails: Nino.Core embeds its sources.) An intended IL change (a parameter order) is proven by comparing per method (split at `.method` and `// end of method`): only the methods that name it differ (round 129: 418 of the unit tests', all calling or being `ReadMembers`). Save the base side's `.il`, generated files and
   `asm.py dump` JSON once, then compare each commit against them.
 - IL changes: the Tier1 listings of the benchmark types identical or better (`asm.py compare`), else runner A/B
   (`benchmark`). A whole-suite `asm.py diff` also lists methods the change cannot reach (PGO varies run to run):

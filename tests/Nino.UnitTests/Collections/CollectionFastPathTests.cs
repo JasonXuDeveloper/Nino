@@ -10,7 +10,7 @@ using Nino.Core.Internal;
 #nullable disable
 namespace Nino.UnitTests;
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct PaddedItem
 {
     public int Id;
@@ -18,14 +18,14 @@ public struct PaddedItem
     public bool Bound;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct NamedItem
 {
     public int Id;
     public string Name;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct WideItem
 {
     public long A, B, C, D;
@@ -33,20 +33,20 @@ public struct WideItem
     public int E;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class InlineNote
 {
     public int Id;
     public string Text;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class TaggedNote : InlineNote
 {
     public string Tag;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class NoteBook
 {
     public string Title;

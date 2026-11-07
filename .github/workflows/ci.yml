@@ -6,9 +6,11 @@ on:
     # Everything a job here builds or runs (the solution, the runtimes the integrations job tests, the scripts).
     paths: &paths
       - 'src/**'
-      # The Unity project is unity.yml's, but for the raw-layout fixtures Nino.RuntimeTests links from it.
+      # The Unity project is unity.yml's, but for the raw-layout fixtures Nino.RuntimeTests links from it and the
+      # package's DLLs, whose public API UnityPackageDllTests compares with their sources.
       - '!src/Nino.Unity/**'
       - 'src/Nino.Unity/Assets/Test/Runtime/BclFixture*.cs'
+      - 'src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/*.dll'
       - 'tests/**'
       - 'tools/**'
       - 'runtimes/**'
@@ -107,15 +109,18 @@ jobs:
             name: net10.0 without AVX-512
             framework: net10.0
             avx512: '0'
+            avx512paths: true
           # Older x64 CPUs (SSSE3, no AVX2): 16-byte vectors, two shuffles a vector where Arm64 has one table lookup.
           - id: no-avx2
             name: net10.0 without AVX2
             framework: net10.0
             avx2: '0'
+            avx512paths: true
           - id: no-simd
             name: net10.0 without SIMD
             framework: net10.0
             simd: '0'
+            avx512paths: true
           # Windows: its paths, file system and line endings. A contributor's analyzer test failed there (PR #203)
           # while every Linux job passed.
           - id: windows
@@ -185,8 +190,10 @@ jobs:
             local dir="$RESULTS/test-results-unit-$CONFIG-$id"
             # OutDir is relative to the project: the shard's copy of the build output.
             local run=(dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" "${props[@]}" -p:OutDir="bin/Debug/shard-$id/")
+            # One test class at a time per shard: the three shards already share the runner's four vCPUs, and the
+            # suite's class-level parallelism (MSTestSettings.cs) would put three ~3.5 GB processes on 16 GB.
             "${run[@]}" --filter "$filter" --logger "trx;LogFileName=unit.trx" --results-directory "$dir" \
-              ${COVERAGE:+"$COVERAGE"} || return 1
+              ${COVERAGE:+"$COVERAGE"} -- MSTest.Parallelize.Workers=1 || return 1
             local listed ran
             listed=$("${run[@]}" --list-tests --filter "$filter" | grep -c '^    ' || true)
             ran=$(grep -o '<UnitTestResult ' "$dir/unit.trx" | wc -l)
@@ -223,6 +230,22 @@ jobs:
             exit 0
           fi
           dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" --filter 'FullyQualifiedName~VectorTTests'
+
+      # The net10.0 build's AVX-512 paths (VBMI byte permutes, 64-byte block copies and masks) run in the net10 job
+      # only when its runner is a Xeon, about half the runs (the EPYC 7763s have no AVX-512, and that job then repeats
+      # no-avx512's). The jobs that turn an instruction set off run the tests of those paths again with every set on
+      # when their runner has AVX-512 (seconds): a run misses them only when all four land on EPYCs.
+      - name: Test the AVX-512 paths
+        if: matrix.config.avx512paths
+        env:
+          FILTER_AVX512: >-
+            FullyQualifiedName~BlockStructTests|FullyQualifiedName~CollectionFastPathTests|FullyQualifiedName~ArraySerializationTests|FullyQualifiedName~TopLevelFastPathTests|FullyQualifiedName~RawStructTests|FullyQualifiedName~BclStructLayoutTests|FullyQualifiedName~StringEncodingTests|FullyQualifiedName~Utf8WireTests|FullyQualifiedName~GoldenBytesTests|FullyQualifiedName~VectorTTests
+        run: |
+          if ! .github/scripts/has_avx512.sh; then
+            echo "::notice::no AVX-512 on this runner: the AVX-512 paths are tested only if another job's runner has it"
+            exit 0
+          fi
+          dotnet test "$PROJECT" --no-build -c Debug -f "$FRAMEWORK" --filter "$FILTER_AVX512"
 
       - name: Upload test results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -606,11 +629,16 @@ jobs:
           net8: true
 
       - name: Build benchmark project
+        env:
+          JOB_INDEX: ${{ strategy.job-index }}
         run: |
           cd benchmarks/Nino.Benchmark
           dotnet build -c Release
-          # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
-          dotnet run -c Release --no-build -- --verify
+          # Every case reads back what the others read and writes its payload's bytes (Verify.cs). It checks every
+          # case whatever the shard's filters, so one shard runs it.
+          if [ "$JOB_INDEX" = 0 ]; then
+            dotnet run -c Release --no-build -- --verify
+          fi
 
       - name: Run benchmarks
         env:

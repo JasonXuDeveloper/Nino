@@ -61,7 +61,11 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>Drops every pooled instance: the shared stack now, and each thread's own on its next use.</summary>
+        /// <summary>
+        /// Drops every pooled instance: the shared stack now. No take returns an instance pooled before the call,
+        /// but each thread's own stack holds its instances until that thread next goes through a slow path (an add,
+        /// or a take that finds the shared stack filled again).
+        /// </summary>
         public void Clear()
         {
             lock (_lock)

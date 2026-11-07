@@ -212,13 +212,13 @@ namespace HotGeneric
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public abstract class HotGenericBase<T> { public T B; }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class HotGenericLeaf : HotGenericBase<int> { }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public abstract class HotEffect { public float Duration; }
 
 public sealed class HotDamage : HotEffect { public int Amount; }

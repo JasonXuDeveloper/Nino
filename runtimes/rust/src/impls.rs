@@ -896,13 +896,7 @@ impl<T: NinoWrite> NinoWrite for VecDeque<T> {
     }
 
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        match value {
-            None => {
-                w.null_length();
-                Ok(())
-            }
-            Some(v) => v.write(w),
-        }
+        w.or_null_length(value)
     }
 }
 
@@ -967,13 +961,7 @@ macro_rules! set {
             }
 
             fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-                match value {
-                    None => {
-                        w.null_length();
-                        Ok(())
-                    }
-                    Some(v) => v.write(w),
-                }
+                w.or_null_length(value)
             }
         }
     };
@@ -1214,13 +1202,7 @@ impl<K: NinoWrite, V: NinoWrite, S> NinoWrite for HashMap<K, V, S> {
     }
 
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        match value {
-            None => {
-                w.null_length();
-                Ok(())
-            }
-            Some(v) => v.write(w),
-        }
+        w.or_null_length(value)
     }
 }
 
@@ -1238,13 +1220,7 @@ impl<K: NinoWrite, V: NinoWrite> NinoWrite for BTreeMap<K, V> {
     }
 
     fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        match value {
-            None => {
-                w.null_length();
-                Ok(())
-            }
-            Some(v) => v.write(w),
-        }
+        w.or_null_length(value)
     }
 }
 

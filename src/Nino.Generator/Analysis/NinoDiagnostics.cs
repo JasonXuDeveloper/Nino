@@ -7,7 +7,7 @@ namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-029), features (014-017, 024, 026-027), pooling
+/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-031), features (014-017, 024, 026-027, 032), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -22,6 +22,9 @@ internal static class NinoDiagnostics
     private static DiagnosticDescriptor Warning(string id, string title, string format) =>
         new(id, title, format, Category, DiagnosticSeverity.Warning, true, helpLinkUri: HelpLink + id.ToLowerInvariant());
 
+    private static DiagnosticDescriptor Info(string id, string title, string format) =>
+        new(id, title, format, Category, DiagnosticSeverity.Info, true, helpLinkUri: HelpLink + id.ToLowerInvariant());
+
     // The type
 
     public static readonly DiagnosticDescriptor InaccessibleType = Error("NINO001",
@@ -33,7 +36,7 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor SubtypeWithoutNinoType = Warning("NINO003",
         "Subtype of a NinoType without [NinoType]",
-        "'{0}' derives from NinoType '{1}', whose [NinoType] does not apply to subtypes (allowInheritance: false), so writing a '{0}' throws; mark it [NinoType]");
+        "'{0}' derives from NinoType '{1}', whose [NinoType] does not apply to subtypes (inheritedBySubtypes: false), so writing a '{0}' throws; mark it [NinoType]");
 
     // Construction
 
@@ -81,6 +84,12 @@ internal static class NinoDiagnostics
     public static readonly DiagnosticDescriptor HostSizedVector = Error("NINO029",
         "Vector<T> cannot be serialized",
         "{0} cannot be serialized: '{1}' {2}, and Vector<T> is 16, 32 or 64 bytes by the CPU; store a fixed number of lanes (an array, a fixed buffer, Vector128<T> or Vector256<T>) and view them as Vector<T> in [NinoIgnore] members");
+
+    public static readonly DiagnosticDescriptor Utf8WithoutEffect = Warning("NINO030", "[NinoUtf8] has no effect",
+        "[NinoUtf8] on member '{0}' of NinoType '{1}' has no effect: {2}; remove it");
+
+    public static readonly DiagnosticDescriptor Utf8FormatterByHand = Info("NINO031", "Use [NinoUtf8]",
+        "Member '{0}' of NinoType '{1}' names Utf8StringFormatter, which is for generated code; mark it [NinoUtf8] instead (the same bytes)");
 
     /// <summary>The <c>{2}</c> of <see cref="HostSizedVector"/>: what <paramref name="type"/> is or holds.</summary>
     public static string HoldsVector(ITypeSymbol type, ITypeSymbol vector) =>
@@ -131,6 +140,19 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor InvalidFactory = Error("NINO017",
         "Invalid [NinoFactory]", "[NinoFactory] '{0}' cannot create instances: it {1}");
+
+    /// <summary>The compile-time symbol that made an assembly's positional types version tolerant until 4.0.</summary>
+    public const string RemovedWeakTolerance = "WEAK_VERSION_TOLERANCE";
+
+    /// <summary>
+    /// The property of a <see cref="WeakToleranceRemoved"/> diagnostic on a type without a <c>[NinoType]</c> of its
+    /// own: the attribute to declare on it (<c>NinoType(..., format: NinoFormat.VersionTolerant)</c>).
+    /// </summary>
+    public const string NinoTypeToAdd = "NinoType";
+
+    public static readonly DiagnosticDescriptor WeakToleranceRemoved = Error("NINO032",
+        "WEAK_VERSION_TOLERANCE was removed",
+        "WEAK_VERSION_TOLERANCE was removed in 4.0, so NinoType '{0}' is now written positionally and cannot read the data it wrote as version tolerant; to keep its bytes, {1}");
 
     // Pooling
 

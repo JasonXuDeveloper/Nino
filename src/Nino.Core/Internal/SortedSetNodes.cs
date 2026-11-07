@@ -141,18 +141,8 @@ namespace Nino.Core.Internal
         private static int Find()
         {
             for (int layout = 1; layout <= 2; layout++)
-            {
-                try
-                {
-                    if (Check(layout))
-                        return layout;
-                }
-                catch
-                {
-                    // Not this layout.
-                }
-            }
-
+                if (ObjectTypes.Passes(() => Check(layout)))
+                    return layout;
             return 0;
         }
 

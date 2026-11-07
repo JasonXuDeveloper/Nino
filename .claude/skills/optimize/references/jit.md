@@ -32,6 +32,45 @@ and when `asm.py compare` lists methods the change did not touch.
   in such a loop. Two groups a step (a smaller loop share for one-vector groups) measured nothing on AVX2 Zen and lost 3
   to 8 % on `HashSet<int>` writes (run 41052335826): not landed.
 
+- Give an out-of-line kernel one out-of-line entry with its loops inlined into it, and keep that entry at Tier1:
+  a size dispatch (`NinoUnsafe.CopyOver64`) that called the vector loop (`CopyVectors`) out of line made two calls per
+  copy of 129 bytes to 32 KB, three through `CopyToNew`, where rc.7's inlined `Copy` made one: 100 12-byte structs
+  serialized in 0.98-1.27 times rc.7's time (.NET A/B run 41413072278). The loops are now `AggressiveInlining` into
+  `CopyOver64Inline`, which `CopyOver64` and `CopyToNew` both inline. Never mark such an entry `AggressiveOptimization`
+  to keep the loops' layout: fully optimized code folds no `static readonly` field (it tested `NinoUnsafe`'s class init
+  and loaded `AmdCopy` and `IceLakeMemmove` per copy) and the class-init call made it save four registers in the prolog
+  of every copy, the 65-128 byte ones included; that form measured Inventory serialize 1.114 times main on EPYC 7763
+  (run 41455371503). With one call per copy at Tier1, 100 12-byte structs serialized in 0.85 of rc.7's time on EPYC
+  7763 and on par on Neoverse-N2, but still 1.07-1.09 on Xeon 6973P and 8573C (one job each, run 41534216283; the same
+  loop as rc.7, not reproduced on a local AVX-512 Xeon). Round 126 tested that gap and did not close it: 1.077-1.084 on
+  three Xeon 8573C jobs, 1.045-1.069 on 6975P, 1.03-1.06 on 6973P, 1.007-1.031 on 8370C, MemoryPack's identical copy
+  0.98-1.04 in the same jobs; unchanged with
+  `DOTNET_JitAlignLoops=0` (1.084, 1.069) and `DOTNET_TieredPGO=0` (1.061) in the quick jobs, and checking the
+  64-byte path first in `CopyOver64Inline` was no faster locally on Emerald Rapids (.NET A/B runs 41621699299,
+  41659495441, 41665524359, 41671303527). The gap was in main before round 123's copy changes (main 1.118 on 8573C,
+  run 41413072278) and head against main is on par there. Round 127 found the source: where the writer's buffer lands
+  in the page, not Nino's code. Judge such a gap by the destination's page offset before touching the path: print it
+  per process (`(addr) & 4095` in the benchmark's Setup, A/B only) and run the same probe code in both builds. The
+  pooled 320 KB buffer (ArrayPool, LOH) starts at page offset 1352 in every rc.7 process and 1944 in every main
+  process, fixed per build by what `SimpleTest`'s static constructor rents first; on Xeon 8573C the case took 11.95-12.12
+  ns at destination offset 1356 for every source offset seen and 12.84-13.15 ns at 1948 (20 ABAB rounds a job, run
+  41806557589; 6975P 9.45-10.01 against 10.05-10.54). The machine code of the case is the same in both builds but the
+  copy target; main's and rc.7's copy shapes measured on par inside one binary (8573C 12.03 against 12.05, run
+  41687210928), and one probe calling `NinoSerializer.Serialize` into its own buffer measured 1.004 (8573C) and 1.008
+  (6975P) of rc.7 across the two builds' processes, where `NinoSerializeSimpleStructs` measured 1.083 and 1.044 in the
+  same jobs (run 41794983604); a null change measured 0.996 (run 41679647486). Within rc.7 alone the writer object's
+  placement moved the case from 9.2-9.6 to 10.7-12.0 ns on 6973P (run 41802774827), more than the gap. A local copy
+  table on Emerald Rapids took 14.6 to 41.8 ns for 1,200 bytes by (dst - src) mod 4096. A 200-byte or an 85 KB array
+  allocated before the writer did not move the buffer. Nino cannot choose where a caller's pooled array lands, so this
+  gap is not closable in Nino's code. Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
+  method, a two-instruction prolog.
+- Inlining a small out-of-line method that the JIT left as a call can be a wash: `NinoLookup.Add` inlined into the
+  `ILookup` read (one call per grouping instead of two) measured 1.002 and 1.003 times main on EPYC 7763 and
+  Neoverse-N2 (run 41455371503); not landed. Forcing `NinoDictionary.Refill` (the merge into an existing dictionary)
+  inline, as the JIT chose for rc.7, grew every read into an existing dictionary (PooledSimpleClass `__ReadBody` 2,731
+  to 3,514 bytes, 127 to 189 stack accesses) and made `NinoDeserializePooled` no faster in an in-process timing loop
+  (`benchmark`); not landed.
+
 ## Registers
 
 - Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
@@ -45,6 +84,37 @@ and when `asm.py compare` lists methods the change did not touch.
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
   twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
   `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
+
+- Read a collection whose shape repeats into its existing instance with a loop of its own over the data, as the fresh
+  read does: `Reader.RefillStringPairs` (raw keys and strings into an existing `Dictionary`, the position and the end in
+  registers, the value read over the current one with the compare its only call) instead of the general merge, whose
+  value formatter read through the caller's reader copy in memory and called `ReadStringOver` and then `SameLatin1`
+  per value. In-process timing loop (`benchmark`): a pooled class holding only a 10-entry `Dictionary<int, string>`
+  139-162 ns against main's 183-213 and rc.7's 178-198; and store a value read over the current one back only when it
+  differs (no write barrier per unchanged string): 123-156 ns. On runners `NinoDeserializePooled` took 0.83-0.92 of
+  main's time on every CPU (.NET A/B run 41576130603, 12 rounds a job) and 0.96-1.00 of rc.7's on x64, 1.04 on
+  Neoverse-N2, where neither the string compare below nor `CopyPairs` out of line moved it (1.005, 1.007 against a
+  1.000 floor, run 41593418245; `CopyPairs` out of line made `NinoNodePooled` 1.033).
+- Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
+  the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
+  widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
+  objects with a short name read into existing ones took 6.9-7.5 us against main's 11.1-11.5 and rc.7's 9.9-11.4,
+  `NinoDeserializePooled` 223-271 ns against main's 251-268 and rc.7's 224-273 (in-process timing, `benchmark`); on
+  runners 1,000,000 shuffled items read into existing objects in 0.53-0.86 of main's time and 0.56-0.95 of rc.7's on
+  every CPU (runs 41534216283, 41576130603). The
+  same test inline in `ReadString(current)` pushed callers past the inlining budget (the `Lazy<string>` read left
+  `Reader.Skip` a call, 7 stack accesses to 22) and read the pooled class in 277-295 ns; inlined into
+  `RefillStringPairs`' loop it made that loop slower (a pooled class with only the dictionary 179-206 ns against
+  139-162, `NinoDeserializePooled` 275-307); added before `RefillStringPairs` existed, the dictionary merge's general
+  loop, which reads each value through `ReadStringOver`, read the pooled class in 284-293 ns against 256-265 without it
+  (round 123).
+
+- Store nothing a read into an existing object leaves unchanged: generated code stores a string member only when
+  `ReadString(current)` returned another string (fields and auto-properties, `MemberModel.PlainStore`; a setter with a
+  body is still called). Each store into an existing (often gen2) object is a write barrier call, and on Neoverse-N2 it
+  was the last part of `NinoDeserializePooled`'s gap: 1.04 times rc.7 before, 0.926 times the head without it on that
+  CPU (.NET A/B run 41616438646, 20 rounds, MemoryPack 1.000), 0.967 times rc.7 after (Xeon 8573C 0.871, 6975P 0.861;
+  run 41621699299). The same run priced `ReadBool`'s 0-or-1 check there: 1.001, nothing to win by weakening it.
 
 ## Tests that must fold
 

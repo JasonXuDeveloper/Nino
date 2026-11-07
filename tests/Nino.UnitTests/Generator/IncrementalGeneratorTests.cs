@@ -107,7 +107,7 @@ public class IncrementalGeneratorTests
         foreach (var file in driver.GetRunResult().Results[0].GeneratedSources)
             Assert.IsFalse(file.SourceText.ToString().Contains("CachedFormatter"), file.HintName);
         StringAssert.Contains(Output(driver, "Holder"),
-            "ListFormatter<global::Inc.Tree, global::Inc.Tree, global::NinoGen.Inc_Tree_");
+            "ListFormatter<global::Inc.Tree, global::Inc.Tree, Inc_Tree_");
 
         // A model rebuilt alone after an edit still finds the structs the others declared.
         compilation = Edit(compilation, "Other.cs", "public Map M;", "public Map M; public int I;");
@@ -141,7 +141,7 @@ public class IncrementalGeneratorTests
             ("Rules.cs", "using Nino.Core;\n[assembly: NinoFormatter(typeof(Inc.MoneyFormatter))]\nnamespace Inc {\n" +
                          "public struct MoneyFormatter : INinoFormatter<Money> {\n" +
                          "public void Serialize(Money value, ref Writer writer) => writer.Write(value.Cents);\n" +
-                         "public void Deserialize(ref Money value, ref Reader reader) { value ??= new Money(); reader.Read(out value.Cents); }\n}\n}"),
+                         "public void Deserialize(ref Reader reader, ref Money value) { value ??= new Money(); reader.Read(out value.Cents); }\n}\n}"),
             ("Money.cs", "namespace Inc { public class Money { public long Cents; } }"),
             ("Holder.cs", Usings + "[NinoType] public class Holder { public Money M; public int X; }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
@@ -161,44 +161,156 @@ public class IncrementalGeneratorTests
     [TestMethod]
     public void RegistryRegistersTheMarksOfRegisteredFormatters()
     {
-        // IL2CPP keeps no attributes on generic parameters: the registry registers [NinoRaw], unmanaged and
-        // [NinoCreated] (a bit per parameter) before handing the assembly's registrations to the resolver.
+        // IL2CPP keeps no attributes on generic parameters: the registry registers [NinoRaw] (1), unmanaged (2) and
+        // [NinoCreated] (4) per parameter, up to the last marked one, before handing the assembly's registrations to
+        // the resolver. Any number of parameters: a bit per parameter in an int had wrapped at 32.
+        string wide = string.Join(", ", Enumerable.Range(0, 32).Select(i => $"T{i}"));
         var compilation = Create(
             ("Rules.cs", "using Nino.Core;\n[assembly: NinoFormatter(typeof(Inc.CellFormatter<>))]\n" +
+                         $"[assembly: NinoFormatter(typeof(Inc.WideFormatter<{new string(',', 32)}>))]\n" +
                          "[assembly: NinoFormatter(typeof(Inc.BagFormatter<,>))]\nnamespace Inc {\n" +
                          "public class Cell<T> { public T V; }\npublic class Bag<T> : System.Collections.Generic.List<T> { }\n" +
                          "public struct CellFormatter<[NinoRaw] T> : INinoFormatter<Cell<T>> where T : unmanaged {\n" +
                          "public void Serialize(Cell<T> value, ref Writer writer) { }\n" +
-                         "public void Deserialize(ref Cell<T> value, ref Reader reader) { }\n}\n" +
+                         "public void Deserialize(ref Reader reader, ref Cell<T> value) { }\n}\n" +
                          "public struct BagFormatter<[NinoCreated] TBag, T> : INinoFormatter<TBag> where TBag : Bag<T>, new() {\n" +
                          "public void Serialize(TBag value, ref Writer writer) { }\n" +
-                         "public void Deserialize(ref TBag value, ref Reader reader) { }\n}\n}"),
+                         "public void Deserialize(ref Reader reader, ref TBag value) { }\n}\n" +
+                         $"public class Wide<{wide}, T32> : System.Collections.Generic.List<T32> {{ }}\n" +
+                         $"public struct WideFormatter<{wide}, [NinoCreated] T32> : INinoFormatter<Wide<{wide}, T32>>\n" +
+                         $"where T32 : Wide<{wide}, T32>, new() {{\n" +
+                         $"public void Serialize(Wide<{wide}, T32> value, ref Writer writer) {{ }}\n" +
+                         $"public void Deserialize(ref Reader reader, ref Wide<{wide}, T32> value) {{ }}\n}}\n}}"),
             ("Holder.cs", Usings + "[NinoType] public class Holder { public int X; }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
         driver = driver.RunGenerators(compilation);
         string registry = driver.GetRunResult().Results[0].GeneratedSources
             .Single(s => s.HintName == "NinoGen.Registry.g.cs").SourceText.ToString();
         StringAssert.Contains(registry,
-            "NinoParameterMarks.Register(typeof(global::Inc.CellFormatter<>), 1, 1, 0);");
+            "NinoParameterMarks.Register(typeof(global::Inc.CellFormatter<>), 3);");
         StringAssert.Contains(registry,
-            "NinoParameterMarks.Register(typeof(global::Inc.BagFormatter<,>), 0, 0, 1);");
+            "NinoParameterMarks.Register(typeof(global::Inc.BagFormatter<,>), 4);");
+        StringAssert.Contains(registry, $"NinoParameterMarks.Register(typeof(global::Inc.WideFormatter<{new string(',', 32)}>), " +
+                                        $"{string.Concat(Enumerable.Repeat("0, ", 32))}4);");
         Assert.IsTrue(registry.IndexOf("NinoParameterMarks.Register", StringComparison.Ordinal) <
                       registry.IndexOf("NinoRegistry.Add", StringComparison.Ordinal), registry);
+    }
+
+    private const string RegisterPointers = "NinoFunctionPointerFields.Register(";
+
+    /// <summary>The registry's NinoFunctionPointerFields.Register arguments for structs of <paramref name="assembly"/>.</summary>
+    private static string[] PointerRegistrations(GeneratorDriver driver, string assembly)
+    {
+        string registry = driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Registry.g.cs").SourceText.ToString();
+        Assert.IsTrue(registry.IndexOf(RegisterPointers, StringComparison.Ordinal) <
+                      registry.IndexOf("NinoRegistry.Add", StringComparison.Ordinal), registry);
+        return registry.Split('\n').Select(l => l.Trim())
+            .Where(l => l.Contains(RegisterPointers + "\"" + assembly + "\", "))
+            .Select(l => l.Substring(l.IndexOf(RegisterPointers, StringComparison.Ordinal) + RegisterPointers.Length))
+            .ToArray();
+    }
+
+    [TestMethod]
+    public void RegistryRegistersFunctionPointerFields()
+    {
+        // Mono and IL2CPP report a delegate* field as an IntPtr (sign-extended on 32-bit), .NET 8 and later as a
+        // function pointer type: the registry names the fields of every struct the compilation sees (by assembly and
+        // runtime name, loading no type) for Nino.Core to lay out as pointers, zero-extended. A struct of another
+        // assembly that a member names, ones declared here that only generic code reaches, generic and nested ones,
+        // auto-properties and positional record structs; an nint is no function pointer.
+        var library = CreateNamed("FnLib", ("Lib.cs", "namespace Lib { public unsafe struct Remote { public int A; public delegate*<int> Call; } }"));
+        var compilation = CreateNamed("FnApp",
+                ("Types.cs", Usings + "public unsafe struct Local { public byte A; public delegate*<int> F; public nint N; }\n" +
+                             "public unsafe struct Generic<T> where T : unmanaged { public T V; public delegate*<T, void> F; }\n" +
+                             "public unsafe class Outer { private struct Hidden { public delegate* unmanaged<void> G { get; set; } } }\n" +
+                             "public unsafe record struct Positional(delegate*<int> P, int Q);\n" +
+                             "public struct Plain { public nint N; }\n" +
+                             "[NinoType] public class Holder { public Lib.Remote R; }\n}"))
+            .AddReferences(library.ToMetadataReference());
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+        CollectionAssert.AreEqual(new[] { "\"FnLib\", \"Lib.Remote\", \"Call\");" }, PointerRegistrations(driver, "FnLib"));
+        CollectionAssert.AreEquivalent(new[]
+            {
+                "\"FnApp\", \"Inc.Local\", \"F\");",
+                "\"FnApp\", \"Inc.Generic<T>\", \"F\");",
+                "\"FnApp\", \"Inc.Outer+Hidden\", \"<G>k__BackingField\");",
+                "\"FnApp\", \"Inc.Positional\", \"<P>k__BackingField\");",
+            }, PointerRegistrations(driver, "FnApp"));
+    }
+
+    [TestMethod]
+    public void RegistryRegistersFunctionPointerFieldsOfEveryReferencedStruct()
+    {
+        // A struct of an assembly built without Nino's generator, which only generic code reaches (Save<T> calling
+        // Serialize<T>): nothing here names it, yet the registry of every assembly referencing it registers its
+        // fields, from the reference's metadata. Private fields (Roslyn's symbols of a metadata reference omit them),
+        // internal and private nested structs, a volatile field (a custom modifier), a nested generic, an
+        // auto-property and a struct outside any namespace; no class, no static field; each named as the runtime
+        // names its type. (The field a primary
+        // constructor captures, C# 12, is a field like these; Nino.RuntimeTests declares one.)
+        const string source = @"
+namespace Lib
+{
+    public unsafe struct PrivateField { private delegate*<int> _call; public int A; public int Call() => _call(); }
+    internal unsafe struct Internal { public volatile delegate*<int> V; }
+    public unsafe class Outer<T> { private struct Hidden<U> { public delegate*<T, U> F; } }
+    public unsafe struct Property { public delegate* unmanaged<void> P { get; set; } }
+    public unsafe class NotAStruct { public delegate*<int> F; }
+    public unsafe struct Static { public static delegate*<int> S; public nint N; }
+}
+public unsafe struct Global { public delegate*<void> G; }";
+        var library = CreateNamed("FnRef", ("Lib.cs", source));
+        var expected = new[]
+        {
+            "\"FnRef\", \"Global\", \"G\");",
+            "\"FnRef\", \"Lib.Internal\", \"V\");",
+            "\"FnRef\", \"Lib.Outer+Hidden<T,U>\", \"F\");",
+            "\"FnRef\", \"Lib.PrivateField\", \"_call\");",
+            "\"FnRef\", \"Lib.Property\", \"<P>k__BackingField\");",
+        };
+        using var image = new System.IO.MemoryStream();
+        var emitted = library.Emit(image);
+        Assert.IsTrue(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        // The names are the runtime's: Nino.Core matches them against NinoTypeId.GetRuntimeName of the loaded type,
+        // so the two views below (metadata and symbols) and the runtime must spell every struct alike.
+        var runtimeNames = System.Reflection.Assembly.Load(image.ToArray()).GetTypes()
+            .Select(NinoTypeId.GetRuntimeName).ToArray();
+        foreach (var registration in expected)
+            CollectionAssert.Contains(runtimeNames, registration.Split(new[] { ", " }, StringSplitOptions.None)[1].Trim('"'), registration);
+        // The built library (a file reference) and the library's compilation (a project reference in the IDE).
+        foreach (var reference in new MetadataReference[] { MetadataReference.CreateFromImage(image.ToArray()), library.ToMetadataReference() })
+        {
+            var compilation = Create(("Save.cs", Usings +
+                    "public static class Saver { public static byte[] Save<T>(T value) where T : unmanaged => NinoSerializer.Serialize(value); }\n}"))
+                .AddReferences(reference);
+            GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+            driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+            var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+            Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+            CollectionAssert.AreEqual(expected, PointerRegistrations(driver, "FnRef"), reference.GetType().Name);
+        }
     }
 
     [TestMethod]
     public void CallsThroughAliasesAndUsingStaticAreRegistered()
     {
-        // The receiver is matched by symbol: an alias (here or global, in another file) or using static names it too.
+        // The receiver is matched by symbol: an alias (here or global, in another file, or in a namespace naming the
+        // file's alias) or using static names it too.
         var compilation = Create(
             ("Global.cs", "global using G = Nino.Core.NinoDeserializer;"),
             ("Calls.cs", @"using S = Nino.Core.NinoSerializer;
 using static Nino.Core.NinoDeserializer;
 using System.Collections.Generic;
 namespace Inc {
+using N = S;
 public static class Calls
 {
     public static byte[] Write(List<int> x) => S.Serialize(x);
+    public static byte[] WriteNested(List<uint> x) => N.Serialize(x);
     public static List<long> Read(byte[] b) => Deserialize<List<long>>(b);
     public static List<short> ReadGlobal(byte[] b) => G.Deserialize<List<short>>(b);
     public static List<byte> NotNino(byte[] b) => Other.Deserialize<List<byte>>(b);
@@ -214,6 +326,7 @@ public static class Other { public static T Deserialize<T>(byte[] b) => default;
         StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<int>>");
         StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<long>>");
         StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<short>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<uint>>");
         Assert.IsFalse(usages.Contains("List<byte>"), usages);
     }
 
@@ -433,7 +546,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
                  {
                      "NinoType", "TopLevelCall", "ProjectFacts", "ClashingNames", "RegistryEntries",
                      "Usages", "FormatterRegistrations", "FactoryRegistrations", "GenericTypeRegistrations", "LayoutTypes",
-                     "Dispatch",
+                     "ReferencedFunctionPointerFields", "FunctionPointerFields", "Dispatch",
                  })
         {
             // Every step runs the first time; a step whose inputs are all cached is not run (nor listed) again.
@@ -476,6 +589,40 @@ public class MadeList : System.Collections.Generic.List<Made> { }
         compilation = Edit(compilation, "Calls.cs", "Box<int>", "Box<long>");
         driver = driver.RunGenerators(compilation);
         StringAssert.Contains(Usages(), "global::Inc.Box<long>");
+    }
+
+    [TestMethod]
+    public void CallsFollowDeclarationsInOtherFiles()
+    {
+        // A call is not bound again while its file is the same and no other file's declarations changed
+        // (ModelCache.GetOrBuildCall): an edit in a method body elsewhere keeps it, a declaration elsewhere that changes
+        // what it binds to (a global using alias) is seen.
+        var compilation = Create(
+            ("Box.cs", Usings + "[NinoType] public class Box<T> { public T V; }\n}"),
+            ("Alias.cs", "global using Saver = Inc.Other;\n"),
+            ("Calls.cs", Usings + "public static class Calls { public static byte[] W() => Saver.Serialize<Box<int>>(null); }\n}"),
+            ("Other.cs", Usings + "public static class Other { public static byte[] Serialize<T>(T v) { return null; } }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        string Usages() => driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
+        const string registered = "NinoPolymorphic.Register<global::Inc.Box<int>";
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Usages().Contains(registered), Usages());
+
+        // Only a method body changes: the call still binds to Other.Serialize.
+        compilation = Edit(compilation, "Other.cs", "{ return null; }", "{ return new byte[0]; }");
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Usages().Contains(registered), Usages());
+
+        // The alias in another file now names NinoSerializer: the call is bound again and registers its type.
+        compilation = Edit(compilation, "Alias.cs", "Inc.Other", "Nino.Core.NinoSerializer");
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(Usages(), registered);
+
+        // And back.
+        compilation = Edit(compilation, "Alias.cs", "Nino.Core.NinoSerializer", "Inc.Other");
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Usages().Contains(registered), Usages());
     }
 
     [TestMethod]

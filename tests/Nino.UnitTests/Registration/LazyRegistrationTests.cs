@@ -4,12 +4,12 @@ using Nino.Core;
 
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class LazyProbe
     {
         public int X;
 
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public class Inner
         {
             public string S;

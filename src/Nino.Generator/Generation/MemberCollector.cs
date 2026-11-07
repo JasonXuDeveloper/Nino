@@ -247,18 +247,8 @@ internal static class MemberCollector
         return member;
     }
 
-    private static bool Overrides(ISymbol member, HashSet<ISymbol> collected)
-    {
-        if (member is not IPropertySymbol { IsOverride: true } property)
-            return false;
-        for (var p = property.OverriddenProperty; p != null; p = p.OverriddenProperty)
-        {
-            if (collected.Contains(p))
-                return true;
-        }
-
-        return false;
-    }
+    private static bool Overrides(ISymbol member, HashSet<ISymbol> collected) =>
+        NinoSymbols.OverriddenProperties(member).Any(collected.Contains);
 
     /// <summary>
     /// The parameter names (any case) of the constructors and <c>[NinoConstructor]</c> factories of

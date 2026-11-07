@@ -20,10 +20,10 @@ namespace Nino.Core
     /// </summary>
     public static class NinoFormatterCache<T>
     {
-        private static NinoFormatter<T> _instance;
+        private static NinoFormatterBase<T> _instance;
 
         /// <summary>The formatter for <typeparamref name="T"/>; resolved on first access.</summary>
-        internal static NinoFormatter<T> Instance
+        internal static NinoFormatterBase<T> Instance
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _instance ?? Resolve();
@@ -60,7 +60,7 @@ namespace Nino.Core
             Volatile.Read(ref _instance) == null && TryPublish(new TopStructFormatter<T, TFormatter, TTop>());
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static NinoFormatter<T> Resolve()
+        private static NinoFormatterBase<T> Resolve()
         {
             NinoRegistry.RegisterType(typeof(T));
             var instance = Volatile.Read(ref _instance);
@@ -89,12 +89,12 @@ namespace Nino.Core
         /// <c>object</c>, and raw unmanaged values (which generated code does not register: a generic
         /// <c>[NinoType]</c>'s <c>CachedFormatter&lt;T&gt;</c> of an <c>int</c> lands here). Null for anything else.
         /// </summary>
-        private static NinoFormatter<T> CreateWithoutDynamicCode()
+        private static NinoFormatterBase<T> CreateWithoutDynamicCode()
         {
             if (typeof(T) == typeof(string))
-                return (NinoFormatter<T>)(object)new StructFormatter<string, StringFormatter>();
+                return (NinoFormatterBase<T>)(object)new StructFormatter<string, StringFormatter>();
             if (typeof(T) == typeof(object))
-                return (NinoFormatter<T>)(object)new StructFormatter<object, ObjectFormatter>();
+                return (NinoFormatterBase<T>)(object)new StructFormatter<object, ObjectFormatter>();
             // A constant per T: reference types (and structs holding references) compile none of this. The rest by
             // the resolver's rule (NinoReflection.IsRawShape), so a type is raw here exactly when it is with
             // dynamic code: [NinoType] structs (registered by their generated code, RegisterType above, when they
@@ -113,13 +113,13 @@ namespace Nino.Core
             Justification = NinoFormatterResolver.ValueTypeConstraintJustification)]
         [UnconditionalSuppressMessage("Trimming", "IL2075",
             Justification = NinoFormatterResolver.ValueTypeConstraintJustification)]
-        private static NinoFormatter<T> Build()
+        private static NinoFormatterBase<T> Build()
         {
             var formatterType = NinoFormatterResolver.GetFormatterType(typeof(T), topLevel: true);
             if (formatterType == null)
                 NinoThrow.NoFormatter(typeof(T));
 
-            var created = (NinoFormatter<T>)Activator.CreateInstance(
+            var created = (NinoFormatterBase<T>)Activator.CreateInstance(
                 typeof(StructFormatter<,>).MakeGenericType(typeof(T), formatterType));
             return Publish(created);
         }
@@ -128,20 +128,20 @@ namespace Nino.Core
         /// Stores <paramref name="formatter"/> unless another one was stored first, records the one stored for the
         /// resolver (<see cref="NinoFormatterCache.MarkRegistered"/>) and returns it.
         /// </summary>
-        private static NinoFormatter<T> Publish(NinoFormatter<T> formatter)
+        private static NinoFormatterBase<T> Publish(NinoFormatterBase<T> formatter)
         {
             Publish(ref formatter);
             return formatter;
         }
 
         /// <summary>Publishes <paramref name="formatter"/> unless another was first; whether it was.</summary>
-        private static bool TryPublish(NinoFormatter<T> formatter) => Publish(ref formatter);
+        private static bool TryPublish(NinoFormatterBase<T> formatter) => Publish(ref formatter);
 
         /// <summary>
         /// Stores <paramref name="formatter"/> unless a formatter is already stored, and sets it to the one stored;
         /// returns whether it was this one.
         /// </summary>
-        private static bool Publish(ref NinoFormatter<T> formatter)
+        private static bool Publish(ref NinoFormatterBase<T> formatter)
         {
             if (NinoNesting.Holds(typeof(T)))
                 formatter = formatter.Counted();
@@ -160,11 +160,11 @@ namespace Nino.Core
     internal static class NinoFormatterCache
     {
         // The formatter itself too: the boxed APIs reach it from a Type without closing a generic type at run time.
-        private static readonly ConcurrentDictionary<Type, NinoFormatter> Registered =
-            NinoUnload.Cache<NinoFormatter>(formatter => formatter.GetType());
+        private static readonly ConcurrentDictionary<Type, NinoFormatterBase> Registered =
+            NinoUnload.Cache<NinoFormatterBase>(formatter => formatter.GetType());
 
         /// <summary>Called after the formatter of <paramref name="type"/> has been stored.</summary>
-        public static void MarkRegistered(Type type, NinoFormatter formatter)
+        public static void MarkRegistered(Type type, NinoFormatterBase formatter)
         {
             // A new formatter type is one more closed generic a read by type id may find (NinoUnknownIds).
             if (Registered.TryAdd(type, formatter))
@@ -175,7 +175,7 @@ namespace Nino.Core
         public static bool IsRegistered(Type type) => Registered.ContainsKey(type);
 
         /// <summary>The formatter stored for <paramref name="type"/>, or null.</summary>
-        public static NinoFormatter Get(Type type) => Registered.TryGetValue(type, out var formatter) ? formatter : null;
+        public static NinoFormatterBase Get(Type type) => Registered.TryGetValue(type, out var formatter) ? formatter : null;
 
         /// <summary>Every type with a formatter so far (a snapshot), for the cold path of polymorphic reads.</summary>
         public static ICollection<Type> RegisteredTypes => Registered.Keys;
@@ -226,12 +226,12 @@ namespace Nino.Core
         /// The formatter; a <see cref="NinoMissingFormatter{T}"/> when <typeparamref name="T"/> has none, whose calls
         /// report that error.
         /// </summary>
-        public static readonly NinoFormatter<T> Formatter = Load();
+        public static readonly NinoFormatterBase<T> Formatter = Load();
 
         /// <summary>Whether <see cref="Formatter"/> is a formatter of <typeparamref name="T"/> (not the missing one).</summary>
         public static readonly bool Exists = !(Formatter is NinoMissingFormatter<T>);
 
-        private static NinoFormatter<T> Load()
+        private static NinoFormatterBase<T> Load()
         {
             try
             {
@@ -248,17 +248,17 @@ namespace Nino.Core
     /// <summary>
     /// What <see cref="NinoTopFormatter{T}.Formatter"/> holds for a type that had no formatter when it was read: every
     /// call asks <see cref="NinoFormatterCache{T}.Instance"/> again, which throws the type's error (or finds a formatter
-    /// registered since), as the calls did when the field was null. <see cref="NinoFormatter{T}.IsRaw"/> and
-    /// <see cref="NinoFormatter{T}.RawArray"/> keep their defaults: static initializers read them, and they read a
+    /// registered since), as the calls did when the field was null. <see cref="NinoFormatterBase{T}.IsRaw"/> and
+    /// <see cref="NinoFormatterBase{T}.RawArray"/> keep their defaults: static initializers read them, and they read a
     /// missing formatter as none.
     /// </summary>
-    internal sealed class NinoMissingFormatter<T> : NinoFormatter<T>
+    internal sealed class NinoMissingFormatter<T> : NinoFormatterBase<T>
     {
         public override void Serialize(T value, ref Writer writer) =>
             NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
 
-        public override void Deserialize(ref T value, ref Reader reader) =>
-            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+        public override void Deserialize(ref Reader reader, ref T value) =>
+            NinoFormatterCache<T>.Instance.Deserialize(ref reader, ref value);
 
         internal override void Write(T value, NinoArrayBufferWriter buffer) =>
             NinoFormatterCache<T>.Instance.Write(value, buffer);

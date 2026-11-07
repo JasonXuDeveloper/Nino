@@ -220,7 +220,7 @@ namespace Nino.Core.CompilerServices
             // Registration is lazy (and the subtype's assembly may not have run its registry's static constructor
             // yet where there is no module initializer support). A closed generic [NinoType] the generator did not
             // see is registered from its formatter definition.
-            NinoPolymorphic.Register(type);
+            NinoPolymorphic.TryRegister(type);
             return FindByType(Volatile.Read(ref _byType), type);
         }
 
@@ -297,31 +297,31 @@ namespace Nino.Core.CompilerServices
         /// from ending each case with a tail call.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void DeserializeOther(int id, ref TBase value, ref Reader reader) =>
-            Deserialize(id, ref value, ref reader);
+        public static void DeserializeOther(int id, ref Reader reader, ref TBase value) =>
+            Deserialize(id, ref reader, ref value);
 
         /// <summary>
         /// Reads the body of the type with id <paramref name="id"/> (already consumed). Id 0 means null: the
         /// current value is recycled.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Deserialize(int id, ref TBase value, ref Reader reader) =>
-            Read(id, ref value, ref reader, referenced: false);
+        public static void Deserialize(int id, ref Reader reader, ref TBase value) =>
+            Read(id, ref reader, ref value, referenced: false);
 
         /// <summary>
         /// Reads what <see cref="SerializeReferenced"/> wrote after the reference header, given the type id (already
         /// consumed).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeReferenced(int id, ref TBase value, ref Reader reader) =>
-            Read(id, ref value, ref reader, referenced: true);
+        public static void DeserializeReferenced(int id, ref Reader reader, ref TBase value) =>
+            Read(id, ref reader, ref value, referenced: true);
 
         /// <summary>
         /// <see cref="Deserialize"/>, or <see cref="DeserializeReferenced"/> when <paramref name="referenced"/> (a
         /// constant in both).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Read(int id, ref TBase value, ref Reader reader, bool referenced)
+        private static void Read(int id, ref Reader reader, ref TBase value, bool referenced)
         {
             if (id == NinoWire.NullTypeId)
             {
@@ -338,9 +338,9 @@ namespace Nino.Core.CompilerServices
             NinoRecycler.ReuseExact(ref value, handler.Type);
             object result = value;
             if (referenced)
-                handler.DeserializeReferenced(ref result, ref reader);
+                handler.DeserializeReferenced(ref reader, ref result);
             else
-                handler.Deserialize(ref result, ref reader);
+                handler.Deserialize(ref reader, ref result);
             // The handler's type derives from TBase (checked when it was registered here), and so does a back reference.
             value = Unsafe.As<TBase>(result);
         }

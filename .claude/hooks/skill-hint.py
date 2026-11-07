@@ -3,7 +3,8 @@
 picked them from their descriptions alone.
 
 - UserPromptSubmit: the skills whose "Triggers:" list (in each SKILL.md's description, the one source of the words)
-  matches the prompt, most matches first.
+  matches the prompt, most matches first. A word or phrase matches whole words, a path or symbol (any other ASCII
+  character) anywhere, a word ending in "*" as a prefix ("NINO0*" for every rule id), Chinese anywhere.
 - PreToolUse: before the first edit of a file in an area, the skills that govern it and the nearest AGENTS.md;
   before a commit or push, `verify`.
 
@@ -59,7 +60,7 @@ def triggers(root):
         if not m or "Triggers:" not in m.group(1):
             continue
         words = m.group(1).split("Triggers:", 1)[1].rstrip(". ")
-        found[os.path.basename(os.path.dirname(path))] = [w.strip().strip('"').strip("*") for w in words.split(",") if w.strip()]
+        found[os.path.basename(os.path.dirname(path))] = [w.strip().strip('"').lstrip("*") for w in words.split(",") if w.strip()]
     return found
 
 
@@ -68,6 +69,8 @@ def matches(word, prompt):
         return False
     if not word.isascii():
         return word in prompt
+    if word.endswith("*"):  # a prefix: "NINO0*" matches NINO029
+        return re.search(r"(?<![A-Za-z0-9_])" + re.escape(word[:-1].lower()), prompt.lower()) is not None
     if re.fullmatch(r"[A-Za-z][A-Za-z0-9 \-]*", word):  # a word or phrase: whole words only
         return re.search(r"(?<![A-Za-z0-9_])" + re.escape(word.lower()) + r"(?![A-Za-z0-9_])", prompt.lower()) is not None
     return word.lower() in prompt.lower()  # a path, file name or symbol

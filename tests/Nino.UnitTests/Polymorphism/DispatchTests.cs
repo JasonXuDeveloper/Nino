@@ -7,25 +7,25 @@ namespace Nino.UnitTests
     // Bases dispatch the subtypes of their assembly through generated code (the hierarchy's root holds the dispatch;
     // classes below it use the root's).
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public abstract class DispatchRoot
     {
         public int A;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DispatchMid : DispatchRoot
     {
         public string B;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class DispatchLeaf : DispatchMid
     {
         public long C;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class DispatchSibling : DispatchRoot
     {
         public double D;

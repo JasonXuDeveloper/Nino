@@ -6,7 +6,7 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests
 {
-    [NinoType(trackReferences: true)]
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
     public class RefNode
     {
         public int Id;
@@ -17,32 +17,32 @@ namespace Nino.UnitTests
         public RefNode[] Array;
     }
 
-    [NinoType(trackReferences: true)]
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
     public abstract class RefAnimal
     {
         public string Name;
         public RefAnimal Friend;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class RefDog : RefAnimal
     {
         public int Bark;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class RefCat : RefAnimal
     {
         public RefDog Enemy;
     }
 
-    [NinoType(trackReferences: true)]
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
     public sealed class RefSealedLeaf
     {
         public string Value;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class RefZoo
     {
         public RefAnimal A;
@@ -54,20 +54,20 @@ namespace Nino.UnitTests
         public List<RefSealedLeaf> Leaves;
     }
 
-    [NinoType(trackReferences: true)]
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
     public class RefGeneric<T>
     {
         public T Value;
         public RefGeneric<T> Next;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public interface IRefPeer
     {
     }
 
     // Tracked, reached through declared types that are not tracked (object, an interface).
-    [NinoType(trackReferences: true)]
+    [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
     public class RefPeerNode : IRefPeer
     {
         public int Id;

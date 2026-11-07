@@ -114,7 +114,7 @@ namespace Nino.Fuzz
         static Target Golden() => new Target
         {
             Name = "Golden",
-            Covers = "the pinned bytes of the unit tests' GoldenBytesTests (an assembly built with WEAK_VERSION_TOLERANCE)",
+            Covers = "the pinned bytes of the unit tests' GoldenBytesTests (version-tolerant types)",
             Seeds = () => new List<byte[]> { GoldenCorpus.Bytes() },
             Read = data => GoldenCorpus.Read(data),
             ReadInto = (data, existing) => GoldenCorpus.ReadInto(data, (Nino.UnitTests.GoldenData)existing),

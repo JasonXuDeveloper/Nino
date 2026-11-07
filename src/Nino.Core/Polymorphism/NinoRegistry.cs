@@ -157,7 +157,7 @@ namespace Nino.Core
             EnsureInitializedFor(type);
             if (type.ContainsGenericParameters)
                 return;
-            // A registry can register the type by calling back into NinoPolymorphic.Register(Type) (a closed generic
+            // A registry can register the type by calling back into NinoPolymorphic.TryRegister(Type) (a closed generic
             // whose formatter is in another assembly), which lands here again for the same type: that inner call
             // returns, and the outer one goes on to close the formatter itself.
             var registering = t_registering ??= new List<Type>();

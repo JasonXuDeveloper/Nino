@@ -14,7 +14,7 @@ namespace Nino.UnitTests
     [TestClass]
     public class PrimitivesSerializationTests
     {
-        [NinoType]
+        [NinoType(format: NinoFormat.VersionTolerant)]
         public struct EmptyStruct
         {
         }

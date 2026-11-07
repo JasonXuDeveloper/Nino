@@ -12,30 +12,30 @@ namespace Nino.UnitTests
 {
     // Types are registered once; each base type's registry adopts a subtype on first lookup.
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public interface IRegistryShape
     {
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class RegistryShape : IRegistryShape
     {
         public int Sides;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class RegistryPolygon : RegistryShape
     {
         public string Name;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class RegistryStar : RegistryPolygon
     {
         public float Sharpness;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class RegistryUnrelated
     {
         public int X;

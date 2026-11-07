@@ -1,5 +1,9 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -50,40 +54,79 @@ internal static class GeneratedCode
         (TypeNames.Core + "Reader", "__NinoReader"),
         (TypeNames.CoreCompilerServices + "NinoObject.", "__NinoObject."),
         (TypeNames.CoreCompilerServices + "NinoUnsafe.", "__NinoUnsafe."),
+        (TypeNames.CoreCompilerServices + "NinoBlocks.", "__NinoBlocks."),
         (TypeNames.Core + "NinoPolymorphic.", "__NinoPolymorphic."),
         ("global::System.ReadOnlySpan<byte>", "__NinoBytes"),
     };
 
     /// <summary>
     /// <paramref name="body"/> (the part of a file inside the <c>NinoGen</c> namespace) with the names it repeats
-    /// written as aliases: <paramref name="self"/> (a type the file is about, when given) as <c>__NinoT</c>, then the
-    /// <see cref="CoreAliases"/>. A name is replaced only where the alias makes the file shorter, counting its
-    /// declaration, which is added to <paramref name="declarations"/>; and only as a whole name: not where it goes on
-    /// with an identifier character or (a type) a dot (a longer name, a nested type, a namespace).
+    /// written shorter. The generated types lose <c>global::NinoGen.</c>: the body is inside that namespace, whose own
+    /// types a simple name finds before any other (only a type parameter of a generic formatter, which takes the names
+    /// of its type's, or a nested type could hide one, and none is named like a generated type). Then the names
+    /// become aliases: <paramref name="formatters"/> (generic formatters a type's members are read and written with,
+    /// none naming a type parameter; numbered in their order) as <c>__NinoF0</c>, <c>__NinoF1</c>..., <paramref name="self"/> (a type the file is about, when
+    /// given) as <c>__NinoT</c>, and the <see cref="CoreAliases"/>. A name is replaced only where the alias makes the
+    /// file shorter, counting its declaration, which is added to <paramref name="declarations"/>; and only as a whole
+    /// name: not next to an identifier character, a dot or a colon (a longer name, a qualified or nested one), but for
+    /// the member that follows a static class's name.
     /// </summary>
-    public static string WithAliases(string body, string? self, List<string> declarations)
+    public static string WithAliases(string body, string? self, List<string> declarations,
+        IEnumerable<string>? formatters = null)
     {
+        body = body.Replace(TypeNames.Gen, "");
+        var formatterAliases = new List<string>();
+        if (formatters != null)
+        {
+            // Replaced longest first (a name inside a longer one is replaced with it), numbered in the order given
+            // (the members').
+            var names = formatters.Select(static n => n.Replace(TypeNames.Gen, "")).Distinct().ToList();
+            var aliased = new List<string>();
+            foreach (var name in names.OrderByDescending(static n => n.Length))
+            {
+                // Declared inside the namespace too, where the generated types need no qualifier either.
+                int count = formatterAliases.Count;
+                body = WithAlias(body, name, FormatterAlias(count), $"using {FormatterAlias(count)} = {name};",
+                    formatterAliases);
+                if (formatterAliases.Count != count)
+                    aliased.Add(name);
+            }
+
+            // Renumbered from the order of replacement to the order given.
+            var order = aliased.OrderBy(names.IndexOf).ToList();
+            body = Regex.Replace(body, @"\b__NinoF(\d+)\b", x =>
+                FormatterAlias(order.IndexOf(aliased[int.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture)])));
+            formatterAliases = order.Select((name, i) => $"using {FormatterAlias(i)} = {name};").ToList();
+        }
+
         if (self != null)
-            body = WithAlias(body, self, "__NinoT", declarations);
+            body = WithAlias(body, self, "__NinoT", $"using __NinoT = {self};", declarations);
         foreach (var (name, alias) in CoreAliases)
-            body = WithAlias(body, name, alias, declarations);
+        {
+            // A static class's alias is declared without the dot both names end with.
+            string declaration = name[name.Length - 1] == '.'
+                ? $"using {alias.Substring(0, alias.Length - 1)} = {name.Substring(0, name.Length - 1)};"
+                : $"using {alias} = {name};";
+            body = WithAlias(body, name, alias, declaration, declarations);
+        }
+
+        declarations.AddRange(formatterAliases);
         return body;
     }
 
-    private static string WithAlias(string body, string name, string alias, List<string> declarations)
+    private static string FormatterAlias(int index) => "__NinoF" + index.ToString(CultureInfo.InvariantCulture);
+
+    private static string WithAlias(string body, string name, string alias, string declaration,
+        List<string> declarations)
     {
-        // A static class's alias is declared without the dot both names end with.
         bool member = name[name.Length - 1] == '.';
-        string declaration = member
-            ? $"using {alias.Substring(0, alias.Length - 1)} = {name.Substring(0, name.Length - 1)};"
-            : $"using {alias} = {name};";
         var sb = new StringBuilder(body.Length);
         int start = 0, at, count = 0;
-        while ((at = body.IndexOf(name, start, System.StringComparison.Ordinal)) >= 0)
+        while ((at = body.IndexOf(name, start, StringComparison.Ordinal)) >= 0)
         {
             int end = at + name.Length;
             sb.Append(body, start, at - start);
-            if (!member && end < body.Length && (char.IsLetterOrDigit(body[end]) || body[end] is '_' or '.'))
+            if (at > 0 && IsNamePart(body[at - 1]) || !member && end < body.Length && IsNamePart(body[end]))
             {
                 sb.Append(name);
             }
@@ -104,19 +147,23 @@ internal static class GeneratedCode
         return sb.ToString();
     }
 
+    /// <summary>Whether <paramref name="c"/> next to a name makes it part of a longer one (qualified, nested).</summary>
+    private static bool IsNamePart(char c) => char.IsLetterOrDigit(c) || c is '_' or '.' or ':';
+
     /// <summary>
-    /// The aliases of <c>MethodImplAttribute</c> and <c>MethodImplOptions</c>, one line each (without indent or line
-    /// break), that <see cref="Inline"/> and <see cref="NoInline"/> are written with.
+    /// The alias of <c>MethodImplAttribute</c> and the import of <c>MethodImplOptions</c>' values, one line each
+    /// (without indent or line break), that <see cref="Inline"/> and <see cref="NoInline"/> are written with. Only a
+    /// type in the <c>NinoGen</c> namespace named like one of those values could hide it, and none is.
     /// </summary>
     public static readonly string[] InlineAliases =
     {
         "using __NinoInline = " + TypeNames.CompilerServices + "MethodImplAttribute;",
-        "using __NinoInlineOptions = " + TypeNames.CompilerServices + "MethodImplOptions;",
+        "using static " + TypeNames.CompilerServices + "MethodImplOptions;",
     };
 
     /// <summary>The aggressive inlining attribute, through <see cref="InlineAliases"/>.</summary>
-    public const string Inline = "[__NinoInline(__NinoInlineOptions.AggressiveInlining)]";
+    public const string Inline = "[__NinoInline(AggressiveInlining)]";
 
     /// <summary>The no-inlining attribute, through <see cref="InlineAliases"/>.</summary>
-    public const string NoInline = "[__NinoInline(__NinoInlineOptions.NoInlining)]";
+    public const string NoInline = "[__NinoInline(NoInlining)]";
 }

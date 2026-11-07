@@ -285,6 +285,76 @@ namespace Nino.Core.Internal
             return ReadRest(ref source, available, current, out size);
         }
 
+        /// <summary>
+        /// Whether the string at <paramref name="source"/> (<paramref name="available"/> bytes) is a Latin-1 string of
+        /// up to 63 chars holding the chars of <paramref name="current"/> (not null), setting <paramref name="size"/>
+        /// to the bytes it takes: a string read again into an existing object, compared without a call on .NET 8 and
+        /// later; anything else is left to <see cref="Read"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Same(ref byte source, int available, string current, out int size)
+        {
+            uint length = (uint)current.Length;
+            size = 1 + (int)length;
+            // The one-byte header of a Latin-1 string of this length (odd), with its chars in the data.
+            return length - 1 < 63 && length < (uint)available && source == (byte)(length * 2 + 1) &&
+                   SameShortLatin1(ref Unsafe.Add(ref source, 1), current);
+        }
+
+        /// <summary>
+        /// <see cref="SameLatin1"/> for 1 to 63 chars, inline where vectors are: eight bytes a step widened to eight
+        /// chars (the last step overlapping), four to seven as two overlapping halves, fewer one at a time.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool SameShortLatin1(ref byte source, string value)
+        {
+#if NET8_0_OR_GREATER
+            // Widened as little-endian words: big-endian machines compare through SameLatin1.
+            if (Vector128.IsHardwareAccelerated && BitConverter.IsLittleEndian)
+            {
+                nuint n = (uint)value.Length;
+                ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
+                if (n >= 8)
+                {
+                    var diff = Vector128<ushort>.Zero;
+                    for (nuint i = 0; i < n - 8; i += 8)
+                        diff |= WidenEight(ref Unsafe.Add(ref source, (nint)i)) ^ Vector128.LoadUnsafe(ref chars, i);
+                    diff |= WidenEight(ref Unsafe.Add(ref source, (nint)(n - 8))) ^ Vector128.LoadUnsafe(ref chars, n - 8);
+                    return diff == Vector128<ushort>.Zero;
+                }
+
+                if (n >= 4)
+                    return ((WidenFour(NinoUnsafe.Read<uint>(ref source)) ^ NinoUnsafe.Read<ulong>(ref Unsafe.As<ushort, byte>(ref chars))) |
+                            (WidenFour(NinoUnsafe.Read<uint>(ref Unsafe.Add(ref source, (nint)(n - 4)))) ^
+                             NinoUnsafe.Read<ulong>(ref Unsafe.As<ushort, byte>(ref Unsafe.Add(ref chars, (nint)(n - 4)))))) == 0;
+                for (nuint i = 0; i < n; i++)
+                {
+                    if (Unsafe.Add(ref source, (nint)i) != Unsafe.Add(ref chars, (nint)i))
+                        return false;
+                }
+
+                return true;
+            }
+#endif
+            return SameLatin1(ref source, value);
+        }
+
+#if NET8_0_OR_GREATER
+        /// <summary>The eight bytes at <paramref name="source"/> as the eight chars they are in Latin-1.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<ushort> WidenEight(ref byte source) =>
+            Vector128.WidenLower(Vector128.CreateScalarUnsafe(NinoUnsafe.Read<ulong>(ref source)).AsByte());
+
+        /// <summary>Four bytes as the four chars they are in Latin-1 (little-endian).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong WidenFour(uint bytes)
+        {
+            ulong x = bytes;
+            x = (x | x << 16) & 0x0000_FFFF_0000_FFFF;
+            return (x | x << 8) & 0x00FF_00FF_00FF_00FF;
+        }
+#endif
+
         /// <summary><paramref name="value"/> rotated right by one bit: its half, its low bit moved to the top.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static uint Half(uint value) => (value >> 1) | (value << 31);

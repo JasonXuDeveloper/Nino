@@ -62,16 +62,18 @@ namespace Nino.Core.Internal
         // references (laid out by the same rules as the mirrors, as each instantiation is), read back right from a
         // collection the runtime filled, comparing references only: nothing is written through a layout not seen.
         private static readonly bool MapChains = MapAt != null;
-        private static readonly bool MapReferenceChains = MapChains && Check(CheckMapChains);
+        private static readonly bool MapReferenceChains = MapChains && ObjectTypes.Passes(CheckMapChains);
         private static readonly bool SetChains = SetAt != null;
-        private static readonly bool SetReferenceChains = SetChains && Check(CheckSetChains);
+        private static readonly bool SetReferenceChains = SetChains && ObjectTypes.Passes(CheckSetChains);
 
         // Entries with references, then string keys (hashed by EqualityComparer<string>.Default, which .NET's tables
         // do not use for them), filled here one key at a time: each checked as the hashing is, through the public API.
-        private static readonly bool MapReferences = Map && MapReferenceChains && Check(CheckMapReferences);
-        private static readonly bool MapStrings = MapReferences && Check(CheckMapStrings);
-        private static readonly bool SetReferences = Set && SetReferenceChains && Check(CheckSetReferences);
-        private static readonly bool SetStrings = SetReferences && Check(CheckSetStrings);
+        private static readonly bool MapReferences =
+            Map && MapReferenceChains && ObjectTypes.Passes(CheckMapReferences);
+        private static readonly bool MapStrings = MapReferences && ObjectTypes.Passes(CheckMapStrings);
+        private static readonly bool SetReferences =
+            Set && SetReferenceChains && ObjectTypes.Passes(CheckSetReferences);
+        private static readonly bool SetStrings = SetReferences && ObjectTypes.Passes(CheckSetStrings);
 
         // String keys of tables the runtime protects itself: .NET's (Core) Dictionary and HashSet, and .NET Framework's
         // Dictionary, switch to a randomized comparer after 100 collisions. Mono and IL2CPP are not counted on.
@@ -92,7 +94,7 @@ namespace Nino.Core.Internal
         private static int FindHashing(Func<int, int, bool> check)
         {
             for (int hashing = 0; hashing < 4; hashing++)
-                if (check(Mask(hashing), Bias(hashing)))
+                if (ObjectTypes.Passes(() => check(Mask(hashing), Bias(hashing))))
                     return hashing;
             return -1;
         }
@@ -508,31 +510,24 @@ namespace Nino.Core.Internal
         private static bool CheckSet(int mask, int bias)
         {
 #if NETSTANDARD2_1 || NET8_0_OR_GREATER
-            try
-            {
-                var values = CheckValues();
-                var set = new HashSet<long>();
-                set.EnsureCapacity(values.Length);
-                if (ObjectFields.At<object>(set, SetBuckets) is not int[] ||
-                    !Fill(set, ref Bytes(values, 8)[0], values.Length, 8, mask, bias) || set.Count != values.Length)
-                    return false;
-                int index = 0;
-                foreach (long value in set)
-                    if (value != values[index++])
-                        return false;
-                foreach (long value in values)
-                    if (!set.Contains(value))
-                        return false;
-                if (set.Contains(5) || !set.SetEquals(new HashSet<long>(values)) || !set.Add(5) || set.Add(values[3]) ||
-                    !set.Remove(values[0]) || set.Contains(values[0]) || !set.Contains(5) ||
-                    set.Count != values.Length)
-                    return false;
-                return true;
-            }
-            catch
-            {
+            var values = CheckValues();
+            var set = new HashSet<long>();
+            set.EnsureCapacity(values.Length);
+            if (ObjectFields.At<object>(set, SetBuckets) is not int[] ||
+                !Fill(set, ref Bytes(values, 8)[0], values.Length, 8, mask, bias) || set.Count != values.Length)
                 return false;
-            }
+            int index = 0;
+            foreach (long value in set)
+                if (value != values[index++])
+                    return false;
+            foreach (long value in values)
+                if (!set.Contains(value))
+                    return false;
+            if (set.Contains(5) || !set.SetEquals(new HashSet<long>(values)) || !set.Add(5) || set.Add(values[3]) ||
+                !set.Remove(values[0]) || set.Contains(values[0]) || !set.Contains(5) ||
+                set.Count != values.Length)
+                return false;
+            return true;
 #else
             // No EnsureCapacity to size a new set with: added element by element.
             return false;
@@ -541,47 +536,28 @@ namespace Nino.Core.Internal
 
         private static bool CheckMap(int mask, int bias)
         {
-            try
-            {
-                var keys = CheckValues();
-                var dictionary = new Dictionary<long, int>(keys.Length);
-                if (ObjectFields.At<object>(dictionary, MapBuckets) is not int[] ||
-                    !Fill(dictionary, ref Bytes(keys, 12)[0], keys.Length, 8, 12, mask, bias) ||
-                    dictionary.Count != keys.Length)
-                    return false;
-                int index = 0;
-                foreach (var pair in dictionary)
-                {
-                    if (pair.Key != keys[index] || pair.Value != index)
-                        return false;
-                    index++;
-                }
-
-                for (int i = 0; i < keys.Length; i++)
-                    if (!dictionary.TryGetValue(keys[i], out int value) || value != i)
-                        return false;
-                if (dictionary.ContainsKey(5) || !dictionary.Remove(keys[0]) || dictionary.ContainsKey(keys[0]))
-                    return false;
-                dictionary.Add(5, 50);
-                dictionary[keys[3]] = 30;
-                return dictionary.Count == keys.Length && dictionary[5] == 50 && dictionary[keys[3]] == 30;
-            }
-            catch
-            {
+            var keys = CheckValues();
+            var dictionary = new Dictionary<long, int>(keys.Length);
+            if (ObjectFields.At<object>(dictionary, MapBuckets) is not int[] ||
+                !Fill(dictionary, ref Bytes(keys, 12)[0], keys.Length, 8, 12, mask, bias) ||
+                dictionary.Count != keys.Length)
                 return false;
+            int index = 0;
+            foreach (var pair in dictionary)
+            {
+                if (pair.Key != keys[index] || pair.Value != index)
+                    return false;
+                index++;
             }
-        }
 
-        private static bool Check(Func<bool> check)
-        {
-            try
-            {
-                return check();
-            }
-            catch
-            {
+            for (int i = 0; i < keys.Length; i++)
+                if (!dictionary.TryGetValue(keys[i], out int value) || value != i)
+                    return false;
+            if (dictionary.ContainsKey(5) || !dictionary.Remove(keys[0]) || dictionary.ContainsKey(keys[0]))
                 return false;
-            }
+            dictionary.Add(5, 50);
+            dictionary[keys[3]] = 30;
+            return dictionary.Count == keys.Length && dictionary[5] == 50 && dictionary[keys[3]] == 30;
         }
 
         // Keys of both kinds of hashing (boxed: hashed by their value): strings, longs that fill buckets twice, and
@@ -599,28 +575,26 @@ namespace Nino.Core.Internal
             return keys;
         }
 
-        private static bool CheckMapReferences()
+        private static bool CheckMapReferences() => CheckMapOf(ReferenceKeys(), "x", "y");
+
+        private static bool CheckMapStrings() => CheckMapOf(StringKeys(), "x", "y");
+
+        private static bool CheckMapOf<TKey>(TKey[] keys, TKey absent, TKey added)
         {
-            var keys = ReferenceKeys();
-            var dictionary = new Dictionary<object, string>(keys.Length);
+            var dictionary = new Dictionary<TKey, string>(keys.Length);
             if (!Empty(dictionary, keys.Length))
                 return false;
             for (int i = 0; i < keys.Length; i++)
                 Insert(dictionary, keys[i], "v" + i);
-            return CheckMapFilled(dictionary, keys, i => "v" + i, "x", "y");
+            return CheckMapFilled(dictionary, keys, i => "v" + i, absent, added);
         }
 
-        private static bool CheckMapStrings()
+        private static string[] StringKeys()
         {
             var keys = new string[40];
             for (int i = 0; i < keys.Length; i++)
                 keys[i] = "s" + i;
-            var dictionary = new Dictionary<string, string>(keys.Length);
-            if (!Empty(dictionary, keys.Length))
-                return false;
-            for (int i = 0; i < keys.Length; i++)
-                Insert(dictionary, keys[i], "v" + i);
-            return CheckMapFilled(dictionary, keys, i => "v" + i, "x", "y");
+            return keys;
         }
 
         // Every key found with its value, in order, through the public API, which then removes and adds as usual.
@@ -647,28 +621,15 @@ namespace Nino.Core.Internal
             return dictionary.Count == keys.Length && dictionary[added] == "a" && dictionary[keys[3]] == "b";
         }
 
-        private static bool CheckSetReferences()
-        {
-            var items = ReferenceKeys();
-            items[5] = null;
-            var set = new HashSet<object>();
-#if NETSTANDARD2_1 || NET8_0_OR_GREATER
-            set.EnsureCapacity(items.Length);
-#endif
-            if (!Empty(set, items.Length))
-                return false;
-            foreach (var item in items)
-                Insert(set, item);
-            return CheckSetFilled(set, items, "x", "y");
-        }
+        private static bool CheckSetReferences() => CheckSetOf(ReferenceKeys(), "x", "y");
 
-        private static bool CheckSetStrings()
+        private static bool CheckSetStrings() => CheckSetOf(StringKeys(), "x", "y");
+
+        private static bool CheckSetOf<T>(T[] items, T absent, T added)
         {
-            var items = new string[40];
-            for (int i = 0; i < items.Length; i++)
-                items[i] = "s" + i;
-            items[5] = null;
-            var set = new HashSet<string>();
+            // A null item too: a set holds one (a dictionary holds no null key).
+            items[5] = default;
+            var set = new HashSet<T>();
 #if NETSTANDARD2_1 || NET8_0_OR_GREATER
             set.EnsureCapacity(items.Length);
 #endif
@@ -676,7 +637,7 @@ namespace Nino.Core.Internal
                 return false;
             foreach (var item in items)
                 Insert(set, item);
-            return CheckSetFilled(set, items, "x", "y");
+            return CheckSetFilled(set, items, absent, added);
         }
 
         private static bool CheckSetFilled<T>(HashSet<T> set, T[] items, T absent, T added)

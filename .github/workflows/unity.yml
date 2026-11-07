@@ -48,8 +48,8 @@ on:
         required: false
         type: boolean
         default: false
-      ref:
-        description: 'The ref to check out (the release tag); empty for the calling workflow''s commit'
+      tag:
+        description: 'The release tag to check out (vX.Y.Z); empty for the calling workflow''s commit'
         required: false
         type: string
         default: ''
@@ -105,10 +105,19 @@ jobs:
       NINO_CONFIG: ${{ inputs.benchmark && 'Release' || 'Debug' }}
 
     steps:
+      - &check-tag
+        name: Check the release tag
+        if: inputs.tag != ''
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          # Only a release tag (release.yml makes them from main): never a branch or another ref.
+          [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::not a release tag: $TAG"; exit 1; }
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || '' }}
+          ref: ${{ inputs.tag || '' }}
           persist-credentials: false
 
       # The editor's image is some 5.5 GB, and pulling it took over a minute and a half of the editor's test step.
@@ -128,8 +137,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Restored here and saved below only when the job runs the calling workflow's own commit: a run on a release
+      # tag (report.yml) reads the caches and never writes them, so no checked-out ref other than this commit's can
+      # fill a cache the default branch restores (cache poisoning; audit-ci, "Least privilege").
+      - name: Restore NuGet packages
+        id: nuget-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ runner.arch }}-unity-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
@@ -153,11 +166,19 @@ jobs:
           cp "./src/Nino.Generator.CodeFixes/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.CodeFixes.dll" "$runtime/"
           cp "./src/Nino.UnityTypes/bin/$NINO_CONFIG/netstandard2.1/Nino.UnityTypes.dll" "$runtime/"
 
+      - name: Save NuGet packages
+        if: inputs.tag == '' && steps.nuget-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ steps.nuget-cache.outputs.cache-primary-key }}
+
       # Keyed by the project's sources, not by the DLLs the step above built into Packages: those differ in every
       # commit, so every run missed the key and saved another 800 MB per version, which pushed the other caches out
       # of the repository's 10 GB. Unity reimports what changed since the cached Library.
-      - name: Cache Unity Library
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Restore the Unity Library
+        id: library-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: src/Nino.Unity/Library
           key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/ProjectSettings/**', 'src/Nino.Unity/Packages/**', '!src/Nino.Unity/Packages/**/*.dll') }}
@@ -261,6 +282,14 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
+      # After the tests, as actions/cache's own post step saved it: only when they passed.
+      - name: Save the Unity Library
+        if: success() && inputs.tag == '' && steps.library-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: src/Nino.Unity/Library
+          key: ${{ steps.library-cache.outputs.cache-primary-key }}
+
       # The benchmark's results, per Unity version: the player's NUnit results (results.xml), whose test output holds
       # the Performance Testing package's results and run metadata and the player's NINO_UNITY_ENV line, and
       # build.txt: the editor's NINO_UNITY_BUILD line (how the player was built) and this job's NINO_UNITY_CI line.
@@ -334,10 +363,12 @@ jobs:
           - unity: '6000.3.27f1'
             il2cpp_args: ''
     steps:
+      - *check-tag
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || '' }}
+          ref: ${{ inputs.tag || '' }}
           persist-credentials: false
 
       - *setup-dotnet

@@ -23,7 +23,7 @@ namespace Nino.Core.Internal
         public static void Read<T>(ReadOnlySpan<byte> data, ref T value)
         {
             var reader = new Reader(data);
-            NinoTopFormatter<T>.Formatter.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
             End(ref reader);
         }
 
@@ -40,7 +40,7 @@ namespace Nino.Core.Internal
             where TFormatter : struct, INinoFormatter<T>
         {
             var reader = new Reader(data);
-            default(TFormatter).Deserialize(ref value, ref reader);
+            default(TFormatter).Deserialize(ref reader, ref value);
             End(ref reader);
         }
 
@@ -48,7 +48,7 @@ namespace Nino.Core.Internal
         public static void ReadBoxed(ReadOnlySpan<byte> data, ref object value, Type type)
         {
             var reader = new Reader(data);
-            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+            BoxedFormatter.Get(type).Deserialize(ref reader, ref value);
             End(ref reader);
         }
 

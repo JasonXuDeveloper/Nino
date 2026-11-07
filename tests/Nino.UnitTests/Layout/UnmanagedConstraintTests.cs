@@ -10,7 +10,7 @@ namespace Nino.UnitTests;
 /// every unmanaged type, including ones Nino does not write as raw memory (only <c>[NinoRaw]</c> parameters of the
 /// raw formatters require that).
 /// </summary>
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class UnmanagedBox<T> where T : unmanaged
 {
     public T Value;
@@ -26,7 +26,7 @@ public struct TolerantPoint
     public int Y;
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class UnmanagedBoxHolder
 {
     public UnmanagedBox<(int, long)> Tuple;
@@ -35,8 +35,8 @@ public sealed class UnmanagedBoxHolder
 }
 
 // Same shape as RuntimeBox<T>, with the member type known to the generator.
-[NinoType] public sealed class TupleBoxHolder { public UnmanagedBox<(int, long)> Value; }
-[NinoType] public sealed class PointBoxHolder { public UnmanagedBox<TolerantPoint> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class TupleBoxHolder { public UnmanagedBox<(int, long)> Value; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed class PointBoxHolder { public UnmanagedBox<TolerantPoint> Value; }
 
 [TestClass]
 public class UnmanagedConstraintTests

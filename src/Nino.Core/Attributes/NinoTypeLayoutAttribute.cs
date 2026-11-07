@@ -8,8 +8,8 @@ namespace Nino.Core
         /// <summary>Nothing: a struct.</summary>
         None = 0,
 
-        /// <summary>One byte telling null from a value: a sealed class.</summary>
-        NullFlag = 1,
+        /// <summary>A presence byte telling null from a value: a sealed class.</summary>
+        Presence = 1,
 
         /// <summary>The 4-byte type id of the runtime type (0 for null): a class that is not sealed, an interface.</summary>
         TypeId = 2,
@@ -109,25 +109,25 @@ namespace Nino.Core
 
         /// <summary>Used by generated code, which passes every property in order.</summary>
         public NinoTypeLayoutAttribute(Type type, NinoFormat format, NinoHeader header, bool trackReferences,
-            bool raw, int typeId, string members)
+            bool raw, int id, string members)
         {
             Type = type;
             Format = format;
             Header = header;
             TrackReferences = trackReferences;
             Raw = raw;
-            Id = typeId;
+            Id = id;
             Members = members;
         }
 
         /// <summary>
         /// The whole layout in one line, for textual comparison:
-        /// <c>format=...; header=...; trackReferences=...; raw=...; typeId=0x...; deferrable=...; members=...</c>,
+        /// <c>format=...; header=...; trackReferences=...; raw=...; id=0x...; deferrable=...; members=...</c>,
         /// with <c>deferrable</c> only when <see cref="Deferrable"/> was set.
         /// </summary>
         public override string ToString() =>
             $"format={Format}; header={Header}; trackReferences={(TrackReferences ? "true" : "false")}; " +
-            $"raw={(Raw ? "true" : "false")}; typeId=0x{Id:X8}; " +
+            $"raw={(Raw ? "true" : "false")}; id=0x{Id:X8}; " +
             (_deferrableSet ? (_deferrable ? "deferrable=true; " : "deferrable=false; ") : "") +
             $"members={Members}";
     }

@@ -58,7 +58,7 @@ public class TopLevelFastPathTests
     }
 }
 
-[NinoType]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class NullableHolder
 {
     public int?[] Array;

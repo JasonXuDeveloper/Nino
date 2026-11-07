@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
-using Nino.Core;
 
 namespace Nino.AspNetCore
 {
@@ -64,8 +63,7 @@ namespace Nino.AspNetCore
         {
             ArgumentNullException.ThrowIfNull(response);
             response.ContentType = NinoMediaTypes.Application;
-            NinoSerializer.Serialize(value, response.BodyWriter);
-            return NinoBodyReader.FlushAsync(response.BodyWriter, cancellationToken);
+            return NinoBodyWriter.WriteAsync(response.BodyWriter, value, cancellationToken);
         }
     }
 }

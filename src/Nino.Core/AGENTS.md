@@ -29,7 +29,7 @@ Properties.cs                [module: SkipLocalsInit]
 
 ```
 NinoTypeAttribute.cs         [NinoType]: marks a type for the generator (autoCollect, includeNonPublicMembers,
-                             allowInheritance, format, trackReferences)
+                             inheritedBySubtypes, format, trackReferences)
 NinoFormat.cs                NinoFormat: Positional, VersionTolerant, Keyed (also compiled into the generator)
 NinoMemberAttribute.cs       [NinoMember(index)]: selects and orders members under [NinoType(false)]
 NinoIgnoreAttribute.cs       [NinoIgnore]: skips a member a [NinoType] collects
@@ -59,8 +59,8 @@ NinoObject.cs                header handling of generated class formatters: pres
                              then the body; the ...Raw forms write header and raw body into one reservation
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
                              ...Prefetched for arrays and lists of INinoPrefetchFormatter classes)
-NinoBlockMap.cs              NinoBlockMap (where a block's bytes lie in a value's memory) and NinoBlocks (constrained
-                             calls on block formatters)
+NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory
+NinoBlocks.cs                NinoBlocks: constrained calls on block formatters, and the offsets NinoBlockMap is built from
 NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's subtypes by type id
 NinoGeneratedAttribute.cs    [NinoGenerated]: marks an assembly with generated code, names its registry
 INinoRegistry.cs             INinoRegistry: an assembly's generated registry (lazy registration by type id)
@@ -68,6 +68,9 @@ NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered
 NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
                              attributes, or where the runtime drops them (IL2CPP) the marks Nino.Core registers for its
                              own formatters and generated registries for the formatters they register (Register)
+NinoFunctionPointerFields.cs the delegate* fields of structs, by assembly and runtime name, as generated registries
+                             register them (Register, merged across registries): the one source layouts take function
+                             pointers from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, block copies (vector loops, paired loads),
                              ReadBool, array allocation; used by Reader, Writer and generated code
@@ -76,7 +79,7 @@ NinoUnsafe.cs                unaligned little-endian memory access, block copies
 ## Formatters/
 
 ```
-NinoFormatter.cs             INinoFormatter<T>; NinoFormatter<T> and its struct wrappers (StructFormatter,
+NinoFormatter.cs             INinoFormatter<T>; NinoFormatterBase<T> and its struct wrappers (StructFormatter,
                              FixedStructFormatter, TopStructFormatter, NestingFormatter), RawFormatter,
                              INinoSizedFormatter / NinoSized, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
@@ -121,7 +124,7 @@ NinoCallContext.cs           NinoReadContext / NinoWriteContext: back references
 ## Polymorphism/
 
 ```
-NinoPolymorphic.cs           NinoPolymorphic.Register; SubtypeHandler / TrackedSubtypeHandler
+NinoPolymorphic.cs           NinoPolymorphic.TryRegister; SubtypeHandler / TrackedSubtypeHandler
 NinoRegistry.cs              NinoRegistry: runs the generated registries (module initializers, Unity hooks, lazy
                              lookups; re-entrant), Remove for unloaded assemblies
 NinoTypeId.cs                NinoTypeId: FNV-1a type ids of runtime-form type names ([NinoFormerName] replaces it)
@@ -163,7 +166,7 @@ NinoMask.cs                  NinoMask: padding cleared while copying values to t
 NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
                              (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
 NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking,
-                             a struct field's type as layouts see it: delegate* as UIntPtr)
+                             a struct field's type as layouts see it: a registered delegate* as UIntPtr)
 NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,

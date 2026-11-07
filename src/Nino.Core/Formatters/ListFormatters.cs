@@ -32,7 +32,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref TList value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TList value)
         {
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
@@ -100,7 +100,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref TList value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TList value)
         {
             if (!reader.TryReadLengthOrDiscard(ref value, NinoLayout<T>.Size, out int length))
                 return;
@@ -147,7 +147,7 @@ namespace Nino.Core
             NinoNullables<T>.Write(ListAccess.AsSpan<T?>(value), ref writer);
         }
 
-        public void Deserialize(ref TList value, ref Reader reader)
+        public void Deserialize(ref Reader reader, ref TList value)
         {
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;

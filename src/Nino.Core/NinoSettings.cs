@@ -18,8 +18,7 @@ namespace Nino.Core
     /// </para>
     /// <para>
     /// Not settings: formatter, type and polymorphic registrations (made by generated code, see
-    /// <see cref="NinoFormatterAttribute"/>), and <c>WEAK_VERSION_TOLERANCE</c>, a compile-time symbol of the
-    /// project that defines the types.
+    /// <see cref="NinoFormatterAttribute"/>).
     /// </para>
     /// </summary>
     public static class NinoSettings
@@ -56,17 +55,7 @@ namespace Nino.Core
         public static int MaxDepth
         {
             get => _maxDepth;
-            set
-            {
-                if (value < NinoDepth.Inline)
-                    throw new ArgumentOutOfRangeException(nameof(value), value,
-                        $"Nino: the depth limit must be at least {NinoDepth.Inline}.");
-                lock (Lock)
-                {
-                    CheckNotFrozen(nameof(MaxDepth));
-                    _maxDepth = value;
-                }
-            }
+            set => SetLimit(ref _maxDepth, value, nameof(MaxDepth), NinoDepth.Inline);
         }
 
         /// <summary>
@@ -82,17 +71,7 @@ namespace Nino.Core
         public static int MaxCollectionLength
         {
             get => _maxCollectionLength;
-            set
-            {
-                if (value < 0)
-                    throw new ArgumentOutOfRangeException(nameof(value), value,
-                        "Nino: the collection length limit cannot be negative.");
-                lock (Lock)
-                {
-                    CheckNotFrozen(nameof(MaxCollectionLength));
-                    _maxCollectionLength = value;
-                }
-            }
+            set => SetLimit(ref _maxCollectionLength, value, nameof(MaxCollectionLength), 0);
         }
 
         /// <summary>
@@ -119,17 +98,7 @@ namespace Nino.Core
         public static int MaxHashCollisions
         {
             get => _maxHashCollisions;
-            set
-            {
-                if (value < 1)
-                    throw new ArgumentOutOfRangeException(nameof(value), value,
-                        "Nino: the hash collision limit must be at least 1.");
-                lock (Lock)
-                {
-                    CheckNotFrozen(nameof(MaxHashCollisions));
-                    _maxHashCollisions = value;
-                }
-            }
+            set => SetLimit(ref _maxHashCollisions, value, nameof(MaxHashCollisions), 1);
         }
 
         /// <summary>
@@ -162,23 +131,30 @@ namespace Nino.Core
         public static bool Untrusted
         {
             get => _untrusted;
-            set
+            set => SetLimit(ref _untrusted, value, nameof(Untrusted));
+        }
+
+        /// <summary>Sets a limit, unless read and write paths have already taken the limits as constants.</summary>
+        private static void SetLimit<T>(ref T field, T value, string name)
+        {
+            lock (Lock)
             {
-                lock (Lock)
-                {
-                    CheckNotFrozen(nameof(Untrusted));
-                    _untrusted = value;
-                }
+                if (_frozen)
+                    throw new InvalidOperationException(
+                        $"Nino: NinoSettings.{name} must be set before the first serialization or deserialization: " +
+                        "read and write paths have already taken it as a constant.");
+                field = value;
             }
         }
 
-        private static void CheckNotFrozen(string name)
-        {
-            if (_frozen)
-                throw new InvalidOperationException(
-                    $"Nino: NinoSettings.{name} must be set before the first serialization or deserialization: " +
-                    "read and write paths have already taken it as a constant.");
-        }
+        private static void SetLimit(ref int field, int value, string name, int min) =>
+            SetLimit(ref field, AtLeast(value, min, name), name);
+
+        private static int AtLeast(int value, int min, string name) =>
+            value >= min
+                ? value
+                : throw new ArgumentOutOfRangeException(nameof(value), value,
+                    $"Nino: {name} must be at least {min}.");
 
         /// <summary>The limits as they are now, from now on fixed (<see cref="NinoLimits"/>).</summary>
         internal static Snapshot Freeze()
@@ -214,7 +190,7 @@ namespace Nino.Core
         public static int PoolMaxRetained
         {
             get => _poolMaxRetained;
-            set => _poolMaxRetained = CheckMaxRetained(value);
+            set => _poolMaxRetained = AtLeast(value, 0, nameof(PoolMaxRetained));
         }
 
         /// <summary>
@@ -222,7 +198,7 @@ namespace Nino.Core
         /// collector. Each thread additionally keeps up to 64 of its own.
         /// </summary>
         public static void SetPoolMaxRetained<T>(int maxRetained) where T : class, INinoPooled =>
-            NinoPool<T>.Shared.MaxRetained = CheckMaxRetained(maxRetained);
+            NinoPool<T>.Shared.MaxRetained = AtLeast(maxRetained, 0, nameof(maxRetained));
 
         /// <summary>
         /// Registers the handler that reuse deserialization calls with each instance it drops from a slot (member,
@@ -232,12 +208,5 @@ namespace Nino.Core
         /// the deserialized object graph.
         /// </summary>
         public static void SetRecycler<T>(Action<T> handler) => NinoRecycler<T>.Handler = handler;
-
-        private static int CheckMaxRetained(int value)
-        {
-            if (value < 0)
-                throw new ArgumentOutOfRangeException(nameof(value));
-            return value;
-        }
     }
 }

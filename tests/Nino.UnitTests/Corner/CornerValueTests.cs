@@ -29,7 +29,7 @@ namespace Nino.UnitTests
         All = A | B | C,
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class EnumHolder
     {
         public EByte B;
@@ -47,7 +47,7 @@ namespace Nino.UnitTests
         public Dictionary<EUShort, ELong> Map;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class ScalarHolder
     {
         public bool T, F;
@@ -75,7 +75,7 @@ namespace Nino.UnitTests
     }
 
     // Written member by member in this (version tolerant) assembly: the same values must round-trip.
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public struct MemberwisePadded
     {
         public byte A;
@@ -83,7 +83,7 @@ namespace Nino.UnitTests
         public short C;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class StringHolder
     {
         public string Utf16;

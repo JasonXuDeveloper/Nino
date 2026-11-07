@@ -6,7 +6,7 @@
   "exercises": "[NinoUtf8]: the byte count 1 written in five bytes (81 01 00 00 00).",
   "size": 8,
   "layouts": {
-    "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8"
+    "Conformance.Targets.Utf8Value": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x49EFED16; deferrable=true; members=Value:string:utf8"
   },
   "dotnet": {
     "outcome": "error",

@@ -73,8 +73,7 @@ internal static class ModelBuilder
             Kind: kind,
             TypeId: typeId,
             NameId: nameId,
-            VersionTolerant: shape.Tolerant,
-            Keyed: attr.Keyed,
+            Format: shape.Format,
             TrackReferences: trackReferences,
             RawStruct: rawStruct,
             Collection: collection is { } sc
@@ -332,7 +331,7 @@ internal static class ModelBuilder
     {
         if (type.TypeKind != TypeKind.Class || attr.Keyed || type.BaseType is not { } baseType ||
             !facts.IsDelegatable(baseType) || baseType.GetNinoTypeOptions() is not { } baseAttr ||
-            facts.IsTolerant(baseAttr) != facts.IsTolerant(attr) || SharedInstance(baseType))
+            baseAttr.Format != attr.Format || SharedInstance(baseType))
             return 0;
         var baseSymbols = facts.Members.Of(baseType, baseAttr);
         if (baseSymbols.Count > symbols.Count ||
@@ -512,7 +511,7 @@ internal static class ModelBuilder
         bool registered = false;
         bool readsLoop = false;
         FormatterTraits traits;
-        var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
+        var custom = known.CustomFormatterOf(symbol);
         var customType = custom is { ConstructorArguments: { Length: > 0 } args } ? args[0].Value as INamedTypeSymbol : null;
         if (customType != null && !known.IsCustomFormatterOf(customType, memberType))
             return null; // NINO008, reported by the analyzer
@@ -538,7 +537,7 @@ internal static class ModelBuilder
         }
         else
         {
-            bool utf8 = NinoSymbols.Has(symbol, known.Utf8);
+            bool utf8 = known.WritesUtf8(symbol);
             var resolved = facts.Resolver.Resolve(memberType, utf8);
             formatter = resolved?.Code;
             registered = resolved?.Registered == true;
@@ -558,6 +557,9 @@ internal static class ModelBuilder
                 type.ToDisplayString(), "", "the member is skipped");
             return null;
         }
+
+        if (diagnostics != null)
+            ReportUtf8(symbol, type, memberType, custom, encoding, facts, diagnostics);
 
         // The member is written, but a generic [NinoType] in its type cannot write what it holds (Box<Action>): its
         // formatter takes CachedFormatter<Action>, which throws for every value. Only the analyzer asks.
@@ -635,7 +637,41 @@ internal static class ModelBuilder
             ShallowFormatter: shallowFormatter ?? formatter,
             Fresh: custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
                    (traits & replaces) == 0 && StartsDefault(symbol, ct),
-            ReadsLoop: raw == null && readsLoop);
+            ReadsLoop: raw == null && readsLoop,
+            PlainStore: symbol is IFieldSymbol || symbol is IPropertySymbol property && IsAutoProperty(property));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="property"/>'s setter only stores the value: declared <c>set;</c> or <c>init;</c> in
+    /// source (an auto-property, also one whose getter uses <c>field</c>), or marked compiler-generated in a
+    /// referenced assembly. A setter with a body may do more (notify, validate) and is always called.
+    /// </summary>
+    private static bool IsAutoProperty(IPropertySymbol property)
+    {
+        var setter = property.SetMethod;
+        if (setter == null)
+            return false;
+        var references = setter.DeclaringSyntaxReferences;
+        if (references.Length == 0)
+        {
+            foreach (var attribute in setter.GetAttributes())
+            {
+                if (attribute.AttributeClass is { Name: "CompilerGeneratedAttribute" } attributeClass &&
+                    attributeClass.ContainingNamespace?.ToDisplayString() == "System.Runtime.CompilerServices")
+                    return true;
+            }
+
+            return false;
+        }
+
+        foreach (var reference in references)
+        {
+            if (reference.GetSyntax() is not Microsoft.CodeAnalysis.CSharp.Syntax.AccessorDeclarationSyntax
+                { Body: null, ExpressionBody: null })
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -658,11 +694,17 @@ internal static class ModelBuilder
                     return null;
                 if (named.OriginalDefinition.GetNinoTypeOptions() != null)
                 {
-                    var written = facts.WrittenParameters.ArgumentsOf(named).ToList();
-                    foreach (var argument in written)
+                    var written = new List<ITypeSymbol>();
+                    foreach (var (value, inside) in facts.WrittenParameters.ValuesOf(named))
                     {
-                        if (facts.Resolver.Resolve(argument, false) == null)
-                            return (argument, named);
+                        // A value WrittenParameters could not follow: every type inside it may be written.
+                        foreach (var candidate in inside ? TypesInside(value) : new[] { value })
+                        {
+                            if (facts.Resolver.Resolve(candidate, false) == null)
+                                return (candidate, named);
+                        }
+
+                        written.Add(value);
                     }
 
                     arguments = written;
@@ -677,6 +719,23 @@ internal static class ModelBuilder
                 return null;
             default:
                 return null;
+        }
+    }
+
+    /// <summary><paramref name="type"/> and every type inside it: elements and type arguments, at any depth.</summary>
+    private static IEnumerable<ITypeSymbol> TypesInside(ITypeSymbol type)
+    {
+        yield return type;
+        var inner = type switch
+        {
+            IArrayTypeSymbol array => new[] { array.ElementType },
+            INamedTypeSymbol named => AllTypeArguments(named),
+            _ => (IReadOnlyList<ITypeSymbol>)System.Array.Empty<ITypeSymbol>(),
+        };
+        foreach (var part in inner)
+        {
+            foreach (var inside in TypesInside(part))
+                yield return inside;
         }
     }
 
@@ -819,7 +878,8 @@ internal static class ModelBuilder
         {
             foreach (var other in t.GetMembers(member.Name))
             {
-                if (visible(other) && !Overrides(other, member))
+                if (visible(other) &&
+                    !NinoSymbols.OverriddenProperties(other).Any(p => SymbolEqualityComparer.Default.Equals(p, member)))
                     return true;
             }
         }
@@ -827,14 +887,31 @@ internal static class ModelBuilder
         return false;
     }
 
-    private static bool Overrides(ISymbol other, ISymbol member)
+    /// <summary>
+    /// NINO031 for a <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> (written as <c>[NinoUtf8]</c>, which it
+    /// is read as), else NINO030 for a <c>[NinoUtf8]</c> that changes nothing: a <c>[NinoMemberFormatter]</c> writes the
+    /// member, or its <paramref name="encoding"/> is what it would be without the attribute (no string the resolver
+    /// writes is in the member's type, as in a <c>[NinoType]</c> or an <c>int</c>).
+    /// </summary>
+    private static void ReportUtf8(ISymbol symbol, INamedTypeSymbol type, ITypeSymbol memberType, AttributeData? custom,
+        string encoding, TypeFacts facts, DiagnosticSink diagnostics)
     {
-        for (var p = (other as IPropertySymbol)?.OverriddenProperty; p != null; p = p.OverriddenProperty)
+        var known = facts.Symbols;
+        if (NinoSymbols.Get(symbol, known.CustomFormatter) is { } formatter && known.IsUtf8Formatter(symbol, formatter))
         {
-            if (SymbolEqualityComparer.Default.Equals(p, member))
-                return true;
+            diagnostics.Report(NinoDiagnostics.Utf8FormatterByHand, formatter, symbol, symbol.Name,
+                type.ToDisplayString());
+            return;
         }
 
-        return false;
+        if (NinoSymbols.Get(symbol, known.Utf8) is not { } utf8)
+            return;
+        string? reason = custom != null ? "its [NinoMemberFormatter] writes it"
+            : facts.Resolver.Resolve(memberType, false)?.Encoding == encoding
+                ? $"its type '{memberType.ToDisplayString()}' holds no string Nino writes"
+                : null;
+        if (reason != null)
+            diagnostics.Report(NinoDiagnostics.Utf8WithoutEffect, utf8, symbol, symbol.Name, type.ToDisplayString(),
+                reason);
     }
 }

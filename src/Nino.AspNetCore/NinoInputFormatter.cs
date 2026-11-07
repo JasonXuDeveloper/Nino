@@ -13,7 +13,7 @@ namespace Nino.AspNetCore
     {
         public NinoInputFormatter() => SupportedMediaTypes.Add(NinoMediaTypes.Application);
 
-        protected override bool CanReadType(Type type) => NinoBodyReader.IsSupported(type);
+        protected override bool CanReadType(Type type) => NinoSupportedTypes.IsSupported(type);
 
         public override async Task<InputFormatterResult> ReadRequestBodyAsync(InputFormatterContext context)
         {

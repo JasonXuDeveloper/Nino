@@ -60,6 +60,17 @@ public struct Inner
     public long L;
 }
 
+/// <summary>
+/// A raw struct holding a function pointer, which reflection may not describe under NativeAOT: its layout comes from the
+/// generated registry (NinoFunctionPointerFields).
+/// </summary>
+public unsafe struct Callbacks
+{
+    public byte A;
+    public delegate*<int> F;
+    public nint N;
+}
+
 public struct Vec2
 {
     public int A;
@@ -351,6 +362,15 @@ public static class Program
               && wr2.Vs[0].In.L == 9 && wr2.Ps[0].C == 4, "raw structs with padding");
         var pd = NinoDeserializer.Deserialize<Padded>(Ser(new Padded { A = 5, B = 6, C = 7 }));
         Check(pd.A == 5 && pd.B == 6 && pd.C == 7, "padded raw NinoType struct top level");
+
+        unsafe
+        {
+            // The function pointer zero-extended, the nint sign-extended: the bytes of every runtime (spec §5.2).
+            var cb = Ser(new Callbacks { A = 1, F = (delegate*<int>)(nuint)0x87654321u, N = -2 });
+            var cbBack = NinoDeserializer.Deserialize<Callbacks>(cb);
+            Check(Convert.ToHexString(cb) == "01000000000000002143658700000000FEFFFFFFFFFFFFFF" &&
+                  (nuint)cbBack.F == 0x87654321u && cbBack.N == -2, "raw struct with a function pointer");
+        }
 
         var fr = new Frozen
         {

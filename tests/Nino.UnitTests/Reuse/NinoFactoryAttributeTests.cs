@@ -10,7 +10,7 @@ public class NinoFactoryAttributeTests
 {
     private static int _poolCallCount = 0;
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PooledClass
     {
         [NinoFactory]
@@ -27,7 +27,7 @@ public class NinoFactoryAttributeTests
         public bool WasPooled;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class NestedPooledClass
     {
         [NinoFactory]
@@ -43,14 +43,14 @@ public class NinoFactoryAttributeTests
         public bool PoolCreated;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class RegularClass
     {
         public int Value;
         public string Name;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class GenericPooledClass<T>
     {
         [NinoFactory]
@@ -67,7 +67,7 @@ public class NinoFactoryAttributeTests
     }
 
     // Polymorphic test classes
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class BasePooledClass
     {
         private static int _basePoolCallCount = 0;
@@ -91,7 +91,7 @@ public class NinoFactoryAttributeTests
         public static void ResetBasePoolCallCount() => _basePoolCallCount = 0;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DerivedPooledClass : BasePooledClass
     {
         private static int _derivedPoolCallCount = 0;
@@ -115,7 +115,7 @@ public class NinoFactoryAttributeTests
         public static void ResetDerivedPoolCallCount() => _derivedPoolCallCount = 0;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DerivedWithoutPoolClass : BasePooledClass
     {
         public int DerivedData;
@@ -124,7 +124,7 @@ public class NinoFactoryAttributeTests
         public string[] DerivedStringArray;
     }
 
-    [NinoType]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class PolymorphicContainer
     {
         public BasePooledClass BaseField;
