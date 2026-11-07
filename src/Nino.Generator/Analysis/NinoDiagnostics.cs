@@ -7,7 +7,7 @@ namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-031), features (014-017, 024, 026-027, 032), pooling
+/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-031, 033), features (014-017, 024, 026-027, 032), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -90,6 +90,10 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor Utf8FormatterByHand = Info("NINO031", "Use [NinoUtf8]",
         "Member '{0}' of NinoType '{1}' names Utf8StringFormatter, which is for generated code; mark it [NinoUtf8] instead (the same bytes)");
+
+    public static readonly DiagnosticDescriptor InterfaceMemberAttribute = Warning("NINO033",
+        "Attribute on an interface member has no effect",
+        "[{0}] on member '{1}' of interface '{2}' has no effect: implementing types write their own member, with its own attributes; put it on the implementing member instead");
 
     /// <summary>The <c>{2}</c> of <see cref="HostSizedVector"/>: what <paramref name="type"/> is or holds.</summary>
     public static string HoldsVector(ITypeSymbol type, ITypeSymbol vector) =>

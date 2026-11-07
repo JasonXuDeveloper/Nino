@@ -292,7 +292,10 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         }
 
         ReportFormerNames(sink, type, facts.Symbols);
-        ReportUtf8(sink, type, attr, facts, findings);
+        if (type.TypeKind == TypeKind.Interface)
+            ReportInterfaceAttributes(sink, type, facts.Symbols, findings);
+        else
+            ReportUtf8(sink, type, attr, facts, findings);
 
         int duplicates = 0;
         foreach (var finding in findings)
@@ -300,10 +303,40 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
+    /// NINO033: <c>[NinoUtf8]</c>, <c>[NinoMemberFormatter]</c> or <c>[NinoIgnore]</c> on a member of an interface.
+    /// Implementing types write their own member with its own attributes (the generator's <see cref="MemberCollector"/>
+    /// takes the interface member's <c>[NinoMember]</c> index only), so each is reported, once, where it is written. A
+    /// member with a finding of its own is left to it, as in <see cref="ReportUtf8"/>, except that its <c>[NinoUtf8]</c> is
+    /// never serialized: the interface's members are not what implementations write.
+    /// </summary>
+    private static void ReportInterfaceAttributes(DiagnosticSink sink, INamedTypeSymbol type, NinoSymbols known,
+        IReadOnlyList<MemberFinding> findings)
+    {
+        foreach (var member in type.GetMembers())
+        {
+            if (member is not (IFieldSymbol or IPropertySymbol) || member.IsImplicitlyDeclared ||
+                findings.Any(f => f.Kind != MemberFindingKind.Utf8NotSerialized &&
+                                  SymbolEqualityComparer.Default.Equals(f.Member, member)))
+                continue;
+            foreach (var attribute in member.GetAttributes())
+            {
+                var name = attribute.AttributeClass;
+                if (SymbolEqualityComparer.Default.Equals(name, known.Utf8) ||
+                    SymbolEqualityComparer.Default.Equals(name, known.CustomFormatter) ||
+                    SymbolEqualityComparer.Default.Equals(name, known.Ignore))
+                    sink.Report(NinoDiagnostics.InterfaceMemberAttribute, attribute, member,
+                        name!.Name.Substring(0, name.Name.Length - "Attribute".Length), member.Name,
+                        type.ToDisplayString());
+            }
+        }
+    }
+
+    /// <summary>
     /// The UTF-8 attributes of the members <paramref name="type"/> declares: NINO031 for a
     /// <c>[NinoMemberFormatter(typeof(Utf8StringFormatter))]</c> (read as <c>[NinoUtf8]</c>), NINO030 for a
     /// <c>[NinoUtf8]</c> on a serialized member that changes nothing (one on a member never serialized is a
-    /// <see cref="MemberFindingKind.Utf8NotSerialized"/> finding). Reported once, by the declaring type, abstract or not.
+    /// <see cref="MemberFindingKind.Utf8NotSerialized"/> finding). Reported once, by the declaring type, abstract or not;
+    /// an interface's are NINO033 (<see cref="ReportInterfaceAttributes"/>).
     /// </summary>
     private static void ReportUtf8(DiagnosticSink sink, INamedTypeSymbol type, NinoTypeOptions attr, TypeFacts facts,
         IReadOnlyList<MemberFinding> findings)
@@ -332,16 +365,13 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Why <c>[NinoUtf8]</c> changes nothing on a serialized <paramref name="member"/>: it is an interface's, a
+    /// Why <c>[NinoUtf8]</c> changes nothing on a serialized <paramref name="member"/> of a class or struct: a
     /// <c>[NinoMemberFormatter]</c> writes it, or the formatter Nino resolves for its type is the same with and without it (the generator's
     /// <see cref="FormatterResolver"/> decides). Null when it takes effect, or when the type has no formatter (NINO007,
     /// NINO029).
     /// </summary>
     private static string? Utf8WithoutEffect(ISymbol member, TypeFacts facts)
     {
-        // An interface's members are written as the implementing type's members, with their own attributes.
-        if (member.ContainingType.TypeKind == TypeKind.Interface)
-            return "implementing types write their own member, with its own attributes; mark that member instead";
         if (facts.Symbols.HasCustomFormatter(member))
             return "its [NinoMemberFormatter] writes it";
         var type = MemberCollector.MemberType(member)!;
@@ -409,7 +439,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 var declared = (member as IFieldSymbol)?.AssociatedMember() ?? member;
                 sink.Report(NinoDiagnostics.NotSerializableMember, declared, declared.Name, type.Name, finding.Reason!);
                 break;
-            case MemberFindingKind.Utf8NotSerialized:
+            // An interface's [NinoUtf8] is NINO033's, whatever the interface collects: implementations write theirs.
+            case MemberFindingKind.Utf8NotSerialized when type.TypeKind != TypeKind.Interface:
                 sink.Report(NinoDiagnostics.Utf8WithoutEffect, NinoSymbols.Get(member, known.Utf8)!, member, member.Name,
                     type.ToDisplayString(), finding.Reason!);
                 break;

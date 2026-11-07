@@ -12,6 +12,7 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
+using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.CodeAnalysis.Text;
@@ -145,7 +146,8 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
             ? identifier.Identifier.ValueText
             : null;
 
-    public override ImmutableArray<string> FixableDiagnosticIds { get; } = Fixes.Keys.ToImmutableArray();
+    public override ImmutableArray<string> FixableDiagnosticIds { get; } =
+        Fixes.Keys.Append(NinoDiagnostics.InterfaceMemberAttribute.Id).ToImmutableArray();
 
     public override FixAllProvider GetFixAllProvider() => WellKnownFixAllProviders.BatchFixer;
 
@@ -157,6 +159,12 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
 
         foreach (var diagnostic in context.Diagnostics)
         {
+            if (diagnostic.Id == NinoDiagnostics.InterfaceMemberAttribute.Id)
+            {
+                await RegisterMoveToImplementationsAsync(context, root, diagnostic).ConfigureAwait(false);
+                continue;
+            }
+
             if (!Fixes.TryGetValue(diagnostic.Id, out var fixes))
                 continue;
             var span = diagnostic.Location.SourceSpan;
@@ -178,6 +186,94 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         apply(editor, editor.OriginalRoot.FindNode(span, getInnermostNodeForTie: true));
         return await FormatAsync(editor.GetChangedDocument(), await document.GetTextAsync(ct).ConfigureAwait(false), ct)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// NINO033: the attribute of an interface member goes to the members implementing it implicitly in the solution's
+    /// source, which the generator writes (one that has an attribute of its class already keeps its own), and leaves the
+    /// interface, where it has no effect; with no such member, the fix removes it. Names are written in full and
+    /// reduced by the simplifier, so the attribute compiles in a file without <c>using Nino.Core;</c> or under an
+    /// alias. One key, so fixing all moves every one at once.
+    /// </summary>
+    private static async Task RegisterMoveToImplementationsAsync(CodeFixContext context, SyntaxNode root,
+        Diagnostic diagnostic)
+    {
+        var document = context.Document;
+        var ct = context.CancellationToken;
+        if (root.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true).AncestorsAndSelf()
+                .OfType<AttributeSyntax>().FirstOrDefault() is not { } syntax ||
+            await document.GetSemanticModelAsync(ct).ConfigureAwait(false) is not { } model ||
+            model.GetDeclaredSymbol(Member(syntax), ct) is not { } member ||
+            member.GetAttributes().FirstOrDefault(a => a.ApplicationSyntaxReference is { } r &&
+                                                      r.SyntaxTree == syntax.SyntaxTree && r.Span == syntax.Span)
+                is not { AttributeClass: { } attributeClass } attribute)
+            return;
+
+        var implementations = new List<ISymbol>();
+        foreach (var implementation in await SymbolFinder.FindImplementationsAsync(member, document.Project.Solution,
+                     cancellationToken: ct).ConfigureAwait(false))
+        {
+            if (implementation is IPropertySymbol { ExplicitInterfaceImplementations.IsEmpty: true } &&
+                implementation.DeclaringSyntaxReferences.Length != 0 &&
+                !implementation.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attributeClass)))
+                implementations.Add(implementation);
+        }
+
+        string name = attributeClass.Name.Substring(0, attributeClass.Name.Length - "Attribute".Length);
+        string title = implementations.Count == 0 ? $"Remove [{name}]" : $"Move [{name}] to the implementing members";
+        context.RegisterCodeFix(CodeAction.Create(title,
+                c => MoveToImplementationsAsync(document, syntax.Span, name, Copy(attribute), implementations, c),
+                diagnostic.Id + "MoveToImplementations"),
+            diagnostic);
+    }
+
+    /// <summary><paramref name="attribute"/> as an attribute with every name in full, for the simplifier to reduce.</summary>
+    private static AttributeSyntax Copy(AttributeData attribute)
+    {
+        static TypeSyntax FullName(ITypeSymbol type) => SyntaxFactory
+            .ParseTypeName(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+            .WithAdditionalAnnotations(Simplifier.Annotation);
+
+        var arguments = attribute.ConstructorArguments.Select(a => SyntaxFactory.AttributeArgument(
+            a is { Kind: TypedConstantKind.Type, Value: ITypeSymbol type }
+                ? SyntaxFactory.TypeOfExpression(FullName(type))
+                : SyntaxFactory.ParseExpression(a.ToCSharpString()))).ToList();
+        var copy = SyntaxFactory.Attribute((NameSyntax)FullName(attribute.AttributeClass!));
+        return arguments.Count == 0
+            ? copy
+            : copy.WithArgumentList(SyntaxFactory.AttributeArgumentList(SyntaxFactory.SeparatedList(arguments)));
+    }
+
+    private static async Task<Solution> MoveToImplementationsAsync(Document document, TextSpan span, string name,
+        AttributeSyntax attribute, List<ISymbol> implementations, CancellationToken ct)
+    {
+        var solution = document.Project.Solution;
+        var editor = new SolutionEditor(solution);
+        var interfaceEditor = await editor.GetDocumentEditorAsync(document.Id, ct).ConfigureAwait(false);
+        RemoveAttribute(interfaceEditor, interfaceEditor.OriginalRoot.FindNode(span, getInnermostNodeForTie: true), name);
+        foreach (var implementation in implementations)
+        {
+            var reference = implementation.DeclaringSyntaxReferences[0];
+            if (solution.GetDocumentId(reference.SyntaxTree) is not { } id)
+                continue;
+            var target = await editor.GetDocumentEditorAsync(id, ct).ConfigureAwait(false);
+            var declaration = await reference.GetSyntaxAsync(ct).ConfigureAwait(false);
+            // A record's positional parameter declares the property through an attribute on the property target.
+            target.ReplaceNode(declaration, (current, generator) => (current is ParameterSyntax parameter
+                ? parameter.AddAttributeLists(SyntaxFactory.AttributeList(
+                    SyntaxFactory.AttributeTargetSpecifier(SyntaxFactory.Token(SyntaxKind.PropertyKeyword)),
+                    SyntaxFactory.SingletonSeparatedList(attribute)))
+                : generator.AddAttributes(current, attribute)).WithAdditionalAnnotations(Formatter.Annotation));
+        }
+
+        var changed = editor.GetChangedSolution();
+        foreach (var id in changed.GetChanges(solution).GetProjectChanges().SelectMany(p => p.GetChangedDocuments()))
+        {
+            var original = await solution.GetDocument(id)!.GetTextAsync(ct).ConfigureAwait(false);
+            changed = (await FormatAsync(changed.GetDocument(id)!, original, ct).ConfigureAwait(false)).Project.Solution;
+        }
+
+        return changed;
     }
 
     /// <summary>

@@ -1674,9 +1674,8 @@ public class OptIn
     [TestMethod]
     public async Task NINO030_NINO031_OncePerMember()
     {
-        // Reported by the type declaring the member (an interface or abstract class too), however many types write it.
-        const string Interface =
-            "implementing types write their own member, with its own attributes; mark that member instead";
+        // Reported by the type declaring the member (an interface or abstract class too), however many types write it;
+        // an interface's [NinoUtf8] is NINO033's.
         var code = @"
 using Nino.Core;
 
@@ -1713,12 +1712,136 @@ public struct Point
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO030").WithLocation(0).WithArguments("Sides", "IShape", Interface),
-            Verify.Diagnostic("NINO030").WithLocation(4).WithArguments("Name", "IShape", Interface),
+            Verify.Diagnostic("NINO033").WithLocation(0).WithArguments("NinoUtf8", "Sides", "IShape"),
+            Verify.Diagnostic("NINO033").WithLocation(4).WithArguments("NinoUtf8", "Name", "IShape"),
             Verify.Diagnostic("NINO030").WithLocation(1).WithArguments("A", "Base", "its type 'int' holds no string"),
             Verify.Diagnostic("NINO031").WithLocation(2).WithArguments("S", "Base"),
             Verify.Diagnostic("NINO030").WithLocation(3).WithArguments("X", "Point", "its type 'int' holds no string"))
             .RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO033_InterfaceMemberAttributes()
+    {
+        // Every implementation writes its own member with its own attributes: a class, a struct, a base class
+        // implementing it for its subtypes. Reported once, where the attribute is, implemented or not.
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    [{|#0:NinoUtf8|}] string Name { get; set; }
+    [{|#1:NinoMemberFormatter(typeof(Compact))|}] int Sides { get; set; }
+    [{|#2:NinoIgnore|}] int Cache { get; set; }
+    [{|#3:Nino.Core.NinoIgnoreAttribute|}, {|#4:NinoUtf8|}] string Label { get; set; }
+}
+
+public class Square : IShape
+{
+    public string Name { get; set; }
+    public int Sides { get; set; }
+    public int Cache { get; set; }
+    public string Label { get; set; }
+}
+
+public struct Dot : IShape
+{
+    public string Name { get; set; }
+    public int Sides { get; set; }
+    public int Cache { get; set; }
+    public string Label { get; set; }
+}
+
+public abstract class ShapeBase : IShape
+{
+    public string Name { get; set; }
+    public int Sides { get; set; }
+    public int Cache { get; set; }
+    public string Label { get; set; }
+}
+
+public sealed class Circle : ShapeBase
+{
+    public double Radius;
+}
+
+[NinoType]
+public interface IUnimplemented
+{
+    [{|#5:NinoUtf8|}] string Name { get; set; }
+}
+
+public struct Compact : INinoFormatter<int>
+{
+    public void Serialize(int value, ref Writer writer) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO033").WithLocation(0).WithArguments("NinoUtf8", "Name", "IShape"),
+            Verify.Diagnostic("NINO033").WithLocation(1).WithArguments("NinoMemberFormatter", "Sides", "IShape"),
+            Verify.Diagnostic("NINO033").WithLocation(2).WithArguments("NinoIgnore", "Cache", "IShape"),
+            Verify.Diagnostic("NINO033").WithLocation(3).WithArguments("NinoIgnore", "Label", "IShape"),
+            Verify.Diagnostic("NINO033").WithLocation(4).WithArguments("NinoUtf8", "Label", "IShape"),
+            Verify.Diagnostic("NINO033").WithLocation(5).WithArguments("NinoUtf8", "Name", "IUnimplemented"))
+            .RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO033_NotForAttributesThatTakeEffect()
+    {
+        // An interface's [NinoMember(index)] places the implementing member; attributes on the implementing members,
+        // an explicit implementation's or a plain interface's are not NINO033's; a member with a finding of its own
+        // ([NinoIgnore] in an autoCollect: false interface, NINO011; an invalid formatter, NINO008) is left to it.
+        var code = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false)]
+public interface IIndexed
+{
+    [NinoMember(1)] int Second { get; set; }
+    [NinoMember(0)] int First { get; set; }
+    [NinoIgnore] int {|#0:Cache|} { get; set; }
+    [NinoMember(2)] [NinoMemberFormatter(typeof(Compact))] string {|#1:Text|} { get; set; }
+}
+
+public class Indexed : IIndexed
+{
+    public int Second { get; set; }
+    public int First { get; set; }
+    public int Cache { get; set; }
+    public string Text { get; set; }
+}
+
+[NinoType]
+public interface IExplicit
+{
+    int Count { get; set; }
+}
+
+public class Explicit : IExplicit
+{
+    [NinoMemberFormatter(typeof(Compact))] int IExplicit.Count { get; set; }
+}
+
+public interface IPlain
+{
+    [NinoUtf8] string Name { get; set; }
+}
+
+public struct Compact : INinoFormatter<int>
+{
+    public void Serialize(int value, ref Writer writer) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO011").WithLocation(0).WithArguments("Cache", "IIndexed"),
+            Verify.Diagnostic("NINO008").WithLocation(1)
+                .WithArguments("Compact", "string", "Text", "IIndexed")).RunAsync();
     }
 
     [TestMethod]
