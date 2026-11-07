@@ -31,7 +31,16 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   characters, used once or not); a non-generic formatter stays its type name, which is what a reader wants. The
   generated types lose `global::NinoGen.` there (every body is in that namespace), and a formatter names its own
   twins `__Top` / `__Shallow`. A text-based alias matches whole names at both ends: the struct's own declaration
-  once became `struct __NinoF0` when a self-holding type's formatter was a candidate.
+  once became `struct __NinoF0` when a self-holding type's formatter was a candidate. Member formatters are numbered in member order and
+  declared without `global::NinoGen.` (alias declarations are inside the namespace too); the inlining attributes are
+  `[__NinoInline(AggressiveInlining)]` through `using static ...MethodImplOptions` (round 129: 4% of the unit tests'
+  output was the second alias's name).
+- **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
+  pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
+  signature generated code repeats is written once in `Signature`.
+- **Layout**: a statement per line, as a formatter would leave it (no `{ int id = ...; if (...) { ... } }` on one
+  line); a method with nothing to decide is one line (`=> NinoSubtypes<T>.Serialize(...)`: the dispatch of a base
+  with no subtype in the assembly, nearly all of them).
 - **No line that does nothing**: no identity copy, no unread local, no empty method, no `x = default` the
   constructor gives, no parameter nobody reads. Each local also counts toward the JIT's tracking limit.
 - **Say a value once**: constants in place, setup that does not change per member written once, a table declared once
@@ -91,7 +100,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   as keyed types) on both, `ilspycmd -il <dll> > side.il` (a dotnet tool), and `diff`: empty. The test DLL holds the
   tests too, so drop the `// Method begins at RVA` lines and compare the IL of each `NinoGen` class; a changed
   test moves every RVA after it. `diff -rB` of the two `generated/` folders shows what changed beyond blank lines. (`-p:DebugType=none`
-  to compare the DLLs' bytes fails: Nino.Core embeds its sources.) Save the base side's `.il`, generated files and
+  to compare the DLLs' bytes fails: Nino.Core embeds its sources.) An intended IL change (a parameter order) is proven by comparing per method (split at `.method` and `// end of method`): only the methods that name it differ (round 129: 418 of the unit tests', all calling or being `ReadMembers`). Save the base side's `.il`, generated files and
   `asm.py dump` JSON once, then compare each commit against them.
 - IL changes: the Tier1 listings of the benchmark types identical or better (`asm.py compare`), else runner A/B
   (`benchmark`). A whole-suite `asm.py diff` also lists methods the change cannot reach (PGO varies run to run):
