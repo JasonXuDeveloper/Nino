@@ -586,8 +586,8 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
      compilation or the definition's assembly, with the arguments the slot gives them (`ListShelf<T> : Shelf<T>`:
      `ListShelf<string>`; a definition whose constraints the arguments may not meet is left out): data another
      process wrote names them by id, though no code here does. They are cases of the same lazy by-id dispatch (`NinoGenUsages`), under the closed type's id
-     (`[NinoFormerName]` types also under the name id): `NinoFormatterCache<Box<int>>.TryRegister<Box_1Formatter<int>>()`
-     and `NinoPolymorphic.Register<Box<int>, Box_1Formatter<int>>(id)`, so AOT runtimes have the instantiation and a
+     (`[NinoFormerName]` types also under the name id): `NinoTypes.Register<Box<int>, Box_1Formatter<int>>(id)`, which
+     registers the formatter and the subtype handler in one call, so AOT runtimes have the instantiation and a
      reader can map the id back to the type without having seen it. Closed types of a generic `[NinoType]` from
      another assembly (whose formatter is internal to it) are registered with `NinoPolymorphic.TryRegister(typeof(..))`.
   2. Writing an instance registers its runtime type: a lookup by type that misses closes the formatter definition
@@ -986,7 +986,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   and the JIT knows it starts empty (no region open, no reference context), so closing regions and releasing
   references fold away; a writer whose address is passed to a body is zeroed, stored and loaded back from memory
   around every call. The regular calls do the same through `NinoFormatterBase<T>.Write` (the cached formatter of a type
-  with a twin is a `TopStructFormatter` registered by `NinoFormatterCache<T>.TryRegisterTop`). Measured (x64, a
+  with a twin is a `TopStructFormatter` registered by `NinoTypes.RegisterTop`). Measured (x64, a
   version-tolerant class of five members, two of them inherited, `Serialize(T)` to `byte[]`): 183 → 121
   instructions per call (with the merged region below). netstandard2.0 (span and position) takes the same route.
   The top-level reads of a new value (`Deserialize<T>(data)`) do the same through `INinoTopFormatter<T>.Read(data)`
@@ -1000,9 +1000,13 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   lengthPosition)`): one capacity check instead of two.
 * Body formatters report whether they open class bodies and can be read later in one `Traits` property
   (`NinoBodyTraits.Nests | NinoBodyTraits.Deferrable`, constants the JIT folds), not two, and the registration of
-  each type (`TryRegister`/`TryRegisterTop`/`TryRegisterFixed` and `NinoPolymorphic.Register`) is emitted straight
-  into the assembly's registry instead of a `__Register()` method per formatter called from it: fewer members per type
-  for the compiler to bind and emit (see `v4-benchmarks.md`, compile time).
+  each concrete type is one call emitted straight into the assembly's registry
+  (`NinoTypes.Register`/`RegisterFixed`/`RegisterTop`/`RegisterTracked<T, TFormatter>(id)`, which publishes the
+  formatter and the subtype handler; an abstract type or interface `NinoFormatterCache<T>.TryRegister<TFormatter>()`)
+  instead of a `__Register()` method per formatter called from it: fewer members per type for the compiler to bind and
+  emit (see `v4-benchmarks.md`, compile time). Each `NinoTypes` method builds the wrapper and the handler itself and
+  calls nothing generic over the formatter, so one method per type is compiled at startup instead of two; the
+  registry's source is about a third smaller.
 
 ### The API generated code calls
 
@@ -1012,13 +1016,13 @@ Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in fo
 (and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.CompilerServices`, folder
 `CompilerServices/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
 `INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoBlockFormatter<T>` with `NinoBlockMap` and `NinoBlocks`,
-`INinoRawFormatter`, `NinoBodyTraits`, `NinoSubtypes<TBase>`
+`INinoRawFormatter`, `NinoBodyTraits`, `NinoTypes` (the registry's one call per concrete type), `NinoSubtypes<TBase>`
 and the `NinoSubtypeHandler` it returns, `[NinoGenerated]`, `INinoRegistry` and `NinoEffectiveSettings`. The name
 says who calls them: user code never needs a `using` for it, generated code names them with `global::`, and a
 namespace of their own keeps them out of completion lists and away from user types of the same name (Nino.AspNetCore's
 `NinoBody<T>`). `Nino.Core.Internal` is a different thing: types that are not public at all. The members of public
-types that exist only for generated code (`NinoRegistry.Add`, `NinoPolymorphic.Register<TSub, TFormatter>`/`RegisterTracked`,
-`NinoFormatterCache<T>.TryRegister`/`TryRegisterTop`/`TryRegisterFixed`, `NinoActivator<T>.TryRegister`, the region,
+types that exist only for generated code (`NinoRegistry.Add`,
+`NinoFormatterCache<T>.TryRegister<TFormatter>`, `NinoActivator<T>.TryRegister`, the region,
 reference and unchecked value members of `Writer`/`Reader`, the pool's per-thread stack) stay where they are, and
 all of them, with the types above, are hidden from IntelliSense (`[EditorBrowsable(Never)]`); they stay public
 because generated code lives in the user's assembly. There is deliberately no forwarding facade in front of them:

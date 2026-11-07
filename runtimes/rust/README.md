@@ -36,7 +36,7 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_sealed_boxed`, `read_class`, `write_sealed`, `write_class`; `sealed_read!` and `sealed_write!` write a sealed class's `NinoRead` and `NinoWrite` methods; `raw_read!` and `raw_write!` write a raw struct's from its `Raw` impl), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
 | `sum_fixed_sizes`, `decode_member`, `encode_member` | What a struct of fixed-size members (generated or derived) states its `FIXED_SIZE` with, and reads or writes each member from its bytes with, so that a list of it is one block. |
 | `type_id(name)` | The type id of a .NET full name: FNV-1a over its UTF-16 code units, as a `const fn`. |
-| `type_consts!(id, name, layout)` | The `TYPE_ID`, `NINO_TYPE_NAME` and `NINO_LAYOUT` constants nino-gen declares in each type's impl, documented once here; a generic type passes no id (`type_consts!(name, layout)`). |
+| `type_consts!(id, name, layout)` | The `NINO_TYPE_ID`, `NINO_TYPE_NAME` and `NINO_LAYOUT` constants nino-gen declares in each type's impl (`Cat::NINO_TYPE_ID`; the body traits' `TYPE_ID` is set from it), documented once here; a generic type passes no id (`type_consts!(name, layout)`). |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
 How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`, the

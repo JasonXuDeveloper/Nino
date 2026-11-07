@@ -40,7 +40,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO029](#nino029) | Error | `Vector<T>` cannot be serialized |
 | [NINO030](#nino030) | Warning | `[NinoUtf8]` has no effect 🔧 |
 | [NINO031](#nino031) | Info | `[NinoMemberFormatter(typeof(Utf8StringFormatter))]`: use `[NinoUtf8]` 🔧 |
-| [NINO032](#nino032) | Error | `WEAK_VERSION_TOLERANCE` was removed: a positional type would stop reading its data 🔧 |
+| [NINO032](#nino032) | Error | `WEAK_VERSION_TOLERANCE` does not make types version tolerant 🔧 |
 | [NINO033](#nino033) | Warning | `[NinoUtf8]`, `[NinoMemberFormatter]` or `[NinoIgnore]` on an interface member has no effect 🔧 |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
@@ -314,9 +314,10 @@ parameter optional, like ET's `static T Create(bool isFromPool = false)`) and re
 ### NINO032
 
 The project defines `WEAK_VERSION_TOLERANCE`, which until 4.0 made every positional `[NinoType]` of its assembly
-version tolerant. 4.0 removed it: the type is now written positionally, without the body length, so it can no longer
-read the data it wrote. Reported on each positional type's own `[NinoType]`; a type that takes its `[NinoType]` from
-another type of the project is covered by that type's fix. 🔧 Add `format: NinoFormat.VersionTolerant` (fix all:
+version tolerant; it no longer does ("`WEAK_VERSION_TOLERANCE` does not make NinoType 'Player' version tolerant (it
+did before 4.0)"). The type is now written positionally, without the body length, so it can no longer read the data it
+wrote as version tolerant. Reported on each positional type's own `[NinoType]`; a type that takes its `[NinoType]`
+from another type of the project is covered by that type's fix. 🔧 Add `format: NinoFormat.VersionTolerant` (fix all:
 every type of the document, project or solution), which generates exactly the code the symbol did, so the bytes stay.
 A type that takes its `[NinoType]` from a type in another assembly is reported on the type: 🔧 declare
 `[NinoType(..., format: NinoFormat.VersionTolerant)]` on it with the options it took (the message spells them out).

@@ -68,9 +68,10 @@ The generated API of each language is on the site; these are the decisions behin
 - **Rust** (`RustTarget`): the codecs written out in full (`impl NinoReadBody`, `NinoWriteBody`, `NinoRead`,
   `NinoWrite` for each type) rather than `#[derive(NinoRead, NinoWrite)]` attributes; what is the same for every type
   is a macro of the crate, as the derive uses it: `nino::raw_read!()` / `raw_write!()` for a raw struct's impls,
-  `sealed_read!` / `sealed_write!` for a sealed class's, and `nino::type_consts!` for the `TYPE_ID`, `NINO_TYPE_NAME`
-  and `NINO_LAYOUT` constants (documented once in the crate, not per type); the body impls forward `TYPE_ID` to the
-  type's constant, as the derive's do. Written out, because:
+  `sealed_read!` / `sealed_write!` for a sealed class's, and `nino::type_consts!` for the `NINO_TYPE_ID`,
+  `NINO_TYPE_NAME` and `NINO_LAYOUT` constants (documented once in the crate, not per type; `NINO_`-prefixed because they
+  share the type's namespace with the user's own impls, as Go's methods are `NinoTypeID`, `NinoTypeName` and
+  `NinoLayout`); the body impls set their `TYPE_ID` to `NINO_TYPE_ID`, as the derive's set theirs. Written out, because:
   - it needs only the `nino-serialization` crate, not the derive crate and its proc-macro build;
   - the derive takes former names as strings, and a layout carries only their hashes, which the expanded code checks
     directly;
