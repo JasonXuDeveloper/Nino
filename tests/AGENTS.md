@@ -75,8 +75,9 @@ Corner/                      corner cases compiled in memory (CornerCompiler): S
 Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/; UnityPackageDllTests: the
                              Unity package's committed DLLs have the public API of their sources), HybridCLR hot-update
                              assemblies, the NinoKernels hook, ET framework collection shapes
-Infrastructure/              shared helpers: Rt (round trips), SharedTypes, TestCompilation, TestReferences (the
-                             analyzer tests' references, created once), MSTestSettings (classes run in parallel)
+Infrastructure/              shared helpers: Rt (round trips, FromHex/ToHex, OnSmallStack), SharedTypes,
+                             TestCompilation, TestReferences (the analyzer tests' references, created once),
+                             MSTestSettings (classes run in parallel)
 Nino.UnitTests.csproj        targets, references (Nino.Core, Immutable, UnityTypes, the
                              generator's Roslyn 4.3 build, tools/CodeGen templates)
 ```

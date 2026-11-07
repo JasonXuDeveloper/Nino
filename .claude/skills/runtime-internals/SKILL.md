@@ -30,7 +30,10 @@ What works everywhere so far:
 - **Mirror classes** that declare the fields of the real class in its order, read and written through `Unsafe.As`:
   every runtime lays out two classes with the same field list the same way. Check the field lists of every version of
   the library users may have (System.Collections.Immutable 1.5 to 10.0 have the same fields), and check the layout at
-  startup against an instance with known contents, through the public API; use the public API when it fails.
+  startup against an instance with known contents, through the public API; use the public API when it fails. Run
+  every such check through `ObjectTypes.Passes` (a check that throws fails; Nino.Core and Nino.Immutable both
+  compile `ObjectTypes.cs`), never a `try`/`catch` of its own: round 129 merged seven copies of that wrapper
+  (`HashTables`, `ConcurrentTables`, `CollectionViews`, `SortedSetNodes`, `ValueViews`, `HashTrees`, `SortedTrees`).
 - **Never call an instance method on a mirrored object** (a `MemberwiseClone` helper in the mirror class): Mono and
   IL2CPP take a shared generic method's context from `this`'s class, and Mono aborts (an assertion, not an exception,
   so no `catch` helps). Static code only.
