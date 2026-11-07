@@ -79,7 +79,23 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   436 KB to 381 KB. A macro call's layout is rustfmt's: one line when it fits 120 columns, else an argument per line
   when each fits, else left on one line (rustfmt gives up on an overlong string), or `cargo fmt --check` fails.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
-  GeneratorBenchmark and the package size of a sample.
+  GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
+  `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
+  `cat generated/**/*.cs | wc -c` for `tests/Nino.UnitTests` and `benchmarks/Nino.Benchmark` (the realistic one).
+  Round 129: 6,694 bytes per type in the benchmarks (99 types), 13% of it the interceptors, which are type names
+  the compiler needs. Indentation was 14% of all bytes: a file that declares one namespace declares it
+  file-scoped where the language allows (C# 10, `GeneratedCode.File`; Unity's C# 9 and the files that declare a
+  second namespace, the interceptors' attribute and the partial accessors, keep the block), which took 4.4%
+  (benchmarks) and 5.1% (unit tests) with the IL identical. Rejected with their numbers (benchmarks / unit tests),
+  so nobody retries them blind: a `__NinoCore.` namespace alias for `global::Nino.Core.` (1.0% / 1.1%, a second
+  spelling of one namespace per file); dropping `[__NinoInline(AggressiveInlining)]` from the interceptors (1.1% /
+  1.3%, and `optimize` keeps it on every small helper the budget must not drop); dropping their
+  `// File.cs(line,column)` comments (0.8% / 1.6%, the only readable link to the call); NinoDirect overloads
+  inferring `T` from the argument (1.0% / 1.2%, new public API); a non-generic `NinoSubtypes` for the dispatch's
+  one-line forwarders (0.1% / 0.5%); one `[DynamicallyAccessedMembers]` instead of a `[DynamicDependency]` per
+  measured struct (0.2% / 0.4%, and an annotation names no list of types); tabs (6.3% / 7.3% more: C# is indented with
+  spaces). A value a `switch` case already holds is its variable: the registry's polymorphic registration takes
+  `(id)`, not the case's literal again (round 129).
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is

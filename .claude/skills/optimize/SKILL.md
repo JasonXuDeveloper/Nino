@@ -16,7 +16,8 @@ techniques are `optimize-runtimes`.
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
 one, run `python3 benchmarks/asm.py compare origin/main` (about two minutes, see benchmarks/README.md) and explain or
-fix every method it lists. To prove the code unchanged, dump both sides with `DOTNET_TieredCompilation=0` (the
+fix every method it lists; on a branch whose `origin/main` has moved since it started, compare its base instead
+(`git merge-base HEAD origin/main`), or the diff holds other commits' changes too (round 129). To prove the code unchanged, dump both sides with `DOTNET_TieredCompilation=0` (the
 variable around `asm.py dump [--ref REF] --runs 1 --asm FILE`) and compare the listings per method: FullOpts code
 has no profile, so it repeats exactly, while Tier1 listed 7 of 2,356 methods in code a change did not reach.
 `--ref REF` builds REF's own benchmarks: when the two sides' cases differ (a new case), the interceptors' numbers
