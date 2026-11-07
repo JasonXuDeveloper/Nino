@@ -66,7 +66,11 @@ The generated API of each language is on the site; these are the decisions behin
   `runtimes/go/internal/sample`: one `Take`/`Extend` per run of fixed-size members, no reflection, and a direct call
   for each class body and each element of a collection (no function values; `optimize-runtimes`).
 - **Rust** (`RustTarget`): the codecs written out in full (`impl NinoReadBody`, `NinoWriteBody`, `NinoRead`,
-  `NinoWrite` for each type) rather than `#[derive(NinoRead, NinoWrite)]` attributes, because:
+  `NinoWrite` for each type) rather than `#[derive(NinoRead, NinoWrite)]` attributes; what is the same for every type
+  is a macro of the crate, as the derive uses it: `nino::raw_read!()` / `raw_write!()` for a raw struct's impls,
+  `sealed_read!` / `sealed_write!` for a sealed class's, and `nino::type_consts!` for the `TYPE_ID`, `NINO_TYPE_NAME`
+  and `NINO_LAYOUT` constants (documented once in the crate, not per type); the body impls forward `TYPE_ID` to the
+  type's constant, as the derive's do. Written out, because:
   - it needs only the `nino-serialization` crate, not the derive crate and its proc-macro build;
   - the derive takes former names as strings, and a layout carries only their hashes, which the expanded code checks
     directly;
