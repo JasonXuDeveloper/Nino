@@ -293,7 +293,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
 
         ReportFormerNames(sink, type, facts.Symbols);
         if (type.TypeKind == TypeKind.Interface)
-            ReportInterfaceAttributes(sink, type, facts.Symbols, findings);
+            ReportInterfaceAttributes(sink, type, facts, findings);
         else
             ReportUtf8(sink, type, attr, facts, findings);
 
@@ -304,14 +304,17 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
 
     /// <summary>
     /// NINO033: <c>[NinoUtf8]</c>, <c>[NinoMemberFormatter]</c> or <c>[NinoIgnore]</c> on a member of an interface.
-    /// Implementing types write their own member with its own attributes (the generator's <see cref="MemberCollector"/>
-    /// takes the interface member's <c>[NinoMember]</c> index only), so each is reported, once, where it is written. A
-    /// member with a finding of its own is left to it, as in <see cref="ReportUtf8"/>, except that its <c>[NinoUtf8]</c> is
-    /// never serialized: the interface's members are not what implementations write.
+    /// Types implementing it implicitly write their own member with its own attributes (the generator's
+    /// <see cref="MemberCollector"/> takes the interface member's <c>[NinoMember]</c> index only), so each is reported,
+    /// once, where it is written; not when a type of the compilation implements it explicitly (or by its default
+    /// implementation), which writes the interface's member with these attributes. A member with a finding of its own
+    /// is left to it, as in <see cref="ReportUtf8"/>, except that its <c>[NinoUtf8]</c> is never serialized: the
+    /// interface's members are not what implicit implementations write.
     /// </summary>
-    private static void ReportInterfaceAttributes(DiagnosticSink sink, INamedTypeSymbol type, NinoSymbols known,
+    private static void ReportInterfaceAttributes(DiagnosticSink sink, INamedTypeSymbol type, TypeFacts facts,
         IReadOnlyList<MemberFinding> findings)
     {
+        var known = facts.Symbols;
         foreach (var member in type.GetMembers())
         {
             if (member is not (IFieldSymbol or IPropertySymbol) || member.IsImplicitlyDeclared ||
@@ -321,12 +324,14 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             foreach (var attribute in member.GetAttributes())
             {
                 var name = attribute.AttributeClass;
-                if (SymbolEqualityComparer.Default.Equals(name, known.Utf8) ||
-                    SymbolEqualityComparer.Default.Equals(name, known.CustomFormatter) ||
-                    SymbolEqualityComparer.Default.Equals(name, known.Ignore))
-                    sink.Report(NinoDiagnostics.InterfaceMemberAttribute, attribute, member,
-                        name!.Name.Substring(0, name.Name.Length - "Attribute".Length), member.Name,
-                        type.ToDisplayString());
+                if (!(SymbolEqualityComparer.Default.Equals(name, known.Utf8) ||
+                      SymbolEqualityComparer.Default.Equals(name, known.CustomFormatter) ||
+                      SymbolEqualityComparer.Default.Equals(name, known.Ignore)) ||
+                    facts.ImplementsAsInterface(member))
+                    continue;
+                sink.Report(NinoDiagnostics.InterfaceMemberAttribute, attribute, member,
+                    name!.Name.Substring(0, name.Name.Length - "Attribute".Length), member.Name,
+                    type.ToDisplayString());
             }
         }
     }

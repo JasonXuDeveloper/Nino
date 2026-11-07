@@ -593,12 +593,17 @@ internal static class ModelBuilder
         // A base member hidden by a derived member of the same name (`new`): generated code names it through a cast
         // to its declaring type, and under its own name when the derived member is serialized too.
         int renamed = DerivedSameNamed(symbols, index);
+        // An interface member the type implements explicitly (or by a default implementation): MemberCollector
+        // collects the interface's own member, which only the interface names.
+        bool viaInterface = declaring.TypeKind == TypeKind.Interface && type.TypeKind != TypeKind.Interface;
         MemberAccess access;
         if (facts.Visibility.IsDirectlyAccessible(symbol))
         {
-            access = renamed != 0 || IsHidden(type, symbol, facts.Visibility.IsVisible)
-                ? MemberAccess.Cast
-                : MemberAccess.Direct;
+            access = viaInterface
+                ? type.IsValueType ? MemberAccess.Interface : MemberAccess.Cast
+                : renamed != 0 || IsHidden(type, symbol, facts.Visibility.IsVisible)
+                    ? MemberAccess.Cast
+                    : MemberAccess.Direct;
         }
         else if (UnsafeAccessorReaches(type, declaring, facts))
         {
@@ -637,6 +642,9 @@ internal static class ModelBuilder
         // Fresh: a Nino.Core formatter that reads into an existing value (not an object or cached one), or a string,
         // read without the value it replaces.
         const FormatterTraits replaces = FormatterTraits.Cached | FormatterTraits.Object;
+        // What the member starts as and what storing it does are the implementation's (an interface member's own
+        // declaration says nothing about them).
+        var implementation = viaInterface ? type.FindImplementationForInterfaceMember(symbol) : symbol;
         return new MemberModel(
             Name: name,
             SourceName: symbol.Name,
@@ -657,9 +665,10 @@ internal static class ModelBuilder
             TypeId: typeId,
             ShallowFormatter: shallowFormatter ?? formatter,
             Fresh: custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
-                   (traits & replaces) == 0 && StartsDefault(symbol, ct),
+                   (traits & replaces) == 0 && implementation != null && StartsDefault(implementation, ct),
             ReadsLoop: raw == null && readsLoop,
-            PlainStore: symbol is IFieldSymbol || symbol is IPropertySymbol property && IsAutoProperty(property));
+            PlainStore: implementation is IFieldSymbol ||
+                        implementation is IPropertySymbol property && IsAutoProperty(property));
     }
 
     /// <summary>

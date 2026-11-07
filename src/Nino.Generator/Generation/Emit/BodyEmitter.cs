@@ -386,7 +386,9 @@ internal sealed class BodyEmitter
         _w.Line($"public int FixedSize => {FixedLayout().Size};");
         _w.Line();
         _w.Line(_names.Inline);
-        if (_m.Kind == FormatterKind.SealedClass)
+        // A struct with a member generated code reaches through an accessor: those take the struct by `ref`, which an
+        // `in` parameter cannot give.
+        if (_m.Kind == FormatterKind.SealedClass || _m.Members.Any(x => x.Access != MemberAccess.Direct))
         {
             // A class's members read through the reference passed by value: through the `in` reference, the JIT
             // loads the object again for every member, as a store into the destination might change it.

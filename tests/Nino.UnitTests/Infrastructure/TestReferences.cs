@@ -26,7 +26,7 @@ internal static class TestReferences
         .ToArray();
 #endif
 
-    public static void Apply(SolutionState state)
+    public static void Apply(ProjectState state)
     {
         state.AdditionalReferences.Add(NinoCore);
 #if NET10_0_OR_GREATER

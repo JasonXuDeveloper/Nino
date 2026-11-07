@@ -191,9 +191,11 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     /// <summary>
     /// NINO033: the attribute of an interface member goes to the members implementing it implicitly in the solution's
     /// source, which the generator writes (one that has an attribute of its class already keeps its own), and leaves the
-    /// interface, where it has no effect; with no such member, the fix removes it. Names are written in full and
-    /// reduced by the simplifier, so the attribute compiles in a file without <c>using Nino.Core;</c> or under an
-    /// alias. One key, so fixing all moves every one at once.
+    /// interface, where it has no effect; with no such member, the fix removes it. An explicit implementation in the
+    /// solution (another project than the one reported) writes the interface's member with its attributes: the
+    /// attribute then stays on the interface, copied to the implicit implementations, and with none of those there is
+    /// no fix. Names are written in full and reduced by the simplifier, so the attribute compiles in a file without
+    /// <c>using Nino.Core;</c> or under an alias. One key, so fixing all moves every one at once.
     /// </summary>
     private static async Task RegisterMoveToImplementationsAsync(CodeFixContext context, SyntaxNode root,
         Diagnostic diagnostic)
@@ -210,19 +212,28 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
             return;
 
         var implementations = new List<ISymbol>();
+        bool explicitImplementation = false;
         foreach (var implementation in await SymbolFinder.FindImplementationsAsync(member, document.Project.Solution,
                      cancellationToken: ct).ConfigureAwait(false))
         {
-            if (implementation is IPropertySymbol { ExplicitInterfaceImplementations.IsEmpty: true } &&
-                implementation.DeclaringSyntaxReferences.Length != 0 &&
-                !implementation.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attributeClass)))
-                implementations.Add(implementation);
+            if (implementation is not IPropertySymbol property)
+                continue;
+            if (!property.ExplicitInterfaceImplementations.IsEmpty)
+                explicitImplementation = true;
+            else if (property.DeclaringSyntaxReferences.Length != 0 &&
+                     !property.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attributeClass)))
+                implementations.Add(property);
         }
 
+        if (explicitImplementation && implementations.Count == 0)
+            return;
         string name = attributeClass.Name.Substring(0, attributeClass.Name.Length - "Attribute".Length);
-        string title = implementations.Count == 0 ? $"Remove [{name}]" : $"Move [{name}] to the implementing members";
+        string title = explicitImplementation ? $"Copy [{name}] to the implicit implementations"
+            : implementations.Count == 0 ? $"Remove [{name}]"
+            : $"Move [{name}] to the implementing members";
         context.RegisterCodeFix(CodeAction.Create(title,
-                c => MoveToImplementationsAsync(document, syntax.Span, name, Copy(attribute), implementations, c),
+                c => MoveToImplementationsAsync(document, syntax.Span, name, Copy(attribute), implementations,
+                    keep: explicitImplementation, c),
                 diagnostic.Id + "MoveToImplementations"),
             diagnostic);
     }
@@ -245,12 +256,17 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     }
 
     private static async Task<Solution> MoveToImplementationsAsync(Document document, TextSpan span, string name,
-        AttributeSyntax attribute, List<ISymbol> implementations, CancellationToken ct)
+        AttributeSyntax attribute, List<ISymbol> implementations, bool keep, CancellationToken ct)
     {
         var solution = document.Project.Solution;
         var editor = new SolutionEditor(solution);
-        var interfaceEditor = await editor.GetDocumentEditorAsync(document.Id, ct).ConfigureAwait(false);
-        RemoveAttribute(interfaceEditor, interfaceEditor.OriginalRoot.FindNode(span, getInnermostNodeForTie: true), name);
+        if (!keep)
+        {
+            var interfaceEditor = await editor.GetDocumentEditorAsync(document.Id, ct).ConfigureAwait(false);
+            RemoveAttribute(interfaceEditor, interfaceEditor.OriginalRoot.FindNode(span, getInnermostNodeForTie: true),
+                name);
+        }
+
         foreach (var implementation in implementations)
         {
             var reference = implementation.DeclaringSyntaxReferences[0];

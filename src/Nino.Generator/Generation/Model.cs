@@ -37,9 +37,16 @@ internal enum MemberAccess
 
     /// <summary>
     /// <c>((Declaring)value).Member</c>: a public member of a base class that a derived member of the same name hides
-    /// (<c>new</c>). Never part of an object initializer, which would name the derived member.
+    /// (<c>new</c>), or a member of an interface a class implements explicitly. Never part of an object initializer,
+    /// which would name the derived member.
     /// </summary>
     Cast,
+
+    /// <summary>
+    /// A member of an interface a struct implements explicitly: generic accessors constrained to the interface,
+    /// declared in the formatter (<c>__G_Name&lt;TI&gt;(ref TI o) where TI : IFoo</c>), which call it without boxing.
+    /// </summary>
+    Interface,
 }
 
 /// <summary>How a member written raw is read (<c>RawLayout.ReadOf</c>).</summary>

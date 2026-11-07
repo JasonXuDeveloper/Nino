@@ -158,6 +158,7 @@ internal static class FormatterEmitter
         EmitPrefetch(w, m, names);
         if (!m.IsGeneric)
             AccessorEmitter.EmitUnsafeAccessors(w, m);
+        AccessorEmitter.EmitInterfaceAccessors(w, m);
 
         w.Close();
     }
