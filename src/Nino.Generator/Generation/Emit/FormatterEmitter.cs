@@ -437,22 +437,54 @@ internal static class FormatterEmitter
             rootType = m.Need(m.Inheritance.DispatchRoot, nameof(m.Inheritance.DispatchRoot));
         }
 
-        string write = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer)"
-            : root ? "__WriteSubtype(value, ref writer)"
-            : $"{rootFormatter}.__WriteSubtype(value, ref writer)";
-        string read = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value);"
-            : root ? "__ReadSubtype(id, ref reader, ref value);"
-            : $"{rootFormatter}.__ReadSubtype(id, ref reader, ref {CoreCompilerServices}NinoObject.AsBaseSlot<{t}, {rootType}>(ref value)); {CoreCompilerServices}NinoObject.EnsureSubtype<{t}>(value);";
+        string write = !m.DispatchesSubtypes ? $"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);"
+            : root ? "__WriteSubtype(value, ref writer);"
+            : $"{rootFormatter}.__WriteSubtype(value, ref writer);";
+        string[] read = !m.DispatchesSubtypes ? new[] { $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value);" }
+            : root ? new[] { "__ReadSubtype(id, ref reader, ref value);" }
+            : new[]
+            {
+                $"{rootFormatter}.__ReadSubtype(id, ref reader, ref {CoreCompilerServices}NinoObject.AsBaseSlot<{t}, {rootType}>(ref value));",
+                $"{CoreCompilerServices}NinoObject.EnsureSubtype<{t}>(value);",
+            };
         w.Line(names.Inline);
-        w.Line($"{Signature.Serialize(t)}");
-        w.Indented(() => w.Line(ownId
-            ? $$"""{ if (!{{CoreCompilerServices}}NinoObject.{{(m.RawBody ? "TryWriteOwnRaw" : "TryWriteOwn")}}<{{t}}, {{self}}>(value, ref writer)) {{write}}; }"""
-            : $$"""{ if (value == null) writer.UnsafeWrite({{NinoWire.NullTypeId}}); else {{write}}; }"""));
+        w.Block(Signature.Serialize(t), () =>
+        {
+            if (ownId)
+            {
+                w.Line($"if (!{CoreCompilerServices}NinoObject.{(m.RawBody ? "TryWriteOwnRaw" : "TryWriteOwn")}<{t}, {self}>(value, ref writer))");
+                w.Indented(() => w.Line(write));
+                return;
+            }
+
+            w.Line("if (value == null)");
+            w.Indented(() => w.Line($"writer.UnsafeWrite({NinoWire.NullTypeId});"));
+            w.Line("else");
+            w.Indented(() => w.Line(write));
+        });
         w.Line();
         w.Line(names.Inline);
-        w.Line($"{Signature.Deserialize(t)}");
-        w.Indented(() => w.Line(ownId
-            ? $$"""{ int id = reader.UnsafeRead<int>(); if (!{{CoreCompilerServices}}NinoObject.TryReadOwn<{{t}}, {{self}}>(id, ref reader, ref value)) { {{read}} } }"""
-            : $$"""{ int id = reader.UnsafeRead<int>(); {{read}} }"""));
+        w.Block(Signature.Deserialize(t), () =>
+        {
+            w.Line("int id = reader.UnsafeRead<int>();");
+            if (!ownId)
+            {
+                foreach (var line in read)
+                    w.Line(line);
+                return;
+            }
+
+            w.Line($"if (!{CoreCompilerServices}NinoObject.TryReadOwn<{t}, {self}>(id, ref reader, ref value))");
+            if (read.Length == 1)
+            {
+                w.Indented(() => w.Line(read[0]));
+                return;
+            }
+
+            w.Open();
+            foreach (var line in read)
+                w.Line(line);
+            w.Close();
+        });
     }
 }

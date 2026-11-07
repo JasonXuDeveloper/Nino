@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -63,7 +65,7 @@ internal static class GeneratedCode
     /// types a simple name finds before any other (only a type parameter of a generic formatter, which takes the names
     /// of its type's, or a nested type could hide one, and none is named like a generated type). Then the names
     /// become aliases: <paramref name="formatters"/> (generic formatters a type's members are read and written with,
-    /// none naming a type parameter; longest first) as <c>__NinoF0</c>, <c>__NinoF1</c>..., <paramref name="self"/> (a type the file is about, when
+    /// none naming a type parameter; numbered in their order) as <c>__NinoF0</c>, <c>__NinoF1</c>..., <paramref name="self"/> (a type the file is about, when
     /// given) as <c>__NinoT</c>, and the <see cref="CoreAliases"/>. A name is replaced only where the alias makes the
     /// file shorter, counting its declaration, which is added to <paramref name="declarations"/>; and only as a whole
     /// name: not next to an identifier character, a dot or a colon (a longer name, a qualified or nested one), but for
@@ -76,12 +78,25 @@ internal static class GeneratedCode
         var formatterAliases = new List<string>();
         if (formatters != null)
         {
-            foreach (var name in formatters.Distinct().OrderByDescending(n => n.Length))
+            // Replaced longest first (a name inside a longer one is replaced with it), numbered in the order given
+            // (the members').
+            var names = formatters.Select(static n => n.Replace(TypeNames.Gen, "")).Distinct().ToList();
+            var aliased = new List<string>();
+            foreach (var name in names.OrderByDescending(static n => n.Length))
             {
-                string alias = "__NinoF" + formatterAliases.Count;
-                body = WithAlias(body, name.Replace(TypeNames.Gen, ""), alias, $"using {alias} = {name};",
+                // Declared inside the namespace too, where the generated types need no qualifier either.
+                int count = formatterAliases.Count;
+                body = WithAlias(body, name, FormatterAlias(count), $"using {FormatterAlias(count)} = {name};",
                     formatterAliases);
+                if (formatterAliases.Count != count)
+                    aliased.Add(name);
             }
+
+            // Renumbered from the order of replacement to the order given.
+            var order = aliased.OrderBy(names.IndexOf).ToList();
+            body = Regex.Replace(body, @"\b__NinoF(\d+)\b", x =>
+                FormatterAlias(order.IndexOf(aliased[int.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture)])));
+            formatterAliases = order.Select((name, i) => $"using {FormatterAlias(i)} = {name};").ToList();
         }
 
         if (self != null)
@@ -98,6 +113,8 @@ internal static class GeneratedCode
         declarations.AddRange(formatterAliases);
         return body;
     }
+
+    private static string FormatterAlias(int index) => "__NinoF" + index.ToString(CultureInfo.InvariantCulture);
 
     private static string WithAlias(string body, string name, string alias, string declaration,
         List<string> declarations)
@@ -134,18 +151,19 @@ internal static class GeneratedCode
     private static bool IsNamePart(char c) => char.IsLetterOrDigit(c) || c is '_' or '.' or ':';
 
     /// <summary>
-    /// The aliases of <c>MethodImplAttribute</c> and <c>MethodImplOptions</c>, one line each (without indent or line
-    /// break), that <see cref="Inline"/> and <see cref="NoInline"/> are written with.
+    /// The alias of <c>MethodImplAttribute</c> and the import of <c>MethodImplOptions</c>' values, one line each
+    /// (without indent or line break), that <see cref="Inline"/> and <see cref="NoInline"/> are written with. Only a
+    /// type in the <c>NinoGen</c> namespace named like one of those values could hide it, and none is.
     /// </summary>
     public static readonly string[] InlineAliases =
     {
         "using __NinoInline = " + TypeNames.CompilerServices + "MethodImplAttribute;",
-        "using __NinoInlineOptions = " + TypeNames.CompilerServices + "MethodImplOptions;",
+        "using static " + TypeNames.CompilerServices + "MethodImplOptions;",
     };
 
     /// <summary>The aggressive inlining attribute, through <see cref="InlineAliases"/>.</summary>
-    public const string Inline = "[__NinoInline(__NinoInlineOptions.AggressiveInlining)]";
+    public const string Inline = "[__NinoInline(AggressiveInlining)]";
 
     /// <summary>The no-inlining attribute, through <see cref="InlineAliases"/>.</summary>
-    public const string NoInline = "[__NinoInline(__NinoInlineOptions.NoInlining)]";
+    public const string NoInline = "[__NinoInline(NoInlining)]";
 }

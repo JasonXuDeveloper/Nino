@@ -23,7 +23,7 @@ internal sealed class FormatterNames
             .ToList();
     }
 
-    /// <summary>The generic member formatters, as the body writes them.</summary>
+    /// <summary>The generic member formatters, as the body writes them, in member order (their aliases').</summary>
     public IReadOnlyList<string> Formatters { get; }
 
     /// <summary>The aggressive inlining attribute, through its aliases (declared once used).</summary>

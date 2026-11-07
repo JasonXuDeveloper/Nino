@@ -107,7 +107,7 @@ public class IncrementalGeneratorTests
         foreach (var file in driver.GetRunResult().Results[0].GeneratedSources)
             Assert.IsFalse(file.SourceText.ToString().Contains("CachedFormatter"), file.HintName);
         StringAssert.Contains(Output(driver, "Holder"),
-            "ListFormatter<global::Inc.Tree, global::Inc.Tree, global::NinoGen.Inc_Tree_");
+            "ListFormatter<global::Inc.Tree, global::Inc.Tree, Inc_Tree_");
 
         // A model rebuilt alone after an edit still finds the structs the others declared.
         compilation = Edit(compilation, "Other.cs", "public Map M;", "public Map M; public int I;");

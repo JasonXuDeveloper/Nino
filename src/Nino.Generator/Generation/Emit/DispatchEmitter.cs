@@ -70,19 +70,15 @@ internal static class DispatchEmitter
 
             string t = e.TypeName;
             w.Open($"partial struct {e.Self}");
-            w.Block($"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)", () =>
-            {
-                for (int i = 0; i < closed.Count; i++)
-                    w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__WriteSubtype({{CoreCompilerServices}}NinoObject.SameType<{{closed[i]}}>(value), ref writer); return; }""");
-                w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);");
-            });
-            w.Line();
-            w.Block($"internal static void __ReadSubtype(int id, ref {Core}Reader reader, ref {t} value)", () =>
-            {
-                for (int i = 0; i < closed.Count; i++)
-                    w.Line($$"""if (typeof({{t}}) == typeof({{closed[i]}})) { {{classes[i]}}.__ReadSubtype(id, ref reader, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{closed[i]}}>(ref value)); return; }""");
-                w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value);");
-            });
+            Method(w, WriteSubtype(t), closed.Select((c, i) =>
+                    $$"""if (typeof({{t}}) == typeof({{c}})) { {{classes[i]}}.__WriteSubtype({{CoreCompilerServices}}NinoObject.SameType<{{c}}>(value), ref writer); return; }"""),
+                WriteOther(t));
+            // Two one-line forwarders stay together.
+            if (closed.Count != 0)
+                w.Line();
+            Method(w, ReadSubtype(t), closed.Select((c, i) =>
+                    $$"""if (typeof({{t}}) == typeof({{c}})) { {{classes[i]}}.__ReadSubtype(id, ref reader, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{c}}>(ref value)); return; }"""),
+                ReadOther(t));
             w.Close();
             w.Line();
         }
@@ -128,34 +124,68 @@ internal static class DispatchEmitter
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
     private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes)
     {
-        w.Block($"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)", () =>
+        // value.GetType() == typeof(X) compiles to one method table compare. WriteExact is inlined where the caller's
+        // inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A non-generic
+        // method per subtype, as on read, was measured: it writes 4.5% fewer instructions for an array of 20
+        // subtypes, but more where the bodies would have been inlined, and one more method per subtype costs about
+        // 2.5% more compile time on a workload of hierarchies.
+        Method(w, WriteSubtype(t), (subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>()).Select(s =>
+                $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{CoreCompilerServices}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }"""),
+            WriteOther(t));
+        if (subtypes.Count == 0)
         {
-            // value.GetType() == typeof(X) compiles to one method table compare. WriteExact is inlined where the
-            // caller's inlining budget allows (the dispatch is inlined into its callers), else called as shared code.
-            // A non-generic method per subtype, as on read, was measured: it writes 4.5% fewer instructions for an
-            // array of 20 subtypes, but more where the bodies would have been inlined, and one more method per
-            // subtype costs about 2.5% more compile time on a workload of hierarchies.
-            foreach (var s in subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>())
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{CoreCompilerServices}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
-            w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer);");
-        });
+            w.Line($"{ReadSubtype(t)} => {ReadOther(t)};");
+            return;
+        }
+
         w.Line();
-        w.Block($"internal static void __ReadSubtype(int id, ref {Core}Reader reader, ref {t} value)", () =>
+        w.Block(ReadSubtype(t), () =>
         {
-            if (subtypes.Count != 0)
-                EmitReadSwitch(w, subtypes);
-            w.Line($"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value);");
+            EmitReadSwitch(w, subtypes);
+            w.Line(ReadOther(t) + ";");
         });
 
         // Each subtype's instance check and body, out of line in a method of this non-generic struct, where
         // NinoObject.ReadExact is not shared code (see there). Inlined into the switch, every subtype's body would be
         // copied into it.
-        if (subtypes.Count != 0)
-            w.Line();
+        w.Line();
         for (int i = 0; i < subtypes.Count; i++)
         {
             var s = subtypes[i];
             w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {CoreCompilerServices}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
         }
+    }
+
+    private static string WriteSubtype(string t) => $"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)";
+
+    private static string ReadSubtype(string t) =>
+        $"internal static void __ReadSubtype(int id, ref {Core}Reader reader, ref {t} value)";
+
+    /// <summary>The write of a subtype the dispatch does not know: through the registry.</summary>
+    private static string WriteOther(string t) => $"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer)";
+
+    /// <summary>The read of a subtype the dispatch does not know: through the registry.</summary>
+    private static string ReadOther(string t) =>
+        $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value)";
+
+    /// <summary>
+    /// A method of <paramref name="signature"/> running <paramref name="checks"/> (each returning when it applies),
+    /// then <paramref name="fallback"/>: with no checks, the one-line forwarder to it.
+    /// </summary>
+    private static void Method(CodeWriter w, string signature, IEnumerable<string> checks, string fallback)
+    {
+        var lines = checks.ToList();
+        if (lines.Count == 0)
+        {
+            w.Line($"{signature} => {fallback};");
+            return;
+        }
+
+        w.Block(signature, () =>
+        {
+            foreach (var line in lines)
+                w.Line(line);
+            w.Line(fallback + ";");
+        });
     }
 }
