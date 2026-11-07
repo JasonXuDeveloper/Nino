@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using static Nino.UnitTests.Rt;
 
 #nullable disable
 namespace Nino.UnitTests;
@@ -104,28 +104,6 @@ public sealed class BoundHoldsChain
 [TestClass]
 public class BoundedNestingTests
 {
-    private const int SmallStack = 512 * 1024;
-
-    private static void OnSmallStack(Action action)
-    {
-        Exception error = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception e)
-            {
-                error = e;
-            }
-        }, SmallStack);
-        thread.Start();
-        thread.Join();
-        if (error != null)
-            throw new AssertFailedException("failed on the small stack: " + error, error);
-    }
-
     private static uint Checksum(byte[] bytes)
     {
         uint h = 2166136261;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using static Nino.UnitTests.Rt;
 
 #nullable disable
 namespace Nino.UnitTests;
@@ -31,26 +32,6 @@ public class WriteDepthTests
 {
     private const int SmallStack = 256 * 1024;
 
-    private static void OnSmallStack(Action action)
-    {
-        Exception error = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception e)
-            {
-                error = e;
-            }
-        }, SmallStack);
-        thread.Start();
-        thread.Join();
-        if (error != null)
-            throw new AssertFailedException(error.ToString());
-    }
-
     private static void TooDeep<T>(T value)
     {
         var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(value), typeof(T).Name);
@@ -72,7 +53,7 @@ public class WriteDepthTests
             TooDeep(map);
 
             TooDeep(Nest(100_000));
-        });
+        }, SmallStack);
 
         // Deep, without a cycle, within the limit (on a thread's usual stack): written and read back.
         var legal = NinoDeserializer.Deserialize<SelfTree>(NinoSerializer.Serialize(Nest(400)));
@@ -175,7 +156,7 @@ public class WriteDepthTests
             kids.Add(node);
             TooDeep(node);
             TooDeep(Chain(100_000));
-        });
+        }, SmallStack);
 
         var chain = Chain(300);
         var legal = NinoDeserializer.Deserialize<UntrustedStructNode>(NinoSerializer.Serialize(chain));

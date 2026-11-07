@@ -213,20 +213,18 @@ public class FormatterRegistrationTests
 #endif
     }
 
-    private static string Hex(byte[] bytes) => BitConverter.ToString(bytes).Replace("-", "");
-
     // The wire format of the formatters that used to be generated into each assembly is unchanged.
     [TestMethod]
     public void MovedFormattersKeepTheirBytes()
     {
         Assert.AreEqual("020000000100000002000000",
-            Hex(NinoSerializer.Serialize(ImmutableArray.Create(1, 2))));
-        Assert.AreEqual("FFFFFFFF", Hex(NinoSerializer.Serialize(default(ImmutableArray<int>))));
-        Assert.AreEqual("0100000005000000", Hex(NinoSerializer.Serialize(ImmutableList.Create(5))));
+            Rt.ToHex(NinoSerializer.Serialize(ImmutableArray.Create(1, 2))));
+        Assert.AreEqual("FFFFFFFF", Rt.ToHex(NinoSerializer.Serialize(default(ImmutableArray<int>))));
+        Assert.AreEqual("0100000005000000", Rt.ToHex(NinoSerializer.Serialize(ImmutableList.Create(5))));
 #if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD
         var queue = new PriorityQueue<int, int>();
         queue.Enqueue(7, 3);
-        Assert.AreEqual("010000000700000003000000", Hex(NinoSerializer.Serialize(queue)));
+        Assert.AreEqual("010000000700000003000000", Rt.ToHex(NinoSerializer.Serialize(queue)));
         var back = NinoDeserializer.Deserialize<PriorityQueue<int, int>>(NinoSerializer.Serialize(queue));
         Assert.IsTrue(back.TryDequeue(out int element, out int priority));
         Assert.AreEqual((7, 3), (element, priority));

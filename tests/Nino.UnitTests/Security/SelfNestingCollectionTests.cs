@@ -2,9 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using static Nino.UnitTests.Rt;
 
 #nullable disable
 namespace Nino.UnitTests;
@@ -70,26 +70,6 @@ public class SelfNestingCollectionTests
         return bytes;
     }
 
-    private static void OnSmallStack(Action action)
-    {
-        Exception error = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception e)
-            {
-                error = e;
-            }
-        }, 512 * 1024);
-        thread.Start();
-        thread.Join();
-        if (error != null)
-            throw new AssertFailedException("failed on the small stack: " + error, error);
-    }
-
     [TestMethod]
     public void SelfHoldingListAndDictionaryThrowPastTheLimit()
     {
@@ -102,7 +82,7 @@ public class SelfNestingCollectionTests
         // The list as the audit wrote it: the holder's body length, then counts of 1, the innermost list empty and
         // the map null.
         CollectionAssert.AreEqual(
-            Rt.FromHex("01" + "10000000" + "01000000" + "01000000" + "00000000" + "FFFFFFFF"),
+            FromHex("01" + "10000000" + "01000000" + "01000000" + "00000000" + "FFFFFFFF"),
             NinoSerializer.Serialize(new SelfNestingHolder { T = Nest<SelfTree>(3, (o, i) => o.Add(i)) }));
     }
 

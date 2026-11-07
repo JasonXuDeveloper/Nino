@@ -57,7 +57,7 @@ namespace Test.Runtime
             {
                 try
                 {
-                    var expected = Hex(BclFixtures.Bytes[name]);
+                    var expected = BclFixtures.FromHex(BclFixtures.Bytes[name]);
                     byte[] bytes = NinoSerializer.Serialize(value);
                     if (!bytes.SequenceEqual(expected))
                         failed.Add($"{name} writes {BitConverter.ToString(bytes)}");
@@ -148,14 +148,6 @@ namespace Test.Runtime
 
         private static long Offset<TS, TF>(ref TS s, ref TF f) =>
             (long)Unsafe.ByteOffset(ref Unsafe.As<TS, byte>(ref s), ref Unsafe.As<TF, byte>(ref f));
-
-        private static byte[] Hex(string hex)
-        {
-            var bytes = new byte[hex.Length / 2];
-            for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = Convert.ToByte(hex.Substring(2 * i, 2), 16);
-            return bytes;
-        }
 
         private static string RuntimeName()
         {

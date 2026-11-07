@@ -101,12 +101,12 @@ namespace Nino.UnitTests
         {
             // (int, long): the long first, then the int, 16 bytes; after a byte at 8; the int C after it at 24.
             var value = new Around<(int, long)> { A = 1, B = (0x22222222, 0x3333333333333333), C = 0x44444444 };
-            CollectionAssert.AreEqual(Hex(
+            CollectionAssert.AreEqual(Rt.FromHex(
                 "01000000 00000000 33333333 33333333 22222222 00000000 44444444 00000000"),
                 NinoSerializer.Serialize(value));
             // (byte, short): the short, then the byte, 4 bytes aligned to 4.
             var small = new Around<(byte, short)> { A = 1, B = (2, 0x0303), C = 4 };
-            CollectionAssert.AreEqual(Hex("01000000 03030200 04000000"), NinoSerializer.Serialize(small));
+            CollectionAssert.AreEqual(Rt.FromHex("01000000 03030200 04000000"), NinoSerializer.Serialize(small));
             var back = NinoDeserializer.Deserialize<Around<(byte, short)>>(NinoSerializer.Serialize(small));
             Assert.AreEqual(small.B, back.B);
         }
@@ -118,7 +118,7 @@ namespace Nino.UnitTests
             var o = new DateTimeOffset(0x0102030405060708L, TimeSpan.FromMinutes(-90));
             var value = new Around<DateTimeOffset> { A = 1, B = o, C = 2 };
             var utc = BitConverter.GetBytes(o.UtcTicks);
-            var expected = Hex("01000000 00000000 A6FFFFFF 00000000").Concat(utc).Concat(Hex("02000000 00000000"))
+            var expected = Rt.FromHex("01000000 00000000 A6FFFFFF 00000000").Concat(utc).Concat(Rt.FromHex("02000000 00000000"))
                 .ToArray();
             var bytes = NinoSerializer.Serialize(value);
             CollectionAssert.AreEqual(expected, bytes);
@@ -188,15 +188,6 @@ namespace Nino.UnitTests
             Assert.AreEqual(x64, Layout(typeof(Around<System.Runtime.Intrinsics.Vector256<long>>)).Canonical);
         }
 #endif
-
-        internal static byte[] Hex(string hex)
-        {
-            hex = hex.Replace(" ", "");
-            var bytes = new byte[hex.Length / 2];
-            for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = Convert.ToByte(hex.Substring(2 * i, 2), 16);
-            return bytes;
-        }
     }
 }
 

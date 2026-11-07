@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using static Nino.UnitTests.Rt;
 using Nino.UnitTests.Subset.Deep;
 
 #nullable disable
@@ -148,28 +148,7 @@ public sealed class DeepTolerantCarrier
 [TestClass]
 public class DeepNestingTests
 {
-    private const int SmallStack = 512 * 1024;
     private const int NinoDepthInline = 128;
-
-    private static void OnSmallStack(Action action)
-    {
-        Exception error = null;
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                action();
-            }
-            catch (Exception e)
-            {
-                error = e;
-            }
-        }, SmallStack);
-        thread.Start();
-        thread.Join();
-        if (error != null)
-            throw new AssertFailedException("failed on the small stack: " + error, error);
-    }
 
     private static PlainLink PlainChain(int length, int seed = 0)
     {

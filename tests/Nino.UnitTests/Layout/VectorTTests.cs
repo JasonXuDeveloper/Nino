@@ -163,7 +163,7 @@ namespace Nino.UnitTests
 
             // Not null, Id, then the array: its length and 16 floats. The same 73 bytes on every CPU.
             var bytes = NinoSerializer.Serialize(new Particle { Id = 3, Lanes = Lanes(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) });
-            CollectionAssert.AreEqual(BclStructLayoutTests.Hex(
+            CollectionAssert.AreEqual(Rt.FromHex(
                 "01 03000000 10000000" +
                 "00000000 0000803F 00000040 00004040 00008040 0000A040 0000C040 0000E040" +
                 "00000041 00001041 00002041 00003041 00004041 00005041 00006041 00007041"), bytes);

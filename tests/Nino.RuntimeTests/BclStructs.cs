@@ -276,7 +276,7 @@ public static class BclStructs
             }
             else
             {
-                var coreclr = FromHex(hex);
+                var coreclr = BclFixtures.FromHex(hex);
                 var read = NinoDeserializer.Deserialize<T>(coreclr);
                 bool writes = bytes.SequenceEqual(coreclr);
                 bool reads = Contents(read) == Contents(value);
@@ -380,14 +380,6 @@ public static class BclStructs
 #pragma warning restore CS0649
     }
 
-    private static byte[] FromHex(string hex)
-    {
-        var bytes = new byte[hex.Length / 2];
-        for (int i = 0; i < bytes.Length; i++)
-            bytes[i] = Convert.ToByte(hex.Substring(2 * i, 2), 16);
-        return bytes;
-    }
-
     /// <summary>
     /// Prints BclFixtures.cs with what this runtime wrote (run on CoreCLR x64: <c>--write-fixtures</c>, standard error
     /// redirected to src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs).
@@ -404,6 +396,15 @@ public static class BclStructs
         sb.AppendLine("/// </summary>");
         sb.AppendLine("public static class BclFixtures");
         sb.AppendLine("{");
+        sb.AppendLine("    /// <summary>The bytes of a case's hex (Convert.FromHexString, which Unity and .NET Framework lack).</summary>");
+        sb.AppendLine("    public static byte[] FromHex(string hex)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var bytes = new byte[hex.Length / 2];");
+        sb.AppendLine("        for (int i = 0; i < bytes.Length; i++)");
+        sb.AppendLine("            bytes[i] = System.Convert.ToByte(hex.Substring(2 * i, 2), 16);");
+        sb.AppendLine("        return bytes;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
         sb.AppendLine("    public static readonly Dictionary<string, string> Bytes = new Dictionary<string, string>");
         sb.AppendLine("    {");
         foreach (var pair in Written)
