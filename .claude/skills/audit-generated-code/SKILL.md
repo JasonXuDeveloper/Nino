@@ -68,6 +68,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `INinoFixedSizeFormatter`; round 101 merged `BlockSize`/`WriteBlock` into it). A by-value `WriteFixed` that the
   block write forwarded to made the block loops load every field before storing any (`NinoBlockCollections.WriteValue`,
   `WriteEach` of Waypoints changed); by reference, the listings are the old by-reference `WriteBlock`'s.
+- **nino-gen's Rust: per-type boilerplate is a crate macro**: what the template, the derive, `gen.py` and the benches'
+  `Point` write the same for every type of a kind is a `macro_rules!` in `runtimes/rust/src/lib.rs` they all call
+  (`sealed_read!`/`sealed_write!`, `raw_read!`/`raw_write!`), and doc comments on per-type items live in the macro
+  that emits them (`type_consts!`: TYPE_ID, NINO_TYPE_NAME, NINO_LAYOUT). Round 129 took `tests/generated` from
+  436 KB to 381 KB. A macro call's layout is rustfmt's: one line when it fits 120 columns, else an argument per line
+  when each fits, else left on one line (rustfmt gives up on an overlong string), or `cargo fmt --check` fails.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample.
 
