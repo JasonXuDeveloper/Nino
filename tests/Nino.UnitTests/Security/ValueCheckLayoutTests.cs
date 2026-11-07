@@ -85,8 +85,10 @@ public class ValueCheckLayoutTests
         }
 
         Assert.IsTrue(invalid > 3000, $"{invalid} invalid runs");
+#if !NINO_CORE_NETSTANDARD // The vector passes are in the .NET 8+ builds of Nino.Core only.
         if (System.Numerics.Vector.IsHardwareAccelerated)
             Assert.IsTrue(vectored > 300, $"{vectored} layouts took the vector passes");
+#endif
     }
 
     private static bool Passes(NinoValueChecks checks, ref byte first, int count, int stride)
