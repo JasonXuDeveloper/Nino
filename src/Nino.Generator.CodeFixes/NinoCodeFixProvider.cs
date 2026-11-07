@@ -112,7 +112,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                                                  m.IsKind(SyntaxKind.SealedKeyword))),
         },
         [NinoDiagnostics.PoolHooksNotImplemented.Id] = new[] { new Fix("Implement pool hooks", "ImplementPoolHooks", ImplementPoolHooks) },
-        [NinoDiagnostics.WeakToleranceRemoved.Id] = new[]
+        [NinoDiagnostics.WeakToleranceWithoutEffect.Id] = new[]
         {
             new Fix("Make it version tolerant", "VersionTolerant", d => d.Properties.TryGetValue(
                 NinoDiagnostics.NinoTypeToAdd, out var ninoType) && ninoType != null

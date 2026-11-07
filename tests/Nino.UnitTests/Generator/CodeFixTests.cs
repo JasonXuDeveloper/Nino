@@ -889,7 +889,7 @@ public interface IShape
 
     #endregion
 
-    #region NINO032 - WEAK_VERSION_TOLERANCE was removed
+    #region NINO032 - WEAK_VERSION_TOLERANCE does not make types version tolerant
 
     /// <summary>A test whose project defines WEAK_VERSION_TOLERANCE, before the fix and after it.</summary>
     private CSharpCodeFixTest<Generator.Analysis.NinoAnalyzer, Generator.NinoCodeFixProvider, DefaultVerifier>

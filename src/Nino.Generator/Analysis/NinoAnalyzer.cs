@@ -224,14 +224,14 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     /// options it takes, and the format) in <see cref="NinoDiagnostics.NinoTypeToAdd"/>: the generated code is the
     /// same as with the symbol.
     /// </summary>
-    private static void ReportRemovedWeakTolerance(SymbolAnalysisContext context, INamedTypeSymbol type,
+    private static void ReportWeakTolerance(SymbolAnalysisContext context, INamedTypeSymbol type,
         NinoTypeOptions attr, TypeFacts facts)
     {
         var source = type.NinoTypeSource();
         if (SymbolEqualityComparer.Default.Equals(source, type) &&
             type.GetDirectNinoTypeAttribute()?.ApplicationSyntaxReference is { } syntax)
         {
-            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.WeakToleranceRemoved,
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.WeakToleranceWithoutEffect,
                 Location.Create(syntax.SyntaxTree, syntax.Span), type.ToDisplayString(),
                 "add format: NinoFormat.VersionTolerant to its [NinoType]"));
             return;
@@ -251,7 +251,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (attr.TrackReferences)
             arguments.Add("trackReferences: true");
         string ninoType = $"NinoType({string.Join(", ", arguments)})";
-        context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.WeakToleranceRemoved, type.Locations.FirstOrDefault(),
+        context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.WeakToleranceWithoutEffect, type.Locations.FirstOrDefault(),
             ImmutableDictionary<string, string?>.Empty.Add(NinoDiagnostics.NinoTypeToAdd, ninoType),
             type.ToDisplayString(),
             $"declare [{ninoType}] on it (the options it takes from '{source.ToDisplayString()}' in another assembly)"));
@@ -272,8 +272,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         var options = type.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree.Options;
         var facts = TypeFacts.For(context.Compilation, options);
         if (attr.Format == NinoFormat.Positional &&
-            options?.PreprocessorSymbolNames.Contains(NinoDiagnostics.RemovedWeakTolerance) == true)
-            ReportRemovedWeakTolerance(context, type, attr, facts);
+            options?.PreprocessorSymbolNames.Contains(NinoDiagnostics.WeakToleranceSymbol) == true)
+            ReportWeakTolerance(context, type, attr, facts);
         // Collecting the findings also caches the members, so the model build below reuses them.
         var findings = facts.Members.FindingsOf(type, attr);
 

@@ -146,17 +146,17 @@ internal static class NinoDiagnostics
         "Invalid [NinoFactory]", "[NinoFactory] '{0}' cannot create instances: it {1}");
 
     /// <summary>The compile-time symbol that made an assembly's positional types version tolerant until 4.0.</summary>
-    public const string RemovedWeakTolerance = "WEAK_VERSION_TOLERANCE";
+    public const string WeakToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
     /// <summary>
-    /// The property of a <see cref="WeakToleranceRemoved"/> diagnostic on a type without a <c>[NinoType]</c> of its
+    /// The property of a <see cref="WeakToleranceWithoutEffect"/> diagnostic on a type without a <c>[NinoType]</c> of its
     /// own: the attribute to declare on it (<c>NinoType(..., format: NinoFormat.VersionTolerant)</c>).
     /// </summary>
     public const string NinoTypeToAdd = "NinoType";
 
-    public static readonly DiagnosticDescriptor WeakToleranceRemoved = Error("NINO032",
-        "WEAK_VERSION_TOLERANCE was removed",
-        "WEAK_VERSION_TOLERANCE was removed in 4.0, so NinoType '{0}' is now written positionally and cannot read the data it wrote as version tolerant; to keep its bytes, {1}");
+    public static readonly DiagnosticDescriptor WeakToleranceWithoutEffect = Error("NINO032",
+        "WEAK_VERSION_TOLERANCE does not make types version tolerant",
+        "WEAK_VERSION_TOLERANCE does not make NinoType '{0}' version tolerant (it did before 4.0): '{0}' is written positionally and cannot read the data it wrote as version tolerant; to keep its bytes, {1}");
 
     // Pooling
 
