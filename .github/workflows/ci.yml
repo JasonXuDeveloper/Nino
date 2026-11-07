@@ -257,9 +257,9 @@ jobs:
           path: ${{ env.RESULTS }}
           retention-days: 30
 
-  # The whole solution must compile; the ASP.NET Core integration, Nino.Codegen in builds, nino-gen and the conformance
-  # corpus are checked here, beside the unit tests instead of after them. (The TypeScript runtime's own tests run in
-  # runtimes.yml.)
+  # The whole solution must compile; the ASP.NET Core integration, Nino.Codegen in builds, nino-gen, the conformance
+  # corpus and the benchmark cases are checked here, beside the unit tests instead of after them. (The TypeScript
+  # runtime's own tests run in runtimes.yml.)
   integrations:
     name: Integrations and code generation
     runs-on: ubuntu-26.04
@@ -356,6 +356,13 @@ jobs:
               "'dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus' and commit it."
             exit 1
           fi
+
+      # Every benchmark case reads back what the others read and writes its payload's bytes (Verify.cs), on every
+      # push: report.yml runs it first on each shard, where a failure showed only at a release. The Arm64 runtime
+      # internals job runs it on Arm64.
+      - name: Check the benchmark cases
+        if: ${{ !cancelled() }}
+        run: dotnet benchmarks/Nino.Benchmark/bin/Debug/net10.0/Nino.Benchmark.dll --verify
 
       - name: Upload test results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -520,6 +527,15 @@ jobs:
           esac
           exit $status
 
+      # The benchmark cases on Arm64 (the integrations job checks them on x64): each Arm64 shard of report.yml runs
+      # this first, and v4.0.0-rc.8's failed in all ten (a probe's setup called x86's CpuId; run 41853674050), which
+      # no x64 run catches: DOTNET_EnableHWIntrinsic=0 leaves X86Base supported.
+      - name: Check the benchmark cases on Arm64
+        if: ${{ matrix.id == 'arm64' && !cancelled() }}
+        run: |
+          dotnet build benchmarks/Nino.Benchmark/Nino.Benchmark.csproj -c Release
+          dotnet benchmarks/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll --verify
+
       - name: Publish trimmed and NativeAOT
         if: ${{ matrix.id == 'linux' && !cancelled() }}
         run: |
@@ -628,17 +644,11 @@ jobs:
         with:
           net8: true
 
+      # Verify.cs runs in the integrations job, on pushes and pull requests alike.
       - name: Build benchmark project
-        env:
-          JOB_INDEX: ${{ strategy.job-index }}
         run: |
           cd benchmarks/Nino.Benchmark
           dotnet build -c Release
-          # Every case reads back what the others read and writes its payload's bytes (Verify.cs). It checks every
-          # case whatever the shard's filters, so one shard runs it.
-          if [ "$JOB_INDEX" = 0 ]; then
-            dotnet run -c Release --no-build -- --verify
-          fi
 
       - name: Run benchmarks
         env:
