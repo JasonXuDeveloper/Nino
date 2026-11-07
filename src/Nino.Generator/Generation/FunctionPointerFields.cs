@@ -104,27 +104,10 @@ internal static class FunctionPointerFields
     /// <summary>The registrations of every struct <paramref name="assembly"/> declares, nested ones included.</summary>
     public static IEnumerable<string> In(IAssemblySymbol assembly, CancellationToken ct)
     {
-        var result = new List<string>();
-        var namespaces = new Stack<INamespaceSymbol>();
-        namespaces.Push(assembly.GlobalNamespace);
-        while (namespaces.Count != 0)
+        foreach (var type in AssemblyTypes.Of(assembly, ct))
         {
-            var ns = namespaces.Pop();
-            foreach (var inner in ns.GetNamespaceMembers())
-                namespaces.Push(inner);
-            foreach (var type in ns.GetTypeMembers())
-                Add(type, result, ct);
-        }
-
-        return result;
-
-        static void Add(INamedTypeSymbol type, List<string> into, CancellationToken ct)
-        {
-            ct.ThrowIfCancellationRequested();
             if (Of(type) is { } registration)
-                into.Add(registration);
-            foreach (var nested in type.GetTypeMembers())
-                Add(nested, into, ct);
+                yield return registration;
         }
     }
 

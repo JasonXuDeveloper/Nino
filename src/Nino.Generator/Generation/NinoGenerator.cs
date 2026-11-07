@@ -58,11 +58,14 @@ public sealed class NinoGenerator : IIncrementalGenerator
     private static IncrementalValuesProvider<TypeModel>[] TypeModels(IncrementalGeneratorInitializationContext context,
         IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled)
     {
-        // Types marked [NinoType] directly.
+        // Types marked [NinoType] directly, with their names as the compiler binds the attribute: unlike the
+        // syntactic check below, this sees aliases (using NT = Nino.Core.NinoTypeAttribute), so their subtypes are
+        // found too.
         var marked = context.SyntaxProvider.ForAttributeWithMetadataName(
             NinoNames.NinoTypeAttributeMetadataName,
             static (node, _) => node is TypeDeclarationSyntax,
-            static (ctx, ct) => Transform(ctx.TargetSymbol as INamedTypeSymbol, ctx.SemanticModel, ct))
+            static (ctx, ct) => (Name: ((TypeDeclarationSyntax)ctx.TargetNode).Identifier.ValueText,
+                Model: Transform(ctx.TargetSymbol as INamedTypeSymbol, ctx.SemanticModel, ct)))
             .WithTrackingName("NinoType");
 
         // Types that inherit [NinoType] from a base class or an interface. Candidates are found from syntax alone
@@ -78,13 +81,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Where(static d => d != null)
             .Collect();
         var referencedNinoTypes = project.Select(static (p, _) => p.ReferencedNinoTypes);
-        // Names of the types marked [NinoType], as the compiler binds the attribute: unlike the syntactic check
-        // above, this sees aliases (using NT = Nino.Core.NinoTypeAttribute), so their subtypes are found too.
-        var markedNames = context.SyntaxProvider.ForAttributeWithMetadataName(
-                NinoNames.NinoTypeAttributeMetadataName,
-                static (node, _) => node is TypeDeclarationSyntax,
-                static (ctx, _) => ((TypeDeclarationSyntax)ctx.TargetNode).Identifier.ValueText)
-            .Collect();
+        var markedNames = marked.Select(static (m, _) => m.Name).Collect();
         var candidates = declarations.Combine(referencedNinoTypes).Combine(markedNames)
             .Select(static (x, _) => InheritedCandidates.Find(x.Left.Left!, x.Left.Right, x.Right))
             .WithTrackingName("InheritedCandidates");
@@ -119,7 +116,10 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var prefetching = context.AnalyzerConfigOptionsProvider.Select(static (o, _) =>
             o.GlobalOptions.TryGetValue("build_property." + PrefetchProperty, out var value) &&
             string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
-        return new[] { Gate(marked, enabled, prefetching), Gate(inherited, enabled, prefetching) };
+        return new[]
+        {
+            Gate(marked.Select(static (m, _) => m.Model), enabled, prefetching), Gate(inherited, enabled, prefetching),
+        };
     }
 
     /// <summary>One formatter file per model.</summary>
@@ -441,7 +441,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
     /// Whether the declaration has an attribute named like <c>[NinoType]</c>. A syntax-only hint, which keeps
     /// marked types from being bound as inheritance candidates: it misses aliased attributes, whose types then
     /// become candidates and are skipped once bound, and whose names reach <see cref="InheritedCandidates.Find"/>
-    /// through the bound attribute instead.
+    /// through the bound attribute instead (the names of the marked types' stream).
     /// </summary>
     private static bool HasNinoTypeSyntax(TypeDeclarationSyntax syntax)
     {

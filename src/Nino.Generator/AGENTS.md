@@ -52,6 +52,7 @@ NinoGenerator.cs             the IIncrementalGenerator: one formatter file per [
                              NinoGen.Nesting.g.cs
 ProjectFacts.cs              what is read from the whole compilation in one step (enabled, options, referenced NinoTypes)
 AssemblyReferences.cs        the assemblies an assembly references (only those referencing Nino.Core matter)
+AssemblyTypes.cs             every type an assembly declares, nested ones included (the one namespace walk)
 InheritedCandidates.cs       types that may inherit [NinoType], found from syntax without binding
 ClosedGenerics.cs            the closed generic [NinoType]s a compilation names, for registration by type id
 TypeFacts.cs                 everything model builds ask about one compilation's symbols, memoized and shared

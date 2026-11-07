@@ -167,9 +167,10 @@ internal static class InheritedCandidates
                 continue;
             if (info.NinoTypes == null)
             {
-                var collected = new HashSet<string>();
-                Collect(assembly.GlobalNamespace, collected, ct);
-                info.NinoTypes = collected.ToArray(); // races collect the same names
+                // Races collect the same names.
+                info.NinoTypes = AssemblyTypes.Of(assembly, ct)
+                    .Where(static t => t.TypeKind is TypeKind.Class or TypeKind.Interface && t.IsNinoType())
+                    .Select(static t => t.Name).Distinct().ToArray();
             }
 
             names.AddRange(info.NinoTypes);
@@ -188,23 +189,5 @@ internal static class InheritedCandidates
 
         names.RemoveRange(count, names.Count - count);
         return new EquatableArray<string>(names);
-    }
-
-    private static void Collect(INamespaceOrTypeSymbol container, HashSet<string> names, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        foreach (var member in container.GetMembers())
-        {
-            if (member is INamespaceSymbol ns)
-            {
-                Collect(ns, names, ct);
-            }
-            else if (member is INamedTypeSymbol type)
-            {
-                if (type.TypeKind is TypeKind.Class or TypeKind.Interface && type.IsNinoType())
-                    names.Add(type.Name);
-                Collect(type, names, ct);
-            }
-        }
     }
 }

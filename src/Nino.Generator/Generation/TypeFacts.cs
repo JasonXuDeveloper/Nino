@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Common;
 
@@ -139,29 +140,9 @@ internal sealed class TypeFacts
             ? _ownGenericDefinitions ??= FindGenericDefinitions(assembly)
             : ReferencedGenericDefinitions.GetValue(assembly, FindGenericDefinitions);
 
-    private static INamedTypeSymbol[] FindGenericDefinitions(IAssemblySymbol assembly)
-    {
-        var found = new List<INamedTypeSymbol>();
-        var namespaces = new Stack<INamespaceSymbol>();
-        namespaces.Push(assembly.GlobalNamespace);
-        while (namespaces.Count != 0)
-        {
-            var ns = namespaces.Pop();
-            foreach (var child in ns.GetNamespaceMembers())
-                namespaces.Push(child);
-            var types = new Stack<INamedTypeSymbol>(ns.GetTypeMembers());
-            while (types.Count != 0)
-            {
-                var type = types.Pop();
-                if (type.IsGenericType && type.IsNinoType())
-                    found.Add(type);
-                foreach (var nested in type.GetTypeMembers())
-                    types.Push(nested);
-            }
-        }
-
-        return found.ToArray();
-    }
+    private static INamedTypeSymbol[] FindGenericDefinitions(IAssemblySymbol assembly) =>
+        AssemblyTypes.Of(assembly, CancellationToken.None).Where(static t => t.IsGenericType && t.IsNinoType())
+            .ToArray();
 
     /// <summary>The Nino attribute types of this compilation.</summary>
     public NinoSymbols Symbols { get; }
