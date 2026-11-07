@@ -356,6 +356,11 @@ impl{{ t.default_generics }} Default for {{ t.name }}{{ t.generics }} {
 impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
 {{~ if !t.deferrable ~}}
     const DEFERRABLE: bool = false;
+{{~ end ~}}
+{{~ if t.parameters.size == 0 ~}}
+    const TYPE_ID: i32 = Self::TYPE_ID;
+{{~ end ~}}
+{{~ if !t.deferrable || t.parameters.size == 0 ~}}
 
 {{~ end ~}}
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
@@ -399,6 +404,11 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
 impl{{ t.impl_generics }} NinoWriteBody for {{ t.name }}{{ t.generics }} {
 {{~ if !t.deferrable ~}}
     const DEFERRABLE: bool = false;
+{{~ end ~}}
+{{~ if t.parameters.size == 0 ~}}
+    const TYPE_ID: i32 = Self::TYPE_ID;
+{{~ end ~}}
+{{~ if !t.deferrable || t.parameters.size == 0 ~}}
 
 {{~ end ~}}
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
