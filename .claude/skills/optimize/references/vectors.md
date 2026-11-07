@@ -71,7 +71,14 @@ of bytes in a block.
   compares were slower than scalar (a bool/DateTime/int/double struct 1,616 ns against 1,526; a 48-byte struct of
   every kind 9,849 against 5,658); subtract and OR with the cost rule took 1,535 and 5,644 against main's 3,806 and
   12,040 (main branched per field), DateTime[] 382 against 1,914; on runners the Untrusted list case (1,000 structs
-  with a DateTime and a bool) took 0.47-0.69 times main's time on every CPU.
+  with a DateTime and a bool) took 0.47-0.69 times main's time on every CPU. Put a bool in a wider pass's lane where
+  that lane tests only against a bound of zero and the bool is not its top byte (`Pass.Joins`: `0 - (v & mask)` has
+  its sign set exactly when a masked bit below bit 63 is set), so passes, not fields, set the cost: the Untrusted
+  list's struct (a bool at offset 20, in the DateTime pass's 8-byte lanes) went from two scalar loops to one vector
+  pass, its check of 1,000 values 1,300 to 830 ns (local Xeon, AVX-512 and AVX2 alike; round 129, runner A/B
+  pending). Arm64's 16-byte vectors keep it scalar by the cost rule (48 > 32), unmeasured there. Tried and not kept:
+  the loop over whole periods with the tables' offsets from an inner loop instead of the phase wrap, 5-10 % on the
+  check alone, inside the noise of the case.
 
 ## Blocks, permutes and copies
 
