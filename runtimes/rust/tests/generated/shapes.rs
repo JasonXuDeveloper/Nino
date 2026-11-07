@@ -570,7 +570,7 @@ pub struct ForestHolder {
 }
 
 impl NinoReadBody for ForestHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.forest, nino::field!(Self, forest))?;
@@ -579,7 +579,7 @@ impl NinoReadBody for ForestHolder {
 }
 
 impl NinoWriteBody for ForestHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.forest)?;
@@ -632,7 +632,7 @@ pub struct Holder {
 }
 
 impl NinoReadBody for Holder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.thing, nino::field!(Self, thing))?;
@@ -654,7 +654,7 @@ impl NinoReadBody for Holder {
 }
 
 impl NinoWriteBody for Holder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.thing)?;
@@ -732,7 +732,7 @@ pub struct HostHolder {
 }
 
 impl NinoReadBody for HostHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.leaves)?;
@@ -742,7 +742,7 @@ impl NinoReadBody for HostHolder {
 }
 
 impl NinoWriteBody for HostHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.leaves)?;
@@ -841,7 +841,7 @@ pub struct Keywords {
 }
 
 impl NinoReadBody for Keywords {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.r#type)?;
@@ -859,7 +859,7 @@ impl NinoReadBody for Keywords {
 }
 
 impl NinoWriteBody for Keywords {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.r#type)?;
@@ -936,7 +936,7 @@ pub struct NinoGrid {
 }
 
 impl NinoReadBody for NinoGrid {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -945,7 +945,7 @@ impl NinoReadBody for NinoGrid {
 }
 
 impl NinoWriteBody for NinoGrid {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -1046,7 +1046,7 @@ pub struct OffsetHolder {
 }
 
 impl NinoReadBody for OffsetHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.leaf)?;
@@ -1055,7 +1055,7 @@ impl NinoReadBody for OffsetHolder {
 }
 
 impl NinoWriteBody for OffsetHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.leaf)?;
@@ -1170,7 +1170,7 @@ pub struct OpenHolderUse {
 }
 
 impl NinoReadBody for OpenHolderUse {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.holder, nino::field!(Self, holder))?;
@@ -1179,7 +1179,7 @@ impl NinoReadBody for OpenHolderUse {
 }
 
 impl NinoWriteBody for OpenHolderUse {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.holder)?;
@@ -1219,7 +1219,7 @@ pub struct OpenUse {
 }
 
 impl NinoReadBody for OpenUse {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.open, nino::field!(Self, open))?;
@@ -1228,7 +1228,7 @@ impl NinoReadBody for OpenUse {
 }
 
 impl NinoWriteBody for OpenUse {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.open)?;
@@ -1257,7 +1257,7 @@ pub struct OuterInner {
 }
 
 impl NinoReadBody for OuterInner {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -1266,7 +1266,7 @@ impl NinoReadBody for OuterInner {
 }
 
 impl NinoWriteBody for OuterInner {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -1471,7 +1471,7 @@ pub struct Recursive {
 
 impl NinoReadBody for Recursive {
     const DEFERRABLE: bool = false;
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -1482,7 +1482,7 @@ impl NinoReadBody for Recursive {
 
 impl NinoWriteBody for Recursive {
     const DEFERRABLE: bool = false;
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -1537,7 +1537,7 @@ pub struct Renamed {
 }
 
 impl NinoReadBody for Renamed {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -1560,7 +1560,7 @@ impl NinoReadBody for Renamed {
 }
 
 impl NinoWriteBody for Renamed {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -1609,7 +1609,7 @@ pub struct ShapesLeftItem {
 }
 
 impl NinoReadBody for ShapesLeftItem {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.left)?;
@@ -1618,7 +1618,7 @@ impl NinoReadBody for ShapesLeftItem {
 }
 
 impl NinoWriteBody for ShapesLeftItem {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.left)?;
@@ -1647,7 +1647,7 @@ pub struct ShapesRightItem {
 }
 
 impl NinoReadBody for ShapesRightItem {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.right)?;
@@ -1656,7 +1656,7 @@ impl NinoReadBody for ShapesRightItem {
 }
 
 impl NinoWriteBody for ShapesRightItem {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.right)?;
@@ -1692,7 +1692,7 @@ pub struct Stamps {
 }
 
 impl NinoReadBody for Stamps {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.times)?;
@@ -1708,7 +1708,7 @@ impl NinoReadBody for Stamps {
 }
 
 impl NinoWriteBody for Stamps {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.times)?;
@@ -1777,7 +1777,7 @@ pub struct Strides {
 }
 
 impl NinoReadBody for Strides {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.cells)?;
@@ -1787,7 +1787,7 @@ impl NinoReadBody for Strides {
 }
 
 impl NinoWriteBody for Strides {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.cells)?;
@@ -1832,7 +1832,7 @@ pub struct ThingClass {
 }
 
 impl NinoReadBody for ThingClass {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.id)?;
@@ -1842,7 +1842,7 @@ impl NinoReadBody for ThingClass {
 }
 
 impl NinoWriteBody for ThingClass {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.id)?;
@@ -1901,7 +1901,7 @@ pub struct Uses {
 }
 
 impl NinoReadBody for Uses {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.number, nino::field!(Self, number))?;
@@ -1928,7 +1928,7 @@ impl NinoReadBody for Uses {
 }
 
 impl NinoWriteBody for Uses {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.number)?;
@@ -2069,11 +2069,11 @@ impl NinoRead for IThingRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::ThingClass(v)) if id == ThingClass::TYPE_ID => {
+            Some(Self::ThingClass(v)) if id == ThingClass::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::ThingStruct(v)) if id == ThingStruct::TYPE_ID => {
+            Some(Self::ThingStruct(v)) if id == ThingStruct::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
@@ -2081,8 +2081,8 @@ impl NinoRead for IThingRef {
         };
         if !reused {
             *slot = Some(match id {
-                ThingClass::TYPE_ID => Self::ThingClass(Box::new(r.read_class()?)),
-                ThingStruct::TYPE_ID => Self::ThingStruct(Box::new(r.read()?)),
+                ThingClass::NINO_TYPE_ID => Self::ThingClass(Box::new(r.read_class()?)),
+                ThingStruct::NINO_TYPE_ID => Self::ThingStruct(Box::new(r.read()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -2095,11 +2095,11 @@ impl NinoWrite for IThingRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::ThingClass(v) => {
-                w.i32(ThingClass::TYPE_ID);
+                w.i32(ThingClass::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::ThingStruct(v) => {
-                w.i32(ThingStruct::TYPE_ID);
+                w.i32(ThingStruct::NINO_TYPE_ID);
                 w.write(&**v)
             }
         }

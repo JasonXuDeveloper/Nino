@@ -139,7 +139,7 @@ namespace Nino.Codegen.Targets
         private List<RustVariant> Variants(IEnumerable<TypeModel> types, IEnumerable<ClosedTypeModel> closed, bool tracked)
         {
             var variants = types.OrderBy(Name, StringComparer.Ordinal)
-                .Select(t => new RustVariant(Name(t), t, null, Name(t) + "::TYPE_ID", t.IsValueType)
+                .Select(t => new RustVariant(Name(t), t, null, Name(t) + "::NINO_TYPE_ID", t.IsValueType)
                     { Shared = t.TrackReferences && !t.IsValueType })
                 .ToList();
             var taken = new HashSet<string>(variants.Select(v => v.Name), StringComparer.Ordinal);
@@ -1026,7 +1026,7 @@ namespace Nino.Codegen.Targets
 
         public RustShape? Shape { get; }
 
-        /// <summary>Its type id, as a Rust expression (<c>Cat::TYPE_ID</c>, or the closed type's id).</summary>
+        /// <summary>Its type id, as a Rust expression (<c>Cat::NINO_TYPE_ID</c>, or the closed type's id).</summary>
         public string Id { get; }
 
         public bool IsValueType { get; }

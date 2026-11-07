@@ -136,11 +136,11 @@ pub struct Square {
 }
 
 impl Circle {
-    pub const TYPE_ID: i32 = type_id("Spec.Circle");
+    pub const NINO_TYPE_ID: i32 = type_id("Spec.Circle");
 }
 
 impl Square {
-    pub const TYPE_ID: i32 = type_id("Spec.Square");
+    pub const NINO_TYPE_ID: i32 = type_id("Spec.Square");
 }
 
 impl NinoReadBody for Circle {
@@ -229,8 +229,8 @@ impl NinoRead for Shape {
         let id = r.i32()?;
         Ok(Some(match id {
             0 => return Ok(None),
-            Circle::TYPE_ID => Shape::Circle(Box::new(r.read_class()?)),
-            Square::TYPE_ID => Shape::Square(Box::new(r.read_class()?)),
+            Circle::NINO_TYPE_ID => Shape::Circle(Box::new(r.read_class()?)),
+            Square::NINO_TYPE_ID => Shape::Square(Box::new(r.read_class()?)),
             _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
         }))
     }
@@ -240,11 +240,11 @@ impl NinoWrite for Shape {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Shape::Circle(v) => {
-                w.i32(Circle::TYPE_ID);
+                w.i32(Circle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Shape::Square(v) => {
-                w.i32(Square::TYPE_ID);
+                w.i32(Square::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -346,7 +346,7 @@ pub struct TolLeaf {
 }
 
 impl TolLeaf {
-    pub const TYPE_ID: i32 = type_id("Spec.TolLeaf");
+    pub const NINO_TYPE_ID: i32 = type_id("Spec.TolLeaf");
 }
 
 impl NinoReadBody for TolLeaf {
@@ -440,7 +440,7 @@ impl NinoRead for TolBase {
         let id = r.i32()?;
         Ok(Some(match id {
             0 => return Ok(None),
-            TolLeaf::TYPE_ID => TolBase::Leaf(Box::new(r.read_class()?)),
+            TolLeaf::NINO_TYPE_ID => TolBase::Leaf(Box::new(r.read_class()?)),
             _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
         }))
     }
@@ -450,7 +450,7 @@ impl NinoWrite for TolBase {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             TolBase::Leaf(v) => {
-                w.i32(TolLeaf::TYPE_ID);
+                w.i32(TolLeaf::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -844,11 +844,11 @@ pub struct Leaf {
 }
 
 impl Link {
-    pub const TYPE_ID: i32 = type_id("Spec.Link");
+    pub const NINO_TYPE_ID: i32 = type_id("Spec.Link");
 }
 
 impl Leaf {
-    pub const TYPE_ID: i32 = type_id("Spec.Leaf");
+    pub const NINO_TYPE_ID: i32 = type_id("Spec.Leaf");
 }
 
 impl Node {
@@ -883,8 +883,8 @@ impl NinoRead for Node {
         let mark = r.defer_mark();
         let value = match id {
             0 => return Ok(None),
-            Link::TYPE_ID => Node::Link(Box::new(r.read_class()?)),
-            Leaf::TYPE_ID => Node::Leaf(Box::new(r.read_class()?)),
+            Link::NINO_TYPE_ID => Node::Link(Box::new(r.read_class()?)),
+            Leaf::NINO_TYPE_ID => Node::Leaf(Box::new(r.read_class()?)),
             _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
         };
         r.defer_trail(mark, Step::Field(|p| Some(p.downcast_mut::<Node>()?.body())));
@@ -896,11 +896,11 @@ impl NinoWrite for Node {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Node::Link(v) => {
-                w.i32(Link::TYPE_ID);
+                w.i32(Link::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Node::Leaf(v) => {
-                w.i32(Leaf::TYPE_ID);
+                w.i32(Leaf::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }

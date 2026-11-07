@@ -93,8 +93,8 @@ namespace Nino.Codegen.Tests
         public void RustPutsStructsBehindTheirIdInSlots()
         {
             var (text, _) = Run("rust", "nino_types.rs");
-            StringAssert.Contains(text, "ThingStruct::TYPE_ID => Self::ThingStruct(Box::new(r.read()?)),");
-            StringAssert.Contains(text, "ThingClass::TYPE_ID => Self::ThingClass(Box::new(r.read_class()?)),");
+            StringAssert.Contains(text, "ThingStruct::NINO_TYPE_ID => Self::ThingStruct(Box::new(r.read()?)),");
+            StringAssert.Contains(text, "ThingClass::NINO_TYPE_ID => Self::ThingClass(Box::new(r.read_class()?)),");
         }
 
         [TestMethod]

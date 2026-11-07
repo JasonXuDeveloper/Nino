@@ -219,7 +219,7 @@ func field(f, type)
   ret $o + "    pub " + f.name + ": " + type + ","
 end
 
-# The type's TYPE_ID (none for a generic type), NINO_TYPE_NAME and NINO_LAYOUT, documented once by nino::type_consts!,
+# The type's NINO_TYPE_ID (none for a generic type), NINO_TYPE_NAME and NINO_LAYOUT, documented once by nino::type_consts!,
 # laid out as rustfmt lays out a call: on one line when it fits in 120 columns, else an argument per line when each
 # fits, else left on one line.
 func ids(t)
@@ -358,7 +358,7 @@ impl{{ t.impl_generics }} NinoReadBody for {{ t.name }}{{ t.generics }} {
     const DEFERRABLE: bool = false;
 {{~ end ~}}
 {{~ if t.parameters.size == 0 ~}}
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 {{~ end ~}}
 {{~ if !t.deferrable || t.parameters.size == 0 ~}}
 
@@ -406,7 +406,7 @@ impl{{ t.impl_generics }} NinoWriteBody for {{ t.name }}{{ t.generics }} {
     const DEFERRABLE: bool = false;
 {{~ end ~}}
 {{~ if t.parameters.size == 0 ~}}
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 {{~ end ~}}
 {{~ if !t.deferrable || t.parameters.size == 0 ~}}
 

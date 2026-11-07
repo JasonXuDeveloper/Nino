@@ -570,7 +570,7 @@ class Gen:
             o.append("")
         tid = self.type_id(type_name)
         o.append(f"impl {rust} {{")
-        o.append(f"    pub const TYPE_ID: i32 = 0x{tid:08X}u32 as i32;")
+        o.append(f"    pub const NINO_TYPE_ID: i32 = 0x{tid:08X}u32 as i32;")
         o.append("}")
         o.append("")
         self.emit_json(rust, type_name, members)
@@ -624,7 +624,7 @@ class Gen:
         o.append("        let mark = r.defer_mark();")
         o.append("        let reused = match slot {")
         for s in subtypes:
-            o.append(f"            Some(Self::{ident(s)}(v)) if id == {ident(s)}::TYPE_ID => {{")
+            o.append(f"            Some(Self::{ident(s)}(v)) if id == {ident(s)}::NINO_TYPE_ID => {{")
             o.append("                r.read_class_into(&mut **v)?;")
             o.append("                true")
             o.append("            }")
@@ -633,7 +633,7 @@ class Gen:
         o.append("        if !reused {")
         o.append("            *slot = Some(match id {")
         for s in subtypes:
-            o.append(f"                {ident(s)}::TYPE_ID => Self::{ident(s)}(Box::new(r.read_class()?)),")
+            o.append(f"                {ident(s)}::NINO_TYPE_ID => Self::{ident(s)}(Box::new(r.read_class()?)),")
         o.append("                _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),")
         o.append("            });")
         o.append("        }")
@@ -647,7 +647,7 @@ class Gen:
         o.append("        match self {")
         for s in subtypes:
             o.append(f"            Self::{ident(s)}(v) => {{")
-            o.append(f"                w.i32({ident(s)}::TYPE_ID);")
+            o.append(f"                w.i32({ident(s)}::NINO_TYPE_ID);")
             o.append("                w.write_class(&**v)")
             o.append("            }")
         o.append("        }")

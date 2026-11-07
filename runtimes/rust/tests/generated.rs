@@ -344,10 +344,10 @@ fn body_traits_carry_type_ids() {
     fn ids<T: NinoReadBody + NinoWriteBody>() -> (i32, i32) {
         (<T as NinoReadBody>::TYPE_ID, <T as NinoWriteBody>::TYPE_ID)
     }
-    assert_eq!(ids::<AnimalSlot>(), (AnimalSlot::TYPE_ID, AnimalSlot::TYPE_ID));
-    assert_eq!(ids::<Cat>(), (Cat::TYPE_ID, Cat::TYPE_ID));
-    assert_eq!(ids::<BclRawHost>(), (BclRawHost::TYPE_ID, BclRawHost::TYPE_ID));
-    assert_ne!(Cat::TYPE_ID, 0);
+    assert_eq!(ids::<AnimalSlot>(), (AnimalSlot::NINO_TYPE_ID, AnimalSlot::NINO_TYPE_ID));
+    assert_eq!(ids::<Cat>(), (Cat::NINO_TYPE_ID, Cat::NINO_TYPE_ID));
+    assert_eq!(ids::<BclRawHost>(), (BclRawHost::NINO_TYPE_ID, BclRawHost::NINO_TYPE_ID));
+    assert_ne!(Cat::NINO_TYPE_ID, 0);
 }
 
 /// A closed type of a generic class behind a type id: its slot takes the closed types assignable to it, by the ids of

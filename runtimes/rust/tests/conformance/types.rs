@@ -42,7 +42,7 @@ impl NinoWrite for BigValues {
 }
 
 impl BigValues {
-    pub const TYPE_ID: i32 = 0xD56E77DAu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xD56E77DAu32 as i32;
 }
 
 impl J for BigValues {
@@ -92,7 +92,7 @@ impl NinoWrite for BlueLink {
 }
 
 impl BlueLink {
-    pub const TYPE_ID: i32 = 0xA9C583C8u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xA9C583C8u32 as i32;
 }
 
 impl J for BlueLink {
@@ -143,7 +143,7 @@ impl NinoWrite for Bytes {
 }
 
 impl Bytes {
-    pub const TYPE_ID: i32 = 0x40CE351Fu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x40CE351Fu32 as i32;
 }
 
 impl J for Bytes {
@@ -191,7 +191,7 @@ impl NinoWrite for Cat {
 }
 
 impl Cat {
-    pub const TYPE_ID: i32 = 0xAD792380u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xAD792380u32 as i32;
 }
 
 impl J for Cat {
@@ -238,7 +238,7 @@ impl NinoWrite for Chain {
 }
 
 impl Chain {
-    pub const TYPE_ID: i32 = 0x8147BA33u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x8147BA33u32 as i32;
 }
 
 impl J for Chain {
@@ -276,7 +276,7 @@ impl NinoWriteBody for Circle {
 }
 
 impl Circle {
-    pub const TYPE_ID: i32 = 0xD0A6E3F4u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xD0A6E3F4u32 as i32;
 }
 
 impl J for Circle {
@@ -380,7 +380,7 @@ impl NinoWrite for Collections {
 }
 
 impl Collections {
-    pub const TYPE_ID: i32 = 0xFECE6DDBu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xFECE6DDBu32 as i32;
 }
 
 impl J for Collections {
@@ -452,7 +452,7 @@ impl NinoWrite for Dates {
 }
 
 impl Dates {
-    pub const TYPE_ID: i32 = 0x004F73C1u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x004F73C1u32 as i32;
 }
 
 impl J for Dates {
@@ -492,7 +492,7 @@ impl NinoWriteBody for Dog {
 }
 
 impl Dog {
-    pub const TYPE_ID: i32 = 0x69ACA68Au32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x69ACA68Au32 as i32;
 }
 
 impl J for Dog {
@@ -545,7 +545,7 @@ impl NinoWrite for Empties {
 }
 
 impl Empties {
-    pub const TYPE_ID: i32 = 0xF6777155u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xF6777155u32 as i32;
 }
 
 impl J for Empties {
@@ -589,7 +589,7 @@ impl NinoWrite for Empty {
 }
 
 impl Empty {
-    pub const TYPE_ID: i32 = 0x0C95741Bu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x0C95741Bu32 as i32;
 }
 
 impl J for Empty {
@@ -661,7 +661,7 @@ impl NinoWrite for Enums {
 }
 
 impl Enums {
-    pub const TYPE_ID: i32 = 0x47EFBBD6u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x47EFBBD6u32 as i32;
 }
 
 impl J for Enums {
@@ -720,7 +720,7 @@ impl NinoWrite for Floats {
 }
 
 impl Floats {
-    pub const TYPE_ID: i32 = 0x3504C24Du32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x3504C24Du32 as i32;
 }
 
 impl J for Floats {
@@ -771,7 +771,7 @@ impl NinoWrite for Inner {
 }
 
 impl Inner {
-    pub const TYPE_ID: i32 = 0x8EDDB9E8u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x8EDDB9E8u32 as i32;
 }
 
 impl J for Inner {
@@ -843,7 +843,7 @@ impl NinoWrite for Integers {
 }
 
 impl Integers {
-    pub const TYPE_ID: i32 = 0x14BD31D3u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x14BD31D3u32 as i32;
 }
 
 impl J for Integers {
@@ -919,7 +919,7 @@ impl NinoWrite for KeyedChain {
 }
 
 impl KeyedChain {
-    pub const TYPE_ID: i32 = 0xCBFD8A55u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xCBFD8A55u32 as i32;
 }
 
 impl J for KeyedChain {
@@ -969,7 +969,7 @@ impl NinoWrite for KeyedHolder {
 }
 
 impl KeyedHolder {
-    pub const TYPE_ID: i32 = 0x7FBDA208u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x7FBDA208u32 as i32;
 }
 
 impl J for KeyedHolder {
@@ -1123,7 +1123,7 @@ impl NinoWrite for KeyedV1 {
 }
 
 impl KeyedV1 {
-    pub const TYPE_ID: i32 = 0x8F865207u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x8F865207u32 as i32;
 }
 
 impl J for KeyedV1 {
@@ -1205,7 +1205,7 @@ impl NinoWrite for KeyedV2 {
 }
 
 impl KeyedV2 {
-    pub const TYPE_ID: i32 = 0x1D7EE2CCu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x1D7EE2CCu32 as i32;
 }
 
 impl J for KeyedV2 {
@@ -1309,7 +1309,7 @@ impl NinoWrite for Middle {
 }
 
 impl Middle {
-    pub const TYPE_ID: i32 = 0xD25B7AB3u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xD25B7AB3u32 as i32;
 }
 
 impl J for Middle {
@@ -1390,7 +1390,7 @@ impl NinoWrite for Nullables {
 }
 
 impl Nullables {
-    pub const TYPE_ID: i32 = 0x3920173Cu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x3920173Cu32 as i32;
 }
 
 impl J for Nullables {
@@ -1451,7 +1451,7 @@ impl NinoWrite for Outer {
 }
 
 impl Outer {
-    pub const TYPE_ID: i32 = 0x3F58E13Fu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x3F58E13Fu32 as i32;
 }
 
 impl J for Outer {
@@ -1487,7 +1487,7 @@ impl NinoWriteBody for Plain {
 }
 
 impl Plain {
-    pub const TYPE_ID: i32 = 0x3124185Cu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x3124185Cu32 as i32;
 }
 
 impl J for Plain {
@@ -1533,7 +1533,7 @@ impl NinoWrite for Point {
 }
 
 impl Point {
-    pub const TYPE_ID: i32 = 0x964B64BAu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x964B64BAu32 as i32;
 }
 
 impl J for Point {
@@ -1583,7 +1583,7 @@ impl NinoWrite for Puppy {
 }
 
 impl Puppy {
-    pub const TYPE_ID: i32 = 0x94310DEAu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x94310DEAu32 as i32;
 }
 
 impl J for Puppy {
@@ -1635,7 +1635,7 @@ impl NinoWrite for RecordChain {
 }
 
 impl RecordChain {
-    pub const TYPE_ID: i32 = 0x20F10406u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x20F10406u32 as i32;
 }
 
 impl J for RecordChain {
@@ -1682,7 +1682,7 @@ impl NinoWrite for RedLink {
 }
 
 impl RedLink {
-    pub const TYPE_ID: i32 = 0x9F90173Du32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x9F90173Du32 as i32;
 }
 
 impl J for RedLink {
@@ -1744,7 +1744,7 @@ impl NinoWrite for Scalars {
 }
 
 impl Scalars {
-    pub const TYPE_ID: i32 = 0xD2727283u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xD2727283u32 as i32;
 }
 
 impl J for Scalars {
@@ -1796,7 +1796,7 @@ impl NinoWrite for Square {
 }
 
 impl Square {
-    pub const TYPE_ID: i32 = 0x844A4BA7u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x844A4BA7u32 as i32;
 }
 
 impl J for Square {
@@ -1852,7 +1852,7 @@ impl NinoWrite for StringCollections {
 }
 
 impl StringCollections {
-    pub const TYPE_ID: i32 = 0x744CD3F6u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x744CD3F6u32 as i32;
 }
 
 impl J for StringCollections {
@@ -1902,7 +1902,7 @@ impl NinoWrite for Strings {
 }
 
 impl Strings {
-    pub const TYPE_ID: i32 = 0xCDBD0018u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xCDBD0018u32 as i32;
 }
 
 impl J for Strings {
@@ -1985,7 +1985,7 @@ impl NinoWrite for Structs {
 }
 
 impl Structs {
-    pub const TYPE_ID: i32 = 0x24768402u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x24768402u32 as i32;
 }
 
 impl J for Structs {
@@ -2041,7 +2041,7 @@ impl NinoWrite for TAnimalSlot {
 }
 
 impl TAnimalSlot {
-    pub const TYPE_ID: i32 = 0xD4664648u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xD4664648u32 as i32;
 }
 
 impl J for TAnimalSlot {
@@ -2084,7 +2084,7 @@ impl NinoWrite for TBigSlot {
 }
 
 impl TBigSlot {
-    pub const TYPE_ID: i32 = 0xA6B6AFE2u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xA6B6AFE2u32 as i32;
 }
 
 impl J for TBigSlot {
@@ -2127,7 +2127,7 @@ impl NinoWrite for TBoolArray {
 }
 
 impl TBoolArray {
-    pub const TYPE_ID: i32 = 0x2C38911Du32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x2C38911Du32 as i32;
 }
 
 impl J for TBoolArray {
@@ -2170,7 +2170,7 @@ impl NinoWrite for TBoolValue {
 }
 
 impl TBoolValue {
-    pub const TYPE_ID: i32 = 0x65FCB927u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x65FCB927u32 as i32;
 }
 
 impl J for TBoolValue {
@@ -2213,7 +2213,7 @@ impl NinoWrite for TByteArray {
 }
 
 impl TByteArray {
-    pub const TYPE_ID: i32 = 0xEE43CD01u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xEE43CD01u32 as i32;
 }
 
 impl J for TByteArray {
@@ -2256,7 +2256,7 @@ impl NinoWrite for TDogSlot {
 }
 
 impl TDogSlot {
-    pub const TYPE_ID: i32 = 0x47F317D2u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x47F317D2u32 as i32;
 }
 
 impl J for TDogSlot {
@@ -2299,7 +2299,7 @@ impl NinoWrite for TGrid {
 }
 
 impl TGrid {
-    pub const TYPE_ID: i32 = 0xF8F3033Au32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xF8F3033Au32 as i32;
 }
 
 impl J for TGrid {
@@ -2342,7 +2342,7 @@ impl NinoWrite for TIntArray {
 }
 
 impl TIntArray {
-    pub const TYPE_ID: i32 = 0x694D6EF8u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x694D6EF8u32 as i32;
 }
 
 impl J for TIntArray {
@@ -2385,7 +2385,7 @@ impl NinoWrite for TIntMap {
 }
 
 impl TIntMap {
-    pub const TYPE_ID: i32 = 0xD32CFD85u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xD32CFD85u32 as i32;
 }
 
 impl J for TIntMap {
@@ -2428,7 +2428,7 @@ impl NinoWrite for TIntSet {
 }
 
 impl TIntSet {
-    pub const TYPE_ID: i32 = 0xAA98C54Bu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xAA98C54Bu32 as i32;
 }
 
 impl J for TIntSet {
@@ -2471,7 +2471,7 @@ impl NinoWrite for TLongList {
 }
 
 impl TLongList {
-    pub const TYPE_ID: i32 = 0xCECF34D2u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xCECF34D2u32 as i32;
 }
 
 impl J for TLongList {
@@ -2514,7 +2514,7 @@ impl NinoWrite for TMaybeInt {
 }
 
 impl TMaybeInt {
-    pub const TYPE_ID: i32 = 0x3E8CF8A3u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x3E8CF8A3u32 as i32;
 }
 
 impl J for TMaybeInt {
@@ -2557,7 +2557,7 @@ impl NinoWrite for TMaybeIntArray {
 }
 
 impl TMaybeIntArray {
-    pub const TYPE_ID: i32 = 0x436A69B2u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x436A69B2u32 as i32;
 }
 
 impl J for TMaybeIntArray {
@@ -2600,7 +2600,7 @@ impl NinoWrite for TObjectSlot {
 }
 
 impl TObjectSlot {
-    pub const TYPE_ID: i32 = 0x7A16C8DBu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x7A16C8DBu32 as i32;
 }
 
 impl J for TObjectSlot {
@@ -2643,7 +2643,7 @@ impl NinoWrite for TPaddedArray {
 }
 
 impl TPaddedArray {
-    pub const TYPE_ID: i32 = 0x1805EDC3u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x1805EDC3u32 as i32;
 }
 
 impl J for TPaddedArray {
@@ -2686,7 +2686,7 @@ impl NinoWrite for TPointList {
 }
 
 impl TPointList {
-    pub const TYPE_ID: i32 = 0x2EA152CCu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x2EA152CCu32 as i32;
 }
 
 impl J for TPointList {
@@ -2729,7 +2729,7 @@ impl NinoWrite for TShapeSlot {
 }
 
 impl TShapeSlot {
-    pub const TYPE_ID: i32 = 0xFDAADCC1u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xFDAADCC1u32 as i32;
 }
 
 impl J for TShapeSlot {
@@ -2772,7 +2772,7 @@ impl NinoWrite for TSortedMap {
 }
 
 impl TSortedMap {
-    pub const TYPE_ID: i32 = 0x3F694A3Du32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x3F694A3Du32 as i32;
 }
 
 impl J for TSortedMap {
@@ -2815,7 +2815,7 @@ impl NinoWrite for TStringList {
 }
 
 impl TStringList {
-    pub const TYPE_ID: i32 = 0x30796D4Du32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x30796D4Du32 as i32;
 }
 
 impl J for TStringList {
@@ -2858,7 +2858,7 @@ impl NinoWrite for TStringMap {
 }
 
 impl TStringMap {
-    pub const TYPE_ID: i32 = 0x4B1A1F3Bu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x4B1A1F3Bu32 as i32;
 }
 
 impl J for TStringMap {
@@ -2901,7 +2901,7 @@ impl NinoWrite for TStringSet {
 }
 
 impl TStringSet {
-    pub const TYPE_ID: i32 = 0x73FC2C95u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x73FC2C95u32 as i32;
 }
 
 impl J for TStringSet {
@@ -2944,7 +2944,7 @@ impl NinoWrite for TTextValue {
 }
 
 impl TTextValue {
-    pub const TYPE_ID: i32 = 0x825A7C6Cu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x825A7C6Cu32 as i32;
 }
 
 impl J for TTextValue {
@@ -2987,7 +2987,7 @@ impl NinoWrite for TUtf8Value {
 }
 
 impl TUtf8Value {
-    pub const TYPE_ID: i32 = 0x49EFED16u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x49EFED16u32 as i32;
 }
 
 impl J for TUtf8Value {
@@ -3030,7 +3030,7 @@ impl NinoWrite for TVersionSlot {
 }
 
 impl TVersionSlot {
-    pub const TYPE_ID: i32 = 0x9D692494u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x9D692494u32 as i32;
 }
 
 impl J for TVersionSlot {
@@ -3070,7 +3070,7 @@ impl NinoWriteBody for TolerantBase {
 }
 
 impl TolerantBase {
-    pub const TYPE_ID: i32 = 0x9536FE88u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x9536FE88u32 as i32;
 }
 
 impl J for TolerantBase {
@@ -3124,7 +3124,7 @@ impl NinoWrite for TolerantChain {
 }
 
 impl TolerantChain {
-    pub const TYPE_ID: i32 = 0x18DAD008u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x18DAD008u32 as i32;
 }
 
 impl J for TolerantChain {
@@ -3168,7 +3168,7 @@ impl NinoWrite for TolerantEmpty {
 }
 
 impl TolerantEmpty {
-    pub const TYPE_ID: i32 = 0x85A223A0u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x85A223A0u32 as i32;
 }
 
 impl J for TolerantEmpty {
@@ -3219,7 +3219,7 @@ impl NinoWrite for TolerantHolder {
 }
 
 impl TolerantHolder {
-    pub const TYPE_ID: i32 = 0x2DA994EDu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x2DA994EDu32 as i32;
 }
 
 impl J for TolerantHolder {
@@ -3276,7 +3276,7 @@ impl NinoWrite for TolerantLeaf {
 }
 
 impl TolerantLeaf {
-    pub const TYPE_ID: i32 = 0x6B83150Bu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x6B83150Bu32 as i32;
 }
 
 impl J for TolerantLeaf {
@@ -3336,7 +3336,7 @@ impl NinoWrite for TolerantRoot {
 }
 
 impl TolerantRoot {
-    pub const TYPE_ID: i32 = 0xF7F6B6D3u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xF7F6B6D3u32 as i32;
 }
 
 impl J for TolerantRoot {
@@ -3392,7 +3392,7 @@ impl NinoWrite for TolerantV1 {
 }
 
 impl TolerantV1 {
-    pub const TYPE_ID: i32 = 0x1DBD9212u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x1DBD9212u32 as i32;
 }
 
 impl J for TolerantV1 {
@@ -3457,7 +3457,7 @@ impl NinoWrite for TolerantV2 {
 }
 
 impl TolerantV2 {
-    pub const TYPE_ID: i32 = 0xF7BB17A9u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xF7BB17A9u32 as i32;
 }
 
 impl J for TolerantV2 {
@@ -3506,7 +3506,7 @@ impl NinoWrite for TreeHolder {
 }
 
 impl TreeHolder {
-    pub const TYPE_ID: i32 = 0xA20A5480u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xA20A5480u32 as i32;
 }
 
 impl J for TreeHolder {
@@ -3553,7 +3553,7 @@ impl NinoWrite for TreeNode {
 }
 
 impl TreeNode {
-    pub const TYPE_ID: i32 = 0x760566C0u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x760566C0u32 as i32;
 }
 
 impl J for TreeNode {
@@ -3621,7 +3621,7 @@ impl NinoWrite for Zoo {
 }
 
 impl Zoo {
-    pub const TYPE_ID: i32 = 0x6E8C85FCu32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0x6E8C85FCu32 as i32;
 }
 
 impl J for Zoo {
@@ -3675,7 +3675,7 @@ impl NinoWrite for BoxOfVec2 {
 }
 
 impl BoxOfVec2 {
-    pub const TYPE_ID: i32 = 0xA1C72640u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xA1C72640u32 as i32;
 }
 
 impl J for BoxOfVec2 {
@@ -3722,7 +3722,7 @@ impl NinoWrite for BoxOfListOfPoint {
 }
 
 impl BoxOfListOfPoint {
-    pub const TYPE_ID: i32 = 0xBD712B81u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xBD712B81u32 as i32;
 }
 
 impl J for BoxOfListOfPoint {
@@ -3769,7 +3769,7 @@ impl NinoWrite for BoxOfInt32 {
 }
 
 impl BoxOfInt32 {
-    pub const TYPE_ID: i32 = 0xD0A36050u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xD0A36050u32 as i32;
 }
 
 impl J for BoxOfInt32 {
@@ -3816,7 +3816,7 @@ impl NinoWrite for BoxOfString {
 }
 
 impl BoxOfString {
-    pub const TYPE_ID: i32 = 0xF96C4497u32 as i32;
+    pub const NINO_TYPE_ID: i32 = 0xF96C4497u32 as i32;
 }
 
 impl J for BoxOfString {
@@ -3878,31 +3878,31 @@ impl NinoRead for AnimalRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+            Some(Self::Dog(v)) if id == Dog::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+            Some(Self::Puppy(v)) if id == Puppy::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Cat(v)) if id == Cat::TYPE_ID => {
+            Some(Self::Cat(v)) if id == Cat::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoxOfInt32(v)) if id == BoxOfInt32::TYPE_ID => {
+            Some(Self::BoxOfInt32(v)) if id == BoxOfInt32::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoxOfString(v)) if id == BoxOfString::TYPE_ID => {
+            Some(Self::BoxOfString(v)) if id == BoxOfString::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoxOfVec2(v)) if id == BoxOfVec2::TYPE_ID => {
+            Some(Self::BoxOfVec2(v)) if id == BoxOfVec2::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoxOfListOfPoint(v)) if id == BoxOfListOfPoint::TYPE_ID => {
+            Some(Self::BoxOfListOfPoint(v)) if id == BoxOfListOfPoint::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -3910,13 +3910,13 @@ impl NinoRead for AnimalRef {
         };
         if !reused {
             *slot = Some(match id {
-                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
-                Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
-                BoxOfInt32::TYPE_ID => Self::BoxOfInt32(Box::new(r.read_class()?)),
-                BoxOfString::TYPE_ID => Self::BoxOfString(Box::new(r.read_class()?)),
-                BoxOfVec2::TYPE_ID => Self::BoxOfVec2(Box::new(r.read_class()?)),
-                BoxOfListOfPoint::TYPE_ID => Self::BoxOfListOfPoint(Box::new(r.read_class()?)),
+                Dog::NINO_TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                Puppy::NINO_TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                Cat::NINO_TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
+                BoxOfInt32::NINO_TYPE_ID => Self::BoxOfInt32(Box::new(r.read_class()?)),
+                BoxOfString::NINO_TYPE_ID => Self::BoxOfString(Box::new(r.read_class()?)),
+                BoxOfVec2::NINO_TYPE_ID => Self::BoxOfVec2(Box::new(r.read_class()?)),
+                BoxOfListOfPoint::NINO_TYPE_ID => Self::BoxOfListOfPoint(Box::new(r.read_class()?)),
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -3929,31 +3929,31 @@ impl NinoWrite for AnimalRef {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Self::Dog(v) => {
-                w.i32(Dog::TYPE_ID);
+                w.i32(Dog::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Puppy(v) => {
-                w.i32(Puppy::TYPE_ID);
+                w.i32(Puppy::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Cat(v) => {
-                w.i32(Cat::TYPE_ID);
+                w.i32(Cat::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxOfInt32(v) => {
-                w.i32(BoxOfInt32::TYPE_ID);
+                w.i32(BoxOfInt32::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxOfString(v) => {
-                w.i32(BoxOfString::TYPE_ID);
+                w.i32(BoxOfString::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxOfVec2(v) => {
-                w.i32(BoxOfVec2::TYPE_ID);
+                w.i32(BoxOfVec2::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxOfListOfPoint(v) => {
-                w.i32(BoxOfListOfPoint::TYPE_ID);
+                w.i32(BoxOfListOfPoint::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -4023,11 +4023,11 @@ impl NinoRead for DogRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+            Some(Self::Dog(v)) if id == Dog::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+            Some(Self::Puppy(v)) if id == Puppy::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -4035,8 +4035,8 @@ impl NinoRead for DogRef {
         };
         if !reused {
             *slot = Some(match id {
-                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                Dog::NINO_TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                Puppy::NINO_TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -4049,11 +4049,11 @@ impl NinoWrite for DogRef {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Self::Dog(v) => {
-                w.i32(Dog::TYPE_ID);
+                w.i32(Dog::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Puppy(v) => {
-                w.i32(Puppy::TYPE_ID);
+                w.i32(Puppy::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -4118,11 +4118,11 @@ impl NinoRead for IShapeRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Square(v)) if id == Square::TYPE_ID => {
+            Some(Self::Square(v)) if id == Square::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+            Some(Self::Circle(v)) if id == Circle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -4130,8 +4130,8 @@ impl NinoRead for IShapeRef {
         };
         if !reused {
             *slot = Some(match id {
-                Square::TYPE_ID => Self::Square(Box::new(r.read_class()?)),
-                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                Square::NINO_TYPE_ID => Self::Square(Box::new(r.read_class()?)),
+                Circle::NINO_TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -4144,11 +4144,11 @@ impl NinoWrite for IShapeRef {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Self::Square(v) => {
-                w.i32(Square::TYPE_ID);
+                w.i32(Square::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Circle(v) => {
-                w.i32(Circle::TYPE_ID);
+                w.i32(Circle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -4211,7 +4211,7 @@ impl NinoRead for CircleRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+            Some(Self::Circle(v)) if id == Circle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -4219,7 +4219,7 @@ impl NinoRead for CircleRef {
         };
         if !reused {
             *slot = Some(match id {
-                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                Circle::NINO_TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -4232,7 +4232,7 @@ impl NinoWrite for CircleRef {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Self::Circle(v) => {
-                w.i32(Circle::TYPE_ID);
+                w.i32(Circle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -4294,7 +4294,7 @@ impl NinoRead for PlainRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Plain(v)) if id == Plain::TYPE_ID => {
+            Some(Self::Plain(v)) if id == Plain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -4302,7 +4302,7 @@ impl NinoRead for PlainRef {
         };
         if !reused {
             *slot = Some(match id {
-                Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
+                Plain::NINO_TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -4315,7 +4315,7 @@ impl NinoWrite for PlainRef {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Self::Plain(v) => {
-                w.i32(Plain::TYPE_ID);
+                w.i32(Plain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -4379,11 +4379,11 @@ impl NinoRead for TolerantBaseRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::TolerantBase(v)) if id == TolerantBase::TYPE_ID => {
+            Some(Self::TolerantBase(v)) if id == TolerantBase::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::TYPE_ID => {
+            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -4391,8 +4391,8 @@ impl NinoRead for TolerantBaseRef {
         };
         if !reused {
             *slot = Some(match id {
-                TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
-                TolerantLeaf::TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
+                TolerantBase::NINO_TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
+                TolerantLeaf::NINO_TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -4405,11 +4405,11 @@ impl NinoWrite for TolerantBaseRef {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Self::TolerantBase(v) => {
-                w.i32(TolerantBase::TYPE_ID);
+                w.i32(TolerantBase::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantLeaf(v) => {
-                w.i32(TolerantLeaf::TYPE_ID);
+                w.i32(TolerantLeaf::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -4474,11 +4474,11 @@ impl NinoRead for LinkRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::RedLink(v)) if id == RedLink::TYPE_ID => {
+            Some(Self::RedLink(v)) if id == RedLink::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BlueLink(v)) if id == BlueLink::TYPE_ID => {
+            Some(Self::BlueLink(v)) if id == BlueLink::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -4486,8 +4486,8 @@ impl NinoRead for LinkRef {
         };
         if !reused {
             *slot = Some(match id {
-                RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
-                BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
+                RedLink::NINO_TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
+                BlueLink::NINO_TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -4500,11 +4500,11 @@ impl NinoWrite for LinkRef {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Self::RedLink(v) => {
-                w.i32(RedLink::TYPE_ID);
+                w.i32(RedLink::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BlueLink(v) => {
-                w.i32(BlueLink::TYPE_ID);
+                w.i32(BlueLink::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -4707,287 +4707,287 @@ impl NinoRead for AnyObject {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::BigValues(v)) if id == BigValues::TYPE_ID => {
+            Some(Self::BigValues(v)) if id == BigValues::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BlueLink(v)) if id == BlueLink::TYPE_ID => {
+            Some(Self::BlueLink(v)) if id == BlueLink::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Bytes(v)) if id == Bytes::TYPE_ID => {
+            Some(Self::Bytes(v)) if id == Bytes::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Cat(v)) if id == Cat::TYPE_ID => {
+            Some(Self::Cat(v)) if id == Cat::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Chain(v)) if id == Chain::TYPE_ID => {
+            Some(Self::Chain(v)) if id == Chain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+            Some(Self::Circle(v)) if id == Circle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Collections(v)) if id == Collections::TYPE_ID => {
+            Some(Self::Collections(v)) if id == Collections::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Dates(v)) if id == Dates::TYPE_ID => {
+            Some(Self::Dates(v)) if id == Dates::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+            Some(Self::Dog(v)) if id == Dog::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Empties(v)) if id == Empties::TYPE_ID => {
+            Some(Self::Empties(v)) if id == Empties::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Empty(v)) if id == Empty::TYPE_ID => {
+            Some(Self::Empty(v)) if id == Empty::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Enums(v)) if id == Enums::TYPE_ID => {
+            Some(Self::Enums(v)) if id == Enums::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Floats(v)) if id == Floats::TYPE_ID => {
+            Some(Self::Floats(v)) if id == Floats::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Inner(v)) if id == Inner::TYPE_ID => {
+            Some(Self::Inner(v)) if id == Inner::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Integers(v)) if id == Integers::TYPE_ID => {
+            Some(Self::Integers(v)) if id == Integers::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedChain(v)) if id == KeyedChain::TYPE_ID => {
+            Some(Self::KeyedChain(v)) if id == KeyedChain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedHolder(v)) if id == KeyedHolder::TYPE_ID => {
+            Some(Self::KeyedHolder(v)) if id == KeyedHolder::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedV1(v)) if id == KeyedV1::TYPE_ID => {
+            Some(Self::KeyedV1(v)) if id == KeyedV1::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedV2(v)) if id == KeyedV2::TYPE_ID => {
+            Some(Self::KeyedV2(v)) if id == KeyedV2::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Middle(v)) if id == Middle::TYPE_ID => {
+            Some(Self::Middle(v)) if id == Middle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Nullables(v)) if id == Nullables::TYPE_ID => {
+            Some(Self::Nullables(v)) if id == Nullables::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Outer(v)) if id == Outer::TYPE_ID => {
+            Some(Self::Outer(v)) if id == Outer::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Plain(v)) if id == Plain::TYPE_ID => {
+            Some(Self::Plain(v)) if id == Plain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Point(v)) if id == Point::TYPE_ID => {
+            Some(Self::Point(v)) if id == Point::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+            Some(Self::Puppy(v)) if id == Puppy::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::RecordChain(v)) if id == RecordChain::TYPE_ID => {
+            Some(Self::RecordChain(v)) if id == RecordChain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::RedLink(v)) if id == RedLink::TYPE_ID => {
+            Some(Self::RedLink(v)) if id == RedLink::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Scalars(v)) if id == Scalars::TYPE_ID => {
+            Some(Self::Scalars(v)) if id == Scalars::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Square(v)) if id == Square::TYPE_ID => {
+            Some(Self::Square(v)) if id == Square::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::StringCollections(v)) if id == StringCollections::TYPE_ID => {
+            Some(Self::StringCollections(v)) if id == StringCollections::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Strings(v)) if id == Strings::TYPE_ID => {
+            Some(Self::Strings(v)) if id == Strings::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Structs(v)) if id == Structs::TYPE_ID => {
+            Some(Self::Structs(v)) if id == Structs::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TAnimalSlot(v)) if id == TAnimalSlot::TYPE_ID => {
+            Some(Self::TAnimalSlot(v)) if id == TAnimalSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TBigSlot(v)) if id == TBigSlot::TYPE_ID => {
+            Some(Self::TBigSlot(v)) if id == TBigSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TBoolArray(v)) if id == TBoolArray::TYPE_ID => {
+            Some(Self::TBoolArray(v)) if id == TBoolArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TBoolValue(v)) if id == TBoolValue::TYPE_ID => {
+            Some(Self::TBoolValue(v)) if id == TBoolValue::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TByteArray(v)) if id == TByteArray::TYPE_ID => {
+            Some(Self::TByteArray(v)) if id == TByteArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TDogSlot(v)) if id == TDogSlot::TYPE_ID => {
+            Some(Self::TDogSlot(v)) if id == TDogSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TGrid(v)) if id == TGrid::TYPE_ID => {
+            Some(Self::TGrid(v)) if id == TGrid::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TIntArray(v)) if id == TIntArray::TYPE_ID => {
+            Some(Self::TIntArray(v)) if id == TIntArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TIntMap(v)) if id == TIntMap::TYPE_ID => {
+            Some(Self::TIntMap(v)) if id == TIntMap::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TIntSet(v)) if id == TIntSet::TYPE_ID => {
+            Some(Self::TIntSet(v)) if id == TIntSet::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TLongList(v)) if id == TLongList::TYPE_ID => {
+            Some(Self::TLongList(v)) if id == TLongList::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TMaybeInt(v)) if id == TMaybeInt::TYPE_ID => {
+            Some(Self::TMaybeInt(v)) if id == TMaybeInt::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TMaybeIntArray(v)) if id == TMaybeIntArray::TYPE_ID => {
+            Some(Self::TMaybeIntArray(v)) if id == TMaybeIntArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TObjectSlot(v)) if id == TObjectSlot::TYPE_ID => {
+            Some(Self::TObjectSlot(v)) if id == TObjectSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TPaddedArray(v)) if id == TPaddedArray::TYPE_ID => {
+            Some(Self::TPaddedArray(v)) if id == TPaddedArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TPointList(v)) if id == TPointList::TYPE_ID => {
+            Some(Self::TPointList(v)) if id == TPointList::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TShapeSlot(v)) if id == TShapeSlot::TYPE_ID => {
+            Some(Self::TShapeSlot(v)) if id == TShapeSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TSortedMap(v)) if id == TSortedMap::TYPE_ID => {
+            Some(Self::TSortedMap(v)) if id == TSortedMap::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TStringList(v)) if id == TStringList::TYPE_ID => {
+            Some(Self::TStringList(v)) if id == TStringList::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TStringMap(v)) if id == TStringMap::TYPE_ID => {
+            Some(Self::TStringMap(v)) if id == TStringMap::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TStringSet(v)) if id == TStringSet::TYPE_ID => {
+            Some(Self::TStringSet(v)) if id == TStringSet::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TTextValue(v)) if id == TTextValue::TYPE_ID => {
+            Some(Self::TTextValue(v)) if id == TTextValue::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TUtf8Value(v)) if id == TUtf8Value::TYPE_ID => {
+            Some(Self::TUtf8Value(v)) if id == TUtf8Value::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TVersionSlot(v)) if id == TVersionSlot::TYPE_ID => {
+            Some(Self::TVersionSlot(v)) if id == TVersionSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantBase(v)) if id == TolerantBase::TYPE_ID => {
+            Some(Self::TolerantBase(v)) if id == TolerantBase::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantChain(v)) if id == TolerantChain::TYPE_ID => {
+            Some(Self::TolerantChain(v)) if id == TolerantChain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantEmpty(v)) if id == TolerantEmpty::TYPE_ID => {
+            Some(Self::TolerantEmpty(v)) if id == TolerantEmpty::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantHolder(v)) if id == TolerantHolder::TYPE_ID => {
+            Some(Self::TolerantHolder(v)) if id == TolerantHolder::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::TYPE_ID => {
+            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantRoot(v)) if id == TolerantRoot::TYPE_ID => {
+            Some(Self::TolerantRoot(v)) if id == TolerantRoot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantV1(v)) if id == TolerantV1::TYPE_ID => {
+            Some(Self::TolerantV1(v)) if id == TolerantV1::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantV2(v)) if id == TolerantV2::TYPE_ID => {
+            Some(Self::TolerantV2(v)) if id == TolerantV2::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TreeHolder(v)) if id == TreeHolder::TYPE_ID => {
+            Some(Self::TreeHolder(v)) if id == TreeHolder::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TreeNode(v)) if id == TreeNode::TYPE_ID => {
+            Some(Self::TreeNode(v)) if id == TreeNode::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Zoo(v)) if id == Zoo::TYPE_ID => {
+            Some(Self::Zoo(v)) if id == Zoo::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoxOfVec2(v)) if id == BoxOfVec2::TYPE_ID => {
+            Some(Self::BoxOfVec2(v)) if id == BoxOfVec2::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoxOfListOfPoint(v)) if id == BoxOfListOfPoint::TYPE_ID => {
+            Some(Self::BoxOfListOfPoint(v)) if id == BoxOfListOfPoint::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoxOfInt32(v)) if id == BoxOfInt32::TYPE_ID => {
+            Some(Self::BoxOfInt32(v)) if id == BoxOfInt32::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoxOfString(v)) if id == BoxOfString::TYPE_ID => {
+            Some(Self::BoxOfString(v)) if id == BoxOfString::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -4995,77 +4995,77 @@ impl NinoRead for AnyObject {
         };
         if !reused {
             *slot = Some(match id {
-                BigValues::TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
-                BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
-                Bytes::TYPE_ID => Self::Bytes(Box::new(r.read_class()?)),
-                Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
-                Chain::TYPE_ID => Self::Chain(Box::new(r.read_class()?)),
-                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
-                Collections::TYPE_ID => Self::Collections(Box::new(r.read_class()?)),
-                Dates::TYPE_ID => Self::Dates(Box::new(r.read_class()?)),
-                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-                Empties::TYPE_ID => Self::Empties(Box::new(r.read_class()?)),
-                Empty::TYPE_ID => Self::Empty(Box::new(r.read_class()?)),
-                Enums::TYPE_ID => Self::Enums(Box::new(r.read_class()?)),
-                Floats::TYPE_ID => Self::Floats(Box::new(r.read_class()?)),
-                Inner::TYPE_ID => Self::Inner(Box::new(r.read_class()?)),
-                Integers::TYPE_ID => Self::Integers(Box::new(r.read_class()?)),
-                KeyedChain::TYPE_ID => Self::KeyedChain(Box::new(r.read_class()?)),
-                KeyedHolder::TYPE_ID => Self::KeyedHolder(Box::new(r.read_class()?)),
-                KeyedV1::TYPE_ID => Self::KeyedV1(Box::new(r.read_class()?)),
-                KeyedV2::TYPE_ID => Self::KeyedV2(Box::new(r.read_class()?)),
-                Middle::TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
-                Nullables::TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
-                Outer::TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
-                Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
-                Point::TYPE_ID => Self::Point(Box::new(r.read_class()?)),
-                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
-                RecordChain::TYPE_ID => Self::RecordChain(Box::new(r.read_class()?)),
-                RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
-                Scalars::TYPE_ID => Self::Scalars(Box::new(r.read_class()?)),
-                Square::TYPE_ID => Self::Square(Box::new(r.read_class()?)),
-                StringCollections::TYPE_ID => Self::StringCollections(Box::new(r.read_class()?)),
-                Strings::TYPE_ID => Self::Strings(Box::new(r.read_class()?)),
-                Structs::TYPE_ID => Self::Structs(Box::new(r.read_class()?)),
-                TAnimalSlot::TYPE_ID => Self::TAnimalSlot(Box::new(r.read_class()?)),
-                TBigSlot::TYPE_ID => Self::TBigSlot(Box::new(r.read_class()?)),
-                TBoolArray::TYPE_ID => Self::TBoolArray(Box::new(r.read_class()?)),
-                TBoolValue::TYPE_ID => Self::TBoolValue(Box::new(r.read_class()?)),
-                TByteArray::TYPE_ID => Self::TByteArray(Box::new(r.read_class()?)),
-                TDogSlot::TYPE_ID => Self::TDogSlot(Box::new(r.read_class()?)),
-                TGrid::TYPE_ID => Self::TGrid(Box::new(r.read_class()?)),
-                TIntArray::TYPE_ID => Self::TIntArray(Box::new(r.read_class()?)),
-                TIntMap::TYPE_ID => Self::TIntMap(Box::new(r.read_class()?)),
-                TIntSet::TYPE_ID => Self::TIntSet(Box::new(r.read_class()?)),
-                TLongList::TYPE_ID => Self::TLongList(Box::new(r.read_class()?)),
-                TMaybeInt::TYPE_ID => Self::TMaybeInt(Box::new(r.read_class()?)),
-                TMaybeIntArray::TYPE_ID => Self::TMaybeIntArray(Box::new(r.read_class()?)),
-                TObjectSlot::TYPE_ID => Self::TObjectSlot(Box::new(r.read_class()?)),
-                TPaddedArray::TYPE_ID => Self::TPaddedArray(Box::new(r.read_class()?)),
-                TPointList::TYPE_ID => Self::TPointList(Box::new(r.read_class()?)),
-                TShapeSlot::TYPE_ID => Self::TShapeSlot(Box::new(r.read_class()?)),
-                TSortedMap::TYPE_ID => Self::TSortedMap(Box::new(r.read_class()?)),
-                TStringList::TYPE_ID => Self::TStringList(Box::new(r.read_class()?)),
-                TStringMap::TYPE_ID => Self::TStringMap(Box::new(r.read_class()?)),
-                TStringSet::TYPE_ID => Self::TStringSet(Box::new(r.read_class()?)),
-                TTextValue::TYPE_ID => Self::TTextValue(Box::new(r.read_class()?)),
-                TUtf8Value::TYPE_ID => Self::TUtf8Value(Box::new(r.read_class()?)),
-                TVersionSlot::TYPE_ID => Self::TVersionSlot(Box::new(r.read_class()?)),
-                TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
-                TolerantChain::TYPE_ID => Self::TolerantChain(Box::new(r.read_class()?)),
-                TolerantEmpty::TYPE_ID => Self::TolerantEmpty(Box::new(r.read_class()?)),
-                TolerantHolder::TYPE_ID => Self::TolerantHolder(Box::new(r.read_class()?)),
-                TolerantLeaf::TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
-                TolerantRoot::TYPE_ID => Self::TolerantRoot(Box::new(r.read_class()?)),
-                TolerantV1::TYPE_ID => Self::TolerantV1(Box::new(r.read_class()?)),
-                TolerantV2::TYPE_ID => Self::TolerantV2(Box::new(r.read_class()?)),
-                TreeHolder::TYPE_ID => Self::TreeHolder(Box::new(r.read_class()?)),
-                TreeNode::TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
-                Zoo::TYPE_ID => Self::Zoo(Box::new(r.read_class()?)),
-                BoxOfVec2::TYPE_ID => Self::BoxOfVec2(Box::new(r.read_class()?)),
-                BoxOfListOfPoint::TYPE_ID => Self::BoxOfListOfPoint(Box::new(r.read_class()?)),
-                BoxOfInt32::TYPE_ID => Self::BoxOfInt32(Box::new(r.read_class()?)),
-                BoxOfString::TYPE_ID => Self::BoxOfString(Box::new(r.read_class()?)),
+                BigValues::NINO_TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
+                BlueLink::NINO_TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
+                Bytes::NINO_TYPE_ID => Self::Bytes(Box::new(r.read_class()?)),
+                Cat::NINO_TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
+                Chain::NINO_TYPE_ID => Self::Chain(Box::new(r.read_class()?)),
+                Circle::NINO_TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                Collections::NINO_TYPE_ID => Self::Collections(Box::new(r.read_class()?)),
+                Dates::NINO_TYPE_ID => Self::Dates(Box::new(r.read_class()?)),
+                Dog::NINO_TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                Empties::NINO_TYPE_ID => Self::Empties(Box::new(r.read_class()?)),
+                Empty::NINO_TYPE_ID => Self::Empty(Box::new(r.read_class()?)),
+                Enums::NINO_TYPE_ID => Self::Enums(Box::new(r.read_class()?)),
+                Floats::NINO_TYPE_ID => Self::Floats(Box::new(r.read_class()?)),
+                Inner::NINO_TYPE_ID => Self::Inner(Box::new(r.read_class()?)),
+                Integers::NINO_TYPE_ID => Self::Integers(Box::new(r.read_class()?)),
+                KeyedChain::NINO_TYPE_ID => Self::KeyedChain(Box::new(r.read_class()?)),
+                KeyedHolder::NINO_TYPE_ID => Self::KeyedHolder(Box::new(r.read_class()?)),
+                KeyedV1::NINO_TYPE_ID => Self::KeyedV1(Box::new(r.read_class()?)),
+                KeyedV2::NINO_TYPE_ID => Self::KeyedV2(Box::new(r.read_class()?)),
+                Middle::NINO_TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
+                Nullables::NINO_TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
+                Outer::NINO_TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
+                Plain::NINO_TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
+                Point::NINO_TYPE_ID => Self::Point(Box::new(r.read_class()?)),
+                Puppy::NINO_TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                RecordChain::NINO_TYPE_ID => Self::RecordChain(Box::new(r.read_class()?)),
+                RedLink::NINO_TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
+                Scalars::NINO_TYPE_ID => Self::Scalars(Box::new(r.read_class()?)),
+                Square::NINO_TYPE_ID => Self::Square(Box::new(r.read_class()?)),
+                StringCollections::NINO_TYPE_ID => Self::StringCollections(Box::new(r.read_class()?)),
+                Strings::NINO_TYPE_ID => Self::Strings(Box::new(r.read_class()?)),
+                Structs::NINO_TYPE_ID => Self::Structs(Box::new(r.read_class()?)),
+                TAnimalSlot::NINO_TYPE_ID => Self::TAnimalSlot(Box::new(r.read_class()?)),
+                TBigSlot::NINO_TYPE_ID => Self::TBigSlot(Box::new(r.read_class()?)),
+                TBoolArray::NINO_TYPE_ID => Self::TBoolArray(Box::new(r.read_class()?)),
+                TBoolValue::NINO_TYPE_ID => Self::TBoolValue(Box::new(r.read_class()?)),
+                TByteArray::NINO_TYPE_ID => Self::TByteArray(Box::new(r.read_class()?)),
+                TDogSlot::NINO_TYPE_ID => Self::TDogSlot(Box::new(r.read_class()?)),
+                TGrid::NINO_TYPE_ID => Self::TGrid(Box::new(r.read_class()?)),
+                TIntArray::NINO_TYPE_ID => Self::TIntArray(Box::new(r.read_class()?)),
+                TIntMap::NINO_TYPE_ID => Self::TIntMap(Box::new(r.read_class()?)),
+                TIntSet::NINO_TYPE_ID => Self::TIntSet(Box::new(r.read_class()?)),
+                TLongList::NINO_TYPE_ID => Self::TLongList(Box::new(r.read_class()?)),
+                TMaybeInt::NINO_TYPE_ID => Self::TMaybeInt(Box::new(r.read_class()?)),
+                TMaybeIntArray::NINO_TYPE_ID => Self::TMaybeIntArray(Box::new(r.read_class()?)),
+                TObjectSlot::NINO_TYPE_ID => Self::TObjectSlot(Box::new(r.read_class()?)),
+                TPaddedArray::NINO_TYPE_ID => Self::TPaddedArray(Box::new(r.read_class()?)),
+                TPointList::NINO_TYPE_ID => Self::TPointList(Box::new(r.read_class()?)),
+                TShapeSlot::NINO_TYPE_ID => Self::TShapeSlot(Box::new(r.read_class()?)),
+                TSortedMap::NINO_TYPE_ID => Self::TSortedMap(Box::new(r.read_class()?)),
+                TStringList::NINO_TYPE_ID => Self::TStringList(Box::new(r.read_class()?)),
+                TStringMap::NINO_TYPE_ID => Self::TStringMap(Box::new(r.read_class()?)),
+                TStringSet::NINO_TYPE_ID => Self::TStringSet(Box::new(r.read_class()?)),
+                TTextValue::NINO_TYPE_ID => Self::TTextValue(Box::new(r.read_class()?)),
+                TUtf8Value::NINO_TYPE_ID => Self::TUtf8Value(Box::new(r.read_class()?)),
+                TVersionSlot::NINO_TYPE_ID => Self::TVersionSlot(Box::new(r.read_class()?)),
+                TolerantBase::NINO_TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
+                TolerantChain::NINO_TYPE_ID => Self::TolerantChain(Box::new(r.read_class()?)),
+                TolerantEmpty::NINO_TYPE_ID => Self::TolerantEmpty(Box::new(r.read_class()?)),
+                TolerantHolder::NINO_TYPE_ID => Self::TolerantHolder(Box::new(r.read_class()?)),
+                TolerantLeaf::NINO_TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
+                TolerantRoot::NINO_TYPE_ID => Self::TolerantRoot(Box::new(r.read_class()?)),
+                TolerantV1::NINO_TYPE_ID => Self::TolerantV1(Box::new(r.read_class()?)),
+                TolerantV2::NINO_TYPE_ID => Self::TolerantV2(Box::new(r.read_class()?)),
+                TreeHolder::NINO_TYPE_ID => Self::TreeHolder(Box::new(r.read_class()?)),
+                TreeNode::NINO_TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
+                Zoo::NINO_TYPE_ID => Self::Zoo(Box::new(r.read_class()?)),
+                BoxOfVec2::NINO_TYPE_ID => Self::BoxOfVec2(Box::new(r.read_class()?)),
+                BoxOfListOfPoint::NINO_TYPE_ID => Self::BoxOfListOfPoint(Box::new(r.read_class()?)),
+                BoxOfInt32::NINO_TYPE_ID => Self::BoxOfInt32(Box::new(r.read_class()?)),
+                BoxOfString::NINO_TYPE_ID => Self::BoxOfString(Box::new(r.read_class()?)),
                 _ => return Err(Error::new(ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -5078,287 +5078,287 @@ impl NinoWrite for AnyObject {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         match self {
             Self::BigValues(v) => {
-                w.i32(BigValues::TYPE_ID);
+                w.i32(BigValues::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BlueLink(v) => {
-                w.i32(BlueLink::TYPE_ID);
+                w.i32(BlueLink::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Bytes(v) => {
-                w.i32(Bytes::TYPE_ID);
+                w.i32(Bytes::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Cat(v) => {
-                w.i32(Cat::TYPE_ID);
+                w.i32(Cat::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Chain(v) => {
-                w.i32(Chain::TYPE_ID);
+                w.i32(Chain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Circle(v) => {
-                w.i32(Circle::TYPE_ID);
+                w.i32(Circle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Collections(v) => {
-                w.i32(Collections::TYPE_ID);
+                w.i32(Collections::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Dates(v) => {
-                w.i32(Dates::TYPE_ID);
+                w.i32(Dates::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Dog(v) => {
-                w.i32(Dog::TYPE_ID);
+                w.i32(Dog::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Empties(v) => {
-                w.i32(Empties::TYPE_ID);
+                w.i32(Empties::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Empty(v) => {
-                w.i32(Empty::TYPE_ID);
+                w.i32(Empty::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Enums(v) => {
-                w.i32(Enums::TYPE_ID);
+                w.i32(Enums::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Floats(v) => {
-                w.i32(Floats::TYPE_ID);
+                w.i32(Floats::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Inner(v) => {
-                w.i32(Inner::TYPE_ID);
+                w.i32(Inner::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Integers(v) => {
-                w.i32(Integers::TYPE_ID);
+                w.i32(Integers::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedChain(v) => {
-                w.i32(KeyedChain::TYPE_ID);
+                w.i32(KeyedChain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedHolder(v) => {
-                w.i32(KeyedHolder::TYPE_ID);
+                w.i32(KeyedHolder::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedV1(v) => {
-                w.i32(KeyedV1::TYPE_ID);
+                w.i32(KeyedV1::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedV2(v) => {
-                w.i32(KeyedV2::TYPE_ID);
+                w.i32(KeyedV2::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Middle(v) => {
-                w.i32(Middle::TYPE_ID);
+                w.i32(Middle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Nullables(v) => {
-                w.i32(Nullables::TYPE_ID);
+                w.i32(Nullables::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Outer(v) => {
-                w.i32(Outer::TYPE_ID);
+                w.i32(Outer::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Plain(v) => {
-                w.i32(Plain::TYPE_ID);
+                w.i32(Plain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Point(v) => {
-                w.i32(Point::TYPE_ID);
+                w.i32(Point::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Puppy(v) => {
-                w.i32(Puppy::TYPE_ID);
+                w.i32(Puppy::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::RecordChain(v) => {
-                w.i32(RecordChain::TYPE_ID);
+                w.i32(RecordChain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::RedLink(v) => {
-                w.i32(RedLink::TYPE_ID);
+                w.i32(RedLink::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Scalars(v) => {
-                w.i32(Scalars::TYPE_ID);
+                w.i32(Scalars::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Square(v) => {
-                w.i32(Square::TYPE_ID);
+                w.i32(Square::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::StringCollections(v) => {
-                w.i32(StringCollections::TYPE_ID);
+                w.i32(StringCollections::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Strings(v) => {
-                w.i32(Strings::TYPE_ID);
+                w.i32(Strings::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Structs(v) => {
-                w.i32(Structs::TYPE_ID);
+                w.i32(Structs::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TAnimalSlot(v) => {
-                w.i32(TAnimalSlot::TYPE_ID);
+                w.i32(TAnimalSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TBigSlot(v) => {
-                w.i32(TBigSlot::TYPE_ID);
+                w.i32(TBigSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TBoolArray(v) => {
-                w.i32(TBoolArray::TYPE_ID);
+                w.i32(TBoolArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TBoolValue(v) => {
-                w.i32(TBoolValue::TYPE_ID);
+                w.i32(TBoolValue::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TByteArray(v) => {
-                w.i32(TByteArray::TYPE_ID);
+                w.i32(TByteArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TDogSlot(v) => {
-                w.i32(TDogSlot::TYPE_ID);
+                w.i32(TDogSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TGrid(v) => {
-                w.i32(TGrid::TYPE_ID);
+                w.i32(TGrid::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TIntArray(v) => {
-                w.i32(TIntArray::TYPE_ID);
+                w.i32(TIntArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TIntMap(v) => {
-                w.i32(TIntMap::TYPE_ID);
+                w.i32(TIntMap::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TIntSet(v) => {
-                w.i32(TIntSet::TYPE_ID);
+                w.i32(TIntSet::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TLongList(v) => {
-                w.i32(TLongList::TYPE_ID);
+                w.i32(TLongList::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TMaybeInt(v) => {
-                w.i32(TMaybeInt::TYPE_ID);
+                w.i32(TMaybeInt::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TMaybeIntArray(v) => {
-                w.i32(TMaybeIntArray::TYPE_ID);
+                w.i32(TMaybeIntArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TObjectSlot(v) => {
-                w.i32(TObjectSlot::TYPE_ID);
+                w.i32(TObjectSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TPaddedArray(v) => {
-                w.i32(TPaddedArray::TYPE_ID);
+                w.i32(TPaddedArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TPointList(v) => {
-                w.i32(TPointList::TYPE_ID);
+                w.i32(TPointList::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TShapeSlot(v) => {
-                w.i32(TShapeSlot::TYPE_ID);
+                w.i32(TShapeSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TSortedMap(v) => {
-                w.i32(TSortedMap::TYPE_ID);
+                w.i32(TSortedMap::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TStringList(v) => {
-                w.i32(TStringList::TYPE_ID);
+                w.i32(TStringList::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TStringMap(v) => {
-                w.i32(TStringMap::TYPE_ID);
+                w.i32(TStringMap::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TStringSet(v) => {
-                w.i32(TStringSet::TYPE_ID);
+                w.i32(TStringSet::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TTextValue(v) => {
-                w.i32(TTextValue::TYPE_ID);
+                w.i32(TTextValue::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TUtf8Value(v) => {
-                w.i32(TUtf8Value::TYPE_ID);
+                w.i32(TUtf8Value::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TVersionSlot(v) => {
-                w.i32(TVersionSlot::TYPE_ID);
+                w.i32(TVersionSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantBase(v) => {
-                w.i32(TolerantBase::TYPE_ID);
+                w.i32(TolerantBase::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantChain(v) => {
-                w.i32(TolerantChain::TYPE_ID);
+                w.i32(TolerantChain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantEmpty(v) => {
-                w.i32(TolerantEmpty::TYPE_ID);
+                w.i32(TolerantEmpty::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantHolder(v) => {
-                w.i32(TolerantHolder::TYPE_ID);
+                w.i32(TolerantHolder::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantLeaf(v) => {
-                w.i32(TolerantLeaf::TYPE_ID);
+                w.i32(TolerantLeaf::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantRoot(v) => {
-                w.i32(TolerantRoot::TYPE_ID);
+                w.i32(TolerantRoot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantV1(v) => {
-                w.i32(TolerantV1::TYPE_ID);
+                w.i32(TolerantV1::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantV2(v) => {
-                w.i32(TolerantV2::TYPE_ID);
+                w.i32(TolerantV2::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TreeHolder(v) => {
-                w.i32(TreeHolder::TYPE_ID);
+                w.i32(TreeHolder::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TreeNode(v) => {
-                w.i32(TreeNode::TYPE_ID);
+                w.i32(TreeNode::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Zoo(v) => {
-                w.i32(Zoo::TYPE_ID);
+                w.i32(Zoo::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxOfVec2(v) => {
-                w.i32(BoxOfVec2::TYPE_ID);
+                w.i32(BoxOfVec2::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxOfListOfPoint(v) => {
-                w.i32(BoxOfListOfPoint::TYPE_ID);
+                w.i32(BoxOfListOfPoint::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxOfInt32(v) => {
-                w.i32(BoxOfInt32::TYPE_ID);
+                w.i32(BoxOfInt32::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxOfString(v) => {
-                w.i32(BoxOfString::TYPE_ID);
+                w.i32(BoxOfString::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }

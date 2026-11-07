@@ -33,8 +33,8 @@ fn a2_polymorphism() {
     let bytes = serialize(&v).unwrap();
     assert_eq!(bytes, hex("03000000 AC2BC0ED 01000000 0000803F 1F27E78F 02000000 00000040 00000000"));
     assert_eq!(deserialize_exact::<Vec<Option<Shape>>>(&bytes).unwrap(), v);
-    assert_eq!(Circle::TYPE_ID as u32, 0xEDC02BAC);
-    assert_eq!(Square::TYPE_ID as u32, 0x8FE7271F);
+    assert_eq!(Circle::NINO_TYPE_ID as u32, 0xEDC02BAC);
+    assert_eq!(Square::NINO_TYPE_ID as u32, 0x8FE7271F);
     assert_eq!(type_id("Spec.Box<System.Int32>") as u32, 0x6781EE38);
     assert_eq!(type_id("Spec.Open") as u32, 0x8213CC32);
 

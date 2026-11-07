@@ -1304,7 +1304,7 @@ pub struct AnimalSlot {
 }
 
 impl NinoReadBody for AnimalSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.value, nino::field!(Self, value))?;
@@ -1313,7 +1313,7 @@ impl NinoReadBody for AnimalSlot {
 }
 
 impl NinoWriteBody for AnimalSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -1344,7 +1344,7 @@ pub struct Bag {
 }
 
 impl NinoReadBody for Bag {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.elements)?;
@@ -1354,7 +1354,7 @@ impl NinoReadBody for Bag {
 }
 
 impl NinoWriteBody for Bag {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.elements)?;
@@ -1379,7 +1379,7 @@ pub struct BagHolder {
 }
 
 impl NinoReadBody for BagHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.bag, nino::field!(Self, bag))?;
@@ -1392,7 +1392,7 @@ impl NinoReadBody for BagHolder {
 }
 
 impl NinoWriteBody for BagHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.bag)?;
@@ -1450,7 +1450,7 @@ pub struct BclRaw {
 }
 
 impl NinoReadBody for BclRaw {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.tuples)?;
@@ -1464,7 +1464,7 @@ impl NinoReadBody for BclRaw {
 }
 
 impl NinoWriteBody for BclRaw {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.tuples)?;
@@ -1515,7 +1515,7 @@ pub struct BclRawHost {
 }
 
 impl NinoReadBody for BclRawHost {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.wide)?;
@@ -1527,7 +1527,7 @@ impl NinoReadBody for BclRawHost {
 }
 
 impl NinoWriteBody for BclRawHost {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.wide)?;
@@ -1574,7 +1574,7 @@ pub struct BclRawNullables {
 }
 
 impl NinoReadBody for BclRawNullables {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.nullables)?;
@@ -1584,7 +1584,7 @@ impl NinoReadBody for BclRawNullables {
 }
 
 impl NinoWriteBody for BclRawNullables {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.nullables)?;
@@ -1626,7 +1626,7 @@ pub struct BclRawOffset {
 }
 
 impl NinoReadBody for BclRawOffset {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.offset)?;
@@ -1636,7 +1636,7 @@ impl NinoReadBody for BclRawOffset {
 }
 
 impl NinoWriteBody for BclRawOffset {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.offset)?;
@@ -1677,7 +1677,7 @@ pub struct BigSlot {
 }
 
 impl NinoReadBody for BigSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -1686,7 +1686,7 @@ impl NinoReadBody for BigSlot {
 }
 
 impl NinoWriteBody for BigSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -1716,7 +1716,7 @@ pub struct BigValues {
 }
 
 impl NinoReadBody for BigValues {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.big)?;
@@ -1726,7 +1726,7 @@ impl NinoReadBody for BigValues {
 }
 
 impl NinoWriteBody for BigValues {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.big)?;
@@ -1758,7 +1758,7 @@ pub struct BlueLink {
 }
 
 impl NinoReadBody for BlueLink {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -1769,7 +1769,7 @@ impl NinoReadBody for BlueLink {
 }
 
 impl NinoWriteBody for BlueLink {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -1800,7 +1800,7 @@ pub struct BoolArray {
 }
 
 impl NinoReadBody for BoolArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -1809,7 +1809,7 @@ impl NinoReadBody for BoolArray {
 }
 
 impl NinoWriteBody for BoolArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -1849,7 +1849,7 @@ pub struct BoolValue {
 }
 
 impl NinoReadBody for BoolValue {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -1858,7 +1858,7 @@ impl NinoReadBody for BoolValue {
 }
 
 impl NinoWriteBody for BoolValue {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -1935,7 +1935,7 @@ pub struct ByteArray {
 }
 
 impl NinoReadBody for ByteArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -1944,7 +1944,7 @@ impl NinoReadBody for ByteArray {
 }
 
 impl NinoWriteBody for ByteArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -1986,7 +1986,7 @@ pub struct Bytes {
 }
 
 impl NinoReadBody for Bytes {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.array)?;
@@ -1997,7 +1997,7 @@ impl NinoReadBody for Bytes {
 }
 
 impl NinoWriteBody for Bytes {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.array)?;
@@ -2046,7 +2046,7 @@ pub struct Cat {
 }
 
 impl NinoReadBody for Cat {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
@@ -2056,7 +2056,7 @@ impl NinoReadBody for Cat {
 }
 
 impl NinoWriteBody for Cat {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
@@ -2087,7 +2087,7 @@ pub struct Chain {
 }
 
 impl NinoReadBody for Chain {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -2097,7 +2097,7 @@ impl NinoReadBody for Chain {
 }
 
 impl NinoWriteBody for Chain {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -2139,7 +2139,7 @@ pub struct Circle {
 }
 
 impl NinoReadBody for Circle {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.area)?;
@@ -2149,7 +2149,7 @@ impl NinoReadBody for Circle {
 }
 
 impl NinoWriteBody for Circle {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.area)?;
@@ -2190,7 +2190,7 @@ pub struct Collections {
 }
 
 impl NinoReadBody for Collections {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.ints)?;
@@ -2219,7 +2219,7 @@ impl NinoReadBody for Collections {
 }
 
 impl NinoWriteBody for Collections {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.ints)?;
@@ -2343,7 +2343,7 @@ pub struct Dates {
 }
 
 impl NinoReadBody for Dates {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.utc)?;
@@ -2355,7 +2355,7 @@ impl NinoReadBody for Dates {
 }
 
 impl NinoWriteBody for Dates {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.utc)?;
@@ -2388,7 +2388,7 @@ pub struct Dog {
 }
 
 impl NinoReadBody for Dog {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
@@ -2398,7 +2398,7 @@ impl NinoReadBody for Dog {
 }
 
 impl NinoWriteBody for Dog {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
@@ -2419,7 +2419,7 @@ pub struct DogSlot {
 }
 
 impl NinoReadBody for DogSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.value, nino::field!(Self, value))?;
@@ -2428,7 +2428,7 @@ impl NinoReadBody for DogSlot {
 }
 
 impl NinoWriteBody for DogSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -2460,7 +2460,7 @@ pub struct Empties {
 }
 
 impl NinoReadBody for Empties {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.class, nino::field!(Self, class))?;
@@ -2472,7 +2472,7 @@ impl NinoReadBody for Empties {
 }
 
 impl NinoWriteBody for Empties {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.class)?;
@@ -2519,7 +2519,7 @@ impl Empties {
 pub struct Empty {}
 
 impl NinoReadBody for Empty {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let _ = r;
@@ -2528,7 +2528,7 @@ impl NinoReadBody for Empty {
 }
 
 impl NinoWriteBody for Empty {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let _ = w;
@@ -2571,7 +2571,7 @@ pub struct Enums {
 }
 
 impl NinoReadBody for Enums {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.a)?;
@@ -2590,7 +2590,7 @@ impl NinoReadBody for Enums {
 }
 
 impl NinoWriteBody for Enums {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.a)?;
@@ -2642,7 +2642,7 @@ pub struct Floats {
 }
 
 impl NinoReadBody for Floats {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.f16)?;
@@ -2653,7 +2653,7 @@ impl NinoReadBody for Floats {
 }
 
 impl NinoWriteBody for Floats {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.f16)?;
@@ -2689,7 +2689,7 @@ pub struct GenericSlots {
 }
 
 impl NinoReadBody for GenericSlots {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.int_shelf, nino::field!(Self, int_shelf))?;
@@ -2703,7 +2703,7 @@ impl NinoReadBody for GenericSlots {
 }
 
 impl NinoWriteBody for GenericSlots {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.int_shelf)?;
@@ -2748,7 +2748,7 @@ pub struct Grid {
 }
 
 impl NinoReadBody for Grid {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -2757,7 +2757,7 @@ impl NinoReadBody for Grid {
 }
 
 impl NinoWriteBody for Grid {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -2836,7 +2836,7 @@ pub struct Inner {
 }
 
 impl NinoReadBody for Inner {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -2847,7 +2847,7 @@ impl NinoReadBody for Inner {
 }
 
 impl NinoWriteBody for Inner {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -2889,7 +2889,7 @@ pub struct IntArray {
 }
 
 impl NinoReadBody for IntArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -2898,7 +2898,7 @@ impl NinoReadBody for IntArray {
 }
 
 impl NinoWriteBody for IntArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -2938,7 +2938,7 @@ pub struct IntMap {
 }
 
 impl NinoReadBody for IntMap {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -2947,7 +2947,7 @@ impl NinoReadBody for IntMap {
 }
 
 impl NinoWriteBody for IntMap {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -2976,7 +2976,7 @@ pub struct IntSet {
 }
 
 impl NinoReadBody for IntSet {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -2985,7 +2985,7 @@ impl NinoReadBody for IntSet {
 }
 
 impl NinoWriteBody for IntSet {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -3026,7 +3026,7 @@ pub struct IntShelf {
 }
 
 impl NinoReadBody for IntShelf {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.item)?;
@@ -3036,7 +3036,7 @@ impl NinoReadBody for IntShelf {
 }
 
 impl NinoWriteBody for IntShelf {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.item)?;
@@ -3075,7 +3075,7 @@ pub struct Integers {
 }
 
 impl NinoReadBody for Integers {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.i8)?;
@@ -3093,7 +3093,7 @@ impl NinoReadBody for Integers {
 }
 
 impl NinoWriteBody for Integers {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.i8)?;
@@ -3133,7 +3133,7 @@ pub struct KeyedBag {
 }
 
 impl NinoReadBody for KeyedBag {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -3156,7 +3156,7 @@ impl NinoReadBody for KeyedBag {
 }
 
 impl NinoWriteBody for KeyedBag {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -3203,7 +3203,7 @@ pub struct KeyedChain {
 }
 
 impl NinoReadBody for KeyedChain {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -3226,7 +3226,7 @@ impl NinoReadBody for KeyedChain {
 }
 
 impl NinoWriteBody for KeyedChain {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -3277,7 +3277,7 @@ pub struct KeyedHolder {
 }
 
 impl NinoReadBody for KeyedHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.keyed, nino::field!(Self, keyed))?;
@@ -3288,7 +3288,7 @@ impl NinoReadBody for KeyedHolder {
 }
 
 impl NinoWriteBody for KeyedHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.keyed)?;
@@ -3338,7 +3338,7 @@ pub struct KeyedStruct {
 
 impl NinoReadBody for KeyedStruct {
     const DEFERRABLE: bool = false;
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -3362,7 +3362,7 @@ impl NinoReadBody for KeyedStruct {
 
 impl NinoWriteBody for KeyedStruct {
     const DEFERRABLE: bool = false;
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -3412,7 +3412,7 @@ pub struct KeyedV1 {
 }
 
 impl NinoReadBody for KeyedV1 {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -3437,7 +3437,7 @@ impl NinoReadBody for KeyedV1 {
 }
 
 impl NinoWriteBody for KeyedV1 {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -3497,7 +3497,7 @@ pub struct KeyedV2 {
 }
 
 impl NinoReadBody for KeyedV2 {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -3522,7 +3522,7 @@ impl NinoReadBody for KeyedV2 {
 }
 
 impl NinoWriteBody for KeyedV2 {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -3570,7 +3570,7 @@ pub struct Label {
 
 impl NinoReadBody for Label {
     const DEFERRABLE: bool = false;
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
@@ -3581,7 +3581,7 @@ impl NinoReadBody for Label {
 
 impl NinoWriteBody for Label {
     const DEFERRABLE: bool = false;
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
@@ -3719,7 +3719,7 @@ pub struct LongList {
 }
 
 impl NinoReadBody for LongList {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -3728,7 +3728,7 @@ impl NinoReadBody for LongList {
 }
 
 impl NinoWriteBody for LongList {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -3768,7 +3768,7 @@ pub struct MaybeInt {
 }
 
 impl NinoReadBody for MaybeInt {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -3777,7 +3777,7 @@ impl NinoReadBody for MaybeInt {
 }
 
 impl NinoWriteBody for MaybeInt {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -3817,7 +3817,7 @@ pub struct MaybeIntArray {
 }
 
 impl NinoReadBody for MaybeIntArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -3826,7 +3826,7 @@ impl NinoReadBody for MaybeIntArray {
 }
 
 impl NinoWriteBody for MaybeIntArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -3868,7 +3868,7 @@ pub struct Middle {
 }
 
 impl NinoReadBody for Middle {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.first, nino::field!(Self, first))?;
@@ -3879,7 +3879,7 @@ impl NinoReadBody for Middle {
 }
 
 impl NinoWriteBody for Middle {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.first)?;
@@ -3939,7 +3939,7 @@ pub struct Nullables {
 }
 
 impl NinoReadBody for Nullables {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.int)?;
@@ -3960,7 +3960,7 @@ impl NinoReadBody for Nullables {
 }
 
 impl NinoWriteBody for Nullables {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.int)?;
@@ -4045,7 +4045,7 @@ pub struct ObjectSlot {
 }
 
 impl NinoReadBody for ObjectSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.value, nino::field!(Self, value))?;
@@ -4054,7 +4054,7 @@ impl NinoReadBody for ObjectSlot {
 }
 
 impl NinoWriteBody for ObjectSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -4085,7 +4085,7 @@ pub struct Outer {
 }
 
 impl NinoReadBody for Outer {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
@@ -4096,7 +4096,7 @@ impl NinoReadBody for Outer {
 }
 
 impl NinoWriteBody for Outer {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
@@ -4141,7 +4141,7 @@ pub struct PaddedArray {
 }
 
 impl NinoReadBody for PaddedArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -4150,7 +4150,7 @@ impl NinoReadBody for PaddedArray {
 }
 
 impl NinoWriteBody for PaddedArray {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -4190,7 +4190,7 @@ pub struct Plain {
 }
 
 impl NinoReadBody for Plain {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -4199,7 +4199,7 @@ impl NinoReadBody for Plain {
 }
 
 impl NinoWriteBody for Plain {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -4220,7 +4220,7 @@ pub struct Point {
 }
 
 impl NinoReadBody for Point {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.x)?;
@@ -4230,7 +4230,7 @@ impl NinoReadBody for Point {
 }
 
 impl NinoWriteBody for Point {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.x)?;
@@ -4260,7 +4260,7 @@ pub struct PointList {
 }
 
 impl NinoReadBody for PointList {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.values, nino::field!(Self, values))?;
@@ -4269,7 +4269,7 @@ impl NinoReadBody for PointList {
 }
 
 impl NinoWriteBody for PointList {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -4311,7 +4311,7 @@ pub struct PointSet {
 }
 
 impl NinoReadBody for PointSet {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.elements)?;
@@ -4321,7 +4321,7 @@ impl NinoReadBody for PointSet {
 }
 
 impl NinoWriteBody for PointSet {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.elements)?;
@@ -4367,7 +4367,7 @@ pub struct Puppy {
 }
 
 impl NinoReadBody for Puppy {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.name)?;
@@ -4378,7 +4378,7 @@ impl NinoReadBody for Puppy {
 }
 
 impl NinoWriteBody for Puppy {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.name)?;
@@ -4411,7 +4411,7 @@ pub struct RecordChain {
 
 impl NinoReadBody for RecordChain {
     const DEFERRABLE: bool = false;
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -4422,7 +4422,7 @@ impl NinoReadBody for RecordChain {
 
 impl NinoWriteBody for RecordChain {
     const DEFERRABLE: bool = false;
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -4464,7 +4464,7 @@ pub struct RedLink {
 }
 
 impl NinoReadBody for RedLink {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -4474,7 +4474,7 @@ impl NinoReadBody for RedLink {
 }
 
 impl NinoWriteBody for RedLink {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -4510,7 +4510,7 @@ pub struct Scalars {
 }
 
 impl NinoReadBody for Scalars {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.flag)?;
@@ -4525,7 +4525,7 @@ impl NinoReadBody for Scalars {
 }
 
 impl NinoWriteBody for Scalars {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.flag)?;
@@ -4560,7 +4560,7 @@ pub struct ShapeSlot {
 }
 
 impl NinoReadBody for ShapeSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.value, nino::field!(Self, value))?;
@@ -4569,7 +4569,7 @@ impl NinoReadBody for ShapeSlot {
 }
 
 impl NinoWriteBody for ShapeSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -4598,7 +4598,7 @@ pub struct SortedMap {
 }
 
 impl NinoReadBody for SortedMap {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -4607,7 +4607,7 @@ impl NinoReadBody for SortedMap {
 }
 
 impl NinoWriteBody for SortedMap {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -4637,7 +4637,7 @@ pub struct Square {
 }
 
 impl NinoReadBody for Square {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.area)?;
@@ -4647,7 +4647,7 @@ impl NinoReadBody for Square {
 }
 
 impl NinoWriteBody for Square {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.area)?;
@@ -4681,7 +4681,7 @@ pub struct StringCollections {
 }
 
 impl NinoReadBody for StringCollections {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.array)?;
@@ -4694,7 +4694,7 @@ impl NinoReadBody for StringCollections {
 }
 
 impl NinoWriteBody for StringCollections {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.array)?;
@@ -4741,7 +4741,7 @@ pub struct StringList {
 }
 
 impl NinoReadBody for StringList {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -4750,7 +4750,7 @@ impl NinoReadBody for StringList {
 }
 
 impl NinoWriteBody for StringList {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -4790,7 +4790,7 @@ pub struct StringMap {
 }
 
 impl NinoReadBody for StringMap {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -4799,7 +4799,7 @@ impl NinoReadBody for StringMap {
 }
 
 impl NinoWriteBody for StringMap {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -4828,7 +4828,7 @@ pub struct StringSet {
 }
 
 impl NinoReadBody for StringSet {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.values)?;
@@ -4837,7 +4837,7 @@ impl NinoReadBody for StringSet {
 }
 
 impl NinoWriteBody for StringSet {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.values)?;
@@ -4878,7 +4878,7 @@ pub struct Strings {
 }
 
 impl NinoReadBody for Strings {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.text)?;
@@ -4888,7 +4888,7 @@ impl NinoReadBody for Strings {
 }
 
 impl NinoWriteBody for Strings {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.text)?;
@@ -4931,7 +4931,7 @@ pub struct Structs {
 }
 
 impl NinoReadBody for Structs {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.vec)?;
@@ -4953,7 +4953,7 @@ impl NinoReadBody for Structs {
 }
 
 impl NinoWriteBody for Structs {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.vec)?;
@@ -5018,7 +5018,7 @@ pub struct TextValue {
 }
 
 impl NinoReadBody for TextValue {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -5027,7 +5027,7 @@ impl NinoReadBody for TextValue {
 }
 
 impl NinoWriteBody for TextValue {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -5058,7 +5058,7 @@ pub struct TolerantBag {
 }
 
 impl NinoReadBody for TolerantBag {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.elements)?;
@@ -5072,7 +5072,7 @@ impl NinoReadBody for TolerantBag {
 }
 
 impl NinoWriteBody for TolerantBag {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.elements)?;
@@ -5115,7 +5115,7 @@ pub struct TolerantBase {
 }
 
 impl NinoReadBody for TolerantBase {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -5128,7 +5128,7 @@ impl NinoReadBody for TolerantBase {
 }
 
 impl NinoWriteBody for TolerantBase {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -5151,7 +5151,7 @@ pub struct TolerantChain {
 }
 
 impl NinoReadBody for TolerantChain {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -5167,7 +5167,7 @@ impl NinoReadBody for TolerantChain {
 }
 
 impl NinoWriteBody for TolerantChain {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -5208,7 +5208,7 @@ impl TolerantChain {
 pub struct TolerantEmpty {}
 
 impl NinoReadBody for TolerantEmpty {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -5218,7 +5218,7 @@ impl NinoReadBody for TolerantEmpty {
 }
 
 impl NinoWriteBody for TolerantEmpty {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -5251,7 +5251,7 @@ pub struct TolerantHolder {
 }
 
 impl NinoReadBody for TolerantHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.first, nino::field!(Self, first))?;
@@ -5263,7 +5263,7 @@ impl NinoReadBody for TolerantHolder {
 }
 
 impl NinoWriteBody for TolerantHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.first)?;
@@ -5310,7 +5310,7 @@ pub struct TolerantLeaf {
 }
 
 impl NinoReadBody for TolerantLeaf {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -5326,7 +5326,7 @@ impl NinoReadBody for TolerantLeaf {
 }
 
 impl NinoWriteBody for TolerantLeaf {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -5360,7 +5360,7 @@ pub struct TolerantRoot {
 }
 
 impl NinoReadBody for TolerantRoot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -5379,7 +5379,7 @@ impl NinoReadBody for TolerantRoot {
 }
 
 impl NinoWriteBody for TolerantRoot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -5424,7 +5424,7 @@ pub struct TolerantV1 {
 }
 
 impl NinoReadBody for TolerantV1 {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -5440,7 +5440,7 @@ impl NinoReadBody for TolerantV1 {
 }
 
 impl NinoWriteBody for TolerantV1 {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -5475,7 +5475,7 @@ pub struct TolerantV2 {
 }
 
 impl NinoReadBody for TolerantV2 {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -5497,7 +5497,7 @@ impl NinoReadBody for TolerantV2 {
 }
 
 impl NinoWriteBody for TolerantV2 {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -5544,7 +5544,7 @@ pub struct Tracked {
 }
 
 impl NinoReadBody for Tracked {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -5555,7 +5555,7 @@ impl NinoReadBody for Tracked {
 }
 
 impl NinoWriteBody for Tracked {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -5580,7 +5580,7 @@ pub struct TrackedHolder {
 }
 
 impl NinoReadBody for TrackedHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.a, nino::field!(Self, a))?;
@@ -5592,7 +5592,7 @@ impl NinoReadBody for TrackedHolder {
 }
 
 impl NinoWriteBody for TrackedHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.a)?;
@@ -5638,7 +5638,7 @@ pub struct TrackedLeaf {
 }
 
 impl NinoReadBody for TrackedLeaf {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -5650,7 +5650,7 @@ impl NinoReadBody for TrackedLeaf {
 }
 
 impl NinoWriteBody for TrackedLeaf {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -5678,7 +5678,7 @@ pub struct TrackedMix {
 }
 
 impl NinoReadBody for TrackedMix {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.any, nino::field!(Self, any))?;
@@ -5692,7 +5692,7 @@ impl NinoReadBody for TrackedMix {
 }
 
 impl NinoWriteBody for TrackedMix {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.any)?;
@@ -5738,7 +5738,7 @@ pub struct TrackedNode {
 }
 
 impl NinoReadBody for TrackedNode {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -5748,7 +5748,7 @@ impl NinoReadBody for TrackedNode {
 }
 
 impl NinoWriteBody for TrackedNode {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -5770,7 +5770,7 @@ pub struct TrackedTolerant {
 }
 
 impl NinoReadBody for TrackedTolerant {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         let body = r.begin_region()?;
@@ -5786,7 +5786,7 @@ impl NinoReadBody for TrackedTolerant {
 }
 
 impl NinoWriteBody for TrackedTolerant {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         let body = w.begin_region();
@@ -5810,7 +5810,7 @@ pub struct TreeHolder {
 }
 
 impl NinoReadBody for TreeHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.tree, nino::field!(Self, tree))?;
@@ -5820,7 +5820,7 @@ impl NinoReadBody for TreeHolder {
 }
 
 impl NinoWriteBody for TreeHolder {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.tree)?;
@@ -5862,7 +5862,7 @@ pub struct TreeNode {
 }
 
 impl NinoReadBody for TreeNode {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -5872,7 +5872,7 @@ impl NinoReadBody for TreeNode {
 }
 
 impl NinoWriteBody for TreeNode {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -5913,7 +5913,7 @@ pub struct Utf8Value {
 }
 
 impl NinoReadBody for Utf8Value {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -5922,7 +5922,7 @@ impl NinoReadBody for Utf8Value {
 }
 
 impl NinoWriteBody for Utf8Value {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -5951,7 +5951,7 @@ pub struct VersionSlot {
 }
 
 impl NinoReadBody for VersionSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_into(&mut self.value)?;
@@ -5960,7 +5960,7 @@ impl NinoReadBody for VersionSlot {
 }
 
 impl NinoWriteBody for VersionSlot {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.value)?;
@@ -6040,7 +6040,7 @@ pub struct WrappedArgs {
 }
 
 impl NinoReadBody for WrappedArgs {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.nullable_array, nino::field!(Self, nullable_array))?;
@@ -6055,7 +6055,7 @@ impl NinoReadBody for WrappedArgs {
 }
 
 impl NinoWriteBody for WrappedArgs {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.nullable_array)?;
@@ -6127,7 +6127,7 @@ pub struct Zoo {
 }
 
 impl NinoReadBody for Zoo {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
         r.read_member_into(&mut self.star, nino::field!(Self, star))?;
@@ -6144,7 +6144,7 @@ impl NinoReadBody for Zoo {
 }
 
 impl NinoWriteBody for Zoo {
-    const TYPE_ID: i32 = Self::TYPE_ID;
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
 
     fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         w.write(&self.star)?;
@@ -6244,15 +6244,15 @@ impl NinoRead for AnimalRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Cat(v)) if id == Cat::TYPE_ID => {
+            Some(Self::Cat(v)) if id == Cat::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+            Some(Self::Dog(v)) if id == Dog::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+            Some(Self::Puppy(v)) if id == Puppy::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -6276,9 +6276,9 @@ impl NinoRead for AnimalRef {
         };
         if !reused {
             *slot = Some(match id {
-                Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
-                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                Cat::NINO_TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
+                Dog::NINO_TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                Puppy::NINO_TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
                 -1580784064 => Self::BoxVec2(Box::new(r.read_class()?)),
                 -1116656767 => Self::BoxListPoint(Box::new(r.read_class()?)),
                 -794599344 => Self::BoxInt32(Box::new(r.read_class()?)),
@@ -6295,15 +6295,15 @@ impl NinoWrite for AnimalRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::Cat(v) => {
-                w.i32(Cat::TYPE_ID);
+                w.i32(Cat::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Dog(v) => {
-                w.i32(Dog::TYPE_ID);
+                w.i32(Dog::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Puppy(v) => {
-                w.i32(Puppy::TYPE_ID);
+                w.i32(Puppy::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxVec2(v) => {
@@ -6614,363 +6614,363 @@ impl NinoRead for AnyObject {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::AnimalSlot(v)) if id == AnimalSlot::TYPE_ID => {
+            Some(Self::AnimalSlot(v)) if id == AnimalSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Bag(v)) if id == Bag::TYPE_ID => {
+            Some(Self::Bag(v)) if id == Bag::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BagHolder(v)) if id == BagHolder::TYPE_ID => {
+            Some(Self::BagHolder(v)) if id == BagHolder::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BclRaw(v)) if id == BclRaw::TYPE_ID => {
+            Some(Self::BclRaw(v)) if id == BclRaw::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BclRawHost(v)) if id == BclRawHost::TYPE_ID => {
+            Some(Self::BclRawHost(v)) if id == BclRawHost::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BclRawNullables(v)) if id == BclRawNullables::TYPE_ID => {
+            Some(Self::BclRawNullables(v)) if id == BclRawNullables::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BclRawOffset(v)) if id == BclRawOffset::TYPE_ID => {
+            Some(Self::BclRawOffset(v)) if id == BclRawOffset::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BigSlot(v)) if id == BigSlot::TYPE_ID => {
+            Some(Self::BigSlot(v)) if id == BigSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BigValues(v)) if id == BigValues::TYPE_ID => {
+            Some(Self::BigValues(v)) if id == BigValues::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BlueLink(v)) if id == BlueLink::TYPE_ID => {
+            Some(Self::BlueLink(v)) if id == BlueLink::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoolArray(v)) if id == BoolArray::TYPE_ID => {
+            Some(Self::BoolArray(v)) if id == BoolArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::BoolValue(v)) if id == BoolValue::TYPE_ID => {
+            Some(Self::BoolValue(v)) if id == BoolValue::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::ByteArray(v)) if id == ByteArray::TYPE_ID => {
+            Some(Self::ByteArray(v)) if id == ByteArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Bytes(v)) if id == Bytes::TYPE_ID => {
+            Some(Self::Bytes(v)) if id == Bytes::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Cat(v)) if id == Cat::TYPE_ID => {
+            Some(Self::Cat(v)) if id == Cat::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Chain(v)) if id == Chain::TYPE_ID => {
+            Some(Self::Chain(v)) if id == Chain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+            Some(Self::Circle(v)) if id == Circle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Collections(v)) if id == Collections::TYPE_ID => {
+            Some(Self::Collections(v)) if id == Collections::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Dates(v)) if id == Dates::TYPE_ID => {
+            Some(Self::Dates(v)) if id == Dates::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+            Some(Self::Dog(v)) if id == Dog::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::DogSlot(v)) if id == DogSlot::TYPE_ID => {
+            Some(Self::DogSlot(v)) if id == DogSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Empties(v)) if id == Empties::TYPE_ID => {
+            Some(Self::Empties(v)) if id == Empties::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Empty(v)) if id == Empty::TYPE_ID => {
+            Some(Self::Empty(v)) if id == Empty::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::EmptyStruct(v)) if id == EmptyStruct::TYPE_ID => {
+            Some(Self::EmptyStruct(v)) if id == EmptyStruct::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::Enums(v)) if id == Enums::TYPE_ID => {
+            Some(Self::Enums(v)) if id == Enums::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Floats(v)) if id == Floats::TYPE_ID => {
+            Some(Self::Floats(v)) if id == Floats::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::GenericSlots(v)) if id == GenericSlots::TYPE_ID => {
+            Some(Self::GenericSlots(v)) if id == GenericSlots::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Grid(v)) if id == Grid::TYPE_ID => {
+            Some(Self::Grid(v)) if id == Grid::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Inner(v)) if id == Inner::TYPE_ID => {
+            Some(Self::Inner(v)) if id == Inner::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::IntArray(v)) if id == IntArray::TYPE_ID => {
+            Some(Self::IntArray(v)) if id == IntArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::IntMap(v)) if id == IntMap::TYPE_ID => {
+            Some(Self::IntMap(v)) if id == IntMap::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::IntSet(v)) if id == IntSet::TYPE_ID => {
+            Some(Self::IntSet(v)) if id == IntSet::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::IntShelf(v)) if id == IntShelf::TYPE_ID => {
+            Some(Self::IntShelf(v)) if id == IntShelf::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Integers(v)) if id == Integers::TYPE_ID => {
+            Some(Self::Integers(v)) if id == Integers::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedBag(v)) if id == KeyedBag::TYPE_ID => {
+            Some(Self::KeyedBag(v)) if id == KeyedBag::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedChain(v)) if id == KeyedChain::TYPE_ID => {
+            Some(Self::KeyedChain(v)) if id == KeyedChain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedHolder(v)) if id == KeyedHolder::TYPE_ID => {
+            Some(Self::KeyedHolder(v)) if id == KeyedHolder::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedStruct(v)) if id == KeyedStruct::TYPE_ID => {
+            Some(Self::KeyedStruct(v)) if id == KeyedStruct::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedV1(v)) if id == KeyedV1::TYPE_ID => {
+            Some(Self::KeyedV1(v)) if id == KeyedV1::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::KeyedV2(v)) if id == KeyedV2::TYPE_ID => {
+            Some(Self::KeyedV2(v)) if id == KeyedV2::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Label(v)) if id == Label::TYPE_ID => {
+            Some(Self::Label(v)) if id == Label::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::LongList(v)) if id == LongList::TYPE_ID => {
+            Some(Self::LongList(v)) if id == LongList::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::MaybeInt(v)) if id == MaybeInt::TYPE_ID => {
+            Some(Self::MaybeInt(v)) if id == MaybeInt::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::MaybeIntArray(v)) if id == MaybeIntArray::TYPE_ID => {
+            Some(Self::MaybeIntArray(v)) if id == MaybeIntArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Middle(v)) if id == Middle::TYPE_ID => {
+            Some(Self::Middle(v)) if id == Middle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Mixed(v)) if id == Mixed::TYPE_ID => {
+            Some(Self::Mixed(v)) if id == Mixed::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::Nested(v)) if id == Nested::TYPE_ID => {
+            Some(Self::Nested(v)) if id == Nested::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::Nullables(v)) if id == Nullables::TYPE_ID => {
+            Some(Self::Nullables(v)) if id == Nullables::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::ObjectSlot(v)) if id == ObjectSlot::TYPE_ID => {
+            Some(Self::ObjectSlot(v)) if id == ObjectSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Outer(v)) if id == Outer::TYPE_ID => {
+            Some(Self::Outer(v)) if id == Outer::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Packed(v)) if id == Packed::TYPE_ID => {
+            Some(Self::Packed(v)) if id == Packed::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::Padded(v)) if id == Padded::TYPE_ID => {
+            Some(Self::Padded(v)) if id == Padded::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::PaddedArray(v)) if id == PaddedArray::TYPE_ID => {
+            Some(Self::PaddedArray(v)) if id == PaddedArray::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Plain(v)) if id == Plain::TYPE_ID => {
+            Some(Self::Plain(v)) if id == Plain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Point(v)) if id == Point::TYPE_ID => {
+            Some(Self::Point(v)) if id == Point::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::PointList(v)) if id == PointList::TYPE_ID => {
+            Some(Self::PointList(v)) if id == PointList::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::PointSet(v)) if id == PointSet::TYPE_ID => {
+            Some(Self::PointSet(v)) if id == PointSet::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+            Some(Self::Puppy(v)) if id == Puppy::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::RecordChain(v)) if id == RecordChain::TYPE_ID => {
+            Some(Self::RecordChain(v)) if id == RecordChain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::RedLink(v)) if id == RedLink::TYPE_ID => {
+            Some(Self::RedLink(v)) if id == RedLink::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Scalars(v)) if id == Scalars::TYPE_ID => {
+            Some(Self::Scalars(v)) if id == Scalars::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::ShapeSlot(v)) if id == ShapeSlot::TYPE_ID => {
+            Some(Self::ShapeSlot(v)) if id == ShapeSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Sized(v)) if id == Sized::TYPE_ID => {
+            Some(Self::Sized(v)) if id == Sized::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::SortedMap(v)) if id == SortedMap::TYPE_ID => {
+            Some(Self::SortedMap(v)) if id == SortedMap::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Square(v)) if id == Square::TYPE_ID => {
+            Some(Self::Square(v)) if id == Square::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::StringCollections(v)) if id == StringCollections::TYPE_ID => {
+            Some(Self::StringCollections(v)) if id == StringCollections::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::StringList(v)) if id == StringList::TYPE_ID => {
+            Some(Self::StringList(v)) if id == StringList::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::StringMap(v)) if id == StringMap::TYPE_ID => {
+            Some(Self::StringMap(v)) if id == StringMap::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::StringSet(v)) if id == StringSet::TYPE_ID => {
+            Some(Self::StringSet(v)) if id == StringSet::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Strings(v)) if id == Strings::TYPE_ID => {
+            Some(Self::Strings(v)) if id == Strings::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Structs(v)) if id == Structs::TYPE_ID => {
+            Some(Self::Structs(v)) if id == Structs::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TextValue(v)) if id == TextValue::TYPE_ID => {
+            Some(Self::TextValue(v)) if id == TextValue::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantBag(v)) if id == TolerantBag::TYPE_ID => {
+            Some(Self::TolerantBag(v)) if id == TolerantBag::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantBase(v)) if id == TolerantBase::TYPE_ID => {
+            Some(Self::TolerantBase(v)) if id == TolerantBase::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantChain(v)) if id == TolerantChain::TYPE_ID => {
+            Some(Self::TolerantChain(v)) if id == TolerantChain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantEmpty(v)) if id == TolerantEmpty::TYPE_ID => {
+            Some(Self::TolerantEmpty(v)) if id == TolerantEmpty::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantHolder(v)) if id == TolerantHolder::TYPE_ID => {
+            Some(Self::TolerantHolder(v)) if id == TolerantHolder::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::TYPE_ID => {
+            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantRoot(v)) if id == TolerantRoot::TYPE_ID => {
+            Some(Self::TolerantRoot(v)) if id == TolerantRoot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantV1(v)) if id == TolerantV1::TYPE_ID => {
+            Some(Self::TolerantV1(v)) if id == TolerantV1::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantV2(v)) if id == TolerantV2::TYPE_ID => {
+            Some(Self::TolerantV2(v)) if id == TolerantV2::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TrackedHolder(v)) if id == TrackedHolder::TYPE_ID => {
+            Some(Self::TrackedHolder(v)) if id == TrackedHolder::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TrackedMix(v)) if id == TrackedMix::TYPE_ID => {
+            Some(Self::TrackedMix(v)) if id == TrackedMix::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TreeHolder(v)) if id == TreeHolder::TYPE_ID => {
+            Some(Self::TreeHolder(v)) if id == TreeHolder::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TreeNode(v)) if id == TreeNode::TYPE_ID => {
+            Some(Self::TreeNode(v)) if id == TreeNode::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Utf8Value(v)) if id == Utf8Value::TYPE_ID => {
+            Some(Self::Utf8Value(v)) if id == Utf8Value::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Vec2(v)) if id == Vec2::TYPE_ID => {
+            Some(Self::Vec2(v)) if id == Vec2::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
                 true
             }
-            Some(Self::VersionSlot(v)) if id == VersionSlot::TYPE_ID => {
+            Some(Self::VersionSlot(v)) if id == VersionSlot::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::WrappedArgs(v)) if id == WrappedArgs::TYPE_ID => {
+            Some(Self::WrappedArgs(v)) if id == WrappedArgs::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Zoo(v)) if id == Zoo::TYPE_ID => {
+            Some(Self::Zoo(v)) if id == Zoo::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -7050,100 +7050,100 @@ impl NinoRead for AnyObject {
         };
         if !reused {
             *slot = Some(match id {
-                AnimalSlot::TYPE_ID => Self::AnimalSlot(Box::new(r.read_class()?)),
-                Bag::TYPE_ID => Self::Bag(Box::new(r.read_class()?)),
-                BagHolder::TYPE_ID => Self::BagHolder(Box::new(r.read_class()?)),
-                BclRaw::TYPE_ID => Self::BclRaw(Box::new(r.read_class()?)),
-                BclRawHost::TYPE_ID => Self::BclRawHost(Box::new(r.read_class()?)),
-                BclRawNullables::TYPE_ID => Self::BclRawNullables(Box::new(r.read_class()?)),
-                BclRawOffset::TYPE_ID => Self::BclRawOffset(Box::new(r.read_class()?)),
-                BigSlot::TYPE_ID => Self::BigSlot(Box::new(r.read_class()?)),
-                BigValues::TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
-                BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
-                BoolArray::TYPE_ID => Self::BoolArray(Box::new(r.read_class()?)),
-                BoolValue::TYPE_ID => Self::BoolValue(Box::new(r.read_class()?)),
-                ByteArray::TYPE_ID => Self::ByteArray(Box::new(r.read_class()?)),
-                Bytes::TYPE_ID => Self::Bytes(Box::new(r.read_class()?)),
-                Cat::TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
-                Chain::TYPE_ID => Self::Chain(Box::new(r.read_class()?)),
-                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
-                Collections::TYPE_ID => Self::Collections(Box::new(r.read_class()?)),
-                Dates::TYPE_ID => Self::Dates(Box::new(r.read_class()?)),
-                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-                DogSlot::TYPE_ID => Self::DogSlot(Box::new(r.read_class()?)),
-                Empties::TYPE_ID => Self::Empties(Box::new(r.read_class()?)),
-                Empty::TYPE_ID => Self::Empty(Box::new(r.read_class()?)),
-                EmptyStruct::TYPE_ID => Self::EmptyStruct(Box::new(r.read()?)),
-                Enums::TYPE_ID => Self::Enums(Box::new(r.read_class()?)),
-                Floats::TYPE_ID => Self::Floats(Box::new(r.read_class()?)),
-                GenericSlots::TYPE_ID => Self::GenericSlots(Box::new(r.read_class()?)),
-                Grid::TYPE_ID => Self::Grid(Box::new(r.read_class()?)),
-                Inner::TYPE_ID => Self::Inner(Box::new(r.read_class()?)),
-                IntArray::TYPE_ID => Self::IntArray(Box::new(r.read_class()?)),
-                IntMap::TYPE_ID => Self::IntMap(Box::new(r.read_class()?)),
-                IntSet::TYPE_ID => Self::IntSet(Box::new(r.read_class()?)),
-                IntShelf::TYPE_ID => Self::IntShelf(Box::new(r.read_class()?)),
-                Integers::TYPE_ID => Self::Integers(Box::new(r.read_class()?)),
-                KeyedBag::TYPE_ID => Self::KeyedBag(Box::new(r.read_class()?)),
-                KeyedChain::TYPE_ID => Self::KeyedChain(Box::new(r.read_class()?)),
-                KeyedHolder::TYPE_ID => Self::KeyedHolder(Box::new(r.read_class()?)),
-                KeyedStruct::TYPE_ID => Self::KeyedStruct(Box::new(r.read()?)),
-                KeyedV1::TYPE_ID => Self::KeyedV1(Box::new(r.read_class()?)),
-                KeyedV2::TYPE_ID => Self::KeyedV2(Box::new(r.read_class()?)),
-                Label::TYPE_ID => Self::Label(Box::new(r.read()?)),
-                LongList::TYPE_ID => Self::LongList(Box::new(r.read_class()?)),
-                MaybeInt::TYPE_ID => Self::MaybeInt(Box::new(r.read_class()?)),
-                MaybeIntArray::TYPE_ID => Self::MaybeIntArray(Box::new(r.read_class()?)),
-                Middle::TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
-                Mixed::TYPE_ID => Self::Mixed(Box::new(r.read()?)),
-                Nested::TYPE_ID => Self::Nested(Box::new(r.read()?)),
-                Nullables::TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
-                ObjectSlot::TYPE_ID => Self::ObjectSlot(Box::new(r.read_class()?)),
-                Outer::TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
-                Packed::TYPE_ID => Self::Packed(Box::new(r.read()?)),
-                Padded::TYPE_ID => Self::Padded(Box::new(r.read()?)),
-                PaddedArray::TYPE_ID => Self::PaddedArray(Box::new(r.read_class()?)),
-                Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
-                Point::TYPE_ID => Self::Point(Box::new(r.read_class()?)),
-                PointList::TYPE_ID => Self::PointList(Box::new(r.read_class()?)),
-                PointSet::TYPE_ID => Self::PointSet(Box::new(r.read_class()?)),
-                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
-                RecordChain::TYPE_ID => Self::RecordChain(Box::new(r.read_class()?)),
-                RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
-                Scalars::TYPE_ID => Self::Scalars(Box::new(r.read_class()?)),
-                ShapeSlot::TYPE_ID => Self::ShapeSlot(Box::new(r.read_class()?)),
-                Sized::TYPE_ID => Self::Sized(Box::new(r.read()?)),
-                SortedMap::TYPE_ID => Self::SortedMap(Box::new(r.read_class()?)),
-                Square::TYPE_ID => Self::Square(Box::new(r.read_class()?)),
-                StringCollections::TYPE_ID => Self::StringCollections(Box::new(r.read_class()?)),
-                StringList::TYPE_ID => Self::StringList(Box::new(r.read_class()?)),
-                StringMap::TYPE_ID => Self::StringMap(Box::new(r.read_class()?)),
-                StringSet::TYPE_ID => Self::StringSet(Box::new(r.read_class()?)),
-                Strings::TYPE_ID => Self::Strings(Box::new(r.read_class()?)),
-                Structs::TYPE_ID => Self::Structs(Box::new(r.read_class()?)),
-                TextValue::TYPE_ID => Self::TextValue(Box::new(r.read_class()?)),
-                TolerantBag::TYPE_ID => Self::TolerantBag(Box::new(r.read_class()?)),
-                TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
-                TolerantChain::TYPE_ID => Self::TolerantChain(Box::new(r.read_class()?)),
-                TolerantEmpty::TYPE_ID => Self::TolerantEmpty(Box::new(r.read_class()?)),
-                TolerantHolder::TYPE_ID => Self::TolerantHolder(Box::new(r.read_class()?)),
-                TolerantLeaf::TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
-                TolerantRoot::TYPE_ID => Self::TolerantRoot(Box::new(r.read_class()?)),
-                TolerantV1::TYPE_ID => Self::TolerantV1(Box::new(r.read_class()?)),
-                TolerantV2::TYPE_ID => Self::TolerantV2(Box::new(r.read_class()?)),
-                Tracked::TYPE_ID => Self::Tracked(r.read_shared_after_id()?),
-                TrackedHolder::TYPE_ID => Self::TrackedHolder(Box::new(r.read_class()?)),
-                TrackedLeaf::TYPE_ID => Self::TrackedLeaf(r.read_shared_after_id()?),
-                TrackedMix::TYPE_ID => Self::TrackedMix(Box::new(r.read_class()?)),
-                TrackedNode::TYPE_ID => Self::TrackedNode(r.read_shared_after_id()?),
-                TrackedTolerant::TYPE_ID => Self::TrackedTolerant(r.read_shared_after_id()?),
-                TreeHolder::TYPE_ID => Self::TreeHolder(Box::new(r.read_class()?)),
-                TreeNode::TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
-                Utf8Value::TYPE_ID => Self::Utf8Value(Box::new(r.read_class()?)),
-                Vec2::TYPE_ID => Self::Vec2(Box::new(r.read()?)),
-                VersionSlot::TYPE_ID => Self::VersionSlot(Box::new(r.read_class()?)),
-                WrappedArgs::TYPE_ID => Self::WrappedArgs(Box::new(r.read_class()?)),
-                Zoo::TYPE_ID => Self::Zoo(Box::new(r.read_class()?)),
+                AnimalSlot::NINO_TYPE_ID => Self::AnimalSlot(Box::new(r.read_class()?)),
+                Bag::NINO_TYPE_ID => Self::Bag(Box::new(r.read_class()?)),
+                BagHolder::NINO_TYPE_ID => Self::BagHolder(Box::new(r.read_class()?)),
+                BclRaw::NINO_TYPE_ID => Self::BclRaw(Box::new(r.read_class()?)),
+                BclRawHost::NINO_TYPE_ID => Self::BclRawHost(Box::new(r.read_class()?)),
+                BclRawNullables::NINO_TYPE_ID => Self::BclRawNullables(Box::new(r.read_class()?)),
+                BclRawOffset::NINO_TYPE_ID => Self::BclRawOffset(Box::new(r.read_class()?)),
+                BigSlot::NINO_TYPE_ID => Self::BigSlot(Box::new(r.read_class()?)),
+                BigValues::NINO_TYPE_ID => Self::BigValues(Box::new(r.read_class()?)),
+                BlueLink::NINO_TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
+                BoolArray::NINO_TYPE_ID => Self::BoolArray(Box::new(r.read_class()?)),
+                BoolValue::NINO_TYPE_ID => Self::BoolValue(Box::new(r.read_class()?)),
+                ByteArray::NINO_TYPE_ID => Self::ByteArray(Box::new(r.read_class()?)),
+                Bytes::NINO_TYPE_ID => Self::Bytes(Box::new(r.read_class()?)),
+                Cat::NINO_TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
+                Chain::NINO_TYPE_ID => Self::Chain(Box::new(r.read_class()?)),
+                Circle::NINO_TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                Collections::NINO_TYPE_ID => Self::Collections(Box::new(r.read_class()?)),
+                Dates::NINO_TYPE_ID => Self::Dates(Box::new(r.read_class()?)),
+                Dog::NINO_TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                DogSlot::NINO_TYPE_ID => Self::DogSlot(Box::new(r.read_class()?)),
+                Empties::NINO_TYPE_ID => Self::Empties(Box::new(r.read_class()?)),
+                Empty::NINO_TYPE_ID => Self::Empty(Box::new(r.read_class()?)),
+                EmptyStruct::NINO_TYPE_ID => Self::EmptyStruct(Box::new(r.read()?)),
+                Enums::NINO_TYPE_ID => Self::Enums(Box::new(r.read_class()?)),
+                Floats::NINO_TYPE_ID => Self::Floats(Box::new(r.read_class()?)),
+                GenericSlots::NINO_TYPE_ID => Self::GenericSlots(Box::new(r.read_class()?)),
+                Grid::NINO_TYPE_ID => Self::Grid(Box::new(r.read_class()?)),
+                Inner::NINO_TYPE_ID => Self::Inner(Box::new(r.read_class()?)),
+                IntArray::NINO_TYPE_ID => Self::IntArray(Box::new(r.read_class()?)),
+                IntMap::NINO_TYPE_ID => Self::IntMap(Box::new(r.read_class()?)),
+                IntSet::NINO_TYPE_ID => Self::IntSet(Box::new(r.read_class()?)),
+                IntShelf::NINO_TYPE_ID => Self::IntShelf(Box::new(r.read_class()?)),
+                Integers::NINO_TYPE_ID => Self::Integers(Box::new(r.read_class()?)),
+                KeyedBag::NINO_TYPE_ID => Self::KeyedBag(Box::new(r.read_class()?)),
+                KeyedChain::NINO_TYPE_ID => Self::KeyedChain(Box::new(r.read_class()?)),
+                KeyedHolder::NINO_TYPE_ID => Self::KeyedHolder(Box::new(r.read_class()?)),
+                KeyedStruct::NINO_TYPE_ID => Self::KeyedStruct(Box::new(r.read()?)),
+                KeyedV1::NINO_TYPE_ID => Self::KeyedV1(Box::new(r.read_class()?)),
+                KeyedV2::NINO_TYPE_ID => Self::KeyedV2(Box::new(r.read_class()?)),
+                Label::NINO_TYPE_ID => Self::Label(Box::new(r.read()?)),
+                LongList::NINO_TYPE_ID => Self::LongList(Box::new(r.read_class()?)),
+                MaybeInt::NINO_TYPE_ID => Self::MaybeInt(Box::new(r.read_class()?)),
+                MaybeIntArray::NINO_TYPE_ID => Self::MaybeIntArray(Box::new(r.read_class()?)),
+                Middle::NINO_TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
+                Mixed::NINO_TYPE_ID => Self::Mixed(Box::new(r.read()?)),
+                Nested::NINO_TYPE_ID => Self::Nested(Box::new(r.read()?)),
+                Nullables::NINO_TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
+                ObjectSlot::NINO_TYPE_ID => Self::ObjectSlot(Box::new(r.read_class()?)),
+                Outer::NINO_TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
+                Packed::NINO_TYPE_ID => Self::Packed(Box::new(r.read()?)),
+                Padded::NINO_TYPE_ID => Self::Padded(Box::new(r.read()?)),
+                PaddedArray::NINO_TYPE_ID => Self::PaddedArray(Box::new(r.read_class()?)),
+                Plain::NINO_TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
+                Point::NINO_TYPE_ID => Self::Point(Box::new(r.read_class()?)),
+                PointList::NINO_TYPE_ID => Self::PointList(Box::new(r.read_class()?)),
+                PointSet::NINO_TYPE_ID => Self::PointSet(Box::new(r.read_class()?)),
+                Puppy::NINO_TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                RecordChain::NINO_TYPE_ID => Self::RecordChain(Box::new(r.read_class()?)),
+                RedLink::NINO_TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
+                Scalars::NINO_TYPE_ID => Self::Scalars(Box::new(r.read_class()?)),
+                ShapeSlot::NINO_TYPE_ID => Self::ShapeSlot(Box::new(r.read_class()?)),
+                Sized::NINO_TYPE_ID => Self::Sized(Box::new(r.read()?)),
+                SortedMap::NINO_TYPE_ID => Self::SortedMap(Box::new(r.read_class()?)),
+                Square::NINO_TYPE_ID => Self::Square(Box::new(r.read_class()?)),
+                StringCollections::NINO_TYPE_ID => Self::StringCollections(Box::new(r.read_class()?)),
+                StringList::NINO_TYPE_ID => Self::StringList(Box::new(r.read_class()?)),
+                StringMap::NINO_TYPE_ID => Self::StringMap(Box::new(r.read_class()?)),
+                StringSet::NINO_TYPE_ID => Self::StringSet(Box::new(r.read_class()?)),
+                Strings::NINO_TYPE_ID => Self::Strings(Box::new(r.read_class()?)),
+                Structs::NINO_TYPE_ID => Self::Structs(Box::new(r.read_class()?)),
+                TextValue::NINO_TYPE_ID => Self::TextValue(Box::new(r.read_class()?)),
+                TolerantBag::NINO_TYPE_ID => Self::TolerantBag(Box::new(r.read_class()?)),
+                TolerantBase::NINO_TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
+                TolerantChain::NINO_TYPE_ID => Self::TolerantChain(Box::new(r.read_class()?)),
+                TolerantEmpty::NINO_TYPE_ID => Self::TolerantEmpty(Box::new(r.read_class()?)),
+                TolerantHolder::NINO_TYPE_ID => Self::TolerantHolder(Box::new(r.read_class()?)),
+                TolerantLeaf::NINO_TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
+                TolerantRoot::NINO_TYPE_ID => Self::TolerantRoot(Box::new(r.read_class()?)),
+                TolerantV1::NINO_TYPE_ID => Self::TolerantV1(Box::new(r.read_class()?)),
+                TolerantV2::NINO_TYPE_ID => Self::TolerantV2(Box::new(r.read_class()?)),
+                Tracked::NINO_TYPE_ID => Self::Tracked(r.read_shared_after_id()?),
+                TrackedHolder::NINO_TYPE_ID => Self::TrackedHolder(Box::new(r.read_class()?)),
+                TrackedLeaf::NINO_TYPE_ID => Self::TrackedLeaf(r.read_shared_after_id()?),
+                TrackedMix::NINO_TYPE_ID => Self::TrackedMix(Box::new(r.read_class()?)),
+                TrackedNode::NINO_TYPE_ID => Self::TrackedNode(r.read_shared_after_id()?),
+                TrackedTolerant::NINO_TYPE_ID => Self::TrackedTolerant(r.read_shared_after_id()?),
+                TreeHolder::NINO_TYPE_ID => Self::TreeHolder(Box::new(r.read_class()?)),
+                TreeNode::NINO_TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
+                Utf8Value::NINO_TYPE_ID => Self::Utf8Value(Box::new(r.read_class()?)),
+                Vec2::NINO_TYPE_ID => Self::Vec2(Box::new(r.read()?)),
+                VersionSlot::NINO_TYPE_ID => Self::VersionSlot(Box::new(r.read_class()?)),
+                WrappedArgs::NINO_TYPE_ID => Self::WrappedArgs(Box::new(r.read_class()?)),
+                Zoo::NINO_TYPE_ID => Self::Zoo(Box::new(r.read_class()?)),
                 -1580784064 => Self::BoxVec2(Box::new(r.read_class()?)),
                 -1116656767 => Self::BoxListPoint(Box::new(r.read_class()?)),
                 -794599344 => Self::BoxInt32(Box::new(r.read_class()?)),
@@ -7174,391 +7174,391 @@ impl NinoWrite for AnyObject {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::AnimalSlot(v) => {
-                w.i32(AnimalSlot::TYPE_ID);
+                w.i32(AnimalSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Bag(v) => {
-                w.i32(Bag::TYPE_ID);
+                w.i32(Bag::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BagHolder(v) => {
-                w.i32(BagHolder::TYPE_ID);
+                w.i32(BagHolder::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BclRaw(v) => {
-                w.i32(BclRaw::TYPE_ID);
+                w.i32(BclRaw::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BclRawHost(v) => {
-                w.i32(BclRawHost::TYPE_ID);
+                w.i32(BclRawHost::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BclRawNullables(v) => {
-                w.i32(BclRawNullables::TYPE_ID);
+                w.i32(BclRawNullables::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BclRawOffset(v) => {
-                w.i32(BclRawOffset::TYPE_ID);
+                w.i32(BclRawOffset::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BigSlot(v) => {
-                w.i32(BigSlot::TYPE_ID);
+                w.i32(BigSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BigValues(v) => {
-                w.i32(BigValues::TYPE_ID);
+                w.i32(BigValues::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BlueLink(v) => {
-                w.i32(BlueLink::TYPE_ID);
+                w.i32(BlueLink::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoolArray(v) => {
-                w.i32(BoolArray::TYPE_ID);
+                w.i32(BoolArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoolValue(v) => {
-                w.i32(BoolValue::TYPE_ID);
+                w.i32(BoolValue::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::ByteArray(v) => {
-                w.i32(ByteArray::TYPE_ID);
+                w.i32(ByteArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Bytes(v) => {
-                w.i32(Bytes::TYPE_ID);
+                w.i32(Bytes::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Cat(v) => {
-                w.i32(Cat::TYPE_ID);
+                w.i32(Cat::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Chain(v) => {
-                w.i32(Chain::TYPE_ID);
+                w.i32(Chain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Circle(v) => {
-                w.i32(Circle::TYPE_ID);
+                w.i32(Circle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Collections(v) => {
-                w.i32(Collections::TYPE_ID);
+                w.i32(Collections::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Dates(v) => {
-                w.i32(Dates::TYPE_ID);
+                w.i32(Dates::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Dog(v) => {
-                w.i32(Dog::TYPE_ID);
+                w.i32(Dog::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::DogSlot(v) => {
-                w.i32(DogSlot::TYPE_ID);
+                w.i32(DogSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Empties(v) => {
-                w.i32(Empties::TYPE_ID);
+                w.i32(Empties::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Empty(v) => {
-                w.i32(Empty::TYPE_ID);
+                w.i32(Empty::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::EmptyStruct(v) => {
-                w.i32(EmptyStruct::TYPE_ID);
+                w.i32(EmptyStruct::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::Enums(v) => {
-                w.i32(Enums::TYPE_ID);
+                w.i32(Enums::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Floats(v) => {
-                w.i32(Floats::TYPE_ID);
+                w.i32(Floats::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::GenericSlots(v) => {
-                w.i32(GenericSlots::TYPE_ID);
+                w.i32(GenericSlots::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Grid(v) => {
-                w.i32(Grid::TYPE_ID);
+                w.i32(Grid::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Inner(v) => {
-                w.i32(Inner::TYPE_ID);
+                w.i32(Inner::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::IntArray(v) => {
-                w.i32(IntArray::TYPE_ID);
+                w.i32(IntArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::IntMap(v) => {
-                w.i32(IntMap::TYPE_ID);
+                w.i32(IntMap::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::IntSet(v) => {
-                w.i32(IntSet::TYPE_ID);
+                w.i32(IntSet::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::IntShelf(v) => {
-                w.i32(IntShelf::TYPE_ID);
+                w.i32(IntShelf::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Integers(v) => {
-                w.i32(Integers::TYPE_ID);
+                w.i32(Integers::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedBag(v) => {
-                w.i32(KeyedBag::TYPE_ID);
+                w.i32(KeyedBag::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedChain(v) => {
-                w.i32(KeyedChain::TYPE_ID);
+                w.i32(KeyedChain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedHolder(v) => {
-                w.i32(KeyedHolder::TYPE_ID);
+                w.i32(KeyedHolder::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedStruct(v) => {
-                w.i32(KeyedStruct::TYPE_ID);
+                w.i32(KeyedStruct::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::KeyedV1(v) => {
-                w.i32(KeyedV1::TYPE_ID);
+                w.i32(KeyedV1::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::KeyedV2(v) => {
-                w.i32(KeyedV2::TYPE_ID);
+                w.i32(KeyedV2::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Label(v) => {
-                w.i32(Label::TYPE_ID);
+                w.i32(Label::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::LongList(v) => {
-                w.i32(LongList::TYPE_ID);
+                w.i32(LongList::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::MaybeInt(v) => {
-                w.i32(MaybeInt::TYPE_ID);
+                w.i32(MaybeInt::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::MaybeIntArray(v) => {
-                w.i32(MaybeIntArray::TYPE_ID);
+                w.i32(MaybeIntArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Middle(v) => {
-                w.i32(Middle::TYPE_ID);
+                w.i32(Middle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Mixed(v) => {
-                w.i32(Mixed::TYPE_ID);
+                w.i32(Mixed::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::Nested(v) => {
-                w.i32(Nested::TYPE_ID);
+                w.i32(Nested::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::Nullables(v) => {
-                w.i32(Nullables::TYPE_ID);
+                w.i32(Nullables::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::ObjectSlot(v) => {
-                w.i32(ObjectSlot::TYPE_ID);
+                w.i32(ObjectSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Outer(v) => {
-                w.i32(Outer::TYPE_ID);
+                w.i32(Outer::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Packed(v) => {
-                w.i32(Packed::TYPE_ID);
+                w.i32(Packed::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::Padded(v) => {
-                w.i32(Padded::TYPE_ID);
+                w.i32(Padded::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::PaddedArray(v) => {
-                w.i32(PaddedArray::TYPE_ID);
+                w.i32(PaddedArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Plain(v) => {
-                w.i32(Plain::TYPE_ID);
+                w.i32(Plain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Point(v) => {
-                w.i32(Point::TYPE_ID);
+                w.i32(Point::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::PointList(v) => {
-                w.i32(PointList::TYPE_ID);
+                w.i32(PointList::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::PointSet(v) => {
-                w.i32(PointSet::TYPE_ID);
+                w.i32(PointSet::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Puppy(v) => {
-                w.i32(Puppy::TYPE_ID);
+                w.i32(Puppy::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::RecordChain(v) => {
-                w.i32(RecordChain::TYPE_ID);
+                w.i32(RecordChain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::RedLink(v) => {
-                w.i32(RedLink::TYPE_ID);
+                w.i32(RedLink::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Scalars(v) => {
-                w.i32(Scalars::TYPE_ID);
+                w.i32(Scalars::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::ShapeSlot(v) => {
-                w.i32(ShapeSlot::TYPE_ID);
+                w.i32(ShapeSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Sized(v) => {
-                w.i32(Sized::TYPE_ID);
+                w.i32(Sized::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::SortedMap(v) => {
-                w.i32(SortedMap::TYPE_ID);
+                w.i32(SortedMap::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Square(v) => {
-                w.i32(Square::TYPE_ID);
+                w.i32(Square::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::StringCollections(v) => {
-                w.i32(StringCollections::TYPE_ID);
+                w.i32(StringCollections::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::StringList(v) => {
-                w.i32(StringList::TYPE_ID);
+                w.i32(StringList::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::StringMap(v) => {
-                w.i32(StringMap::TYPE_ID);
+                w.i32(StringMap::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::StringSet(v) => {
-                w.i32(StringSet::TYPE_ID);
+                w.i32(StringSet::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Strings(v) => {
-                w.i32(Strings::TYPE_ID);
+                w.i32(Strings::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Structs(v) => {
-                w.i32(Structs::TYPE_ID);
+                w.i32(Structs::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TextValue(v) => {
-                w.i32(TextValue::TYPE_ID);
+                w.i32(TextValue::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantBag(v) => {
-                w.i32(TolerantBag::TYPE_ID);
+                w.i32(TolerantBag::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantBase(v) => {
-                w.i32(TolerantBase::TYPE_ID);
+                w.i32(TolerantBase::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantChain(v) => {
-                w.i32(TolerantChain::TYPE_ID);
+                w.i32(TolerantChain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantEmpty(v) => {
-                w.i32(TolerantEmpty::TYPE_ID);
+                w.i32(TolerantEmpty::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantHolder(v) => {
-                w.i32(TolerantHolder::TYPE_ID);
+                w.i32(TolerantHolder::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantLeaf(v) => {
-                w.i32(TolerantLeaf::TYPE_ID);
+                w.i32(TolerantLeaf::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantRoot(v) => {
-                w.i32(TolerantRoot::TYPE_ID);
+                w.i32(TolerantRoot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantV1(v) => {
-                w.i32(TolerantV1::TYPE_ID);
+                w.i32(TolerantV1::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantV2(v) => {
-                w.i32(TolerantV2::TYPE_ID);
+                w.i32(TolerantV2::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Tracked(v) => {
-                w.i32(Tracked::TYPE_ID);
+                w.i32(Tracked::NINO_TYPE_ID);
                 if !w.shared_header(v) {
                     return Ok(());
                 }
                 w.write_shared_body(v)
             }
             Self::TrackedHolder(v) => {
-                w.i32(TrackedHolder::TYPE_ID);
+                w.i32(TrackedHolder::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TrackedLeaf(v) => {
-                w.i32(TrackedLeaf::TYPE_ID);
+                w.i32(TrackedLeaf::NINO_TYPE_ID);
                 if !w.shared_header(v) {
                     return Ok(());
                 }
                 w.write_shared_body(v)
             }
             Self::TrackedMix(v) => {
-                w.i32(TrackedMix::TYPE_ID);
+                w.i32(TrackedMix::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TrackedNode(v) => {
-                w.i32(TrackedNode::TYPE_ID);
+                w.i32(TrackedNode::NINO_TYPE_ID);
                 if !w.shared_header(v) {
                     return Ok(());
                 }
                 w.write_shared_body(v)
             }
             Self::TrackedTolerant(v) => {
-                w.i32(TrackedTolerant::TYPE_ID);
+                w.i32(TrackedTolerant::NINO_TYPE_ID);
                 if !w.shared_header(v) {
                     return Ok(());
                 }
                 w.write_shared_body(v)
             }
             Self::TreeHolder(v) => {
-                w.i32(TreeHolder::TYPE_ID);
+                w.i32(TreeHolder::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TreeNode(v) => {
-                w.i32(TreeNode::TYPE_ID);
+                w.i32(TreeNode::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Utf8Value(v) => {
-                w.i32(Utf8Value::TYPE_ID);
+                w.i32(Utf8Value::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Vec2(v) => {
-                w.i32(Vec2::TYPE_ID);
+                w.i32(Vec2::NINO_TYPE_ID);
                 w.write(&**v)
             }
             Self::VersionSlot(v) => {
-                w.i32(VersionSlot::TYPE_ID);
+                w.i32(VersionSlot::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::WrappedArgs(v) => {
-                w.i32(WrappedArgs::TYPE_ID);
+                w.i32(WrappedArgs::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Zoo(v) => {
-                w.i32(Zoo::TYPE_ID);
+                w.i32(Zoo::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::BoxVec2(v) => {
@@ -7685,7 +7685,7 @@ impl NinoRead for BagRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Bag(v)) if id == Bag::TYPE_ID => {
+            Some(Self::Bag(v)) if id == Bag::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -7693,7 +7693,7 @@ impl NinoRead for BagRef {
         };
         if !reused {
             *slot = Some(match id {
-                Bag::TYPE_ID => Self::Bag(Box::new(r.read_class()?)),
+                Bag::NINO_TYPE_ID => Self::Bag(Box::new(r.read_class()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -7706,7 +7706,7 @@ impl NinoWrite for BagRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::Bag(v) => {
-                w.i32(Bag::TYPE_ID);
+                w.i32(Bag::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -7761,7 +7761,7 @@ impl NinoRead for CircleRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+            Some(Self::Circle(v)) if id == Circle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -7769,7 +7769,7 @@ impl NinoRead for CircleRef {
         };
         if !reused {
             *slot = Some(match id {
-                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                Circle::NINO_TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -7782,7 +7782,7 @@ impl NinoWrite for CircleRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::Circle(v) => {
-                w.i32(Circle::TYPE_ID);
+                w.i32(Circle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -8017,11 +8017,11 @@ impl NinoRead for DogRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Dog(v)) if id == Dog::TYPE_ID => {
+            Some(Self::Dog(v)) if id == Dog::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Puppy(v)) if id == Puppy::TYPE_ID => {
+            Some(Self::Puppy(v)) if id == Puppy::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -8029,8 +8029,8 @@ impl NinoRead for DogRef {
         };
         if !reused {
             *slot = Some(match id {
-                Dog::TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
-                Puppy::TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                Dog::NINO_TYPE_ID => Self::Dog(Box::new(r.read_class()?)),
+                Puppy::NINO_TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -8043,11 +8043,11 @@ impl NinoWrite for DogRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::Dog(v) => {
-                w.i32(Dog::TYPE_ID);
+                w.i32(Dog::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Puppy(v) => {
-                w.i32(Puppy::TYPE_ID);
+                w.i32(Puppy::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -8181,11 +8181,11 @@ impl NinoRead for IShapeRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Circle(v)) if id == Circle::TYPE_ID => {
+            Some(Self::Circle(v)) if id == Circle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::Square(v)) if id == Square::TYPE_ID => {
+            Some(Self::Square(v)) if id == Square::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -8193,8 +8193,8 @@ impl NinoRead for IShapeRef {
         };
         if !reused {
             *slot = Some(match id {
-                Circle::TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
-                Square::TYPE_ID => Self::Square(Box::new(r.read_class()?)),
+                Circle::NINO_TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
+                Square::NINO_TYPE_ID => Self::Square(Box::new(r.read_class()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -8207,11 +8207,11 @@ impl NinoWrite for IShapeRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::Circle(v) => {
-                w.i32(Circle::TYPE_ID);
+                w.i32(Circle::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Square(v) => {
-                w.i32(Square::TYPE_ID);
+                w.i32(Square::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -8268,11 +8268,11 @@ impl NinoRead for LinkRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::BlueLink(v)) if id == BlueLink::TYPE_ID => {
+            Some(Self::BlueLink(v)) if id == BlueLink::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::RedLink(v)) if id == RedLink::TYPE_ID => {
+            Some(Self::RedLink(v)) if id == RedLink::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -8280,8 +8280,8 @@ impl NinoRead for LinkRef {
         };
         if !reused {
             *slot = Some(match id {
-                BlueLink::TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
-                RedLink::TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
+                BlueLink::NINO_TYPE_ID => Self::BlueLink(Box::new(r.read_class()?)),
+                RedLink::NINO_TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -8294,11 +8294,11 @@ impl NinoWrite for LinkRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::BlueLink(v) => {
-                w.i32(BlueLink::TYPE_ID);
+                w.i32(BlueLink::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::RedLink(v) => {
-                w.i32(RedLink::TYPE_ID);
+                w.i32(RedLink::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -8353,7 +8353,7 @@ impl NinoRead for PlainRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::Plain(v)) if id == Plain::TYPE_ID => {
+            Some(Self::Plain(v)) if id == Plain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -8361,7 +8361,7 @@ impl NinoRead for PlainRef {
         };
         if !reused {
             *slot = Some(match id {
-                Plain::TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
+                Plain::NINO_TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -8374,7 +8374,7 @@ impl NinoWrite for PlainRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::Plain(v) => {
-                w.i32(Plain::TYPE_ID);
+                w.i32(Plain::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -8432,7 +8432,7 @@ impl NinoRead for ShelfInt32Ref {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::IntShelf(v)) if id == IntShelf::TYPE_ID => {
+            Some(Self::IntShelf(v)) if id == IntShelf::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -8444,7 +8444,7 @@ impl NinoRead for ShelfInt32Ref {
         };
         if !reused {
             *slot = Some(match id {
-                IntShelf::TYPE_ID => Self::IntShelf(Box::new(r.read_class()?)),
+                IntShelf::NINO_TYPE_ID => Self::IntShelf(Box::new(r.read_class()?)),
                 2091348491 => Self::ListShelfInt32(Box::new(r.read_class()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
@@ -8458,7 +8458,7 @@ impl NinoWrite for ShelfInt32Ref {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::IntShelf(v) => {
-                w.i32(IntShelf::TYPE_ID);
+                w.i32(IntShelf::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::ListShelfInt32(v) => {
@@ -8596,11 +8596,11 @@ impl NinoRead for TolerantBaseRef {
         }
         let mark = r.defer_mark();
         let reused = match slot {
-            Some(Self::TolerantBase(v)) if id == TolerantBase::TYPE_ID => {
+            Some(Self::TolerantBase(v)) if id == TolerantBase::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
-            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::TYPE_ID => {
+            Some(Self::TolerantLeaf(v)) if id == TolerantLeaf::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -8608,8 +8608,8 @@ impl NinoRead for TolerantBaseRef {
         };
         if !reused {
             *slot = Some(match id {
-                TolerantBase::TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
-                TolerantLeaf::TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
+                TolerantBase::NINO_TYPE_ID => Self::TolerantBase(Box::new(r.read_class()?)),
+                TolerantLeaf::NINO_TYPE_ID => Self::TolerantLeaf(Box::new(r.read_class()?)),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -8622,11 +8622,11 @@ impl NinoWrite for TolerantBaseRef {
     fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
         match self {
             Self::TolerantBase(v) => {
-                w.i32(TolerantBase::TYPE_ID);
+                w.i32(TolerantBase::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TolerantLeaf(v) => {
-                w.i32(TolerantLeaf::TYPE_ID);
+                w.i32(TolerantLeaf::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
         }
@@ -8700,8 +8700,8 @@ impl NinoRead for TrackedRef {
         let reused = false;
         if !reused {
             *slot = Some(match id {
-                Tracked::TYPE_ID => Self::Tracked(r.read_shared_new()?),
-                TrackedLeaf::TYPE_ID => Self::TrackedLeaf(r.read_shared_new()?),
+                Tracked::NINO_TYPE_ID => Self::Tracked(r.read_shared_new()?),
+                TrackedLeaf::NINO_TYPE_ID => Self::TrackedLeaf(r.read_shared_new()?),
                 _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
             });
         }
@@ -8717,14 +8717,14 @@ impl NinoWrite for TrackedRef {
                 if !w.shared_header(v) {
                     return Ok(());
                 }
-                w.i32(Tracked::TYPE_ID);
+                w.i32(Tracked::NINO_TYPE_ID);
                 w.write_shared_body(v)
             }
             Self::TrackedLeaf(v) => {
                 if !w.shared_header(v) {
                     return Ok(());
                 }
-                w.i32(TrackedLeaf::TYPE_ID);
+                w.i32(TrackedLeaf::NINO_TYPE_ID);
                 w.write_shared_body(v)
             }
         }
