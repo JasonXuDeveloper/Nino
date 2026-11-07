@@ -167,7 +167,7 @@ namespace Nino.Core.Internal
         private static readonly bool Chains = Mask != 0;
 
         /// <summary>Whether the chains of nodes with references can be walked (checked separately, as their layout is).</summary>
-        private static readonly bool ReferenceChains = Chains && Check(CheckReferenceChains);
+        private static readonly bool ReferenceChains = Chains && ObjectTypes.Passes(CheckReferenceChains);
 
         // String keys of tables the runtime protects itself: .NET's and .NET Framework's ConcurrentDictionary switch to
         // a randomized comparer after 100 collisions. Mono and IL2CPP are not counted on.
@@ -195,7 +195,8 @@ namespace Nino.Core.Internal
         /// Whether a new dictionary is built here (<see cref="Builder{TKey,TValue}"/>): its nodes made as
         /// <see cref="ObjectTypes"/> makes objects, checked at startup through the public API.
         /// </summary>
-        private static readonly bool Builds = Mask != 0 && ElementsAt != 0 && ObjectTypes.Usable && Check(CheckBuilt);
+        private static readonly bool Builds = Mask != 0 && ElementsAt != 0 && ObjectTypes.Usable &&
+            ObjectTypes.Passes(CheckBuilt);
 
         /// <summary>What is decided from the key and value types alone, once per pair of types.</summary>
         public static class Plan<TKey, TValue>
@@ -390,18 +391,6 @@ namespace Nino.Core.Internal
 
         private static int At<TField>(object instance, ref TField field) => ObjectFields.OffsetOf(instance, ref field);
 
-        private static bool Check(Func<bool> check)
-        {
-            try
-            {
-                return check();
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         /// <summary>Hash codes the probe's keys are given: key / 8 (with a negative one), so that chains form.</summary>
         private sealed class ProbeComparer : IEqualityComparer<long>, IEqualityComparer<object>
         {
@@ -494,19 +483,10 @@ namespace Nino.Core.Internal
                         At(t, ref t.m_countPerLock), At(t, ref t.m_comparer));
                 },
             };
+            Offsets? found = null;
             foreach (var candidate in candidates)
-            {
-                try
-                {
-                    if (candidate(ProbeDictionary()) is { } offsets)
-                        return offsets;
-                }
-                catch
-                {
-                    // Not this layout.
-                }
-            }
-
+                if (ObjectTypes.Passes(() => (found = candidate(ProbeDictionary())) != null))
+                    return found;
             return null;
         }
 
@@ -540,18 +520,9 @@ namespace Nino.Core.Internal
         private static int FindMask()
         {
             foreach (int mask in new[] { -1, int.MaxValue })
-            {
-                try
-                {
-                    if (CheckChains<long, long>(ProbeDictionary(), mask, key => key, key => key * 3))
-                        return mask;
-                }
-                catch
-                {
-                    // Not this hashing.
-                }
-            }
-
+                if (ObjectTypes.Passes(() =>
+                        CheckChains<long, long>(ProbeDictionary(), mask, key => key, key => key * 3)))
+                    return mask;
             return 0;
         }
 
@@ -607,20 +578,13 @@ namespace Nino.Core.Internal
         /// <summary>The offset of an array's first element, or 0 (not found).</summary>
         private static int FindElements()
         {
-            try
-            {
-                object first = new object(), second = new object();
-                var array = new[] { first, second };
-                int at = ObjectFields.OffsetOf(array, ref array[0]);
-                return at > 0 && ReferenceEquals(ObjectFields.At<object>(array, at), first) &&
-                       ReferenceEquals(Unsafe.Add(ref ObjectFields.At<object>(array, at), 1), second)
-                    ? at
-                    : 0;
-            }
-            catch
-            {
-                return 0;
-            }
+            object first = new object(), second = new object();
+            var array = new[] { first, second };
+            int at = ObjectFields.OffsetOf(array, ref array[0]);
+            return at > 0 && ObjectTypes.Passes(() => ReferenceEquals(ObjectFields.At<object>(array, at), first) &&
+                ReferenceEquals(Unsafe.Add(ref ObjectFields.At<object>(array, at), 1), second))
+                ? at
+                : 0;
         }
 
         /// <summary>

@@ -28,7 +28,7 @@ namespace Nino.Immutable
         /// Whether the layouts below are the ones of this runtime's System.Collections.Immutable: checked against
         /// collections with known contents, built both ways, through the public API.
         /// </summary>
-        public static readonly bool Usable = ObjectTypes.Usable && Check();
+        public static readonly bool Usable = ObjectTypes.Usable && ObjectTypes.Passes(Check);
 
         /// <summary>
         /// Whether the sorted <paramref name="hashes"/> are all different; throws <see cref="NinoDataException"/> when
@@ -98,24 +98,17 @@ namespace Nino.Immutable
 
         private static bool Check()
         {
-            try
-            {
-                // Int fields first (a reference may sit where another layout has an int, never read as one).
-                var one = ImmutableDictionary<int, string>.Empty.Add(7, "seven");
-                var view = DictionaryTree<int, string>.ViewOf(one);
-                if (DictionaryTree<int, string>.ViewOf(ImmutableDictionary<int, string>.Empty)._count != 0 ||
-                    view._count != 1 || view._root._key != 7 || view._root._height != 1 || !view._root._frozen ||
-                    view._root._left._height != 0 || view._root._value._firstValue.Key != 7)
-                    return false;
-                var set = SetTree<int>.ViewOf(ImmutableHashSet<int>.Empty.Add(7));
-                if (set._count != 1 || set._root._key != 7 || set._root._height != 1 || set._root._value._firstValue != 7)
-                    return false;
-                return CheckDictionary() && CheckSet();
-            }
-            catch
-            {
+            // Int fields first (a reference may sit where another layout has an int, never read as one).
+            var one = ImmutableDictionary<int, string>.Empty.Add(7, "seven");
+            var view = DictionaryTree<int, string>.ViewOf(one);
+            if (DictionaryTree<int, string>.ViewOf(ImmutableDictionary<int, string>.Empty)._count != 0 ||
+                view._count != 1 || view._root._key != 7 || view._root._height != 1 || !view._root._frozen ||
+                view._root._left._height != 0 || view._root._value._firstValue.Key != 7)
                 return false;
-            }
+            var set = SetTree<int>.ViewOf(ImmutableHashSet<int>.Empty.Add(7));
+            if (set._count != 1 || set._root._key != 7 || set._root._height != 1 || set._root._value._firstValue != 7)
+                return false;
+            return CheckDictionary() && CheckSet();
         }
 
         private static bool CheckDictionary()

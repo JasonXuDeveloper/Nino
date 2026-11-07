@@ -23,27 +23,20 @@ namespace Nino.Immutable
         /// Whether the layouts below are the ones of this runtime's System.Collections.Immutable: checked against
         /// collections with known contents, built both ways, through the public API.
         /// </summary>
-        public static readonly bool Usable = ObjectTypes.Usable && Check();
+        public static readonly bool Usable = ObjectTypes.Usable && ObjectTypes.Passes(Check);
 
         private static bool Check()
         {
-            try
-            {
-                // Int fields first (a reference may sit where another layout has an int, never read as one).
-                var map = SortedDictionaryTree<int, int>.ViewOf(ImmutableSortedDictionary<int, int>.Empty.Add(7, 70));
-                if (map._count != 1 || map._root._key != 7 || map._root._value != 70 || map._root._height != 1 ||
-                    !map._root._frozen || map._root._left._height != 0)
-                    return false;
-                var set = SortedSetTree<int>.ViewOf(ImmutableSortedSet<int>.Empty.Add(7).Add(9));
-                if (set._root._count != 2 || set._root._height != 2 || set._root._key != 7 ||
-                    set._root._right._key != 9 || set._root._right._count != 1)
-                    return false;
-                return CheckDictionary() && CheckSet();
-            }
-            catch
-            {
+            // Int fields first (a reference may sit where another layout has an int, never read as one).
+            var map = SortedDictionaryTree<int, int>.ViewOf(ImmutableSortedDictionary<int, int>.Empty.Add(7, 70));
+            if (map._count != 1 || map._root._key != 7 || map._root._value != 70 || map._root._height != 1 ||
+                !map._root._frozen || map._root._left._height != 0)
                 return false;
-            }
+            var set = SortedSetTree<int>.ViewOf(ImmutableSortedSet<int>.Empty.Add(7).Add(9));
+            if (set._root._count != 2 || set._root._height != 2 || set._root._key != 7 ||
+                set._root._right._key != 9 || set._root._right._count != 1)
+                return false;
+            return CheckDictionary() && CheckSet();
         }
 
         private static bool CheckDictionary()

@@ -672,18 +672,8 @@ namespace Nino.Core.Internal
         private static TOffsets? Try<TOffsets>(Func<TOffsets, bool> check, Func<TOffsets> candidate)
             where TOffsets : struct
         {
-            try
-            {
-                var offsets = candidate();
-                if (check(offsets))
-                    return offsets;
-            }
-            catch
-            {
-                // Not this layout.
-            }
-
-            return null;
+            TOffsets offsets = default;
+            return ObjectTypes.Passes(() => check(offsets = candidate())) ? offsets : null;
         }
 
         /// <summary>

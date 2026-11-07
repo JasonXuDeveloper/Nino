@@ -72,5 +72,22 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Retype(object instance, IntPtr type) => TypeWord(instance, Header) = type;
+
+        /// <summary>
+        /// Whether <paramref name="check"/>, a startup check of a runtime's internals (a mirror class's layout, a
+        /// hashing, a builder), passes: one that throws, as one that reads a field this runtime keeps elsewhere may,
+        /// fails. Every such check in Nino.Core and Nino.Immutable runs through it, and its path is then not taken.
+        /// </summary>
+        public static bool Passes(Func<bool> check)
+        {
+            try
+            {
+                return check();
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 }
