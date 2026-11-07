@@ -19,11 +19,7 @@ internal sealed class CodeWriter
     /// <summary>The last line written opened a block.</summary>
     private bool _opened;
 
-    public CodeWriter(int capacity = 4096, int indent = 0)
-    {
-        _sb = new StringBuilder(capacity);
-        _indent = indent;
-    }
+    public CodeWriter(int capacity = 4096) => _sb = new StringBuilder(capacity);
 
     /// <summary>Writes one line at the current indentation; an empty string writes a blank line.</summary>
     public CodeWriter Line(string text = "")

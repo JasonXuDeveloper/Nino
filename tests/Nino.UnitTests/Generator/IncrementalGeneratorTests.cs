@@ -500,6 +500,51 @@ public class Outer<T>
     }
 
     [TestMethod]
+    [DataRow(LanguageVersion.CSharp9, false)]
+    [DataRow(LanguageVersion.CSharp10, true)]
+    [DataRow(LanguageVersion.Latest, true)]
+    public void FilesDeclareTheirNamespaceAsTheLanguageAllows(LanguageVersion version, bool fileScoped)
+    {
+        // C# 10 and later: a file-scoped namespace, except where the file declares another namespace (the partial
+        // accessors of private members, the interceptors' attribute); C# 9 (Unity): blocks.
+        var parse = new CSharpParseOptions(version).WithFeatures(new[]
+        {
+            new System.Collections.Generic.KeyValuePair<string, string>("InterceptorsNamespaces", "NinoGen"),
+        });
+        var compilation = Create(("Shapes.cs", Usings + @"
+[NinoType] public class Shape { public int Id; }
+[NinoType] public sealed class Circle : Shape { public float R; }
+[NinoType] public class Box<T> { public T Value; }
+[NinoType(includeNonPublicMembers: true)] public partial class Hidden { private int _secret; public int Get() => _secret; }
+public class Tree : System.Collections.Generic.List<Tree> { }
+[NinoType] public class Forest { public Tree Root; }
+public static class Calls
+{
+    public static byte[] Write(Shape s) => NinoSerializer.Serialize(s);
+    public static Box<int> Read(byte[] d) => NinoDeserializer.Deserialize<Box<int>>(d);
+    public static byte[] WriteMany(System.Collections.Generic.List<Circle> c) => NinoSerializer.Serialize(c);
+}
+}"));
+        compilation = compilation.RemoveAllSyntaxTrees()
+            .AddSyntaxTrees(compilation.SyntaxTrees.Select(t => t.WithRootAndOptions(t.GetRoot(), parse)));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
+            parseOptions: parse);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+
+        var sources = driver.GetRunResult().Results[0].GeneratedSources;
+        Assert.IsTrue(sources.Length > 6);
+        foreach (var source in sources)
+        {
+            string text = source.SourceText.ToString();
+            bool own = !source.HintName.Contains("Interceptors") && !source.HintName.Contains("Inc_Hidden");
+            Assert.AreEqual(fileScoped && own, text.Contains("namespace NinoGen;\n"), source.HintName);
+            Assert.AreEqual(!(fileScoped && own), text.Contains("namespace NinoGen\n{\n"), source.HintName);
+        }
+    }
+
+    [TestMethod]
     public void GenericFactoriesAreNotCalled()
     {
         // NINO017: a generic [NinoFactory] cannot be called as T.Create(); the formatter creates `new T()` instead,

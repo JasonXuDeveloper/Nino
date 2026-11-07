@@ -20,13 +20,16 @@ internal static class EmittedFormatters
     private const int Generation = 2048;
 
     private static readonly object Lock = new();
-    private static Dictionary<TypeModel, SourceText> _current = new();
-    private static Dictionary<TypeModel, SourceText> _previous = new();
+    private static Dictionary<(TypeModel, bool), SourceText> _current = new();
+    private static Dictionary<(TypeModel, bool), SourceText> _previous = new();
 
-    /// <summary>The file of <paramref name="model"/>, emitted by <paramref name="emit"/> unless an equal model's is known.</summary>
-    public static SourceText Get(TypeModel model, System.Func<TypeModel, string> emit)
+    /// <summary>
+    /// The file of <paramref name="model"/> in the layout <paramref name="fileScoped"/> selects, emitted by
+    /// <paramref name="emit"/> unless an equal model's is known.
+    /// </summary>
+    public static SourceText Get(TypeModel model, bool fileScoped, System.Func<TypeModel, bool, string> emit)
     {
-        var key = model;
+        var key = (model, fileScoped);
         lock (Lock)
         {
             if (_current.TryGetValue(key, out var text))
@@ -38,19 +41,19 @@ internal static class EmittedFormatters
             }
         }
 
-        var emitted = SourceText.From(emit(model), Encoding.UTF8);
+        var emitted = SourceText.From(emit(model, fileScoped), Encoding.UTF8);
         lock (Lock)
             Add(key, emitted);
         return emitted;
     }
 
     /// <summary>Adds an entry to the current generation, starting a new one when it is full. Guarded by <see cref="Lock"/>.</summary>
-    private static void Add(TypeModel key, SourceText text)
+    private static void Add((TypeModel, bool) key, SourceText text)
     {
         if (_current.Count >= Generation)
         {
             _previous = _current;
-            _current = new Dictionary<TypeModel, SourceText>();
+            _current = new Dictionary<(TypeModel, bool), SourceText>();
         }
 
         _current[key] = text;

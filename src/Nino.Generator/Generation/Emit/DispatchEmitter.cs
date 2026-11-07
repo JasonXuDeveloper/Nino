@@ -19,7 +19,7 @@ internal static class DispatchEmitter
     /// <summary>Above this many subtypes, writes go through the registry rather than a chain of type checks.</summary>
     private const int MaxWriteChain = 64;
 
-    public static string Emit(EquatableArray<DispatchEntry> entries)
+    public static string Emit(EquatableArray<DispatchEntry> entries, bool fileScoped)
     {
         // Subtypes by base type name, in entry order.
         var subtypesOf = new Dictionary<string, List<DispatchEntry>>();
@@ -35,7 +35,7 @@ internal static class DispatchEmitter
             }
         }
 
-        var w = new CodeWriter(4096, indent: 1);
+        var w = new CodeWriter(4096);
         int closedCount = 0;
         foreach (var e in entries)
         {
@@ -86,7 +86,7 @@ internal static class DispatchEmitter
         // This file has a few lines per (base, subtype) pair, each repeating the same names.
         var aliases = new List<string>();
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
-        return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(aliases), body);
+        return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(aliases), body, fileScoped);
     }
 
     /// <summary>

@@ -9,10 +9,10 @@ namespace Nino.Generator.Generation.Emit;
 /// <summary>Emits the source file of one type's formatter.</summary>
 internal static class FormatterEmitter
 {
-    public static string Emit(TypeModel m)
+    public static string Emit(TypeModel m, bool fileScoped)
     {
         var names = new FormatterNames(m);
-        var w = new CodeWriter(4096, indent: 1);
+        var w = new CodeWriter(4096);
         EmitFormatter(w, m, names);
         AccessorEmitter.EmitGenericUnsafeAccessors(w, m);
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
@@ -21,8 +21,11 @@ internal static class FormatterEmitter
         string body = GeneratedCode.WithAliases(w.ToString(), m.IsGeneric ? null : m.TypeName, aliases,
             names.Formatters);
 
-        string file = GeneratedCode.File(LayoutEmitter.Emit(m) + "\n", names.Declarations(aliases), body);
-        return m.Partial.Declarations.Length > 0 ? file + AccessorEmitter.EmitPartial(m) : file;
+        // The partial classes of the members' accessors follow in the types' own namespaces.
+        bool partial = m.Partial.Declarations.Length > 0;
+        string file = GeneratedCode.File(LayoutEmitter.Emit(m) + "\n", names.Declarations(aliases), body,
+            fileScoped && !partial);
+        return partial ? file + AccessorEmitter.EmitPartial(m) : file;
     }
 
     private static void EmitFormatter(CodeWriter w, TypeModel m, FormatterNames names)

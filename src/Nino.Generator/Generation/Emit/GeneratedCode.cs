@@ -26,20 +26,36 @@ internal static class GeneratedCode
     /// <summary>
     /// A generated file: the <see cref="Header"/>, <paramref name="preamble"/> (what precedes the namespace, such as
     /// assembly attributes, as is), and the <c>NinoGen</c> namespace holding <paramref name="aliases"/> (declarations,
-    /// one per line, then a blank line) and <paramref name="body"/> (indented one level, as
-    /// <c>new CodeWriter(indent: 1)</c> writes it).
+    /// one per line, then a blank line) and <paramref name="body"/> (written at no indentation, as a
+    /// <see cref="CodeWriter"/> writes it). <paramref name="fileScoped"/>: the namespace is declared for the rest of
+    /// the file (<c>namespace NinoGen;</c>, C# 10), where nothing follows the body and the preamble declares no
+    /// namespace; otherwise it is a block, whose lines are indented one level.
     /// </summary>
-    public static string File(string preamble, IEnumerable<string> aliases, string body)
+    public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped)
     {
-        var sb = new StringBuilder(Header, body.Length + preamble.Length + 1024);
+        var sb = new StringBuilder(Header, body.Length * (fileScoped ? 1 : 2) + preamble.Length + 1024);
         sb.Append(preamble);
-        sb.Append("namespace " + TypeNames.GenNamespace + "\n{\n");
+        string indent = fileScoped ? "" : "    ";
+        sb.Append(fileScoped ? "namespace " + TypeNames.GenNamespace + ";\n\n" : "namespace " + TypeNames.GenNamespace + "\n{\n");
         int length = sb.Length;
         foreach (var alias in aliases)
-            sb.Append("    ").Append(alias).Append('\n');
+            sb.Append(indent).Append(alias).Append('\n');
         if (sb.Length != length)
             sb.Append('\n');
-        sb.Append(body);
+        if (fileScoped)
+            return sb.Append(body).ToString();
+        // The body's lines one level in (blank lines stay empty).
+        int start = 0;
+        while (start < body.Length)
+        {
+            int end = body.IndexOf('\n', start);
+            end = end < 0 ? body.Length : end + 1;
+            if (body[start] != '\n')
+                sb.Append(indent);
+            sb.Append(body, start, end - start);
+            start = end;
+        }
+
         sb.Append("}\n");
         return sb.ToString();
     }
@@ -139,7 +155,8 @@ internal static class GeneratedCode
             start = end;
         }
 
-        // The declaration's line: four spaces of indent and a line break.
+        // The declaration's line: a line break and, in a block namespace, four spaces of indent (counted in both
+        // forms, so both declare the same aliases).
         if (count * (name.Length - alias.Length) <= declaration.Length + 5)
             return body;
         sb.Append(body, start, body.Length - start);
@@ -152,7 +169,7 @@ internal static class GeneratedCode
 
     /// <summary>
     /// The alias of <c>MethodImplAttribute</c> and the import of <c>MethodImplOptions</c>' values, one line each
-    /// (without indent or line break), that <see cref="Inline"/> and <see cref="NoInline"/> are written with. Only a
+    /// (without line break), that <see cref="Inline"/> and <see cref="NoInline"/> are written with. Only a
     /// type in the <c>NinoGen</c> namespace named like one of those values could hide it, and none is.
     /// </summary>
     public static readonly string[] InlineAliases =

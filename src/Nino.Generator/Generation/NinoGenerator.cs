@@ -34,20 +34,25 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .WithTrackingName("ProjectFacts");
         var enabled = project.Select(static (p, _) => p.Enabled);
 
+        // C# 10 and later: files that declare one namespace declare it for the whole file, one indentation level less
+        // on every line (Unity compiles C# 9).
+        var fileScoped = context.ParseOptionsProvider.Select(static (o, _) =>
+            o is CSharpParseOptions { LanguageVersion: >= LanguageVersion.CSharp10 });
+
         var models = TypeModels(context, project, enabled);
-        RegisterFormatters(context, models);
+        RegisterFormatters(context, models, fileScoped);
         var calls = TopLevelCalls(context);
         // Built-in generic types used directly with the top-level APIs (e.g. NinoSerializer.Serialize(list)):
         // register closed formatters so AOT platforms have them and generator-only formatters are found.
         var usages = calls.Where(static c => c.Usage != null).Select(static (c, _) => c.Usage!).Collect()
             .WithTrackingName("Usages");
-        RegisterNesting(context, models, usages, enabled);
-        RegisterUsages(context, models, usages, project, enabled);
+        RegisterNesting(context, models, usages, enabled, fileScoped);
+        RegisterUsages(context, models, usages, project, enabled, fileScoped);
 #if ROSLYN4_8
         RegisterInterceptors(context, models, calls, enabled);
 #endif
-        RegisterDispatch(context, models, enabled);
-        RegisterRegistry(context, models, FunctionPointerFieldsOf(context, project), project, enabled);
+        RegisterDispatch(context, models, enabled, fileScoped);
+        RegisterRegistry(context, models, FunctionPointerFieldsOf(context, project), project, enabled, fileScoped);
     }
 
     /// <summary>
@@ -124,7 +129,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     /// <summary>One formatter file per model.</summary>
     private static void RegisterFormatters(IncrementalGeneratorInitializationContext context,
-        IncrementalValuesProvider<TypeModel>[] models)
+        IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<bool> fileScoped)
     {
         // Hint names are compared ignoring case (and so are file names on Windows and macOS): formatter names that
         // differ only by case (types RawS and Raws) take a suffix of their own. Usually empty, so an edit that changes
@@ -135,8 +140,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 .SelectMany(g => g).OrderBy(n => n, StringComparer.Ordinal)))
             .WithTrackingName("ClashingNames");
         foreach (var stream in models)
-            context.RegisterImplementationSourceOutput(stream.Combine(clashing),
-                static (spc, x) => Emit(spc, x.Left, x.Right.Contains(x.Left.FormatterName)));
+            context.RegisterImplementationSourceOutput(stream.Combine(clashing).Combine(fileScoped),
+                static (spc, x) => Emit(spc, x.Left.Left, x.Left.Right.Contains(x.Left.Left.FormatterName), x.Right));
     }
 
     /// <summary>
@@ -163,7 +168,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
     /// </summary>
     private static void RegisterUsages(IncrementalGeneratorInitializationContext context,
         IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<ImmutableArray<UsageRegistration>> usages,
-        IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled)
+        IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled,
+        IncrementalValueProvider<bool> fileScoped)
     {
         var registrations = Merge(usages, CollectAll(models, static m => m.Registrations.Formatters),
             static u => u.Formatter is { } f ? new[] { f } : Array.Empty<FormatterRegistration>(),
@@ -189,13 +195,13 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .WithTrackingName("LayoutTypes");
 
         context.RegisterImplementationSourceOutput(
-            registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled),
+            registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled).Combine(fileScoped),
             static (spc, x) =>
             {
-                var ((((formatters, creators), closed), kept), on) = x;
+                var (((((formatters, creators), closed), kept), on), scoped) = x;
                 if (on)
                     spc.AddSource("NinoGen.Usages.g.cs",
-                        RegistryEmitter.EmitUsages(formatters, creators, closed, kept));
+                        RegistryEmitter.EmitUsages(formatters, creators, closed, kept, scoped));
             });
     }
 
@@ -256,17 +262,18 @@ public sealed class NinoGenerator : IIncrementalGenerator
     /// </summary>
     private static void RegisterNesting(IncrementalGeneratorInitializationContext context,
         IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<ImmutableArray<UsageRegistration>> usages,
-        IncrementalValueProvider<bool> enabled)
+        IncrementalValueProvider<bool> enabled, IncrementalValueProvider<bool> fileScoped)
     {
         var nesting = Merge(usages, CollectAll(models, static m => m.Registrations.Nesting), static u => u.Nesting,
                 static all => all.GroupBy(static n => n.Name)
                     .Select(static g => g.OrderBy(static n => n.Body, StringComparer.Ordinal).First())
                     .OrderBy(static n => n.Name, StringComparer.Ordinal))
             .WithTrackingName("Nesting");
-        context.RegisterImplementationSourceOutput(nesting.Combine(enabled), static (spc, x) =>
+        context.RegisterImplementationSourceOutput(nesting.Combine(enabled).Combine(fileScoped), static (spc, x) =>
         {
-            if (x.Right && x.Left.Length != 0)
-                spc.AddSource("NinoGen.Nesting.g.cs", NestingEmitter.Emit(x.Left));
+            var ((formatters, on), scoped) = x;
+            if (on && formatters.Length != 0)
+                spc.AddSource("NinoGen.Nesting.g.cs", NestingEmitter.Emit(formatters, scoped));
         });
     }
 
@@ -310,7 +317,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
     /// through the registry.
     /// </summary>
     private static void RegisterDispatch(IncrementalGeneratorInitializationContext context,
-        IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<bool> enabled)
+        IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<bool> enabled,
+        IncrementalValueProvider<bool> fileScoped)
     {
         var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName,
                 m.TypeParameterList, m.TypeId, m.IsDispatchRoot, m.IsDispatchTarget, m.Inheritance.NinoBaseClasses,
@@ -318,29 +326,32 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Select(static (x, _) => new EquatableArray<DispatchEntry>(x.Where(static e => e.IsBase || e.IsTarget)
                 .Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
             .WithTrackingName("Dispatch");
-        context.RegisterImplementationSourceOutput(dispatch.Combine(enabled), static (spc, x) =>
+        context.RegisterImplementationSourceOutput(dispatch.Combine(enabled).Combine(fileScoped), static (spc, x) =>
         {
-            if (x.Right)
-                spc.AddSource("NinoGen.Dispatch.g.cs", DispatchEmitter.Emit(x.Left));
+            var ((entries, on), scoped) = x;
+            if (on)
+                spc.AddSource("NinoGen.Dispatch.g.cs", DispatchEmitter.Emit(entries, scoped));
         });
     }
 
     /// <summary>NinoGen.Registry.g.cs: the assembly's formatters, its options and the function pointer fields.</summary>
     private static void RegisterRegistry(IncrementalGeneratorInitializationContext context,
         IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<EquatableArray<string>> pointerFields,
-        IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled)
+        IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled,
+        IncrementalValueProvider<bool> fileScoped)
     {
         var entries = CollectAll(models, static m => ToEntry(m))
             .Select(static (x, _) => new EquatableArray<RegistryEntry>(
                 x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
             .WithTrackingName("RegistryEntries");
         var options = project.Select(static (p, _) => p.Options);
-        context.RegisterImplementationSourceOutput(entries.Combine(options).Combine(pointerFields).Combine(enabled),
+        context.RegisterImplementationSourceOutput(
+            entries.Combine(options).Combine(pointerFields).Combine(enabled).Combine(fileScoped),
             static (spc, x) =>
             {
-                var (((list, opts), pointers), on) = x;
+                var ((((list, opts), pointers), on), scoped) = x;
                 if (on)
-                    spc.AddSource("NinoGen.Registry.g.cs", RegistryEmitter.EmitRegistry(opts, list, pointers));
+                    spc.AddSource("NinoGen.Registry.g.cs", RegistryEmitter.EmitRegistry(opts, list, pointers, scoped));
             });
     }
 
@@ -531,15 +542,15 @@ public sealed class NinoGenerator : IIncrementalGenerator
     /// Emits the formatter of <paramref name="model"/>; <paramref name="clashes"/>: another formatter's name differs
     /// from its own only by case, so its hint name carries the hash of its exact name.
     /// </summary>
-    private static void Emit(SourceProductionContext spc, TypeModel model, bool clashes) =>
-        spc.AddSource(HintName(model.FormatterName, clashes), EmittedFormatters.Get(model, EmitSource));
+    private static void Emit(SourceProductionContext spc, TypeModel model, bool clashes, bool fileScoped) =>
+        spc.AddSource(HintName(model.FormatterName, clashes), EmittedFormatters.Get(model, fileScoped, EmitSource));
 
-    /// <summary>The source of the formatter of <paramref name="model"/>.</summary>
-    private static string EmitSource(TypeModel model)
+    /// <summary>The source of the formatter of <paramref name="model"/> (see <see cref="GeneratedCode.File"/>).</summary>
+    private static string EmitSource(TypeModel model, bool fileScoped)
     {
         try
         {
-            return FormatterEmitter.Emit(model);
+            return FormatterEmitter.Emit(model, fileScoped);
         }
         catch (Exception e)
         {

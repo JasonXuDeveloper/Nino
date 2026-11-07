@@ -22,7 +22,7 @@ internal static class RegistryEmitter
     /// <paramref name="pointerFields"/> (arguments of <c>NinoFunctionPointerFields.Register</c>, sorted).
     /// </summary>
     public static string EmitRegistry(GeneratorOptions options, IEnumerable<RegistryEntry> entries,
-        IEnumerable<string> pointerFields)
+        IEnumerable<string> pointerFields, bool fileScoped)
     {
         string name = "NinoGenRegistry_" + new string(options.AssemblyName
             .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
@@ -34,7 +34,7 @@ internal static class RegistryEmitter
         foreach (var entry in list.Where(e => e.Arity != 0))
             preamble.Line($"[assembly: {Core}NinoFormatter(typeof({Gen}{entry.FormatterName}<{new string(',', entry.Arity - 1)}>))]");
         preamble.Line();
-        var w = new CodeWriter(indent: 1);
+        var w = new CodeWriter();
         w.Lines($$"""
             /// <summary>
             /// Registers the Nino formatters generated for this assembly, lazily: a lookup that misses asks for the
@@ -89,13 +89,13 @@ internal static class RegistryEmitter
         w.Close();
         var aliases = new List<string>();
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
-        return GeneratedCode.File(preamble.ToString(), aliases, body);
+        return GeneratedCode.File(preamble.ToString(), aliases, body, fileScoped);
     }
 
     public static string EmitUsages(IEnumerable<FormatterRegistration> usages, IEnumerable<FactoryRegistration> factories,
-        IEnumerable<TypeRegistration> generics, IEnumerable<string> layoutTypes)
+        IEnumerable<TypeRegistration> generics, IEnumerable<string> layoutTypes, bool fileScoped)
     {
-        var w = new CodeWriter(indent: 1);
+        var w = new CodeWriter();
         var kept = layoutTypes.ToList();
         var aliases = new List<string>();
         if (kept.Count != 0)
@@ -124,7 +124,7 @@ internal static class RegistryEmitter
         EmitIdDispatch(w, "internal static", "", ById(statements));
         w.Close();
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
-        return GeneratedCode.File("", aliases, body);
+        return GeneratedCode.File("", aliases, body, fileScoped);
     }
 
     /// <summary>How the registry registers the formatter of <paramref name="m"/>; null for generic types.</summary>

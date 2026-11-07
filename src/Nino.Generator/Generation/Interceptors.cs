@@ -209,7 +209,7 @@ internal static class Interceptors
         attribute.Close();
         attribute.Close();
         attribute.Line();
-        var w = new CodeWriter(calls.Length * 384, indent: 1);
+        var w = new CodeWriter(calls.Length * 384);
         w.Open($"{scope} static class NinoInterceptors");
         int n = 0;
         foreach (var group in calls.GroupBy(c => (c.Signature,
@@ -234,7 +234,8 @@ internal static class Interceptors
         aliases.AddRange(GeneratedCode.InlineAliases);
         aliases.Add(GeneratedCode.DirectAlias);
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
-        return GeneratedCode.File(attribute.ToString(), aliases, body);
+        // A block namespace: the file declares the attribute in another namespace.
+        return GeneratedCode.File(attribute.ToString(), aliases, body, fileScoped: false);
     }
 }
 #endif

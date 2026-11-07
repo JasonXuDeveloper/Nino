@@ -10,9 +10,9 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal static class NestingEmitter
 {
-    public static string Emit(IEnumerable<NestingModel> formatters)
+    public static string Emit(IEnumerable<NestingModel> formatters, bool fileScoped)
     {
-        var w = new CodeWriter(indent: 1);
+        var w = new CodeWriter();
         bool first = true;
         foreach (var f in formatters)
         {
@@ -40,6 +40,6 @@ internal static class NestingEmitter
 
         var aliases = new List<string>();
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
-        return GeneratedCode.File("", aliases, body);
+        return GeneratedCode.File("", aliases, body, fileScoped);
     }
 }
