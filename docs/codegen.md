@@ -115,7 +115,7 @@ id up by the closed name. It adds the closed types a slot of a closed type needs
 A generic subtype in a polymorphic or `object` slot is written behind the hash of its closed .NET name
 (`Conformance.Box<System.Int32>`), which another language cannot form from the definition the layouts carry.
 `ClosedTypeScan` therefore reads every closed type the assembly's metadata names: in a signature, a type specification
-(`new Box<int>()`, `typeof(Box<int>)`) or a generic method's arguments (`NinoPolymorphic.Register<Box<int>>()`). Those
+(`new Box<int>()`, `typeof(Box<int>)`) or a generic method's arguments (`NinoPolymorphic.TryRegister<Box<int>>()`). Those
 whose definition is a concrete generic `[NinoType]` become cases of the slots they are assignable to. A closed generic
 `[NinoType]` struct is written member by member wherever it appears, as .NET's formatter for its definition writes it:
 a field of a type parameter is never copied as raw memory.

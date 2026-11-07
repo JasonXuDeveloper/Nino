@@ -146,7 +146,7 @@ type Monster struct {
 }
 
 func (Monster) NinoLayout() string { // what .NET publishes for the type (NinoTypeLayout), or a part of it
-	return "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; " +
+	return "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x8F865207; " +
 		"members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2:former=0x93A29D95;" +
 		"Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053"
 }
@@ -183,9 +183,9 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 
 - `format=Positional|VersionTolerant|Keyed`. Without it: keyed when the tags are names, else positional. Version
   tolerance is never guessed.
-- `header=None|NullFlag|TypeId`: `None` makes the type a .NET struct (a `*T` is then `Nullable<T>`); `TypeId` writes
+- `header=None|Presence|TypeId`: `None` makes the type a .NET struct (a `*T` is then `Nullable<T>`); `TypeId` writes
   a `*T` behind its type id. Without it a `*T` is a sealed class (presence byte) and a `T` a struct.
-- `typeId=0x...`: the type id, for polymorphic slots (or implement `nino.Typed`'s `NinoTypeID()`; the two must agree).
+- `id=0x...`: the type id, for polymorphic slots (or implement `nino.Typed`'s `NinoTypeID()`; the two must agree).
 - `raw=true|false`, with `members=raw(n){f:T@off:E,...}` for a raw struct's offsets (`Pack`, `Size`, explicit
   layouts). Without them a struct whose fields are all fixed-size values is raw in the canonical layout (spec §5.2:
   natural alignment, CoreCLR 64-bit; `Int128` and `UInt128` aligned to 16, so `{ byte; Int128; int }` is 48 bytes and
@@ -255,7 +255,7 @@ types and their codecs, interfaces for slots) is in the guide's
 [Generated Code](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#go-generated-code) and
 [Generic Types](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#generics); the tag policies are under
 [Options](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#options). A closed generic type written by hand
-(layout `typeId=0`) implements `NinoTypeID()` returning `TypeID` of its .NET name.
+(layout `id=0`) implements `NinoTypeID()` returning `TypeID` of its .NET name.
 
 Reference tracking (`trackReferences`) and `[NinoType]` collections are read and written by generated code only: their
 layouts are an error for struct tags (`*TagError`), so the tagged path reads none of their data.

@@ -41,6 +41,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO030](#nino030) | Warning | `[NinoUtf8]` has no effect 🔧 |
 | [NINO031](#nino031) | Info | `[NinoMemberFormatter(typeof(Utf8StringFormatter))]`: use `[NinoUtf8]` 🔧 |
 | [NINO032](#nino032) | Error | `WEAK_VERSION_TOLERANCE` was removed: a positional type would stop reading its data 🔧 |
+| [NINO033](#nino033) | Warning | `[NinoUtf8]`, `[NinoMemberFormatter]` or `[NinoIgnore]` on an interface member has no effect 🔧 |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -113,7 +114,9 @@ the factory and fill them in place. 🔧 Remove `[NinoFactory]` (what reading do
 ### NINO007
 
 Nino has no formatter for the member type (delegates, `Task`, pointers...). The member is skipped. Mark it
-`[NinoIgnore]` or give it a custom formatter. 🔧 Add `[NinoIgnore]`.
+`[NinoIgnore]` or give it a custom formatter. 🔧 Add `[NinoIgnore]`. A member of a base type is reported once, by the
+type that declares it, not again by each subtype; a subtype reports it only when the declaring type is not built in
+this compilation (a closed generic base, a base in another assembly). NINO029 follows the same rule.
 
 User collections end up here when Nino cannot create or fill them: an abstract collection, one without a public
 constructor callable without arguments (and no public static `[NinoFactory]` factory), one whose C# 11
@@ -224,11 +227,19 @@ There is no code fix: the stored form is yours to choose.
 
 ### NINO030
 
-`[NinoUtf8]` changes nothing on this member: its type holds no string Nino writes (an `int`, a `[NinoType]`, which
-writes its own strings by its own members' attributes, or a collection of neither), or a `[NinoMemberFormatter]`
-writes the member, which decides the encoding itself. `[NinoUtf8]` reaches every string the built-in formatters write
-in the member's type: the member itself, the elements of arrays and collections, dictionary keys and values, tuple
-items. The bytes are the same without it. 🔧 Remove it.
+`[NinoUtf8]` changes nothing on this member, for one of three reasons, which the message names:
+
+- the member's type holds no string the built-in formatters write ("its type 'int' holds no string"), or holds them
+  only inside a `[NinoType]`, `object` or type parameter, whose own formatter writes them by its own members'
+  attributes ("it does not reach the strings a [NinoType], object or type parameter in its type 'X' writes");
+- a `[NinoMemberFormatter]` writes the member, which decides the encoding itself;
+- the member is never serialized: it is `[NinoIgnore]`, not public in a type without `includeNonPublicMembers`,
+  get-only with no constructor parameter, static, or lacks `[NinoMember]` in an `autoCollect: false` type.
+
+`[NinoUtf8]` reaches every string the built-in formatters write in the member's type: the member itself, the elements
+of arrays and collections, dictionary keys and values, tuple items. The bytes are the same without it. Reported once,
+by the type that declares the member; a member with another finding (NINO008, NINO009, ...) is left to that one,
+whose fix may change what the attribute does. On an interface member it is [NINO033](#nino033). 🔧 Remove it.
 
 ### NINO031
 
@@ -237,6 +248,16 @@ uses for `[NinoUtf8]`, and the generator reads this attribute as `[NinoUtf8]` (t
 `utf8`, and the same code). `[NinoUtf8]` says it directly and also reaches the strings inside collections.
 🔧 Use `[NinoUtf8]` (with `[NinoUtf8]` already on the member, the formatter attribute is removed). On a member that is
 not a string, the formatter cannot write it: NINO008.
+
+### NINO033
+
+`[NinoUtf8]`, `[NinoMemberFormatter]` or `[NinoIgnore]` on a member of an interface. A type implementing the
+interface writes its own member, with that member's attributes, so these never reach the bytes: the string stays
+UTF-16, the formatter is not called, and the "ignored" member is written. Only the interface member's
+`[NinoMember(index)]` counts: it places the member in the implementing types. A member with another finding (NINO008,
+NINO011) is left to that one. 🔧 Move the attribute to the members implementing it in the solution's source (a member
+that already has one keeps its own; a record's parameter gets `[property: ...]`), or remove it when nothing
+implements the member.
 
 ## Features
 
