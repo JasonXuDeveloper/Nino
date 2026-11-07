@@ -1845,6 +1845,61 @@ public struct Compact : INinoFormatter<int>
     }
 
     [TestMethod]
+    public async Task NINO033_NotWhereTheInterfaceMemberIsWritten()
+    {
+        // A type implementing a member explicitly, or by its default implementation, writes the interface's member
+        // with its attributes: those take effect, whatever the other implementations do. Members implemented only
+        // implicitly are still reported.
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    [NinoUtf8] string Name { get; set; }
+    [NinoMemberFormatter(typeof(Compact))] int Sides { get; set; }
+    [NinoIgnore] int Cache { get; set; }
+    [{|#0:NinoUtf8|}] string Label { get; set; }
+}
+
+public class Square : IShape
+{
+    public string Name { get; set; }
+    public int Sides { get; set; }
+    public int Cache { get; set; }
+    public string Label { get; set; }
+}
+
+public struct Hidden : IShape
+{
+    string IShape.Name { get; set; }
+    int IShape.Sides { get; set; }
+    int IShape.Cache { get; set; }
+    public string Label { get; set; }
+}
+
+[NinoType]
+public interface IDefault
+{
+    [NinoUtf8] string Name { get => null; set { } }
+}
+
+public class UsesDefault : IDefault
+{
+}
+
+public struct Compact : INinoFormatter<int>
+{
+    public void Serialize(int value, ref Writer writer) { }
+    public void Deserialize(ref Reader reader, ref int value) { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO033").WithLocation(0).WithArguments("NinoUtf8", "Label", "IShape")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO031_Utf8FormatterByHand()
     {
         var code = @"

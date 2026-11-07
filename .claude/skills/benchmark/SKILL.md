@@ -138,7 +138,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 ## Adding a case
 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
-  MessagePack, protobuf-net), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards).
+  MessagePack, protobuf-net), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards): a report
+  shard picked by the minutes each shard's "Run benchmarks" step took in the last report, not by case counts
+  (`audit-ci`, Fast and parallel). Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
+  ci.yml runs `--verify` on x64 and on Arm64 (`audit-ci`, Scripts only a release runs).
 - A case that needs a process-wide setting frozen on first use (`NinoSettings.Untrusted`, `UntrustedTest`) sets it in
   its class's static constructor inside `try`/`catch (InvalidOperationException)` and never throws from
   `[GlobalSetup]` when it is already frozen: BenchmarkDotNet times each case in a process of its own, but

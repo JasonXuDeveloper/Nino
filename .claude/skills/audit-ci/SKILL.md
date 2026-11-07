@@ -13,7 +13,9 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 
 - **Fast and parallel**: jobs that do not depend on each other run side by side; long suites are sharded (the unit
   tests' three shards per configuration, `.github/scripts/test_shards.py` checks they ran everything; `report.yml`'s
-  ten shards per architecture); builds are cached where the cache is safe; each job installs only what it needs.
+  ten shards per architecture, balanced by each shard's "Run benchmarks" minutes in the last report, not by case
+  counts: rc.8's shard b took 65 minutes against 35 to 45, its million-object ScatteredTest cases over a minute each;
+  a class moves by `BenchmarkCategory`, so each part keeps its baseline); builds are cached where the cache is safe; each job installs only what it needs.
 - **Path filters** run a workflow only for the paths its jobs read (ci.yml lists them with a YAML anchor shared by
   push and pull_request); a new folder a job reads is added to its filter. A job whose inputs are committed files
   that another workflow checks runs on those files, not on what produces them: runtimes.yml runs on `runtimes/` and
@@ -38,7 +40,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   `python3 -m unittest discover -s benchmarks -p 'test_*.py'` (under a second). Give a new release-time script a
   `test_*.py` in `benchmarks/` on its fixtures, and a script in a new folder a line in that step and its path filter.
   Do not discover in `.github/scripts`: it has no tests (`test_shards.py` is ci.yml's shard checker), and unittest
-  exits 5 on "NO TESTS RAN" since Python 3.12.
+  exits 5 on "NO TESTS RAN" since Python 3.12. The same holds for checks: whatever report.yml runs before measuring
+  runs on every push, on each architecture report.yml measures. `Nino.Benchmark --verify` had run only in ci.yml's
+  pull-request job (main lands without pull requests), and v4.0.0-rc.8's failed in all ten Arm64 report shards (a
+  probe called x86's CpuId, run 41853674050); it now runs in the integrations job (x64, the Debug build, 15 s) and the
+  Arm64 runtime internals job. `DOTNET_EnableHWIntrinsic=0` on x64 is no stand-in for Arm64 (`platforms`).
 - **Pinned**: every action by commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
   Dependabot updates both, grouped.
 - **Least privilege**: `permissions: contents: read` unless a job writes; no ref taken from an input runs code in

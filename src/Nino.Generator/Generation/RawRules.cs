@@ -281,10 +281,9 @@ internal sealed class RawRules
         {
             if (field.IsStatic || field.IsConst)
                 continue;
-            var member = field.AssociatedMember() ?? field;
-            if (!members.Contains(member.OriginalDefinition))
-                return false;
-            if (_symbols.HasCustomFormatter(member))
+            // The type is a definition: its own members are theirs, an interface's are in its terms.
+            if (MemberCollector.StoredMember(field, members.Contains) is not { } member ||
+                _symbols.HasCustomFormatter(member))
                 return false;
             // Every field must itself be raw: Nullable, tuples, nint or DateTimeOffset have their own formats.
             if (!IsRawUnmanaged(field.Type))

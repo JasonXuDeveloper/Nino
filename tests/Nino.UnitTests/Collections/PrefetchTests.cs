@@ -389,10 +389,13 @@ public class PrefetchTests
         // 16 (header) + 4 + 8 + two references of 8 + 64: 172 bytes.
         StringAssert.Contains(item, "public int PrefetchBytes => 172;");
         StringAssert.Contains(item,
-            "sum += global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Name) + global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Values);");
+            "return global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Name) + global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Values);");
+        // One member: the element's prefetch in one expression (Nino.Core's loop calls it per element).
         string computed = Output("Computed");
-        StringAssert.Contains(computed, "sum += global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Other);");
-        Assert.IsFalse(computed.Contains("v.Name"), "a property with a body of its own");
+        string prefetch = computed.Split('\n').Single(l => l.Contains("public int PrefetchMembers(object value)"));
+        StringAssert.Contains(prefetch,
+            "=> global::Nino.Core.CompilerServices.NinoPrefetched.At(global::System.Runtime.CompilerServices.Unsafe.As<__NinoT>(value).Other);");
+        Assert.IsFalse(prefetch.Contains(".Name"), "a property with a body of its own");
 
         foreach (string type in new[] { "Fixed", "Value", "Box_1" })
             Assert.IsFalse(Output(type).Contains("INinoPrefetchFormatter"), type);

@@ -93,7 +93,7 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor InterfaceMemberAttribute = Warning("NINO033",
         "Attribute on an interface member has no effect",
-        "[{0}] on member '{1}' of interface '{2}' has no effect: implementing types write their own member, with its own attributes; put it on the implementing member instead");
+        "[{0}] on member '{1}' of interface '{2}' has no effect: implementing types write their own member, with its own attributes; put it on the implementing member instead (an explicit implementation writes the interface's member, with these attributes)");
 
     /// <summary>The <c>{2}</c> of <see cref="HostSizedVector"/>: what <paramref name="type"/> is or holds.</summary>
     public static string HoldsVector(ITypeSymbol type, ITypeSymbol vector) =>

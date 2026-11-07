@@ -38,7 +38,7 @@ Every case reads a whole input as one top-level value of the case's `type` (`Nin
 | `roundTrip` | whether writing the value read gives the `.bin` back. False only where the bytes are not what .NET writes for that type: data of another version of the type (`*-old-to-new`, `*-v1-to-v2`), or a form .NET reads but does not write (`string-utf16-header-for-latin1`) |
 | `reencoded` | when `roundTrip` is false: the bytes (hex) .NET writes for the value read; a runtime must write exactly these |
 | `layouts` | the `[NinoTypeLayout]` of every `[NinoType]` the value may contain, by name: the type, its members' types and elements, every subtype of a class or interface written behind a type id, and whatever an `object` member holds. The format is `NinoTypeLayoutAttribute.ToString()` (`src/Nino.Core/Attributes/NinoTypeLayoutAttribute.cs` documents the encodings). A generic type is listed once, as its definition (`Conformance.Box<T>`) |
-| `typeIds` | the type id (hex) of each closed generic type in the value, which its definition's layout cannot give (`typeId=0x00000000` there): the FNV-1a hash of its name, as for any type |
+| `typeIds` | the type id (hex) of each closed generic type in the value, which its definition's layout cannot give (`id=0x00000000` there): the FNV-1a hash of its name, as for any type |
 | `value` | the value .NET reads from the bytes, as JSON (below) |
 
 ### The value as JSON

@@ -25,10 +25,11 @@ internal static class MemberCode
         : $"{v}.{Identifier(member.SourceName)}";
 
     /// <summary>
-    /// The accessors of a member that generated code cannot name: <c>[UnsafeAccessor]</c> externs in the formatter
-    /// (<c>__G_Name</c>, <c>__S_Name</c>, <c>__R_Name</c>) or methods of the partial accessor class (<c>G_Name</c>...):
-    /// a getter, a setter (properties) and a field reference (fields). (<c>__F_</c> names a generic formatter's formatter
-    /// type parameters, <see cref="TypeNames.FormatterParameter"/>.)
+    /// The accessors of a member that generated code cannot name: <c>[UnsafeAccessor]</c> externs or the generic
+    /// accessors of an interface member in the formatter (<c>__G_Name</c>, <c>__S_Name</c>, <c>__R_Name</c>) or methods
+    /// of the partial accessor class (<c>G_Name</c>...): a getter, a setter (properties) and a field reference
+    /// (fields). (<c>__F_</c> names a generic formatter's formatter type parameters,
+    /// <see cref="TypeNames.FormatterParameter"/>.)
     /// </summary>
     public static string Getter(MemberModel member) => AccessorPrefix(member) + "G_" + member.Name;
 
@@ -37,13 +38,14 @@ internal static class MemberCode
     public static string FieldRef(MemberModel member) => AccessorPrefix(member) + "R_" + member.Name;
 
     private static string AccessorPrefix(MemberModel member) =>
-        member.Access == MemberAccess.UnsafeAccessor ? "__" : "";
+        member.Access is MemberAccess.UnsafeAccessor or MemberAccess.Interface ? "__" : "";
 
     private static bool Named(MemberModel member) => member.Access is MemberAccess.Direct or MemberAccess.Cast;
 
     /// <summary>A call of the accessor <paramref name="accessor"/> on <paramref name="v"/>.</summary>
     private static string Call(TypeModel m, MemberModel member, string accessor, string v, string more = "") =>
-        member.Access == MemberAccess.UnsafeAccessor
+        member.Access == MemberAccess.Interface ? $"{accessor}(ref {v}{more})"
+        : member.Access == MemberAccess.UnsafeAccessor
             ? m.IsGeneric
                 ? $"{UnsafeAccessorClass(m)}{m.TypeArgumentList}.{accessor}({Instance(member, v)}{more})"
                 : $"{accessor}({Instance(member, v)}{more})"

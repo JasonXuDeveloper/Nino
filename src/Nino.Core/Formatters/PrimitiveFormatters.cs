@@ -164,7 +164,7 @@ namespace Nino.Core
 
     /// <summary>
     /// For generated code: writes a string as UTF-8. Mark a member <c>[NinoUtf8]</c> instead; a
-    /// <c>[NinoMemberFormatter]</c> of this formatter is read as <c>[NinoUtf8]</c> (NINO030 suggests the attribute).
+    /// <c>[NinoMemberFormatter]</c> of this formatter is read as <c>[NinoUtf8]</c> (NINO031 suggests the attribute).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public struct Utf8StringFormatter : INinoFormatter<string>

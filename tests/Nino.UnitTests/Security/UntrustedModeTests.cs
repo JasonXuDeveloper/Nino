@@ -114,6 +114,9 @@ public class UntrustedModeTests
     public void RunsOfValuesAreChecked() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedValueRuns));
 
     [TestMethod]
+    public void RawPairsAreCheckedWithinTheData() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedPairsAtTheEnd));
+
+    [TestMethod]
     public void TrailingBytesAreInvalid() => SettingsTests.RunProbe(nameof(SettingsProbes.UntrustedTrailing));
 }
 
@@ -320,6 +323,55 @@ public static partial class SettingsProbes
                 if (Fails<T[]>(With(data, 4 + i * sizeof(T) + offset, bad), what + " at " + i) is { } failure)
                     return failure;
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Dictionaries of raw pairs whose values Untrusted mode checks, ending the data right before an inaccessible page:
+    /// the values' run ends a key short of a whole pair, and the vector checks (whole strides) once read up to the
+    /// key's size past the data (an access violation on Dictionary&lt;long, DateTime&gt;). Read, and an invalid last value
+    /// rejected.
+    /// </summary>
+    public static string UntrustedPairsAtTheEnd(byte[] _)
+    {
+        NinoSettings.Untrusted = true;
+        var when = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Local);
+        var laned = new UntrustedLaned { When = when, Valid = true, Last = true };
+        foreach (int n in new[] { 1, 2, 3, 4, 5, 8, 9, 33, 100 })
+        {
+            string failed =
+                AtEnd(Enumerable.Range(0, n).ToDictionary(i => (long)i, _ => when), BitConverter.GetBytes(BadTicks),
+                    "Dictionary<long, DateTime>") ??
+                AtEnd(Enumerable.Range(0, n).ToDictionary(i => i, _ => DateOnly.MaxValue),
+                    BitConverter.GetBytes(DateOnly.MaxValue.DayNumber + 1), "Dictionary<int, DateOnly>") ??
+                AtEnd(Enumerable.Range(0, n).ToDictionary(i => (long)i, _ => laned), BitConverter.GetBytes(BadTicks),
+                    "Dictionary<long, UntrustedLaned>");
+            if (failed != null)
+                return n + ": " + failed;
+        }
+
+        return "ok";
+
+        // The last pair's value starts with the field bad overwrites.
+        static string AtEnd<TKey, TValue>(Dictionary<TKey, TValue> value, byte[] bad, string what)
+        {
+            var data = NinoSerializer.Serialize(value);
+            var at = GuardedMemory.AtEnd(data);
+            if (at.IsEmpty)
+                return null;
+            if (NinoDeserializer.Deserialize<Dictionary<TKey, TValue>>(at).Count != value.Count)
+                return what + ": valid values";
+            bad.CopyTo(at.Slice(data.Length - System.Runtime.CompilerServices.Unsafe.SizeOf<TValue>()));
+            try
+            {
+                NinoDeserializer.Deserialize<Dictionary<TKey, TValue>>(at);
+            }
+            catch (NinoDataException)
+            {
+                return null;
+            }
+
+            return what + ": invalid last value read";
         }
     }
 

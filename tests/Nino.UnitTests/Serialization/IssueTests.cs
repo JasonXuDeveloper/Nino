@@ -18,8 +18,10 @@ namespace Nino.UnitTests
         [TestClass]
         public abstract class IssueTestTemplate
         {
+            // A bound that catches a hang (several of these issues looped), not a speed check: 1 s failed on a
+            // machine shared by parallel builds, where the first call of a type's generated code is compiled.
             [TestMethod(DisplayName = nameof(Test))]
-            [Timeout(1000)]
+            [Timeout(10000)]
             public void Test()
             {
                 RunTest();

@@ -55,6 +55,29 @@ internal static class AccessorEmitter
     }
 
     /// <summary>
+    /// The accessors of the interface members a struct implements explicitly (<see cref="MemberAccess.Interface"/>),
+    /// inside the formatter: generic over the instance, constrained to the interface, so the call is a constrained call
+    /// on the struct itself, which the JIT binds to the implementation and inlines, with no box (a cast to the
+    /// interface would box a copy, and a write to it would be lost).
+    /// </summary>
+    public static void EmitInterfaceAccessors(CodeWriter w, TypeModel m)
+    {
+        foreach (var member in m.Members.Where(x => x.Access == MemberAccess.Interface))
+        {
+            string constraint = $"where __TI : {member.DeclaringType}";
+            string name = Identifier(member.SourceName);
+            w.Line();
+            w.Line(InlineAttribute);
+            w.Line($"private static {member.TypeName} {Getter(member)}<__TI>(ref __TI o) {constraint} => o.{name};");
+            if (member.ConstructionOnly)
+                continue;
+            w.Line(InlineAttribute);
+            w.Line($"private static void {Setter(member)}<__TI>(ref __TI o, {member.TypeName} value) {constraint} => " +
+                   $"o.{name} = value;");
+        }
+    }
+
+    /// <summary>
     /// The generated part of the (partial) type itself: a static accessor class, where its private members are
     /// visible, with getters, setters and field references for the formatter to call; and the pool hooks of a
     /// <c>[NinoPooled]</c> class.

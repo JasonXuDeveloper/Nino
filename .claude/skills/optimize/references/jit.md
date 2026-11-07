@@ -143,6 +143,13 @@ and when `asm.py compare` lists methods the change did not touch.
   with two `out` strings cut the listing but put both on the stack: 7.5 to 12.8 % slower on runners. A constant
   parameter at each call site (`share: false`) let the inliner drop the dead branch per caller instead, with the
   listing as before and the string classes 17 to 21 % faster.
+- Move a loop into Nino.Core from generated code as an `AggressiveInlining` helper with its own accumulator and a
+  pointer that steps down a count, the shape it had, not as a second loop of the caller: the JIT then compiles the
+  caller as before. Round 129 moved `PrefetchMembers`' run loop into `NinoPrefetch.Ahead`: written in `Ahead` with an
+  index (`for (int i = 0; i < near; i++)`), it became `movsxd` plus a scaled load, and sharing `Ahead`'s `sum` added a
+  dead `xor eax, eax` and 8 bytes of loop alignment (157/141 bytes instead of 144/128); as `Members<TFormatter>(ref
+  object first, int count)`, the FullOpts listings were byte for byte main's (`DOTNET_TieredCompilation=0
+  DOTNET_JitDisasm=Ahead` over PrefetchTests on both sides; `DOTNET_JitStdOutFile` appends, delete it between runs).
 - Replace `%` by the runtime's fast modulo (multiply-high, `HashTables.Bucket`) on x64 only: on Arm64 `udiv`/`msub`
   is cheap and the multiply sequence lost. ConcurrentDictionary's build with fast modulo read 18-23 % faster on EPYC
   7763, on par on Zen 4 (9V45, 9V74), and 1.1 % slower on Neoverse-N2 in two rounds (3d4baf2).

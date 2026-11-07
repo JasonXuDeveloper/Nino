@@ -1,6 +1,6 @@
 # Nino v4 wire format
 
-**Specification version 4.4 (draft), for Nino 4.0.0-rc.8.**
+**Specification version 4.5 (draft), for Nino 4.0.0-rc.9.**
 
 This document specifies the bytes Nino v4 writes and reads. A reader and a writer built from it, in any language,
 exchange data with the .NET implementation (`Nino.Core` plus the code `Nino.Generator` emits). Every rule here was
@@ -621,7 +621,7 @@ The header depends on the **declared** type, as published in its layout (`header
 | Declared type | Layout `header` | Header bytes |
 | --- | --- | --- |
 | struct | `None` | none (a struct is never null) |
-| sealed class | `NullFlag` | presence byte: `00` null, `01` present |
+| sealed class | `Presence` | presence byte: `00` null, `01` present |
 | non-sealed class, abstract class, interface, `record` class, `object` | `TypeId` | `i32` type id of the runtime type, `0` = null |
 
 A record class that is not sealed is a non-sealed class, so it gets a type-id header. With `trackReferences` the
@@ -667,7 +667,7 @@ runtime-form name (`NinoTypeId.GetRuntimeName`):
 | `""` | `811C9DC5` | |
 | `a` | `2B24D044` | |
 
-The layout metadata publishes the id of every non-generic type (`typeId=`). For a generic type definition it
+The layout metadata publishes the id of every non-generic type (`id=`). For a generic type definition it
 publishes `0`, and the id of each closed type MUST be computed from its name as above.
 
 ### 7.3 Members and their order
@@ -955,10 +955,10 @@ For every `[NinoType]` it generates a formatter for, the generator adds `[assemb
 assembly:
 
 ```
-NinoTypeLayout(Type type, NinoFormat format, NinoHeader header, bool trackReferences, bool raw, int typeId,
+NinoTypeLayout(Type type, NinoFormat format, NinoHeader header, bool trackReferences, bool raw, int id,
                string members) { Deferrable = bool }
 NinoFormat:  Positional = 0, VersionTolerant = 1, Keyed = 2
-NinoHeader:  None = 0, NullFlag = 1, TypeId = 2
+NinoHeader:  None = 0, Presence = 1, TypeId = 2
 ```
 
 `Deferrable` is a named argument (a settable property): whether a body of the type nested too deep is deferred
@@ -969,7 +969,7 @@ Tools can read it through reflection or straight from metadata (`nino-gen`, in N
 the intended input for code generators in other languages. Its `ToString()`:
 
 ```
-format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xA333A1B0; deferrable=true; members=Id:int:raw(4):key=0x98C41948;Name:string:string:key=0x3085B3E2:former=0x93A29D95;Score:long:raw(8):key=0x044AB14D
+format=Keyed; header=Presence; trackReferences=false; raw=false; id=0xA333A1B0; deferrable=true; members=Id:int:raw(4):key=0x98C41948;Name:string:string:key=0x3085B3E2:former=0x93A29D95;Score:long:raw(8):key=0x044AB14D
 ```
 
 ### 8.1 Grammar (EBNF, ISO 14977 style)
@@ -977,10 +977,10 @@ format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xA333A1
 ```ebnf
 layout        = "format=" , format , "; header=" , header ,
                 "; trackReferences=" , bool , "; raw=" , bool ,
-                "; typeId=0x" , hex8 , [ "; deferrable=" , bool ] ,
+                "; id=0x" , hex8 , [ "; deferrable=" , bool ] ,
                 "; members=" , members ;                (* left out only by older generators *)
 format        = "Positional" | "VersionTolerant" | "Keyed" ;
-header        = "None" | "NullFlag" | "TypeId" ;
+header        = "None" | "Presence" | "TypeId" ;
 bool          = "true" | "false" ;
 
 (* the members attribute argument alone *)
@@ -1334,7 +1334,7 @@ new Small { A = 1, B = "a" }
 01 00 00 00       A = 1
 03 61             B = "a" (Latin-1: 2 × 1 + 1)
 ```
-`null` → `00`. Layout: `format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8B7D639; members=A:int:raw(4);B:string:string`.
+`null` → `00`. Layout: `format=Positional; header=Presence; trackReferences=false; raw=false; id=0xF8B7D639; members=A:int:raw(4);B:string:string`.
 
 ### A.2 Polymorphism
 

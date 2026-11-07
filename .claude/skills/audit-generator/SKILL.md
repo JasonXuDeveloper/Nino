@@ -43,6 +43,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   4.8+ and the regular entry points must agree with them (the `-p:NinoRegularCalls=true` run of `verify`).
 - Partial, nested, generic, record, struct, abstract and interface types, types in other assemblies, and every
   accessibility combination are handled or reported (NINO diagnostics, `audit-analyzer`).
+- An interface member a type implements explicitly (or by its default implementation) is collected as the interface's
+  member (`MemberCollector.FindImplementation` finds no field or property of its name), so every rule that matches a
+  type's fields to its members maps an explicit implementation's backing field to that interface member
+  (`MemberCollector.StoredMember`: `RawRules.IsRawStruct`, `TypeFacts.IsBlock`; without it an explicit struct was not
+  raw and wrote other bytes than the implicit one), and facts about how the member is stored (`StartsDefault`,
+  `IsAutoProperty`) are read from `FindImplementationForInterfaceMember`, never from the interface's declaration
+  (round 129, `InterfaceMemberAttributeTests`). Two interfaces declaring a member of the same name, both implemented
+  explicitly, still write only the first (`names` in `Collect`).
 - A generic type's formatter takes the formatter of each type parameter (`__F_T`), so every name of a generated
   generic formatter (base formatters, member formatters, registrations, the hot-update resolver) carries formatters
   of the other assembly or of type parameters in scope. Shapes covered: bases closed over another parameter, a

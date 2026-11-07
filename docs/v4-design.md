@@ -404,16 +404,16 @@ remaining bytes before anything is allocated, so malformed or hostile input cann
 public interface INinoFormatter<T>
 {
     void Serialize(T value, ref Writer writer);
-    void Deserialize(ref T value, ref Reader reader);
+    void Deserialize(ref Reader reader, ref T value);
 }
 ```
 
-`Deserialize` takes the current value by `ref`. Passing `default` creates a new instance, and passing an
+`Deserialize` takes the reader first, as every read API does, and the current value by `ref`. Passing `default` creates a new instance, and passing an
 existing instance populates it in place when possible. One code path serves both `Deserialize` and ref
 deserialization.
 
 * **Built-in formatters** are structs in `Nino.Core`: `UnmanagedFormatter<T>`, `StringFormatter`,
-  `Utf8StringFormatter`, `NullableFormatter<T, TF>`, `ArrayFormatter<T, TF>`,
+  `Utf8StringFormatter` (hidden: members say `[NinoUtf8]`), `NullableFormatter<T, TF>`, `ArrayFormatter<T, TF>`,
   `UnmanagedArrayFormatter<T>`, `ListFormatter<T, TF>`, `DictionaryFormatter<TKey, TValue, TFK, TFV>`,
   and so on. Element formatters are type parameters, so the JIT/AOT compiler inlines element
   (de)serialization into the collection loop.
@@ -589,15 +589,15 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
      (`[NinoFormerName]` types also under the name id): `NinoFormatterCache<Box<int>>.TryRegister<Box_1Formatter<int>>()`
      and `NinoPolymorphic.Register<Box<int>, Box_1Formatter<int>>(id)`, so AOT runtimes have the instantiation and a
      reader can map the id back to the type without having seen it. Closed types of a generic `[NinoType]` from
-     another assembly (whose formatter is internal to it) are registered with `NinoPolymorphic.Register(typeof(..))`.
+     another assembly (whose formatter is internal to it) are registered with `NinoPolymorphic.TryRegister(typeof(..))`.
   2. Writing an instance registers its runtime type: a lookup by type that misses closes the formatter definition
      (`MakeGenericType`) and registers it. A read by an unknown id, as a last resort, also checks the closed generic
      `[NinoType]`s whose formatter this process has resolved.
-  3. `NinoPolymorphic.Register(Type)` / `Register<T>()`, for an instantiation a process reads but never names nor
+  3. `NinoPolymorphic.TryRegister(Type)` / `TryRegister<T>()` (true once the type is registered), for an instantiation a process reads but never names nor
      writes (created only from type parameters or by reflection, for example in another assembly). Such a type is
      otherwise an unknown id; this is the one case that needs a call at startup.
 * Registration is re-entrant: a generated registry registers a closed generic whose formatter is internal to
-  another assembly through `NinoPolymorphic.Register(Type)`, which asks every registry for that type id again,
+  another assembly through `NinoPolymorphic.TryRegister(Type)`, which asks every registry for that type id again,
   including the one running. `NinoRegistry.RegisterType` keeps the types the thread is registering and returns at
   once for one of them, so the outer call closes the formatter itself (before, a non-generic base nested in a
   generic class, `Holder<long>.Base`, with subtypes in another assembly overflowed the stack on first use).

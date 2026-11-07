@@ -3,8 +3,8 @@
 Read this when a member needs its own encoding (varints, compression of one field, a third-party type Nino does not
 know) or NINO007, NINO008 or NINO020 appears. Full page: https://nino.xgamedev.net/en/docs/v4/custom-formatters.md
 
-A formatter is a **struct** implementing `INinoFormatter<T>` (`Serialize(T, ref Writer)`, `Deserialize(ref T, ref
-Reader)`), called as `default(F)`: no instance state. Read exactly what you wrote, in order, and bound every loop by
+A formatter is a **struct** implementing `INinoFormatter<T>` (`Serialize(T, ref Writer)`, `Deserialize(ref Reader,
+ref T)`), called as `default(F)`: no instance state. Read exactly what you wrote, in order, and bound every loop by
 the input (the data may be hostile).
 
 - One member: `[NinoMemberFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
@@ -14,7 +14,7 @@ the input (the data may be hostile).
 - Lengths: `writer.WriteLength(n)` / `WriteNullLength()` and `reader.ReadLength(minElementSize)` (checked against the
   bytes left before you allocate). Dropped instances: `NinoRecycler.Discard(ref value)` /
   `NinoRecycler.Replace(ref value, x)`. Nested values: `NinoSerializer.Serialize(v, ref writer)`,
-  `NinoDeserializer.Deserialize(ref v, ref reader)`.
+  `NinoDeserializer.Deserialize(ref reader, ref v)`.
 - nino-gen leaves members written by custom formatters out of TypeScript (NINOGEN002).
 
 ```csharp
@@ -27,7 +27,7 @@ public struct ZigZagLongFormatter : INinoFormatter<long>
         writer.Write((byte)v);
     }
 
-    public void Deserialize(ref long value, ref Reader reader)
+    public void Deserialize(ref Reader reader, ref long value)
     {
         ulong v = 0; int shift = 0; byte b;
         do { reader.Read(out b); v |= (ulong)(b & 0x7F) << shift; shift += 7; } while ((b & 0x80) != 0 && shift < 70);

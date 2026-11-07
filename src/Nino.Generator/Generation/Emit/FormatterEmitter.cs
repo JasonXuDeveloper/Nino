@@ -158,6 +158,7 @@ internal static class FormatterEmitter
         EmitPrefetch(w, m, names);
         if (!m.IsGeneric)
             AccessorEmitter.EmitUnsafeAccessors(w, m);
+        AccessorEmitter.EmitInterfaceAccessors(w, m);
 
         w.Close();
     }
@@ -168,41 +169,37 @@ internal static class FormatterEmitter
 
     /// <summary>
     /// INinoPrefetchFormatter of a formatter: the bytes an element brings into the cache, and the prefetch of the
-    /// objects its members point to, which Nino.Core's helper for long collections calls once per run of elements
-    /// (inlined there). A twin (<paramref name="twin"/>) calls its formatter's.
+    /// objects one element's members point to, which Nino.Core's helper for long collections calls for each element of
+    /// a run (inlined there). A twin (<paramref name="twin"/>) calls its formatter's.
     /// </summary>
     private static void EmitPrefetch(CodeWriter w, TypeModel m, FormatterNames names, bool twin = false)
     {
         if (m.PrefetchBytes == 0)
             return;
-        const string signature = "public int PrefetchMembers(ref object first, int count)";
+        const string signature = "public int PrefetchMembers(object value)";
         w.Line();
         w.Line($"public int PrefetchBytes => {m.PrefetchBytes};");
         w.Line(names.Inline);
         if (m.PrefetchMembers.Length == 0)
-        {
             w.Line($"{signature} => 0;");
-            return;
-        }
-
-        if (twin)
+        else if (twin)
+            w.Line($"{signature} => default({m.Self}).PrefetchMembers(value);");
+        else
         {
-            w.Line($"{signature} => default({m.Self}).PrefetchMembers(ref first, count);");
-            return;
-        }
+            // The element as its class, without a cast: the loop passes only elements of this formatter's collections.
+            string element = $"global::System.Runtime.CompilerServices.Unsafe.As<{m.TypeName}>(value)";
+            const string at = CoreCompilerServices + "NinoPrefetched.At";
+            if (m.PrefetchMembers.Length == 1)
+            {
+                w.Line($"{signature} => {at}({element}.{m.PrefetchMembers[0]});");
+                return;
+            }
 
-        w.Open(signature);
-        w.Line("int sum = 0;");
-        w.Line($"ref var item = ref global::System.Runtime.CompilerServices.Unsafe.As<object, {m.TypeName}>(ref first);");
-        w.Line("for (; count > 0; count--, item = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref item, 1))");
-        w.Open();
-        w.Line("var v = item;");
-        w.Line("if (v != null)");
-        w.Indented(() => w.Line("sum += " + string.Join(" + ",
-            m.PrefetchMembers.Select(name => $"{CoreCompilerServices}NinoPrefetched.At(v.{name})")) + ";"));
-        w.Close();
-        w.Line("return sum;");
-        w.Close();
+            w.Open(signature);
+            w.Line($"var v = {element};");
+            w.Line("return " + string.Join(" + ", m.PrefetchMembers.Select(name => $"{at}(v.{name})")) + ";");
+            w.Close();
+        }
     }
 
     /// <summary>

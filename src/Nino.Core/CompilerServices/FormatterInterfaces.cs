@@ -169,11 +169,11 @@ namespace Nino.Core.CompilerServices
         int PrefetchBytes { get; }
 
         /// <summary>
-        /// Prefetches the objects the reference members of the <paramref name="count"/> elements at
-        /// <paramref name="first"/> (null ones skipped) point to, through <see cref="NinoPrefetched.At"/>, and returns
-        /// the sum of what that returned. Called once the elements' own objects were prefetched.
+        /// Prefetches the objects the reference members of <paramref name="value"/> (an element, never null) point to,
+        /// through <see cref="NinoPrefetched.At"/>, and returns the sum of what that returned. Called once the
+        /// element's own object was prefetched, by Nino.Core's loop over a run of elements.
         /// </summary>
-        int PrefetchMembers(ref object first, int count);
+        int PrefetchMembers(object value);
     }
 
     /// <summary>

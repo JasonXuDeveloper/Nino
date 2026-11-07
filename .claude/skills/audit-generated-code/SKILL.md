@@ -61,7 +61,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   it; a family that differs only by type comes from one template. A twin forwards to its formatter's member
   (`default(Self).X(...)`, AggressiveInlining both) rather than repeating its body: the `PrefetchMembers` loop was
   written up to three times per type (538 copies, 4.7% of the unit tests' output) until round 128, and with the
-  forwarders `NinoPrefetch.Ahead`'s FullOpts listings stayed byte for byte the same. A switch whose cases end the
+  forwarders `NinoPrefetch.Ahead`'s FullOpts listings stayed byte for byte the same. A loop every formatter would
+  write the same way is Nino.Core's, and the interface takes what one value does: round 129 moved the last copy of
+  that loop (285 copies) into `NinoPrefetch.Members`, `INinoPrefetchFormatter.PrefetchMembers(object value)` per
+  element, 2.6% of the unit tests' output (3,814,657 to 3,714,852 bytes) with `Ahead`'s listings unchanged (how the
+  loop must be written for that: `optimize`, `references/jit.md`, "Locals"). A switch whose cases end the
   same way ends it once after the switch (`default: continue;` for the keys it skips; the keyed fallback loop).
   One act is one member, taking a struct by reference: a block struct's collections and its top-level and member
   writes all call `WriteFixed(in T value, ref byte destination)` (`INinoBlockFormatter` extends
@@ -91,6 +95,15 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `CachedFormatter<T>` only for a method's type parameter or a `[NinoType]` generated in another assembly (a type
   that holds itself gets a generated nesting struct, `optimize`); read the IL2CPP C++ as well as the Tier1 listing (`optimize`, references/unity.md); look for `call [rax+0x..]`, `call [r11]` and `call rax` in the Tier1
   listing and explain each.
+- **Reach an interface member a struct implements explicitly through a generic accessor constrained to the
+  interface** (`MemberAccess.Interface`: `__G_X<__TI>(ref __TI o) where __TI : IFoo => o.X` in the formatter), a
+  class's through a cast (`MemberAccess.Cast`, `((IFoo)value).X`): a cast of a struct boxes a copy and loses a write.
+  Both compile to the plain field load and store of an implicit member (Release JitDisasm of
+  `ExplicitMembersStructFormatter` and `ExplicitMembersFormatter`, round 129: `mov esi, dword ptr [rbx+0x0C]`, no call,
+  no box). Accessors take the struct by `ref`, which an `in` parameter cannot give: `WriteFixed` of a struct with any
+  member that is not `Direct` delegates to a by-value `__WriteFixed` as a sealed class's does (an
+  `Unsafe.AsRef(in o)` getter needs C# 12 against .NET 8+'s `ref readonly` signature: CS9058 in the C# 11 test
+  project).
 - Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`benchmarks/asm.py`), and
   compare with the hand-written equivalent where one exists: generated code is not slower than what a user would
   write by hand.

@@ -38,6 +38,7 @@ internal sealed class TypeFacts
     private readonly Compilation _compilation;
     private static readonly ConditionalWeakTable<IAssemblySymbol, INamedTypeSymbol[]> ReferencedGenericDefinitions = new();
     private INamedTypeSymbol[]? _ownGenericDefinitions;
+    private HashSet<ISymbol>? _implementedAsInterface;
     private readonly ConcurrentDictionary<IAssemblySymbol, Dictionary<ISymbol, List<(INamedTypeSymbol, INamedTypeSymbol)>>>
         _subtypes = new(SymbolEqualityComparer.Default);
     private readonly string[] _symbols;
@@ -139,6 +140,39 @@ internal sealed class TypeFacts
         SymbolEqualityComparer.Default.Equals(assembly, _compilation.Assembly)
             ? _ownGenericDefinitions ??= FindGenericDefinitions(assembly)
             : ReferencedGenericDefinitions.GetValue(assembly, FindGenericDefinitions);
+
+    /// <summary>
+    /// Whether a class or struct this compilation declares implements the <c>[NinoType]</c> interface member
+    /// <paramref name="member"/> with no field or property of its name (explicitly, or by the default implementation),
+    /// so that <see cref="MemberCollector"/> collects the interface's member, with its attributes, in its place.
+    /// Indexed on first use, over every <c>[NinoType]</c> of the compilation; the analyzer asks only about an interface
+    /// member with an attribute that has no effect otherwise (NINO033).
+    /// </summary>
+    public bool ImplementsAsInterface(ISymbol member) =>
+        (_implementedAsInterface ??= FindImplementedAsInterface()).Contains(member.OriginalDefinition);
+
+    private HashSet<ISymbol> FindImplementedAsInterface()
+    {
+        var found = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        foreach (var type in AssemblyTypes.Of(_compilation.Assembly, CancellationToken.None))
+        {
+            if (type.TypeKind is not (TypeKind.Class or TypeKind.Struct) || !type.IsNinoType())
+                continue;
+            foreach (var ninoInterface in type.AllInterfaces)
+            {
+                if (!ninoInterface.IsNinoType())
+                    continue;
+                foreach (var member in ninoInterface.GetMembers())
+                {
+                    if (member is IFieldSymbol or IPropertySymbol && !member.IsStatic &&
+                        SymbolEqualityComparer.Default.Equals(MemberCollector.FindImplementation(type, member), member))
+                        found.Add(member.OriginalDefinition);
+                }
+            }
+        }
+
+        return found;
+    }
 
     private static INamedTypeSymbol[] FindGenericDefinitions(IAssemblySymbol assembly) =>
         AssemblyTypes.Of(assembly, CancellationToken.None).Where(static t => t.IsGenericType && t.IsNinoType())
@@ -320,8 +354,7 @@ internal sealed class TypeFacts
         {
             if (field.IsStatic || field.IsConst)
                 continue;
-            var member = field.AssociatedMember() ?? field;
-            if (!known.Contains(member.OriginalDefinition))
+            if (MemberCollector.StoredMember(field, m => known.Contains(m.OriginalDefinition)) == null)
                 return false;
         }
 
@@ -333,10 +366,14 @@ internal sealed class TypeFacts
         {
             if (!Visibility.IsDirectlyAccessible(member) || Visibility.IsConstructionOnly(member))
                 return false;
-            // A property only as an auto-property: its setter stores the value as it is.
+            // A property only as an auto-property: its setter stores the value as it is (an interface member's, the
+            // type's implementation).
             if (member is IPropertySymbol property &&
+                (property.ContainingType.TypeKind == TypeKind.Interface
+                    ? type.FindImplementationForInterfaceMember(property)
+                    : property) is var implementation &&
                 !type.GetMembers().OfType<IFieldSymbol>().Any(f =>
-                    SymbolEqualityComparer.Default.Equals(f.AssociatedMember(), property)))
+                    SymbolEqualityComparer.Default.Equals(f.AssociatedMember(), implementation)))
                 return false;
             var memberType = MemberCollector.MemberType(member)!;
             if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType) || IsBlockItem(memberType))

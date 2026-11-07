@@ -637,7 +637,7 @@ public struct Compact : INinoFormatter<int>
     public async Task NINO033_MoveToTheImplementingMembers()
     {
         // To each member the generator writes: a class's, a struct's, a base class's for its subtypes. A member with
-        // the attribute keeps its own; an explicit implementation is not written by name.
+        // the attribute keeps its own.
         var code = @"
 using Nino.Core;
 
@@ -677,12 +677,6 @@ public sealed class Circle : ShapeBase
 {
 }
 
-public class Hidden : IShape
-{
-    string IShape.Name { get; set; }
-    int IShape.Sides { get; set; }
-    int IShape.Cache { get; set; }
-}
 " + Compact;
 
         var fixedCode = @"
@@ -731,12 +725,6 @@ public sealed class Circle : ShapeBase
 {
 }
 
-public class Hidden : IShape
-{
-    string IShape.Name { get; set; }
-    int IShape.Sides { get; set; }
-    int IShape.Cache { get; set; }
-}
 " + Compact;
 
         await SetUpCodeFixTest(code, fixedCode,
@@ -816,6 +804,60 @@ namespace Shapes
             VerifyCF.Diagnostic("NINO033").WithLocation(1).WithArguments("NinoUtf8", "Name", "Shapes.IShape"));
         test.TestState.Sources.Add(Other);
         test.FixedState.Sources.Add(FixedOther);
+        await test.RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO033_KeptForAnExplicitImplementationElsewhere()
+    {
+        // Another project of the solution implements the member explicitly, so writes the interface's member with its
+        // attribute: the attribute is copied to the implicit implementation and stays on the interface (still
+        // reported in this project, which has no explicit implementation).
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    [{|#0:NinoUtf8|}] string Name { get; set; }
+}
+
+public class Square : IShape
+{
+    public string Name { get; set; }
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType]
+public interface IShape
+{
+    [{|#0:NinoUtf8|}] string Name { get; set; }
+}
+
+public class Square : IShape
+{
+    [NinoUtf8]
+    public string Name { get; set; }
+}";
+        const string Other = @"
+public class Hidden : IShape
+{
+    string IShape.Name { get; set; }
+}";
+
+        var diagnostic = VerifyCF.Diagnostic("NINO033").WithLocation(0).WithArguments("NinoUtf8", "Name", "IShape");
+        var test = SetUpCodeFixTest(code, fixedCode, diagnostic);
+        test.FixedState.ExpectedDiagnostics.Add(diagnostic);
+        foreach (var state in new[] { test.TestState, test.FixedState })
+        {
+            var other = state.AdditionalProjects["Other"];
+            other.Sources.Add(Other);
+            other.AdditionalProjectReferences.Add("TestProject");
+            TestReferences.Apply(other);
+        }
+
         await test.RunAsync();
     }
 

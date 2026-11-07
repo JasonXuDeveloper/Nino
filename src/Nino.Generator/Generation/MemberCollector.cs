@@ -197,6 +197,21 @@ internal static class MemberCollector
         return result;
     }
 
+    /// <summary>
+    /// The member a field stores, among those <paramref name="collected"/> accepts: the field, or the property it
+    /// backs; for a property implementing interface members explicitly, the one <see cref="Collect"/> collected in its
+    /// place. Null when it stores none of them.
+    /// </summary>
+    public static ISymbol? StoredMember(IFieldSymbol field, Func<ISymbol, bool> collected)
+    {
+        var member = field.AssociatedMember() ?? field;
+        if (collected(member))
+            return member;
+        return member is IPropertySymbol property
+            ? Enumerable.FirstOrDefault(property.ExplicitInterfaceImplementations, collected)
+            : null;
+    }
+
     /// <summary>The type of a field or property; null for other members.</summary>
     public static ITypeSymbol? MemberType(ISymbol member) => member switch
     {
@@ -264,7 +279,13 @@ internal static class MemberCollector
         return index == null ? "it has no [NinoMember], and the type collects only those (autoCollect: false)" : null;
     }
 
-    private static ISymbol FindImplementation(INamedTypeSymbol type, ISymbol member)
+    /// <summary>
+    /// The member of a type that implements an interface member: the type's own of the same name (an implicit
+    /// implementation, maybe in a base class); without one (an explicit or default implementation), the interface
+    /// member itself, with its attributes, which generated code reaches through the interface
+    /// (<see cref="MemberAccess.Cast"/>, <see cref="MemberAccess.Interface"/>).
+    /// </summary>
+    public static ISymbol FindImplementation(INamedTypeSymbol type, ISymbol member)
     {
         for (var t = type; t != null; t = t.BaseType)
         {
@@ -327,13 +348,13 @@ internal static class MemberCollector
             IFieldSymbol { IsFixedSizeBuffer: true } => "it is a fixed-size buffer",
             IFieldSymbol field when field.IsImplicitlyDeclared || field.AssociatedMember() != null =>
                 "it is the backing field of a property or event; mark the property instead",
-            // Explicit interface implementations belong to the interface, which serializes them if it is a
-            // [NinoType]; they have no name generated code could use on the type. The only implicit properties with
-            // a setter are a record's positional ones (EqualityContract has none).
+            // Explicit interface implementations have no name generated code could use on the type: the interface's
+            // member is collected in their place when the interface is a [NinoType] (FindImplementation). The only
+            // implicit properties with a setter are a record's positional ones (EqualityContract has none).
             IPropertySymbol { IsIndexer: true } => "it is an indexer",
             IPropertySymbol { GetMethod: null } => "it has no getter",
             IPropertySymbol { ExplicitInterfaceImplementations.IsEmpty: false } =>
-                "it implements an interface member explicitly",
+                "it implements an interface member explicitly (a [NinoType] interface's member is written in its place, with the interface's attributes)",
             IPropertySymbol { SetMethod: null } property when
                 !(IsGetOnlyAutoProperty(property) && constructorNames.Contains(property.Name)) =>
                 "it has no setter, and no constructor takes it",

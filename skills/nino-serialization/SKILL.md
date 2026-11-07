@@ -54,13 +54,14 @@ Read a reference when the task reaches it:
 
 - `[NinoType]` on a `class`, `struct`, `record`, `record struct` or `interface`. The type and every type containing it
   are `public` or `internal`, never a `static` class or `ref struct` (NINO001).
-- Options, as named arguments: `[NinoType(autoCollect: true, includeNonPublicMembers: false, allowInheritance: true,
+- Options, as named arguments: `[NinoType(autoCollect: true, includeNonPublicMembers: false, inheritedBySubtypes: true,
   format: NinoFormat.Positional, trackReferences: false)]`.
 - `autoCollect: true` (default) writes every public field and every public property with a getter and a `set`/`init`:
   `[NinoType]` base classes first (root first), then the type's own members in declaration order. Get-only
-  auto-properties are skipped unless a constructor parameter has the same name (ignoring case), and so are explicit
-  interface implementations; a member of a type Nino cannot write is skipped with NINO007 (delegates, `Task`,
-  pointers, `Type`, `Span<T>`: add `[NinoIgnore]`).
+  auto-properties are skipped unless a constructor parameter has the same name (ignoring case); an explicit
+  implementation of a `[NinoType]` interface's member is written through the interface, with that member's
+  attributes; a member of a type Nino cannot write is skipped with NINO007 (delegates, `Task`, pointers, `Type`,
+  `Span<T>`: add `[NinoIgnore]`).
 - `[NinoIgnore]` drops a member. `[NinoType(false)]` writes only `[NinoMember(index)]` members, by index ascending
   (`[property: NinoMember(n)]` on record parameters). Mixing them up: NINO010 to NINO013.
 - Non-public members need `includeNonPublicMembers: true` (else NINO009). Before .NET 8 (Unity, .NET Framework,
@@ -68,9 +69,13 @@ Read a reference when the task reaches it:
   (NINO002): write `partial` anyway when the code may build for Unity.
 - Subtypes inherit `[NinoType]` and its options from the nearest `[NinoType]` base or interface. A subtype's own
   `[NinoType]` replaces the inherited options (repeat `format:`); `trackReferences` is inherited regardless.
-  `allowInheritance: false` makes subtypes declare their own (NINO003).
+  `inheritedBySubtypes: false` makes subtypes declare their own (NINO003). On a `[NinoType]` interface's members only
+  `[NinoMember(index)]` counts: implementing types write their own members with their own attributes, so put
+  `[NinoUtf8]`, `[NinoMemberFormatter]` and `[NinoIgnore]` there (NINO033); only an explicit implementation writes
+  the interface member, with its attributes.
 - Generic types work (`Box<T>`) when their type arguments are serializable. A closed generic type the process only
-  *reads* through a base and never names in code: `NinoPolymorphic.Register<Box<int>>()` at startup.
+  *reads* through a base and never names in code: `NinoPolymorphic.TryRegister<Box<int>>()` at startup (false when
+  it cannot be registered).
 - Strings: one byte per char when every char is at most U+00FF, UTF-16 otherwise. `[NinoUtf8]` on a member writes
   UTF-8: for mostly-ASCII text with some wider chars, not for mostly-CJK text.
 - Structs have no header; an unmanaged struct of raw fields is copied as one block in a layout that is the same on
