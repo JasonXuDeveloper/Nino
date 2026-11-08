@@ -391,6 +391,17 @@ and owned by a `NinoArrayBufferWriter`.
   `IEnumerable<T>`) is always possible.
 * Serializing to a foreign `IBufferWriter<byte>` writes into a thread-local scratch buffer and copies once
   at the end. Serializing to a `NinoArrayBufferWriter` writes in place.
+* Serializing to a `Stream` (`Serialize(value, stream)`, `SerializeAsync`) writes into the same scratch buffer, then
+  hands its array to the stream in one write, with no framing. An asynchronous write still pending when the call
+  returns takes the scratch buffer's array with it (back to the pool when the write completes), and the scratch
+  buffer continues with another of the same size: nothing is copied, and other calls on the thread are not held up.
+  Deserializing from a `Stream` reads it to its end into an array rented from the shared pool (a `MemoryStream`
+  whose buffer is exposed is read in place) and then reads that span: every check of the data is the span
+  overload's. The array grows by doubling as bytes arrive, and a seekable stream's `Length` sizes the first one only
+  up to 1 MiB, so a stream makes Nino hold at most about twice what it delivered. The async forms return `ValueTask`
+  and are not in the netstandard2.0 build (`ValueTask` needs a package there); Task-returning forms there would have
+  another signature than the same methods in the other builds, which a netstandard2.0 library would call and a .NET
+  application would not have (`MissingMethodException`). All of this is `NinoStreams`.
 
 ### Reader
 
@@ -874,6 +885,10 @@ which the regular calls already copy directly, and not types it can only reach t
 registers (the regular method's several returns go through a stack temp).
 The `ReadOnlySequence<byte>` overloads are intercepted the same way, to `NinoDirect`'s sequence forms: one segment
 is read in place through the span call, several are copied once into a pooled array out of line (`NinoSequences`).
+The `Stream` overloads (and `SerializeAsync` / `DeserializeAsync`) are intercepted to `NinoDirect`'s Stream forms,
+which pass the I/O in `NinoStreams` (out of line, the async state machines included) a writer or reader struct that
+names the resolved formatter (its `__Top` twin where it has one, and the `...Prefetched` forms for arrays and lists of
+prefetching classes): the formatter is called directly, the I/O shared with the regular calls.
 The bytes are the same: formatters are only declared at compile time, so intercepted and regular calls never
 disagree, and `NinoDirect` calls the formatter with no check. Regular calls read the formatter once, on the first use
 of `T`, into a `static readonly` field (`NinoTopFormatter<T>`), so Tier1 code knows its exact class and calls it

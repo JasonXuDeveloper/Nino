@@ -157,12 +157,21 @@ byte[] bytes = NinoSerializer.Serialize(order);              // a new byte[] of 
 NinoSerializer.Serialize(order, bufferWriter);               // any IBufferWriter<byte>: 0 B with a reused one
 Order copy = NinoDeserializer.Deserialize<Order>(bytes);     // from any ReadOnlySpan<byte>
 NinoDeserializer.Deserialize(bytes, ref copy);               // reuse: fills copy in place (null: creates it)
+NinoSerializer.Serialize(order, stream);                     // since rc.10: the same bytes to a Stream, no framing
+Order read = NinoDeserializer.Deserialize<Order>(stream);    // since rc.10: reads the stream TO ITS END (also ref copy)
+await NinoSerializer.SerializeAsync(order, stream, ct);      // since rc.10: ValueTask; not in the netstandard2.0 build
+Order next = await NinoDeserializer.DeserializeAsync<Order>(stream, ct);
 ```
 
-- Static and thread safe. There are no `Stream`, async or `out` overloads: read a stream into one buffer first. A
-  pipe's `ReadOnlySequence<byte>` is read directly since rc.10 (`Deserialize<T>(in sequence)`, also with `ref value`:
-  one segment in place, several copied once: to the stack up to 512 bytes, else a pooled array); before rc.10, `First.Span` when `IsSingleSegment`,
-  else copy it.
+- Static and thread safe. No `out` overloads. The `Stream` overloads (rc.10) write through a pooled per-thread
+  buffer and add no length prefix; a read takes the whole rest of the stream as one value, so several messages on
+  one stream (a socket, a file of records) still need your own frames (a length, then that many bytes into
+  `Deserialize(span, ref value)`). The async read has no `ref` form. Bound a stream from a peer yourself (Nino keeps
+  what it delivers, growing as bytes arrive). `SerializeBoxed` / `DeserializeBoxed` (and `...Async`) take a `Stream`
+  too. Before rc.10 there are no Stream or async overloads: serialize to a buffer and write it. A pipe's
+  `ReadOnlySequence<byte>` is read directly since rc.10 (`Deserialize<T>(in sequence)`, also with `ref value`: one
+  segment in place, several copied once: to the stack up to 512 bytes, else a pooled array); before rc.10,
+  `First.Span` when `IsSingleSegment`, else copy it.
 - Hot paths: one `NinoArrayBufferWriter` per thread or connection, `ResetWrittenCount()` before each message, send
   `WrittenSpan`, `Dispose()` at the end; deserialize into an existing instance. More, with pooling:
   [references/performance.md](references/performance.md).
@@ -224,8 +233,9 @@ Never suppress NINO006 or NINO007 blindly. Each id and its fix: [references/diag
 
 ## What Nino does not do
 
-- No `Stream`, async or multi-segment APIs, no compression, no callbacks, no `System.Type`, no schema in the bytes,
-  no human-readable output, no reading of v3 data.
+- No framing of several messages on one stream (rc.10's `Stream` overloads read one value to the end), no
+  compression, no callbacks, no `System.Type`, no schema in the bytes, no human-readable output, no reading of v3
+  data.
 - No runtime registration of formatters and no reflection fallback: the generator must see every type.
 - No languages besides .NET, TypeScript/JavaScript, Go and Rust (use Protocol Buffers or MessagePack there).
 
