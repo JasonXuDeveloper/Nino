@@ -196,6 +196,36 @@ internal static class NinoDiagnostics
         "Layout baseline cannot be read",
         "The layout baseline in [assembly: NinoLayouts] cannot be read, so no layout is checked: {0} (line {1}); correct it, or write it again with nino-gen layouts or the refactoring 'Create the layout baseline'");
 
+    // Serialization callbacks ([NinoOnSerializing], [NinoOnSerialized], [NinoOnDeserializing], [NinoOnDeserialized])
+
+    public static readonly DiagnosticDescriptor CallbackSignature = Error("NINO038",
+        "Serialization callback has the wrong signature",
+        "'{0}' is marked [{1}] but {2}, so Nino never calls it; a callback is a non-generic method that takes no parameters and returns void");
+
+    public static readonly DiagnosticDescriptor CallbackInaccessible = Error("NINO039",
+        "Serialization callback is not accessible to generated code",
+        "'{0}' is marked [{1}] but is {2}, so the formatter Nino generates for '{3}' cannot call it; {4}");
+
+    public static readonly DiagnosticDescriptor CallbackNotNinoType = Warning("NINO040",
+        "Serialization callback is never called",
+        "'{0}' is marked [{1}] but {2}, so Nino never calls it; mark the type [NinoType] or remove the attribute");
+
+    public static readonly DiagnosticDescriptor CallbackDuplicate = Error("NINO041",
+        "Two methods for one serialization callback",
+        "'{0}' marks both '{1}' and '{2}' [{3}], so Nino calls only '{1}'; a type takes one method per callback (a base class may declare its own)");
+
+    public static readonly DiagnosticDescriptor CallbackStatic = Error("NINO042",
+        "Serialization callback must be an instance method",
+        "'{0}' is marked [{1}] but is static, so Nino never calls it: [{1}] runs on the value; make it an instance method (only [NinoOnDeserializing] may be static)");
+
+    public static readonly DiagnosticDescriptor CallbackBeforeInstance = Error("NINO043",
+        "No instance exists before the members are read",
+        "Instance method '{0}' is marked [NinoOnDeserializing], but Nino creates '{1}' from the members it reads ({2}), so there is no instance to call it on; make it static, or move the work to [NinoOnDeserialized]");
+
+    public static readonly DiagnosticDescriptor CallbackOnRawStruct = Error("NINO044",
+        "Serialization callback on a struct copied as raw memory",
+        "'{0}' is marked [{1}] but Nino writes '{2}' as its raw memory (and an array of it as one copy), which runs no code, so it is never called; call it from a callback of the type that holds the struct");
+
     /// <summary>Every descriptor above, which the analyzer reports. Last: static fields initialize in order.</summary>
     public static readonly ImmutableArray<DiagnosticDescriptor> All = typeof(NinoDiagnostics)
         .GetFields(BindingFlags.Public | BindingFlags.Static)

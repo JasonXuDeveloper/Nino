@@ -20,6 +20,12 @@ internal sealed class NinoSymbols
         Serializer, Deserializer, Writer, Reader, Direct, Utf8Formatter, Layouts;
 
     /// <summary>
+    /// The serialization callback attributes, indexed by <see cref="CallbackKind"/> (an entry is null when the
+    /// referenced Nino.Core has no such attribute).
+    /// </summary>
+    public readonly INamedTypeSymbol?[] Callbacks;
+
+    /// <summary>
     /// Whether the referenced Nino.Core's <c>NinoTypeLayoutAttribute</c> has a settable <c>bool Deferrable</c>, which
     /// the published layouts set (<c>LayoutEmitter</c>); older versions have none.
     /// </summary>
@@ -47,6 +53,7 @@ internal sealed class NinoSymbols
         Reader = Core("Reader");
         Direct = Core("CompilerServices.NinoDirect");
         Layouts = Core(NinoNames.NinoLayoutsAttribute);
+        Callbacks = Generation.Callbacks.AttributeNames.Select(name => Core(name + "Attribute")).ToArray();
         LayoutDeferrable = Core("NinoTypeLayoutAttribute") is { } layout && layout.GetMembers("Deferrable")
             .OfType<IPropertySymbol>().Any(static p => p.Type.SpecialType == SpecialType.System_Boolean &&
                                                        p.SetMethod is { DeclaredAccessibility: Accessibility.Public });

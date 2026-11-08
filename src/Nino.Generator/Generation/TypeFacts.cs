@@ -261,8 +261,9 @@ internal sealed class TypeFacts
     /// Whether every value of <paramref name="type"/> (every non-null one, for a sealed class) is written in the same
     /// number of bytes, so its formatter implements <c>INinoFixedSizeFormatter</c>: a non-generic struct that is not
     /// raw, or a sealed class, generated in this assembly, positional (not version tolerant or keyed), not tracked and
-    /// not a collection, whose members are all raw values, such structs or value tuples and pairs of raw values
-    /// (<see cref="IsBlockItem"/>), without custom formatters. Computed from symbols only, so a type that holds it as a
+    /// not a collection, without serialization callbacks (<see cref="TypeShape.HasCallbacks"/>), whose members are all
+    /// raw values, such structs or value tuples and pairs of raw values (<see cref="IsBlockItem"/>), without custom
+    /// formatters. Computed from symbols only, so a type that holds it as a
     /// member, the type itself and the interceptors agree.
     /// </summary>
     public bool IsFixedSize(INamedTypeSymbol type)
@@ -278,6 +279,9 @@ internal sealed class TypeFacts
             return false;
         bool isStruct = shape.Kind == FormatterKind.Struct;
         if (isStruct ? shape.RawStruct : shape.Tracked || shape.Collection != null)
+            return false;
+        // Its body calls them, which WriteFixed and the block reads would skip.
+        if (shape.HasCallbacks)
             return false;
         var members = Members.Of(type, shape.Options);
         // A struct without members writes nothing.

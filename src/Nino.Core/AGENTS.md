@@ -40,6 +40,8 @@ NinoFormerNameAttribute.cs   [NinoFormerName]: a type's former name (its type id
 NinoConstructorAttribute.cs  [NinoConstructor]: the constructor deserialization uses
 NinoFactoryAttribute.cs      [NinoFactory]: a static method Nino calls to create an instance (a pool, ...)
 NinoPooledAttribute.cs       [NinoPooled]: the generator adds ReturnToPool() and pool hooks to a sealed class
+NinoCallbackAttributes.cs    [NinoOnSerializing], [NinoOnSerialized], [NinoOnDeserializing], [NinoOnDeserialized]:
+                             methods the generated formatter calls around writing and reading a value
 NinoMemberFormatterAttribute.cs  [NinoMemberFormatter(typeof(F))]: a member written by a formatter of the user's
 NinoFormatterAttribute.cs    [assembly: NinoFormatter(typeof(F<>))]: registers a struct formatter for the generator and
                              the runtime resolver alike (rules shared through NinoFormatterBinding)

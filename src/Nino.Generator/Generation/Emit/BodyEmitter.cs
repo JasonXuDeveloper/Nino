@@ -229,7 +229,7 @@ internal sealed class BodyEmitter
             return;
         }
 
-        if (_m.Inheritance.EmitMembers && !_mode.Shallow && !Region && !_m.IsCollection)
+        if (_m.Inheritance.EmitMembers && !_mode.Shallow && !Region && !_m.IsCollection && _m.Callbacks == null)
         {
             _w.Line($"{signature} => WriteMembers(value, ref writer);");
             _w.Line();
@@ -246,8 +246,34 @@ internal sealed class BodyEmitter
         }
     }
 
-    /// <summary>The writes of a body (<see cref="EmitWriteBody"/>).</summary>
+    /// <summary>The writes of a body (<see cref="EmitWriteBody"/>), between the callbacks around them.</summary>
     private void EmitWriteBodyContents()
+    {
+        EmitCallbacks(CallbackKind.Serializing, "value");
+        EmitWrites();
+        EmitCallbacks(CallbackKind.Serialized, "value");
+    }
+
+    /// <summary>
+    /// The calls of the <paramref name="kind"/> callbacks (<see cref="TypeModel.Callbacks"/>) on
+    /// <paramref name="target"/>, the value; the static ones when it is null (before an instance exists). Nothing for a
+    /// type without callbacks.
+    /// </summary>
+    private void EmitCallbacks(CallbackKind kind, string? target)
+    {
+        if (_m.Callbacks is not { } callbacks)
+            return;
+        foreach (var call in callbacks.Of(kind))
+        {
+            if (call.Static != (target == null))
+                continue;
+            _w.Line(call.Static ? $"{call.Owner}.{call.Method}();"
+                : call.Cast ? $"(({call.Owner}){target}).{call.Method}();"
+                : $"{target}.{call.Method}();");
+        }
+    }
+
+    private void EmitWrites()
     {
         if (Region && !(_m.Inheritance.EmitMembers && !_mode.Shallow) && TryEmitRegionWithBlock())
             return;
@@ -684,6 +710,8 @@ internal sealed class BodyEmitter
 
     private void EmitReads(bool fresh, string r, bool present)
     {
+        // The static [NinoOnDeserializing]s, before the instance is taken or created; the rest go with the instance.
+        EmitCallbacks(CallbackKind.Deserializing, null);
         if (fresh)
         {
             // The slot held null and the pool, if any, had nothing: a new instance, whose members are null.
@@ -814,8 +842,18 @@ internal sealed class BodyEmitter
         EmitInPlaceMembers(r);
     }
 
-    /// <summary>The reads of an instance in <see cref="BodyMode.Target"/> (or of a struct in place), in its regions.</summary>
+    /// <summary>
+    /// The reads of an instance in <see cref="BodyMode.Target"/> (or of a struct in place), in its regions, between
+    /// the callbacks around them.
+    /// </summary>
     private void EmitInPlaceMembers(string r)
+    {
+        EmitCallbacks(CallbackKind.Deserializing, _mode.Target);
+        EmitInPlaceReads(r);
+        EmitCallbacks(CallbackKind.Deserialized, _mode.Target);
+    }
+
+    private void EmitInPlaceReads(string r)
     {
         if (_m.TrackReferences)
             _w.Line($"reader.SetReference({_mode.Target});");
@@ -913,6 +951,7 @@ internal sealed class BodyEmitter
 
         if (isClass)
             _w.Line($"{Core}NinoRecycler.Replace(ref value, __new);");
+        EmitCallbacks(CallbackKind.Deserialized, "value");
     }
 
     /// <param name="eof">

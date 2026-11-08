@@ -17,3 +17,10 @@ NINO034 | Nino | Warning | Layout change breaks data written before or after it
 NINO035 | Nino | Warning | Layout change loses data without an error
 NINO036 | Nino | Info | Layout change is compatible with a condition
 NINO037 | Nino | Warning | Layout baseline cannot be read
+NINO038 | Nino | Error | Serialization callback has the wrong signature
+NINO039 | Nino | Error | Serialization callback is not accessible to generated code
+NINO040 | Nino | Warning | Serialization callback is never called
+NINO041 | Nino | Error | Two methods for one serialization callback
+NINO042 | Nino | Error | Serialization callback must be an instance method
+NINO043 | Nino | Error | No instance exists before the members are read
+NINO044 | Nino | Error | Serialization callback on a struct copied as raw memory

@@ -51,8 +51,9 @@ Shared/                      RepositoryFiles.cs + .props: the repository root as
 ```
 Serialization/               round trips of the public API: primitives, strings (StringEncodingTests, Utf8WireTests),
                              BCL types, DateTimeOffset, tuples, records, generics, private members, custom formatters,
-                             reference tracking, threads, issue regressions (IssueTests); GoldenBytesTests pins the
-                             wire format for every Nino.Core build (and seeds the fuzzer)
+                             reference tracking, threads, issue regressions (IssueTests), serialization callbacks
+                             (CallbackTests: order and counts on every path, with Subset's CallbackTypes.cs);
+                             GoldenBytesTests pins the wire format for every Nino.Core build (and seeds the fuzzer)
 Collections/                 arrays, BCL and user collections, empty ones, Stack/Queue through their arrays, the
                              HashTables fill, the collection fast paths, the prefetch of long top-level arrays and lists
                              of scattered objects and the interceptors that route them there (PrefetchTests)
@@ -72,7 +73,8 @@ Security/                    hostile input: StrictReadTests, HashFloodingTests, 
                              SelfNestingCollection, WriteDepth)
 Generator/                   AnalyzerTests (every rule; the AnalyzerReleases files), CodeFixTests, the layout baseline
                              (LayoutRulesTests: its rules and TOML on the shared sources, linked; LayoutAnalyzerTests:
-                             NINO034-NINO037, their fixes and the refactoring; LayoutBaselineTests), incremental caching,
+                             NINO034-NINO037, their fixes and the refactoring; LayoutBaselineTests), the callbacks'
+                             rules and fixes (CallbackAnalyzerTests: NINO038-NINO044), incremental caching,
                              __Top twins, receiver aliases, the tools/CodeGen output checks (*FormattersGenerationTests)
 Corner/                      corner cases compiled in memory (CornerCompiler): ShapeMatrixTests (every way to declare a
                              type hierarchy, generated, compiled and round-tripped), construction, members, generics,

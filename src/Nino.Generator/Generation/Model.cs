@@ -265,7 +265,10 @@ internal sealed record TypeModel(
     int PrefetchBytes,
     // The members (C# names, read as value.Member) whose objects those loops prefetch too, once the element's object is
     // in the cache (PrefetchRules.Members).
-    EquatableArray<string> PrefetchMembers)
+    EquatableArray<string> PrefetchMembers,
+    // The serialization callbacks its bodies call (Callbacks.Build), or null for none: then nothing in its formatter
+    // differs from a type without the feature.
+    CallbackModel? Callbacks = null)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 
@@ -364,11 +367,12 @@ internal sealed record TypeModel(
     public bool BoundedEntry => Depth.Shallow && Kind == FormatterKind.SealedClass && Depth.Nests && !TrackReferences;
 
     /// <summary>
-    /// Whether the body of a class is one block of raw members (positional, not tracked, not a collection): the
+    /// Whether the body of a class is one block of raw members (positional, not tracked, not a collection, calling no
+    /// callbacks, which <c>WriteRawBody</c> would skip): the
     /// formatter implements <c>INinoRawBodyFormatter</c>, so the type id or presence byte in front of the body is
     /// written into the same reservation (one capacity check instead of two).
     /// </summary>
-    public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct &&
+    public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct && Callbacks == null &&
                            Format == NinoFormat.Positional && !TrackReferences && !IsCollection && Members.Length != 0 &&
                            Members.All(static x => x.Raw != null);
 
@@ -433,6 +437,29 @@ internal sealed record TypeModel(
 
     /// <summary>A formatter as its own code names it (<see cref="Self"/>, <see cref="DispatchEntry.Self"/>).</summary>
     public static string SelfOf(string formatterName, string typeParameterList) => formatterName + typeParameterList;
+}
+
+/// <summary>
+/// A call of a serialization callback: <c>Owner.Method()</c> when <see cref="Static"/>, else <c>value.Method()</c>,
+/// or <c>((Owner)value).Method()</c> when <see cref="Cast"/> (a more derived class hides the name).
+/// </summary>
+/// <param name="Owner">The class or struct declaring it, as generated code names it (global-qualified).</param>
+internal sealed record CallbackCall(string Method, string Owner, bool Static, bool Cast);
+
+/// <summary>
+/// The serialization callbacks a formatter calls (<see cref="Callbacks"/>), each in the order of its calls: base
+/// classes first; the static <see cref="Deserializing"/> ones before the instance ones.
+/// </summary>
+internal sealed record CallbackModel(EquatableArray<CallbackCall> Serializing, EquatableArray<CallbackCall> Serialized,
+    EquatableArray<CallbackCall> Deserializing, EquatableArray<CallbackCall> Deserialized)
+{
+    public EquatableArray<CallbackCall> Of(CallbackKind kind) => kind switch
+    {
+        CallbackKind.Serializing => Serializing,
+        CallbackKind.Serialized => Serialized,
+        CallbackKind.Deserializing => Deserializing,
+        _ => Deserialized,
+    };
 }
 
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.

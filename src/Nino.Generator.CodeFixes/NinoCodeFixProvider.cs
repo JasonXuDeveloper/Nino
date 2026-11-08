@@ -122,6 +122,21 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         // No effect either way: nothing changes when it goes.
         [NinoDiagnostics.Utf8WithoutEffect.Id] = new[] { RemoveAttributeFix(NinoUtf8) },
         [NinoDiagnostics.Utf8FormatterByHand.Id] = new[] { new Fix("Use [NinoUtf8]", "UseNinoUtf8", UseNinoUtf8) },
+        // Generated code calls the method from outside its type: internal is what it needs and no more. An override
+        // keeps its base's accessibility, a partial method its other part's, and an explicit implementation has none.
+        [NinoDiagnostics.CallbackInaccessible.Id] = new[]
+        {
+            new Fix("Make it internal", "MakeCallbackInternal",
+                (e, n) => e.SetAccessibility(Member(n), Accessibility.Internal),
+                n => Member(n) is MethodDeclarationSyntax { ExplicitInterfaceSpecifier: null } method &&
+                     !method.Modifiers.Any(m =>
+                         m.IsKind(SyntaxKind.OverrideKeyword) || m.IsKind(SyntaxKind.PartialKeyword))),
+        },
+        // Never called either way: nothing changes when it goes.
+        [NinoDiagnostics.CallbackNotNinoType.Id] = new[]
+        {
+            new Fix("Remove the callback attribute", "RemoveCallbackAttribute", RemoveCallbackAttribute),
+        },
         // The compiler's "no parameter named ..." on a [NinoType] argument under its name before 4.0.
         // One fix for every former name, so fixing all renames them all at once.
         [NoParameterNamed] = new[]
@@ -354,6 +369,15 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         SetTypeArgument(editor, node, "format",
             SyntaxFactory.ParseExpression("global::" + NinoNames.CoreNamespace + ".NinoFormat.VersionTolerant")
                 .WithAdditionalAnnotations(Simplifier.Annotation), removable: false);
+
+    /// <summary>The serialization callback attribute (<c>[NinoOnSerializing]</c> ...) the diagnostic points at.</summary>
+    private static void RemoveCallbackAttribute(DocumentEditor editor, SyntaxNode node)
+    {
+        if (node.AncestorsAndSelf().OfType<AttributeSyntax>().FirstOrDefault() is { } attribute &&
+            editor.SemanticModel.GetSymbolInfo(attribute).Symbol is IMethodSymbol { ContainingType.Name: var name } &&
+            name.EndsWith("Attribute", StringComparison.Ordinal))
+            RemoveAttribute(editor, node, name.Substring(0, name.Length - "Attribute".Length));
+    }
 
     private static Fix RemoveAttributeFix(string name) =>
         new($"Remove [{name}]", "Remove" + name, (e, n) => RemoveAttribute(e, n, name));

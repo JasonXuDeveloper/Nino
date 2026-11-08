@@ -22,7 +22,8 @@ namespace Nino.UnitTests
     /// subtype (plain, generic, with a private member, built by a constructor, [NinoPooled], a struct and a record struct
     /// for interfaces, and for interfaces a struct of fixed size that is not raw, whose collections are blocks), each read
     /// through the base, the type between, itself and object, by the boxed API, alone and as a list element, plus null and data of another
-    /// type. A combination nobody thought of is still in the matrix: add a dimension here when a feature adds one.
+    /// type. The shapes with a type between declare a serialization callback too ([NinoOnDeserialized], on the base, or
+    /// on each subtype of an interface), counted on every value read, so each shape is generated with and without one. A combination nobody thought of is still in the matrix: add a dimension here when a feature adds one.
     /// </summary>
     public static class ShapeMatrixTests
     {
@@ -239,6 +240,18 @@ namespace Other
             }
 
             private bool Fields => _kind != Kind.Interface;
+
+            /// <summary>Whether the shape declares a callback: on the base, or on each subtype of an interface.</summary>
+            private bool Callbacks => _middle;
+
+            /// <summary>A field the callback counts its calls in, and the callback.</summary>
+            private const string Counted = "[NinoIgnore] public int Called; [NinoOnDeserialized] public void Loaded() => Called++;";
+
+            /// <summary>What a subtype declares for <see cref="Callbacks"/>: the counter where its base has none.</summary>
+            private string LeafCallback => Callbacks && !Fields ? " " + Counted : "";
+
+            /// <summary>The check that the callback ran once for the value read.</summary>
+            private string CalledOnce => Callbacks ? " && q.Called == 1" : "";
             private string Keyword => _kind == Kind.Record ? "record" : "class";
             private string Prefix => _place switch { Place.Nested => "Holder.", Place.GenericNested => "Holder<long>.", _ => "" };
 
@@ -309,7 +322,7 @@ namespace Other
 
                 string baseFields = !Fields ? ""
                     : (_arity == 0 ? "public int V0; " : _arity == 1 ? "public T1 V1; " : "public T1 V1; public T2 V2; ") +
-                      (_place == Place.GenericNested ? "public X O; " : "");
+                      (_place == Place.GenericNested ? "public X O; " : "") + (Callbacks ? Counted + " " : "");
                 string baseKeyword = _kind switch
                 {
                     Kind.Abstract => "abstract class", Kind.Class => "class", Kind.Interface => "interface", _ => "abstract record"
@@ -341,20 +354,21 @@ namespace Other
                 }
 
                 string parent = near + (_middle ? N("Mid") : closedBase);
-                leaves.Append($"{Attribute()} public sealed {Keyword} {N("PLeaf")} : {parent} {{ public int W; }}\n");
+                string cb = LeafCallback;
+                leaves.Append($"{Attribute()} public sealed {Keyword} {N("PLeaf")} : {parent} {{ public int W;{cb} }}\n");
                 if (!_middle && _arity > 0)
                     leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}{Parameters(_arity)} : {near}{N("Base")}{Parameters(_arity)} {{ public int W; }}\n");
                 else
-                    leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}<TL> : {parent} {{ public TL W; }}\n");
+                    leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}<TL> : {parent} {{ public TL W;{cb} }}\n");
                 string[] others = OtherArguments(_arity);
                 for (int i = 0; i < others.Length; i++)
-                    leaves.Append($"{Attribute()} public sealed {Keyword} {N("XLeaf" + i)} : {near}{N("Base")}{others[i]} {{ public int W; }}\n");
+                    leaves.Append($"{Attribute()} public sealed {Keyword} {N("XLeaf" + i)} : {near}{N("Base")}{others[i]} {{ public int W;{cb} }}\n");
                 leaves.Append($"{Attribute(nonPublic: true)} public sealed partial {Keyword} {N("QLeaf")} : {parent} " +
-                              "{ private int _w; public int GetW() => _w; public void SetW(int w) => _w = w; }\n");
+                              $"{{ private int _w; public int GetW() => _w; public void SetW(int w) => _w = w;{cb} }}\n");
                 // Pooled: read into instances its pool hands out, through the hooks of its generated partial.
                 leaves.Append($"{Attribute()} [NinoPooled] public sealed partial {Keyword} {N("PoolLeaf")} : {parent} {{ public int W; " +
                               $"private static partial IEnumerable<{N("PoolLeaf")}> OnNinoPoolWarmup() => null; " +
-                              "private partial void OnNinoPoolReturn() { } }\n");
+                              $"private partial void OnNinoPoolReturn() {{ }}{cb} }}\n");
                 var all = Inherited().Select(m => m.Type == "X" ? (m.Name, outer, m.Value) : m)
                     .Concat(new[] { ("W", "int", "7") }).ToList();
                 if (!_track)
@@ -362,12 +376,15 @@ namespace Other
                     leaves.Append($"{Attribute()} public sealed {Keyword} {N("CLeaf")} : {parent} {{ public readonly int W; " +
                                   $"[NinoConstructor({string.Join(", ", all.Select(m => $"\"{m.Item1}\""))})] " +
                                   $"public {N("CLeaf")}({string.Join(", ", all.Select(m => $"{m.Item2} {m.Item1.ToLowerInvariant()}"))}) " +
-                                  $"{{ {string.Join(" ", all.Select(m => $"this.{m.Item1} = {m.Item1.ToLowerInvariant()};"))} }} }}\n");
+                                  $"{{ {string.Join(" ", all.Select(m => $"this.{m.Item1} = {m.Item1.ToLowerInvariant()};"))} }}{cb} }}\n");
                     if (_kind == Kind.Interface)
-                        leaves.Append($"{Attribute()} public struct {N("SLeaf")} : {parent} {{ public int W; }}\n" +
-                                      $"{Attribute()} public record struct {N("RLeaf")} : {parent} {{ public int W; }}\n" +
-                                      // Of fixed size and not raw (a tuple member): positional, collections of it are blocks.
-                                      $"{Attribute()} public struct {N("BLeaf")} : {parent} {{ public int W; public (int, long) T; public bool B; }}\n");
+                        leaves.Append($"{Attribute()} public struct {N("SLeaf")} : {parent} {{ public int W;{cb} }}\n" +
+                                      $"{Attribute()} public record struct {N("RLeaf")} : {parent} {{ public int W;{cb} }}\n" +
+                                      // Of fixed size and not raw (a tuple member): positional, collections of it are
+                                      // blocks; with a callback (counted in a static: its values are compared whole),
+                                      // written and read one at a time, with the same bytes.
+                                      $"{Attribute()} public struct {N("BLeaf")} : {parent} {{ public int W; public (int, long) T; public bool B;" +
+                                      (Callbacks ? " public static int Count; [NinoOnDeserialized] public void Loaded() => Count++;" : "") + " }\n");
                 }
 
                 if (!split && InHolder)
@@ -380,7 +397,7 @@ namespace Other
                 // The checks: every subtype through the base, the type between and itself.
                 s.Append("public static class Probe\n{\n    public static void Run(List<string> e)\n    {\n");
                 string inits = string.Join(", ", Inherited().Select(m => $"{m.Name} = {m.Value}"));
-                string checks = string.Concat(Inherited().Select(m => $" && q.{m.Name} == {m.Value}"));
+                string checks = string.Concat(Inherited().Select(m => $" && q.{m.Name} == {m.Value}")) + CalledOnce;
                 string gleaf = N("GLeaf") + (!_middle && _arity > 0 ? Arguments(_arity) : "<int>");
                 var types = new List<(string Type, string Create, string Check)>
                 {
@@ -394,12 +411,14 @@ namespace Other
                     types.Add((N("CLeaf"), $"new {leafPrefix}{N("CLeaf")}({string.Join(", ", all.Select(m => m.Item3))})", $"q.W == 7{checks}"));
                     if (_kind == Kind.Interface)
                     {
-                        types.Add((N("SLeaf"), $"new {leafPrefix}{N("SLeaf")} {{ W = 7 }}", "q.W == 7"));
-                        types.Add((N("RLeaf"), $"new {leafPrefix}{N("RLeaf")} {{ W = 7 }}", "q.W == 7"));
+                        types.Add((N("SLeaf"), $"new {leafPrefix}{N("SLeaf")} {{ W = 7 }}", "q.W == 7" + checks));
+                        types.Add((N("RLeaf"), $"new {leafPrefix}{N("RLeaf")} {{ W = 7 }}", "q.W == 7" + checks));
                         string block = $"new {leafPrefix}{N("BLeaf")} {{ W = 7, T = (8, 9L), B = true }}";
                         types.Add((N("BLeaf"), block, "q.W == 7 && q.T == (8, 9L) && q.B"));
                         // Many of them: the vector paths, and the bytes of each one written alone.
                         s.Append($"        P.Many(e, \"{ns} {N("BLeaf")} array\", {block});\n");
+                        if (Callbacks)
+                            s.Append($"        if ({leafPrefix}{N("BLeaf")}.Count < 80) e.Add(\"{ns} {N("BLeaf")}: callbacks\");\n");
                     }
                 }
 
@@ -408,7 +427,7 @@ namespace Other
                     var own = Inherited().Where(m => m.Name != "M").ToList();
                     Check(s, ns, Prefix + closedBase, Prefix + closedBase,
                         $"new {Prefix}{closedBase} {{ {string.Join(", ", own.Select(m => $"{m.Name} = {m.Value}"))} }}",
-                        string.Join(" && ", own.Select(m => $"q.{m.Name} == {m.Value}")));
+                        string.Join(" && ", own.Select(m => $"q.{m.Name} == {m.Value}")) + CalledOnce);
                 }
 
                 foreach (var leaf in types)
@@ -431,8 +450,8 @@ namespace Other
                 {
                     string leaf = N("XLeaf" + i), create = $"new {leafPrefix}{leaf} {{ W = 7 }}";
                     foreach (string type in new[] { Prefix + N("Base") + others[i], leafPrefix + leaf, "object" })
-                        Check(s, ns, type, leafPrefix + leaf, create, "q.W == 7");
-                    Check(s, ns, "object", leafPrefix + leaf, create, "q.W == 7", boxedAs: Prefix + N("Base") + others[i]);
+                        Check(s, ns, type, leafPrefix + leaf, create, "q.W == 7" + CalledOnce);
+                    Check(s, ns, "object", leafPrefix + leaf, create, "q.W == 7" + CalledOnce, boxedAs: Prefix + N("Base") + others[i]);
                     if (!_track)
                         s.Append($"        P.Rejects(e, \"{ns} {leaf} read as {closedBase}\", () => " +
                                  $"NinoDeserializer.Deserialize<{Prefix}{closedBase}>(NinoSerializer.Serialize<{Prefix}{N("Base")}{others[i]}>({create})));\n");

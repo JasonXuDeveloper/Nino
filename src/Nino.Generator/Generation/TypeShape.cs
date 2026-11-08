@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Common;
@@ -23,6 +24,8 @@ internal sealed class TypeShape
         Format = attr.Format;
         GeneratedHere = facts.Visibility.IsGeneratedHere(type);
         RawStruct = facts.Raw.IsRawStruct(type);
+        HasCallbacks = Kind != FormatterKind.Polymorphic && !RawStruct && CallbackLevels(type)
+            .Any(level => Callbacks.Declares(level, facts.Symbols));
         if (Kind is not (FormatterKind.Class or FormatterKind.SealedClass))
             return;
         Collection = facts.Resolver.ResolveCollection(type);
@@ -59,6 +62,21 @@ internal sealed class TypeShape
 
     /// <summary>An unmanaged struct written as its raw memory.</summary>
     public bool RawStruct { get; }
+
+    /// <summary>
+    /// Whether its formatter calls serialization callbacks (<see cref="Callbacks"/>): a method of it or of a
+    /// <c>[NinoType]</c> base class is marked as one, and it is a class or struct not copied as raw memory. Its values
+    /// are then always written and read by its body, which calls them: it is not of fixed size
+    /// (<see cref="TypeFacts.IsFixedSize"/>), so no block or <c>WriteFixed</c> writes them around it.
+    /// </summary>
+    public bool HasCallbacks { get; }
+
+    /// <summary>The type and its <c>[NinoType]</c> base classes: the levels whose members and callbacks it has.</summary>
+    private static IEnumerable<INamedTypeSymbol> CallbackLevels(INamedTypeSymbol type)
+    {
+        for (var t = type; t != null; t = t.BaseType is { } b && b.IsNinoType() ? b : null)
+            yield return t;
+    }
 
     /// <summary>The formatter of its elements, for a <c>[NinoType]</c> class that is a collection; null otherwise.</summary>
     public ResolvedFormatter? Collection { get; }

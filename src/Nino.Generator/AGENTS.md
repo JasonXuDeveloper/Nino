@@ -75,6 +75,8 @@ MemberCache.cs               MemberCollector's results memoized per compilation
 WrittenParameters.cs         which type parameters of a generic [NinoType] its formatter writes (a fixpoint over the
                              definitions, memoized per compilation): what NINO029 and NINO007 search of a closed one
 ConstructionPlanner.cs       how a type is instantiated when read: reused, a constructor, or a factory
+Callbacks.cs                 the serialization callbacks: which marked methods a formatter calls (CallbackModel) and
+                             why the others are never called (NINO038-NINO044)
 FormatterResolver.cs         the formatter (as C#) for a member type: built-ins, then [NinoFormatter] registrations;
                              the nesting formatters of types that hold themselves (class Tree : List<Tree>)
 FormatterRules.cs            the [assembly: NinoFormatter] registrations visible to a compilation, indexed

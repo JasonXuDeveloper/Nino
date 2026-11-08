@@ -104,7 +104,8 @@ internal static class ModelBuilder
             PublishesDeferrable: facts.Symbols.LayoutDeferrable,
             RawLayout: rawStruct ? RawLayout.Describe(type) : "",
             PrefetchBytes: PrefetchRules.Bytes(type, kind, generic, fixedSize),
-            PrefetchMembers: PrefetchRules.Members(built.Models, built.Symbols));
+            PrefetchMembers: PrefetchRules.Members(built.Models, built.Symbols),
+            Callbacks: Callbacks.Build(type, kind, rawStruct, construction, facts, diagnostics));
     }
 
     /// <summary>
