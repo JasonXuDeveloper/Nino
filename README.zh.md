@@ -8,12 +8,15 @@
 源生成、零分配、线程安全，可放心读取不可信数据。<br>
 支持 .NET、Unity、Godot 和 HybridCLR，Go、Rust 和 TypeScript 读写的也是同样的字节。
 
-[![Build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/ci.yml?branch=main&style=flat-square&label=build)](https://github.com/JasonXuDeveloper/Nino/actions)
-[![NuGet](https://img.shields.io/nuget/vpre/Nino?label=NuGet&style=flat-square&logo=nuget)](https://www.nuget.org/packages/Nino)
-[![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?label=OpenUPM&style=flat-square&logo=unity&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
-[![crates.io](https://img.shields.io/crates/v/nino-serialization?label=crates.io&style=flat-square&logo=rust)](https://crates.io/crates/nino-serialization)
-[![npm](https://img.shields.io/npm/v/nino-serialization/next?label=npm&style=flat-square&logo=npm)](https://www.npmjs.com/package/nino-serialization)
-[![Go Reference](https://img.shields.io/badge/-Go-00ADD8?style=flat-square&logo=go&logoColor=white)](https://pkg.go.dev/github.com/JasonXuDeveloper/Nino/runtimes/go/v4)
+[![NuGet](https://img.shields.io/nuget/vpre/Nino?style=for-the-badge&logo=nuget&logoColor=white&label=NuGet&labelColor=004880&color=0078D4)](https://www.nuget.org/packages/Nino)
+[![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?style=for-the-badge&logo=unity&logoColor=white&label=OpenUPM&labelColor=000000&color=3E4C59&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
+[![crates.io](https://img.shields.io/crates/v/nino-serialization?style=for-the-badge&logo=rust&logoColor=white&label=crates.io&labelColor=000000&color=CE422B)](https://crates.io/crates/nino-serialization)<br>
+[![npm](https://img.shields.io/npm/v/nino-serialization/next?style=for-the-badge&logo=npm&logoColor=white&label=npm&labelColor=CB3837&color=E05D44)](https://www.npmjs.com/package/nino-serialization)
+[![Go](https://img.shields.io/badge/Go-pkg.go.dev-00ADD8?style=for-the-badge&logo=go&logoColor=white&labelColor=007D9C)](https://pkg.go.dev/github.com/JasonXuDeveloper/Nino/runtimes/go/v4)<br>
+[![Build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=build)](https://github.com/JasonXuDeveloper/Nino/actions)
+[![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square&color=blue)](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-nino.xgamedev.net-6E56CF?style=flat-square&logo=readthedocs&logoColor=white)](https://nino.xgamedev.net/zh)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-1F6FEB?style=flat-square)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
 [🌐 **官网**](https://nino.xgamedev.net/zh) ·
 [🚀 **快速上手**](https://nino.xgamedev.net/zh/docs/v4/start) ·
@@ -132,6 +135,6 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 
 <div align="center">
 
-[MIT License](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE) · 作者 [JasonXuDeveloper](https://github.com/JasonXuDeveloper) · [Ask DeepWiki](https://deepwiki.com/JasonXuDeveloper/Nino)
+MIT License · 作者 [JasonXuDeveloper](https://github.com/JasonXuDeveloper)
 
 </div>
