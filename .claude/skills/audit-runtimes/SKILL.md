@@ -81,6 +81,9 @@ nothing.
 - What the hand-written samples do, the templates write (`runtimes/go/internal/sample`, Rust's conformance types,
   the TypeScript samples); the generated code is held to `audit-generated-code`.
 - Every option is defined once in `Options.cs`; `build/Nino.Codegen.targets` and the integration tests agree.
+- `nino-gen layouts` (`LayoutsCommand.cs`) links the layout baseline's format and rules from
+  `src/Nino.Generator/Common` (`LayoutBaseline.cs`, `LayoutRules.cs`): a rule changes there, for the analyzer, its code
+  fixes and nino-gen at once, never in a copy here (`audit-analyzer`, the layout baseline).
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is

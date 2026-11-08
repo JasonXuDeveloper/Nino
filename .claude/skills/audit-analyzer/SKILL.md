@@ -148,6 +148,24 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   symbols resolved once per compilation, cheapest rejection first (syntax kind and names before the semantic
   model), no walk that grows with the compilation per callback; measure with GeneratorBenchmark's analyze case.
 - The suppressor hides only compiler warnings Nino's generated code makes wrong (documented in the analyzers page).
+- **The layout baseline (NINO034-NINO037) has one set of rules for the IDE, the build and the command line**:
+  `Common/LayoutRules.cs` (what a change does to each reader, which types a baseline holds, which section a renamed
+  type matches) and `Common/LayoutBaseline.cs` (the TOML subset, `LayoutEntry`) are compiled into the analyzer, the
+  code fixes and nino-gen (`nino-gen layouts --check`), and linked into Nino.UnitTests (`LayoutRulesTests`, every rule
+  with a change it lets through and one it reports). The analyzer's entry is `LayoutEmitter.Entry` of the model it
+  already builds (the published layout, never re-derived); the refactoring and nino-gen read the published
+  `[NinoTypeLayout]`s, so a disagreement between the model and the metadata shows as findings on unchanged code
+  (`LayoutAnalyzerTests.NestedGenericAndPolymorphicTypesMatchTheirSections`). Without `[assembly: NinoLayouts]` the
+  check costs one attribute lookup per compilation (`LayoutCheck.For`); with one, the text is parsed once and a type
+  without a section costs a dictionary lookup, the walk over the assembly's types only runs while a section has no
+  type (removed or renamed).
+- **A `[Conditional]` attribute is still in the compilation**: the analyzer reads `[assembly: NinoLayouts]` from
+  `Compilation.Assembly.GetAttributes()` with its syntax, and the emitted assembly has none
+  (`LayoutBaselineTests.TheAnalyzerSeesTheConditionalAttributeAndTheAssemblyDoesNot`): data for analyzers can live in
+  source at no run-time cost.
+- **One finding per change**: a member holding a `[NinoType]` (`type(T)`) is compared by `T`'s name, and a raw struct
+  with a section of its own by its type (`LayoutRules.Matcher`): a change inside them is reported on their section,
+  not on every member holding them (a keyed member holding a changed raw struct was NINO034 twice).
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
@@ -168,6 +186,16 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
 - edge cases where they apply: generic, nested and partial types, records and structs, inheritance across
   assemblies, properties with and without setters, `init`, constructors and factories, conditional compilation;
 - exemplary code (samples in tests, docs fences) reports nothing;
+- a diagnostic with additional locations (the layout baseline's carry the baseline, which their fixes rewrite) is
+  expected with `new DiagnosticResult(id, severity).WithOptions(DiagnosticOptions.IgnoreAdditionalLocations)` or
+  with its additional location as markup (`{|#1:...|}`); `Verify.Diagnostic(id)` without `WithArguments` then
+  compares the message with its unformatted format and fails;
+- a fix that edits another document (the baseline) returns a changed solution, and Fix All for it is a
+  `FixAllProvider` of its own that applies every finding to the document in one edit (`NinoLayoutFixProvider.FixAll`,
+  `LayoutAnalyzerTests.AcceptAllRewritesEverySection`) rather than merging one changed document per finding;
+- a refactoring or fix that reads what the generator publishes (`[NinoTypeLayout]`) is tested in an `AdhocWorkspace`
+  with the generator's output added as documents, as the IDE's compilation has it (`LayoutAnalyzerTests.Refactor`);
+  the analyzer tests' compilations have no generator output;
 - a rule that depends on a preprocessor symbol sets it with a solution transform
   (`WithProjectParseOptions(...WithPreprocessorSymbols(...))`, `CodeFixTests.WeakToleranceTest`); one about a type
   from another assembly references a built one (`Nino.UnitTests.Subset`) through `AdditionalReferences`.

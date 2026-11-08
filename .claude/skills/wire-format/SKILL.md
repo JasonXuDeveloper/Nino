@@ -40,7 +40,9 @@ A change to the layout text alone (`NinoTypeLayoutAttribute.ToString()`, no byte
 and reaches: the corpus's JSON (regenerate), nino-gen's committed Go and Rust output, the Go parser (`layout.go`,
 `tagged_build.go`) and `internal/sample/layouts.go`, the Rust derive's checks, `tests/derive.rs` and
 `tests/compile_fail/*.rs`, `tests/conformance/gen.py` (then regenerate `types.rs` and `rustfmt` it), the spec's §8
-grammar and the Go README. Round 128 renamed `header=NullFlag` to `Presence` and `typeId=` to `id=` there (the Rust compile-fail
+grammar and the Go README, and the layout baseline: `LayoutEntry.FromLayout` (src/Nino.Generator/Common/LayoutBaseline.cs)
+splits the text into a baseline's fields, and every `NinoLayouts.cs` users committed compares against the old text, so
+a reworded encoding reads as a change to every type that has it (`audit-analyzer`, the layout baseline). Round 128 renamed `header=NullFlag` to `Presence` and `typeId=` to `id=` there (the Rust compile-fail
 `.stderr` files carry columns: `TRYBUILD=overwrite`); with 4.0 unreleased, only the new spelling is read.
 
 Grep for the old bytes in every form (hex with and without spaces, C# byte arrays, Go and Rust literals) before
