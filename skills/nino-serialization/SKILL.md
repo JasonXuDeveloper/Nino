@@ -154,8 +154,10 @@ Order copy = NinoDeserializer.Deserialize<Order>(bytes);     // from any ReadOnl
 NinoDeserializer.Deserialize(bytes, ref copy);               // reuse: fills copy in place (null: creates it)
 ```
 
-- Static and thread safe. There are no `Stream`, async, `ReadOnlySequence<byte>` or `out` overloads: read a stream
-  or pipe into one buffer first (a multi-segment sequence: copy it, or `First.Span` when `IsSingleSegment`).
+- Static and thread safe. There are no `Stream`, async or `out` overloads: read a stream into one buffer first. A
+  pipe's `ReadOnlySequence<byte>` is read directly since rc.10 (`Deserialize<T>(in sequence)`, also with `ref value`:
+  one segment in place, several copied once into a pooled array); before rc.10, `First.Span` when `IsSingleSegment`,
+  else copy it.
 - Hot paths: one `NinoArrayBufferWriter` per thread or connection, `ResetWrittenCount()` before each message, send
   `WrittenSpan`, `Dispose()` at the end; deserialize into an existing instance. More, with pooling:
   [references/performance.md](references/performance.md).

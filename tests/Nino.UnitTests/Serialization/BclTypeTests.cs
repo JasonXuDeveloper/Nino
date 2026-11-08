@@ -203,6 +203,45 @@ public class BclTypeTests
         CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4, 5 }, NinoDeserializer.Deserialize<ReadOnlySequence<byte>>(bytes).ToArray());
     }
 
+    [TestMethod]
+    public void DeserializeFromSegments()
+    {
+        var value = new SimpleClass { Id = 7, Name = "segmented", CreateTime = new DateTime(2026, 11, 8) };
+        byte[] bytes = NinoSerializer.Serialize(value);
+
+        // One segment is read in place.
+        var single = new ReadOnlySequence<byte>(bytes);
+        Assert.AreEqual("segmented", NinoDeserializer.Deserialize<SimpleClass>(single).Name);
+
+        // Every split into three segments reads the same value, new or into an existing instance.
+        SimpleClass reused = null;
+        for (int a = 1; a < bytes.Length - 1; a++)
+        for (int b = a + 1; b < bytes.Length; b++)
+        {
+            var first = new Segment<byte>(bytes[..a]);
+            var last = first.Append(bytes[a..b]).Append(bytes[b..]);
+            var sequence = new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length);
+            Assert.IsFalse(sequence.IsSingleSegment);
+
+            SimpleClass read = NinoDeserializer.Deserialize<SimpleClass>(sequence);
+            Assert.AreEqual(value.Id, read.Id);
+            Assert.AreEqual(value.Name, read.Name);
+            Assert.AreEqual(value.CreateTime, read.CreateTime);
+
+            SimpleClass before = reused;
+            NinoDeserializer.Deserialize(sequence, ref reused);
+            Assert.AreEqual(value.Name, reused.Name);
+            if (before != null)
+                Assert.AreSame(before, reused);
+        }
+
+        // Truncated data throws as it does from a span.
+        var head = new Segment<byte>(bytes[..2]);
+        var tail = head.Append(bytes[2..^1]);
+        Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize<SimpleClass>(new ReadOnlySequence<byte>(head, 0, tail, tail.Memory.Length)));
+    }
+
     private sealed class Segment<T> : ReadOnlySequenceSegment<T>
     {
         public Segment(T[] items) => Memory = items;

@@ -43,6 +43,10 @@ internal static class Interceptors
     {
         if (method.TypeArguments.Length != 1)
             return null;
+        // The ReadOnlySequence<byte> overloads read through the span ones, which are not intercepted inside Nino.Core;
+        // NinoDirect has no sequence form, so they are left as they are.
+        if (method.Parameters.Length > 0 && method.Parameters[0].Type.Name == "ReadOnlySequence")
+            return null;
         var invocation = (InvocationExpressionSyntax)ctx.Node;
         var owner = method.ContainingType;
         var type = method.TypeArguments[0];

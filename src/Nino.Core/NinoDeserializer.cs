@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
@@ -70,6 +71,56 @@ namespace Nino.Core
             var reader = new Reader(data);
             NinoTopFormatter<T>.Formatter.Deserialize(ref reader, ref value);
             reader.ReleaseReferences();
+        }
+
+        /// <summary>
+        /// Deserializes a new value from data that may span several segments (a <c>PipeReader</c>'s buffer, a gRPC
+        /// payload). One segment is read in place; several are copied once into a pooled array first.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T Deserialize<T>(in ReadOnlySequence<byte> data) =>
+            data.IsSingleSegment ? Deserialize<T>(data.First.Span) : DeserializeSegments<T>(data);
+
+        /// <summary>
+        /// Deserializes into <paramref name="value"/>, as <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>,
+        /// from data that may span several segments. One segment is read in place; several are copied once into a
+        /// pooled array first.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Deserialize<T>(in ReadOnlySequence<byte> data, ref T value)
+        {
+            if (data.IsSingleSegment)
+                Deserialize(data.First.Span, ref value);
+            else
+                DeserializeSegments(data, ref value);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static T DeserializeSegments<T>(in ReadOnlySequence<byte> data)
+        {
+            T value = default;
+            DeserializeSegments(data, ref value);
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void DeserializeSegments<T>(in ReadOnlySequence<byte> data, ref T value)
+        {
+            // A span holds at most int.MaxValue bytes; the data is already in memory, so the copy is in proportion.
+            if (data.Length > int.MaxValue)
+                throw new ArgumentException("Nino: data longer than int.MaxValue bytes.", nameof(data));
+            int length = (int)data.Length;
+            byte[] rented = ArrayPool<byte>.Shared.Rent(length);
+            try
+            {
+                data.CopyTo(rented);
+                // Nothing read keeps a reference to the input, so the array goes back to the pool afterward.
+                Deserialize(new ReadOnlySpan<byte>(rented, 0, length), ref value);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
