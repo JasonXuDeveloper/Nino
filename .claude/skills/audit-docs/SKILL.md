@@ -106,6 +106,16 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    a reader cannot tell `NinoStream.Read<T>` from an API (adapters named after the format, `NinoKafkaSerializer`,
    stay); grep the site for the new name first (round 103: `FrameStream` was already another page's class, so the
    streams helper became `StreamFrames`).
+   **Compiling is not correct: run the examples that read, frame, store or recover data.** Copy a page's titled files
+   into a scratch console against the checkout and feed them a crash, a hostile input and a second message, because
+   the review of every v4 example (nino.docs `fc154d2`, `9de4434`) found 20 that compiled and were wrong: a Brotli
+   frame without its compressed length (frames could not follow one another), an event log that appended after a
+   torn record (the next replay read across it), lengths from the data rented before the data arrived (8 bytes rented
+   64 MB), a custom formatter's capacity allocated unchecked (9 bytes threw OutOfMemoryException), one bad UDP datagram
+   or Kafka message ending its receive loop, two caches sharing a key, `TryRegister` of an abstract type, and a stated
+   struct layout the generator does not produce. Check for each: is every frame self-delimiting, is every length read
+   from data bounded before anything is allocated for it, does one bad message end only itself, and does the prose
+   (a byte count, a layout, a version) match what running it prints.
 4. **Numbers**: never typed. Runtime numbers only through `BenchValue`, `RuntimeTable`, `ResultsTable`,
    `BenchmarkChart`, `RuntimesTables`, `UnityTables` from the synced data; within 5 % is on par and is written so; the
    docs never call Nino "slower"; v3 means 3.3.13.
