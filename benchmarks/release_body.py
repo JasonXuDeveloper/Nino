@@ -4,7 +4,7 @@
 usage:
   release_body.py dotnet --body current.md --tag TAG --settings BDN_ARGS --x64 merged.md [--v3 merged.md]
                          [--arm64 merged.md] --out DIR
-  release_body.py append --body current.md --out updated.md SECTION...
+  release_body.py append --body current.md --out updated.md [--tag TAG] SECTION...
   release_body.py complete --body current.md
 
 dotnet: the Performance Report (x64), the v3 comparison and the Arm64 section of a release, each only when the body
@@ -15,8 +15,10 @@ read every table from "Performance Report" to the end of the body then never see
 
 append: appends each section file (the runtimes outside .NET, from runtimes_report.py; the Unity benchmark, from
 unity_report.py) whose heading, its first line, the body lacks, in the order given, while the body stays within
-GitHub's limit; a missing or empty file is left out with a warning. Writes the new body to updated.md only when it
-added one, and exits 0 either way.
+GitHub's limit; a missing or empty file is left out with a warning. When a section does not fit and --tag is given,
+the Arm64 section (attached to the release as arm64-benchmark.md by `dotnet`, where the docs site reads it) gives way
+to a link first: v4.0.0-rc.9's body had no room left for the Unity section. Writes the new body to updated.md only
+when it changed it, and exits 0 either way.
 
 complete: prints true when the body has every .NET section (the benchmark then need not run), false otherwise.
 
@@ -135,6 +137,25 @@ def arm64_section(report, repo, tag, settings):
     ))
 
 
+def arm64_link(repo, tag):
+    """The Arm64 section when the body has no room for it: a link to the asset that holds it."""
+    return "\n\n".join((ARM64_HEADING, f"The Arm64 report is attached to this release: "
+                         f"{asset(repo, tag, ARM64_ASSET)} (the release notes have no room for it)."))
+
+
+def without_arm64(text, repo, tag):
+    """The body with its Arm64 section replaced by the link, or None when it has no full Arm64 section."""
+    match = re.search(r"^" + re.escape(ARM64_HEADING) + r"\n", text, re.MULTILINE)
+    if not match:
+        return None
+    end = re.search(r"^## ", text[match.end():], re.MULTILINE)
+    stop = match.end() + end.start() if end else len(text)
+    link = arm64_link(repo, tag)
+    if text[match.start():stop].strip() == link:
+        return None
+    return text[:match.start()] + link + "\n\n" + text[stop:].lstrip("\n")
+
+
 def join(*parts):
     return "\n\n".join(part for part in parts if part) + "\n"
 
@@ -175,8 +196,7 @@ def dotnet(args):
         head, tail = body, perf
     text = join(head, v3, arm64, tail)
     if len(text) > BODY_LIMIT and arm64:  # no room for the Arm64 section: it is attached instead
-        arm64 = "\n\n".join((ARM64_HEADING, f"The Arm64 report is attached to this release: "
-                             f"{asset(repo, args.tag, ARM64_ASSET)} (the release notes have no room for it)."))
+        arm64 = arm64_link(repo, args.tag)
         text = join(head, v3, arm64, tail)
 
     os.makedirs(args.out, exist_ok=True)
@@ -205,6 +225,7 @@ def append(args):
     body = open(args.body, encoding="utf-8").read()
     text = body
     added = 0
+    repo = os.environ.get("GITHUB_REPOSITORY", "JasonXuDeveloper/Nino")
     for path in args.sections:
         section = open(path, encoding="utf-8").read() if os.path.isfile(path) else ""
         if not section:
@@ -214,6 +235,11 @@ def append(args):
         if heading in body:
             print(f"⏭️ {heading} already in the release notes", file=sys.stderr)
             continue
+        if len(text) + 2 + len(section) > BODY_LIMIT and args.tag:
+            shorter = without_arm64(text, repo, args.tag)
+            if shorter is not None:
+                print(f"⚠️ The Arm64 section gives way to a link to {ARM64_ASSET} for {heading}", file=sys.stderr)
+                text = shorter
         if len(text) + 2 + len(section) > BODY_LIMIT:
             print(f"::warning::No room for {heading} in the release body (GitHub's {BODY_LIMIT:,} characters)")
             continue
@@ -221,7 +247,7 @@ def append(args):
         added += 1
     if not added:
         print("⏭️ Nothing to add", file=sys.stderr)
-        return
+        return  # the Arm64 section stays: it gave way for nothing
     open(args.out, "w", encoding="utf-8").write(text)
     print(f"✅ Added {added} section(s)", file=sys.stderr)
 
@@ -242,6 +268,7 @@ def main():
     two = commands.add_parser("append")
     two.add_argument("--body", required=True)
     two.add_argument("--out", required=True)
+    two.add_argument("--tag", help="the release, for the link the Arm64 section gives way to when a section lacks room")
     two.add_argument("sections", nargs="+")
     two.set_defaults(run=append)
     three = commands.add_parser("complete")

@@ -160,6 +160,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   than the bench off the module namespace and skip its task when undefined, judging such a line against a null line.
 - A new section or heading in the release body changes with its parser in Nino.Docs (`scripts/sync-benchmarks.ts`)
   and the components that show it (`audit-docs`).
+- Budget every section of the release body against GitHub's 125,000 characters (`release_body.py`): the sections
+  appended late (runtimes, Unity) find what the .NET sections left, and `append --tag` makes the Arm64 section (attached
+  as `arm64-benchmark.md`, where the site reads it) give way to a link before it drops one. A section that still does
+  not fit is only a warning in a green job. v4.0.0-rc.9: x64 and Arm64 took 34k each, the six runtime sections 29k,
+  and the 10k Unity section was dropped (body 116,977).
 
 ## Publishing
 

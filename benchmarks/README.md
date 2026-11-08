@@ -41,7 +41,8 @@ case in three processes, and
 [`merge_reports.py`](merge_reports.py) merges their reports into one table, naming each class's runner under it.
 The release notes get the short tables of [`compact_report.py`](compact_report.py) (Method, Mean, Ratio, Payload,
 Allocated, one table per class), as a release body holds at most 125,000 characters; the full reports are attached
-to the release. BenchmarkDotNet writes a report of one class without a Type column: both scripts then take the class
+to the release, and when the later sections (runtimes, Unity) lack room the Arm64 section becomes a link to its attached
+copy. BenchmarkDotNet writes a report of one class without a Type column: both scripts then take the class
 from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.
 Each of the two `SimpleTest` runners builds `v3/` and runs its half of it directly before the same half of v4, with the
 same settings; the workflow adds a

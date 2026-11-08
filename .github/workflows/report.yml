@@ -654,7 +654,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
-          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md \
+          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md --tag "$TAG_NAME" \
             sections/runtime-section-{typescript,go,rust,typescript-arm64,go-arm64,rust-arm64}/section.md
           if [[ -f updated_notes.md ]]; then
             gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
@@ -721,7 +721,7 @@ jobs:
           cat section.md
           # Once (by its heading), within GitHub's limit (benchmarks/release_body.py).
           gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
-          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md section.md
+          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md --tag "$TAG_NAME" section.md
           if [[ -f updated_notes.md ]]; then
             gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
           fi
