@@ -31,8 +31,8 @@ Nino.AotTests/               a program over every kind of type, published trimme
                              errors); prints a hash of everything written to compare runs, and checks that the block
                              shuffle keeps its instruction (pshufb) under NativeAOT
 Nino.AspNetCore.Tests/       Nino.AspNetCore: MVC and Minimal API round trips, errors, allocations, unloading
-Nino.Codegen.Tests/          nino-gen: the IR (ModelTests), targets and command line (TargetTests), the layout attribute
-                             contract, and GeneratedFilesTests: the files committed under runtimes/ are what nino-gen
+Nino.Codegen.Tests/          nino-gen: the IR (ModelTests), targets and command line (TargetTests), nino-gen layouts
+                             (LayoutsCommandTests), the layout attribute contract, and GeneratedFilesTests: the files committed under runtimes/ are what nino-gen
                              writes (NINO_UPDATE_GENERATED=1 rewrites them); Shapes.cs: shapes the corpus lacks
 Nino.Codegen.Integration.Tests/  build/Nino.Codegen.targets in real builds (BuildTests), and the generated
                              TypeScript (TypeScriptTests, harness.ts under Node), Go (GoTests) and Rust (RustTests)
@@ -70,7 +70,9 @@ Security/                    hostile input: StrictReadTests, HashFloodingTests, 
                              vector, against the types' own constructors), SettingsTests (limits frozen on first use,
                              each case in its own load context), the nesting tests (DeepNesting, BoundedNesting,
                              SelfNestingCollection, WriteDepth)
-Generator/                   AnalyzerTests (every rule; the AnalyzerReleases files), CodeFixTests, incremental caching,
+Generator/                   AnalyzerTests (every rule; the AnalyzerReleases files), CodeFixTests, the layout baseline
+                             (LayoutRulesTests: its rules and TOML on the shared sources, linked; LayoutAnalyzerTests:
+                             NINO034-NINO037, their fixes and the refactoring; LayoutBaselineTests), incremental caching,
                              __Top twins, receiver aliases, the tools/CodeGen output checks (*FormattersGenerationTests)
 Corner/                      corner cases compiled in memory (CornerCompiler): ShapeMatrixTests (every way to declare a
                              type hierarchy, generated, compiled and round-tripped), construction, members, generics,

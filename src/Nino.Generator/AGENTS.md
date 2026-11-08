@@ -32,6 +32,8 @@ NinoAnalyzer.cs              the DiagnosticAnalyzer: attribute usage, and what M
                              generator reports nothing)
 NinoDiagnostics.cs           every NINO0xx descriptor, grouped by id range (also compiled into the code fixes)
 NinoSuppressor.cs            suppresses "never used / never assigned / make readonly" on private members Nino serializes
+LayoutCheck.cs               the layout baseline of a compilation as the analyzer checks it (NINO034-NINO037): parsed
+                             once per text, the section of each type (renamed and moved ones paired), removed types
 ```
 
 ## Common/
@@ -42,6 +44,11 @@ NinoNames.cs                 Nino.Core names for syntax-only filters and metadat
 NinoTypeHelper.cs            which [NinoType] applies to a type, context-free (also over referenced assemblies);
                              NinoTypeOptions
 PoolHooks.cs                 the partial methods a [NinoPooled] class implements (NINO019; also in the code fixes)
+LayoutBaseline.cs            the layout baseline's format: LayoutEntry (a NinoTypeLayout split into fields), the TOML
+                             subset written, read and updated a section at a time (also in the code fixes and nino-gen)
+LayoutRules.cs               the layout baseline's rules: what a change does to old and new readers (NINO034-NINO036),
+                             which types a baseline holds, which section a renamed type matches (also in the code
+                             fixes and nino-gen)
 ```
 
 ## Generation/ (pipeline and model)
@@ -121,8 +128,12 @@ src/Nino.Generator.Roslyn4.12/   csproj only: the same against Roslyn 4.12 with 
                                  [InterceptsLocation(version, data)]); packed into roslyn4.12/cs
 src/Nino.Generator.CodeFixes/    NinoCodeFixProvider.cs: the IDE code fixes, a separate assembly because they need
                                  Microsoft.CodeAnalysis.Workspaces, which the compiler and Unity never load; links
-                                 NinoDiagnostics.cs, NinoNames.cs and PoolHooks.cs from here; packed in every
-                                 roslyn<version>/cs folder
+                                 NinoDiagnostics.cs, NinoNames.cs, PoolHooks.cs, LayoutBaseline.cs, LayoutRules.cs,
+                                 TypeNames.cs (and Nino.Core's NinoHash.cs) from here; packed in every
+                                 roslyn<version>/cs folder. NinoLayoutFixes.cs: the layout baseline's fixes
+                                 (NINO034-NINO036: accept, Fix All accepting at once, former name, sealed, move to the
+                                 end) and the refactoring that creates or rewrites NinoLayouts.cs from the published
+                                 layouts
 ```
 
 ## Rules for these files

@@ -17,7 +17,7 @@ internal sealed class NinoSymbols
 {
     public readonly INamedTypeSymbol? Member, Ignore, CustomFormatter, Utf8, FormerName,
         Constructor, Factory, Created, Raw, Pooled, IFormatter, FormatterAttribute,
-        Serializer, Deserializer, Writer, Reader, Direct, Utf8Formatter;
+        Serializer, Deserializer, Writer, Reader, Direct, Utf8Formatter, Layouts;
 
     /// <summary>
     /// Whether the referenced Nino.Core's <c>NinoTypeLayoutAttribute</c> has a settable <c>bool Deferrable</c>, which
@@ -46,6 +46,7 @@ internal sealed class NinoSymbols
         Writer = Core("Writer");
         Reader = Core("Reader");
         Direct = Core("CompilerServices.NinoDirect");
+        Layouts = Core(NinoNames.NinoLayoutsAttribute);
         LayoutDeferrable = Core("NinoTypeLayoutAttribute") is { } layout && layout.GetMembers("Deferrable")
             .OfType<IPropertySymbol>().Any(static p => p.Type.SpecialType == SpecialType.System_Boolean &&
                                                        p.SetMethod is { DeclaredAccessibility: Accessibility.Public });

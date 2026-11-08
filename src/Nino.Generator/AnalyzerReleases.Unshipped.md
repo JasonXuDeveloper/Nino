@@ -13,3 +13,7 @@ NINO030 | Nino | Warning | [NinoUtf8] has no effect
 NINO031 | Nino | Info | Use [NinoUtf8]
 NINO032 | Nino | Error | WEAK_VERSION_TOLERANCE does not make types version tolerant
 NINO033 | Nino | Warning | Attribute on an interface member has no effect
+NINO034 | Nino | Warning | Layout change breaks data written before or after it
+NINO035 | Nino | Warning | Layout change loses data without an error
+NINO036 | Nino | Info | Layout change is compatible with a condition
+NINO037 | Nino | Warning | Layout baseline cannot be read

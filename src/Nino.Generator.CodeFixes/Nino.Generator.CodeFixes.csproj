@@ -7,11 +7,21 @@
     -->
     <Import Project="..\Nino.Generator\Roslyn.Build.props"/>
 
+    <PropertyGroup>
+        <!-- NINO_GENERATOR selects the namespace of the sources shared with Nino.Core (NinoHash), as in the generator. -->
+        <DefineConstants>$(DefineConstants);NINO_GENERATOR</DefineConstants>
+    </PropertyGroup>
+
     <ItemGroup>
         <!-- Shared with the analyzer: the diagnostics being fixed, the pool hooks NINO019 asks for, Nino.Core names. -->
         <Compile Include="..\Nino.Generator\Analysis\NinoDiagnostics.cs" Link="Shared\NinoDiagnostics.cs"/>
         <Compile Include="..\Nino.Generator\Common\NinoNames.cs" Link="Shared\NinoNames.cs"/>
         <Compile Include="..\Nino.Generator\Common\PoolHooks.cs" Link="Shared\PoolHooks.cs"/>
+        <!-- The layout baseline: its format and rules (with nino-gen), and the names and ids of types (runtime form). -->
+        <Compile Include="..\Nino.Generator\Common\LayoutBaseline.cs" Link="Shared\LayoutBaseline.cs"/>
+        <Compile Include="..\Nino.Generator\Common\LayoutRules.cs" Link="Shared\LayoutRules.cs"/>
+        <Compile Include="..\Nino.Generator\Generation\TypeNames.cs" Link="Shared\TypeNames.cs"/>
+        <Compile Include="..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
     </ItemGroup>
 
     <ItemGroup>

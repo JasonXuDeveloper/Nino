@@ -91,6 +91,10 @@
         <!-- The code generator's templates, to check that their checked-in output is current. -->
         <Compile Include="..\..\tools\CodeGen\TupleFormattersTemplate.cs" Link="CodeGen\TupleFormattersTemplate.cs"/>
         <Compile Include="..\..\tools\CodeGen\MultiDimFormattersTemplate.cs" Link="CodeGen\MultiDimFormattersTemplate.cs"/>
+        <!-- The layout baseline's format and rules, which the analyzer, the code fixes and nino-gen compile in: tested
+             directly (LayoutRulesTests), against Nino.Core's NinoHash. -->
+        <Compile Include="..\..\src\Nino.Generator\Common\LayoutBaseline.cs" Link="Generator\Shared\LayoutBaseline.cs"/>
+        <Compile Include="..\..\src\Nino.Generator\Common\LayoutRules.cs" Link="Generator\Shared\LayoutRules.cs"/>
     </ItemGroup>
 
 </Project>

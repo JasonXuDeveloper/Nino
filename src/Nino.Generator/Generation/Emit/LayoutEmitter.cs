@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using Nino.Generator.Common;
 using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;
@@ -14,20 +15,27 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal static class LayoutEmitter
 {
-    public static string Emit(TypeModel m)
+    public static string Emit(TypeModel m) =>
+        $"[assembly: {Core}NinoTypeLayout(typeof({m.OpenTypeName}), {Core}NinoFormat.{m.Format}, " +
+        $"{Core}NinoHeader.{LayoutEntry.HeaderNames[Header(m)]}, {Bool(m.TrackReferences)}, {Bool(m.RawStruct)}, " +
+        $"{m.TypeId.ToString(CultureInfo.InvariantCulture)}, \"{EscapeString(Members(m))}\"" +
+        (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Depth.Deferrable)}" : "") + ")]\n";
+
+    /// <summary>
+    /// The layout <see cref="Emit"/> publishes, as a layout baseline holds it (the analyzer compares it with the
+    /// baseline's section of <paramref name="key"/>).
+    /// </summary>
+    public static LayoutEntry Entry(TypeModel m, string key) =>
+        LayoutEntry.FromLayout(key, (int)m.Format, Header(m), m.TrackReferences, m.RawStruct, m.TypeId,
+            m.PublishesDeferrable ? m.Depth.Deferrable : null, Members(m));
+
+    /// <summary>What is written in front of the body (<c>NinoHeader</c>): nothing, a presence byte or a type id.</summary>
+    private static int Header(TypeModel m) => m.Kind switch
     {
-        string format = m.Format.ToString();
-        string header = m.Kind switch
-        {
-            FormatterKind.Struct => "None",
-            FormatterKind.SealedClass => "Presence",
-            _ => "TypeId",
-        };
-        return $"[assembly: {Core}NinoTypeLayout(typeof({m.OpenTypeName}), {Core}NinoFormat.{format}, " +
-               $"{Core}NinoHeader.{header}, {Bool(m.TrackReferences)}, {Bool(m.RawStruct)}, " +
-               $"{m.TypeId.ToString(CultureInfo.InvariantCulture)}, \"{Members(m)}\"" +
-               (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Depth.Deferrable)}" : "") + ")]\n";
-    }
+        FormatterKind.Struct => 0,
+        FormatterKind.SealedClass => 1,
+        _ => 2,
+    };
 
     /// <summary>The members part: <c>name:type:encoding</c> per member, in written order.</summary>
     private static string Members(TypeModel m)
@@ -44,16 +52,14 @@ internal static class LayoutEmitter
             sb.Append(member.SourceName).Append(':').Append(Plain(member.TypeName)).Append(':')
                 .Append(member.Encoding);
             if (m.Keyed)
-                sb.Append(":key=").Append(Hex(member.Key));
+                sb.Append(":key=").Append(LayoutBaseline.Hex(member.Key));
             if (m.Keyed && member.FormerKeys.Length != 0)
                 sb.Append(":former=").Append(string.Join(",",
-                    member.FormerKeys.Select(Hex)));
+                    member.FormerKeys.Select(LayoutBaseline.Hex)));
         }
 
-        return EscapeString(sb.ToString());
+        return sb.ToString();
     }
-
-    private static string Hex(int key) => "0x" + key.ToString("X8", CultureInfo.InvariantCulture);
 
     private static string Bool(bool value) => value ? "true" : "false";
 }

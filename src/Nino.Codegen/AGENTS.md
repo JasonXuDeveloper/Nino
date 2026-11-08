@@ -15,6 +15,9 @@ Program.cs                   the command line: --assembly <dll> --lang ts|go|rus
                              no longer writes
 Options.cs                   CodegenOptions.All: every option once (command-line name, <NinoCodegen> metadata,
                              language, values); CodegenArguments (a parsed command line)
+LayoutsCommand.cs            nino-gen layouts: writes an assembly's layout baseline (NinoLayouts.cs), or --check
+                             compares it with the rules the analyzer uses (Nino.Generator's LayoutBaseline.cs and
+                             LayoutRules.cs, linked)
 TemplateRenderer.cs          renders the embedded Scriban templates of a language (include "x.sbn")
 build/Nino.Codegen.targets   runs nino-gen after the compile for each <NinoCodegen Include="typescript|go|rust"> item,
                              passing each metadata as its option; NinoCodegenEnabled, NinoCodegenTargetFramework, the

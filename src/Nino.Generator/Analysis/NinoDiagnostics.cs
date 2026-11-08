@@ -8,7 +8,7 @@ namespace Nino.Generator.Analysis;
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
 /// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023, 028-031, 033), features (014-017, 024, 026-027, 032), pooling
-/// (018-019), formatter registrations (020).
+/// (018-019), formatter registrations (020), the layout baseline (034-037).
 /// </summary>
 internal static class NinoDiagnostics
 {
@@ -168,6 +168,33 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor InvalidFormatterRegistration = Error("NINO020",
         "Invalid formatter registration", "[assembly: NinoFormatter(typeof({0}))] is ignored: {1}");
+
+    // The layout baseline ([assembly: NinoLayouts]): what a change does to data written on either side of it
+
+    /// <summary>
+    /// The properties of a layout baseline finding (NINO034-NINO036) for its fixes: the key of the type's section, the
+    /// section to write there (none: remove it), the key of a section about the same type to remove (renamed or moved),
+    /// the fix besides accepting (<c>LayoutFix</c>) and its argument (a former name). The baseline is the diagnostic's
+    /// additional location.
+    /// </summary>
+    public const string LayoutKey = "LayoutKey", LayoutSection = "LayoutSection", LayoutOldKey = "LayoutOldKey",
+        LayoutFixKind = "LayoutFix", LayoutArgument = "LayoutArgument";
+
+    public static readonly DiagnosticDescriptor LayoutBreakingChange = Warning("NINO034",
+        "Layout change breaks data written before or after it",
+        "'{0}' {1}; {2}");
+
+    public static readonly DiagnosticDescriptor LayoutSilentLoss = Warning("NINO035",
+        "Layout change loses data without an error",
+        "'{0}' {1}; {2}");
+
+    public static readonly DiagnosticDescriptor LayoutChangeNote = Info("NINO036",
+        "Layout change is compatible with a condition",
+        "'{0}' {1}; {2}");
+
+    public static readonly DiagnosticDescriptor LayoutBaselineUnreadable = Warning("NINO037",
+        "Layout baseline cannot be read",
+        "The layout baseline in [assembly: NinoLayouts] cannot be read, so no layout is checked: {0} (line {1}); correct it, or write it again with nino-gen layouts or the refactoring 'Create the layout baseline'");
 
     /// <summary>Every descriptor above, which the analyzer reports. Last: static fields initialize in order.</summary>
     public static readonly ImmutableArray<DiagnosticDescriptor> All = typeof(NinoDiagnostics)

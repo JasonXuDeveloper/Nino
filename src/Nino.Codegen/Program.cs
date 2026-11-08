@@ -13,7 +13,8 @@ namespace Nino.Codegen
     /// the assembly's <c>[NinoType]</c>s in another language, from the layouts the Nino generator published in it.
     /// Each file is written only when its text changes, and a manifest in the output directory (<c>.nino-gen</c>)
     /// lists them, so a file the next run no longer writes is deleted. The options are <see cref="CodegenOptions"/>;
-    /// Nino.Codegen's build targets run this same entry point. See docs/codegen.md.
+    /// Nino.Codegen's build targets run this same entry point. <c>nino-gen layouts ...</c> is
+    /// <see cref="LayoutsCommand"/>. See docs/codegen.md.
     /// </summary>
     public static class Program
     {
@@ -40,6 +41,8 @@ namespace Nino.Codegen
         /// <summary>Runs the tool; warnings and the summary go to <paramref name="output"/>.</summary>
         public static int Run(string[] args, TextWriter output)
         {
+            if (args.Length != 0 && args[0] == LayoutsCommand.Name)
+                return LayoutsCommand.Run(args.Skip(1).ToList(), output);
             var options = CodegenOptions.Parse(args);
             if (options == null)
             {

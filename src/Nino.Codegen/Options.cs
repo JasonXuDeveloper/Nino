@@ -108,6 +108,7 @@ namespace Nino.Codegen
                              (CodegenLanguage.Rust, "rust:"),
                          })
                     lines.Add($"  {label} " + string.Join(" ", All.Where(o => o.Language == language).Select(Show)));
+                lines.Add(LayoutsCommand.Usage);
                 return string.Join("\n", lines);
             }
         }

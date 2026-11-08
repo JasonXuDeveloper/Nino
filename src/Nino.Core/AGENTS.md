@@ -45,6 +45,8 @@ NinoCreatedAttribute.cs      [NinoCreated] on a formatter's type parameter: the 
 NinoRawAttribute.cs          [NinoRaw] on a formatter's type parameter: bound only to types written as raw bytes
 NinoTypeLayoutAttribute.cs   [assembly: NinoTypeLayout]: the published wire layout of a [NinoType] (read by nino-gen,
                              the corpus); NinoHeader
+NinoLayoutsAttribute.cs      [assembly: NinoLayouts(@"...")]: an assembly's layout baseline (TOML) the analyzer checks
+                             changes against; [Conditional("NINO_LAYOUTS")], so never in metadata
 ```
 
 ## CompilerServices/ (public, for generated code)

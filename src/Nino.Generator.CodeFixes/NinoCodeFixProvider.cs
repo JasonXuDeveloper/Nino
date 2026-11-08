@@ -28,7 +28,7 @@ namespace Nino.Generator;
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(NinoCodeFixProvider)), Shared]
 public sealed class NinoCodeFixProvider : CodeFixProvider
 {
-    private delegate void Edit(DocumentEditor editor, SyntaxNode node);
+    internal delegate void Edit(DocumentEditor editor, SyntaxNode node);
 
     private sealed class Fix
     {
@@ -180,7 +180,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         }
     }
 
-    private static async Task<Document> ApplyAsync(Document document, TextSpan span, Edit apply, CancellationToken ct)
+    internal static async Task<Document> ApplyAsync(Document document, TextSpan span, Edit apply, CancellationToken ct)
     {
         var editor = await DocumentEditor.CreateAsync(document, ct).ConfigureAwait(false);
         apply(editor, editor.OriginalRoot.FindNode(span, getInnermostNodeForTie: true));
@@ -320,7 +320,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     }
 
     /// <summary>The line break of the first line of <paramref name="text"/>, or null for a single line.</summary>
-    private static string? NewLine(SourceText text) => text.Lines.Count < 2
+    internal static string? NewLine(SourceText text) => text.Lines.Count < 2
         ? null
         : text.ToString(TextSpan.FromBounds(text.Lines[0].End, text.Lines[0].EndIncludingLineBreak));
 
@@ -361,10 +361,10 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     private static Fix AddIgnoreFix() =>
         new("Add [NinoIgnore]", "AddNinoIgnore", (e, n) => AddAttribute(e, Member(n), NinoIgnore));
 
-    private static MemberDeclarationSyntax Member(SyntaxNode node) =>
+    internal static MemberDeclarationSyntax Member(SyntaxNode node) =>
         node.AncestorsAndSelf().OfType<MemberDeclarationSyntax>().First();
 
-    private static TypeDeclarationSyntax Type(SyntaxNode node) =>
+    internal static TypeDeclarationSyntax Type(SyntaxNode node) =>
         node.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().First();
 
     /// <summary>
@@ -420,7 +420,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     /// Adds <c>[<paramref name="attribute"/>]</c> (a name, or a name and its arguments) to the member, and
     /// <c>using Nino.Core;</c> where it is missing.
     /// </summary>
-    private static void AddAttribute(DocumentEditor editor, MemberDeclarationSyntax member, string attribute)
+    internal static void AddAttribute(DocumentEditor editor, MemberDeclarationSyntax member, string attribute)
     {
         editor.ReplaceNode(member, (current, generator) =>
             generator.AddAttributes(current, attribute.IndexOf('(') < 0

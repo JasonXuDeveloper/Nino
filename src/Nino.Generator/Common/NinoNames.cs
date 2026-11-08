@@ -21,6 +21,9 @@ internal static class NinoNames
     /// <summary>Metadata name of <c>[NinoType]</c>.</summary>
     public const string NinoTypeAttributeMetadataName = CoreNamespace + "." + NinoTypeAttribute;
 
+    /// <summary><c>[assembly: NinoLayouts]</c> (the layout baseline) and <c>[assembly: NinoTypeLayout]</c>, by type name.</summary>
+    public const string NinoLayoutsAttribute = "NinoLayoutsAttribute", NinoTypeLayoutAttribute = "NinoTypeLayoutAttribute";
+
     /// <summary>The static classes of the top-level API.</summary>
     public const string Serializer = "NinoSerializer", Deserializer = "NinoDeserializer";
 

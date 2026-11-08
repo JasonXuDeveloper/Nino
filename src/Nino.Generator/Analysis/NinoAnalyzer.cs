@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 using Nino.Generator.Generation;
 using Nino.Generator.Common;
+using Nino.Generator.Generation.Emit;
 
 namespace Nino.Generator.Analysis;
 
@@ -47,12 +48,18 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     }
 
     // [assembly: NinoFormatter(...)] registrations: one that FormatterRules cannot use is otherwise silently ignored.
+    // [assembly: NinoLayouts(...)]: the layout baseline, unreadable or holding types the code no longer has.
     private static void AnalyzeAssemblyAttributes(SyntaxNodeAnalysisContext context)
     {
         var list = (AttributeListSyntax)context.Node;
         if (list.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) != true)
             return;
-        var symbols = TypeFacts.For(context.Compilation, list.SyntaxTree.Options).Symbols;
+        var facts = TypeFacts.For(context.Compilation, list.SyntaxTree.Options);
+        var symbols = facts.Symbols;
+        if (LayoutCheck.For(context.Compilation, facts) is { } layouts &&
+            layouts.Attribute.ApplicationSyntaxReference is { } layoutsSyntax &&
+            layoutsSyntax.SyntaxTree == list.SyntaxTree && list.Span.Contains(layoutsSyntax.Span))
+            ReportBaseline(context, layouts);
         if (symbols.FormatterAttribute == null)
             return;
         foreach (var attribute in context.Compilation.Assembly.GetAttributes())
@@ -280,8 +287,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         // The generator skips types it cannot name from outside them.
         if (!Visibility.IsEligible(type))
             sink.Report(NinoDiagnostics.InaccessibleType, type, type.ToDisplayString());
-        else
-            ModelBuilder.Build(type, facts, context.CancellationToken, sink);
+        else if (ModelBuilder.Build(type, facts, context.CancellationToken, sink) is { } model &&
+                 LayoutCheck.For(context.Compilation, facts) is { Error: null } layouts)
+            CheckLayout(context, type, model, layouts, facts);
 
         if (NinoSymbols.Has(type, facts.Symbols.Pooled))
         {
@@ -300,6 +308,95 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         int duplicates = 0;
         foreach (var finding in findings)
             Report(sink, type, finding, facts.Symbols, ref duplicates);
+    }
+
+    /// <summary>
+    /// NINO034-NINO036: the layout of <paramref name="type"/> (<paramref name="model"/>'s, as published) against its
+    /// section in the layout baseline, if it has one, by <see cref="LayoutRules.Compare"/>. Reported on the member
+    /// that changed, else on the type; each carries the type's section as it is now, which accepting writes.
+    /// </summary>
+    private static void CheckLayout(SymbolAnalysisContext context, INamedTypeSymbol type, TypeModel model,
+        LayoutCheck layouts, TypeFacts facts)
+    {
+        var ct = context.CancellationToken;
+        string key = LayoutCheck.Key(type);
+        if (layouts.SectionOf(type, key, ct) is not { } old)
+            return;
+        var now = LayoutEmitter.Entry(model, key);
+        var findings = LayoutRules.Compare(old, now, LayoutCheck.IdWritten(type, now),
+            (a, b) => layouts.SameType(a, b, ct), layouts.RawSection);
+        if (findings.Count == 0)
+            return;
+        string section = LayoutBaseline.Section(now);
+        var baseline = new[] { layouts.BaselineLocation(ct) };
+        var members = findings.Any(f => f.Member != null) ? facts.Members.Of(type, type.GetNinoTypeOptions()!) : null;
+        foreach (var finding in findings)
+        {
+            var member = finding.Member == null
+                ? null
+                : members!.LastOrDefault(m => m.Name == finding.Member && m.Locations.Any(l => l.IsInSource));
+            var location = (member ?? type).Locations.FirstOrDefault(l => l.IsInSource) ?? type.Locations[0];
+            context.ReportDiagnostic(Diagnostic.Create(Descriptor(finding.Severity), location, baseline,
+                LayoutCheck.Properties(key, section, old.Key, Fixable(finding, type, member, ct), finding.Argument),
+                member == null ? type.ToDisplayString() : $"{type.ToDisplayString()}.{member.Name}", finding.Change,
+                finding.Fix));
+        }
+    }
+
+    /// <summary>
+    /// The fix of <paramref name="finding"/> where its code fix can apply it: an attribute goes on a field or property
+    /// declared in source, and a member moves to the end only within a type declared once that orders its members
+    /// by declaration (autoCollect), where the end of the declaration is the end of the layout. Else only accepting.
+    /// </summary>
+    private static LayoutFix Fixable(LayoutFinding finding, INamedTypeSymbol type, ISymbol? member,
+        System.Threading.CancellationToken ct)
+    {
+        if (finding.Member == null)
+            return finding.FixKind;
+        var syntax = member?.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(ct);
+        bool declared = syntax is PropertyDeclarationSyntax ||
+                        syntax is VariableDeclaratorSyntax { Parent: VariableDeclarationSyntax { Variables.Count: 1 } };
+        return finding.FixKind switch
+        {
+            LayoutFix.FormerName when declared => LayoutFix.FormerName,
+            LayoutFix.MoveToEnd when declared && type.GetNinoTypeOptions()?.AutoCollect == true &&
+                                     type.DeclaringSyntaxReferences.Length == 1 &&
+                                     SymbolEqualityComparer.Default.Equals(member!.ContainingType, type) =>
+                LayoutFix.MoveToEnd,
+            _ => LayoutFix.Accept,
+        };
+    }
+
+    private static DiagnosticDescriptor Descriptor(LayoutSeverity severity) => severity switch
+    {
+        LayoutSeverity.Breaking => NinoDiagnostics.LayoutBreakingChange,
+        LayoutSeverity.SilentLoss => NinoDiagnostics.LayoutSilentLoss,
+        _ => NinoDiagnostics.LayoutChangeNote,
+    };
+
+    /// <summary>
+    /// NINO037 for a baseline that cannot be read, at the line that cannot; else NINO034 for each section whose type
+    /// the code no longer has (not renamed or moved: <see cref="LayoutCheck.Removed"/>), at its table.
+    /// </summary>
+    private static void ReportBaseline(SyntaxNodeAnalysisContext context, LayoutCheck layouts)
+    {
+        var ct = context.CancellationToken;
+        if (layouts.Error is { } error)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.LayoutBaselineUnreadable,
+                layouts.LocationOf(error.Line, ct), error.Message, error.Line));
+            return;
+        }
+
+        var baseline = new[] { layouts.BaselineLocation(ct) };
+        foreach (var old in layouts.Removed(ct))
+        {
+            var finding = LayoutRules.Removed(old);
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.LayoutBreakingChange,
+                layouts.LocationOf(old.Line, ct), baseline,
+                LayoutCheck.Properties(old.Key, null, null, LayoutFix.Accept, null), old.Key, finding.Change,
+                finding.Fix));
+        }
     }
 
     /// <summary>
