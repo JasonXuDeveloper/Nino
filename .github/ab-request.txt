@@ -1193,7 +1193,14 @@ rust:blocks 711bb5584539e897da03216260bec56ebd1e73b8 711bb5584539e897da03216260b
 # anbench: the analyzer before the layout checker (d2fa565f) against main with it (88e38655 + GeneratorBenchmark
 # --layouts, abe4906b): a project without a baseline (30,8) and one whose baseline holds all 330 types (30,8,--layouts),
 # each with its floor (abe4906b against itself). Per process the median of 14 warm runs; 10 processes a side a job.
-generator#10 d2fa565f abe4906b 30,8
-generator#10 d2fa565f abe4906b 30,8,--layouts
-generator#10 abe4906b abe4906b 30,8
-generator#10 abe4906b abe4906b 30,8,--layouts
+# done (run 42509534286): generator#10 d2fa565f abe4906b 30,8
+# done (run 42509534286): generator#10 d2fa565f abe4906b 30,8,--layouts
+# done (run 42509534286): generator#10 abe4906b abe4906b 30,8
+# done (run 42509534286): generator#10 abe4906b abe4906b 30,8,--layouts
+# anbench result (run 42509534286): without a baseline on par; with one the analyzer took 26-28 % longer (EPYC 9V45,
+# 9V74, Neoverse-N2). perf/analyzer-layouts 2dca8b37 skips the comparison of types their section matches: against
+# d2fa565f and against abe4906b with the baseline (the first twice, for x64 samples), and without one against d2fa565f.
+generator#10 d2fa565f 2dca8b37 30,8,--layouts
+generator#10 abe4906b 2dca8b37 30,8,--layouts
+generator#10 d2fa565f 2dca8b37 30,8,--layouts # copy 2
+generator#10 d2fa565f 2dca8b37 30,8
