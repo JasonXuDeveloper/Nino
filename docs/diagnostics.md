@@ -42,6 +42,10 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO031](#nino031) | Info | `[NinoMemberFormatter(typeof(Utf8StringFormatter))]`: use `[NinoUtf8]` 🔧 |
 | [NINO032](#nino032) | Error | `WEAK_VERSION_TOLERANCE` does not make types version tolerant 🔧 |
 | [NINO033](#nino033) | Warning | `[NinoUtf8]`, `[NinoMemberFormatter]` or `[NinoIgnore]` on an interface member has no effect 🔧 |
+| [NINO034](#nino034) | Warning | A layout change breaks data written before or after it (layout baseline) 🔧 |
+| [NINO035](#nino035) | Warning | A layout change loses data without an error (layout baseline) 🔧 |
+| [NINO036](#nino036) | Info | A layout change is compatible, with a condition (layout baseline) 🔧 |
+| [NINO037](#nino037) | Warning | The layout baseline cannot be read |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -347,6 +351,102 @@ An `[assembly: NinoFormatter(typeof(F))]` registration Nino cannot use, so it is
 it is generic, as its open generic definition (`typeof(F<,>)`). Every type parameter of `F` must be inferable: it occurs in `P`, in a type constraint of an
 inferable parameter (`where TList : List<T>`), or is constrained to `INinoFormatter<E>` for an inferable `E`.
 `targets` only apply when `P` is a bare type parameter.
+
+## The layout baseline
+
+NINO034 to NINO037 are reported only in an assembly that has a layout baseline: `[assembly: NinoLayouts(@"...")]`,
+usually in a file of its own, `NinoLayouts.cs`. It holds, as a small TOML document, the wire layout (the
+`[NinoTypeLayout]` the generator publishes, [wire-format spec §8](spec/wire-format.md#8-type-layout-metadata-and-its-grammar))
+of every version-tolerant and keyed `[NinoType]` of the assembly and of every type their members reach (positional
+types and polymorphic subtypes included): the types whose bytes outlive a build. A positional type nothing stored
+reaches is left out; its bytes are meant for one build. The analyzer compares each of those types with its section
+as you type and reports a change on the member or type that made it, with the readers it breaks: this build reading
+data written before the change, and builds before the change reading data written after it (clients not updated yet,
+old nodes in a rolling deployment).
+
+```csharp
+// NinoLayouts.cs
+[assembly: Nino.Core.NinoLayouts(@"
+['MyGame.Save.PlayerData']
+format = 'Keyed'
+header = 'Presence'
+id = 0x8F865207
+deferrable = true
+members = [
+  { name = 'Health', type = 'int', encoding = 'raw(4)', key = 0x99A16761 },
+  { name = 'Name', type = 'string', encoding = 'string', key = 0x3085B3E2, former = [0x93A29D95] },
+]
+")]
+```
+
+- One table per type, named by its runtime-form name (`Ns.Outer+Inner`, `Ns.Box<T>`), sorted; `trackReferences`
+  only when true, `raw` (the raw encoding) only for a type written as raw memory, `elements` only for a `[NinoType]`
+  collection; the members in the order they are written, one a line. Strings are TOML literal strings (single
+  quotes), so nothing in it needs escaping in a C# verbatim string.
+- `NinoLayoutsAttribute` is `[Conditional("NINO_LAYOUTS")]`: the compiler checks it and the analyzer reads it from
+  source, but it is never written to the assembly.
+- Create it with the refactoring **Create the layout baseline (NinoLayouts.cs)**, offered on a `[NinoType]`
+  declaration, or with `nino-gen layouts --assembly <dll> --out NinoLayouts.cs` ([codegen.md](codegen.md#layout-baselines));
+  write it again (accepting every change) with the refactoring **Write the layout baseline again** or the same
+  command. `nino-gen layouts ... --check` runs the same rules on a built assembly, for CI without an IDE, and exits
+  with 1 on NINO034 or NINO035.
+- To fail a build on them, raise their severity: `dotnet_diagnostic.NINO034.severity = error`.
+- What a layout does not show is not checked: enum values renumbered (an enum is `raw(4)`), what a custom formatter
+  writes, and whether old data still holds instances of a polymorphic subtype that was removed.
+
+| Change | This build reads old data | Old builds read new data | Reported |
+|---|---|---|---|
+| A type removed (no type has its name or its type id) | breaks | breaks | NINO034 on its section 🔧 accept |
+| Type id changed (renamed or moved) where the id is written: a `TypeId` header, or a subtype | breaks | breaks | NINO034 🔧 `[NinoFormerName("Old.Name")]` |
+| `format` or `trackReferences` changed | breaks | breaks | NINO034 🔧 accept |
+| `sealed` added or removed (header `Presence` ↔ `TypeId`) | breaks | breaks | NINO034 🔧 restore it |
+| A raw struct's size or fields changed | breaks | breaks | NINO034 🔧 accept |
+| `deferrable` changed | breaks only for data nested deeper than 128 bodies | same | NINO036 🔧 accept |
+| Positional (reached by stored data): any member written differently | breaks | breaks | NINO034 🔧 accept |
+| Version tolerant: members appended | compatible | compatible | none |
+| Version tolerant: a member removed, moved, inserted or written differently | breaks | breaks | NINO034 🔧 move an inserted member to the end |
+| Keyed: a member added | compatible | compatible | none |
+| Keyed: a member removed | its value in old data is skipped | old builds read their default | NINO036 🔧 accept |
+| Keyed: renamed with `[NinoFormerName]` | compatible | old builds do not know the new key | NINO036 (deploy readers first) 🔧 accept |
+| Keyed: renamed without `[NinoFormerName]` | value silently lost | value silently lost | NINO035 🔧 `[NinoFormerName("Old")]` |
+| Keyed: the same key written differently | breaks | breaks | NINO034 🔧 accept |
+
+A member written as `type(T)` (a `[NinoType]`) is compared by `T`'s name, and a raw struct with a section of its own
+by its type: what changed inside them is reported once, on their own section. A type renamed or moved is matched to
+its old section by its type id (a `[NinoFormerName]` kept it), else by its simple name when one type of that name went
+and one came. Accepting a change (🔧 **Accept the change into the layout baseline**, on every finding; Fix All
+accepts them all at once) rewrites that type's section in the baseline, so the change shows in the review of the pull
+request.
+
+### NINO034
+
+A change to a type in the layout baseline that makes data unreadable on one side of it, or both: the message names the
+member (or the type), what changed, and which readers break. Undo the change the way the fix says (a former name, `sealed`
+back, the member moved to the end), or, when old data or old builds no longer matter, accept it into the baseline. Also
+reported on the section of a type that is no longer a `[NinoType]` of the assembly (removed, or renamed or moved without a
+match). 🔧 Accept the change; and, as the finding says, add `[NinoFormerName("Old.Name")]` to a renamed or moved type,
+make the class sealed again or not sealed, or move a member inserted into a version-tolerant type to the end of the
+type (offered when the type collects its members in declaration order and is declared in one place).
+
+### NINO035
+
+A keyed member that looks renamed without `[NinoFormerName]`: a member gone and a new one written the same way (at the
+same place, or the only such one). Its key is the hash of its name, so the new key reads nothing from old data (the
+member keeps its default) and old builds skip it: data is lost on both sides, without an error. 🔧 Add
+`[NinoFormerName("Old")]` (old data is then read; old builds still do not know the new key: NINO036), or accept the
+change.
+
+### NINO036
+
+A compatible change with a condition: a keyed member removed (its value in old data is skipped, and old builds read
+their default for it), a keyed member renamed with `[NinoFormerName]` (this build reads old data, but builds before it
+do not know the new key: in a rolling deployment, deploy the builds that read the new name before any that writes it),
+or `deferrable` changed (data nested deeper than 128 bodies of the type is laid out differently). 🔧 Accept the change.
+
+### NINO037
+
+The string of `[assembly: NinoLayouts]` is not a baseline Nino can read (the message gives the reason and the line), so
+nothing is checked. Correct the line, or write the baseline again (refactoring, or `nino-gen layouts`).
 
 ## Code generation for other languages
 

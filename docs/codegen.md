@@ -22,6 +22,7 @@ Each runtime's API is in its README: [TypeScript](../runtimes/typescript/README.
   metadata as the option of the same name. Its inputs and outputs make an item run again only when the assembly, its
   references, the tool or the item's metadata change, and design-time builds skip it.
 - `src/Nino.Codegen.Tool` packs the same program as the .NET tool **Nino.Codegen.Tool** (command `nino-gen`).
+- `nino-gen layouts` writes and checks layout baselines ([Layout baselines](#layout-baselines)).
 - The file map is `src/Nino.Codegen/AGENTS.md`.
 
 nino-gen reads nothing but the `[assembly: NinoTypeLayout]` attributes the Nino generator publishes in every assembly
@@ -132,6 +133,26 @@ a field of a type parameter is never copied as raw memory.
 Both are encoded as the specification says ([§7.9](spec/wire-format.md), [§7.7](spec/wire-format.md)); the IR marks
 tracked types (`TypeModel.TrackReferences`) and each target calls its runtime's tracking helpers (the runtime READMEs
 list them). A generic type with `trackReferences` is left out.
+
+## Layout baselines
+
+`nino-gen layouts` writes and checks the layout baseline of an assembly (`[assembly: NinoLayouts(@"...")]`,
+[diagnostics.md](diagnostics.md#the-layout-baseline)) from the same layouts, for builds without an IDE (CI, Unity in
+batch mode):
+
+```sh
+nino-gen layouts --assembly bin/Release/net8.0/MyGame.dll --out NinoLayouts.cs           # write it (again)
+nino-gen layouts --assembly bin/Release/net8.0/MyGame.dll --out NinoLayouts.cs --check   # compare; exit 1 on NINO034/NINO035
+```
+
+Writing takes the assembly's own layouts (not its references') of the types the baseline holds and replaces only the
+string of an existing `NinoLayouts(@"...")`, keeping the rest of the file. `--check` prints each finding in MSBuild's
+format at its line in the file (`NinoLayouts.cs(12): warning NINO034: ...`) and exits with 1 when one breaks data or
+loses it silently; `--references <file>` is the codegen command's. `LayoutsCommand.cs` is the command; the baseline's
+format (`LayoutBaseline.cs`) and its rules (`LayoutRules.cs`: which types it holds, which section a renamed type
+matches, what a change does to each reader) are `src/Nino.Generator/Common`'s, compiled into the analyzer, its code
+fixes and nino-gen alike, so the IDE, the build and this command report the same findings. A type's name in a baseline
+is its runtime-form name, `TypeNames.Runtime` here and `TypeNames.RuntimeName` in the generator.
 
 ## Adding a type or an encoding
 

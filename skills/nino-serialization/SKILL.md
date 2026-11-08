@@ -128,8 +128,13 @@ record's primary constructor); structs fall back to `new T()`; otherwise NINO004
   (NINO026), not on generic types written by type id (NINO027). `NinoTypeId.Of(typeof(T))` returns the id.
 - `WEAK_VERSION_TOLERANCE` was removed in 4.0: where it is still defined, error NINO032's code fix marks each type
   `format: NinoFormat.VersionTolerant`, which keeps its bytes.
-- Every build records each type's layout as `[assembly: NinoTypeLayout]`; compare `layout.ToString()` between releases
-  in CI to catch byte changes.
+- Guard stored and sent data with a layout baseline: `NinoLayouts.cs` (`[assembly: NinoLayouts(@"...")]`, created by
+  the IDE refactoring "Create the layout baseline" on a `[NinoType]`, or `nino-gen layouts --assembly X.dll --out
+  NinoLayouts.cs`) records the layouts of the version-tolerant and keyed types and all they reach; the analyzer then
+  reports a change that breaks old data or old builds (NINO034), loses data silently (NINO035: a keyed member renamed
+  without `[NinoFormerName]`) or needs care (NINO036), on the line that made it. Fix it as the message says, or accept
+  an intended change with the code fix (it rewrites the type's section; commit it with the change).
+  `nino-gen layouts ... --check` does the same in CI (exit 1). Never hand-edit the baseline to silence a finding.
 
 ### Polymorphism and references
 

@@ -39,6 +39,10 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 | NINO031 | Info | `[NinoMemberFormatter(typeof(Utf8StringFormatter))]` on a string member (read as `[NinoUtf8]`, same bytes) | Use `[NinoUtf8]` 🔧 |
 | NINO032 | Error | `WEAK_VERSION_TOLERANCE` does not make types version tolerant (it did before 4.0): the project still defines it, and a positional type it made version tolerant cannot read its data | Add `format: NinoFormat.VersionTolerant` to each type 🔧 (same bytes), then remove the symbol |
 | NINO033 | Warning | `[NinoUtf8]`, `[NinoMemberFormatter]` or `[NinoIgnore]` on an interface member: implementing types write their own member with its own attributes (only `[NinoMember(index)]` on the interface counts; an explicit implementation writes the interface member, with its attributes, and then NINO033 is silent) | Move it to the implementing members, or remove it 🔧 |
+| NINO034 | Warning | Only with a layout baseline (`[assembly: NinoLayouts]`): a change to a stored type breaks reading old data, old builds reading new data, or both (format, `sealed`, type id, raw struct, a positional member, a version-tolerant member not appended, a keyed key written differently, a type removed) | Undo it as the message says (`[NinoFormerName("Old.Type")]`, `sealed` back, the member moved to the end 🔧), or accept it into the baseline 🔧 |
+| NINO035 | Warning | A keyed member renamed without `[NinoFormerName]`: old data's value and new data's value are both lost without an error | Add `[NinoFormerName("Old")]` 🔧 |
+| NINO036 | Info | Compatible with a condition: a keyed member removed (old builds read its default), renamed with `[NinoFormerName]` (old builds do not know the new key: deploy readers first), `deferrable` changed | Accept it into the baseline 🔧 |
+| NINO037 | Warning | `[assembly: NinoLayouts]` cannot be read (reason and line given): nothing is checked | Correct the line, or write the baseline again (`nino-gen layouts`) |
 
 `NinoSuppressor` also hides CS0169/CS0414/CS0649 and IDE0051/IDE0052/IDE0044 for private members Nino serializes.
 
