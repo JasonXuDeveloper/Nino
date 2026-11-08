@@ -1200,7 +1200,15 @@ rust:blocks 711bb5584539e897da03216260bec56ebd1e73b8 711bb5584539e897da03216260b
 # anbench result (run 42509534286): without a baseline on par; with one the analyzer took 26-28 % longer (EPYC 9V45,
 # 9V74, Neoverse-N2). perf/analyzer-layouts 2dca8b37 skips the comparison of types their section matches: against
 # d2fa565f and against abe4906b with the baseline (the first twice, for x64 samples), and without one against d2fa565f.
-generator#10 d2fa565f 2dca8b37 30,8,--layouts
-generator#10 abe4906b 2dca8b37 30,8,--layouts
-generator#10 d2fa565f 2dca8b37 30,8,--layouts # copy 2
-generator#10 d2fa565f 2dca8b37 30,8
+# done (run 42514092068): generator#10 d2fa565f 2dca8b37 30,8,--layouts
+# done (run 42514092068): generator#10 abe4906b 2dca8b37 30,8,--layouts
+# done (run 42514092068): generator#10 d2fa565f 2dca8b37 30,8,--layouts # copy 2
+# done (run 42514092068): generator#10 d2fa565f 2dca8b37 30,8
+# anbench result (run 42514092068): the shortcut cut the checker's cost to 11-14 % of the analyzers' own time. Most of
+# what is left is the removed-type check binding the types' attributes before the driver does (moved, not added):
+# these lines time the wall time of the analysis too. 9466d234 = abe4906b (no shortcut) + the wall time, 721a6093 = the
+# shortcut + the wall time; with the floor.
+generator#10 d2fa565f 9466d234 30,8,--layouts
+generator#10 d2fa565f 721a6093 30,8,--layouts
+generator#10 721a6093 721a6093 30,8,--layouts
+generator#10 d2fa565f 721a6093 30,8

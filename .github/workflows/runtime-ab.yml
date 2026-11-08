@@ -7,7 +7,8 @@ name: Runtime A/B (test branch)
 #
 # generator times the analyzer and the source generator (benchmarks/Nino.GeneratorBenchmark of the head, in .NET):
 # the filter is its arguments joined by commas (30,8,--layouts), each round one process per side loading that
-# side's Nino.Generator (--generator), base and head alternated; each process prints the median of its runs.
+# side's Nino.Generator (--generator), base and head alternated; each process prints the median of its runs: the
+# generator, the analyzers' own time and the wall time of the analysis (which also holds binding an analyzer moves).
 #
 # Each line is a job of its own on every runner and copy, and a push runs only the lines it adds or changes: a line
 # already in the file before the push is not measured again (add or change a note after " #" to run it again; never
@@ -240,7 +241,7 @@ jobs:
                 done
                 # The median of the processes' medians per side, and head against base.
                 med() { sort -g | awk '{ a[NR] = $1 } END { print (NR % 2 ? a[(NR + 1) / 2] : (a[NR / 2] + a[NR / 2 + 1]) / 2) }'; }
-                for what in generate analyzers; do
+                for what in generate analyzers wall; do
                   b=$(sed -n "s/^base .* $what \([0-9.]*\) ms.*/\1/p" "$out/gen.txt" | med)
                   h=$(sed -n "s/^head .* $what \([0-9.]*\) ms.*/\1/p" "$out/gen.txt" | med)
                   awk -v w="$what" -v b="$b" -v h="$h" -v n="$rounds" \
