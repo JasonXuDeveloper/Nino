@@ -23,8 +23,11 @@ updates:
       - dependency-name: "Microsoft.CodeAnalysis.Workspaces.Common"
   # The workflows pin every action to a commit SHA with its version in a comment (uses: owner/repo@<sha> # vX.Y.Z):
   # Dependabot updates both. All action updates in one pull request, so one CI run checks them together.
+  # "/" covers .github/workflows only; the composite actions in .github/actions need their own entries.
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "weekly"
     groups:

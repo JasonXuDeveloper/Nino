@@ -31,12 +31,12 @@ runs:
         grep -qE '^8\.' <<< "$sdks" && echo net8=true >> "$GITHUB_OUTPUT" || echo net8=false >> "$GITHUB_OUTPUT"
 
     - if: steps.have.outputs.net10 != 'true' && (inputs.net8 != 'true' || steps.have.outputs.net8 == 'true')
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
       with:
         dotnet-version: 10.0.x
 
     - if: inputs.net8 == 'true' && steps.have.outputs.net8 != 'true'
-      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
       with:
         dotnet-version: |
           10.0.x
