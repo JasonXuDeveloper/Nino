@@ -29,6 +29,14 @@ internal static class LayoutEmitter
         LayoutEntry.FromLayout(key, (int)m.Format, Header(m), m.TrackReferences, m.RawStruct, m.TypeId,
             m.PublishesDeferrable ? m.Depth.Deferrable : null, Members(m));
 
+    /// <summary>
+    /// Whether the layout <see cref="Emit"/> publishes is <paramref name="section"/>'s, read without building its
+    /// entry (<see cref="LayoutEntry.Matches"/>): the analyzer then has nothing to compare.
+    /// </summary>
+    public static bool Matches(TypeModel m, LayoutEntry section) =>
+        section.Matches((int)m.Format, Header(m), m.TrackReferences, m.RawStruct, m.TypeId,
+            m.PublishesDeferrable ? m.Depth.Deferrable : null, Members(m));
+
     /// <summary>What is written in front of the body (<c>NinoHeader</c>): nothing, a presence byte or a type id.</summary>
     private static int Header(TypeModel m) => m.Kind switch
     {

@@ -339,6 +339,46 @@ namespace Rt
         Assert.AreEqual(text, LayoutBaseline.Write(LayoutBaseline.Parse(text)));
         // Nothing in it needs escaping in a C# verbatim string.
         Assert.IsFalse(text.Contains('"'));
+        // Each section read back is its published layout, found without parsing that layout (the analyzer's
+        // shortcut for a type that did not change).
+        var sections = LayoutBaseline.Parse(text).ToDictionary(e => e.Key);
+        foreach (var a in assembly.GetCustomAttributes<NinoTypeLayoutAttribute>())
+        {
+            bool? deferrable = a.ToString().Contains("deferrable=") ? a.Deferrable : null;
+            var section = sections[a.Type.FullName];
+            Assert.IsTrue(section.Matches((int)a.Format, (int)a.Header, a.TrackReferences, a.Raw, a.Id, deferrable,
+                a.Members), a.Type.FullName);
+            // What the shortcut skips: a section compared with its own layout has no findings.
+            Assert.AreEqual(0, LayoutRules.Compare(section, LayoutEntry.FromLayout(a.Type.FullName, (int)a.Format,
+                (int)a.Header, a.TrackReferences, a.Raw, a.Id, deferrable, a.Members), true).Count, a.Type.FullName);
+            Assert.IsFalse(section.Matches((int)a.Format, (int)a.Header, a.TrackReferences, a.Raw, a.Id, deferrable,
+                a.Members + ";X:int:raw(4)"), a.Type.FullName);
+            Assert.IsFalse(section.Matches((int)a.Format, (int)a.Header, !a.TrackReferences, a.Raw, a.Id, deferrable,
+                a.Members), a.Type.FullName);
+        }
+    }
+
+    [TestMethod]
+    public void MatchesOnlyTheLayoutItWasMadeFrom()
+    {
+        string members = $"[elements]::raw(4);A:int:raw(4):key={K("A")};B:string:utf16:key={K("B")}:former={K("Bee")},{K("Bea")}";
+        var entry = E("Keyed", "Presence", members);
+        bool Matches(string text, int id = 0x11111111, bool? deferrable = true) =>
+            entry.Matches(2, 1, false, false, id, deferrable, text);
+
+        Assert.IsTrue(Matches(members));
+        Assert.IsFalse(Matches(members.Replace("utf16", "utf8")));
+        Assert.IsFalse(Matches(members.Replace($",{K("Bea")}", "")));
+        Assert.IsFalse(Matches(members.Substring(members.IndexOf(';') + 1)));
+        Assert.IsFalse(Matches(members.Substring(0, members.Length - 1)));
+        Assert.IsFalse(Matches(members, id: 0x22222222));
+        Assert.IsFalse(Matches(members, deferrable: null));
+        Assert.IsFalse(entry.Matches(1, 1, false, false, 0x11111111, true, members));
+        Assert.IsFalse(entry.Matches(2, 1, false, true, 0x11111111, true, members));
+        var raw = E("Positional", "None", "int(4)@0", raw: true);
+        Assert.IsTrue(raw.Matches(0, 0, false, true, 0x11111111, true, "int(4)@0"));
+        Assert.IsFalse(raw.Matches(0, 0, false, false, 0x11111111, true, "int(4)@0"));
+        Assert.IsFalse(raw.Matches(0, 0, false, true, 0x11111111, true, "int(4)@4"));
     }
 
     [TestMethod]
