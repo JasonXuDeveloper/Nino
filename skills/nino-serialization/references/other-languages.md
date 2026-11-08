@@ -81,6 +81,12 @@ mod protocol;
   are read in place, arrays, slices and `Vec`s keep their storage and read elements into the old ones, maps and sets are
   cleared and refilled, a polymorphic member is reused only when the data holds its type; tracked objects are read
   new. After an error the value is valid but partly updated: read into it again or drop it.
+- Rust types written by hand (not generated): `#[derive(NinoRead, NinoWrite)]` (feature `derive`) with
+  `#[nino(layout = "...")]` copied from the type's published layout, which checks names, order, keys and raw offsets at
+  compile time. Without the derive, `nino::raw_read!()` / `raw_write!()` (a raw struct, from its `nino::Raw` impl),
+  `sealed_read!()` / `sealed_write!()` (a sealed class) and `type_consts!(id, name, layout)` write the same methods
+  and constants as generated code, but nothing checks them against the layout
+  (https://nino.xgamedev.net/en/docs/v4/advanced/codegen.md, "Hand-Written Impls").
 - Every reader takes hostile input with the .NET checks (bounds before allocating, depth counted as .NET does, strict
   bytes) and throws or returns one error type.
 
