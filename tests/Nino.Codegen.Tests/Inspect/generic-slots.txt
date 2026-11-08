@@ -1,0 +1,35 @@
+nino-gen inspect: Conformance.GenericSlots, 93 byte(s) from offset 0
+  offset  length  value
+       0      93  value: Conformance.GenericSlots
+       0       1    presence = 1
+       1      12    IntShelf: Conformance.Shelf<int> [type(Conformance.Shelf<int>)]  (Conformance.IntShelf)
+       1       4      type id = 0x6370ECA9  (Conformance.IntShelf)
+       5       4      Item: int [raw(4)] = 1
+       9       4      Extra: int [raw(4)] = 2
+      13      12    TextShelf: Conformance.Shelf<string> [type(Conformance.Shelf<string>)]  (Conformance.ListShelf<System.String>)
+      13       4      type id = 0x1E7701F4  (Conformance.ListShelf<System.String>)
+      17       2      Item: T (System.String) [type(T)] = "x"  (Latin-1, 1 char(s))
+      19       6      More: System.Collections.Generic.List<T> (System.Collections.Generic.List<System.String>) [seq(type(T))]  (1 element)
+      23       2        [0] = "y"  (Latin-1, 1 char(s))
+      25      10    Crate: Conformance.Crate<int> [type(Conformance.Crate<int>)]  (Conformance.LabeledCrate<System.Int32>)
+      25       4      type id = 0x6BB12E03  (Conformance.LabeledCrate<System.Int32>)
+      29       4      Content: T (System.Int32) [type(T)] = 3
+      33       2      Label: string [string] = "l"  (Latin-1, 1 char(s))
+      35       6    TextCrate: Conformance.Crate<string> [type(Conformance.Crate<string>)]  (Conformance.Crate<System.String>)
+      35       4      type id = 0x3AFC7DCB  (Conformance.Crate<System.String>)
+      39       2      Content: T (System.String) [type(T)] = "c"  (Latin-1, 1 char(s))
+      41      16    Holder: Conformance.IHolder<long> [type(Conformance.IHolder<long>)]  (Conformance.Holder<System.Int64>)
+      41       4      type id = 0xADCAB43E  (Conformance.Holder<System.Int64>)
+      45       8      Held: T (System.Int64) [type(T)] = 9223372036854775807
+      53       4      Count: int [raw(4)] = 1
+      57      36    Shelves: System.Collections.Generic.List<Conformance.Shelf<int>> [seq(type(Conformance.Shelf<int>))]  (3 elements)
+      61      16      [0]  (Conformance.ListShelf<System.Int32>)
+      61       4        type id = 0x7CA7720B  (Conformance.ListShelf<System.Int32>)
+      65       4        Item: T (System.Int32) [type(T)] = 4
+      69       8        More: System.Collections.Generic.List<T> (System.Collections.Generic.List<System.Int32>) [seq(type(T))] = [5]  (1 element)
+      77       4      [1] = null
+      77       4        type id = 0x00000000  (null)
+      81      12      [2]  (Conformance.IntShelf)
+      81       4        type id = 0x6370ECA9  (Conformance.IntShelf)
+      85       4        Item: int [raw(4)] = 0
+      89       4        Extra: int [raw(4)] = 0

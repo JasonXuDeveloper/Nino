@@ -14,7 +14,7 @@ namespace Nino.Codegen
     /// Each file is written only when its text changes, and a manifest in the output directory (<c>.nino-gen</c>)
     /// lists them, so a file the next run no longer writes is deleted. The options are <see cref="CodegenOptions"/>;
     /// Nino.Codegen's build targets run this same entry point. <c>nino-gen layouts ...</c> is
-    /// <see cref="LayoutsCommand"/>. See docs/codegen.md.
+    /// <see cref="LayoutsCommand"/>, <c>nino-gen inspect ...</c> <see cref="InspectCommand"/>. See docs/codegen.md.
     /// </summary>
     public static class Program
     {
@@ -43,6 +43,8 @@ namespace Nino.Codegen
         {
             if (args.Length != 0 && args[0] == LayoutsCommand.Name)
                 return LayoutsCommand.Run(args.Skip(1).ToList(), output);
+            if (args.Length != 0 && args[0] == InspectCommand.Name)
+                return InspectCommand.Run(args.Skip(1).ToList(), output, Console.OpenStandardInput);
             var options = CodegenOptions.Parse(args);
             if (options == null)
             {

@@ -1,0 +1,11 @@
+nino-gen inspect: Conformance.KeyedV1, 57 byte(s) from offset 0
+  offset  length  value
+       0      57  value: Conformance.KeyedV1  (keyed)
+       0       1    presence = 1
+       1       4    length = 52
+       5      16    Score: long [raw(8)] = 3  (key 0x044AB14D)
+      21      12    Name: string [string] = "new"  (key 0x3085B3E2; Latin-1, 3 char(s))
+      33      12    (unknown key)  (key 0xA17135AD: 4 byte(s) skipped)
+      45      12    (unknown key)  (key 0xEAA8149B: 4 byte(s) skipped)
+      57       0    Health  (no entry (key 0x99A16761): default value)
+      57       0    Items  (no entry (key 0xDCA8A053): default value)

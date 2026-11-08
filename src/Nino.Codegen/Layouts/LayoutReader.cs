@@ -119,6 +119,32 @@ namespace Nino.Codegen.Layouts
         public void Dispose() => _context.Dispose();
 
         /// <summary>
+        /// A type by its reflection name (<c>System.Collections.Generic.List`1</c>), in <see cref="Assembly"/>, the
+        /// core library or an assembly it references; null when none has it.
+        /// </summary>
+        public Type? FindType(string fullName)
+        {
+            var found = Assembly.GetType(fullName) ?? _context.CoreAssembly?.GetType(fullName);
+            if (found != null)
+                return found;
+            foreach (var reference in Assembly.GetReferencedAssemblies())
+            {
+                try
+                {
+                    found = _context.LoadFromAssemblyName(reference).GetType(fullName);
+                }
+                catch (FileNotFoundException)
+                {
+                }
+
+                if (found != null)
+                    return found;
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// The layouts of <see cref="Assembly"/> and of the referenced assemblies that have any, by type (a member
         /// may hold a <c>[NinoType]</c> of another assembly).
         /// </summary>

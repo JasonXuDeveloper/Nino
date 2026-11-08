@@ -1,0 +1,8 @@
+nino-gen inspect: Conformance.TolerantV1, 37 byte(s) from offset 0
+  offset  length  value
+       0      37  value: Conformance.TolerantV1  (version tolerant)
+       0       1    presence = 1
+       1       4    length = 32
+       5       4    A: int [raw(4)] = 7
+       9       4    B: string [string] = "new"  (Latin-1, 3 char(s))
+      13      24    (unknown members)  (24 byte(s) of a newer version skipped)

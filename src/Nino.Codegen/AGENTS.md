@@ -18,6 +18,8 @@ Options.cs                   CodegenOptions.All: every option once (command-line
 LayoutsCommand.cs            nino-gen layouts: writes an assembly's layout baseline (NinoLayouts.cs), or --check
                              compares it with the rules the analyzer uses (Nino.Generator's LayoutBaseline.cs and
                              LayoutRules.cs, linked)
+InspectCommand.cs            nino-gen inspect: reads one message (a file or standard input, --hex, --offset) with an
+                             assembly's layouts and prints the tree of its bytes, or --json; exit 2 on malformed data
 TemplateRenderer.cs          renders the embedded Scriban templates of a language (include "x.sbn")
 build/Nino.Codegen.targets   runs nino-gen after the compile for each <NinoCodegen Include="typescript|go|rust"> item,
                              passing each metadata as its option; NinoCodegenEnabled, NinoCodegenTargetFramework, the
@@ -26,8 +28,16 @@ Layouts/
   LayoutReader.cs            reads the [NinoTypeLayout]s without loading the assembly (TypeLayout, MemberLayout)
   WireEncoding.cs            one member encoding of a layout (seq, raw, type, ...), RawField
   ClosedTypeScan.cs          the closed generic types an assembly's metadata names (each a type id of its own)
+Inspect/                     nino-gen inspect's reader: an interpreter of the IR, with the reader checks of spec §9
+  Inspector.cs               reads a message into InspectNodes: headers, type ids, references, regions, keyed
+                             entries, deferred bodies and sections (§7.10), depth limits; InspectResult
+  InspectNode.cs             one part of the message (name, type, encoding, offset, length, value) as text or JSON
+  Scalars.cs                 the fixed-size values as text and JSON, with their range checks (§9.3, §9.10)
+  WireReader.cs              the bounds-checked reader (regions as limits), counts, string headers; InspectException
 Model/                       the IR: language-neutral, built once, read by every target
-  CodegenModel.cs            the assembly's [NinoType]s (and those of its references), encodings resolved to ValueModels
+  CodegenModel.cs            the assembly's [NinoType]s (and those of its references), encodings resolved to ValueModels;
+                             types by runtime-form name and their top-level value (ResolveType, RootValue), structs
+                             that hold themselves (HoldsItself)
   TypeModel.cs               TypeModel, MemberModel, ClosedTypeModel; BodyFormat, HeaderKind
   ValueModel.cs              ValueModel (what a value is on the wire), SlotModel, RawStructModel, EnumModel
   CanonicalLayout.cs         the canonical alignment a layout does not publish, by Nino.Core's NinoLayoutCore (linked)

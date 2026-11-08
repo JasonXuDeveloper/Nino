@@ -1,0 +1,84 @@
+nino-gen inspect: Conformance.BclRaw, 393 byte(s) from offset 0
+  offset  length  value
+       0     393  value: Conformance.BclRaw
+       0       1    presence = 1
+       1      48    Tuples: Conformance.HoldsTuples [raw(48){...}]
+       1       4      A: System.Int32 = -1
+       9      16      B: System.ValueTuple<System.Int32,System.Int64>
+      17       4        Item1: System.Int32 = 2
+       9       8        Item2: System.Int64 = -9223372036854775808
+      25       4      C: System.ValueTuple<System.Byte,System.Int16>
+      27       1        Item1: System.Byte = 171
+      25       2        Item2: System.Int16 = -3
+      33      16      D: System.ValueTuple<System.Byte,System.Int64,System.Int32>
+      45       1        Item1: System.Byte = 128
+      33       8        Item2: System.Int64 = 9223372036854775807
+      41       4        Item3: System.Int32 = -2147483648
+      49      40    Pairs: Conformance.HoldsPairs [raw(40){...}]
+      49       1      A: System.Byte = 1
+      57      16      P: System.Collections.Generic.KeyValuePair<System.Int32,System.Int64>
+      57       4        Key: System.Int32 = -2
+      65       8        Value: System.Int64 = 3
+      73      16      Q: System.Collections.Generic.KeyValuePair<System.Int64,System.Byte>
+      73       8        Key: System.Int64 = -4
+      81       1        Value: System.Byte = 254
+      89      48    Nested: Conformance.HoldsNestedTuples [raw(48){...}]
+      89       1      A: System.Byte = 5
+      97      24      X: System.ValueTuple<System.Int32,System.ValueTuple<System.Byte,System.Int64>>
+      97       4        Item1: System.Int32 = 6
+     105      16        Item2: System.ValueTuple<System.Byte,System.Int64>
+     113       1          Item1: System.Byte = 7
+     105       8          Item2: System.Int64 = -8
+     121      16      Y: System.ValueTuple<System.ValueTuple<System.Byte,System.Int16>,System.Int64>
+     129       4        Item1: System.ValueTuple<System.Byte,System.Int16>
+     131       1          Item1: System.Byte = 9
+     129       2          Item2: System.Int16 = -10
+     121       8        Item2: System.Int64 = 11
+     137     112    Leaves: Conformance.HoldsBclLeaves [raw(112){...}]
+     137       1      A: System.Byte = 12
+     141      16      G: System.Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+     161      16      D: System.Decimal = -1.5
+     177       8      S: System.TimeSpan = -00:00:00.0000013
+     185      16      T: System.ValueTuple<System.Int32,System.TimeSpan>
+     185       4        Item1: System.Int32 = 14
+     193       8        Item2: System.TimeSpan = -2.00:00:00
+     201      24      M: System.ValueTuple<System.Byte,System.Decimal>
+     201       1        Item1: System.Byte = 15
+     209      16        Item2: System.Decimal = 0.0000000000000000000000000001
+     225      24      U: System.ValueTuple<System.Byte,System.Guid>
+     225       1        Item1: System.Byte = 16
+     229      16        Item2: System.Guid = f0e1d2c3-b4a5-9687-7869-5a4b3c2d1e0f
+     249     100    TupleArray: Conformance.HoldsTuples[] [seq(raw(48){...}]  (2 elements)
+     253      48      [0]
+     253       4        A: System.Int32 = 21
+     261      16        B: System.ValueTuple<System.Int32,System.Int64>
+     269       4          Item1: System.Int32 = 22
+     261       8          Item2: System.Int64 = 23
+     277       4        C: System.ValueTuple<System.Byte,System.Int16>
+     279       1          Item1: System.Byte = 24
+     277       2          Item2: System.Int16 = 25
+     285      16        D: System.ValueTuple<System.Byte,System.Int64,System.Int32>
+     297       1          Item1: System.Byte = 26
+     285       8          Item2: System.Int64 = 27
+     293       4          Item3: System.Int32 = 28
+     301      48      [1]
+     301       4        A: System.Int32 = 0
+     309      16        B: System.ValueTuple<System.Int32,System.Int64>
+     317       4          Item1: System.Int32 = 0
+     309       8          Item2: System.Int64 = 0
+     325       4        C: System.ValueTuple<System.Byte,System.Int16>
+     327       1          Item1: System.Byte = 0
+     325       2          Item2: System.Int16 = 0
+     333      16        D: System.ValueTuple<System.Byte,System.Int64,System.Int32>
+     345       1          Item1: System.Byte = 0
+     333       8          Item2: System.Int64 = 0
+     341       4          Item3: System.Int32 = 0
+     349      44    PairList: System.Collections.Generic.List<Conformance.HoldsPairs> [seq(raw(40){...}]  (1 element)
+     353      40      [0]
+     353       1        A: System.Byte = 29
+     361      16        P: System.Collections.Generic.KeyValuePair<System.Int32,System.Int64>
+     361       4          Key: System.Int32 = 30
+     369       8          Value: System.Int64 = 31
+     377      16        Q: System.Collections.Generic.KeyValuePair<System.Int64,System.Byte>
+     377       8          Key: System.Int64 = 0
+     385       1          Value: System.Byte = 0

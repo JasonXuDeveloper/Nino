@@ -109,6 +109,7 @@ namespace Nino.Codegen
                          })
                     lines.Add($"  {label} " + string.Join(" ", All.Where(o => o.Language == language).Select(Show)));
                 lines.Add(LayoutsCommand.Usage);
+                lines.Add(InspectCommand.Usage);
                 return string.Join("\n", lines);
             }
         }

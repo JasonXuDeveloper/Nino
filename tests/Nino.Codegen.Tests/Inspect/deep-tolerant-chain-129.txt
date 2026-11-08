@@ -1,0 +1,523 @@
+nino-gen inspect: Conformance.TolerantChain, 1174 byte(s) from offset 0
+  offset  length  value
+       0    1174  value: Conformance.TolerantChain  (version tolerant)
+       0       1    presence = 1
+       1       4    length = -2147482479  (1169 bytes: members 1148, then a section of deferred bodies)
+       5       4    Value: int [raw(4)] = 1
+       9    1144    Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+       9       1      presence = 1
+      10       4      length = 1139
+      14       4      Value: int [raw(4)] = 2
+      18    1135      Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      18       1        presence = 1
+      19       4        length = 1130
+      23       4        Value: int [raw(4)] = 3
+      27    1126        Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      27       1          presence = 1
+      28       4          length = 1121
+      32       4          Value: int [raw(4)] = 4
+      36    1117          Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      36       1            presence = 1
+      37       4            length = 1112
+      41       4            Value: int [raw(4)] = 5
+      45    1108            Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      45       1              presence = 1
+      46       4              length = 1103
+      50       4              Value: int [raw(4)] = 6
+      54    1099              Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      54       1                presence = 1
+      55       4                length = 1094
+      59       4                Value: int [raw(4)] = 7
+      63    1090                Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      63       1                  presence = 1
+      64       4                  length = 1085
+      68       4                  Value: int [raw(4)] = 8
+      72    1081                  Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      72       1                    presence = 1
+      73       4                    length = 1076
+      77       4                    Value: int [raw(4)] = 9
+      81    1072                    Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      81       1                      presence = 1
+      82       4                      length = 1067
+      86       4                      Value: int [raw(4)] = 10
+      90    1063                      Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      90       1                        presence = 1
+      91       4                        length = 1058
+      95       4                        Value: int [raw(4)] = 11
+      99    1054                        Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+      99       1                          presence = 1
+     100       4                          length = 1049
+     104       4                          Value: int [raw(4)] = 12
+     108    1045                          Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     108       1                            presence = 1
+     109       4                            length = 1040
+     113       4                            Value: int [raw(4)] = 13
+     117    1036                            Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     117       1                              presence = 1
+     118       4                              length = 1031
+     122       4                              Value: int [raw(4)] = 14
+     126    1027                              Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     126       1                                presence = 1
+     127       4                                length = 1022
+     131       4                                Value: int [raw(4)] = 15
+     135    1018                                Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     135       1                                  presence = 1
+     136       4                                  length = 1013
+     140       4                                  Value: int [raw(4)] = 16
+     144    1009                                  Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     144       1                                    presence = 1
+     145       4                                    length = 1004
+     149       4                                    Value: int [raw(4)] = 17
+     153    1000                                    Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     153       1                                      presence = 1
+     154       4                                      length = 995
+     158       4                                      Value: int [raw(4)] = 18
+     162     991                                      Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     162       1                                        presence = 1
+     163       4                                        length = 986
+     167       4                                        Value: int [raw(4)] = 19
+     171     982                                        Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     171       1                                          presence = 1
+     172       4                                          length = 977
+     176       4                                          Value: int [raw(4)] = 20
+     180     973                                          Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     180       1                                            presence = 1
+     181       4                                            length = 968
+     185       4                                            Value: int [raw(4)] = 21
+     189     964                                            Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     189       1                                              presence = 1
+     190       4                                              length = 959
+     194       4                                              Value: int [raw(4)] = 22
+     198     955                                              Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     198       1                                                presence = 1
+     199       4                                                length = 950
+     203       4                                                Value: int [raw(4)] = 23
+     207     946                                                Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     207       1                                                  presence = 1
+     208       4                                                  length = 941
+     212       4                                                  Value: int [raw(4)] = 24
+     216     937                                                  Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     216       1                                                    presence = 1
+     217       4                                                    length = 932
+     221       4                                                    Value: int [raw(4)] = 25
+     225     928                                                    Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     225       1                                                      presence = 1
+     226       4                                                      length = 923
+     230       4                                                      Value: int [raw(4)] = 26
+     234     919                                                      Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     234       1                                                        presence = 1
+     235       4                                                        length = 914
+     239       4                                                        Value: int [raw(4)] = 27
+     243     910                                                        Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     243       1                                                          presence = 1
+     244       4                                                          length = 905
+     248       4                                                          Value: int [raw(4)] = 28
+     252     901                                                          Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     252       1                                                            presence = 1
+     253       4                                                            length = 896
+     257       4                                                            Value: int [raw(4)] = 29
+     261     892                                                            Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     261       1                                                              presence = 1
+     262       4                                                              length = 887
+     266       4                                                              Value: int [raw(4)] = 30
+     270     883                                                              Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     270       1                                                                presence = 1
+     271       4                                                                length = 878
+     275       4                                                                Value: int [raw(4)] = 31
+     279     874                                                                Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     279       1                                                                  presence = 1
+     280       4                                                                  length = 869
+     284       4                                                                  Value: int [raw(4)] = 32
+     288     865                                                                  Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     288       1                                                                  (33) presence = 1
+     289       4                                                                  (33) length = 860
+     293       4                                                                  (33) Value: int [raw(4)] = 33
+     297     856                                                                  (33) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     297       1                                                                  (34) presence = 1
+     298       4                                                                  (34) length = 851
+     302       4                                                                  (34) Value: int [raw(4)] = 34
+     306     847                                                                  (34) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     306       1                                                                  (35) presence = 1
+     307       4                                                                  (35) length = 842
+     311       4                                                                  (35) Value: int [raw(4)] = 35
+     315     838                                                                  (35) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     315       1                                                                  (36) presence = 1
+     316       4                                                                  (36) length = 833
+     320       4                                                                  (36) Value: int [raw(4)] = 36
+     324     829                                                                  (36) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     324       1                                                                  (37) presence = 1
+     325       4                                                                  (37) length = 824
+     329       4                                                                  (37) Value: int [raw(4)] = 37
+     333     820                                                                  (37) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     333       1                                                                  (38) presence = 1
+     334       4                                                                  (38) length = 815
+     338       4                                                                  (38) Value: int [raw(4)] = 38
+     342     811                                                                  (38) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     342       1                                                                  (39) presence = 1
+     343       4                                                                  (39) length = 806
+     347       4                                                                  (39) Value: int [raw(4)] = 39
+     351     802                                                                  (39) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     351       1                                                                  (40) presence = 1
+     352       4                                                                  (40) length = 797
+     356       4                                                                  (40) Value: int [raw(4)] = 40
+     360     793                                                                  (40) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     360       1                                                                  (41) presence = 1
+     361       4                                                                  (41) length = 788
+     365       4                                                                  (41) Value: int [raw(4)] = 41
+     369     784                                                                  (41) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     369       1                                                                  (42) presence = 1
+     370       4                                                                  (42) length = 779
+     374       4                                                                  (42) Value: int [raw(4)] = 42
+     378     775                                                                  (42) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     378       1                                                                  (43) presence = 1
+     379       4                                                                  (43) length = 770
+     383       4                                                                  (43) Value: int [raw(4)] = 43
+     387     766                                                                  (43) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     387       1                                                                  (44) presence = 1
+     388       4                                                                  (44) length = 761
+     392       4                                                                  (44) Value: int [raw(4)] = 44
+     396     757                                                                  (44) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     396       1                                                                  (45) presence = 1
+     397       4                                                                  (45) length = 752
+     401       4                                                                  (45) Value: int [raw(4)] = 45
+     405     748                                                                  (45) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     405       1                                                                  (46) presence = 1
+     406       4                                                                  (46) length = 743
+     410       4                                                                  (46) Value: int [raw(4)] = 46
+     414     739                                                                  (46) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     414       1                                                                  (47) presence = 1
+     415       4                                                                  (47) length = 734
+     419       4                                                                  (47) Value: int [raw(4)] = 47
+     423     730                                                                  (47) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     423       1                                                                  (48) presence = 1
+     424       4                                                                  (48) length = 725
+     428       4                                                                  (48) Value: int [raw(4)] = 48
+     432     721                                                                  (48) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     432       1                                                                  (49) presence = 1
+     433       4                                                                  (49) length = 716
+     437       4                                                                  (49) Value: int [raw(4)] = 49
+     441     712                                                                  (49) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     441       1                                                                  (50) presence = 1
+     442       4                                                                  (50) length = 707
+     446       4                                                                  (50) Value: int [raw(4)] = 50
+     450     703                                                                  (50) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     450       1                                                                  (51) presence = 1
+     451       4                                                                  (51) length = 698
+     455       4                                                                  (51) Value: int [raw(4)] = 51
+     459     694                                                                  (51) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     459       1                                                                  (52) presence = 1
+     460       4                                                                  (52) length = 689
+     464       4                                                                  (52) Value: int [raw(4)] = 52
+     468     685                                                                  (52) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     468       1                                                                  (53) presence = 1
+     469       4                                                                  (53) length = 680
+     473       4                                                                  (53) Value: int [raw(4)] = 53
+     477     676                                                                  (53) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     477       1                                                                  (54) presence = 1
+     478       4                                                                  (54) length = 671
+     482       4                                                                  (54) Value: int [raw(4)] = 54
+     486     667                                                                  (54) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     486       1                                                                  (55) presence = 1
+     487       4                                                                  (55) length = 662
+     491       4                                                                  (55) Value: int [raw(4)] = 55
+     495     658                                                                  (55) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     495       1                                                                  (56) presence = 1
+     496       4                                                                  (56) length = 653
+     500       4                                                                  (56) Value: int [raw(4)] = 56
+     504     649                                                                  (56) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     504       1                                                                  (57) presence = 1
+     505       4                                                                  (57) length = 644
+     509       4                                                                  (57) Value: int [raw(4)] = 57
+     513     640                                                                  (57) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     513       1                                                                  (58) presence = 1
+     514       4                                                                  (58) length = 635
+     518       4                                                                  (58) Value: int [raw(4)] = 58
+     522     631                                                                  (58) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     522       1                                                                  (59) presence = 1
+     523       4                                                                  (59) length = 626
+     527       4                                                                  (59) Value: int [raw(4)] = 59
+     531     622                                                                  (59) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     531       1                                                                  (60) presence = 1
+     532       4                                                                  (60) length = 617
+     536       4                                                                  (60) Value: int [raw(4)] = 60
+     540     613                                                                  (60) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     540       1                                                                  (61) presence = 1
+     541       4                                                                  (61) length = 608
+     545       4                                                                  (61) Value: int [raw(4)] = 61
+     549     604                                                                  (61) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     549       1                                                                  (62) presence = 1
+     550       4                                                                  (62) length = 599
+     554       4                                                                  (62) Value: int [raw(4)] = 62
+     558     595                                                                  (62) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     558       1                                                                  (63) presence = 1
+     559       4                                                                  (63) length = 590
+     563       4                                                                  (63) Value: int [raw(4)] = 63
+     567     586                                                                  (63) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     567       1                                                                  (64) presence = 1
+     568       4                                                                  (64) length = 581
+     572       4                                                                  (64) Value: int [raw(4)] = 64
+     576     577                                                                  (64) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     576       1                                                                  (65) presence = 1
+     577       4                                                                  (65) length = 572
+     581       4                                                                  (65) Value: int [raw(4)] = 65
+     585     568                                                                  (65) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     585       1                                                                  (66) presence = 1
+     586       4                                                                  (66) length = 563
+     590       4                                                                  (66) Value: int [raw(4)] = 66
+     594     559                                                                  (66) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     594       1                                                                  (67) presence = 1
+     595       4                                                                  (67) length = 554
+     599       4                                                                  (67) Value: int [raw(4)] = 67
+     603     550                                                                  (67) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     603       1                                                                  (68) presence = 1
+     604       4                                                                  (68) length = 545
+     608       4                                                                  (68) Value: int [raw(4)] = 68
+     612     541                                                                  (68) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     612       1                                                                  (69) presence = 1
+     613       4                                                                  (69) length = 536
+     617       4                                                                  (69) Value: int [raw(4)] = 69
+     621     532                                                                  (69) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     621       1                                                                  (70) presence = 1
+     622       4                                                                  (70) length = 527
+     626       4                                                                  (70) Value: int [raw(4)] = 70
+     630     523                                                                  (70) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     630       1                                                                  (71) presence = 1
+     631       4                                                                  (71) length = 518
+     635       4                                                                  (71) Value: int [raw(4)] = 71
+     639     514                                                                  (71) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     639       1                                                                  (72) presence = 1
+     640       4                                                                  (72) length = 509
+     644       4                                                                  (72) Value: int [raw(4)] = 72
+     648     505                                                                  (72) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     648       1                                                                  (73) presence = 1
+     649       4                                                                  (73) length = 500
+     653       4                                                                  (73) Value: int [raw(4)] = 73
+     657     496                                                                  (73) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     657       1                                                                  (74) presence = 1
+     658       4                                                                  (74) length = 491
+     662       4                                                                  (74) Value: int [raw(4)] = 74
+     666     487                                                                  (74) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     666       1                                                                  (75) presence = 1
+     667       4                                                                  (75) length = 482
+     671       4                                                                  (75) Value: int [raw(4)] = 75
+     675     478                                                                  (75) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     675       1                                                                  (76) presence = 1
+     676       4                                                                  (76) length = 473
+     680       4                                                                  (76) Value: int [raw(4)] = 76
+     684     469                                                                  (76) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     684       1                                                                  (77) presence = 1
+     685       4                                                                  (77) length = 464
+     689       4                                                                  (77) Value: int [raw(4)] = 77
+     693     460                                                                  (77) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     693       1                                                                  (78) presence = 1
+     694       4                                                                  (78) length = 455
+     698       4                                                                  (78) Value: int [raw(4)] = 78
+     702     451                                                                  (78) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     702       1                                                                  (79) presence = 1
+     703       4                                                                  (79) length = 446
+     707       4                                                                  (79) Value: int [raw(4)] = 79
+     711     442                                                                  (79) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     711       1                                                                  (80) presence = 1
+     712       4                                                                  (80) length = 437
+     716       4                                                                  (80) Value: int [raw(4)] = 80
+     720     433                                                                  (80) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     720       1                                                                  (81) presence = 1
+     721       4                                                                  (81) length = 428
+     725       4                                                                  (81) Value: int [raw(4)] = 81
+     729     424                                                                  (81) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     729       1                                                                  (82) presence = 1
+     730       4                                                                  (82) length = 419
+     734       4                                                                  (82) Value: int [raw(4)] = 82
+     738     415                                                                  (82) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     738       1                                                                  (83) presence = 1
+     739       4                                                                  (83) length = 410
+     743       4                                                                  (83) Value: int [raw(4)] = 83
+     747     406                                                                  (83) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     747       1                                                                  (84) presence = 1
+     748       4                                                                  (84) length = 401
+     752       4                                                                  (84) Value: int [raw(4)] = 84
+     756     397                                                                  (84) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     756       1                                                                  (85) presence = 1
+     757       4                                                                  (85) length = 392
+     761       4                                                                  (85) Value: int [raw(4)] = 85
+     765     388                                                                  (85) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     765       1                                                                  (86) presence = 1
+     766       4                                                                  (86) length = 383
+     770       4                                                                  (86) Value: int [raw(4)] = 86
+     774     379                                                                  (86) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     774       1                                                                  (87) presence = 1
+     775       4                                                                  (87) length = 374
+     779       4                                                                  (87) Value: int [raw(4)] = 87
+     783     370                                                                  (87) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     783       1                                                                  (88) presence = 1
+     784       4                                                                  (88) length = 365
+     788       4                                                                  (88) Value: int [raw(4)] = 88
+     792     361                                                                  (88) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     792       1                                                                  (89) presence = 1
+     793       4                                                                  (89) length = 356
+     797       4                                                                  (89) Value: int [raw(4)] = 89
+     801     352                                                                  (89) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     801       1                                                                  (90) presence = 1
+     802       4                                                                  (90) length = 347
+     806       4                                                                  (90) Value: int [raw(4)] = 90
+     810     343                                                                  (90) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     810       1                                                                  (91) presence = 1
+     811       4                                                                  (91) length = 338
+     815       4                                                                  (91) Value: int [raw(4)] = 91
+     819     334                                                                  (91) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     819       1                                                                  (92) presence = 1
+     820       4                                                                  (92) length = 329
+     824       4                                                                  (92) Value: int [raw(4)] = 92
+     828     325                                                                  (92) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     828       1                                                                  (93) presence = 1
+     829       4                                                                  (93) length = 320
+     833       4                                                                  (93) Value: int [raw(4)] = 93
+     837     316                                                                  (93) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     837       1                                                                  (94) presence = 1
+     838       4                                                                  (94) length = 311
+     842       4                                                                  (94) Value: int [raw(4)] = 94
+     846     307                                                                  (94) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     846       1                                                                  (95) presence = 1
+     847       4                                                                  (95) length = 302
+     851       4                                                                  (95) Value: int [raw(4)] = 95
+     855     298                                                                  (95) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     855       1                                                                  (96) presence = 1
+     856       4                                                                  (96) length = 293
+     860       4                                                                  (96) Value: int [raw(4)] = 96
+     864     289                                                                  (96) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     864       1                                                                  (97) presence = 1
+     865       4                                                                  (97) length = 284
+     869       4                                                                  (97) Value: int [raw(4)] = 97
+     873     280                                                                  (97) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     873       1                                                                  (98) presence = 1
+     874       4                                                                  (98) length = 275
+     878       4                                                                  (98) Value: int [raw(4)] = 98
+     882     271                                                                  (98) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     882       1                                                                  (99) presence = 1
+     883       4                                                                  (99) length = 266
+     887       4                                                                  (99) Value: int [raw(4)] = 99
+     891     262                                                                  (99) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     891       1                                                                  (100) presence = 1
+     892       4                                                                  (100) length = 257
+     896       4                                                                  (100) Value: int [raw(4)] = 100
+     900     253                                                                  (100) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     900       1                                                                  (101) presence = 1
+     901       4                                                                  (101) length = 248
+     905       4                                                                  (101) Value: int [raw(4)] = 101
+     909     244                                                                  (101) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     909       1                                                                  (102) presence = 1
+     910       4                                                                  (102) length = 239
+     914       4                                                                  (102) Value: int [raw(4)] = 102
+     918     235                                                                  (102) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     918       1                                                                  (103) presence = 1
+     919       4                                                                  (103) length = 230
+     923       4                                                                  (103) Value: int [raw(4)] = 103
+     927     226                                                                  (103) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     927       1                                                                  (104) presence = 1
+     928       4                                                                  (104) length = 221
+     932       4                                                                  (104) Value: int [raw(4)] = 104
+     936     217                                                                  (104) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     936       1                                                                  (105) presence = 1
+     937       4                                                                  (105) length = 212
+     941       4                                                                  (105) Value: int [raw(4)] = 105
+     945     208                                                                  (105) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     945       1                                                                  (106) presence = 1
+     946       4                                                                  (106) length = 203
+     950       4                                                                  (106) Value: int [raw(4)] = 106
+     954     199                                                                  (106) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     954       1                                                                  (107) presence = 1
+     955       4                                                                  (107) length = 194
+     959       4                                                                  (107) Value: int [raw(4)] = 107
+     963     190                                                                  (107) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     963       1                                                                  (108) presence = 1
+     964       4                                                                  (108) length = 185
+     968       4                                                                  (108) Value: int [raw(4)] = 108
+     972     181                                                                  (108) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     972       1                                                                  (109) presence = 1
+     973       4                                                                  (109) length = 176
+     977       4                                                                  (109) Value: int [raw(4)] = 109
+     981     172                                                                  (109) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     981       1                                                                  (110) presence = 1
+     982       4                                                                  (110) length = 167
+     986       4                                                                  (110) Value: int [raw(4)] = 110
+     990     163                                                                  (110) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     990       1                                                                  (111) presence = 1
+     991       4                                                                  (111) length = 158
+     995       4                                                                  (111) Value: int [raw(4)] = 111
+     999     154                                                                  (111) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+     999       1                                                                  (112) presence = 1
+    1000       4                                                                  (112) length = 149
+    1004       4                                                                  (112) Value: int [raw(4)] = 112
+    1008     145                                                                  (112) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1008       1                                                                  (113) presence = 1
+    1009       4                                                                  (113) length = 140
+    1013       4                                                                  (113) Value: int [raw(4)] = 113
+    1017     136                                                                  (113) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1017       1                                                                  (114) presence = 1
+    1018       4                                                                  (114) length = 131
+    1022       4                                                                  (114) Value: int [raw(4)] = 114
+    1026     127                                                                  (114) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1026       1                                                                  (115) presence = 1
+    1027       4                                                                  (115) length = 122
+    1031       4                                                                  (115) Value: int [raw(4)] = 115
+    1035     118                                                                  (115) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1035       1                                                                  (116) presence = 1
+    1036       4                                                                  (116) length = 113
+    1040       4                                                                  (116) Value: int [raw(4)] = 116
+    1044     109                                                                  (116) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1044       1                                                                  (117) presence = 1
+    1045       4                                                                  (117) length = 104
+    1049       4                                                                  (117) Value: int [raw(4)] = 117
+    1053     100                                                                  (117) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1053       1                                                                  (118) presence = 1
+    1054       4                                                                  (118) length = 95
+    1058       4                                                                  (118) Value: int [raw(4)] = 118
+    1062      91                                                                  (118) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1062       1                                                                  (119) presence = 1
+    1063       4                                                                  (119) length = 86
+    1067       4                                                                  (119) Value: int [raw(4)] = 119
+    1071      82                                                                  (119) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1071       1                                                                  (120) presence = 1
+    1072       4                                                                  (120) length = 77
+    1076       4                                                                  (120) Value: int [raw(4)] = 120
+    1080      73                                                                  (120) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1080       1                                                                  (121) presence = 1
+    1081       4                                                                  (121) length = 68
+    1085       4                                                                  (121) Value: int [raw(4)] = 121
+    1089      64                                                                  (121) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1089       1                                                                  (122) presence = 1
+    1090       4                                                                  (122) length = 59
+    1094       4                                                                  (122) Value: int [raw(4)] = 122
+    1098      55                                                                  (122) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1098       1                                                                  (123) presence = 1
+    1099       4                                                                  (123) length = 50
+    1103       4                                                                  (123) Value: int [raw(4)] = 123
+    1107      46                                                                  (123) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1107       1                                                                  (124) presence = 1
+    1108       4                                                                  (124) length = 41
+    1112       4                                                                  (124) Value: int [raw(4)] = 124
+    1116      37                                                                  (124) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1116       1                                                                  (125) presence = 1
+    1117       4                                                                  (125) length = 32
+    1121       4                                                                  (125) Value: int [raw(4)] = 125
+    1125      28                                                                  (125) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1125       1                                                                  (126) presence = 1
+    1126       4                                                                  (126) length = 23
+    1130       4                                                                  (126) Value: int [raw(4)] = 126
+    1134      19                                                                  (126) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1134       1                                                                  (127) presence = 1
+    1135       4                                                                  (127) length = 14
+    1139       4                                                                  (127) Value: int [raw(4)] = 127
+    1143      10                                                                  (127) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (version tolerant)
+    1143       1                                                                  (128) presence = 1
+    1144       4                                                                  (128) length = 5
+    1148       4                                                                  (128) Value: int [raw(4)] = 128
+    1152       1                                                                  (128) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)]  (body deferred)
+    1152       1                                                                  (129) presence = 1
+    1161       9                                                                  (129) (body)  (deferred: would have begun at 1153; version tolerant)
+    1161       4                                                                  (130) length = 5
+    1165       4                                                                  (130) Value: int [raw(4)] = 129
+    1169       1                                                                  (130) Next: Conformance.TolerantChain [type(Conformance.TolerantChain)] = null
+    1169       1                                                                  (131) presence = 0
+    1153      21    (deferred bodies)  (the section of the outermost region)
+    1153      17      entry  (key 1148: the body of Next at 1152)

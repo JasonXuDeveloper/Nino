@@ -1,0 +1,6 @@
+nino-gen inspect: Conformance.Targets.BoolValue, 2 byte(s) from offset 0
+  offset  length  value
+       0       2  value: Conformance.Targets.BoolValue
+       0       1    presence = 1
+       1       1    Value: bool [raw(1)]
+nino-gen: malformed data at offset 1: invalid bool byte 2

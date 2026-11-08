@@ -54,12 +54,13 @@ namespace Nino.Codegen.Tests
             // types nothing stored holds (Shapes.Left.Item...).
             CollectionAssert.AreEqual(new[]
             {
-                "['Shapes.Generic.Bag<T>']", "['Shapes.Generic.Box<T>']", "['Shapes.Generic.Node<T>']",
+                "['InspectSamples.KeyedCustom']", "['Shapes.Generic.Bag<T>']", "['Shapes.Generic.Box<T>']",
+                "['Shapes.Generic.Node<T>']",
                 "['Shapes.Generic.Pair<TKey,TValue>']", "['Shapes.Renamed']",
             }, text.Split('\n').Where(l => l.StartsWith("['", StringComparison.Ordinal)).ToArray());
             StringAssert.Contains(text,
                 "  { name = 'NewName', type = 'int', encoding = 'raw(4)', key = 0x");
-            StringAssert.Contains(output, "layout baseline of 5 type(s)");
+            StringAssert.Contains(output, "layout baseline of 6 type(s)");
         });
 
         [TestMethod]

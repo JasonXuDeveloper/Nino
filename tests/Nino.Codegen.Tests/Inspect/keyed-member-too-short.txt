@@ -1,0 +1,7 @@
+nino-gen inspect: Conformance.KeyedV1, 60 byte(s) from offset 0
+  offset  length  value
+       0      13  value: Conformance.KeyedV1  (keyed)
+       0       1    presence = 1
+       1       4    length = 55
+       5       8    Health: int [raw(4)]  (key 0x99A16761)
+nino-gen: malformed data at offset 13: runs past the end of its region at 15: 4 byte(s) needed, 2 left

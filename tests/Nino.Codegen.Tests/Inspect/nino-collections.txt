@@ -1,0 +1,47 @@
+nino-gen inspect: Conformance.BagHolder, 147 byte(s) from offset 0
+  offset  length  value
+       0     147  value: Conformance.BagHolder
+       0       1    presence = 1
+       1      24    Bag: Conformance.Bag [type(Conformance.Bag)]
+       1       4      type id = 0xCC960662  (Conformance.Bag)
+       5      16      [elements] [seq(raw(4))] = [1, 2, 3]  (3 elements)
+      21       4      Tag: string [string] = "bag"  (Latin-1, 3 char(s))
+      25      22    Tolerant: Conformance.TolerantBag [type(Conformance.TolerantBag)]  (version tolerant)
+      25       1      presence = 1
+      26       8      [elements] [seq(string)]  (3 elements)
+      30       2        [0] = "a"  (Latin-1, 1 char(s))
+      32       1        [1] = null
+      33       1        [2] = ""  (Latin-1, 0 char(s))
+      34       4      length = 9
+      38       9      Tag: string [string] = "tolerant"  (Latin-1, 8 char(s))
+      47      37    Keyed: Conformance.KeyedBag [type(Conformance.KeyedBag)]  (keyed)
+      47       1      presence = 1
+      48       4      length = 32
+      52      20      [elements] [map(string,raw(4))]  (2 entries)
+      56       8        [0]
+      56       4          key: System.String = "one"  (Latin-1, 3 char(s))
+      60       4          value: System.Int32 = 1
+      64       8        [1]
+      64       4          key: System.String = "two"  (Latin-1, 3 char(s))
+      68       4          value: System.Int32 = 2
+      72      12      Version: int [raw(4)] = 9  (key 0x8E2BF89F)
+      84      22    Set: Conformance.PointSet [type(Conformance.PointSet)]
+      84       1      presence = 1
+      85      12      [elements] [seq(raw(4))]  (2 elements)
+      89       4        [0] = 5
+      93       4        [1] = 3
+      97       9      Origin: Conformance.Point [type(Conformance.Point)]
+      97       1        presence = 1
+      98       4        X: int [raw(4)] = 1
+     102       4        Y: int [raw(4)] = 2
+     106      41    Bags: System.Collections.Generic.List<Conformance.Bag> [seq(type(Conformance.Bag))]  (3 elements)
+     110       9      [0]  (Conformance.Bag)
+     110       4        type id = 0xCC960662  (Conformance.Bag)
+     114       4        [elements] [seq(raw(4))] = []  (0 elements)
+     118       1        Tag: string [string] = null
+     119       4      [1] = null
+     119       4        type id = 0x00000000  (null)
+     123      24      [2]  (Conformance.Bag)
+     123       4        type id = 0xCC960662  (Conformance.Bag)
+     127      16        [elements] [seq(raw(4))] = [1, 2, 3]  (3 elements)
+     143       4        Tag: string [string] = "bag"  (Latin-1, 3 char(s))

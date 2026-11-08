@@ -140,6 +140,114 @@ namespace Nino.Codegen.Model
                 yield return member.Value;
         }
 
+        // ---------------------------------------------------------------- types named at run time (nino-gen inspect)
+
+        /// <summary>
+        /// The type a runtime-form name names (<c>NinoTypeId.GetRuntimeName</c>: <c>Conformance.Box&lt;System.Int32&gt;</c>,
+        /// <c>A.Outer+Inner</c>, <c>System.Int32[]</c>), the form type ids hash and the corpus uses; null when it names
+        /// no type of the assembly, the core library or the assemblies it references.
+        /// </summary>
+        internal Type? ResolveType(string name)
+        {
+            int pos = 0;
+            var type = ResolveType(name.Replace(" ", ""), ref pos);
+            return type != null && pos == name.Replace(" ", "").Length ? type : null;
+        }
+
+        private Type? ResolveType(string name, ref int pos)
+        {
+            int start = pos;
+            while (pos < name.Length && name[pos] is not ('<' or ',' or '>' or '['))
+                pos++;
+            string definition = name.Substring(start, pos - start);
+            var arguments = new List<Type>();
+            if (pos < name.Length && name[pos] == '<')
+            {
+                do
+                {
+                    pos++;
+                    if (ResolveType(name, ref pos) is not { } argument)
+                        return null;
+                    arguments.Add(argument);
+                } while (pos < name.Length && name[pos] == ',');
+
+                if (pos == name.Length || name[pos++] != '>')
+                    return null;
+            }
+
+            string clrName = arguments.Count == 0
+                ? definition
+                : definition + "`" + arguments.Count.ToString(CultureInfo.InvariantCulture);
+            var type = Types.FirstOrDefault(t => t.Clr.FullName == clrName)?.Clr ?? _reader.FindType(clrName);
+            if (type == null || type.IsGenericTypeDefinition != (arguments.Count != 0))
+                return null;
+            try
+            {
+                if (arguments.Count != 0)
+                    type = type.MakeGenericType(arguments.ToArray());
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+
+            while (pos < name.Length && name[pos] == '[')
+            {
+                int close = name.IndexOf(']', pos);
+                if (close < 0 || name.AsSpan(pos + 1, close - pos - 1).Trim(',').Length != 0)
+                    return null;
+                int rank = close - pos;
+                type = rank == 1 ? type.MakeArrayType() : type.MakeArrayType(rank);
+                pos = close + 1;
+            }
+
+            return type;
+        }
+
+        /// <summary>
+        /// A value of <paramref name="type"/> as a whole payload, which Nino.Core reads with the formatter it finds for
+        /// the type (<see cref="ArgumentEncoding"/>); null when that formatter is not known here.
+        /// </summary>
+        internal ValueModel? RootValue(Type type) =>
+            ArgumentEncoding(type) is { } encoding ? Value(WireEncoding.Parse(encoding), type) : null;
+
+        /// <summary>
+        /// Whether a struct can hold itself through no class body (a collection, a nullable, an interface or
+        /// <c>object</c>): .NET counts the nesting of its bodies toward the depth limit (<c>Reader.EnterStruct</c>,
+        /// wire-format spec §9.9), as nothing else bounds it.
+        /// </summary>
+        internal bool HoldsItself(TypeModel type)
+        {
+            var seen = new HashSet<TypeModel>();
+            var pending = new Stack<TypeModel>();
+            pending.Push(type);
+            while (pending.Count != 0)
+            {
+                foreach (var reached in OwnValues(pending.Pop()).SelectMany(v => v.Walk()).SelectMany(StructsIn))
+                {
+                    if (reached == type)
+                        return true;
+                    if (seen.Add(reached))
+                        pending.Push(reached);
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>The non-raw struct bodies a value can open directly (behind a type id, any of those assignable).</summary>
+        private IEnumerable<TypeModel> StructsIn(ValueModel value)
+        {
+            var candidates = value.Kind switch
+            {
+                ValueKind.Type when value.Type!.Header == HeaderKind.TypeId => value.Type.Assignable,
+                ValueKind.Type or ValueKind.Generic => new List<TypeModel> { value.Type! },
+                ValueKind.Object => Types,
+                _ => new List<TypeModel>(),
+            };
+            return candidates.Where(t => t.IsValueType && !t.Raw);
+        }
+
         // ---------------------------------------------------------------- building
 
         private void Build(Dictionary<Type, TypeLayout> layouts, IReadOnlyCollection<Type> closedTypes)
@@ -403,7 +511,7 @@ namespace Nino.Codegen.Model
         }
 
         /// <summary>Whether a value of <paramref name="type"/> sits in a slot of <paramref name="slot"/> (by name).</summary>
-        private static bool AssignableTo(Type type, Type slot)
+        internal static bool AssignableTo(Type type, Type slot)
         {
             string key = TypeKey(slot);
             return BasesOf(type).Any(b => TypeKey(b) == key);
@@ -413,7 +521,7 @@ namespace Nino.Codegen.Model
         /// <paramref name="type"/> with the type parameters of the generic definition it is written in replaced by
         /// <paramref name="arguments"/> (by position).
         /// </summary>
-        private static Type Substitute(Type type, Type[] arguments)
+        internal static Type Substitute(Type type, Type[] arguments)
         {
             if (type.IsGenericParameter)
                 return arguments[type.GenericParameterPosition];

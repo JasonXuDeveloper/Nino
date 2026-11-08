@@ -1,0 +1,41 @@
+nino-gen inspect: Conformance.TrackedHolder, 94 byte(s) from offset 0
+  offset  length  value
+       0      94  value: Conformance.TrackedHolder
+       0       1    presence = 1
+       1      20    A: Conformance.Tracked [type(Conformance.Tracked)]  (object #1)
+       1       4      reference = -1  (new object #1)
+       5       4      type id = 0x8E7C9360  (Conformance.Tracked)
+       9       4      Value: int [raw(4)] = 1
+      13       4      Next: Conformance.Tracked [type(Conformance.Tracked)] = null
+      13       4        reference = 0  (null)
+      17       4      Other: Conformance.Tracked [type(Conformance.Tracked)] = null
+      17       4        reference = 0  (null)
+      21      20    B: Conformance.Tracked [type(Conformance.Tracked)]  (object #2)
+      21       4      reference = -1  (new object #2)
+      25       4      type id = 0x8E7C9360  (Conformance.Tracked)
+      29       4      Value: int [raw(4)] = 2
+      33       4      Next: Conformance.Tracked [type(Conformance.Tracked)] = -> #2
+      33       4        reference = 2  (back reference to object #2)
+      37       4      Other: Conformance.Tracked [type(Conformance.Tracked)] = null
+      37       4        reference = 0  (null)
+      41      45    All: System.Collections.Generic.List<Conformance.Tracked> [seq(type(Conformance.Tracked))]  (5 elements)
+      45       4      [0] = -> #1
+      45       4        reference = 1  (back reference to object #1)
+      49      25      [1]  (Conformance.TrackedLeaf; object #3)
+      49       4        reference = -1  (new object #3)
+      53       4        type id = 0x671FC086  (Conformance.TrackedLeaf)
+      57       4        Value: int [raw(4)] = 3
+      61       4        Next: Conformance.Tracked [type(Conformance.Tracked)] = null
+      61       4          reference = 0  (null)
+      65       4        Other: Conformance.Tracked [type(Conformance.Tracked)] = -> #1
+      65       4          reference = 1  (back reference to object #1)
+      69       5        Name: string [string] = "leaf"  (Latin-1, 4 char(s))
+      74       4      [2] = -> #2
+      74       4        reference = 2  (back reference to object #2)
+      78       4      [3] = null
+      78       4        reference = 0  (null)
+      82       4      [4] = -> #3
+      82       4        reference = 3  (back reference to object #3)
+      86       8    Any: object [object] = -> #3  (Conformance.TrackedLeaf)
+      86       4      type id = 0x671FC086  (Conformance.TrackedLeaf)
+      90       4      reference = 3  (back reference to object #3)

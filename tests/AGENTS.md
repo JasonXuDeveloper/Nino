@@ -33,7 +33,10 @@ Nino.AotTests/               a program over every kind of type, published trimme
 Nino.AspNetCore.Tests/       Nino.AspNetCore: MVC and Minimal API round trips, errors, allocations, unloading
 Nino.Codegen.Tests/          nino-gen: the IR (ModelTests), targets and command line (TargetTests), nino-gen layouts
                              (LayoutsCommandTests), the layout attribute contract, and GeneratedFilesTests: the files committed under runtimes/ are what nino-gen
-                             writes (NINO_UPDATE_GENERATED=1 rewrites them); Shapes.cs: shapes the corpus lacks
+                             writes (NINO_UPDATE_GENERATED=1 rewrites them); Shapes.cs: shapes the corpus lacks;
+                             InspectCommandTests: nino-gen inspect over the whole corpus (valid, malicious, truncated,
+                             mutated) and the text of chosen cases against Inspect/*.txt (NINO_UPDATE_GENERATED=1
+                             rewrites them), with InspectTypes.cs (custom-formatter members)
 Nino.Codegen.Integration.Tests/  build/Nino.Codegen.targets in real builds (BuildTests), and the generated
                              TypeScript (TypeScriptTests, harness.ts under Node), Go (GoTests) and Rust (RustTests)
                              against the bytes .NET writes for Samples.cs; GenericSamples.cs: the generic values and
