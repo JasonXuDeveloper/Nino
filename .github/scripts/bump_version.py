@@ -6,7 +6,8 @@ usage: bump_version.py <version> <unity version>
 NuGet (Directory.Build.props), the Unity package (package.json, its OpenUPM version), the Rust crates
 (nino-serialization and nino-serialization-derive, which the first pins exactly) and the npm package
 nino-serialization all take the release's version; the Go module takes it as the tag runtimes/go/v<version>,
-which the module path's major version (runtimes/go/v4) must match. Each file must change as expected, or this fails.
+which the module path's major version (runtimes/go/v4) must match. The install command in each runtime's README
+(shipped in the npm package and the crate) names the version too. Each file must change as expected, or this fails.
 Prints the path of each file it wrote, one per line (the release commit adds them).
 """
 import json
@@ -56,6 +57,11 @@ def main():
 
     bump_json("runtimes/typescript/package.json", version)
     bump_json("runtimes/typescript/package-lock.json", version, lock=True)
+
+    # The install commands in the runtimes' READMEs: the runtime must match the generator's version.
+    sub("runtimes/go/README.md", r"(runtimes/go/v\d+@v)[^`)\s]+", rf"\g<1>{version}")
+    sub("runtimes/rust/README.md", r"(cargo add nino-serialization@=)[^`\s]+", rf"\g<1>{version}")
+    sub("runtimes/typescript/README.md", r"(npm install nino-serialization@)[^`\s]+", rf"\g<1>{version}")
 
     major = version.split(".")[0]
     module = re.search(r"(?m)^module (\S+)", (ROOT / "runtimes/go/go.mod").read_text(encoding="utf-8")).group(1)
