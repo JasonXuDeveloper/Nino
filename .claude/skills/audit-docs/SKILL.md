@@ -100,7 +100,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
 6. **Chinese**: the same content and structure as English, written natively (`WRITING.md`, Tone: Chinese), headings
    with the English id (`## 键控成员 [#keyed-members]`), links with the same anchors. Read every Chinese paragraph
    next to its English one and rewrite what reads as a translation, by the marks `WRITING.md` lists (stacked 的
-   modifiers, 被, 该/其/使得 padding, word-for-word headings); keep sentences that already read well. Why: round 130,
+   modifiers, 被, 该/其/使得 padding, word-for-word headings); keep sentences that already read well. Chinese written from an English draft (a new page, a changed paragraph,
+   README.zh.md, UI strings) always gets a second pass before it lands: re-read the Chinese alone, not beside the
+   English, as a Chinese developer would, and rewrite what still reads as translated (owner: "翻译后的文本也需要润色"). Why: round 130,
    the owner found the site, README.zh.md and the landing copy "太机翻了"; five agents rewrote about 50 pages, the UI
    strings, glossary, analyzer rules and README.zh.md with no fact changed. Cover the strings outside the pages too
    (`app/routes/home.tsx`, `src/components`, `src/lib/site.ts`, `scripts/generate-static.ts`' llms.txt and social
