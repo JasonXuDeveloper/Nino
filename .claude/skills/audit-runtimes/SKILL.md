@@ -30,6 +30,11 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   TypeScript keeps NINOGEN002 for a `DateTimeOffset` anywhere: its `Date` drops the tick and writes the kind as UTC
   (r104: bcl-raw-offset wrote `dc48` where .NET writes `dc08`). Lock such a mapping in ModelTests against bytes .NET
   writes (`HostDependentLeavesAreWhereNinoCoreWritesThem`) and with a corpus case every runtime reads.
+- Type a value as nullable wherever .NET can write null there: a set's elements may be null (`HashSet<string>`
+  holds one null: Go `*string`, Rust `Option<WideString>`/`Option<Utf8>`, TypeScript `string | null`), only a
+  dictionary's keys never are (.NET throws on a null key and `NinoThrow.NullKey` rejects one on read). Why: r129 found
+  nino-gen's Rust target typing set elements as map keys (`IndexSet<WideString>`), which failed every .NET
+  `HashSet<string>` holding null (corpus case `collections-set-null`, `TargetTests.SetStringsMayBeNullDictionaryKeysNever`).
 - nino-gen refuses what Nino.Core no longer serializes even in a layout an older build published
   (`System.Numerics.Vector<T>`: `CodegenModel.IsHostSizedVector`, `Shapes.OldVector`).
 - A C# feature users can declare is supported by each runtime and by nino-gen's templates, or reported as NINOGEN002
