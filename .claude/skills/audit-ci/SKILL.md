@@ -66,7 +66,9 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   `add_repo` with push access; the response's `X-Accepted-GitHub-Permissions: actions=write` names the token's missing
   permission, not the workflow: ab-bench.yml is active with `workflow_dispatch` and no environment, round 124): to run unity.yml on an experiment, push a branch whose own unity.yml adds it to
   `on.push.branches`, check first that no Unity run is queued (a newer pending run in the `unity-license` group replaces
-  an older pending one), and name the branch in the report: the session cannot delete it either (`git push --delete`
+  an older pending one: a Dependabot pull request's run, whose jobs all skip, cancelled report.yml's waiting Unity
+  call for rc.9, so runs that cannot take the license get a group of their own; push nothing that triggers unity.yml
+  between a release and its report's Unity jobs starting), and name the branch in the report: the session cannot delete it either (`git push --delete`
   returned 403). Pin `cliVersion` on every game-ci action that runs the game-ci CLI (unity-test-runner 4.4+,
   unity-builder 6+; all to one release): its default `latest` asks the GitHub API on every run, and a 403 from the rate
   limit failed a job. Dependabot bumps the action, never that input: on a game-ci major, read its `action.yml` at the

@@ -55,9 +55,15 @@ on:
         default: ''
 
 # One group for every ref and every caller (report.yml's call included): one Unity run at a time in the repository,
-# never cancelled while it runs.
+# never cancelled while it runs. A pull request from a fork or Dependabot skips every job (no secrets, no license), so
+# it gets a group of its own: in the shared group it would replace the waiting run, as one did to report.yml's
+# rc.9 call (GitHub keeps one waiting run per group and cancels the older one).
 concurrency:
-  group: unity-license
+  group: >-
+    ${{ github.event_name == 'pull_request' &&
+        (github.event.pull_request.head.repo.full_name != github.repository ||
+         github.event.pull_request.user.login == 'dependabot[bot]') &&
+        format('unity-unlicensed-{0}', github.run_id) || 'unity-license' }}
   cancel-in-progress: false
 
 permissions:
