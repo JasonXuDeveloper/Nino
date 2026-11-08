@@ -1208,7 +1208,9 @@ rust:blocks 711bb5584539e897da03216260bec56ebd1e73b8 711bb5584539e897da03216260b
 # what is left is the removed-type check binding the types' attributes before the driver does (moved, not added):
 # these lines time the wall time of the analysis too. 9466d234 = abe4906b (no shortcut) + the wall time, 721a6093 = the
 # shortcut + the wall time; with the floor.
-generator#10 d2fa565f 9466d234 30,8,--layouts
-generator#10 d2fa565f 721a6093 30,8,--layouts
-generator#10 721a6093 721a6093 30,8,--layouts
-generator#10 d2fa565f 721a6093 30,8
+# done (run 42518707231): generator#10 d2fa565f 9466d234 30,8,--layouts
+# done (run 42518707231): generator#10 d2fa565f 721a6093 30,8,--layouts
+# done (run 42518707231): generator#10 721a6093 721a6093 30,8,--layouts
+# done (run 42518707231): generator#10 d2fa565f 721a6093 30,8
+# anbench result (run 42518707231): analysis wall time with a baseline 2-6 % longer without the shortcut, on par with
+# it (Neoverse-N2 0.994, n=50); without a baseline on par. No anbench lines left.
