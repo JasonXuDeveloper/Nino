@@ -133,6 +133,17 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   Rust `RawNullables` to the site), keep the cut section's anchor and point the inbound links at the owner's anchor,
   so readers do not land on the summary (round 103: the platforms page's binary format and SIMD sections became
   summaries; about 30 links moved to `wire-format#strings` and `simd#dotnet`).
+- **Keep README a storefront in reading order**: hero (tagline, one badge row, nav links), "Why Nino" as 5 to 7
+  claims of a line or two, each with its link, Install, a short Quick start, the benchmark chart, then compact
+  "Built for", the MemoryPack and v4-vs-v3 tables and links to the site for the rest; no callout or long list before
+  Install, and README.zh.md the same sections in the same order. Why: a reader decides in the first two screens
+  (round 129, owner: "README 有点乱"; Install sat at 4,300 px of 9,200, now at 850 of 4,800). The badge row fits one
+  line at GitHub's 838 px and every package badge shows the newest version, prereleases included (`nuget/vpre`, npm's
+  `next` tag); License and DeepWiki sit in the footer. Never start a line of a paragraph or list item with a
+  `<!--bench:...-->` marker: a line starting `<!--` opens an HTML block, and the rest of the item loses its bold and
+  links (README.zh.md's first bullet, round 129). GitHub renders only pushed content, so render the branch locally
+  (marked and github-markdown-css at 838 px, screenshot with Playwright) and check the markers by running
+  `benchmarks/readme.py`'s `fill` on a copy with origin/main's values: every key found, no value changed.
 - **Copies that must exist agree**: README / README.zh.md, the site's index and comparison pages, the analyzers page
   and `docs/diagnostics.md`, `docs/spec/wire-format.md` and the site's wire-format page, the public skill, the
   runtimes' READMEs and the codegen pages.
