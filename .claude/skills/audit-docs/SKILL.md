@@ -45,6 +45,18 @@ Build the list from the source, not from the pages:
   `Nino.Immutable`, `Nino.UnityTypes`, Unity, `Nino.Codegen.Tool`) and each runtime's public API;
 - every nino-gen option (`src/Nino.Codegen/Options.cs`) and what each language supports.
 
+Write the result as a table, API -> owning page#anchor, or "missing" / "only in passing", in the round's report.
+Collect the public types with `grep -rnE "^\s*(public|protected) .*(class|struct|interface|enum)" src/Nino.Core
+src/Nino.Immutable src/Nino.AspNetCore src/Nino.UnityTypes` and their public members, minus `[EditorBrowsable(Never)]`,
+`Nino.Core.CompilerServices` and members documented as for generated code; every `CompilerVisibleProperty` and
+`$(Nino*)` in `src/*/build/*.props|targets`. Every `NinoSettings` member and constant has a row on the settings page
+(`/en/docs/v4/settings`: type, default, range, frozen on first use or not), which owns the list, and its guide
+(security, pooling) links it. A public type with no page is documented on the page that owns its topic, or reported
+to the owner as one to hide (whether it stays public is the owner's call). Why: round 130, the owner found no page
+listing NinoSettings; the inventory also found `DefaultMaxDepth`, `DefaultMaxHashCollisions`, `NinoInputFormatter`,
+`NinoOutputFormatter`, `NinoKernels`, `CachedFormatter<T>`, the built-in formatter structs, `Reader.ReadBlock`,
+`Writer.Reserve` and two `IsRegistered` properties public but undocumented.
+
 Then the reading order: the sidebar (`content/docs/v4/meta.json`) is the reader's path: Get Started, Define Types,
 Features, Guides (the collapsed `advanced/` folder), Compare, Reference, Project (nino.docs `WRITING.md`, Order). Every inventory item has one owning page and a place in that order; an item without one
 is a finding, and so is a page that teaches a feature before the one it builds on.
