@@ -145,3 +145,8 @@ src/Nino.Generator.CodeFixes/    NinoCodeFixProvider.cs: the IDE code fixes, a s
   both agree) and docs/diagnostics.md (its help link).
 - The Nino.Core files compiled in (`NinoHash`, `NinoLayoutCore`, `NinoWire`, `NinoFormat`, `NinoFormatterBinding`)
   are the one definition of ids, layouts and formatter binding: change them in Nino.Core, never copy them here.
+- Every public overload of `NinoSerializer` / `NinoDeserializer` named `Serialize`, `Deserialize`, `SerializeAsync`
+  or `DeserializeAsync` is intercepted as soon as it exists (`Interceptors.Transform` takes the name and the
+  parameters as they are): add its `NinoDirect` form with the same parameters, and the `...Top` and `...Prefetched`
+  forms `WithTopCall` maps a `Serialize` / `Deserialize` call to, or the generated interceptors do not compile in
+  every project that calls the new overload (the `ReadOnlySequence<byte>` and `Stream` overloads have theirs).

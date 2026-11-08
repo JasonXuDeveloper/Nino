@@ -18,6 +18,13 @@ the shared path kept as the fallback; say in a comment which platforms take it, 
 read the same bytes (run the suite once with the fast path off: `DOTNET_EnableHWIntrinsic=0`, the `netstandard`
 builds of Nino.Core, Mono).
 
+- Give a public member one signature in every build of Nino.Core, or leave it out of the build that cannot have it:
+  never `Task` in netstandard2.0 where the others return `ValueTask`. Why: NuGet hands a .NET application the net8.0
+  or net10.0 build while a netstandard2.0 library it references was compiled against the netstandard2.0 one, so the
+  library calls a method that does not exist at run time (`MissingMethodException`); a member left out fails at the
+  library's compile time instead, and can be added later without a break. Evidence: rc.10's async Stream overloads
+  (`SerializeAsync`, `DeserializeAsync`) are `ValueTask` and absent from netstandard2.0, which has no `ValueTask`
+  without the System.Threading.Tasks.Extensions package; the tests guard them with `NINO_CORE_NETSTANDARD2_0`.
 - Under NativeAOT, emit every instruction a run-time plan leads to as that set's own intrinsic, under its own
   `X.IsSupported` test in the method that uses it (`if (Ssse3.IsSupported) return Ssse3.Shuffle(...)`), and give the
   test a fallback that is not a call. Why: ILC compiles x64 for SSE2 and emits a later set only behind its test (a
