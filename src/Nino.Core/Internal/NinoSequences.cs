@@ -11,6 +11,12 @@ namespace Nino.Core.Internal
     internal static class NinoSequences
     {
         /// <summary>
+        /// Data up to this many bytes is copied to the stack instead (the module skips zeroing locals), saving the
+        /// pool's rent and return on the small messages pipes most often split.
+        /// </summary>
+        public const int StackBytes = 512;
+
+        /// <summary>
         /// Copies <paramref name="data"/> into an array rented from the shared pool, <paramref name="length"/> bytes
         /// long; give it back with <see cref="Return"/> once read. Nothing a read creates keeps a reference to its
         /// input, so the array can go back as soon as the read returns.

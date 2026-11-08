@@ -235,6 +235,16 @@ public class BclTypeTests
                 Assert.AreSame(before, reused);
         }
 
+        // Data over NinoSequences.StackBytes is copied into a pooled array instead of the stack.
+        var large = new SimpleClass { Id = 8, Name = new string('n', 2000), CreateTime = value.CreateTime };
+        byte[] largeBytes = NinoSerializer.Serialize(large);
+        var start = new Segment<byte>(largeBytes[..1000]);
+        var end = start.Append(largeBytes[1000..]);
+        var largeSequence = new ReadOnlySequence<byte>(start, 0, end, end.Memory.Length);
+        Assert.AreEqual(large.Name, NinoDeserializer.Deserialize<SimpleClass>(largeSequence).Name);
+        NinoDeserializer.Deserialize(largeSequence, ref reused);
+        Assert.AreEqual(large.Name, reused.Name);
+
         // Truncated data throws as it does from a span.
         var head = new Segment<byte>(bytes[..2]);
         var tail = head.Append(bytes[2..^1]);
