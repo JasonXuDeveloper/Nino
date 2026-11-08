@@ -78,6 +78,7 @@
     "collections-null",
     "collections-empty",
     "collections-values",
+    "collections-set-null",
     "collections-large",
     "nullables-null",
     "nullables-values",

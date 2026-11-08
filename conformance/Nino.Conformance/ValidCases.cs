@@ -417,6 +417,8 @@ namespace Conformance
                 Grid = new[,] { { 1, 2, 3 }, { 4, 5, 6 } },
                 StringGrid = new[,] { { "a", null }, { "", "d" } },
             }, "seq", "map", "grid", "string", "null-flag");
+            Add("collections-set-null", "A HashSet<string> holding null, which .NET writes like any other element.",
+                new Collections { StringSet = new HashSet<string> { "a", null, "" } }, "seq", "string");
             Add("collections-large", "Collections of 2,000 and 500 elements.", new Collections
             {
                 Ints = Enumerable.Range(0, 2_000).ToArray(),
