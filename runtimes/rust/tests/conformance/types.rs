@@ -301,7 +301,7 @@ pub struct Collections {
     pub bools: Option<Vec<bool>>,
     pub chars: Option<Vec<u16>>,
     pub strings: Option<Vec<Option<String>>>,
-    pub string_set: Option<indexmap::IndexSet<String>>,
+    pub string_set: Option<indexmap::IndexSet<Option<String>>>,
     pub points: Option<Vec<Option<Box<Point>>>>,
     pub point_list: Option<Vec<Option<Box<Point>>>>,
     pub int_map: Option<indexmap::IndexMap<i32, i32>>,
@@ -2874,7 +2874,7 @@ impl J for TStringMap {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TStringSet {
-    pub values: Option<indexmap::IndexSet<String>>,
+    pub values: Option<indexmap::IndexSet<Option<String>>>,
 }
 
 impl NinoReadBody for TStringSet {

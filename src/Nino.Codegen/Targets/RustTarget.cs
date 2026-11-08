@@ -229,7 +229,7 @@ namespace Nino.Codegen.Targets
 
         // ---------------------------------------------------------------- shapes
 
-        /// <summary>The Rust shape of a value. <paramref name="key"/>: a map key or set element, never null.</summary>
+        /// <summary>The Rust shape of a value. <paramref name="key"/>: a map key, never null (.NET throws on a null key).</summary>
         internal RustShape Shape(ValueModel value, bool key)
         {
             switch (value.Kind)
@@ -305,14 +305,14 @@ namespace Nino.Codegen.Targets
                     if (value.Element!.Kind == ValueKind.RawNullable)
                         return new RustShape("seq") { Element = Raw(value.Element).Inner, Mode = "rawnullables" };
 
-                    var element = Shape(value.Element, true);
+                    // A set's elements may be null (.NET writes a HashSet<string> holding null), so a string element
+                    // is an Option as in a list; only a map's keys are never null.
+                    var element = Shape(value.Element, false);
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     if (set && !element.Hashable)
                         throw new UnsupportedException(
                             $"{value.ClrName}: a set of values Rust cannot hash (a set needs Eq and Hash)");
-                    if (!set)
-                        element = Shape(value.Element, false);
                     return new RustShape("seq") { Element = element, Mode = set ? "set" : "vec", MayDefer = element.MayDefer };
                 }
                 case ValueKind.Map:

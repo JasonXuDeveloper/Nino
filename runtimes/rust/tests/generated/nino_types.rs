@@ -2174,7 +2174,7 @@ pub struct Collections {
     pub bools: Option<Vec<bool>>,
     pub chars: Option<Vec<u16>>,
     pub strings: Option<Vec<Option<nino::WideString>>>,
-    pub string_set: Option<indexmap::IndexSet<nino::WideString>>,
+    pub string_set: Option<indexmap::IndexSet<Option<nino::WideString>>>,
     pub points: Option<Vec<Option<Box<Point>>>>,
     pub point_list: Option<Vec<Option<Box<Point>>>>,
     pub int_map: Option<indexmap::IndexMap<i32, i32>>,
@@ -2262,7 +2262,7 @@ impl NinoWrite for Collections {
         .saturating_add(<Option<Vec<bool>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Vec<u16>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Vec<Option<nino::WideString>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<indexmap::IndexSet<nino::WideString>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<Option<nino::WideString>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Vec<Option<Box<Point>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Vec<Option<Box<Point>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Vec<Option<Vec<i32>>>> as NinoWrite>::PREFETCH_BYTES)
@@ -4824,7 +4824,7 @@ impl StringMap {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct StringSet {
-    pub values: Option<indexmap::IndexSet<nino::WideString>>,
+    pub values: Option<indexmap::IndexSet<Option<nino::WideString>>>,
 }
 
 impl NinoReadBody for StringSet {
@@ -4852,7 +4852,7 @@ impl NinoRead for StringSet {
 
 impl NinoWrite for StringSet {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<indexmap::IndexSet<nino::WideString>> as NinoWrite>::PREFETCH_BYTES);
+        .saturating_add(<Option<indexmap::IndexSet<Option<nino::WideString>>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.values.prefetch();

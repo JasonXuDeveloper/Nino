@@ -138,6 +138,30 @@ namespace Nino.Codegen.Tests
             Assert.ThrowsExactly<ArgumentException>(() => Run("rust", "nino_types.rs", "--maps", "btree"));
         }
 
+        /// <summary>
+        /// A set's strings may be null (.NET writes a HashSet&lt;string&gt; holding null), in every language and with
+        /// every option; a dictionary's keys never are (.NET throws on a null key).
+        /// </summary>
+        [TestMethod]
+        public void SetStringsMayBeNullDictionaryKeysNever()
+        {
+            var (rust, _) = Run("rust", "nino_types.rs");
+            StringAssert.Contains(rust, "pub tags: Option<indexmap::IndexSet<Option<String>>>,");
+            StringAssert.Contains(rust, "pub utf8_tags: Option<indexmap::IndexSet<Option<nino::Utf8>>>,");
+            var (wide, _) = Run("rust", "nino_types.rs", "--strings", "wide");
+            StringAssert.Contains(wide, "pub tags: Option<indexmap::IndexSet<Option<nino::WideString>>>,");
+            var (std, _) = Run("rust", "nino_types.rs", "--maps", "std");
+            StringAssert.Contains(std, "pub tags: Option<std::collections::HashSet<Option<String>>>,");
+            StringAssert.Contains(rust, "pub by_name: Option<indexmap::IndexMap<String, T>>,");
+            var (go, _) = Run("go", "nino_types.go");
+            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tTags +\[\]\*string "));
+            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tUtf8Tags +\[\]\*string "));
+            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tByName +\[\]nino\.Entry\[string, T\] "));
+            var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
+            StringAssert.Contains(ts, "tags: Set<string | null> | null");
+            StringAssert.Contains(ts, "utf8Tags: Set<string | null> | null");
+        }
+
         [TestMethod]
         public void GenericTypesAreGenericInEveryLanguage()
         {

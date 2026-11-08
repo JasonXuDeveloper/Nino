@@ -215,7 +215,9 @@ fn shapes_round_trip() {
         flags: 1 << 40,
         gaps: Some(vec![shapes::Gappy { small: 7, large: -7 }]),
         names: Some([(1, Some("one".to_string())), (2, None)].into_iter().collect()),
-        tags: Some(["a".to_string(), "b".to_string()].into_iter().collect()),
+        // A set may hold null, as .NET's HashSet<string> does.
+        tags: Some([Some("a".to_string()), None, Some("b".to_string())].into_iter().collect()),
+        utf8_tags: Some([None, Some(nino::Utf8("é".into()))].into_iter().collect()),
         pair: (5, None),
         entry: (Some("k".into()), 9),
         maybe: Some(4),
@@ -268,7 +270,7 @@ fn generic_shapes_round_trip() {
         tuple: Some(Box::new(BoxType { value: (9, Some("nine".into())) })),
         maybe: Some(Box::new(BoxType { value: Some(7) })),
         entry: Some(Box::new(BoxType { value: (2, Some("two".into())) })),
-        set: Some(Box::new(BoxType { value: Some(["x".to_string()].into_iter().collect()) })),
+        set: Some(Box::new(BoxType { value: Some([Some("x".to_string())].into_iter().collect()) })),
         int_keys: Some(Box::new(Keys {
             set: Some([1, 2].into_iter().collect()),
             by_key: Some([(3, 4)].into_iter().collect()),

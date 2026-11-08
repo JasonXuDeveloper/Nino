@@ -77,6 +77,7 @@ namespace Shapes
         public Gappy[] Gaps;
         public Dictionary<int, string> Names;
         public HashSet<string> Tags;
+        [NinoUtf8] public HashSet<string> Utf8Tags;
         public (int, string) Pair;
         public KeyValuePair<string, int> Entry;
         public int? Maybe;

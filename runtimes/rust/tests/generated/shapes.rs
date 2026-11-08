@@ -624,7 +624,8 @@ pub struct Holder {
     pub flags: i64,
     pub gaps: Option<Vec<Gappy>>,
     pub names: Option<indexmap::IndexMap<i32, Option<String>>>,
-    pub tags: Option<indexmap::IndexSet<String>>,
+    pub tags: Option<indexmap::IndexSet<Option<String>>>,
+    pub utf8_tags: Option<indexmap::IndexSet<Option<nino::Utf8>>>,
     pub pair: (i32, Option<String>),
     pub entry: (Option<String>, i32),
     pub maybe: Option<i32>,
@@ -645,6 +646,7 @@ impl NinoReadBody for Holder {
         r.read_into(&mut self.gaps)?;
         r.read_into(&mut self.names)?;
         r.read_into(&mut self.tags)?;
+        r.read_into(&mut self.utf8_tags)?;
         r.read_into(&mut self.pair)?;
         r.read_into(&mut self.entry)?;
         r.read_into(&mut self.maybe)?;
@@ -667,6 +669,7 @@ impl NinoWriteBody for Holder {
         w.write(&self.gaps)?;
         w.write(&self.names)?;
         w.write(&self.tags)?;
+        w.write(&self.utf8_tags)?;
         w.write(&self.pair)?;
         w.write(&self.entry)?;
         w.write(&self.maybe)?;
@@ -688,7 +691,8 @@ impl NinoWrite for Holder {
         .saturating_add(<Option<Box<ShapesLeftItem>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<ShapesRightItem>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Vec<Gappy>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<indexmap::IndexSet<String>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<Option<String>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<Option<nino::Utf8>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<i32> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Keywords>> as NinoWrite>::PREFETCH_BYTES);
 
@@ -700,6 +704,7 @@ impl NinoWrite for Holder {
         self.right_item.prefetch();
         self.gaps.prefetch();
         self.tags.prefetch();
+        self.utf8_tags.prefetch();
         self.maybe.prefetch();
         self.keywords.prefetch();
     }
@@ -712,6 +717,7 @@ impl NinoWrite for Holder {
         self.right_item.prefetch_members();
         self.gaps.prefetch_members();
         self.tags.prefetch_members();
+        self.utf8_tags.prefetch_members();
         self.maybe.prefetch_members();
         self.keywords.prefetch_members();
     }
@@ -720,7 +726,7 @@ impl NinoWrite for Holder {
 }
 
 impl Holder {
-    nino::type_consts!(0x839907D7u32 as i32, "Shapes.Holder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)");
+    nino::type_consts!(0x839907D7u32 as i32, "Shapes.Holder", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x839907D7; deferrable=true; members=Thing:Shapes.IThing:type(Shapes.IThing);Things:System.Collections.Generic.List<Shapes.IThing>:seq(type(Shapes.IThing));Tree:Shapes.Recursive:type(Shapes.Recursive);Inner:Shapes.Outer.Inner:type(Shapes.Outer.Inner);LeftItem:Shapes.Left.Item:type(Shapes.Left.Item);RightItem:Shapes.Right.Item:type(Shapes.Right.Item);Flags:Shapes.Flags:raw(8);Gaps:Shapes.Gappy[]:seq(raw(8){Small:byte@0:raw(1),Large:int@4:raw(4)});Names:System.Collections.Generic.Dictionary<int, string>:map(raw(4),string);Tags:System.Collections.Generic.HashSet<string>:seq(string);Utf8Tags:System.Collections.Generic.HashSet<string>:seq(utf8);Pair:System.ValueTuple<int, string>:tuple(raw(4),string);Entry:System.Collections.Generic.KeyValuePair<string, int>:pair(string,raw(4));Maybe:System.Nullable<int>:nullable(raw(4));Keywords:Shapes.Keywords:type(Shapes.Keywords)");
 }
 
 /// `Shapes.HostHolder`: Positional, header Presence.
@@ -1895,7 +1901,7 @@ pub struct Uses {
     pub tuple: Option<Box<BoxType<(i32, Option<String>)>>>,
     pub maybe: Option<Box<BoxType<Option<i32>>>>,
     pub entry: Option<Box<BoxType<(i32, Option<String>)>>>,
-    pub set: Option<Box<BoxType<Option<indexmap::IndexSet<String>>>>>,
+    pub set: Option<Box<BoxType<Option<indexmap::IndexSet<Option<String>>>>>>,
     pub int_keys: Option<Box<Keys<i32>>>,
     pub string_keys: Option<Box<Keys<Option<String>>>>,
 }
@@ -1976,7 +1982,7 @@ impl NinoWrite for Uses {
         .saturating_add(<Option<Box<BoxType<(i32, Option<String>)>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<BoxType<Option<i32>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<BoxType<(i32, Option<String>)>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Box<BoxType<Option<indexmap::IndexSet<String>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<indexmap::IndexSet<Option<String>>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Keys<i32>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Keys<Option<String>>>> as NinoWrite>::PREFETCH_BYTES);
 

@@ -251,7 +251,8 @@ class Gen:
             if name in SELF_COLLECTIONS:
                 return f"Option<{ident(name)}>"
             if c[0].endswith("HashSet"):
-                return f"Option<indexmap::IndexSet<{self.key(el, enc[1])}>>"
+                # A set may hold null (.NET writes HashSet<string> { null }), so its strings are Options.
+                return f"Option<indexmap::IndexSet<{self.rust(el, enc[1], owner, member)}>>"
             return f"Option<Vec<{self.rust(el, enc[1], owner, member)}>>"
         if kind == "map":
             if name in SELF_COLLECTIONS:
@@ -280,7 +281,7 @@ class Gen:
         raise ValueError(kind)
 
     def key(self, c, enc):
-        """A dictionary key or set element: never null."""
+        """A dictionary key: never null (.NET throws on a null key)."""
         t = self.rust(c, enc)
         return t[len("Option<"):-1] if t.startswith("Option<") and enc[0] in ("string", "utf8") else t
 
