@@ -26,6 +26,7 @@ using Microsoft.CodeAnalysis.Text;
 // holding every type's layout as this repository's generator publishes it, so the analyzer checks each type against
 // its section (NINO034-NINO037); without it the check costs one attribute lookup per compilation.
 // --runs sets the number of runs; the last line is the median of the runs after the first (JIT, cold caches).
+// "analyzers" is the analyzers' own time as Roslyn reports it, "wall" the whole analysis with the binding it needs.
 // Without --generator/--core it uses the generator and runtime of this repository. To measure another
 // version (e.g. v3), build its Nino.Generator and Nino.Core and pass their paths.
 
@@ -155,6 +156,7 @@ Console.WriteLine($"types: {roots * (depth + 3 + (generics ? 6 : 0))} ({roots} r
                   (generics ? ", generics)" : ")"));
 var generateRuns = new List<double>();
 var analyzeRuns = new List<double>();
+var wallRuns = new List<double>();
 for (int iteration = 0; iteration < runs; iteration++)
 {
     GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: parseOptions);
@@ -185,16 +187,19 @@ for (int iteration = 0; iteration < runs; iteration++)
     int errors = emit.Diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error);
 
     // Analyzers on the compilation a build sees. Their own execution time is reported by Roslyn; the rest of
-    // the wall time is binding that the build shares with emit.
+    // the wall time is binding that the build shares with emit. Binding an analyzer triggers first lands in its
+    // time, though the compiler would do it anyway: compare the wall time too when a change moves such work.
     var analyzerDiagnostics = ImmutableArray<Diagnostic>.Empty;
-    double analyzeMs = 0;
+    double analyzeMs = 0, wallMs = 0;
     if (!analyzers.IsEmpty)
     {
         Collect();
+        sw.Restart();
         var withAnalyzers = output.WithAnalyzers(analyzers, new CompilationWithAnalyzersOptions(
             new AnalyzerOptions(ImmutableArray<AdditionalText>.Empty), null, concurrentAnalysis: false,
             logAnalyzerExecutionTime: true, reportSuppressedDiagnostics: false));
         analyzerDiagnostics = withAnalyzers.GetAnalyzerDiagnosticsAsync().Result;
+        wallMs = sw.Elapsed.TotalMilliseconds;
         foreach (var analyzer in analyzers)
             analyzeMs += withAnalyzers.GetAnalyzerTelemetryInfoAsync(analyzer, default).Result.ExecutionTime.TotalMilliseconds;
     }
@@ -218,15 +223,17 @@ for (int iteration = 0; iteration < runs; iteration++)
     {
         generateRuns.Add(generate);
         analyzeRuns.Add(analyzeMs);
+        wallRuns.Add(wallMs);
     }
 
     Console.WriteLine($"run {iteration}: generate {generate:F1} ms, emit {emitMs} ms, analyzers {analyzeMs:F1} ms " +
-                      $"({analyzerDiagnostics.Length} diagnostics), {lines} lines, {chars} chars, IL {il.Length} bytes, " +
+                      $"({analyzerDiagnostics.Length} diagnostics, wall {wallMs:F0} ms), {lines} lines, {chars} chars, IL {il.Length} bytes, " +
                       $"{errors} errors; member edit {memberMs} ms, comment edit {commentMs} ms");
 }
 
 if (runs > 1)
-    Console.WriteLine($"median of runs 1-{runs - 1}: generate {Median(generateRuns):F2} ms, analyzers {Median(analyzeRuns):F2} ms");
+    Console.WriteLine($"median of runs 1-{runs - 1}: generate {Median(generateRuns):F2} ms, analyzers {Median(analyzeRuns):F2} ms, " +
+                      $"analysis wall {Median(wallRuns):F2} ms");
 
 static ISourceGenerator[] GeneratorsOf(Type[] types) => types
     .Where(t => !t.IsAbstract && typeof(IIncrementalGenerator).IsAssignableFrom(t) &&
