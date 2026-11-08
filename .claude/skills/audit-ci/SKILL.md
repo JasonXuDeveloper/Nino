@@ -46,7 +46,10 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   probe called x86's CpuId, run 41853674050); it now runs in the integrations job (x64, the Debug build, 15 s) and the
   Arm64 runtime internals job. `DOTNET_EnableHWIntrinsic=0` on x64 is no stand-in for Arm64 (`platforms`).
 - **Pinned**: every action by commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
-  Dependabot updates both, grouped.
+  Dependabot updates both, grouped. Give every folder that holds a `uses:` a Dependabot entry: `directory: "/"`
+  covers only `.github/workflows`, so the composite actions in `.github/actions` kept setup-dotnet v6.0.0 while
+  Dependabot moved the workflows to v6.1.0 (rc.9). After a Dependabot pull request, `git grep 'owner/action@'`
+  `.github` shows one SHA per action.
 - **Least privilege**: `permissions: contents: read` unless a job writes; no ref taken from an input runs code in
   a cache scope that is not its own (cache poisoning): a job that checks out an input's ref restores caches with
   `actions/cache/restore` and saves them with `actions/cache/save` only when it runs its own commit, validates the
