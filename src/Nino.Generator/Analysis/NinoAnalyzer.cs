@@ -323,6 +323,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         string key = LayoutCheck.Key(type);
         if (layouts.SectionOf(type, key, ct) is not { } old)
             return;
+        // Most types are as their section says: that is found without building and comparing their layout.
+        if (old.Key == key && LayoutEmitter.Matches(model, old))
+            return;
         var now = LayoutEmitter.Entry(model, key);
         var findings = LayoutRules.Compare(old, now, LayoutCheck.IdWritten(type, now),
             (a, b) => layouts.SameType(a, b, ct), layouts.RawSection);
