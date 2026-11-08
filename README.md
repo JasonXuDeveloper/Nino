@@ -138,7 +138,7 @@ user files ([details](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#untrust
 | Serialize classes and polymorphic types | **<!--bench:ser.range-->3.5–7.2<!--/bench-->× faster** | |
 | Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.7–2.1<!--/bench-->× faster** | |
 | Raw struct arrays | at least on par without padding (a block copy in both); padding zeroed | padding copied as is, in the platform's layout |
-| Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->9.5<!--/bench-->× faster** (in place) | overwrite mode, allocates |
+| Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->9.5<!--/bench-->× faster** (in place) | overwrite mode: clears collections and allocates their elements again |
 | Polymorphism | automatic type ids, any base class or interface, generic bases included | `[MemoryPackUnion]` tags you maintain, not on generic types |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | ✅ 2022.3+, one OpenUPM package, `netstandard2.0` and `2.1` | ✅ 2022.3.12f1+, NuGetForUnity plus a git package, `netstandard2.1` |
