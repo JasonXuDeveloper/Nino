@@ -39,6 +39,15 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   bit 0 and a formatter's 33rd parameter took the first one's marks without a word (`[NinoRaw]` on `T33` of a
   34-parameter formatter registered `T1` as raw). Keep one value per position (`NinoParameterMarks.Register(typeof(F<>),
   marks...)`, `FormatterRules.OwnMarks`; `NinoParameterMarksTests.MarksOfParametersPastTheThirtySecondAreTheirOwn`).
+- **Code that must run for every value of a type goes into its body, and the paths that skip the body are turned off
+  by the type's rules.** `WriteBody`/`ReadBody` (and their `__Top`, `__Shallow` and new-instance copies, which the
+  emitter writes from the same contents) are what every value reaches: top level, member, element, a subtype in a
+  base slot (the dispatch calls the subtype's body), a deferred body. Only `WriteFixed`/blocks and `WriteRawBody`
+  skip it: the serialization callbacks set `TypeShape.HasCallbacks`, which `TypeFacts.IsFixedSize` and
+  `TypeModel.RawBody` read, so holders, interceptors and the type agree; a raw struct cannot be taken off its path
+  without new bytes, so the analyzer forbids it there (NINO044). A feature that is not a way to declare a type but must
+  hold for every shape rides on an existing `ShapeMatrixTests` dimension (callbacks on the `middle` shapes) rather than
+  doubling the rows (round 130, `CallbackTests`, `ShapeMatrixTests`).
 - Registration works without module initializers (HybridCLR, `platforms`); interceptors are always on with Roslyn
   4.8+ and the regular entry points must agree with them (the `-p:NinoRegularCalls=true` run of `verify`).
 - Partial, nested, generic, record, struct, abstract and interface types, types in other assemblies, and every

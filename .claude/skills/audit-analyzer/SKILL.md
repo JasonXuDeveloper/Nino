@@ -144,6 +144,12 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   the simplifier (`global::Nino.Core....` with `Simplifier.Annotation`), so they compile under an alias without
   `using Nino.Core;` (`NINO032_NamesTheFormatAsTheFileCan`).
 - **Ids are stable**; a removed id is never reused; new ids are taken at landing (two branches can pick the same).
+- **Rules about a marked method split by what they depend on**: what holds whatever type calls it (signature,
+  `static`, its owner not a `[NinoType]`, accessibility in its own assembly, a raw struct) is one predicate
+  (`Callbacks.Problem`) that the generator uses to skip the method and a method symbol action reports at the
+  attribute; what depends on the type calling it (an `internal` method of another assembly's base, an instance
+  `[NinoOnDeserializing]` on a re-created type) is found by the model build (`Callbacks.Build`) and reported through
+  its `DiagnosticSink` on that type (NINO038-NINO044, round 130).
 - **Cost**: rules run on every build and keystroke. `EnableConcurrentExecution`, no analysis of generated code,
   symbols resolved once per compilation, cheapest rejection first (syntax kind and names before the semantic
   model), no walk that grows with the compilation per callback; measure with GeneratorBenchmark's analyze case.

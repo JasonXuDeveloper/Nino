@@ -14,7 +14,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 ## See it
 
 - C#: build a test project with `-p:EmitCompilerGeneratedFiles=true` and read `obj/**/generated/Nino.Generator/`;
-  read only files the build just wrote (the folder keeps files of forms no longer generated). Cover each shape:
+  read only files the build just wrote (the folder keeps files of forms no longer generated). With
+  `-p:CompilerGeneratedFilesOutputPath=<dir>` (a global property: Nino.Core's PolySharp output lands there too)
+  create `<dir>` first, or the build fails with CS0016 races, and pass `--no-incremental`, or an up-to-date build
+  writes nothing (round 130). A feature off by default proves itself zero cost the same way: both trees of
+  `tests/Nino.UnitTests` (613 files) and `benchmarks/Nino.Benchmark` (261) identical before and after. Cover each shape:
   positional, version-tolerant and keyed types, structs (raw and member-wise), polymorphic roots, generics,
   constructors and factories, pooled types, reference tracking, `[NinoUtf8]`, custom formatters, interceptors.
 - nino-gen: the committed outputs in `tests/Nino.Codegen.Tests` and the runtimes' `internal/sample` / corpus types.
