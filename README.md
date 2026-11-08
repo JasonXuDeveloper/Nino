@@ -10,6 +10,9 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/ci.yml?branch=main&style=flat-square)](https://github.com/JasonXuDeveloper/Nino/actions)
 [![NuGet](https://img.shields.io/nuget/v/Nino?label=NuGet&style=flat-square&logo=nuget)](https://www.nuget.org/packages/Nino)
+[![crates.io](https://img.shields.io/crates/v/nino-serialization?label=crates.io&style=flat-square&logo=rust)](https://crates.io/crates/nino-serialization)
+[![npm](https://img.shields.io/npm/v/nino-serialization/next?label=npm&style=flat-square&logo=npm)](https://www.npmjs.com/package/nino-serialization)
+[![Go Reference](https://img.shields.io/badge/Go-reference-00ADD8?style=flat-square&logo=go)](https://pkg.go.dev/github.com/JasonXuDeveloper/Nino/runtimes/go/v4)
 [![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?label=OpenUPM&style=flat-square&logo=unity&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
 [![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square)](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE)
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue?style=flat-square)](https://deepwiki.com/JasonXuDeveloper/Nino)
