@@ -52,7 +52,7 @@ openupm add com.jasonxudeveloper.nino   # Unity 2022.3+
 Nino v4 is a prerelease, so `--prerelease` is required: without it NuGet installs 3.9.x, which cannot read or write v4
 data. Optional packages: `Nino.Immutable` (System.Collections.Immutable), `Nino.AspNetCore` (MVC formatters, Minimal API
 bodies and results), `Nino.Codegen` (your types as TypeScript, Go or Rust after each build; `Nino.Codegen.Tool` is the
-same as the `nino-gen` command). [Installation for .NET, Unity and Godot](https://nino.xgamedev.net/en/docs/v4/start#installation-details).
+same as the `nino-gen` command). [Installation for .NET, Unity and Godot](https://nino.xgamedev.net/en/docs/v4/start#installation).
 
 ## Quick start
 

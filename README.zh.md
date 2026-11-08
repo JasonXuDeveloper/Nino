@@ -43,7 +43,7 @@ dotnet add package Nino --prerelease    # .NET 和 Godot：运行时和源生成
 openupm add com.jasonxudeveloper.nino   # Unity 2022.3+
 ```
 
-Nino v4 是预发行版，所以必须加 `--prerelease`：不加时 NuGet 会安装 3.9.x，它读写不了 v4 的数据。可选包：`Nino.Immutable`（System.Collections.Immutable）、`Nino.AspNetCore`（MVC 格式化器，Minimal API 的请求体与结果）、`Nino.Codegen`（每次构建后把你的类型生成为 TypeScript、Go 或 Rust 代码；`Nino.Codegen.Tool` 是同样功能的 `nino-gen` 命令）。[.NET、Unity 和 Godot 的安装](https://nino.xgamedev.net/zh/docs/v4/start#installation-details)。
+Nino v4 是预发行版，所以必须加 `--prerelease`：不加时 NuGet 会安装 3.9.x，它读写不了 v4 的数据。可选包：`Nino.Immutable`（System.Collections.Immutable）、`Nino.AspNetCore`（MVC 格式化器，Minimal API 的请求体与结果）、`Nino.Codegen`（每次构建后把你的类型生成为 TypeScript、Go 或 Rust 代码；`Nino.Codegen.Tool` 是同样功能的 `nino-gen` 命令）。[.NET、Unity 和 Godot 的安装](https://nino.xgamedev.net/zh/docs/v4/start#installation)。
 
 ## 快速开始
 
