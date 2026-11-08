@@ -3,12 +3,14 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <Nullable>disable</Nullable>
+    <Nullable>annotations</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <ProjectReference Include="../../src/Nino.Generator/Nino.Generator.csproj" />
+    <!-- The layout baseline the layouts option writes, as the code fixes do (internal to the generator). -->
+    <Compile Include="../../src/Nino.Generator/Common/LayoutBaseline.cs" Link="Shared/LayoutBaseline.cs" />
     <ProjectReference Include="../../src/Nino.Core/Nino.Core.csproj" SetTargetFramework="TargetFramework=net8.0" />
   </ItemGroup>
 </Project>
