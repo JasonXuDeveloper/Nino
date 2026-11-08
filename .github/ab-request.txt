@@ -1190,3 +1190,10 @@ rust:text 85ba7e8f80a95e7b2af5346e5ad907a6756cacd9 85ba7e8f80a95e7b2af5346e5ad90
 # case differs in machine code (compare and text identical). Head 5221917d against main 711bb558, and main's floor.
 rust:blocks 711bb5584539e897da03216260bec56ebd1e73b8 5221917db2cce23c212d0fd4191247e9f8d4cdb3 /point$ # r129-rustmacro raw_read!/raw_write! (#[inline]) vs main
 rust:blocks 711bb5584539e897da03216260bec56ebd1e73b8 711bb5584539e897da03216260bec56ebd1e73b8 /point$ # r129-rustmacro floor
+# anbench: the analyzer before the layout checker (d2fa565f) against main with it (88e38655 + GeneratorBenchmark
+# --layouts, abe4906b): a project without a baseline (30,8) and one whose baseline holds all 330 types (30,8,--layouts),
+# each with its floor (abe4906b against itself). Per process the median of 14 warm runs; 10 processes a side a job.
+generator#10 d2fa565f abe4906b 30,8
+generator#10 d2fa565f abe4906b 30,8,--layouts
+generator#10 abe4906b abe4906b 30,8
+generator#10 abe4906b abe4906b 30,8,--layouts

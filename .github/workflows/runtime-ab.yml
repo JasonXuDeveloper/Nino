@@ -3,7 +3,11 @@ name: Runtime A/B (test branch)
 # Development only, on the test branch: never merge this file into main. A push that changes .github/ab-request.txt
 # measures, on the x64 and Arm64 runners, each line's two commits one after the other on the same runner:
 #
-#   <go|go:<dir>|go#<rounds>|rust|typescript> <base sha> <head sha> [filter]
+#   <go|go:<dir>|go#<rounds>|rust|typescript|generator|generator#<rounds>> <base sha> <head sha> [filter]
+#
+# generator times the analyzer and the source generator (benchmarks/Nino.GeneratorBenchmark of the head, in .NET):
+# the filter is its arguments joined by commas (30,8,--layouts), each round one process per side loading that
+# side's Nino.Generator (--generator), base and head alternated; each process prints the median of its runs.
 #
 # Each line is a job of its own on every runner and copy, and a push runs only the lines it adds or changes: a line
 # already in the file before the push is not measured again (add or change a note after " #" to run it again; never
@@ -130,7 +134,7 @@ jobs:
             # BenchmarkStringTiers, which times every string kernel tier the runner has).
             # go#<n> (or go:<dir>#<n>) runs n rounds of each side instead of 6.
             rounds=6
-            if [[ $lang == go*'#'* ]]; then rounds=${lang##*#}; lang=${lang%#*}; fi
+            if [[ $lang == go*'#'* || $lang == generator'#'* ]]; then rounds=${lang##*#}; lang=${lang%#*}; fi
             godir=bench
             if [[ $lang == go:* ]]; then godir=${lang#go:}; lang=go; fi
             read -r base_env head_env <<< "${envs:-- -}"
@@ -215,6 +219,34 @@ jobs:
                   done
                 done
                 { echo '```'; cat "$out/ts.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+                ;;
+              generator)
+                # The head's benchmark against each side's generator, in one process per side and round; the head's
+                # Nino.Core for both (the generator finds Nino.Core's attributes by name). net8.0 on .NET 10.
+                G="$RUNNER_TEMP/$head/benchmarks/Nino.GeneratorBenchmark"
+                dotnet build -c Release "$G" -v q -nologo < /dev/null > /dev/null
+                for ref in "$base" "$head"; do
+                  dotnet build -c Release "$RUNNER_TEMP/$ref/src/Nino.Generator" -v q -nologo < /dev/null > /dev/null
+                done
+                IFS=, read -ra gargs <<< "${filter:-}"
+                : > "$out/gen.txt"
+                for round in $(seq "$rounds"); do
+                  for side in base head; do
+                    ref=$base; [[ $side == head ]] && ref=$head
+                    DOTNET_ROLL_FORWARD=Major dotnet "$G/bin/Release/net8.0/Nino.GeneratorBenchmark.dll" "${gargs[@]}" --runs 15 \
+                      --generator "$RUNNER_TEMP/$ref/src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll" < /dev/null |
+                      sed -n "s/^median of runs [0-9-]*: /$side round $round: /p" | tee -a "$out/gen.txt"
+                  done
+                done
+                # The median of the processes' medians per side, and head against base.
+                med() { sort -g | awk '{ a[NR] = $1 } END { print (NR % 2 ? a[(NR + 1) / 2] : (a[NR / 2] + a[NR / 2 + 1]) / 2) }'; }
+                for what in generate analyzers; do
+                  b=$(sed -n "s/^base .* $what \([0-9.]*\) ms.*/\1/p" "$out/gen.txt" | med)
+                  h=$(sed -n "s/^head .* $what \([0-9.]*\) ms.*/\1/p" "$out/gen.txt" | med)
+                  awk -v w="$what" -v b="$b" -v h="$h" -v n="$rounds" \
+                    'BEGIN { printf "%s: base %.2f ms, head %.2f ms, head/base %.3f (n=%d)\n", w, b, h, h / b, n }' | tee -a "$out/gen.txt"
+                done
+                { echo '```'; cat "$out/gen.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
                 ;;
               *) echo "unknown language $lang"; exit 1 ;;
             esac
