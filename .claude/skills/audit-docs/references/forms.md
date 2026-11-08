@@ -17,7 +17,9 @@ interactive component, or upgrading Fumadocs. How each form is written is nino.d
   fumadocs-core in its package.json, their `dist/components` and `dist/mdx-plugins`) and adopt what fits a prerendered
   site with Markdown copies: most of the value was installed and unused (round 105, 16.17.3: code-block tabs replaced
   34 `<Tabs>` that only wrapped fences; `remarkSteps` was rejected because it runs after `remarkHeading`, whose ids
-  and TOC keep the `[step]` tag).
+  and TOC keep the `[step]` tag). Round 129 re-read 16.17.3 and adopted nothing: `remarkNpm` (package-manager tabs) would serve one
+  inline `npm install`, `InlineTOC` repeats the TOC the layout shows, and `remarkBlockId` and `GithubInfo` (a network
+  call at prerender) answer no reader's question; re-read when package.json's version changes.
 - **Colour only in byte figures and matrices**: the five calm category tints (`--nino-cat-1` to `-5`, light and dark,
   fixed meanings) are allowed there and nowhere else, where the single accent stays (the owner's decision, round 105);
   a page's meaning never depends on colour alone (the Markdown copy has none).

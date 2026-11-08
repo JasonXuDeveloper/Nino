@@ -19,6 +19,13 @@ architecture".
   redirects and an AnchorRedirect for `#runtime`), moved best practices' copy of the zero-allocation recipes to
   `zero-allocation#message-loop`, cut format versions' and limitations' repeats of whats-new, moved the glossary out
   of basic into its own page, and gave supported types and untrusted data next steps (both were dead ends).
+- **Check the mechanical items with a script, both languages**: a page whose last `##` is not "Next Steps" /
+  "Related" (下一步 / 相关页面) is a dead end, and a `<Card title>` that differs from its target page's `title` breaks
+  "titles match their links". Round 129 found 23 dead ends in each language (eleven guides, the three benchmark pages,
+  vs MemoryPack, limitations, analyzers, platforms, wire format, SIMD, format versions, migration, the FAQ) and five
+  card titles that were not their page's ("Benchmarks",
+  "Advanced Guides", "Constructors"); every one got cards on the sidebar path. Changelog, glossary and the home page
+  are exempt (a timeline, a list drawn from data, a landing page).
 
 ## Renaming, merging or removing a site page
 

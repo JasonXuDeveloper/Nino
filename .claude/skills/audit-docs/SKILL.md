@@ -26,6 +26,12 @@ CONTRIBUTING.md, `runtimes/*/README.md` and the public skill.
   pages and the introduction's "Start Here" at its bottom, "Versioning" (Nino's format history) beside "Evolving
   Your Data" (versioning your types), NINO007 one row of seven tables, and the evaluator's pages split between
   "Overview" and "Reference"; nino.docs `WRITING.md`, "The reader first", has the three journeys.
+  Measure the walk, do not estimate it: a throwaway Playwright script (scratchpad, Chromium from `CHROMIUM_PATH`,
+  `build/client` served with `/en` mapped to `en.html`) that opens each step at 1280x800 and 390x844 and prints the
+  page's height in screens and the screen the answer's text is on gives the before/after numbers; add one step per
+  feature of the release under audit (round 129: the Rust hand-written macros were on screen 36 of 52 of the codegen
+  page under no heading of their own, and Quick Start put four screens of per-platform install detail before the
+  first serialization).
 
 ## 1. Inventory: every feature, in order
 
@@ -51,7 +57,11 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    overloads and settings that change the cost: exact-size buffers, `IBufferWriter`, reusing instances, pooling,
    `[NinoUtf8]`, raw structs, block copies, untrusted mode's cost), each with its benchmark through a component;
    what it costs (bytes on the wire, time, allocations, what is free when unused); pitfalls (Mistake | What happens |
-   Caught by: the NINO rule, the exception); related pages.
+   Caught by: the NINO rule, the exception); related pages. Check the anatomy by grepping, not by memory: round 129
+   found a "Mistake | What happens | Caught by" table on two pages of 46 (Unity, build configuration), none for the
+   rules a release added (NINO030-NINO033), and added them where those rules' features live (defining types, evolving
+   data, untrusted data). A benchmark class Nino adds is described on the benchmarks page and linked from its
+   feature's cost section: `UntrustedTest` had synced rows from rc.8 on and no page said what it measured.
 2. **True to the code**: every API, attribute, option, default, limit and exception named exists today and behaves as
    written; check a doubtful claim with a throwaway test. Names match the code exactly. No API that is not in the
    source (the site's rule).
@@ -68,6 +78,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    such as `Il2CppCompilerConfiguration`) still answer with curl. Settings guidance by platform has one owner,
    `advanced/build-configuration`, which points to the owners of each detail (`IlcInstructionSet`: platforms; Burst
    targets and WebGL SIMD: unity; the wasm text module and `--numeric-arrays`: codegen).
+   Read the XML doc of every setting and attribute a page describes against the page: round 129 found the security
+   page leaving `ConcurrentDictionary` out of the tables `Untrusted` does not seed, which `NinoSettings.Untrusted`'s
+   doc and `NinoSeededHash`'s three callers state.
 3. **Examples compile and are exemplary**: every C# fence compiles against the current source: run nino.docs'
    `bun run check:csharp` (compiles every v4 fence against a Nino checkout, `NINO_DIR`, default `../Nino`; a titled
    fence as a whole file with its own `using` lines, an ` excerpt` as a fragment; nino.docs `WRITING.md`, Code), no NINO warning,
