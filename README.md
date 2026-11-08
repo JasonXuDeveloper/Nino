@@ -28,8 +28,8 @@ For .NET, Unity, Godot and HybridCLR, with the same bytes on every platform and 
 
 ## Why Nino
 
-- **Fastest.** Up to **<!--bench:ser.max-->6.4<!--/bench-->× faster** serialization than MemoryPack, and up to
-  **<!--bench:reuse.inplace-->10.9<!--/bench-->× faster** deserialization into existing objects. [Benchmarks](#benchmarks)
+- **Fastest.** Up to **<!--bench:ser.max-->7.2<!--/bench-->× faster** serialization than MemoryPack, and up to
+  **<!--bench:reuse.inplace-->9.5<!--/bench-->× faster** deserialization into existing objects. [Benchmarks](#benchmarks)
 - **Safe on untrusted input.** Crafted bytes cannot crash the process, read past the input, allocate out of proportion
   or name a type to create; every invalid input throws one `NinoDataException`. [Untrusted data](https://nino.xgamedev.net/en/docs/v4/security)
 - **Zero allocation.** Serialize into an `IBufferWriter<byte>`, deserialize into existing or pooled objects: nothing
@@ -107,7 +107,7 @@ every page as Markdown (add `.md` to its URL).
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
 </p>
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.14<!--/bench-->, server GC, <!--bench:env.cpu-->AMD EPYC 7763 2.72 GHz<!--/bench-->; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. Payloads are about the same size (`SimpleClass`: <!--bench:payload.v4-->1,069<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md); the notes of each release carry that release's numbers.</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.14<!--/bench-->, server GC, <!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. Payloads are about the same size (`SimpleClass`: <!--bench:payload.v4-->1,069<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md); the notes of each release carry that release's numbers.</sub>
 
 Every case, Arm64, MessagePack and protobuf-net: [.NET benchmarks](https://nino.xgamedev.net/en/docs/v4/benchmarks);
 [Unity with Burst](https://nino.xgamedev.net/en/docs/v4/benchmarks-unity);
@@ -135,10 +135,10 @@ user files ([details](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#untrust
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
 | Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only, per its README |
-| Serialize classes and polymorphic types | **<!--bench:ser.range-->4.0–6.4<!--/bench-->× faster** | |
-| Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.8–2.2<!--/bench-->× faster** | |
+| Serialize classes and polymorphic types | **<!--bench:ser.range-->3.5–7.2<!--/bench-->× faster** | |
+| Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.7–2.1<!--/bench-->× faster** | |
 | Raw struct arrays | at least on par without padding (a block copy in both); padding zeroed | padding copied as is, in the platform's layout |
-| Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->10.9<!--/bench-->× faster** (in place) | overwrite mode, allocates |
+| Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->9.5<!--/bench-->× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids, any base class or interface, generic bases included | `[MemoryPackUnion]` tags you maintain, not on generic types |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | ✅ 2022.3+, one OpenUPM package, `netstandard2.0` and `2.1` | ✅ 2022.3.12f1+, NuGetForUnity plus a git package, `netstandard2.1` |
@@ -155,8 +155,8 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 
 | v4 vs v3 (3.3.13) | |
 |---|---|
-| Serialize | <!--bench:v3.ser-->**1.98× faster** (class), **2.37× faster** (class array), **1.22× faster** (struct array)<!--/bench--> |
-| Deserialize | <!--bench:v3.deser-->**1.53× faster** (class), **1.47× faster** (class array), on par (struct), **1.08× faster** (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
+| Serialize | <!--bench:v3.ser-->**2.11× faster** (class), **2.49× faster** (class array), **1.37× faster** (struct), on par (struct array)<!--/bench--> |
+| Deserialize | <!--bench:v3.deser-->**1.55× faster** (class), **1.55× faster** (class array), on par (struct), on par (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
 | Compiling the generated code | **51× faster** at 330 types (42.9 s → 0.84 s), **221× faster** at 1,100 types (462 s → 2.1 s) |
 | Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |

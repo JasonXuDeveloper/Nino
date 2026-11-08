@@ -28,7 +28,7 @@
 
 ## 为什么选 Nino
 
-- **最快。** 序列化比 MemoryPack **最高快 <!--bench:ser.max-->6.4<!--/bench--> 倍**，复用反序列化**最高快 <!--bench:reuse.inplace-->10.9<!--/bench--> 倍**。[性能](#性能)
+- **最快。** 序列化比 MemoryPack **最高快 <!--bench:ser.max-->7.2<!--/bench--> 倍**，复用反序列化**最高快 <!--bench:reuse.inplace-->9.5<!--/bench--> 倍**。[性能](#性能)
 - **可放心读取不可信数据。** 伪造的字节不会让进程崩溃，不会越界读取，不会分配与输入不成比例的内存，也无法指定要创建的类型；任何无效输入都只抛出 `NinoDataException` 这一种异常。[不可信数据](https://nino.xgamedev.net/zh/docs/v4/security)
 - **零分配。** 序列化到 `IBufferWriter<byte>`，反序列化到已有对象或池化对象：每次调用都不分配内存，线程安全，热路径上没有锁。[零分配](https://nino.xgamedev.net/zh/docs/v4/advanced/zero-allocation)
 - **一切在编译期完成。** 没有反射、没有 IL emit、无需注册、无需初始化调用：IL2CPP、Native AOT 和 HybridCLR 热更都能直接用，编译比 v3 最多快 221 倍。[平台](https://nino.xgamedev.net/zh/docs/v4/platforms)
@@ -91,7 +91,7 @@ npx skills add JasonXuDeveloper/Nino
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
 </p>
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.14<!--/bench-->，服务器 GC，<!--bench:env.cpu-->AMD EPYC 7763 2.72 GHz<!--/bench-->；Nino v4 与 MemoryPack 1.21.4 在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上<!--bench:v3.when-->紧接其前跑一次<!--/bench-->。数据大小基本一致（`SimpleClass`：v4 <!--bench:payload.v4-->1,069<!--/bench--> 字节，v3 1,152 字节，MemoryPack <!--bench:payload.memorypack-->1,148<!--/bench--> 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)；每个版本的发布说明附有该版本的实测数据。</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.14<!--/bench-->，服务器 GC，<!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->；Nino v4 与 MemoryPack 1.21.4 在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上<!--bench:v3.when-->紧接其前跑一次<!--/bench-->。数据大小基本一致（`SimpleClass`：v4 <!--bench:payload.v4-->1,069<!--/bench--> 字节，v3 1,152 字节，MemoryPack <!--bench:payload.memorypack-->1,148<!--/bench--> 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)；每个版本的发布说明附有该版本的实测数据。</sub>
 
 全部用例、Arm64、MessagePack 和 protobuf-net：[.NET 基准测试](https://nino.xgamedev.net/zh/docs/v4/benchmarks)；[Unity 与 Burst](https://nino.xgamedev.net/zh/docs/v4/benchmarks-unity)；[Go、Rust 和 TypeScript](https://nino.xgamedev.net/zh/docs/v4/benchmarks-runtimes)。搬运元组数组和结构体数组、转换字符串时，用的是 AVX-512、AVX2、SSSE3、Arm64 和 WebAssembly 的 SIMD（Unity 中用 Burst 内核）；其他平台走可移植代码，写出的字节相同：[SIMD](https://nino.xgamedev.net/zh/docs/v4/simd)。
 
@@ -113,10 +113,10 @@ MemoryPack 的 README 现在称自己是“仅用于可信数据的高性能序�
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
 | 不可信输入 | **设计目标**：分配和栈用量有上限，只有一种异常 | 按其 README，仅用于可信数据 |
-| 序列化类和多态类型 | **快 <!--bench:ser.range-->4.0–6.4<!--/bench--> 倍** | |
-| 反序列化类和多态类型 | **快 <!--bench:deser.range-->1.8–2.2<!--/bench--> 倍** | |
+| 序列化类和多态类型 | **快 <!--bench:ser.range-->3.5–7.2<!--/bench--> 倍** | |
+| 反序列化类和多态类型 | **快 <!--bench:deser.range-->1.7–2.1<!--/bench--> 倍** | |
 | 原始结构体数组 | 没有填充时至少持平（两者都是整块拷贝）；填充字节清零 | 原样复制填充字节，布局取决于平台 |
-| 反序列化到已有对象 | **0 B，最多快 <!--bench:reuse.inplace-->10.9<!--/bench--> 倍**（复用反序列化） | 覆盖模式，有分配 |
+| 反序列化到已有对象 | **0 B，最多快 <!--bench:reuse.inplace-->9.5<!--/bench--> 倍**（复用反序列化） | 覆盖模式，有分配 |
 | 多态 | 自动类型 ID，任何基类或接口，包括泛型基类 | 需要维护 `[MemoryPackUnion]` 标签，不支持泛型类型 |
 | 键控成员、引用追踪、对象池 | ✅ | 有版本容错和循环引用，没有对象池 |
 | Unity | ✅ 2022.3+，一个 OpenUPM 包，`netstandard2.0` 和 `2.1` | ✅ 2022.3.12f1+，NuGetForUnity 加一个 git 包，`netstandard2.1` |
@@ -129,8 +129,8 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 
 | v4 对比 v3（3.3.13） | |
 |---|---|
-| 序列化 | <!--bench:v3.ser-->类**快 1.98 倍**，类数组**快 2.37 倍**，结构体数组**快 1.22 倍**<!--/bench--> |
-| 反序列化 | <!--bench:v3.deser-->类**快 1.53 倍**，类数组**快 1.47 倍**，结构体持平，结构体数组**快 1.08 倍**<!--/bench-->，同时多了引用追踪、复用反序列化和数据校验 |
+| 序列化 | <!--bench:v3.ser-->类**快 2.11 倍**，类数组**快 2.49 倍**，结构体**快 1.37 倍**，结构体数组持平<!--/bench--> |
+| 反序列化 | <!--bench:v3.deser-->类**快 1.55 倍**，类数组**快 1.55 倍**，结构体持平，结构体数组持平<!--/bench-->，同时多了引用追踪、复用反序列化和数据校验 |
 | 编译生成的代码 | 330 个类型**快 51 倍**（42.9 秒 → 0.84 秒），1,100 个类型**快 221 倍**（462 秒 → 2.1 秒） |
 | 运行生成器 | **快 3.1 倍**；改动一个类型后只重新生成它（**快 8.3 倍**） |
 | 生成代码 | 源码**小 14 倍**，IL **小 5 倍** |
