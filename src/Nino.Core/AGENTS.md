@@ -12,10 +12,12 @@ not find named here).
 ## Root
 
 ```
-NinoSerializer.cs            the public Serialize<T> / SerializeBoxed (to a byte[], an IBufferWriter<byte> or a Writer),
+NinoSerializer.cs            the public Serialize<T> / SerializeBoxed (to a byte[], an IBufferWriter<byte>, a Writer or
+                             a Stream; SerializeAsync / SerializeBoxedAsync but in the netstandard2.0 build),
                              GetFixedSize<T>, IsSupported; byte[] results go through the scratch buffer (NinoScratch)
 NinoDeserializer.cs          the public Deserialize<T> (a new value, or into an existing one by ref) / DeserializeBoxed,
-                             from a span or a Reader
+                             from a span, a ReadOnlySequence<byte>, a Reader or a Stream (read to its end;
+                             DeserializeAsync / DeserializeBoxedAsync but in the netstandard2.0 build)
 NinoSettings.cs              every process-wide setting (MaxDepth, MaxCollectionLength, MaxHashCollisions, Untrusted,
                              pool sizes, SetRecycler<T>), plain fields frozen on first use (NinoLimits)
 NinoDataException.cs         the exception every check of the data throws (an InvalidOperationException)
@@ -60,7 +62,8 @@ NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoPref
 NinoObject.cs                header handling of generated class formatters: presence byte / type id / reference header,
                              then the body; the ...Raw forms write header and raw body into one reservation
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
-                             ...Prefetched for arrays and lists of INinoPrefetchFormatter classes)
+                             ...Prefetched for arrays and lists of INinoPrefetchFormatter classes; the sequence and
+                             Stream forms, the latter through NinoStreams)
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory
 NinoBlocks.cs                NinoBlocks: constrained calls on block formatters, and the offsets NinoBlockMap is built from
 NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's subtypes by type id
@@ -183,9 +186,12 @@ NinoBlockBytes.cs            a value's bytes matched to its block's, built once 
 NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte lanes (SSSE3, AVX2, Arm64, Wasm)
 NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;
                              UTF-8 ([NinoUtf8]) is in Reader / Writer
-NinoScratch.cs               the per-thread scratch buffer of the top-level calls
+NinoScratch.cs               the per-thread scratch buffer of the top-level calls (Rent / Return also for NinoStreams)
 NinoSequences.cs             the pooled contiguous copy of a multi-segment ReadOnlySequence<byte> the sequence
                              overloads read from
+NinoStreams.cs               the I/O of every Stream overload: writes from the scratch buffer (a pending async write
+                             takes its array), reads to the end into a pooled array grown as bytes arrive (a
+                             MemoryStream's exposed buffer in place); INinoStreamReader
 NinoThreadCache.cs           helpers for the per-thread caches
 NinoUnload.cs                hooks that forget an unloaded assembly's types (NinoRegistry.Remove)
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,

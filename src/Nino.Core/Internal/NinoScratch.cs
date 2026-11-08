@@ -60,9 +60,9 @@ namespace Nino.Core.Internal
         // The thread's scratch buffer stays in its slot and is marked in use (a byte store on the instance) instead
         // of being taken out and put back: returning it then neither reads the thread-static again nor stores a
         // reference into it (a write barrier). A nested call on the same thread (from a custom formatter) finds it in
-        // use and gets a buffer of its own.
+        // use and gets a buffer of its own. Internal for the Stream overloads (NinoStreams); give it back with Return.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static NinoArrayBufferWriter Rent()
+        internal static NinoArrayBufferWriter Rent()
         {
             var buffer = t_scratch;
             if (buffer == null || buffer.ScratchState != NinoArrayBufferWriter.ScratchIdle)
@@ -86,7 +86,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Return(NinoArrayBufferWriter buffer)
+        internal static void Return(NinoArrayBufferWriter buffer)
         {
             if (buffer.ScratchState == NinoArrayBufferWriter.ScratchInUse && buffer.Buffer.Length <= MaxRetainedScratch)
                 buffer.ScratchState = NinoArrayBufferWriter.ScratchIdle;

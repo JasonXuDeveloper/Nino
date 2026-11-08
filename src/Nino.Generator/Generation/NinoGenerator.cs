@@ -413,15 +413,17 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     /// <summary>
     /// Whether a call of <paramref name="name"/> names, from syntax, the type it needs a formatter for: by type
-    /// argument (<c>Serialize</c> and <c>Deserialize</c>, inferred or not, and <c>GetFixedSize&lt;T&gt;</c>), or by a
-    /// <c>typeof</c> argument (<c>SerializeBoxed</c>, <c>DeserializeBoxed</c> and <c>IsSupported</c>; one given a
+    /// argument (<c>Serialize</c>, <c>Deserialize</c> and their <c>...Async</c> forms, inferred or not, and
+    /// <c>GetFixedSize&lt;T&gt;</c>), or by a <c>typeof</c> argument (<c>SerializeBoxed</c>, <c>DeserializeBoxed</c>,
+    /// their <c>...Async</c> forms and <c>IsSupported</c>; one given a
     /// <see cref="Type"/> computed at run time names nothing, and is not bound).
     /// </summary>
     private static bool NamesType(SimpleNameSyntax name, ArgumentListSyntax arguments) => name.Identifier.ValueText switch
     {
-        "Serialize" or "Deserialize" => true,
+        "Serialize" or "Deserialize" or "SerializeAsync" or "DeserializeAsync" => true,
         "GetFixedSize" => name is GenericNameSyntax,
-        "SerializeBoxed" or "DeserializeBoxed" or "IsSupported" => NinoSymbols.TypeOfArgument(arguments) != null,
+        "SerializeBoxed" or "DeserializeBoxed" or "SerializeBoxedAsync" or "DeserializeBoxedAsync" or "IsSupported" =>
+            NinoSymbols.TypeOfArgument(arguments) != null,
         _ => false,
     };
 
@@ -478,8 +480,10 @@ public sealed class NinoGenerator : IIncrementalGenerator
             var facts = TypeFacts.For(compilation, options);
             var usage = TransformUsage(type, facts);
 #if ROSLYN4_8
-            // Only Serialize and Deserialize have NinoDirect counterparts to intercept with.
-            var intercepted = method.Name is "Serialize" or "Deserialize" && Interceptors.Enabled(options)
+            // Only Serialize and Deserialize (and their Stream forms' SerializeAsync and DeserializeAsync) have
+            // NinoDirect counterparts to intercept with.
+            var intercepted = method.Name is "Serialize" or "Deserialize" or "SerializeAsync" or "DeserializeAsync" &&
+                              Interceptors.Enabled(options)
                 ? Interceptors.Transform(ctx, method, facts, ct)
                 : null;
 #else

@@ -2,9 +2,14 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.Internal;
+#if !NETSTANDARD2_0
+using System.Threading;
+using System.Threading.Tasks;
+#endif
 
 namespace Nino.Core.CompilerServices
 {
@@ -356,6 +361,118 @@ namespace Nino.Core.CompilerServices
             {
                 NinoSequences.Return(rented);
             }
+        }
+
+        // The Stream forms of the writes and reads above: the I/O is NinoStreams' (shared with the regular calls), out
+        // of line; what the interceptor inlines is the call, with the writer or reader struct that names the formatter.
+        // The asynchronous forms keep their state machines there too, and are not in the netstandard2.0 build.
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Serialize<T, TFormatter>(in T value, Stream stream)
+            where TFormatter : struct, INinoFormatter<T> =>
+            NinoStreams.Write(value, default(DirectWriter<T, TFormatter>), stream);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeTop<T, TFormatter>(in T value, Stream stream)
+            where TFormatter : struct, INinoTopFormatter<T> =>
+            NinoStreams.Write(value, default(TopWriter<T, TFormatter>), stream);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializePrefetched<T, TFormatter>(in T[] value, Stream stream)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (value != null && NinoPrefetch.Long<TFormatter>(value.Length))
+                NinoStreams.Write(value, default(PrefetchArrayWriter<T, TFormatter>), stream);
+            else
+                Serialize<T[], ArrayFormatter<T, TFormatter>>(value, stream);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializePrefetched<T, TFormatter>(in List<T> value, Stream stream)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (value != null && NinoPrefetch.Long<TFormatter>(value.Count))
+                NinoStreams.Write(value, default(PrefetchListWriter<T, TFormatter>), stream);
+            else
+                Serialize<List<T>, ListFormatter<List<T>, T, TFormatter>>(value, stream);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T Deserialize<T, TFormatter>(Stream stream) where TFormatter : struct, INinoFormatter<T>
+        {
+            T value = default;
+            NinoStreams.Read(stream, ref value, default(DirectReader<T, TFormatter>));
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T DeserializeTop<T, TFormatter>(Stream stream) where TFormatter : struct, INinoTopFormatter<T>
+        {
+            T value = default;
+            NinoStreams.Read(stream, ref value, default(TopReader<T, TFormatter>));
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Deserialize<T, TFormatter>(Stream stream, ref T value)
+            where TFormatter : struct, INinoFormatter<T> =>
+            NinoStreams.Read(stream, ref value, default(DirectReader<T, TFormatter>));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializePrefetched<T, TFormatter>(Stream stream, ref T[] value)
+            where TFormatter : struct, INinoFormatter<T> =>
+            NinoStreams.Read(stream, ref value, default(PrefetchArrayReader<T, TFormatter>));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializePrefetched<T, TFormatter>(Stream stream, ref List<T> value)
+            where TFormatter : struct, INinoFormatter<T> =>
+            NinoStreams.Read(stream, ref value, default(PrefetchListReader<T, TFormatter>));
+
+#if !NETSTANDARD2_0
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ValueTask SerializeAsync<T, TFormatter>(T value, Stream stream,
+            CancellationToken cancellationToken = default)
+            where TFormatter : struct, INinoFormatter<T> =>
+            NinoStreams.WriteAsync(value, default(DirectWriter<T, TFormatter>), stream, cancellationToken);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ValueTask<T> DeserializeAsync<T, TFormatter>(Stream stream,
+            CancellationToken cancellationToken = default)
+            where TFormatter : struct, INinoFormatter<T> =>
+            NinoStreams.ReadAsync<T, DirectReader<T, TFormatter>>(stream, default, cancellationToken);
+#endif
+
+        /// <summary>Reads with <typeparamref name="TFormatter"/> (<see cref="NinoStreams"/>).</summary>
+        private readonly struct DirectReader<T, TFormatter> : INinoStreamReader<T>
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Read(ReadOnlySpan<byte> data, ref T value) => Deserialize<T, TFormatter>(data, ref value);
+        }
+
+        /// <summary>Reads a new value with the <c>__Top</c> twin <typeparamref name="TFormatter"/> (<see cref="NinoStreams"/>).</summary>
+        private readonly struct TopReader<T, TFormatter> : INinoStreamReader<T>
+            where TFormatter : struct, INinoTopFormatter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Read(ReadOnlySpan<byte> data, ref T value) => value = DeserializeTop<T, TFormatter>(data);
+        }
+
+        /// <summary>Reads into an array as <see cref="DeserializePrefetched{T,TFormatter}(ReadOnlySpan{byte}, ref T[])"/>.</summary>
+        private readonly struct PrefetchArrayReader<T, TFormatter> : INinoStreamReader<T[]>
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Read(ReadOnlySpan<byte> data, ref T[] value) => DeserializePrefetched<T, TFormatter>(data, ref value);
+        }
+
+        /// <summary>Reads into a list as <see cref="DeserializePrefetched{T,TFormatter}(ReadOnlySpan{byte}, ref List{T})"/>.</summary>
+        private readonly struct PrefetchListReader<T, TFormatter> : INinoStreamReader<List<T>>
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Read(ReadOnlySpan<byte> data, ref List<T> value) =>
+                DeserializePrefetched<T, TFormatter>(data, ref value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

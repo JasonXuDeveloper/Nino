@@ -163,6 +163,19 @@ namespace Nino.Core
                 _pool.Return(old);
         }
 
+        /// <summary>
+        /// Hands the backing array (and so the bytes written) to the caller, who returns it to this buffer's pool,
+        /// and continues with an empty one of the same capacity rented in its place. For a write the caller still
+        /// reads from after this buffer is reused (<see cref="Internal.NinoStreams"/>: an asynchronous stream write).
+        /// </summary>
+        internal byte[] TakeBuffer()
+        {
+            var taken = Buffer;
+            Buffer = taken.Length == 0 ? taken : _pool.Rent(taken.Length);
+            Index = 0;
+            return taken;
+        }
+
         /// <summary>Returns the underlying buffer to the pool. The instance must not be used afterwards.</summary>
         public void Dispose()
         {

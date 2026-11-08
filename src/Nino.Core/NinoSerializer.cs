@@ -1,8 +1,13 @@
 using System;
 using System.Buffers;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.Internal;
+#if !NETSTANDARD2_0
+using System.Threading;
+using System.Threading.Tasks;
+#endif
 
 namespace Nino.Core
 {
@@ -128,6 +133,35 @@ namespace Nino.Core
             NinoScratch.CopyTo(value, new FormatterWriter<T>(formatter), bufferWriter);
         }
 
+        /// <summary>
+        /// Writes <paramref name="value"/> to <paramref name="stream"/>: exactly the bytes
+        /// <see cref="Serialize{T}(in T)"/> returns, with no length or other framing (read them back with
+        /// <see cref="NinoDeserializer.Deserialize{T}(Stream)"/>, which reads to the end of the stream). The value is
+        /// written into a pooled per-thread buffer first, then to the stream in one write: no array is allocated per
+        /// call.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+        public static void Serialize<T>(in T value, Stream stream) =>
+            NinoStreams.Write(value, default(BufferWriter<T>), stream);
+
+#if !NETSTANDARD2_0
+        /// <summary>
+        /// <see cref="Serialize{T}(in T, Stream)"/> with the stream's asynchronous write. The value is serialized
+        /// before the method returns, so it may change while the write is pending; a write that completes at once
+        /// allocates nothing. Not in the netstandard2.0 build (no <see cref="ValueTask"/> there).
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+        public static ValueTask SerializeAsync<T>(T value, Stream stream, CancellationToken cancellationToken = default) =>
+            NinoStreams.WriteAsync(value, default(BufferWriter<T>), stream, cancellationToken);
+#endif
+
+        /// <summary>Writes with <see cref="Serialize{T}(in T, IBufferWriter{byte})"/> (the Stream overloads, <see cref="NinoStreams"/>).</summary>
+        private readonly struct BufferWriter<T> : INinoScratchWriter<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Write(T value, NinoArrayBufferWriter buffer) => Serialize(value, buffer);
+        }
+
         /// <summary>Serializes <paramref name="value"/> with an existing writer.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(in T value, ref Writer writer)
@@ -235,6 +269,45 @@ namespace Nino.Core
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
             BoxedFormatter.Get(type).Serialize(value, bufferWriter);
+        }
+
+        /// <summary>
+        /// Writes a boxed value as <paramref name="type"/> to <paramref name="stream"/>, as
+        /// <see cref="Serialize{T}(in T, Stream)"/> with <c>T</c> = <paramref name="type"/> does.
+        /// </summary>
+        /// <remarks>
+        /// For types known only at runtime that share no <c>[NinoType]</c> base; otherwise prefer
+        /// <c>Serialize&lt;TBase&gt;</c> (see <see cref="SerializeBoxed(object, Type)"/>).
+        /// </remarks>
+        public static void SerializeBoxed(object value, Stream stream, Type type)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            NinoStreams.Write(value, new BoxedWriter(BoxedFormatter.Get(type)), stream);
+        }
+
+#if !NETSTANDARD2_0
+        /// <summary>
+        /// <see cref="SerializeBoxed(object, Stream, Type)"/> with the stream's asynchronous write, as
+        /// <see cref="SerializeAsync{T}"/>. Not in the netstandard2.0 build.
+        /// </summary>
+        public static ValueTask SerializeBoxedAsync(object value, Stream stream, Type type,
+            CancellationToken cancellationToken = default)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            return NinoStreams.WriteAsync(value, new BoxedWriter(BoxedFormatter.Get(type)), stream, cancellationToken);
+        }
+#endif
+
+        /// <summary>Writes a boxed value with its type's <see cref="BoxedFormatter"/> (the Stream overloads).</summary>
+        private readonly struct BoxedWriter : INinoScratchWriter<object>
+        {
+            private readonly BoxedFormatter _formatter;
+
+            public BoxedWriter(BoxedFormatter formatter) => _formatter = formatter;
+
+            public void Write(object value, NinoArrayBufferWriter buffer) => _formatter.Serialize(value, buffer);
         }
     }
 }

@@ -1,0 +1,300 @@
+using System;
+using System.Buffers;
+using System.IO;
+using System.Runtime.CompilerServices;
+using Nino.Core.CompilerServices;
+#if !NETSTANDARD2_0
+using System.Threading;
+using System.Threading.Tasks;
+#endif
+
+namespace Nino.Core.Internal
+{
+    /// <summary>
+    /// What <see cref="NinoStreams"/> reads the bytes of a whole stream with: a struct, so the call is direct (the
+    /// regular span call, or the formatter an interceptor resolved).
+    /// </summary>
+    internal interface INinoStreamReader<T>
+    {
+        void Read(ReadOnlySpan<byte> data, ref T value);
+    }
+
+    /// <summary>
+    /// The I/O of the <see cref="System.IO.Stream"/> overloads of <see cref="NinoSerializer"/>,
+    /// <see cref="NinoDeserializer"/> and <c>NinoDirect</c>, shared by all of them. A write puts exactly the bytes of
+    /// the span and buffer overloads on the stream, from the per-thread scratch buffer (<see cref="NinoScratch"/>),
+    /// with no framing. A read takes the stream to its end into an array rented from
+    /// <see cref="ArrayPool{T}.Shared"/> (a <see cref="MemoryStream"/> whose buffer is exposed is read in place), then
+    /// deserializes it as the span overloads do, so every check of the data (and <see cref="NinoSettings.Untrusted"/>,
+    /// trailing bytes included) applies as there. The array grows by doubling as bytes arrive, never ahead of them, so
+    /// a stream makes Nino hold at most about twice what it actually delivered: bounding a stream an untrusted peer
+    /// controls (a length limit, a frame) is the caller's, as with any input. The asynchronous forms are not in the
+    /// netstandard2.0 build, which has no <c>ValueTask</c> without a package.
+    /// </summary>
+    internal static class NinoStreams
+    {
+        /// <summary>The first array of a stream whose length is unknown.</summary>
+        private const int FirstRead = 4096;
+
+        /// <summary>
+        /// The most a seekable stream's <see cref="Stream.Length"/> makes the first array hold before a byte is read:
+        /// a length is a claim, and a stream over a peer's data (a ranged download) may claim anything.
+        /// </summary>
+        private const int MaxFirstRead = 1 << 20;
+
+        /// <summary>Writes <paramref name="value"/> with <paramref name="writer"/>, then the bytes to <paramref name="stream"/>.</summary>
+        public static void Write<T, TWriter>(T value, TWriter writer, Stream stream)
+            where TWriter : struct, INinoScratchWriter<T>
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            var buffer = NinoScratch.Rent();
+            try
+            {
+                writer.Write(value, buffer);
+                // The array overload everywhere: Stream.Write(ReadOnlySpan) copies into a rented array on a stream
+                // that does not override it.
+                stream.Write(buffer.Buffer, 0, buffer.Index);
+            }
+            finally
+            {
+                NinoScratch.Return(buffer);
+            }
+        }
+
+        /// <summary>
+        /// Reads <paramref name="stream"/> to its end and deserializes the bytes into <paramref name="value"/> with
+        /// <paramref name="reader"/>.
+        /// </summary>
+        public static void Read<T, TReader>(Stream stream, ref T value, TReader reader)
+            where TReader : struct, INinoStreamReader<T>
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (stream is MemoryStream memory && memory.TryGetBuffer(out var segment))
+            {
+                reader.Read(Consume(memory, segment), ref value);
+                return;
+            }
+
+            byte[] rented = ReadToEnd(stream, out int length);
+            Read(rented, length, ref value, reader);
+        }
+
+        /// <summary>Deserializes the first <paramref name="length"/> bytes of <paramref name="rented"/>, then returns it to the pool.</summary>
+        private static void Read<T, TReader>(byte[] rented, int length, ref T value, TReader reader)
+            where TReader : struct, INinoStreamReader<T>
+        {
+            try
+            {
+                reader.Read(new ReadOnlySpan<byte>(rented, 0, length), ref value);
+            }
+            finally
+            {
+                // Nothing a read creates keeps a reference to its input (NinoSequences), so the array goes back now.
+                ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+
+        /// <summary>
+        /// The unread bytes of a <see cref="MemoryStream"/> whose buffer is exposed, read in place with no copy; the
+        /// stream is left at its end, as a read to the end leaves any other.
+        /// </summary>
+        private static ReadOnlySpan<byte> Consume(MemoryStream memory, ArraySegment<byte> segment)
+        {
+            // The segment is the stream's bytes from its origin to its length; Position counts from that origin and
+            // may lie past the end.
+            long position = memory.Position;
+            int start = position < segment.Count ? (int)position : segment.Count;
+            if (start < segment.Count)
+                memory.Position = segment.Count;
+            return new ReadOnlySpan<byte>(segment.Array, segment.Offset + start, segment.Count - start);
+        }
+
+        /// <summary>
+        /// Reads <paramref name="stream"/> to its end into an array rented from <see cref="ArrayPool{T}.Shared"/>, its
+        /// first <paramref name="length"/> bytes the stream's; the caller returns it.
+        /// </summary>
+        private static byte[] ReadToEnd(Stream stream, out int length)
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(FirstSize(stream));
+            int count = 0;
+            try
+            {
+                while (true)
+                {
+                    if (count == buffer.Length)
+                    {
+                        if (AtEnd(stream))
+                            break;
+                        buffer = Grow(buffer, count);
+                    }
+
+                    int read = stream.Read(buffer, count, buffer.Length - count);
+                    if (read <= 0)
+                        break;
+                    count += read;
+                }
+            }
+            catch
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                throw;
+            }
+
+            length = count;
+            return buffer;
+        }
+
+        /// <summary>The size of the first array: what a seekable stream has left (at most <see cref="MaxFirstRead"/>).</summary>
+        private static int FirstSize(Stream stream)
+        {
+            if (!stream.CanSeek)
+                return FirstRead;
+            long left = stream.Length - stream.Position;
+            // At least 1: a stream that says it is empty is still read once (to its end).
+            return left <= 0 ? 1 : left < MaxFirstRead ? (int)left : MaxFirstRead;
+        }
+
+        /// <summary>
+        /// Whether a full array has taken the whole stream: known only on a seekable one, which then needs no larger
+        /// array to see its end. Any other is grown and read once more.
+        /// </summary>
+        private static bool AtEnd(Stream stream) => stream.CanSeek && stream.Position >= stream.Length;
+
+        /// <summary>An array twice as large holding the <paramref name="count"/> bytes read; the old one goes back to the pool.</summary>
+        private static byte[] Grow(byte[] buffer, int count)
+        {
+            if (count >= NinoUnsafe.MaxArrayLength)
+                NinoThrow.InvalidData("the stream holds more bytes than an array can.");
+            int size = (int)Math.Min((long)buffer.Length * 2, NinoUnsafe.MaxArrayLength);
+            byte[] larger = ArrayPool<byte>.Shared.Rent(size);
+            Buffer.BlockCopy(buffer, 0, larger, 0, count);
+            ArrayPool<byte>.Shared.Return(buffer);
+            return larger;
+        }
+
+#if !NETSTANDARD2_0
+        /// <summary>
+        /// <see cref="Write{T,TWriter}"/> with the stream's asynchronous write. The value is written into the scratch
+        /// buffer at once (a <see cref="Writer"/> cannot live in an async method); a stream write that completes at
+        /// once (a <see cref="MemoryStream"/>, a buffered <see cref="FileStream"/>) then allocates nothing. One that
+        /// is still pending takes the scratch buffer's array with it until it completes, and the scratch buffer goes
+        /// on with another of the same size, so other calls on this thread are not held up.
+        /// </summary>
+        public static ValueTask WriteAsync<T, TWriter>(T value, TWriter writer, Stream stream,
+            CancellationToken cancellationToken)
+            where TWriter : struct, INinoScratchWriter<T>
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (cancellationToken.IsCancellationRequested)
+                return new ValueTask(Task.FromCanceled(cancellationToken));
+            var buffer = NinoScratch.Rent();
+            try
+            {
+                writer.Write(value, buffer);
+                var pending = stream.WriteAsync(buffer.WrittenMemory, cancellationToken);
+                if (pending.IsCompleted)
+                    return pending;
+                // The scratch buffer's arrays are rented from ArrayPool<byte>.Shared (NinoScratch).
+                return Complete(pending, buffer.TakeBuffer());
+            }
+            catch (Exception e)
+            {
+                // As an async method would: the error is the task's.
+                return new ValueTask(Task.FromException(e));
+            }
+            finally
+            {
+                NinoScratch.Return(buffer);
+            }
+        }
+
+        private static async ValueTask Complete(ValueTask pending, byte[] taken)
+        {
+            try
+            {
+                await pending.ConfigureAwait(false);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(taken);
+            }
+        }
+
+        /// <summary>
+        /// <see cref="Read{T,TReader}(Stream, ref T, TReader)"/> into a new value with the stream's asynchronous
+        /// reads. Reads that complete at once (a <see cref="MemoryStream"/>, whose exposed buffer is read in place)
+        /// allocate nothing but the value.
+        /// </summary>
+        public static ValueTask<T> ReadAsync<T, TReader>(Stream stream, TReader reader,
+            CancellationToken cancellationToken)
+            where TReader : struct, INinoStreamReader<T>
+        {
+            if (stream == null)
+                throw new ArgumentNullException(nameof(stream));
+            if (cancellationToken.IsCancellationRequested)
+                return new ValueTask<T>(Task.FromCanceled<T>(cancellationToken));
+            if (stream is MemoryStream memory && memory.TryGetBuffer(out var segment))
+            {
+                try
+                {
+                    T value = default;
+                    reader.Read(Consume(memory, segment), ref value);
+                    return new ValueTask<T>(value);
+                }
+                catch (Exception e)
+                {
+                    return new ValueTask<T>(Task.FromException<T>(e));
+                }
+            }
+
+            return ReadAsyncCore<T, TReader>(stream, reader, cancellationToken);
+        }
+
+        private static async ValueTask<T> ReadAsyncCore<T, TReader>(Stream stream, TReader reader,
+            CancellationToken cancellationToken)
+            where TReader : struct, INinoStreamReader<T>
+        {
+            var (rented, length) = await ReadToEndAsync(stream, cancellationToken).ConfigureAwait(false);
+            T value = default;
+            Read(rented, length, ref value, reader);
+            return value;
+        }
+
+        /// <summary><see cref="ReadToEnd"/> with the stream's asynchronous reads; not generic, so one copy serves every type.</summary>
+        private static async ValueTask<(byte[] Rented, int Length)> ReadToEndAsync(Stream stream,
+            CancellationToken cancellationToken)
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(FirstSize(stream));
+            int count = 0;
+            try
+            {
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (count == buffer.Length)
+                    {
+                        if (AtEnd(stream))
+                            break;
+                        buffer = Grow(buffer, count);
+                    }
+
+                    int read = await stream.ReadAsync(buffer.AsMemory(count), cancellationToken).ConfigureAwait(false);
+                    if (read <= 0)
+                        break;
+                    count += read;
+                }
+            }
+            catch
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+                throw;
+            }
+
+            return (buffer, count);
+        }
+#endif
+    }
+}

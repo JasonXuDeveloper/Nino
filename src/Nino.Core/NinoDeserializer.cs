@@ -1,9 +1,14 @@
 using System;
 using System.Buffers;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
+#if !NETSTANDARD2_0
+using System.Threading;
+using System.Threading.Tasks;
+#endif
 
 namespace Nino.Core
 {
@@ -126,6 +131,50 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>
+        /// Reads <paramref name="stream"/> to its end and deserializes a new value from those bytes (what
+        /// <see cref="NinoSerializer.Serialize{T}(in T, Stream)"/> wrote, or any payload the span overload reads). The
+        /// bytes are read into a pooled array (a <see cref="MemoryStream"/> whose buffer is exposed is read in place),
+        /// which grows only as bytes arrive; every check of the data is the span overload's, and a stream that ends
+        /// early throws <see cref="NinoDataException"/>. Bound a stream from an untrusted source yourself (its length,
+        /// a frame): Nino holds what the stream delivers.
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+        public static T Deserialize<T>(Stream stream)
+        {
+            T value = default;
+            NinoStreams.Read(stream, ref value, default(SpanReader<T>));
+            return value;
+        }
+
+        /// <summary>
+        /// Reads <paramref name="stream"/> to its end and deserializes into <paramref name="value"/>, as
+        /// <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/> does (see <see cref="Deserialize{T}(Stream)"/>).
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+        public static void Deserialize<T>(Stream stream, ref T value) =>
+            NinoStreams.Read(stream, ref value, default(SpanReader<T>));
+
+#if !NETSTANDARD2_0
+        /// <summary>
+        /// <see cref="Deserialize{T}(Stream)"/> with the stream's asynchronous reads. Reads that complete at once (a
+        /// <see cref="MemoryStream"/>) allocate nothing but the value. There is no form that reads into an existing
+        /// instance (an async method takes no <c>ref</c>): for that, read the bytes yourself and call
+        /// <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>. Not in the netstandard2.0 build (no
+        /// <see cref="ValueTask{TResult}"/> there).
+        /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+        public static ValueTask<T> DeserializeAsync<T>(Stream stream, CancellationToken cancellationToken = default) =>
+            NinoStreams.ReadAsync<T, SpanReader<T>>(stream, default, cancellationToken);
+#endif
+
+        /// <summary>Reads with <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/> (the Stream overloads, <see cref="NinoStreams"/>).</summary>
+        private readonly struct SpanReader<T> : INinoStreamReader<T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Read(ReadOnlySpan<byte> data, ref T value) => Deserialize(data, ref value);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static T ReadRaw<T>(ReadOnlySpan<byte> data)
         {
@@ -217,6 +266,60 @@ namespace Nino.Core
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
             BoxedFormatter.Get(type).Deserialize(ref reader, ref value);
+        }
+
+        /// <summary>
+        /// Reads <paramref name="stream"/> to its end and deserializes a value of <paramref name="type"/>, as
+        /// <see cref="Deserialize{T}(Stream)"/> with <c>T</c> = <paramref name="type"/> does, and returns it boxed.
+        /// </summary>
+        /// <remarks>
+        /// For types known only at runtime that share no <c>[NinoType]</c> base; otherwise prefer
+        /// <c>Deserialize&lt;TBase&gt;</c> (see <see cref="DeserializeBoxed(ReadOnlySpan{byte}, Type)"/>).
+        /// </remarks>
+        public static object DeserializeBoxed(Stream stream, Type type)
+        {
+            object value = null;
+            DeserializeBoxed(stream, ref value, type);
+            return value;
+        }
+
+        /// <summary>
+        /// Reads <paramref name="stream"/> to its end and deserializes a value of <paramref name="type"/> into
+        /// <paramref name="value"/>, reusing it when it is an instance of <paramref name="type"/>.
+        /// </summary>
+        /// <remarks>
+        /// For types known only at runtime that share no <c>[NinoType]</c> base; otherwise prefer
+        /// <c>Deserialize&lt;TBase&gt;(stream, ref value)</c> (see <see cref="DeserializeBoxed(ReadOnlySpan{byte}, Type)"/>).
+        /// </remarks>
+        public static void DeserializeBoxed(Stream stream, ref object value, Type type)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            NinoStreams.Read(stream, ref value, new BoxedReader(type));
+        }
+
+#if !NETSTANDARD2_0
+        /// <summary>
+        /// <see cref="DeserializeBoxed(Stream, Type)"/> with the stream's asynchronous reads, as
+        /// <see cref="DeserializeAsync{T}"/>. Not in the netstandard2.0 build.
+        /// </summary>
+        public static ValueTask<object> DeserializeBoxedAsync(Stream stream, Type type,
+            CancellationToken cancellationToken = default)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            return NinoStreams.ReadAsync<object, BoxedReader>(stream, new BoxedReader(type), cancellationToken);
+        }
+#endif
+
+        /// <summary>Reads with <see cref="DeserializeBoxed(ReadOnlySpan{byte}, ref object, Type)"/> (the Stream overloads).</summary>
+        private readonly struct BoxedReader : INinoStreamReader<object>
+        {
+            private readonly Type _type;
+
+            public BoxedReader(Type type) => _type = type;
+
+            public void Read(ReadOnlySpan<byte> data, ref object value) => DeserializeBoxed(data, ref value, _type);
         }
     }
 }

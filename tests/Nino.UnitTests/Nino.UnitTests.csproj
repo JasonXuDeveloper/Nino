@@ -41,6 +41,10 @@
     <PropertyGroup Condition="'$(NinoCoreTfm)' != ''">
       <DefineConstants>$(DefineConstants);NINO_CORE_NETSTANDARD</DefineConstants>
     </PropertyGroup>
+    <!-- Its netstandard2.0 build has no ValueTask, so no asynchronous Stream overloads (StreamTests). -->
+    <PropertyGroup Condition="'$(NinoCoreTfm)' == 'netstandard2.0'">
+      <DefineConstants>$(DefineConstants);NINO_CORE_NETSTANDARD2_0</DefineConstants>
+    </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all"/>
