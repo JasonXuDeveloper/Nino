@@ -370,7 +370,7 @@ old nodes in a rolling deployment).
 ['MyGame.Save.PlayerData']
 format = 'Keyed'
 header = 'Presence'
-id = 0x8F865207
+id = 0x3DEFB1B5
 deferrable = true
 members = [
   { name = 'Health', type = 'int', encoding = 'raw(4)', key = 0x99A16761 },
