@@ -75,8 +75,8 @@ of bytes in a block.
   that lane tests only against a bound of zero and the bool is not its top byte (`Pass.Joins`: `0 - (v & mask)` has
   its sign set exactly when a masked bit below bit 63 is set), so passes, not fields, set the cost: the Untrusted
   list's struct (a bool at offset 20, in the DateTime pass's 8-byte lanes) went from two scalar loops to one vector
-  pass, its check of 1,000 values 1,300 to 830 ns (local Xeon, AVX-512 and AVX2 alike; round 129, runner A/B
-  pending). Arm64's 16-byte vectors keep it scalar by the cost rule (48 > 32), unmeasured there. Tried and not kept:
+  pass: the Untrusted list case 11-20 % faster on x64 runners with the over-read fix included (round 129, dotnet-ab
+  runs 42341861781 and 42365821207). Arm64's 16-byte vectors keep it scalar by the cost rule (48 > 32), on par there. Tried and not kept:
   the loop over whole periods with the tables' offsets from an inner loop instead of the phase wrap, 5-10 % on the
   check alone, inside the noise of the case.
 
