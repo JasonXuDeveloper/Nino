@@ -17,9 +17,20 @@ interactive component, or upgrading Fumadocs. How each form is written is nino.d
   fumadocs-core in its package.json, their `dist/components` and `dist/mdx-plugins`) and adopt what fits a prerendered
   site with Markdown copies: most of the value was installed and unused (round 105, 16.17.3: code-block tabs replaced
   34 `<Tabs>` that only wrapped fences; `remarkSteps` was rejected because it runs after `remarkHeading`, whose ids
-  and TOC keep the `[step]` tag). Round 129 re-read 16.17.3 and adopted nothing: `remarkNpm` (package-manager tabs) would serve one
-  inline `npm install`, `InlineTOC` repeats the TOC the layout shows, and `remarkBlockId` and `GithubInfo` (a network
-  call at prerender) answer no reader's question; re-read when package.json's version changes.
+  and TOC keep the `[step]` tag). Round 129 re-read 16.17.3 and adopted nothing (`remarkNpm` would serve one inline `npm install`, `InlineTOC`
+  repeats the layout's TOC, `remarkBlockId` and `GithubInfo`, a network call at prerender, answer no reader's question);
+  round 130 adopted `Tabs` with `id` and `forceMount`, code-block tabs and `Steps` inside a tab, and `Accordions` with
+  `id` for the quick start's installation, and rejected TypeTable for packages, a Files tree for three DLLs and Cards as
+  a platform picker. Closed accordions and inactive code-block tabs are still not prerendered (their text is in the .md
+  copy and the search index); re-read when package.json's version changes.
+- **Per-platform instructions are one `<Tabs groupId="platform" persist>` section, each tab self-contained**:
+  requirements as a short list, then `<Steps>` (install, build, try it) with bold step leads, not headings (the TOC
+  stays short); several install methods in code-block tabs; rarely needed detail in `<Accordions>` inside the tab.
+  Give each `<Tab>` `forceMount` (Radix leaves an inactive tab out of the prerendered HTML without it) and an `id`, each
+  `<Accordion>` an `id` and a `value`: a link to the id selects the tab or opens the accordion, so old headings' anchors
+  survive, and `lint-links` checks them. Why: the owner found the quick start's installation "too messy" (round 130
+  folded a tab block and a long "Installation Details" section into one tabbed section; nino.docs WRITING.md, Visual
+  forms, carries the same rule for page authors).
 - **Colour only in byte figures and matrices**: the five calm category tints (`--nino-cat-1` to `-5`, light and dark,
   fixed meanings) are allowed there and nowhere else, where the single accent stays (the owner's decision, round 105);
   a page's meaning never depends on colour alone (the Markdown copy has none).
