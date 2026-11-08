@@ -324,7 +324,9 @@ dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8 \
 ```
 
 Arguments are the number of root classes and the depth of each hierarchy; `--dump <dir>` writes the
-generated files. Each line reports one of five runs.
+generated files; `--layouts` adds a layout baseline of every type (the analyzer then checks each against it);
+`--runs <n>` sets the number of runs (five by default). Each line reports one run, the last the median of the runs
+after the first.
 
 Runtime (`benchmarks/Nino.Benchmark`, BenchmarkDotNet):
 
