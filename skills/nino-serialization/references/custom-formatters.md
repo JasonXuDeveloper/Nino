@@ -15,6 +15,15 @@ the input (the data may be hostile).
   bytes left before you allocate). Dropped instances: `NinoRecycler.Discard(ref value)` /
   `NinoRecycler.Replace(ref value, x)`. Nested values: `NinoSerializer.Serialize(v, ref writer)`,
   `NinoDeserializer.Deserialize(ref reader, ref v)`.
+- Compose Nino's own formatter structs instead of writing loops: `ListFormatter<TList, T, TF>`,
+  `DictionaryFormatter<TKey, TValue, TKF, TVF>`, `HashSetFormatter`, `ArrayFormatter`, `NullableFormatter`,
+  `ValueTupleFormatter`... with `UnmanagedFormatter<T>`, `StringFormatter` or `CachedFormatter<T>` (whatever Nino uses
+  for `T`, a `[NinoType]` included) as element formatters:
+  `[NinoMemberFormatter(typeof(ListFormatter<List<long>, long, ZigZagLongFormatter>))]`. Full table:
+  https://nino.xgamedev.net/en/docs/v4/custom-formatters#built-in-formatters
+- Fixed-size bytes of your own: `ref byte b = ref writer.Reserve(n)` / `reader.ReadBlock(n)` (NinoDataException when
+  fewer are left), encoded little-endian (`BinaryPrimitives`). Reserved bytes are not cleared, and the `Reserve`
+  reference is invalid after the next write; never write through the `ReadBlock` reference.
 - nino-gen leaves members written by custom formatters out of TypeScript (NINOGEN002).
 
 ```csharp

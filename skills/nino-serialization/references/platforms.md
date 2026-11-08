@@ -34,7 +34,9 @@ https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore.md
 
 `Assembly.Load` is enough: generated registries load on first use, and subtypes in the loaded assembly are found
 then. The generator must run in that assembly too. `NinoRegistry.EnsureInitialized(asm)` / `EnsureAllInitialized()`
-only to pay the registry load on a loading screen. A closed generic type the process only reads through a base:
+only to pay the registry load on a loading screen. `NinoFormatterCache<T>.IsRegistered` and
+`NinoActivator<T>.IsRegistered` only say whether Nino has met `T` yet (false before first use, even with generated
+code); to ask whether a type is supported, call `NinoSerializer.IsSupported(typeof(T))`. A closed generic type the process only reads through a base:
 `NinoPolymorphic.TryRegister<Box<int>>()` at startup.
 
 ## Godot 4 (.NET)
