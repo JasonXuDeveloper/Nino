@@ -45,8 +45,6 @@ openupm add com.jasonxudeveloper.nino   # Unity 2022.3+
 
 Nino v4 是预发行版，所以必须加 `--prerelease`：不加时 NuGet 会安装 3.9.x，它读写不了 v4 的数据。可选包：`Nino.Immutable`（System.Collections.Immutable）、`Nino.AspNetCore`（MVC 格式化器，Minimal API 的请求体与结果）、`Nino.Codegen`（每次构建后把你的类型生成为 TypeScript、Go 或 Rust 代码；`Nino.Codegen.Tool` 是同样功能的 `nino-gen` 命令）。[.NET、Unity 和 Godot 的安装](https://nino.xgamedev.net/zh/docs/v4/start#installation-details)。
 
-**AI 编程助手**：`npx skills add JasonXuDeveloper/Nino` 会安装 [`nino-serialization` skill](https://github.com/JasonXuDeveloper/Nino/blob/main/skills/nino-serialization/SKILL.md)（Claude Code、Codex、Cursor、Copilot 等都能用）；文档也有给模型读的版本：<https://nino.xgamedev.net/llms.txt>。
-
 ## 快速开始
 
 ```csharp
@@ -76,6 +74,16 @@ Message msg = NinoDeserializer.Deserialize<Message>(bytes); // 仍是 Chat
 ```
 
 下一步：[第一个类型](https://nino.xgamedev.net/zh/docs/v4/start)、[数据演进](https://nino.xgamedev.net/zh/docs/v4/evolving-data)、[引用追踪](https://nino.xgamedev.net/zh/docs/v4/reference-tracking)、[对象池](https://nino.xgamedev.net/zh/docs/v4/pooling)和[高级用法](https://nino.xgamedev.net/zh/docs/v4/advanced)。
+
+## AI 编程助手
+
+Nino 自带一个 skill，Claude Code、Codex、Cursor、Copilot 等编程助手都能用：
+
+```bash
+npx skills add JasonXuDeveloper/Nino
+```
+
+装上 [`nino-serialization` skill](https://github.com/JasonXuDeveloper/Nino/blob/main/skills/nino-serialization/SKILL.md) 后，助手会声明 `[NinoType]`，为跨版本保存的数据选对格式，用上高性能、零分配的写法，并能修好每一条 NINO 诊断。文档也有给模型读的版本：[llms.txt](https://nino.xgamedev.net/llms.txt)、[llms-full.txt](https://nino.xgamedev.net/llms-full.txt)，每一页在网址后加 `.md` 就是 Markdown 版。
 
 ## 性能
 

@@ -140,7 +140,8 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   so readers do not land on the summary (round 103: the platforms page's binary format and SIMD sections became
   summaries; about 30 links moved to `wire-format#strings` and `simd#dotnet`).
 - **Keep README a storefront in reading order**: hero (tagline, two badge rows, nav links), "Why Nino" as 5 to 7
-  claims of a line or two, each with its link, Install, a short Quick start, the benchmark chart, then compact
+  claims of a line or two, each with its link, Install, a short Quick start, an "AI coding assistants" section of its own (the skill's install
+  command, what it teaches, llms.txt; owner: not a sub-item of Install), the benchmark chart, then compact
   "Built for", the MemoryPack and v4-vs-v3 tables and links to the site for the rest; no callout or long list before
   Install, and README.zh.md the same sections in the same order. Why: a reader decides in the first two screens
   (round 129, owner: "README 有点乱"; Install sat at 4,300 px of 9,200, now at 850 of 4,800). Badges: a row of

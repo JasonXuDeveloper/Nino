@@ -54,10 +54,6 @@ data. Optional packages: `Nino.Immutable` (System.Collections.Immutable), `Nino.
 bodies and results), `Nino.Codegen` (your types as TypeScript, Go or Rust after each build; `Nino.Codegen.Tool` is the
 same as the `nino-gen` command). [Installation for .NET, Unity and Godot](https://nino.xgamedev.net/en/docs/v4/start#installation-details).
 
-**AI coding assistants**: `npx skills add JasonXuDeveloper/Nino` installs the
-[`nino-serialization` skill](https://github.com/JasonXuDeveloper/Nino/blob/main/skills/nino-serialization/SKILL.md) (Claude Code, Codex, Cursor, Copilot and other
-agents); the docs are also at https://nino.xgamedev.net/llms.txt.
-
 ## Quick start
 
 ```csharp
@@ -91,6 +87,19 @@ Next: [your first types](https://nino.xgamedev.net/en/docs/v4/start),
 [reference tracking](https://nino.xgamedev.net/en/docs/v4/reference-tracking),
 [pooling](https://nino.xgamedev.net/en/docs/v4/pooling) and the
 [advanced guides](https://nino.xgamedev.net/en/docs/v4/advanced).
+
+## AI coding assistants
+
+Nino ships a skill for Claude Code, Codex, Cursor, Copilot and other agents:
+
+```bash
+npx skills add JasonXuDeveloper/Nino
+```
+
+The [`nino-serialization` skill](https://github.com/JasonXuDeveloper/Nino/blob/main/skills/nino-serialization/SKILL.md) teaches your assistant to declare `[NinoType]`s, pick the format for data that
+outlives a release, use the fast and zero-allocation forms, and fix every NINO diagnostic. The docs are written for
+models too: [llms.txt](https://nino.xgamedev.net/llms.txt), [llms-full.txt](https://nino.xgamedev.net/llms-full.txt), and
+every page as Markdown (add `.md` to its URL).
 
 ## Benchmarks
 
