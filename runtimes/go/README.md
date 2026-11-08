@@ -9,8 +9,9 @@ through a reflection-built plan.
 Go 1.22 or later. Its versions are Nino's: each release tags the module `runtimes/go/vX.Y.Z`
 (`go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4@v4.0.0-rc.8`).
 
-How to generate Go code from your `[NinoType]`s, the options, what nino-gen writes and how to use it, strings and
-untrusted data are in the guide: [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#go).
+How to generate Go code from your `[NinoType]`s and the options are in the guide's
+[TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen); what nino-gen writes and how to use it,
+strings and untrusted data are on its [Go](https://nino.xgamedev.net/en/docs/v4/advanced/go) page.
 This file is the runtime's reference: its API, struct tags, implementation notes, tests and benchmarks (how nino-gen
 works: [docs/codegen.md](../../docs/codegen.md)).
 
@@ -92,7 +93,7 @@ tracked objects are read new. On a failure the value holds what was read before 
 ## Guarantees
 
 What every runtime guarantees on untrusted data is in the guide's
-[Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#untrusted-data); this is how the Go runtime
+[Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/go#untrusted-data); this is how the Go runtime
 does it.
 
 - **No panics.** Reading never panics on any input and never reads outside the data. This is by construction, not
@@ -252,8 +253,8 @@ option named by its `TagNames` policy, and a `NinoLayout()` method returning the
 leaves out `,former=`, since a layout carries only the former names' hashes, which `NinoLayout()` keeps. What else a
 generated struct has (`NinoTypeID()`, `NinoTypeName()`, an `Elements` field on a `[NinoType]` collection, generic
 types and their codecs, interfaces for slots) is in the guide's
-[Generated Code](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#go-generated-code) and
-[Generic Types](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#generics); the tag policies are under
+[Generated Code](https://nino.xgamedev.net/en/docs/v4/advanced/go#generated-code) and
+[Generic Types](https://nino.xgamedev.net/en/docs/v4/advanced/go#generics); the tag policies are under
 [Options](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#options). A closed generic type written by hand
 (layout `id=0`) implements `NinoTypeID()` returning `TypeID` of its .NET name.
 
@@ -262,7 +263,7 @@ layouts are an error for struct tags (`*TagError`), so the tagged path reads non
 
 ### Reference tracking in generated code
 
-Generated code builds tracked classes ([Reference Tracking](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#reference-tracking))
+Generated code builds tracked classes ([Reference Tracking](https://nino.xgamedev.net/en/docs/v4/advanced/go#reference-tracking))
 from `refs.go`: `ReadTracked`/`WriteTracked` (a tracked class without subtypes), `Reader.Ref`, `Back[T]` and
 `ReadTrackedNew` (a tracked slot: the header, then the type id), and `ReadTrackedClass`/`WriteTypedTracked`/
 `TrackedClassType` (a tracked class in a slot that does not track: the type id, then the header). The writer numbers
@@ -275,7 +276,7 @@ generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen'
 ## Strings
 
 How strings read into Go (WTF-8, null as `""` unless read into a `*string`, the reader's blocks of short strings) is
-in the guide's [Strings](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#go-strings); `Reader.UTF16` returns the
+in the guide's [Strings](https://nino.xgamedev.net/en/docs/v4/advanced/go#strings); `Reader.UTF16` returns the
 code units themselves.
 
 - **Writing.** A string is written as Latin-1 when every char is at most U+00FF, else as UTF-16 (what .NET writes).

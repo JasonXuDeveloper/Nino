@@ -48,7 +48,7 @@
         <!-- Nino.TypeScript's properties, without an item: the item they stand for. -->
         <Warning Condition="'$(_NinoCodegenRun)' == 'true' and '$(_NinoCodegenLegacy)' == 'true' and '@(NinoCodegen)' == ''"
                  Code="NINOGEN003" File="$(MSBuildProjectFullPath)"
-                 Text="The NinoTypeScript* properties of Nino.TypeScript are deprecated: declare &lt;NinoCodegen Include=&quot;typescript&quot; Out=&quot;...&quot; Names=&quot;...&quot; ImportExtension=&quot;...&quot; /&gt; instead (NinoTypeScriptEnabled and NinoTypeScriptTargetFramework are NinoCodegenEnabled and NinoCodegenTargetFramework). See https://nino.xgamedev.net/en/docs/v4/advanced/codegen"/>
+                 Text="The NinoTypeScript* properties of Nino.TypeScript are deprecated: declare &lt;NinoCodegen Include=&quot;typescript&quot; Out=&quot;...&quot; Names=&quot;...&quot; ImportExtension=&quot;...&quot; /&gt; instead (NinoTypeScriptEnabled and NinoTypeScriptTargetFramework are NinoCodegenEnabled and NinoCodegenTargetFramework). See https://nino.xgamedev.net/en/docs/v4/advanced/typescript#from-ninotypescript"/>
         <Warning Condition="'$(_NinoCodegenRun)' == 'true' and '$(_NinoCodegenLegacy)' == 'true' and '@(NinoCodegen)' != ''"
                  Code="NINOGEN003" File="$(MSBuildProjectFullPath)"
                  Text="The NinoTypeScript* properties of Nino.TypeScript are ignored next to &lt;NinoCodegen&gt; items: remove them (NinoTypeScriptEnabled and NinoTypeScriptTargetFramework are NinoCodegenEnabled and NinoCodegenTargetFramework)."/>

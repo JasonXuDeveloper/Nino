@@ -3,7 +3,8 @@
 nino-gen writes the `[NinoType]`s of a built .NET assembly as TypeScript, Go or Rust types with codecs that read and
 write the bytes .NET writes. It reads only the `[assembly: NinoTypeLayout]` metadata the generator publishes (no
 source, no running code), from the assembly and the referenced assemblies it uses. It runs on .NET 8+. Full guide:
-https://nino.xgamedev.net/en/docs/v4/advanced/codegen.md
+https://nino.xgamedev.net/en/docs/v4/advanced/codegen.md (setup, options, what every language shares), with a page per
+language: https://nino.xgamedev.net/en/docs/v4/advanced/typescript.md, .../go.md and .../rust.md.
 
 ## In a build
 
@@ -86,7 +87,7 @@ mod protocol;
   compile time. Without the derive, `nino::raw_read!()` / `raw_write!()` (a raw struct, from its `nino::Raw` impl),
   `sealed_read!()` / `sealed_write!()` (a sealed class) and `type_consts!(id, name, layout)` write the same methods
   and constants as generated code, but nothing checks them against the layout
-  (https://nino.xgamedev.net/en/docs/v4/advanced/codegen.md, "Hand-Written Impls").
+  (https://nino.xgamedev.net/en/docs/v4/advanced/rust.md, "Hand-Written Impls").
 - Every reader takes hostile input with the .NET checks (bounds before allocating, depth counted as .NET does, strict
   bytes) and throws or returns one error type.
 

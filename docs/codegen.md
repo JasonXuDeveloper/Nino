@@ -6,8 +6,10 @@ decision is made, how to add a type and how it is tested.
 
 **Using it** is documented once, on the site: [TypeScript, Go and
 Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen) (the build package and its `<NinoCodegen>` items, the
-command line, every option, the diagnostics, migrating from Nino.TypeScript, the type mapping and generated API of each
-language, generic types, reference tracking, `[NinoType]` collections, untrusted data and what is not generated).
+command line, every option, the diagnostics, generic types, reference tracking, `[NinoType]` collections, untrusted
+data and what is not generated), and a page per language with its type mapping, generated API and limits:
+[TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) (and migrating from Nino.TypeScript),
+[Go](https://nino.xgamedev.net/en/docs/v4/advanced/go), [Rust](https://nino.xgamedev.net/en/docs/v4/advanced/rust).
 Each runtime's API is in its README: [TypeScript](../runtimes/typescript/README.md), [Go](../runtimes/go/README.md),
 [Rust](../runtimes/rust/README.md). The NINOGEN diagnostics are in
 [diagnostics.md](diagnostics.md#code-generation-for-other-languages).

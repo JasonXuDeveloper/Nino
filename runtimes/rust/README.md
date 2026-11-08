@@ -11,8 +11,9 @@ with the NuGet packages (`cargo add nino-serialization@=4.0.0-rc.8`, `features =
   and one block in `Shared::get` ([Reference tracking](#reference-tracking)). The reader's bounds checks are safe code.
 - No required dependencies. Every integration is an opt-in feature.
 
-How to generate Rust code from your `[NinoType]`s, the options, the C# to Rust type mapping, what nino-gen writes and
-untrusted data are in the guide: [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#rust).
+How to generate Rust code from your `[NinoType]`s and the options are in the guide's
+[TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen); the C# to Rust type mapping, what
+nino-gen writes and untrusted data are on its [Rust](https://nino.xgamedev.net/en/docs/v4/advanced/rust) page.
 This file is the crate's reference: its API, the derive, serde, implementation notes, tests and benchmarks (how
 nino-gen works: [docs/codegen.md](../../docs/codegen.md)).
 
@@ -40,7 +41,7 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
 How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`, the
-value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#rust-types).
+value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/rust#types).
 A polymorphic declared type (an abstract class, an interface, or a class that is not sealed) becomes a Rust enum with
 one variant per concrete type. The reader rejects any type id that is not one of the variants
 (`ErrorKind::UnknownTypeId`).
@@ -48,7 +49,7 @@ one variant per concrete type. The reader rejects any type id that is not one of
 ## Guarantees
 
 The reader assumes the input may be hostile. What every runtime guarantees is in the guide's
-[Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#untrusted-data); for this crate, for any input:
+[Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/rust#untrusted-data); for this crate, for any input:
 
 - It never panics, never reads out of bounds, and returns either the whole value or an `Error`. A panic is a bug,
   whatever the input.
@@ -85,7 +86,7 @@ every mode, some only with `NinoSettings.Untrusted` set, and the rest not at all
 ### Reference tracking
 
 A type declared with `trackReferences=true` is held as a [`Shared<T>`](src/shared.rs)
-([Reference Tracking](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#reference-tracking)). The code nino-gen
+([Reference Tracking](https://nino.xgamedev.net/en/docs/v4/advanced/rust#reference-tracking)). The code nino-gen
 writes uses it (`Option<nino::Shared<Node>>`), through `Reader::read_shared`, `ref_header`, `back_ref`,
 `read_shared_new`, `read_shared_after_id` and their writer counterparts; the derive does not take `trackReferences`
 yet. A deferred body waits in the queue until the bodies inside it are read; a bad header or back reference is

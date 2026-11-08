@@ -17,7 +17,7 @@ spec/
 v4-design.md                 the v4 architecture: goals, target frameworks, binary format, Nino.Core, the generator
 codegen.md                   nino-gen for contributors: where it lives, the pipeline (layouts, IR, targets, templates),
                              why each target writes what it does, adding a type, regenerating, tests; usage is the
-                             site's codegen page
+                             site's codegen pages
 diagnostics.md               every NINO diagnostic with its fix (the analyzer's help links point here), and nino-gen's
                              NINOGEN ones
 pitfalls.md                  problems met building v4 (memory layouts across runtimes, the generator, benchmarking)

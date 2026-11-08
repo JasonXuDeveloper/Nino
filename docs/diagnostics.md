@@ -360,7 +360,7 @@ in MSBuild's message format, outside the analyzer:
   see [What Is Not Generated](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#not-generated).
 - `NINOGEN003`: warning, from the build. The project sets Nino.TypeScript's `NinoTypeScript*` properties: without a
   `<NinoCodegen>` item they stand for `<NinoCodegen Include="typescript" ... />`, next to one they are ignored. Declare
-  the item instead ([Migrating from Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#from-ninotypescript)).
+  the item instead ([Migrating from Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#from-ninotypescript)).
 - `NINOGEN004`: warning, from the build. The project references Nino.Codegen but declares no `<NinoCodegen>` item, so
   nothing is written; add one, or set `NinoCodegenEnabled` to `false`.
 

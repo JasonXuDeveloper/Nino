@@ -8,7 +8,7 @@
     "url": "git+https://github.com/JasonXuDeveloper/Nino.git",
     "directory": "runtimes/typescript"
   },
-  "homepage": "https://nino.xgamedev.net/en/docs/v4/advanced/codegen",
+  "homepage": "https://nino.xgamedev.net/en/docs/v4/advanced/typescript",
   "keywords": [
     "nino",
     "serialization",

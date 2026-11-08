@@ -4,8 +4,9 @@
 [docs/spec/wire-format.md](../../docs/spec/wire-format.md)). nino-gen writes it next to the classes and codecs it
 generates for a project's `[NinoType]`s; each release also publishes it to npm as `nino-serialization`, with Nino's
 version, which generated code imports instead with `Runtime="nino-serialization"` (`npm install nino-serialization`).
-How to generate the code, the options, the type mapping, the generated API and what untrusted data may do are in the
-guide: [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#typescript). This file is the
+How to generate the code and the options are in the guide's
+[TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen); the type mapping, the generated API and
+what untrusted data may do are on its [TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) page. This file is the
 runtime's reference: its API, its implementation notes, tests and benchmarks (how nino-gen works:
 [docs/codegen.md](../../docs/codegen.md)).
 
@@ -57,7 +58,7 @@ returns (a browser `WebSocket.send`, `fs.writeSync`), or wait until the write is
 ## Typed arrays
 
 With nino-gen's `NumericArrays="typed"` (the option, its types and its trade-off per engine are in the guide's
-[Typed Arrays](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#typed-arrays)), generated code reads and writes
+[Typed Arrays](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#typed-arrays)), generated code reads and writes
 sequences of fixed-size numbers through `NinoReader.numbers(Int32Array)` and `NinoWriter.numbers(values)`. Their bytes
 on the wire are the typed array's own little-endian bytes, so those over 64 bytes are copied in one block, with no loop
 over the elements (a big-endian engine swaps each element's bytes after the copy); shorter ones are read element by
@@ -68,7 +69,7 @@ bytes. What it returns never refers to the data: typed arrays of 65 bytes to 8 K
 ## Guarantees
 
 The reader takes untrusted input: what every runtime guarantees (bounds, depth, type ids, strict bytes, trailing bytes)
-is in the guide's [Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#untrusted-data), and each
+is in the guide's [Untrusted Data](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#untrusted-data), and each
 check is in the specification's §9. Every failure is a `NinoError`, never another exception. Specific to this runtime:
 
 - A tracked class in a slot that does not track must not have a reference header of 0 after its type id (null is a
@@ -88,7 +89,7 @@ check is in the specification's §9. Every failure is a `NinoError`, never anoth
 In browsers and Deno, `nino.ts` moves longer text through a small WebAssembly module embedded in it (built from
 `wasm/text.wat`), which reads and writes JavaScript strings through the JS String Builtins (`wasm:js-string`); in Node
 it uses `Buffer`'s native methods. Which text takes it, the engines that support it, the Content Security Policy it
-needs and `useWasm` are in the guide's [Text in Browsers](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#text-in-browsers).
+needs and `useWasm` are in the guide's [Text in Browsers](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#text-in-browsers).
 The module is compiled synchronously the first time it is needed, and its paths write the same bytes as the
 JavaScript ones.
 
