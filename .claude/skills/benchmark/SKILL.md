@@ -19,7 +19,7 @@ Every number that counts comes from a GitHub runner. Local runs only choose betw
 | Every case still reads back right | `Nino.Benchmark --verify` (Verify.cs) |
 | One member's cost, v3 against v4 | `benchmarks/members/run.sh` (`DISASM=1` for listings) |
 | Did the machine code change | `python3 benchmarks/asm.py compare origin/main` (`optimize`) |
-| Generator time and generated size | `benchmarks/Nino.GeneratorBenchmark` (`audit-generator`) |
+| Generator time and generated size | `benchmarks/Nino.GeneratorBenchmark` (`audit-generator`); on runners, `generator` lines of runtime-ab (below) |
 | Go | `cd runtimes/go/bench && go test -run='^$' -bench=. -benchmem -count=6 . \| tee bench.txt`, then benchstat |
 | Rust | `cargo bench -p nino-bench --bench compare` (and `--bench text` for transcoding, `--bench blocks` for blocks of fixed-size elements). Back to back across worktrees with the shared `CARGO_TARGET_DIR`, touch each side's `.rs` and `Cargo.toml` files before its run, or give each side its own target directory: every worktree builds the workspace's crates under the same artifact names, and cargo, finding them newer than the other side's sources, ran one binary for both sides (land/rust's first local run) |
 | TypeScript | `runtimes/typescript/bench/run.sh [scenario]` (Node and headless Chromium) |
@@ -55,12 +55,20 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
      so its CI runs main's code; merging an experiment's code ran CI on it, and a Go test that overflowed `int` on 386
      and a Windows stack test mailed the owner a failure per push).
    - **Runtime lines** go into `.github/ab-request.txt` and run `runtime-ab.yml`:
-     `<go|go:<dir>|go#<rounds>|rust|rust:<bench>|typescript> <base sha> <head sha> [filter] [<base env> <head env>]`.
+     `<go|go:<dir>|go#<rounds>|rust|rust:<bench>|typescript|generator|generator#<rounds>> <base sha> <head sha> [filter] [<base env> <head env>]`.
      At most 8 lines per push, 10 jobs each (the workflow measures the first 8 and warns; `[ab: new lines only]` in the
      commit message runs only the lines that push added). A push measures only the lines its parent did not have: to
      run a line again or twice, add or change a note after ` #` (`rust <base> <head> records-1000 # copy 2`). Never
      bend the filter to make lines differ: `r{4}ecords` demands the letter four times, every job of such a line matches
      no bench and fails (the first three-way prefetch round, 400 failed jobs).
+   - **Generator and analyzer lines** are runtime-ab's `generator#<rounds> <base> <head> <arguments joined by commas>`
+     (`generator#10 d2fa565f abe4906b 30,8,--layouts`): the head's `benchmarks/Nino.GeneratorBenchmark` (so the head
+     needs every option the line passes) loads each side's `Nino.Generator` (`--generator`) in a process per side and
+     round, and each process gives the median of its warm runs: generator time, the analyzers' own time and the
+     analysis wall time (`generate`, `analyzers`, `wall` in the summary, head against base). Judge the analyzer on
+     Neoverse-N2 first: its floors were 0.995-1.003 for the analyzers' time and 0.999 for the wall time at n=50,
+     while x64 floors of the analyzers' time reached 0.945 (EPYC 9V74, n=20) and 1.09 (9V45, n=10) on identical code
+     (runs 42509534286, 42518707231). A line takes about 35 minutes for 10 jobs of 10 rounds at `30,8,--layouts`.
    - **.NET lines** go into `.github/dotnet-ab-request.txt` and run `dotnet-ab.yml`:
      `[cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...>`, each line a job of its own per runner
      (with `cpu=`, up to 8 x64 slots, each measuring only on a matching CPU; the file's header). Both sides build the

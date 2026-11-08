@@ -19,7 +19,8 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Nino against MemoryPack,
                              NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest; -p:NinoBenchLegacy for older refs
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
                              analyzer, re-generation after edits; --generics adds generic slots and subtypes,
-                             --calls top-level calls of Nino and of another serializer
+                             --calls top-level calls of Nino and of another serializer, --layouts a layout baseline
+                             of every type (the analyzer's NINO034-NINO037 check), --runs the number of runs
 shards.json                  the classes and the filters of each CI shard: "report" (report.yml, x64 and Arm64) and
                              "ab" (ab-bench.yml)
 ab.py                        two github reports of the same benchmarks (base, head): head against base and MemoryPack;

@@ -106,8 +106,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   should start well under the account's 40 concurrent jobs: short checks of one runner share a job, pushes fuzz with
   one libFuzzer runner (three at night), and a job runs only for the area that changed (Path filters).
   How workers share the budget: `benchmark`, "Spend CI as a budget".
-- **A/B workflows** live on the test branch: `runtime-ab.yml` reads `.github/ab-request.txt` (Go, Rust and
-  TypeScript lines), `dotnet-ab.yml` reads `.github/dotnet-ab-request.txt` (.NET lines); how to write a line is
+- **A/B workflows** live on the test branch: `runtime-ab.yml` reads `.github/ab-request.txt` (Go, Rust,
+  TypeScript and generator lines), `dotnet-ab.yml` reads `.github/dotnet-ab-request.txt` (.NET lines); how to write a line is
   `benchmark`. `ab-bench.yml` on main compares a ref with the previous release or its base. An A/B workflow never
   reports a comparison it did not make: a side that cannot be built or measured fails its job with an `::error::`,
   and the summary shows head against base only when every shard that measured head measured base (`ab.py` with one

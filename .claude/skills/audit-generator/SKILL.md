@@ -112,7 +112,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
 the error. `--generics` adds generic slots, subtypes and closed members, which make the analyzer run
-`WrittenParameters` and its subtype scan; pass `--generator <base Nino.Generator.dll>` for the base side.
+`WrittenParameters` and its subtype scan; `--layouts` makes the classes version-tolerant and adds a layout baseline of
+every type, so the analyzer checks each against its section (NINO034-NINO037); pass `--generator <base
+Nino.Generator.dll>` for the base side, and `--runs <n>` for a median of warm runs. On runners: runtime-ab's
+`generator` lines (`benchmark`). Collect garbage before each timed step (the tool does): without it the analyzers'
+time of the same code read 80 or 330 ms run by run, the previous step's garbage collected inside it. The analyzers'
+own time (Roslyn's telemetry) also holds the binding an analyzer is the first to ask for; the analysis wall time
+holds all of it: read both (`audit-analyzer`, the layout baseline).
 On a real project: `ReportAnalyzer` (set in tests/Nino.UnitTests) prints the generator's and the analyzer's time per
 compilation in a `dotnet build -v:d` log; to see the stages, rebuild the compilation from that log's `csc` line
 (`CSharpCommandLineParser`, with its analyzer config files as an `AnalyzerConfigOptionsProvider`), run the driver with
