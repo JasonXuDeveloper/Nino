@@ -23,6 +23,7 @@ Each runtime's API is in its README: [TypeScript](../runtimes/typescript/README.
   references, the tool or the item's metadata change, and design-time builds skip it.
 - `src/Nino.Codegen.Tool` packs the same program as the .NET tool **Nino.Codegen.Tool** (command `nino-gen`).
 - `nino-gen layouts` writes and checks layout baselines ([Layout baselines](#layout-baselines)).
+- `nino-gen inspect` prints what each byte of a message is ([Inspecting a message](#inspecting-a-message)).
 - The file map is `src/Nino.Codegen/AGENTS.md`.
 
 nino-gen reads nothing but the `[assembly: NinoTypeLayout]` attributes the Nino generator publishes in every assembly
@@ -161,6 +162,59 @@ matches, what a change does to each reader) are `src/Nino.Generator/Common`'s, c
 fixes and nino-gen alike, so the IDE, the build and this command report the same findings. A type's name in a baseline
 is its runtime-form name, `TypeNames.Runtime` here and `TypeNames.RuntimeName` in the generator.
 
+## Inspecting a message
+
+`nino-gen inspect` reads one message with the layouts an assembly publishes and prints a tree of what each byte is:
+every value with its member name, its type, its encoding, its offset and length, and what it holds (numbers, strings,
+enums as numbers with the constant's name, collections with their counts, the type a type id names, the keys of keyed
+entries and the bytes of unknown ones, reference headers, the members a version-tolerant body of older data lacks, the
+section of deferred bodies and each body at the slot it belongs to). It is a protocol debugging tool: bytes from a
+capture, a log or a save file that will not read, or that read to something unexpected.
+
+```sh
+nino-gen inspect --assembly bin/Release/net8.0/MyGame.Shared.dll --type MyGame.Messages.Login login.bin
+xxd -p frame.bin | nino-gen inspect --assembly MyGame.Shared.dll --type MyGame.Messages.Login --hex --offset 4
+nino-gen inspect --assembly MyGame.Shared.dll --type MyGame.Messages.Login --json login.bin > login.json
+```
+
+- `--type` is the runtime-form name the corpus and type ids use (`Namespace.Outer+Inner`,
+  `Namespace.Box<System.Int32>`, `System.Collections.Generic.List<Namespace.Point>`): any type Nino reads at the top
+  level (`CodegenModel.ResolveType`, then `CodegenModel.RootValue`, the encoding of the formatter .NET finds for it,
+  as for a type argument).
+- The message is a file, or standard input (no file, or `-`). `--hex` takes hex text instead of bytes (whitespace,
+  `,`, `:`, `-` and `0x` between pairs are ignored); `--offset <n>` starts at byte `n`, for a frame inside a bigger
+  buffer (offsets stay the input's). Bytes after the value are reported, not read, so the next frame's offset is in
+  the output. There is no `--length`: a message ends where its value does.
+- `--json` writes the same tree for tools (`name`, `type`, `encoding`, `offset`, `length`, `value` as JSON in the
+  corpus's forms, `text`, `note`, `children`), with `error` (`offset`, `message`) and `trailing`.
+- Exit codes: 0 read, 2 malformed data (the tree up to there, then `malformed data at offset N: <the check>`), 1 a
+  mistake of the command line (NINOGEN001).
+
+It is an interpreter of the IR, not a fourth target: `Inspect/Inspector.cs` walks the `ValueModel`s the targets write
+code from, with the reader's state of the specification (§7.10 deferral and depth, §7.9 references, regions and
+sections), so nothing about the bytes is decided twice and no second layout parser exists. A generic type's members
+are read with an environment of its type arguments (`Parameter` values resolve through it, open types close with
+`CodegenModel.Substitute`); a type id resolves among the concrete types with layouts and `CodegenModel.ClosedTypes`,
+assignable to the declared type (`CodegenModel.AssignableTo`). It makes every check a reader in untrusted mode makes
+(spec §9: bounds, lengths against the bytes left, minimal string headers, strict UTF-8, presence and `bool` bytes, raw
+flags, value ranges, type ids, back references, regions and sections, repeated set elements and map keys, depth 128
+and 512 with the struct bodies `CodegenModel.HoldsItself` counts) and runs on a thread with a 256 MB stack, so deep
+data nests the tree as deep as the limits allow. The tree is bounded too: at most 16 values per input byte (a value of
+no bytes, the body of a struct without members, repeated by counts could otherwise grow it with the square of the
+input).
+
+A value no layout describes (`formatter(F)`, a custom formatter's bytes, spec §7.11) is shown as opaque bytes when its
+length is known (the whole of a keyed entry, the last member of a version-tolerant body, a `raw(n)`); anywhere else
+its end is unknown and the read stops there with that reason. `BitArray` and `TimeZoneInfo` (`bits`, `timezone`) are
+read as spec §3.5 says, though no target writes them. Without the assembly nothing can be read: positional bodies
+carry no names, lengths or types.
+
+`tests/Nino.Codegen.Tests/InspectCommandTests.cs` reads every valid corpus case to its end and to the value its JSON
+records, every malicious case and truncated prefix to an error (the untrusted ones too; a `trailing` case reports its
+bytes), mutated corpus inputs to a value or an error and nothing else, and compares the text of representative
+messages with `tests/Nino.Codegen.Tests/Inspect/*.txt` (`NINO_UPDATE_GENERATED=1` rewrites them: review the diff).
+`InspectTypes.cs` holds the custom-formatter types, which every target leaves out (NINOGEN002).
+
 ## Adding a type or an encoding
 
 1. **The encoding.** A new kind of encoding in the layouts (the Nino generator's side, a wire-format change with
@@ -176,7 +230,9 @@ is its runtime-form name, `TypeNames.Runtime` here and `TypeNames.RuntimeName` i
 4. **A sample.** A member of the new type in `conformance/Nino.Conformance/Types.cs` (the corpus is regenerated:
    conformance/AGENTS.md), or, for a way of declaring a type the corpus does not cover, a shape in
    `tests/Nino.Codegen.Tests/Shapes.cs`, which every runtime compiles.
-5. **Regenerate and test** ([Tests](#tests)), then the site: the type mapping of each language, and its "What Is Not
+5. **Inspect.** `nino-gen inspect` reads a new `ValueKind` in `Inspect/Inspector.cs` (and a new `PrimitiveKind` in
+   `Inspect/Scalars.cs`, with its range checks); the corpus tests fail until it does.
+6. **Regenerate and test** ([Tests](#tests)), then the site: the type mapping of each language, and its "What Is Not
    Generated" list for a language that leaves it out (`audit-docs`).
 
 ## Tests

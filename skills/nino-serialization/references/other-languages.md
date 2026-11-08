@@ -45,6 +45,24 @@ nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [-
 A class library's `bin/` has no copy of its packages (`Nino.Core.dll`): pass them with `--references` (a file with
 one path per line).
 
+## Inspecting a message
+
+`nino-gen inspect` reads one message with an assembly's layouts and prints what each byte is: every member with its
+offset, length, encoding and value, the type each type id names, keyed entries with their keys (unknown ones as
+skipped bytes), reference headers and deferred bodies. On malformed data it prints what it read, then the offset and
+the check that failed (exit code 2), the checks .NET's untrusted mode makes. Use it when bytes from another language,
+a capture or a save file do not read, or read to something unexpected:
+
+```shell
+nino-gen inspect --assembly bin/Release/net8.0/MyGame.Shared.dll --type MyGame.Login login.bin
+xxd -p frame.bin | nino-gen inspect --assembly MyGame.Shared.dll --type MyGame.Login --hex --offset 4
+```
+
+`--type` is the runtime-form name (`Ns.Outer+Inner`, `Ns.Box<System.Int32>`); the message is a file or standard
+input; `--hex` reads hex text, `--offset` skips a frame header, `--json` writes the tree for tools. Members written by
+a custom formatter show as opaque bytes inside a keyed entry; elsewhere their length is unknown and reading stops
+there. Positional data cannot be read without the assembly: the bytes carry no names or types.
+
 ## Runtimes
 
 | Language | Runtime | Use |

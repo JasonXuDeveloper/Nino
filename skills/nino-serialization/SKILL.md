@@ -20,7 +20,7 @@ Read a reference when the task reaches it:
 | [references/platforms.md](references/platforms.md) | Unity, IL2CPP, Burst, HybridCLR, Native AOT, Godot, ASP.NET Core |
 | [references/custom-formatters.md](references/custom-formatters.md) | a member needs its own encoding, or a type Nino does not know |
 | [references/diagnostics.md](references/diagnostics.md) | any `NINO0xx`/`NINOGEN` diagnostic or a runtime error message from Nino |
-| [references/other-languages.md](references/other-languages.md) | TypeScript, Go or Rust must read or write the same bytes (nino-gen) |
+| [references/other-languages.md](references/other-languages.md) | TypeScript, Go or Rust must read or write the same bytes (nino-gen), or a message's bytes need explaining (nino-gen inspect) |
 
 ## Install
 
@@ -218,6 +218,9 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 - Still your job: validate values (a negative health, an unnamed enum value, an array of the wrong length), cap frame
   or request sizes before buffering, and version payloads yourself: the bytes carry no schema, so data for another
   type with a compatible layout reads without error. Put a magic number and version in front of stored files.
+- To see why bytes do not read (or what they hold): `nino-gen inspect --assembly X.dll --type Ns.Message msg.bin`
+  prints every member with its offset, length and value, and the offset and check that fail
+  ([references/other-languages.md](references/other-languages.md#inspecting-a-message)).
 
 ## Pitfalls
 
