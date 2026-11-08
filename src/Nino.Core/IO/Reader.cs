@@ -544,9 +544,12 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Consumes <paramref name="size"/> bytes and returns a reference to the first one.
-        /// Use <see cref="NinoUnsafe.Read{T}(ref byte, int)"/> to decode the block.
+        /// Consumes <paramref name="size"/> bytes and returns a reference to the first one, for a custom formatter that
+        /// decodes them itself. The data is little-endian (decode it with <c>BinaryPrimitives</c>, for instance). The
+        /// reference points into the input: read only those <paramref name="size"/> bytes and never write through it.
         /// </summary>
+        /// <exception cref="NinoDataException"><paramref name="size"/> is negative or more than <see cref="Remaining"/>
+        /// (nothing is consumed).</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref byte ReadBlock(int size)
         {
@@ -586,7 +589,7 @@ namespace Nino.Core
             return ref block;
         }
 
-        /// <summary>Skips <paramref name="count"/> bytes.</summary>
+        /// <summary>Skips <paramref name="count"/> bytes; throws as <see cref="ReadBlock"/> does.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Advance(int count) => ReadBlock(count);
 

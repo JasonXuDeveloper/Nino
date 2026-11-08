@@ -37,7 +37,10 @@ namespace Nino.Core
             return value;
         }
 
-        /// <summary>Whether a creator has been registered or resolved.</summary>
+        /// <summary>
+        /// Whether a creator has been registered or resolved so far. Reading it registers nothing, and registration is
+        /// lazy: false for a type Nino has not met yet, even one generated code covers.
+        /// </summary>
         public static bool IsRegistered => Volatile.Read(ref _create) != null;
 
         /// <summary>

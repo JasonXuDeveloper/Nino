@@ -325,10 +325,13 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// Forwards to <see cref="NinoFormatterCache{T}.Instance"/>. Used for generic type parameters and types whose
-    /// formatter is only known at runtime. Tier1 code calls (and inlines) the formatter directly where
-    /// <typeparamref name="T"/> is exact (<see cref="NinoTopFormatter{T}"/>); shared generic code and AOT runtimes
-    /// make one virtual call.
+    /// The formatter Nino uses for <typeparamref name="T"/> (registered by generated code, declared with
+    /// <c>[assembly: NinoFormatter]</c>, or built on first use), as a struct: it writes what
+    /// <c>NinoSerializer.Serialize(value, ref writer)</c> writes. Pass it as the element formatter of a built-in
+    /// formatter for an element type whose formatter you cannot name (a <c>[NinoType]</c>); generated code uses it
+    /// for type parameters and types whose formatter is only known at run time. Tier1 code calls (and inlines) the
+    /// formatter directly where <typeparamref name="T"/> is exact (<see cref="NinoTopFormatter{T}"/>); shared generic
+    /// code and AOT runtimes make one virtual call.
     /// </summary>
     public struct CachedFormatter<T> : INinoFormatter<T>
     {

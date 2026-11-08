@@ -29,7 +29,11 @@ namespace Nino.Core
             get => _instance ?? Resolve();
         }
 
-        /// <summary>Whether a formatter has been registered or resolved.</summary>
+        /// <summary>
+        /// Whether a formatter has been registered or resolved so far. Reading it registers nothing, and registration
+        /// is lazy: false for a type Nino has not met yet, even one generated code covers. To ask whether Nino supports
+        /// a type, call <see cref="NinoSerializer.IsSupported"/>.
+        /// </summary>
         public static bool IsRegistered => Volatile.Read(ref _instance) != null;
 
         /// <summary>

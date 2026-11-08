@@ -253,9 +253,12 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reserves <paramref name="size"/> bytes and returns a reference to the first one.
-        /// Use <see cref="NinoUnsafe.Write{T}(ref byte, int, T)"/> to fill the block.
+        /// Reserves <paramref name="size"/> bytes and returns a reference to the first one, for a custom formatter that
+        /// encodes them itself, little-endian as all of Nino's data (with <c>BinaryPrimitives</c>, for instance). The
+        /// bytes are not cleared: write every one. The reference is valid only until the next write to this writer,
+        /// which may move the output to a larger buffer.
         /// </summary>
+        /// <exception cref="OverflowException"><paramref name="size"/> is negative.</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref byte Reserve(int size)
         {
@@ -389,7 +392,10 @@ namespace Nino.Core
             return pos;
         }
 
-        /// <summary>Overwrites 4 bytes at an absolute position previously returned by <see cref="ReserveInt32"/>.</summary>
+        /// <summary>
+        /// Overwrites 4 bytes at an absolute position previously returned by <see cref="ReserveInt32"/>. The position is
+        /// not checked: pass only one that call returned for this writer.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void PatchInt32(int position, int value)
         {
