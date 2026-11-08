@@ -13,7 +13,7 @@ namespace Nino.Core
     /// under before it was renamed, once per earlier name. Reading accepts the current name and every former name;
     /// writing always uses the current name. Positional and version-tolerant types write no member names, so there
     /// it has no effect (warning NINO024).</para>
-    /// <see href="https://nino.xgamedev.net/en/docs/v4/defining-types#former-name"/>
+    /// <see href="https://nino.xgamedev.net/en/docs/v4/evolving-data#former-name"/>
     /// <see href="https://nino.xgamedev.net/en/docs/v4/evolving-data#renaming-keyed-members"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface |

@@ -29,6 +29,11 @@ architecture".
 
 ## Renaming, merging or removing a site page
 
+- **Move a page in the sidebar without moving its URL by listing it by path in the root `meta.json`**
+  (`"advanced/high-performance"` under the Performance separator) and removing it from its folder's `meta.json`:
+  Fumadocs 16.17.3 joins the item to the folder path, and the first folder to claim a page owns it, so a page listed
+  in both shows once, in the wrong place. Breadcrumbs keep the URL's folder (accepted). Why: round 130 built the three
+  learning tracks from pages in `advanced/` with no redirect and no broken link.
 - **Splitting a page keeps its URL for the overview and every old anchor working**: each section that moves keeps
   its anchor name or gets an entry in the old page's `<AnchorRedirect>` (to the new page and anchor, both languages),
   the pages that come back to life lose their 301s and `_routes.json` entries, the csharp-check Context file follows

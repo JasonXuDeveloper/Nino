@@ -59,8 +59,11 @@ listing NinoSettings; the inventory also found `DefaultMaxDepth`, `DefaultMaxHas
 they now live on simd#registering-kernels, custom-formatters#built-in-formatters and #raw-bytes, and
 platforms#checking-registration.
 
-Then the reading order: the sidebar (`content/docs/v4/meta.json`) is the reader's path: Get Started, Define Types,
-Features, Guides (the collapsed `advanced/` folder), Compare, Reference, Project (nino.docs `WRITING.md`, Order). Every inventory item has one owning page and a place in that order; an item without one
+Then the reading order: the sidebar (`content/docs/v4/meta.json`) is the reader's path, three learning tracks first
+(Basics: Get Started, Define Types, Before You Ship; Performance; Advanced Features), then Guides (the collapsed
+`advanced/` folder), Compare, Reference, Under the Hood and Project (nino.docs `WRITING.md`, Order). Walk each track by
+its first Next Steps card from Quick Start: it must reach Guides without a dead end or a page twice (round 130: 16
+pages, Quick Start to Streams and Compression). Every inventory item has one owning page and a place in that order; an item without one
 is a finding, and so is a page that teaches a feature before the one it builds on.
 
 ## 2. Per page (English and Chinese)
