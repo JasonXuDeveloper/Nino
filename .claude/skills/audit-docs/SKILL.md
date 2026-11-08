@@ -66,7 +66,7 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    written; check a doubtful claim with a throwaway test. Names match the code exactly. No API that is not in the
    source (the site's rule).
    A claim about the code's whole surface ("the reader is safe code", "the only `unsafe` is the SIMD module") is
-   re-checked whenever that surface grows: grep the runtime READMEs, crate docs, the codegen page and the changelog
+   re-checked whenever that surface grows: grep the runtime READMEs, crate docs, the codegen pages and the changelog
    for it (round 103: Rust's reference tracking added one `unsafe` block in `Shared::get`; the README's own first
    bullet, the codegen page and rc.8's entry still said only the SIMD module was unsafe).
    A claim about a tool outside Nino (a compiler flag, a runtime setting, an engine version) cites that tool's
@@ -120,8 +120,13 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   has which `Vector<T>` width is only in the spec's §3; every other page says "16, 32 or 64 bytes, chosen by the
   CPU" and links it (round 105 found three different lists, one of them "16 or 32"), and the measured BCL layouts are
   only in docs/layouts.md and the site's struct-layouts page.
-  For code generation: the site's codegen page owns the user guide (options and their naming rules, type mapping,
-  per-language usage, generics, reference tracking, untrusted data, what is not generated); each `runtimes/*/README.md`
+  For code generation: the site's codegen pages own the user guide: the overview `advanced/codegen` (setup, the
+  command line, options and their naming rules, diagnostics, the cross-language type summary, raw struct fields,
+  generics, reference tracking, `[NinoType]` collections, the checks every reader makes, what no language gets) and
+  one page per language, `advanced/typescript`, `advanced/go` and `advanced/rust` (its usage and generated API, type
+  mapping, its forms of generics and tracked classes, its own untrusted-data checks, what it leaves out, its
+  benchmark); a fact of one language lives on its page, and the overview says it in a sentence and links (round 129
+  split the 8,850-word page this way); each `runtimes/*/README.md`
   owns its install, API reference and implementation notes and links the guide; `docs/codegen.md` is for
   contributors (pipeline, why each target writes what it does, adding a type, regenerating, tests). Before cutting a
   copy, move every fact only it has to its owner (round 102 moved the camel/snake rules, Go slot marker methods and
@@ -130,7 +135,7 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   summaries; about 30 links moved to `wire-format#strings` and `simd#dotnet`).
 - **Copies that must exist agree**: README / README.zh.md, the site's index and comparison pages, the analyzers page
   and `docs/diagnostics.md`, `docs/spec/wire-format.md` and the site's wire-format page, the public skill, the
-  runtimes' READMEs and the codegen page.
+  runtimes' READMEs and the codegen pages.
 - **Every feature is everywhere it belongs** (`feature`, part 8): its guide page (both languages), the analyzers page
   for its rules, the platforms page if it is platform-specific, the public skill, README's feature list when users
   choose Nino for it, the changelog.

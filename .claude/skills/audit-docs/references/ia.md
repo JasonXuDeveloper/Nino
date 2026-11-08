@@ -29,6 +29,14 @@ architecture".
 
 ## Renaming, merging or removing a site page
 
+- **Splitting a page keeps its URL for the overview and every old anchor working**: each section that moves keeps
+  its anchor name or gets an entry in the old page's `<AnchorRedirect>` (to the new page and anchor, both languages),
+  the pages that come back to life lose their 301s and `_routes.json` entries, the csharp-check Context file follows
+  the fences it serves, and every inbound link (site, `src/data`, `src/components`, Nino's READMEs, runtime READMEs,
+  package metadata, MSBuild messages, the public skill) moves to the new page and anchor. Before splitting, check
+  `public/_redirects` for an older merge: round 129 split the codegen page back into `advanced/codegen` plus
+  `advanced/typescript`, `advanced/go` and `advanced/rust`, the URLs rc.8's merge had redirected, so external links to
+  them work again; anchors of the old language pages (`#guarantees`) got an `<AnchorRedirect>` on the new page.
 - **The old URL and its `.md` copy get a 301 in `public/_redirects`** (no `#fragment` in the target, so the browser
   keeps the reader's; renamed anchors get an `<AnchorRedirect>` on the target page, as v3-vs-v4's `#runtime` did in
   round 107) and an entry in `public/_routes.json`'s `exclude` (paths a function handles never reach the redirects).
