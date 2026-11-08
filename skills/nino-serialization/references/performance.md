@@ -14,8 +14,8 @@ https://nino.xgamedev.net/en/docs/v4/pooling.md
   reset: it points into the reused array.
 - `NinoSerializer.Serialize(value)` returns a new `byte[]` of exactly the data's size: use it only where an API needs
   a `byte[]`.
-- Several values in one buffer: `var w = new Writer(bufferWriter);`, `NinoSerializer.Serialize(a, ref w)`...,
-  `w.Flush(); w.ReleaseReferences();`; read with `var r = new Reader(span);`,
+- Several values in one buffer: `var w = new Writer(ninoArrayBufferWriter);` (a `NinoArrayBufferWriter` only),
+  `NinoSerializer.Serialize(a, ref w)`..., `w.Flush(); w.ReleaseReferences();`; read with `var r = new Reader(span);`,
   `NinoDeserializer.Deserialize<T>(ref r)`..., `r.ReleaseReferences()`. Release once per logical message.
 - `NinoSerializer.GetFixedSize<T>()` gives the size of a fixed-size type; `NinoSerializer.IsSupported(type)` whether
   Nino can write a type.
@@ -23,8 +23,9 @@ https://nino.xgamedev.net/en/docs/v4/pooling.md
 ## Reading into existing instances
 
 `NinoDeserializer.Deserialize(data, ref value)` fills `value` in place (null: creates it). It reuses nested objects,
-lists (by index) and dictionaries (merged by key); unchanged strings are kept. Use `List<T>` for varying counts: an
-array is reused only at the same length. A polymorphic slot is reused only when the data holds the same runtime type.
+lists (by index) and dictionaries (merged by key); unchanged strings are kept (a `[NinoUtf8]` string only when it is
+ASCII). Use `List<T>` for varying counts: an array is reused only at the same length. A polymorphic slot is reused only
+when the data holds the same runtime type.
 
 - Types re-created through a constructor (records, `init`/get-only/`readonly` members) are re-created even here.
   Hot-path types: a parameterless constructor and settable members.
@@ -49,8 +50,9 @@ public sealed partial class Alert
 }
 ```
 
-- A class holding pooled children should be pooled too. `NinoPool<T>.Shared.Clear()` empties a pool (Unity with
-  domain reload off). `NinoSettings.PoolMaxRetained` / `SetPoolMaxRetained<T>(n)` cap what a pool keeps (startup only).
+- A class holding pooled children should be pooled too. `NinoPool<T>.Shared.Clear()` empties a pool (Unity with domain
+  reload off). `NinoSettings.PoolMaxRetained` / `SetPoolMaxRetained<T>(n)` cap what a pool keeps (`PoolMaxRetained` for
+  pools created later, so set it at startup; `SetPoolMaxRetained<T>` also changes an existing pool).
 - `[NinoFactory] public static T Rent()` (public, static, callable without arguments, returns the type, never null:
   NINO017) is called whenever Nino needs a new instance; also for your own collection types (implement `INinoPooled`
   so dropped ones come back). Not together with `[NinoConstructor]` (NINO025).

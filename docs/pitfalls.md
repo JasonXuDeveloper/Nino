@@ -103,7 +103,7 @@ public sealed partial class Particle
 {
     public int Id;
 
-    // Serialized: 16 floats, 64 bytes on every host. 16 is a multiple of Vector<float>.Count everywhere (4, 8 or 16).
+    // Serialized: 16 floats (64 bytes of data) on every host. 16 is a multiple of Vector<float>.Count everywhere (4, 8 or 16).
     public float[] Lanes = new float[16];
 
     // Not serialized: the same lanes as Vector<float>s, 4, 2 or 1 of them depending on the CPU.

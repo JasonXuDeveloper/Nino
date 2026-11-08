@@ -51,7 +51,7 @@ Nino v4 是预发行版，所以必须加 `--prerelease`：不加时 NuGet 会�
 using Nino.Core;
 
 [NinoType]
-public class Order
+public sealed class Order
 {
     public long Id;
     public string Customer;

@@ -60,7 +60,7 @@ same as the `nino-gen` command). [Installation for .NET, Unity and Godot](https:
 using Nino.Core;
 
 [NinoType]
-public class Order
+public sealed class Order
 {
     public long Id;
     public string Customer;

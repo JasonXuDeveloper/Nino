@@ -38,8 +38,14 @@ public struct ZigZagLongFormatter : INinoFormatter<long>
 
     public void Deserialize(ref Reader reader, ref long value)
     {
-        ulong v = 0; int shift = 0; byte b;
-        do { reader.Read(out b); v |= (ulong)(b & 0x7F) << shift; shift += 7; } while ((b & 0x80) != 0 && shift < 70);
+        ulong v = 0;
+        for (int shift = 0; ; shift += 7)
+        {
+            reader.Read(out byte b);
+            if (shift == 63 && b > 1) throw new NinoDataException("Varint longer than 64 bits"); // hostile input
+            v |= (ulong)(b & 0x7F) << shift;
+            if (b < 0x80) break;
+        }
         value = (long)(v >> 1) ^ -(long)(v & 1);
     }
 }

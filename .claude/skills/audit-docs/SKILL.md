@@ -116,6 +116,14 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    struct layout the generator does not produce. Check for each: is every frame self-delimiting, is every length read
    from data bounded before anything is allocated for it, does one bad message end only itself, and does the prose
    (a byte count, a layout, a version) match what running it prints.
+   **Measure what a hot-path example allocates** (`GC.GetAllocatedBytesForCurrentThread` around a warmed loop): a page
+   that teaches Nino's zero-allocation form must not wrap it in code that allocates per message. Use one-shot static
+   APIs over instances that own native handles (`BrotliDecoder.TryDecompress` into a pooled buffer, not
+   `new BrotliDecoder()` per frame: nino.docs `13aa288`, 0 B per round trip); name the span or buffer overload a
+   client offers before calling `byte[]` its cost (Godot's `SendBytes(ReadOnlySpan<byte>)`, `IBufferDistributedCache`);
+   pass state to a library's callback instead of a capturing lambda (HybridCache's `GetOrCreateAsync(key, state, ...)`);
+   decode once per message and into a reused instance by `ref`; return a library's `ValueTask` instead of wrapping it
+   in `async`.
 4. **Numbers**: never typed. Runtime numbers only through `BenchValue`, `RuntimeTable`, `ResultsTable`,
    `BenchmarkChart`, `RuntimesTables`, `UnityTables` from the synced data; within 5 % is on par and is written so; the
    docs never call Nino "slower"; v3 means 3.3.13.

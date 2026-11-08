@@ -59,9 +59,9 @@ Then:
 ```go
 data, err := nino.Serialize(p, WritePoint)        // a new slice
 buf, err = nino.Append(buf[:0], p, WritePoint)     // no allocation when buf has room
-w.Reset(); WritePoint(w, p); out := w.Bytes()      // a reused *nino.Writer: no allocation once it is large enough
-p, err := nino.Deserialize(data, ReadPoint)        // bytes after the value are ignored, as in .NET
-p, err := nino.DeserializeExact(data, ReadPoint)   // ... or rejected
+w.Reset(); WritePoint(w, p); err = w.Err(); out := w.Bytes() // a reused *nino.Writer: no allocation once it is large enough
+got, err := nino.Deserialize(data, ReadPoint)      // bytes after the value are ignored, as in .NET
+got, err = nino.DeserializeExact(data, ReadPoint)  // ... or rejected
 err = nino.DeserializeInto(data, &p, ReadPointInto) // into p, reusing what it holds
 ```
 
@@ -153,6 +153,7 @@ func (Monster) NinoLayout() string { // what .NET publishes for the type (NinoTy
 }
 
 data, err := nino.Marshal(m)          // m is a *Monster: a class (presence byte, body)
+buf, err = nino.MarshalAppend(buf[:0], m) // no allocation when buf has room
 err = nino.Unmarshal(data, &m)        // *m is left unchanged on any error
 err = nino.UnmarshalExact(data, &m)   // ... and trailing bytes are an error
 data, err = nino.MarshalAs[Animal](a) // a polymorphic root: written behind its type id

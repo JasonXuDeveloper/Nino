@@ -81,7 +81,7 @@ bytes) and view them as vectors in members Nino does not serialize:
 [NinoType]
 public sealed partial class Particle
 {
-    public float[] Lanes = new float[16]; // serialized: 64 bytes on every host
+    public float[] Lanes = new float[16]; // serialized: 16 floats (64 bytes of data) on every host
 
     [NinoIgnore] // 4, 2 or 1 vectors, by the CPU
     public Span<Vector<float>> Vectors => MemoryMarshal.Cast<float, Vector<float>>(Lanes.AsSpan());

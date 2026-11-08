@@ -414,7 +414,7 @@ deserialization.
 
 * **Built-in formatters** are structs in `Nino.Core`: `UnmanagedFormatter<T>`, `StringFormatter`,
   `Utf8StringFormatter` (hidden: members say `[NinoUtf8]`), `NullableFormatter<T, TF>`, `ArrayFormatter<T, TF>`,
-  `UnmanagedArrayFormatter<T>`, `ListFormatter<T, TF>`, `DictionaryFormatter<TKey, TValue, TFK, TFV>`,
+  `UnmanagedArrayFormatter<T>`, `ListFormatter<TList, T, TF>`, `DictionaryFormatter<TKey, TValue, TFK, TFV>`,
   and so on. Element formatters are type parameters, so the JIT/AOT compiler inlines element
   (de)serialization into the collection loop.
   The tuple formatters (`ValueTupleFormatter<T1..Tn, TF1..TFn>`, `TupleFormatter<...>`, arity 1 to 7) and the

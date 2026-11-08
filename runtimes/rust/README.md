@@ -149,7 +149,7 @@ use nino::{NinoRead, NinoWrite};
 #[derive(Debug, Default, Clone, PartialEq, NinoRead, NinoWrite)]
 #[nino(format = "keyed")]                       // [NinoType(NinoFormat.Keyed)] sealed class
 pub struct Player {
-    #[nino(key = "Name", utf8)]                 // [NinoKey("Name")] [NinoUtf8]
+    #[nino(key = "Name", utf8)]                 // [NinoUtf8], keyed by the .NET name "Name"
     pub name: Option<String>,
     #[nino(former = "Health")]                  // keyed "Hp", and read under "Health" too
     pub hp: i32,
