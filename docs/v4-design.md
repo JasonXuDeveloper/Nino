@@ -872,8 +872,8 @@ which the regular calls already copy directly, and not types it can only reach t
 `NinoDeserializer.Deserialize<T>(ReadOnlySpan<byte>)` of a raw value is intercepted too, to
 `NinoDirect.DeserializeRaw<T>`: one bounds check and one unaligned load with a single return, which the JIT keeps in
 registers (the regular method's several returns go through a stack temp).
-The `ReadOnlySequence<byte>` overloads are not intercepted: they read one segment through the span call and copy
-several into a pooled array first, so the call that reads is the span one either way.
+The `ReadOnlySequence<byte>` overloads are intercepted the same way, to `NinoDirect`'s sequence forms: one segment
+is read in place through the span call, several are copied once into a pooled array out of line (`NinoSequences`).
 The bytes are the same: formatters are only declared at compile time, so intercepted and regular calls never
 disagree, and `NinoDirect` calls the formatter with no check. Regular calls read the formatter once, on the first use
 of `T`, into a `static readonly` field (`NinoTopFormatter<T>`), so Tier1 code knows its exact class and calls it

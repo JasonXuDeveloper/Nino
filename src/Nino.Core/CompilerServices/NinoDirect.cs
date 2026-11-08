@@ -282,6 +282,73 @@ namespace Nino.Core.CompilerServices
             reader.ReleaseReferences();
         }
 
+        // The ReadOnlySequence<byte> forms of the reads above: one segment is read in place, several are copied once
+        // into a pooled array out of line (NinoSequences), so the inlined part is the span call and one branch.
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T Deserialize<T, TFormatter>(in ReadOnlySequence<byte> data)
+            where TFormatter : struct, INinoFormatter<T> =>
+            data.IsSingleSegment ? Deserialize<T, TFormatter>(data.First.Span) : DeserializeSegments<T, TFormatter>(data);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T DeserializeTop<T, TFormatter>(in ReadOnlySequence<byte> data)
+            where TFormatter : struct, INinoTopFormatter<T> =>
+            data.IsSingleSegment ? DeserializeTop<T, TFormatter>(data.First.Span) : DeserializeSegments<T, TFormatter>(data);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Deserialize<T, TFormatter>(in ReadOnlySequence<byte> data, ref T value)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (data.IsSingleSegment)
+                Deserialize<T, TFormatter>(data.First.Span, ref value);
+            else
+                DeserializeSegments<T, TFormatter>(data, ref value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializePrefetched<T, TFormatter>(in ReadOnlySequence<byte> data, ref T[] value)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (data.IsSingleSegment)
+                DeserializePrefetched<T, TFormatter>(data.First.Span, ref value);
+            else
+                DeserializeSegments<T[], ArrayFormatter<T, TFormatter>>(data, ref value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializePrefetched<T, TFormatter>(in ReadOnlySequence<byte> data, ref List<T> value)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (data.IsSingleSegment)
+                DeserializePrefetched<T, TFormatter>(data.First.Span, ref value);
+            else
+                DeserializeSegments<List<T>, ListFormatter<List<T>, T, TFormatter>>(data, ref value);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static T DeserializeSegments<T, TFormatter>(in ReadOnlySequence<byte> data)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            T value = default;
+            DeserializeSegments<T, TFormatter>(data, ref value);
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void DeserializeSegments<T, TFormatter>(in ReadOnlySequence<byte> data, ref T value)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            byte[] rented = NinoSequences.Rent(data, out int length);
+            try
+            {
+                Deserialize<T, TFormatter>(new ReadOnlySpan<byte>(rented, 0, length), ref value);
+            }
+            finally
+            {
+                NinoSequences.Return(rented);
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T, TFormatter>(ref Reader reader, ref T value)
             where TFormatter : struct, INinoFormatter<T> =>

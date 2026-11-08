@@ -182,6 +182,8 @@ NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte
 NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;
                              UTF-8 ([NinoUtf8]) is in Reader / Writer
 NinoScratch.cs               the per-thread scratch buffer of the top-level calls
+NinoSequences.cs             the pooled contiguous copy of a multi-segment ReadOnlySequence<byte> the sequence
+                             overloads read from
 NinoThreadCache.cs           helpers for the per-thread caches
 NinoUnload.cs                hooks that forget an unloaded assembly's types (NinoRegistry.Remove)
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,

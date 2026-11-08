@@ -106,20 +106,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void DeserializeSegments<T>(in ReadOnlySequence<byte> data, ref T value)
         {
-            // A span holds at most int.MaxValue bytes; the data is already in memory, so the copy is in proportion.
-            if (data.Length > int.MaxValue)
-                throw new ArgumentException("Nino: data longer than int.MaxValue bytes.", nameof(data));
-            int length = (int)data.Length;
-            byte[] rented = ArrayPool<byte>.Shared.Rent(length);
+            byte[] rented = NinoSequences.Rent(data, out int length);
             try
             {
-                data.CopyTo(rented);
-                // Nothing read keeps a reference to the input, so the array goes back to the pool afterward.
                 Deserialize(new ReadOnlySpan<byte>(rented, 0, length), ref value);
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(rented);
+                NinoSequences.Return(rented);
             }
         }
 
