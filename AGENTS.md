@@ -175,3 +175,5 @@ reusing is written down before the task ends, in the same series of commits as t
   `VAR=0 cmd` or `/usr/bin/env VAR=0 cmd`.
 - **Secrets** go only into GitHub secrets, never into chat, files or logs.
 - **The owner talks in Chinese**: answer in Chinese; everything committed stays English (docs: English and Chinese).
+  Chinese docs (the site, README.zh.md) are written as a Chinese developer would write them, never translated word
+  for word (nino.docs `WRITING.md`, Tone: Chinese; `audit-docs`).
