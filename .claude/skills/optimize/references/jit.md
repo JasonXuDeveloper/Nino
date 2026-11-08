@@ -79,6 +79,11 @@ and when `asm.py compare` lists methods the change did not touch.
   calls `ReadStringOver` with the reader's address whenever `current` may be non-null, so generated code reads a new
   instance's strings with `ReadString()` (`MemberModel.Fresh`): SimpleClass's `__ReadTop` went from 108 stack
   accesses to 10, TolerantClass's from 174 to 10. Look for `Reader:...:this` and `Writer:...:this` calls in a listing.
+  The same rule keeps multi-segment input a copy: a `ReadOnlySequence<byte>` read across segments in place would need
+  every bounds check to refill the reader out of line instead of throwing (the reader's address in every method that
+  reads, or a refill inlined into every check), and regions, sections and deferrals address the data by absolute
+  position. So the sequence overloads copy data that spans segments once, out of line (to the stack up to 512 bytes,
+  else a pooled array: `NinoSequences`), and read one segment in place (Nino `d275a71e`).
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
