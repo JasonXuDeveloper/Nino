@@ -89,6 +89,16 @@ nothing.
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
   `audit-redundancy`.
 
+- `nino-gen inspect` (`InspectCommand.cs`, `Inspect/`) interprets the IR; it never parses layouts or decides about
+  the bytes on its own. Read UTF-16 text from the wire with `MemoryMarshal.Cast<byte, char>`, never
+  `Encoding.Unicode.GetString`, which replaces lone surrogates with U+FFFD (spec §4.1 keeps them; `string-lone-surrogates`
+  caught it). Raise the depth of `JsonDocument` (64) and `Utf8JsonWriter` (1000) for deep corpus cases, and run deep
+  reads on a thread with a large stack. "Struct holds itself" is computed in four places (`CodegenModel.HoldsItself`,
+  used by inspect, and each target's own, which filters by the types it supports): merge them when a target changes.
+- A `[NinoType]` added to `tests/Nino.Codegen.Tests` (Shapes.cs, InspectTypes.cs) is in nino-gen's generated Shapes
+  files unless every target leaves it out, and a keyed or version-tolerant one is in `LayoutsCommandTests`' baseline
+  list: update that list with it.
+
 ## Proof
 
 Each runtime's checks before committing (its AGENTS.md: vet/race/fuzz, fmt/clippy/test with `NINO_CORPUS`,
