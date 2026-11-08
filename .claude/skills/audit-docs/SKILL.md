@@ -55,7 +55,9 @@ src/Nino.Immutable src/Nino.AspNetCore src/Nino.UnityTypes` and their public mem
 to the owner as one to hide (whether it stays public is the owner's call). Why: round 130, the owner found no page
 listing NinoSettings; the inventory also found `DefaultMaxDepth`, `DefaultMaxHashCollisions`, `NinoInputFormatter`,
 `NinoOutputFormatter`, `NinoKernels`, `CachedFormatter<T>`, the built-in formatter structs, `Reader.ReadBlock`,
-`Writer.Reserve` and two `IsRegistered` properties public but undocumented.
+`Writer.Reserve` and two `IsRegistered` properties public but undocumented; the owner kept all of them public, and
+they now live on simd#registering-kernels, custom-formatters#built-in-formatters and #raw-bytes, and
+platforms#checking-registration.
 
 Then the reading order: the sidebar (`content/docs/v4/meta.json`) is the reader's path: Get Started, Define Types,
 Features, Guides (the collapsed `advanced/` folder), Compare, Reference, Project (nino.docs `WRITING.md`, Order). Every inventory item has one owning page and a place in that order; an item without one
