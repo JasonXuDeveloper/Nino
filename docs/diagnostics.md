@@ -46,6 +46,13 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO035](#nino035) | Warning | A layout change loses data without an error (layout baseline) 🔧 |
 | [NINO036](#nino036) | Info | A layout change is compatible, with a condition (layout baseline) 🔧 |
 | [NINO037](#nino037) | Warning | The layout baseline cannot be read |
+| [NINO038](#nino038) | Error | A serialization callback has the wrong signature |
+| [NINO039](#nino039) | Error | A serialization callback is not accessible to generated code 🔧 |
+| [NINO040](#nino040) | Warning | A serialization callback on a type that is not a `[NinoType]` is never called 🔧 |
+| [NINO041](#nino041) | Error | Two methods for one serialization callback |
+| [NINO042](#nino042) | Error | A serialization callback that runs on the value is static |
+| [NINO043](#nino043) | Error | Instance `[NinoOnDeserializing]` on a type created from its members |
+| [NINO044](#nino044) | Error | A serialization callback on a struct copied as raw memory |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -447,6 +454,56 @@ or `deferrable` changed (data nested deeper than 128 bodies of the type is laid 
 
 The string of `[assembly: NinoLayouts]` is not a baseline Nino can read (the message gives the reason and the line), so
 nothing is checked. Correct the line, or write the baseline again (refactoring, or `nino-gen layouts`).
+
+## Serialization callbacks
+
+NINO038 to NINO044 check the methods marked `[NinoOnSerializing]`, `[NinoOnSerialized]`, `[NinoOnDeserializing]` and
+`[NinoOnDeserialized]`, which the generated formatter calls directly around writing and reading a value
+([design](v4-design.md#serialization-callbacks)). A method a rule reports is never called; the generator leaves it out.
+
+### NINO038
+
+A callback is a non-generic method that takes no parameters and returns `void`: the message names what is wrong (it
+takes parameters, returns a value, is generic, or is not an ordinary method). Move the work into such a method.
+
+### NINO039
+
+The formatter is a struct of its own (in the `NinoGen` namespace), outside the type, so it calls the method like any
+other code of the assembly: it must be `public`, `internal` or `protected internal`. A `private` or `protected` callback
+cannot be called. 🔧 Make it internal (not offered for an override, a partial method or an explicit interface
+implementation). A callback a base class in another assembly declares `internal` is reported on the subtype whose
+formatter cannot call it: make it `public` there.
+
+### NINO040
+
+The attribute is on a method of a class or struct that is not a `[NinoType]` (and takes no `[NinoType]` from a base
+class or interface), or of an interface: Nino only calls the callbacks of the type it writes and of its `[NinoType]`
+base classes. Mark the type `[NinoType]`, or remove the attribute. 🔧 Remove the attribute (it has no effect).
+
+### NINO041
+
+A type marks two methods with the same callback attribute. Nino calls one method per callback and type (the first
+declared), so merge them into one. Base classes may declare their own: those are called too, base classes first.
+
+### NINO042
+
+`[NinoOnSerializing]`, `[NinoOnSerialized]` and `[NinoOnDeserialized]` run on the value written or read, so they must
+be instance methods. Only `[NinoOnDeserializing]` may be static: it runs before the members are read, and a static one
+also before the instance exists.
+
+### NINO043
+
+An instance `[NinoOnDeserializing]` runs on the instance the members are read into. A type Nino creates from the
+members it reads (a constructor that takes them, as records with a primary constructor; init-only or readonly
+members) has no instance until they are read. Make the method static, or do the work in `[NinoOnDeserialized]`, which
+runs on the new instance. Reported on the method when the type declares it, else on the type created that way.
+
+### NINO044
+
+A positional `[NinoType]` struct of unmanaged members only is written as its raw memory, and an array or list of it as
+one copy: no code of the type runs, so its callbacks would never be called. Making it run code would change its
+bytes, so Nino does not: call the work from a callback of the type that holds the struct, or give the struct a format
+that is written member by member (`NinoFormat.VersionTolerant`), which changes its bytes (a layout change).
 
 ## Code generation for other languages
 

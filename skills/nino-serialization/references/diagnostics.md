@@ -43,6 +43,13 @@ warning here usually means data is dropped. Full text: https://nino.xgamedev.net
 | NINO035 | Warning | A keyed member renamed without `[NinoFormerName]`: old data's value and new data's value are both lost without an error | Add `[NinoFormerName("Old")]` 🔧 |
 | NINO036 | Info | Compatible with a condition: a keyed member removed (old builds read its default), renamed with `[NinoFormerName]` (old builds do not know the new key: deploy readers first), `deferrable` changed | Accept it into the baseline 🔧 |
 | NINO037 | Warning | `[assembly: NinoLayouts]` cannot be read (reason and line given): nothing is checked | Correct the line, or write the baseline again (`nino-gen layouts`) |
+| NINO038 | Error | A serialization callback (`[NinoOnSerializing]` ...) takes parameters, returns a value or is generic: never called | Make it `void M()` |
+| NINO039 | Error | A callback is `private` or `protected` (or `internal` to a base class's other assembly): the generated formatter cannot call it | Make it `internal` 🔧 (`public` across assemblies) |
+| NINO040 | Warning | A callback on a type that is not a `[NinoType]` class or struct, or on an interface: never called | Mark the type `[NinoType]`, or remove the attribute 🔧 |
+| NINO041 | Error | Two methods of one type marked with the same callback: only the first runs | Merge them (a base class may declare its own) |
+| NINO042 | Error | A static `[NinoOnSerializing]`, `[NinoOnSerialized]` or `[NinoOnDeserialized]`: they run on the value | Make it an instance method |
+| NINO043 | Error | An instance `[NinoOnDeserializing]` on a type created from its members (record, constructor parameters, `init`/`readonly` members): no instance before the read | Make it static, or use `[NinoOnDeserialized]` |
+| NINO044 | Error | A callback on a raw struct (positional, unmanaged fields only), copied as memory: never called | Call it from the holding type's callback, or make the struct `VersionTolerant` (changes its bytes) |
 
 `NinoSuppressor` also hides CS0169/CS0414/CS0649 and IDE0051/IDE0052/IDE0044 for private members Nino serializes.
 

@@ -134,6 +134,13 @@ Both are encoded as the specification says ([§7.9](spec/wire-format.md), [§7.7
 tracked types (`TypeModel.TrackReferences`) and each target calls its runtime's tracking helpers (the runtime READMEs
 list them). A generic type with `trackReferences` is left out.
 
+### Serialization callbacks
+
+`[NinoOnSerializing]`, `[NinoOnSerialized]`, `[NinoOnDeserializing]` and `[NinoOnDeserialized]` are C# methods the
+.NET formatter calls; they change no byte, so the published layout does not show them and nino-gen writes the same
+code with or without them. The generated TypeScript, Go and Rust code calls nothing of the kind: work a callback does
+in .NET (filling a cache, checking values, migrating a field) is done by the code that calls the generated codec there.
+
 ## Layout baselines
 
 `nino-gen layouts` writes and checks the layout baseline of an assembly (`[assembly: NinoLayouts(@"...")]`,

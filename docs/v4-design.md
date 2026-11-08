@@ -718,6 +718,53 @@ Returning an instance twice throws (a per-instance flag, reset when rented); one
 simply collected. Measured in [v4-benchmarks.md](v4-benchmarks.md): a string-free graph deserializes 3x faster
 than a fresh one with no allocation, and a list of 100 pooled elements twice as fast.
 
+### Serialization callbacks
+
+`[NinoOnSerializing]`, `[NinoOnSerialized]`, `[NinoOnDeserializing]` and `[NinoOnDeserialized]` (Nino.Core,
+`Attributes/NinoCallbackAttributes.cs`; MemoryPack's four callbacks under Nino's prefix) mark methods of a
+`[NinoType]` class or struct that the generated formatter calls directly: no delegate, interface or reflection, so they
+work the same under IL2CPP, NativeAOT and HybridCLR. The decisions:
+
+* **Where.** In the type's body (`WriteBody` / `ReadBody`, and every twin of it: `__Top`, `__Shallow`, the
+  new-instance read), which every value of the type goes through: top level, member, collection element, a subtype in
+  a base or interface slot (the dispatch calls the subtype's body), a body deferred past `NinoDepth.Inline`.
+  `OnSerializing` before the first byte of the body (before a region's length), `OnSerialized` after its last;
+  `OnDeserializing` before the first member is read, `OnDeserialized` after the last (after the region ends, after a
+  re-created type is constructed). A type with callbacks therefore leaves the paths that write or read it without its
+  body: it is never of fixed size (`TypeShape.HasCallbacks`, `TypeFacts.IsFixedSize`: no `WriteFixed`, no blocks in
+  collections, `GetFixedSize` is -1) and a sealed class of raw members has no raw body (`TypeModel.RawBody`). The bytes
+  are the same either way.
+* **Instance or static.** `OnSerializing`, `OnSerialized` and `OnDeserialized` run on the value (instance methods,
+  NINO042 otherwise). `OnDeserializing` may be static, called before the instance is taken or created, or an instance
+  method, called on the instance the members are read into: the existing one when deserializing into a value, one
+  from the pool of a `[NinoPooled]` type (whose `OnNinoPoolReturn` remains the place to reset it: the callbacks do not
+  replace the pool hooks), or a new one. A type created from the members it reads (constructor parameters, `init` or
+  `readonly` members, records with a primary constructor) has no instance before they are read: only a static one
+  runs (NINO043). Static ones run before instance ones.
+* **Hierarchy.** The callbacks of the type and of its `[NinoType]` base classes (the levels whose members it writes),
+  base classes first, one method per callback and level (NINO041). A virtual callback overridden below is called once,
+  through the virtual call; a callback a derived class hides with `new` is called through a cast to its class.
+  Interfaces declare none (NINO040): a slot of an interface or abstract class calls the callbacks of the concrete
+  type it holds.
+* **Structs.** A struct's callbacks run on the copy being written (what `OnSerializing` changes is written, not kept)
+  and on the value in its slot when read (what `OnDeserialized` sets is kept, as in an array element). A struct
+  written as its raw memory runs no code at all, and an array of it is one copy: running callbacks would need other
+  bytes, so callbacks there are an error (NINO044) instead of a silent change of the wire format.
+* **Reference tracking.** An object written again as a back reference has no body, so its callbacks run once per call;
+  read back, an object of a cycle may be reached by reference while its own body is still being read
+  (`OnDeserialized` of the outer object runs after the inner one's).
+* **Deferral.** A body deferred past `NinoDepth.Inline` (128 open bodies) is read after the bodies above it, with its
+  callbacks: the `OnDeserialized` of an object above it may see it still empty.
+* **Exceptions.** A callback's exception ends the call as it is (not wrapped); the per-thread state of the call is
+  released as for any other exception, and the next call starts clean. `OnSerialized` / `OnDeserialized` do not run
+  after an exception in the value.
+* **Accessibility.** The formatter is a struct outside the type, so callbacks must be `public`, `internal` or
+  `protected internal` (NINO039); `private` ones would need an accessor per method, which `internal` makes unneeded.
+* **Zero cost.** A type without callbacks has `TypeModel.Callbacks == null` and its formatter is the same text as
+  before the feature (the generated output of the unit tests and benchmarks compared byte for byte).
+* **Other languages.** Callbacks are code, not bytes: the published layout (`[NinoTypeLayout]`) and nino-gen's output
+  do not change, and the Go, Rust and TypeScript code nino-gen writes does not call them.
+
 ### Settings
 
 Process-wide settings are set through one static class, `NinoSettings`, and must be **set before first use**: they

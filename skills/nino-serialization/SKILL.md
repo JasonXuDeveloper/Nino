@@ -150,6 +150,22 @@ record's primary constructor); structs fall back to `new T()`; otherwise NINO004
   `[NinoType(trackReferences: true)]` on the shared or cyclic class (classes only, NINO015) keeps identity: 4 bytes
   and a lookup per tracked object. Collections are never tracked. Trees need no tracking.
 
+### Callbacks
+
+`[NinoOnSerializing]`, `[NinoOnSerialized]`, `[NinoOnDeserializing]` and `[NinoOnDeserialized]` mark methods of a
+`[NinoType]` class or struct that the generated formatter calls directly (IL2CPP and AOT safe) for every value of the
+type: top level, members, collection elements, subtypes read through a base.
+- `void M()`: non-generic, no parameters (NINO038), `public` or `internal` (NINO039), one per callback per type
+  (NINO041). Base classes' callbacks run first; an overridden virtual one runs once.
+- Instance methods, except `[NinoOnDeserializing]`, which may be `static` (NINO042). An instance
+  `[NinoOnDeserializing]` runs on the instance about to be filled: the existing one (`Deserialize(data, ref value)`),
+  a pooled one or a new one. Records and types with `init`/`readonly` members are created from what is read: only a
+  static one works there (NINO043); use `[NinoOnDeserialized]`.
+- Raw structs (positional, unmanaged fields only) are copied as memory and call nothing: NINO044. A struct's
+  `[NinoOnSerializing]` changes the copy being written.
+- Reset pooled objects in `OnNinoPoolReturn`, not in a callback. An exception from a callback propagates unchanged.
+- Callbacks do not change the bytes; TypeScript, Go and Rust code from nino-gen does not run them.
+
 ## The API
 
 ```csharp
@@ -224,6 +240,8 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
   MemoryPack, write with Nino, add a file header). `[MemoryPackable] partial` → `[NinoType]`, `[MemoryPackIgnore]` →
   `[NinoIgnore]`, `[MemoryPackOrder(n)]` → `[NinoType(false)]` + `[NinoMember(n)]`, `[MemoryPackConstructor]` →
   `[NinoConstructor]`, `[MemoryPackUnion]` → nothing (subtypes inherit the base's `[NinoType]`),
+  `[MemoryPackOnSerializing]` and the other three → `[NinoOnSerializing]` ... (instance methods, except a static
+  `[NinoOnDeserializing]`; no `ref reader`/`ref writer` overloads),
   `GenerateType.VersionTolerant` → `NinoFormat.Keyed`, `GenerateType.CircularReference` → `trackReferences: true`,
   `Serialize(bufferWriter, value)` → `Serialize(value, bufferWriter)` (value first). Invalid data throws
   `NinoDataException`. Full table: https://nino.xgamedev.net/en/docs/v4/vs-memorypack.md
@@ -234,8 +252,7 @@ Never suppress NINO006 or NINO007 blindly. Each id and its fix: [references/diag
 ## What Nino does not do
 
 - No framing of several messages on one stream (rc.10's `Stream` overloads read one value to the end), no
-  compression, no callbacks, no `System.Type`, no schema in the bytes, no human-readable output, no reading of v3
-  data.
+  compression, no `System.Type`, no schema in the bytes, no human-readable output, no reading of v3 data.
 - No runtime registration of formatters and no reflection fallback: the generator must see every type.
 - No languages besides .NET, TypeScript/JavaScript, Go and Rust (use Protocol Buffers or MessagePack there).
 
