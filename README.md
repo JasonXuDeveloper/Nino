@@ -6,7 +6,7 @@
 
 **The fastest binary serializer for C#.**<br>
 Source-generated, zero-allocation, thread-safe and safe on untrusted input.<br>
-For .NET, Unity, Godot and HybridCLR, with the same bytes in Go, Rust and TypeScript.
+For .NET, Unity, Godot and HybridCLR, with the same bytes on every platform and runtime, Go, Rust and TypeScript included.
 
 [![NuGet](https://img.shields.io/nuget/vpre/Nino?style=for-the-badge&logo=nuget&logoColor=white&label=NuGet&labelColor=004880&color=0078D4)](https://www.nuget.org/packages/Nino)
 [![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?style=for-the-badge&logo=unity&logoColor=white&label=OpenUPM&labelColor=000000&color=3E4C59&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
@@ -36,7 +36,7 @@ For .NET, Unity, Godot and HybridCLR, with the same bytes in Go, Rust and TypeSc
   allocated per call, thread-safe, with no locks on the hot path. [Zero allocation](https://nino.xgamedev.net/en/docs/v4/advanced/zero-allocation)
 - **Everything at compile time.** No reflection, no IL emit, no registration, no init call: works on IL2CPP, Native AOT
   and HybridCLR hot updates, and compiles up to 221× faster than v3. [Platforms](https://nino.xgamedev.net/en/docs/v4/platforms)
-- **One format everywhere.** Identical bytes on every runtime and CPU, and from Go, Rust and TypeScript through the
+- **The same bytes everywhere.** Identical bytes on every runtime and CPU, and from Go, Rust and TypeScript through the
   code `nino-gen` writes for your types. [Other languages](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)
 - **Rich types that evolve.** Polymorphism without tags, keyed and version-tolerant types, reference tracking, every
   BCL collection. [Supported types](https://nino.xgamedev.net/en/docs/v4/types)

@@ -6,7 +6,7 @@
 
 **C# 最快的二进制序列化库。**<br>
 源生成、零分配、线程安全，可放心读取不可信数据。<br>
-支持 .NET、Unity、Godot 和 HybridCLR，Go、Rust 和 TypeScript 读写的也是同样的字节。
+支持 .NET、Unity、Godot 和 HybridCLR，跨平台、跨运行时字节一致，Go、Rust 和 TypeScript 也能直接读写。
 
 [![NuGet](https://img.shields.io/nuget/vpre/Nino?style=for-the-badge&logo=nuget&logoColor=white&label=NuGet&labelColor=004880&color=0078D4)](https://www.nuget.org/packages/Nino)
 [![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?style=for-the-badge&logo=unity&logoColor=white&label=OpenUPM&labelColor=000000&color=3E4C59&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
@@ -32,7 +32,7 @@
 - **可放心读取不可信数据。** 伪造的字节无法让进程崩溃、越界读取、分配不成比例的内存，也无法指定要创建的类型；所有无效输入都只抛出一种 `NinoDataException`。[不可信数据](https://nino.xgamedev.net/zh/docs/v4/security)
 - **零分配。** 序列化到 `IBufferWriter<byte>`，反序列化到已有对象或池化对象：每次调用都不分配内存，线程安全，热路径上没有锁。[零分配](https://nino.xgamedev.net/zh/docs/v4/advanced/zero-allocation)
 - **一切在编译期完成。** 没有反射、没有 IL emit、无需注册、无需初始化调用：IL2CPP、Native AOT 和 HybridCLR 热更都能直接用，编译比 v3 最多快 221 倍。[平台](https://nino.xgamedev.net/zh/docs/v4/platforms)
-- **处处同一格式。** 每种运行时、每种 CPU 写出的字节都一样，Go、Rust 和 TypeScript 通过 `nino-gen` 为你的类型生成的代码也能读写。[其他语言](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)
+- **跨平台、跨运行时字节一致。** 不论哪种运行时、哪种 CPU，写出的字节都完全相同；`nino-gen` 为 Go、Rust 和 TypeScript 生成的代码也能直接读写。[其他语言](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)
 - **类型丰富，数据可演进。** 多态无需标签，版本容错和键控类型，引用追踪，所有 BCL 集合。[支持的类型](https://nino.xgamedev.net/zh/docs/v4/types)
 - **写代码时就发现错误。** 33 条分析器诊断，许多带一键修复。[分析器](https://nino.xgamedev.net/zh/docs/v4/analyzers)
 
@@ -94,7 +94,7 @@ Message msg = NinoDeserializer.Deserialize<Message>(bytes); // 仍是 Chat
 | ⚙️ **[服务与进程间通信](https://nino.xgamedev.net/zh/docs/v4/advanced/high-performance)** | 每次调用零分配，可安全并发使用；[ASP.NET Core](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 以 `application/x-nino` 读写请求体与响应。 |
 | 🌐 **[RPC 与网络层](https://nino.xgamedev.net/zh/docs/v4/advanced/networking)** | 直接写进 `PipeWriter`，复用池化的消息；伪造的消息只会抛出异常，不会让服务端崩溃。 |
 | 📨 **[消息队列](https://nino.xgamedev.net/zh/docs/v4/advanced/message-queues)** · 🗄️ **[缓存](https://nino.xgamedev.net/zh/docs/v4/advanced/caching)** · 💾 **[存储](https://nino.xgamedev.net/zh/docs/v4/advanced/persistence)** | 多态事件、小巧的数据，字段可以在版本之间增加、调整顺序和删除。 |
-| 🧩 **[网页、Node、Go 与 Rust](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)** | 每次构建后生成类型和编解码器，浏览器和各种服务读写的字节与 .NET 相同。 |
+| 🧩 **[网页、Node、Go 与 Rust](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)** | 每次构建后生成类型和编解码器，浏览器和各类服务与 .NET 字节一致、直接互通。 |
 | 🎮 **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)** | 2022.3+，Mono 和 IL2CPP，HybridCLR 无需初始化调用，Burst SIMD 内核，内置 `AnimationCurve` 和 `Gradient`。 |
 | 👾 **[Godot 4（.NET）](https://nino.xgamedev.net/zh/docs/v4/advanced/godot)** | 直接引用 NuGet 包；`Vector3`、`Transform3D` 等数学结构体按原始内存直接拷贝。 |
 
