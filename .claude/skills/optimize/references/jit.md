@@ -122,6 +122,9 @@ and when `asm.py compare` lists methods the change did not touch.
   from 708 to 684 bytes. The JIT already shared the `CopyTo` and `Slice` bounds check.
   Raising the stack cutoff from 512 to 1,024 bytes avoided the pool round-trip for 516-, 804- and 1,024-byte
   messages in the local probe. Measure both sides of the cutoff and keep the fixed buffer out of inline callers.
+  Read a complete built-in byte array directly from two segments after validating the header and actual length.
+  Check segment adjacency before entering the direct path. Probing both spans on three-segment input regressed
+  the fallback. Keep the copy through scratch when the result aliases input or when replacing a reused array.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
