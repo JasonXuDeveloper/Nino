@@ -42,7 +42,7 @@ namespace Nino.Core
 
             NinoElements.Read<T, TFormatter>(
                 NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>(),
-                    NinoElements.ReadOverwrites<T, TFormatter>()), ref reader);
+                    NinoElements.ReadOverwrites<T, TFormatter>()), ref reader, prechecked: true);
         }
     }
 

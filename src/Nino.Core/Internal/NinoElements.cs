@@ -361,8 +361,9 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>Reads into the elements of a span, reusing the existing values.</summary>
+        /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(Span<T> values, ref Reader reader)
+        public static void Read<T, TFormatter>(Span<T> values, ref Reader reader, bool prechecked = false)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (typeof(TFormatter) == typeof(StringFormatter))
@@ -377,7 +378,7 @@ namespace Nino.Core.Internal
             if (RawFormatter.Is<T, TFormatter>() && NinoLayout<T>.CopiesAsIs)
             {
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
-                    ref reader.ReadElements(values.Length, Unsafe.SizeOf<T>()),
+                    ref TakeElements(ref reader, values.Length, Unsafe.SizeOf<T>(), prechecked),
                     (uint)values.Length * (uint)Unsafe.SizeOf<T>());
                 return;
             }
@@ -385,7 +386,7 @@ namespace Nino.Core.Internal
             if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
             {
                 DateTimeOffsetFormatter.ReadAll(
-                    ref reader.ReadElements(values.Length, NinoWire.DateTimeOffsetSize),
+                    ref TakeElements(ref reader, values.Length, NinoWire.DateTimeOffsetSize, prechecked),
                     ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
                 return;
             }
@@ -393,7 +394,7 @@ namespace Nino.Core.Internal
             int block = NinoBlockCollections.ReadSize<T, TFormatter>();
             if (block > 0)
             {
-                NinoBlockCollections.ReadAll<T, TFormatter>(ref reader.ReadElements(values.Length, block),
+                NinoBlockCollections.ReadAll<T, TFormatter>(ref TakeElements(ref reader, values.Length, block, prechecked),
                     ref MemoryMarshal.GetReference(values), values.Length, block);
                 return;
             }
@@ -402,6 +403,10 @@ namespace Nino.Core.Internal
             if (values.Length != 0)
                 reader = ReadEach<T, TFormatter>(values, reader);
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ref byte TakeElements(ref Reader reader, int count, int stride, bool prechecked) =>
+            ref (prechecked ? ref reader.UnsafeAdvance(count * stride) : ref reader.ReadElements(count, stride));
 
         /// <summary>
         /// The elements one by one, out of line: inlined into a read (also where they are blocks and it is never
