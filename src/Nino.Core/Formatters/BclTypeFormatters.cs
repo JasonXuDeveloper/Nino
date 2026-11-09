@@ -106,7 +106,7 @@ namespace Nino.Core
             // What the constructors throw ArgumentOutOfRangeException for (an undefined build or revision is -1).
             if ((major | minor) < 0)
                 NinoThrow.InvalidData("invalid Version.");
-            if (value != null && value.Major == major && value.Minor == minor &&
+            if (value is not null && value.Major == major && value.Minor == minor &&
                 value.Build == build && value.Revision == revision)
                 return;
             value = build < 0 ? new Version(major, minor)
