@@ -192,27 +192,27 @@ internal static class GeneratedCode
             if (formatters.Count == 1)
             {
                 string name = formatters[0].Replace(TypeNames.Gen, "");
-                body = WithAlias(body, name, "__NinoF0", $"using __NinoF0 = {name};", formatterAliases, ref scratch);
+                body = WithAlias(body, name, "__NinoF0", formatterAliases, ref scratch);
             }
             else
                 body = WithFormatterAliases(body, formatters, formatterAliases, ref scratch);
         }
 
         if (self != null)
-            body = WithAlias(body, self, "__NinoT", $"using __NinoT = {self};", declarations, ref scratch);
+            body = WithAlias(body, self, "__NinoT", declarations, ref scratch);
         int declarationsBefore = declarations.Count;
         if (body.IndexOf("__NinoCS", StringComparison.Ordinal) < 0)
-            body = WithAlias(body, TypeNames.CoreCompilerServices, "__NinoCS.",
-                "using __NinoCS = global::Nino.Core.CompilerServices;", declarations, ref scratch);
+            body = WithAlias(body, TypeNames.CoreCompilerServices, "__NinoCS.", declarations, ref scratch,
+                "using __NinoCS = global::Nino.Core.CompilerServices;");
         bool compilerAlias = declarations.Count != declarationsBefore;
         declarationsBefore = declarations.Count;
         if (body.IndexOf("__NC", StringComparison.Ordinal) < 0)
-            body = WithAlias(body, TypeNames.Core, "__NC.", "using __NC = global::Nino.Core;", declarations, ref scratch);
+            body = WithAlias(body, TypeNames.Core, "__NC.", declarations, ref scratch, "using __NC = global::Nino.Core;");
         bool coreAlias = declarations.Count != declarationsBefore;
         foreach (var (name, alias, declaration) in CoreAliases)
             if ((!coreAlias || !name.StartsWith(TypeNames.Core, StringComparison.Ordinal)) &&
                 (!compilerAlias || !name.StartsWith(TypeNames.CoreCompilerServices, StringComparison.Ordinal)))
-                body = WithAlias(body, name, alias, declaration, declarations, ref scratch);
+                body = WithAlias(body, name, alias, declarations, ref scratch, declaration);
 
         if (rawTypes is { Count: > 0 })
         {
@@ -220,7 +220,7 @@ internal static class GeneratedCode
             foreach (string name in rawTypes)
             {
                 string alias = "__NinoRaw" + (declarations.Count - start).ToString(CultureInfo.InvariantCulture);
-                body = WithAlias(body, name, alias, $"using {alias} = {name};", declarations, ref scratch);
+                body = WithAlias(body, name, alias, declarations, ref scratch);
             }
         }
 
@@ -247,7 +247,7 @@ internal static class GeneratedCode
             // Declared inside the namespace too, where the generated types need no qualifier either.
             int count = formatterAliases.Count;
             string alias = FormatterAlias(count);
-            body = WithAlias(body, name, alias, $"using {alias} = {name};", formatterAliases, ref scratch);
+            body = WithAlias(body, name, alias, formatterAliases, ref scratch);
             if (formatterAliases.Count != count)
                 aliased.Add(name);
         }
@@ -273,15 +273,16 @@ internal static class GeneratedCode
     private const int MaxAliasScratchCapacity = 8192;
     private static StringBuilder? _aliasScratch;
 
-    private static string WithAlias(string body, string name, string alias, string declaration,
-        List<string> declarations, ref StringBuilder? scratch)
+    private static string WithAlias(string body, string name, string alias, List<string> declarations,
+        ref StringBuilder? scratch, string? declaration = null)
     {
         // Count only until the alias pays for its declaration, including a line break and block-namespace indent.
         // Most candidates do not pay off, so leave their body alone without allocating a replacement buffer.
         int saving = name.Length - alias.Length;
         if (saving <= 0)
             return body;
-        int needed = (declaration.Length + 5) / saving + 1;
+        int declarationLength = declaration?.Length ?? ("using ".Length + alias.Length + " = ".Length + name.Length + 1);
+        int needed = (declarationLength + 5) / saving + 1;
         bool member = name[name.Length - 1] == '.';
         int first = FindName(body, name, 0, member);
         int at = first;
@@ -309,7 +310,7 @@ internal static class GeneratedCode
         }
 
         sb.Append(body, start, body.Length - start);
-        declarations.Add(declaration);
+        declarations.Add(declaration ?? $"using {alias} = {name};");
         return sb.ToString();
     }
 
