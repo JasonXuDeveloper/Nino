@@ -64,16 +64,19 @@ internal static class GeneratedCode
     /// The names generated bodies repeat most, each with the alias <see cref="WithAliases"/> writes it as.
     /// A name ending in a dot is a static class, always followed by a member.
     /// </summary>
-    private static readonly (string Name, string Alias)[] CoreAliases =
+    private static readonly (string Name, string Alias, string Declaration)[] CoreAliases =
     {
-        (TypeNames.Core + "Writer", "__NinoWriter"),
-        (TypeNames.Core + "Reader", "__NinoReader"),
-        (TypeNames.CoreCompilerServices + "NinoObject.", "__NinoObject."),
-        (TypeNames.CoreCompilerServices + "NinoUnsafe.", "__NinoUnsafe."),
-        (TypeNames.CoreCompilerServices + "NinoBlocks.", "__NinoBlocks."),
-        (TypeNames.CoreCompilerServices + "NinoTypes.", "__NinoTypes."),
-        ("global::System.ReadOnlySpan<byte>", "__NinoBytes"),
+        CoreAlias(TypeNames.Core + "Writer", "__NinoWriter"),
+        CoreAlias(TypeNames.Core + "Reader", "__NinoReader"),
+        CoreAlias(TypeNames.CoreCompilerServices + "NinoObject.", "__NinoObject."),
+        CoreAlias(TypeNames.CoreCompilerServices + "NinoUnsafe.", "__NinoUnsafe."),
+        CoreAlias(TypeNames.CoreCompilerServices + "NinoBlocks.", "__NinoBlocks."),
+        CoreAlias(TypeNames.CoreCompilerServices + "NinoTypes.", "__NinoTypes."),
+        CoreAlias("global::System.ReadOnlySpan<byte>", "__NinoBytes"),
     };
+
+    private static (string Name, string Alias, string Declaration) CoreAlias(string name, string alias) =>
+        (name, alias, $"using {alias.TrimEnd('.')} = {name.TrimEnd('.')};");
 
     /// <summary>
     /// <paramref name="body"/> (the part of a file inside the <c>NinoGen</c> namespace) with the names it repeats
@@ -88,12 +91,13 @@ internal static class GeneratedCode
     /// the member that follows a static class's name.
     /// </summary>
     public static string WithAliases(string body, string? self, List<string> declarations,
-        IEnumerable<string>? formatters = null)
+        IReadOnlyList<string>? formatters = null)
     {
         body = body.Replace(TypeNames.Gen, "");
-        var formatterAliases = new List<string>();
-        if (formatters != null)
+        List<string>? formatterAliases = null;
+        if (formatters is { Count: > 0 })
         {
+            formatterAliases = new List<string>();
             // Replaced longest first (a name inside a longer one is replaced with it), numbered in the order given
             // (the members').
             var names = formatters.Select(static n => n.Replace(TypeNames.Gen, "")).Distinct().ToList();
@@ -102,31 +106,29 @@ internal static class GeneratedCode
             {
                 // Declared inside the namespace too, where the generated types need no qualifier either.
                 int count = formatterAliases.Count;
-                body = WithAlias(body, name, FormatterAlias(count), $"using {FormatterAlias(count)} = {name};",
-                    formatterAliases);
+                string alias = FormatterAlias(count);
+                body = WithAlias(body, name, alias, $"using {alias} = {name};", formatterAliases);
                 if (formatterAliases.Count != count)
                     aliased.Add(name);
             }
 
             // Renumbered from the order of replacement to the order given.
             var order = aliased.OrderBy(names.IndexOf).ToList();
-            body = Regex.Replace(body, @"\b__NinoF(\d+)\b", x =>
-                FormatterAlias(order.IndexOf(aliased[int.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture)])));
-            formatterAliases = order.Select((name, i) => $"using {FormatterAlias(i)} = {name};").ToList();
+            if (!order.SequenceEqual(aliased))
+            {
+                body = Regex.Replace(body, @"\b__NinoF(\d+)\b", x =>
+                    FormatterAlias(order.IndexOf(aliased[int.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture)])));
+                formatterAliases = order.Select((name, i) => $"using {FormatterAlias(i)} = {name};").ToList();
+            }
         }
 
         if (self != null)
             body = WithAlias(body, self, "__NinoT", $"using __NinoT = {self};", declarations);
-        foreach (var (name, alias) in CoreAliases)
-        {
-            // A static class's alias is declared without the dot both names end with.
-            string declaration = name[name.Length - 1] == '.'
-                ? $"using {alias.Substring(0, alias.Length - 1)} = {name.Substring(0, name.Length - 1)};"
-                : $"using {alias} = {name};";
+        foreach (var (name, alias, declaration) in CoreAliases)
             body = WithAlias(body, name, alias, declaration, declarations);
-        }
 
-        declarations.AddRange(formatterAliases);
+        if (formatterAliases != null)
+            declarations.AddRange(formatterAliases);
         return body;
     }
 
