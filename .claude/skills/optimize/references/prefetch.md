@@ -8,6 +8,8 @@ prefetch again anywhere.
 - Prefetch member references only through fields or bodyless auto-property getters that cannot dispatch to an
   override. A backing field alone also describes a custom getter using `field`; executing either getter during
   prefetch would add a user-visible access before the formatter reads the member.
+  Classify bodyless source getters from their accessor syntax after excluding abstract, extern, partial and
+  overridable members. Avoid rescanning the containing type for an associated field on every property.
 
 - Decide whether a collection loop prefetches when the code is generated, never per element at run time (the owner's
   design). Eligible: elements of a reference type in a contiguous container (array, `List<T>`, a span of references),
