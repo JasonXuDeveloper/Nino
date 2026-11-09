@@ -30,6 +30,9 @@ and when `asm.py compare` lists methods the change did not touch.
   at both output offsets, with the non-empty controls on par.
   Skip entry-view lookup after the same zero reservation for raw hash sets. The Arm64 probe saved 5–7 ns,
   with dense and sparse non-empty sets on par.
+  Return once for an empty hash set read after creating or recycling its destination. This keeps reuse and
+  comparer setup intact and removes the repeated zero tests before capacity and fill. The local Arm64 probe
+  saved 6–8 ns on empty reads with unchanged allocations; the formatter shrank from 424 to 416 IL bytes.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
