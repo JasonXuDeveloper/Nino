@@ -201,6 +201,12 @@ the test project's default language version (five block namespace files), and 4.
 C# 9 generator parse options (577 block namespace files). Both output sets matched byte for byte
 and cold wall time had no repeatable change. The replay checks generated output. A separate
 C# 9 consumer compiled and round-tripped with matching wire bytes (`b066e8db`).
+Write file-scoped aliases directly into the leased prefix builder before the final four-string
+concatenation. This avoids the separate joined declarations string and saved 364–376 KB per cold
+unit-test project replay, with wall time within 1% and all 577 files identical. Four follow-up
+rounds with an identical-binary A/A control found no repeatable edit timing shift. Each tracked
+edit reused all 572 models and re-emitted only the block-namespace interceptor file
+(`0abfc154`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
