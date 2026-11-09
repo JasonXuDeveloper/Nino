@@ -295,9 +295,11 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool ReadBool(ref byte source, int offset)
+        public static bool ReadBool(ref byte source, int offset) => CheckedBool(Unsafe.Add(ref source, offset));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool CheckedBool(byte value)
         {
-            byte value = Unsafe.Add(ref source, offset);
             if (value > 1)
                 NinoThrow.InvalidBool(value);
             return Unsafe.As<byte, bool>(ref value);

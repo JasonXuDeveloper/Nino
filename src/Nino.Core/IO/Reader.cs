@@ -633,13 +633,7 @@ namespace Nino.Core
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool ReadBool()
-        {
-            byte value = UnsafeRead<byte>();
-            if (value > 1)
-                NinoThrow.InvalidBool(value);
-            return value != 0;
-        }
+        public bool ReadBool() => NinoUnsafe.CheckedBool(UnsafeRead<byte>());
 
         /// <summary>Reads a nullable unmanaged value written by <see cref="Writer.Write{T}(T?)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
