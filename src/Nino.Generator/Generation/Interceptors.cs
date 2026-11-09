@@ -239,8 +239,20 @@ internal static class Interceptors
         attribute.Close();
         attribute.Close();
         attribute.Line();
-        var groups = calls.GroupBy(c => (c.Signature,
-            Call: c.Inlinable ? WithTopCall(c, tops, shallow, prefetch) : c.Call)).ToList();
+        var callText = new Dictionary<(string Method, string Type, FormatterRef? Formatter, string Arguments, bool Inlinable), string>();
+        string RenderCall(InterceptedCall call)
+        {
+            var key = (call.Method, call.TypeName, call.Formatter, call.Arguments, call.Inlinable);
+            if (!callText.TryGetValue(key, out string? text))
+            {
+                text = call.Inlinable ? WithTopCall(call, tops, shallow, prefetch) : call.Call;
+                callText.Add(key, text);
+            }
+
+            return text;
+        }
+
+        var groups = calls.GroupBy(c => (c.Signature, Call: RenderCall(c))).ToList();
         // One location attribute per call site, but only one method per group.
         int capacity = System.Math.Min(calls.Length * 384, calls.Length * 128 + groups.Count * 320);
         var w = new CodeWriter(capacity);
