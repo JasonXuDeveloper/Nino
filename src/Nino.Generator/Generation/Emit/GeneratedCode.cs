@@ -135,33 +135,45 @@ internal static class GeneratedCode
     private static string WithAlias(string body, string name, string alias, string declaration,
         List<string> declarations)
     {
+        // Count only until the alias pays for its declaration, including a line break and block-namespace indent.
+        // Most candidates do not pay off, so leave their body alone without allocating a replacement buffer.
+        int saving = name.Length - alias.Length;
+        if (saving <= 0)
+            return body;
+        int needed = (declaration.Length + 5) / saving + 1;
         bool member = name[name.Length - 1] == '.';
-        var sb = new StringBuilder(body.Length);
-        int start = 0, at, count = 0;
-        while ((at = body.IndexOf(name, start, StringComparison.Ordinal)) >= 0)
-        {
-            int end = at + name.Length;
-            sb.Append(body, start, at - start);
-            if (at > 0 && IsNamePart(body[at - 1]) || !member && end < body.Length && IsNamePart(body[end]))
-            {
-                sb.Append(name);
-            }
-            else
-            {
-                sb.Append(alias);
-                count++;
-            }
+        int first = FindName(body, name, 0, member);
+        int at = first;
+        for (int count = 1; at >= 0 && count < needed; count++)
+            at = FindName(body, name, at + name.Length, member);
+        if (at < 0)
+            return body;
 
-            start = end;
+        var sb = new StringBuilder(body.Length);
+        int start = 0;
+        for (at = first; at >= 0; at = FindName(body, name, start, member))
+        {
+            sb.Append(body, start, at - start).Append(alias);
+            start = at + name.Length;
         }
 
-        // The declaration's line: a line break and, in a block namespace, four spaces of indent (counted in both
-        // forms, so both declare the same aliases).
-        if (count * (name.Length - alias.Length) <= declaration.Length + 5)
-            return body;
         sb.Append(body, start, body.Length - start);
         declarations.Add(declaration);
         return sb.ToString();
+    }
+
+    private static int FindName(string body, string name, int start, bool member)
+    {
+        int at;
+        while ((at = body.IndexOf(name, start, StringComparison.Ordinal)) >= 0)
+        {
+            int end = at + name.Length;
+            if ((at == 0 || !IsNamePart(body[at - 1])) && (member || end == body.Length || !IsNamePart(body[end])))
+                return at;
+            start = end;
+        }
+
+        return -1;
     }
 
     /// <summary>Whether <paramref name="c"/> next to a name makes it part of a longer one (qualified, nested).</summary>
