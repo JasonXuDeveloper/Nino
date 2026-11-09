@@ -62,6 +62,10 @@ and when `asm.py compare` lists methods the change did not touch.
   Keep the public writer's dispatch intact: putting the raw gate in `Serialize` slowed the reference-element
   loop, while moving it into the helper restored the original Arm64 and x64 listings for that loop.
   The local 257-integer-pair case cut write time by 56–61%, with the enumerator preserving heap order.
+  For reads, checking the whole pair block and walking its byref removed both per-pair bounds checks.
+  Using `Peek` and advancing on success also avoided the reader copy, but neither variant consistently
+  improved throughput: the `Enqueue` call remained. Keep the experiment isolated and evaluate heap
+  construction separately from byte loading.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
