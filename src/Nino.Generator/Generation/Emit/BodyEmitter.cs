@@ -942,9 +942,9 @@ internal sealed class BodyEmitter
     {
         if (Tolerant)
         {
-            // Raw reads do not register references or queue deferred bodies. ReadRegion still validates a
-            // section written by a newer version whose members we do not read.
-            if (!_m.IsCollection && _m.Members.All(static m => m.Raw != null))
+            // Raw values and built-in strings do not register references or queue deferred bodies.
+            // ReadRegion still validates a section written by a newer version whose members we do not read.
+            if (!_m.IsCollection && _m.Members.All(static m => m.Raw != null || m.IsString))
             {
                 _w.Line(EndLabel + ":;");
                 return;
