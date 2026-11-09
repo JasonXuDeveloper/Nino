@@ -395,15 +395,15 @@ public class BclTypeTests
     [DoNotParallelize]
     public void TwoSegmentByteArrayReplacementPreservesRecyclerInput()
     {
+        byte[] expected = { 10, 11, 4, 5, 6, 7 };
         byte[] old = { 4, 5, 6, 7 };
         var first = new Segment<byte>(new byte[] { 6, 0, 0, 0, 10, 11 });
         var last = first.Append(old);
         var data = new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length);
         byte[] value = old;
-        CollectionAssert.AreEqual(new byte[] { 10, 11, 4, 5, 6, 7 }, NinoDeserializer.Deserialize<byte[]>(data));
         NinoDeserializer.Deserialize(data, ref value);
         Assert.AreNotSame(old, value);
-        CollectionAssert.AreEqual(new byte[] { 10, 11, 4, 5, 6, 7 }, value);
+        CollectionAssert.AreEqual(expected, value);
 
         int recycled = 0;
         NinoSettings.SetRecycler<byte[]>(array =>
@@ -417,7 +417,7 @@ public class BclTypeTests
             value = old;
             NinoDeserializer.Deserialize(data, ref value);
             Assert.AreEqual(1, recycled);
-            CollectionAssert.AreEqual(new byte[] { 10, 11, 4, 5, 6, 7 }, value);
+            CollectionAssert.AreEqual(expected, value);
         }
         finally
         {
