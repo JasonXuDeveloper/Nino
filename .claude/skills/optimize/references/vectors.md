@@ -146,6 +146,17 @@ of bytes in a block.
   an identical-binary A/A control showed variable timing at offset 1, with 0 B per read. The
   1,700-item case spans about 66 KB of input and output. Wire and rejection checks matched at
   offsets 0, 1 and 7, and .NET 8 and 10 targeted tests passed (`95caf340`).
+- Measure one-item block writes through the public serializer before choosing the branch placement.
+  In the `BlockWaypoint[]` probe, bypassing `WriteEach` from `WriteAll` improved the single-item
+  median in all eight default-tiering rounds, by 12–40%. Larger inputs varied, including large
+  differences in the identical-binary A/A control. Wire bytes matched at offsets 0, 1 and 7 for
+  zero, one, two, 65 and 1,700 items, and timed writes allocated 0 B. `WriteAll` grew from 32 to
+  44 IL bytes and the Arm64 Tier 1 caller from 484 to 548. The x64 cross listing showed the same
+  caller and larger-input loop sizes, but the array formatter reached only MinOpts there.
+  Moving the condition inside `WriteEach` kept the Arm64 caller at 484 bytes, enlarged its
+  65-item loop from 196 to 260 bytes, and lost the repeatable single-item gain. A no-inline
+  single-item helper limited the Arm64 caller to 520 bytes, but had variable timings. Keep
+  the inline outer candidate for a mixed-count profile and an optimized x64 formatter listing.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
