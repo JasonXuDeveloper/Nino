@@ -6,6 +6,13 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Inlining budget
 
+- Keep the shared span read in `MemoryFormatter.Deserialize`. Sending a fresh array directly
+  to the reader instead of obtaining its span through `Memory<T>` did not change allocations.
+  The inline variant grew the Arm64 Tier 1 caller from 524 to 556 bytes. Moving the fresh path
+  out of line reduced the entry from 118 to 54 IL bytes but added an 88-byte helper and slowed
+  the single-int fresh case and the 8,192-int reuse case in every local round. The variants
+  preserved the wire bytes and read an unaligned source into the same sliced destination.
+
 - Write canonical arrays directly into the span of a generic buffer writer. Reuse
   `NinoLayout.CopyToWire` for the disjoint case and preserve overlap and padding semantics.
   Plain span copying regressed the 8 KiB byte case in four local rounds. The existing kernel
