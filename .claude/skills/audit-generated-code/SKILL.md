@@ -181,6 +181,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   previous call-only reservation. The replay had 1,930 locations and 1,192 methods. The estimate
   reduced initial capacity from 741,120 to 628,480 characters and saved about 223 KB in each cold
   or edited replay, with identical output and no stable timing difference.
+  Streaming namespace alias replacements into the numbered method avoided about 0.52 MB of cold
+  allocations, but slowed the model-edit replay in both run orders. Applying it to only the call
+  expression still slowed that case, saving about 0.45 MB. Both variants emitted the same 577
+  files byte for byte. Keep the string replacements for this path.
 - Reuse the first successful alias rewrite's builder for the rest of that file. The rewrite only
   shortens the body and the builder stays local, so later aliases do not allocate another
   body-sized buffer or retain one in the generator. The 577-file unit test replay matched byte for
