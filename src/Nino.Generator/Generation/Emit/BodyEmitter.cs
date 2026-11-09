@@ -580,7 +580,7 @@ internal sealed class BodyEmitter
     {
         string p = "__p" + _blocks++;
         _w.Line($"ref byte {p} = ref {reserve};");
-        bool headers = block.HeaderOffsets.Count != 0;
+        bool headers = block.HeaderOffsets.Length != 0;
         for (int i = 0; i < group.Count; i++)
         {
             if (headers)

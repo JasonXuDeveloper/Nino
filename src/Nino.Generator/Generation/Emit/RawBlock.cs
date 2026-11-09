@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System;
 using System.Globalization;
 using Nino.Generator.Common;
 
@@ -20,10 +20,10 @@ internal sealed class RawBlock
     private int _constant;
 
     /// <summary>Byte offset of each member's value.</summary>
-    public readonly List<string> Offsets = new();
+    public readonly string[] Offsets;
 
     /// <summary>Byte offsets of each member's key and length, when built with headers (two per member).</summary>
-    public readonly List<string> HeaderOffsets = new();
+    public readonly string[] HeaderOffsets;
 
     /// <summary>Total size expression.</summary>
     public string Total => Sum(0);
@@ -39,18 +39,20 @@ internal sealed class RawBlock
     /// <param name="start">Bytes in front of the first member (a region's length).</param>
     public RawBlock(MemberRange run, bool headers = false, int start = 0)
     {
+        Offsets = new string[run.Count];
+        HeaderOffsets = headers ? new string[2 * run.Count] : Array.Empty<string>();
         _constant = start;
         for (int i = 0; i < run.Count; i++)
         {
             var member = run[i];
             if (headers)
             {
-                HeaderOffsets.Add(Sum(0));
-                HeaderOffsets.Add(Sum(KeySize));
+                HeaderOffsets[2 * i] = Sum(0);
+                HeaderOffsets[2 * i + 1] = Sum(KeySize);
                 _constant += HeaderSize;
             }
 
-            Offsets.Add(Sum(0));
+            Offsets[i] = Sum(0);
             var raw = member.Raw!;
             if (raw.IsConstant)
                 _constant += raw.Bytes;
