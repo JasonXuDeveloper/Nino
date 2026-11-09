@@ -358,6 +358,7 @@ public class PrefetchTests
             namespace Pf {
             [NinoType] public class Item { public int Id; public string Name; public List<int> Values { get; set; } public long Value; }
             [NinoType] public class Computed { public string Name { get => _name; set => _name = value; } private string _name; public List<int> Other; }
+            [NinoType] public class Virtual { public virtual string Name { get; set; } public List<int> Other; }
             [NinoType] public class Plain { public int A; public List<int> B; }
             [NinoType] public sealed class Fixed { public int A; public long B; }
             [NinoType] public struct Value { public int A; public string S; }
@@ -396,6 +397,10 @@ public class PrefetchTests
         StringAssert.Contains(prefetch,
             "=> global::Nino.Core.CompilerServices.NinoPrefetched.At(global::System.Runtime.CompilerServices.Unsafe.As<__NinoT>(value).Other);");
         Assert.IsFalse(prefetch.Contains(".Name"), "a property with a body of its own");
+        string virtualPrefetch = Output("Virtual").Split('\n')
+            .Single(l => l.Contains("NinoPrefetched.At"));
+        StringAssert.Contains(virtualPrefetch, ".Other");
+        Assert.IsFalse(virtualPrefetch.Contains(".Name"), "a getter that can dispatch to an override");
 
         foreach (string type in new[] { "Fixed", "Value", "Box_1" })
             Assert.IsFalse(Output(type).Contains("INinoPrefetchFormatter"), type);

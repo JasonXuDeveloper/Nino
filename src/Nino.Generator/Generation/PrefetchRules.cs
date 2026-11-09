@@ -1,6 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
@@ -49,7 +52,8 @@ internal static class PrefetchRules
     /// cache: up to <see cref="MaxMembers"/> fields and auto-properties of reference types, read as <c>value.Member</c>
     /// (no getter with code of its own runs, and none through an accessor).
     /// </summary>
-    public static EquatableArray<string> Members(IReadOnlyList<MemberModel> models, IReadOnlyList<ISymbol> symbols)
+    public static EquatableArray<string> Members(IReadOnlyList<MemberModel> models, IReadOnlyList<ISymbol> symbols,
+        CancellationToken ct)
     {
         var names = new List<string>();
         for (int i = 0; i < models.Count && names.Count < MaxMembers; i++)
@@ -59,7 +63,7 @@ internal static class PrefetchRules
             ITypeSymbol? type = symbols[i] switch
             {
                 IFieldSymbol field => field.Type,
-                IPropertySymbol property when IsAuto(property) => property.Type,
+                IPropertySymbol property when IsSafeGetter(property, ct) => property.Type,
                 _ => null,
             };
             if (type is { IsReferenceType: true })
@@ -69,9 +73,22 @@ internal static class PrefetchRules
         return new EquatableArray<string>(names);
     }
 
-    private static bool IsAuto(IPropertySymbol property) =>
-        property.ContainingType.GetMembers().OfType<IFieldSymbol>()
+    private static bool IsSafeGetter(IPropertySymbol property, CancellationToken ct)
+    {
+        if (property.GetMethod is not { IsAbstract: false } getter ||
+            (getter.IsVirtual || getter.IsOverride) && !getter.IsSealed && !property.ContainingType.IsSealed)
+            return false;
+
+        // A backing field can also belong to a property with a custom getter.
+        var references = getter.DeclaringSyntaxReferences;
+        if (references.Length != 1 || references[0].GetSyntax(ct) is not AccessorDeclarationSyntax
+            { Body: null, ExpressionBody: null, Parent.Parent: PropertyDeclarationSyntax declaration } ||
+            declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+            return false;
+
+        return property.ContainingType.GetMembers().OfType<IFieldSymbol>()
             .Any(f => SymbolEqualityComparer.Default.Equals(f.AssociatedSymbol, property));
+    }
 
     /// <summary>The bytes of <paramref name="type"/>'s own instance fields, a struct's counted in place.</summary>
     private static int Fields(INamedTypeSymbol type, int depth)
