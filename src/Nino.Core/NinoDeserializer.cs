@@ -116,7 +116,7 @@ namespace Nino.Core
             {
                 Span<byte> stack = stackalloc byte[NinoSequences.StackBytes];
                 stack = stack.Slice(0, (int)length);
-                data.CopyTo(stack);
+                NinoSequences.CopySegments(data, stack);
                 Deserialize(stack, ref value);
                 return;
             }

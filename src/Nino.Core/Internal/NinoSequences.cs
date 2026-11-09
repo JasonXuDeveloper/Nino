@@ -28,9 +28,39 @@ namespace Nino.Core.Internal
             if (length > int.MaxValue)
                 throw new ArgumentException("Nino: data longer than int.MaxValue bytes.", nameof(data));
             byte[] rented = ArrayPool<byte>.Shared.Rent((int)length);
-            data.CopyTo(rented);
-            return rented;
+            try
+            {
+                CopySegments(data, rented.AsSpan(0, (int)length));
+                return rented;
+            }
+            catch
+            {
+                Return(rented);
+                throw;
+            }
         }
+
+        /// <summary>Copies a segmented sequence into a destination sized for its reported length.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void CopySegments(in ReadOnlySequence<byte> data, Span<byte> destination)
+        {
+            var position = data.Start;
+            while (data.TryGet(ref position, out var segment))
+            {
+                var span = segment.Span;
+                span.CopyTo(destination);
+                destination = destination.Slice(span.Length);
+                if (position.GetObject() == null)
+                    break;
+            }
+
+            // A custom segment's RunningIndex can report more bytes than its links supply.
+            if (!destination.IsEmpty)
+                InvalidLength();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void InvalidLength() => throw new ArgumentException("Nino: inconsistent sequence length.", "data");
 
         public static void Return(byte[] rented) => ArrayPool<byte>.Shared.Return(rented);
     }

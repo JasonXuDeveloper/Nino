@@ -275,13 +275,35 @@ public class BclTypeTests
             NinoDeserializer.Deserialize<SimpleClass>(new ReadOnlySequence<byte>(head, 0, tail, tail.Memory.Length)));
     }
 
+    [TestMethod]
+    public void SegmentedInputChecksItsActualLength()
+    {
+        foreach (int count in new[] { 32, 1024 })
+        {
+            var value = Enumerable.Range(0, count).Select(i => (byte)i).ToArray();
+            byte[] bytes = NinoSerializer.Serialize(value);
+            var first = new Segment<byte>(bytes[..4]);
+            var empty = first.Append(Array.Empty<byte>());
+            var end = empty.Append(bytes[4..]);
+            CollectionAssert.AreEqual(value,
+                NinoDeserializer.Deserialize<byte[]>(new ReadOnlySequence<byte>(first, 0, end, end.Memory.Length)));
+
+            foreach (int offset in new[] { -1, 1 })
+            {
+                var bad = empty.Append(bytes[4..], offset);
+                var sequence = new ReadOnlySequence<byte>(first, 0, bad, bad.Memory.Length);
+                Assert.ThrowsExactly<ArgumentException>(() => NinoDeserializer.Deserialize<byte[]>(sequence));
+            }
+        }
+    }
+
     private sealed class Segment<T> : ReadOnlySequenceSegment<T>
     {
         public Segment(T[] items) => Memory = items;
 
-        public Segment<T> Append(T[] items)
+        public Segment<T> Append(T[] items, int offset = 0)
         {
-            var next = new Segment<T>(items) { RunningIndex = RunningIndex + Memory.Length };
+            var next = new Segment<T>(items) { RunningIndex = RunningIndex + Memory.Length + offset };
             Next = next;
             return next;
         }
