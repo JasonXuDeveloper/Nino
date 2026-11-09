@@ -139,6 +139,13 @@ of bytes in a block.
   1.6–4.6% faster for 65. The 1,700-item and tiny scalar results varied. Scalar results at 65
   and 1,700 stayed within 0.3%. Allocation stayed at 0 B. Wire, dirty-padding, truncation and
   invalid-bool probes and targeted .NET 8/10 tests passed (`5518250c`).
+  Share the canonical validation with `Reader.ReadBool` after its bounds-checked byte load.
+  With individual `BlockWaypoint` reads into a reused array, the generated body went from 244
+  to 236 Arm64 Tier 1 bytes and from 162 to 156 x64 FullOpts cross-JIT bytes. The reader entry's
+  IL went from 22 to 12 bytes before inlining the shared validator. Four alternating rounds and
+  an identical-binary A/A control showed variable timing at offset 1, with 0 B per read. The
+  1,700-item case spans about 66 KB of input and output. Wire and rejection checks matched at
+  offsets 0, 1 and 7, and .NET 8 and 10 targeted tests passed (`95caf340`).
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
