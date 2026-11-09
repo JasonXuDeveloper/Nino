@@ -341,6 +341,10 @@ interceptor file. Isolated emission saved about 2.52 MB. Four clean method-body 
 replays saved 2.52–2.53 MB and ran 6–11% faster, with variable A/A and other edit timings.
 Both Roslyn 4.8 and 4.12 matched all 577 files, model reuse and collection checks passed,
 and 78 targeted tests passed on each of .NET 8 and 10 (`2e9c7b4b`).
+Bounding the byte-span search to each alias slice kept output and allocations effectively
+identical. Isolated emitter time improved in one load order and regressed in the other.
+Four cold and edit replays had no repeatable change. Keep the existing whole-name matcher
+until a larger or more alias-dense workload shows a benefit.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
