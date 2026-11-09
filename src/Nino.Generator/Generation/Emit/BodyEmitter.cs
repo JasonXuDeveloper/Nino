@@ -788,7 +788,7 @@ internal sealed class BodyEmitter
     {
         _w.Line("var __v = value;");
         _w.Line("if (__v == null)");
-        _w.Indented(() => _w.Line($"value = __v = {create};"));
+        _w.IndentedLine($"value = __v = {create};");
     }
 
     /// <summary>
@@ -875,7 +875,7 @@ internal sealed class BodyEmitter
             }
 
             _w.Line("if (value == null)");
-            _w.Indented(() => _w.Line($"value = {create};"));
+            _w.IndentedLine($"value = {create};");
         }
 
         EmitInPlaceMembers(r);
@@ -1222,7 +1222,7 @@ internal sealed class BodyEmitter
             }
 
             _w.Line("default:");
-            _w.Indented(() => _w.Line("continue;"));
+            _w.IndentedLine("continue;");
             _w.Close();
             _w.Line($"{r}.EndMember(in __m);");
         }

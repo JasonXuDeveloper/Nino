@@ -243,7 +243,7 @@ internal static class FormatterEmitter
             w.Line($"var __r = new {Core}Reader(data);");
             w.Line($"{t} value = null;");
             w.Line("if (__r.ReadPresent())");
-            w.Indented(() => w.Line($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref __r, ref value);"));
+            w.IndentedLine($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref __r, ref value);");
             w.Line("__r.ReleaseReferences();");
             w.Line("return value;");
             w.Close();
@@ -310,7 +310,7 @@ internal static class FormatterEmitter
     private static void EmitTopWrite(CodeWriter w)
     {
         w.Line("if (value == null)");
-        w.Indented(() => w.Line($"__w.UnsafeWrite((byte){NinoWire.Null});"));
+        w.IndentedLine($"__w.UnsafeWrite((byte){NinoWire.Null});");
         w.Open("else");
         w.Line($"__w.UnsafeWrite((byte){NinoWire.NotNull});");
         w.Line("__WriteBodyInline(value, ref __w);");
@@ -402,14 +402,14 @@ internal static class FormatterEmitter
         w.Block($"{Signature.Serialize(t)}", () =>
         {
             w.Line("if (writer.WriteReference(value))");
-            w.Indented(() => w.Line($"{write};"));
+            w.IndentedLine($"{write};");
         });
         w.Line();
         w.Line(names.Inline);
         w.Block($"{Signature.Deserialize(t)}", () =>
         {
             w.Line("if (!reader.ReadReference(ref value, out int __index))");
-            w.Indented(() => w.Line("return;"));
+            w.IndentedLine("return;");
             w.Line($"{read};");
             w.Line("reader.EndReference(__index, value);");
         });
@@ -450,14 +450,14 @@ internal static class FormatterEmitter
             if (ownId)
             {
                 w.Line($"if (!{CoreCompilerServices}NinoObject.{(m.RawBody ? "TryWriteOwnRaw" : "TryWriteOwn")}<{t}, {self}>(value, ref writer))");
-                w.Indented(() => w.Line(write));
+                w.IndentedLine(write);
                 return;
             }
 
             w.Line("if (value == null)");
-            w.Indented(() => w.Line($"writer.UnsafeWrite({NinoWire.NullTypeId});"));
+            w.IndentedLine($"writer.UnsafeWrite({NinoWire.NullTypeId});");
             w.Line("else");
-            w.Indented(() => w.Line(write));
+            w.IndentedLine(write);
         });
         w.Line();
         w.Line(names.Inline);
@@ -474,7 +474,7 @@ internal static class FormatterEmitter
             w.Line($"if (!{CoreCompilerServices}NinoObject.TryReadOwn<{t}, {self}>(id, ref reader, ref value))");
             if (read.Length == 1)
             {
-                w.Indented(() => w.Line(read[0]));
+                w.IndentedLine(read[0]);
                 return;
             }
 

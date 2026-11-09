@@ -107,6 +107,14 @@ internal sealed class CodeWriter
         return Line("}" + suffix);
     }
 
+    /// <summary>Writes a single line one indentation level deeper.</summary>
+    public void IndentedLine(string text)
+    {
+        _indent++;
+        Line(text);
+        _indent--;
+    }
+
     /// <summary>Indents the lines written by <paramref name="body"/> by one level.</summary>
     public CodeWriter Indented(Action body)
     {
