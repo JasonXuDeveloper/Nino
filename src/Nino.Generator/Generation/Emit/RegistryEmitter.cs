@@ -246,17 +246,25 @@ internal static class RegistryEmitter
             return;
         }
 
-        var byBucket = cases.GroupBy(c => c.Id & (buckets - 1)).OrderBy(g => g.Key).ToList();
-        w.Block($"switch (id & {buckets - 1})", () =>
-        {
-            foreach (var bucket in byBucket)
-                w.Line($"case {bucket.Key}: __Bucket{bucket.Key}(id); break;");
-        });
+        int mask = buckets - 1;
+        var byBucket = new List<IdCase>?[buckets];
+        foreach (var entry in cases)
+            (byBucket[entry.Id & mask] ??= new List<IdCase>()).Add(entry);
+
+        w.Open($"switch (id & {mask})");
+        for (int i = 0; i < buckets; i++)
+            if (byBucket[i] != null)
+                w.Line($"case {i}: __Bucket{i}(id); break;");
         w.Close();
-        foreach (var bucket in byBucket)
+        w.Close();
+        for (int i = 0; i < buckets; i++)
         {
+            if (byBucket[i] is not { } bucket)
+                continue;
             w.Line();
-            w.Block($"private static void __Bucket{bucket.Key}(int id)", () => EmitIdSwitch(w, bucket, compact));
+            w.Open($"private static void __Bucket{i}(int id)");
+            EmitIdSwitch(w, bucket, compact);
+            w.Close();
         }
     }
 
