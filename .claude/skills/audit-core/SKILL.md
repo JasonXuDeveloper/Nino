@@ -59,6 +59,9 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
 
 ## Fixing
 
+- Check the removed-assembly marker under the registry lock before publishing any initialized assembly.
+  The attribute reflection failure path could otherwise add a strong reference after concurrent removal.
+
 - Restrict native zero-copy stream reads to concrete types whose pointer, length and position share the same bounds.
   Subclasses can override the stream contract, so use the existing buffered path for them. Consume the bytes before
   invoking the formatter, as the buffered path does, so malformed data leaves the same stream position.
