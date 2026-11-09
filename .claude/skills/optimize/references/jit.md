@@ -11,6 +11,10 @@ and when `asm.py compare` lists methods the change did not touch.
   The 64 KiB wire case improved in each of four local rounds, with the adjacent 64 KiB plus
   one byte case within noise and zero steady-state allocations on both sides. The 4 KiB timing
   was noisy. Keep the ownership and EOF paths out of the common read loop.
+  A separate minimum-sized probe rental avoided the 128 KiB rental at 64 KiB EOF, but increased
+  the non-seekable stream's read calls from six to ten at that size and from seven to twelve at
+  96 KiB. It also grew the full-buffer helper from 88 to 129 IL bytes and had no repeatable
+  steady-state gain at 64 KiB. Keep the growth read as one call into the next rental.
   In async reads, retaining both rentals across the await raised `MoveNext` from 376 to 510 IL bytes
   and added 8 B per operation in the suspended 4 KiB probe. Testing for immediate EOF in a non-async
   helper kept the suspended 4 KiB allocation flat and limited `MoveNext` to 387 IL bytes. It improved
