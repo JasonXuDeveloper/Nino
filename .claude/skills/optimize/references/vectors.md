@@ -49,8 +49,13 @@ of bytes in a block.
   Moving it to `ReadUnchecked` grew the inlined rejecting caller from 176 to 304 Arm64 Tier 1 bytes and
   showed no consistent gain at the public entry. Check the generated interceptor path before tuning further.
   The same probe rebuilt with the generated `NinoDirect.Deserialize` interceptor also showed no repeatable
-  1,025-element gain for either helper placement. Compare the interceptor's inline decisions and the loop's
-  cursor register allocation before changing the loop again.
+  1,025-element gain for either helper placement. Warm the generated caller before measuring so that the
+  Tier 1 listings are available. In the Arm64 replay, both cursors stayed in registers with no hot-loop
+  calls or spills, and the public caller stayed at 644 bytes. Splitting the loop changed 240 bytes of
+  `ReadEach` into 152 bytes plus a 136-byte tail, with two stride multiplications at the tail boundary.
+  The caller-side single-item dispatch enlarged `ReadRejecting` from 176 to 304 bytes even on the long case.
+  All variants allocated 0 B per read and timings varied across rounds. Compare short-tail call placement
+  while keeping the cursor loop fixed.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
