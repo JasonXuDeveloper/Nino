@@ -111,6 +111,13 @@ and when `asm.py compare` lists methods the change did not touch.
   Arm64 reuse probes for 2, 8 and 16 characters improved in all four rounds, at zero
   allocations. The 17-character control was mixed. Output bytes matched, including
   unaligned input, and a test covers embedded nulls and high Latin-1 characters.
+  Extend the one-append approach to 256 characters through a separate bounded stack helper.
+  Move the existing chunk loop out of line as well. Keeping it in the dispatcher regressed
+  the 16,384-character reuse probe even when the short helper was unchanged. With the loop
+  isolated, 64 and 256 characters improved in every local round, and 257 and 16,384 recovered
+  and improved too. Tier 1 was present on both sides, with the probe caller shrinking from
+  2,004 to 1,336 Arm64 bytes at 16,384 characters. The dispatcher fell from 125 to 54 IL bytes,
+  with separate 26- and 97-byte helpers. Wire bytes and steady-state allocations matched.
 - Write the zero count of an empty raw dictionary without entering its out-of-line pair loop. Keep the
   reservation shared with non-empty dictionaries. The Arm64 probe saved about 7–9 ns on empty dictionaries
   at both output offsets, with the non-empty controls on par.
