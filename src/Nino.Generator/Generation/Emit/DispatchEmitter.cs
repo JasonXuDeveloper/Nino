@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -24,6 +25,7 @@ internal static class DispatchEmitter
     {
         // Subtypes by base type name, in entry order.
         var subtypesOf = new Dictionary<string, List<DispatchEntry>>();
+        Dictionary<string, SortedSet<string>>? closedOf = null;
         foreach (var e in entries)
         {
             if (!e.IsTarget)
@@ -33,6 +35,14 @@ internal static class DispatchEmitter
                 if (!subtypesOf.TryGetValue(a, out var list))
                     subtypesOf[a] = list = new List<DispatchEntry>();
                 list.Add(e);
+            }
+
+            foreach (var ancestor in e.GenericAncestors)
+            {
+                closedOf ??= new Dictionary<string, SortedSet<string>>();
+                if (!closedOf.TryGetValue(ancestor.Definition, out var instances))
+                    closedOf[ancestor.Definition] = instances = new SortedSet<string>(StringComparer.Ordinal);
+                instances.Add(ancestor.Type);
             }
         }
 
@@ -55,9 +65,9 @@ internal static class DispatchEmitter
             // base, in a class of its own (where ReadExact is not shared code). The generic formatter selects it by
             // comparing types, which the JIT folds where the type arguments are value types; for reference types it is
             // one lookup in the method's generic context.
-            var closed = entries.Where(static t => t.IsTarget).SelectMany(static t => t.GenericAncestors)
-                .Where(a => a.Definition == e.TypeName).Select(static a => a.Type).Distinct()
-                .OrderBy(static a => a, System.StringComparer.Ordinal).ToList();
+            var closed = closedOf != null && closedOf.TryGetValue(e.TypeName, out var instances)
+                ? instances.ToArray()
+                : Array.Empty<string>();
             var classes = new List<string>();
             foreach (var c in closed)
             {
@@ -75,7 +85,7 @@ internal static class DispatchEmitter
                     $$"""if (typeof({{t}}) == typeof({{c}})) { {{classes[i]}}.__WriteSubtype({{CoreCompilerServices}}NinoObject.SameType<{{c}}>(value), ref writer); return; }"""),
                 WriteOther(t));
             // Two one-line forwarders stay together.
-            if (closed.Count != 0)
+            if (closed.Length != 0)
                 w.Line();
             Method(w, ReadSubtype(t), closed.Select((c, i) =>
                     $$"""if (typeof({{t}}) == typeof({{c}})) { {{classes[i]}}.__ReadSubtype(id, ref reader, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{c}}>(ref value)); return; }"""),
