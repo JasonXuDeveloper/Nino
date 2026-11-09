@@ -323,10 +323,11 @@ public static class Other { public static T Deserialize<T>(byte[] b) => default;
         Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
         var usages = driver.GetRunResult().Results[0].GeneratedSources
             .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
-        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<int>>");
-        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<long>>");
-        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<short>>");
-        StringAssert.Contains(usages, "NinoFormatterCache<global::System.Collections.Generic.List<uint>>");
+        StringAssert.Contains(usages, "using __NinoCollections = global::System.Collections.Generic;");
+        StringAssert.Contains(usages, "NinoFormatterCache<__NinoCollections.List<int>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<__NinoCollections.List<long>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<__NinoCollections.List<short>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<__NinoCollections.List<uint>>");
         Assert.IsFalse(usages.Contains("List<byte>"), usages);
     }
 

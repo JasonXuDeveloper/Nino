@@ -21,12 +21,6 @@ namespace Nino.Generator.Generation;
 /// </summary>
 internal static class Interceptors
 {
-    private static readonly (string Prefix, string Alias)[] Namespaces =
-    {
-        (TypeNames.Core, "__NinoCore"),
-        ("global::System.Collections.Generic.", "__NinoCollections"),
-    };
-
     /// <summary>Whether the project lets generated code intercept calls (the namespace list holds NinoGen).</summary>
     public static bool Enabled(ParseOptions options)
     {
@@ -222,19 +216,13 @@ internal static class Interceptors
         var aliases = new List<string> { GeneratedCode.InterceptsAlias };
         aliases.AddRange(GeneratedCode.InlineAliases);
         aliases.Add(GeneratedCode.DirectAlias);
-        var compact = new List<(string Prefix, string Alias)>();
-        foreach (var (prefix, name) in Namespaces)
+        var compact = new GeneratedCode.NamespaceAliases();
+        foreach (var group in groups)
         {
-            int count = 0;
-            foreach (var group in groups)
-                count += CountPrefix(group.Key.Signature, prefix) + CountPrefix(group.Key.Call, prefix);
-            string alias = name + ".";
-            string declaration = $"using {name} = {prefix.TrimEnd('.')};";
-            if (count * (prefix.Length - alias.Length) <= declaration.Length + 5)
-                continue;
-            aliases.Add(declaration);
-            compact.Add((prefix, alias));
+            compact.Count(group.Key.Signature);
+            compact.Count(group.Key.Call);
         }
+        compact.Declare(aliases);
 
         int n = 0;
         foreach (var group in groups)
@@ -247,15 +235,9 @@ internal static class Interceptors
                     : $"[__NinoIntercepts({call.Location})] // {call.Where}");
             w.Line(GeneratedCode.Inline);
             // "R Name(params)" becomes "public static R NameN(params) => call;"
-            string signature = group.Key.Signature;
-            string code = group.Key.Call;
             // Compact type names only. The legacy attribute contains a physical path.
-            foreach (var (prefix, alias) in compact)
-            {
-                signature = signature.Replace(prefix, alias);
-                code = code.Replace(prefix, alias);
-            }
-
+            string signature = compact.Shorten(group.Key.Signature);
+            string code = compact.Shorten(group.Key.Call);
             int paren = signature.IndexOf('(');
             w.Line($"public static {signature.Substring(0, paren)}{n++}{signature.Substring(paren)} => __NinoDirect.{code};");
         }
@@ -266,17 +248,5 @@ internal static class Interceptors
         return GeneratedCode.File(attribute.ToString(), aliases, body, fileScoped: false);
     }
 
-    private static int CountPrefix(string text, string prefix)
-    {
-        int count = 0;
-        int start = 0;
-        while ((start = text.IndexOf(prefix, start, System.StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            start += prefix.Length;
-        }
-
-        return count;
-    }
 }
 #endif

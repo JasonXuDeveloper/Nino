@@ -80,6 +80,61 @@ internal static class GeneratedCode
     private static (string Name, string Alias, string Declaration) CoreAlias(string name, string alias) =>
         (name, alias, $"using {alias.TrimEnd('.')} = {name.TrimEnd('.')};");
 
+    /// <summary>Shortens dense type references without rewriting literals or scanning the whole emitted file.</summary>
+    internal struct NamespaceAliases
+    {
+        private const string Collections = "global::System.Collections.Generic.";
+        private const string CoreAlias = "__NinoCore.";
+        private const string CollectionsAlias = "__NinoCollections.";
+        private int _coreUses;
+        private int _collectionUses;
+        private bool _useCore;
+        private bool _useCollections;
+
+        public void Count(string code)
+        {
+            _coreUses += CountPrefix(code, TypeNames.Core);
+            _collectionUses += CountPrefix(code, Collections);
+        }
+
+        public void Declare(List<string> declarations)
+        {
+            _useCore = Declare(TypeNames.Core, CoreAlias, _coreUses, declarations);
+            _useCollections = Declare(Collections, CollectionsAlias, _collectionUses, declarations);
+        }
+
+        public readonly string Shorten(string code)
+        {
+            if (_useCore)
+                code = code.Replace(TypeNames.Core, CoreAlias);
+            if (_useCollections)
+                code = code.Replace(Collections, CollectionsAlias);
+            return code;
+        }
+
+        private static bool Declare(string prefix, string alias, int count, List<string> declarations)
+        {
+            string declaration = $"using {alias.TrimEnd('.')} = {prefix.TrimEnd('.')};";
+            if (count * (prefix.Length - alias.Length) <= declaration.Length + 5)
+                return false;
+            declarations.Add(declaration);
+            return true;
+        }
+
+        private static int CountPrefix(string text, string prefix)
+        {
+            int count = 0;
+            int start = 0;
+            while ((start = text.IndexOf(prefix, start, StringComparison.Ordinal)) >= 0)
+            {
+                count++;
+                start += prefix.Length;
+            }
+
+            return count;
+        }
+    }
+
     /// <summary>
     /// <paramref name="body"/> (the part of a file inside the <c>NinoGen</c> namespace) with the names it repeats
     /// written shorter. The generated types lose <c>global::NinoGen.</c>: the body is inside that namespace, whose own

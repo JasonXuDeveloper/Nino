@@ -124,10 +124,23 @@ internal static class RegistryEmitter
             .Select(u => (u.Id, Code: $"{Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();"))
             .Concat(factories.Select(f => (f.Id, Code: $"{Core}NinoActivator<{f.TypeName}>.TryRegister({f.Creator});")))
             .Concat(generics.SelectMany(Statements));
+        var cases = ById(statements);
+        var compact = new GeneratedCode.NamespaceAliases();
+        foreach (var entry in cases)
+        {
+            compact.Count(entry.First);
+            if (entry.Rest != null)
+                foreach (var statement in entry.Rest)
+                    compact.Count(statement);
+        }
+        foreach (var type in kept)
+            compact.Count(type);
+        compact.Declare(aliases);
+
         // The registry calls Register, so these stay with it: NativeAOT keeps the fields NinoLayout measures.
         foreach (var type in kept)
-            w.Line($"[__NinoDynamicDependency(__Fields, typeof({type}))]");
-        EmitIdDispatch(w, "internal static", "", ById(statements));
+            w.Line($"[__NinoDynamicDependency(__Fields, typeof({compact.Shorten(type)}))]");
+        EmitIdDispatch(w, "internal static", "", cases, compact);
         w.Close();
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
         return GeneratedCode.File("", aliases, body, fileScoped);
@@ -200,7 +213,8 @@ internal static class RegistryEmitter
     /// it compiles, so one switch over every type would load every formatter on the first lookup. With buckets of
     /// about <see cref="IdsPerBucket"/> ids, a lookup only loads the types of its bucket.
     /// </summary>
-    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, List<IdCase> cases)
+    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, List<IdCase> cases,
+        GeneratedCode.NamespaceAliases compact = default)
     {
         int buckets = 1;
         while (buckets < MaxBuckets && buckets * IdsPerBucket < cases.Count)
@@ -212,7 +226,7 @@ internal static class RegistryEmitter
         if (buckets == 1)
         {
             if (cases.Count != 0)
-                EmitIdSwitch(w, cases);
+                EmitIdSwitch(w, cases, compact);
             w.Close();
             return;
         }
@@ -227,11 +241,11 @@ internal static class RegistryEmitter
         foreach (var bucket in byBucket)
         {
             w.Line();
-            w.Block($"private static void __Bucket{bucket.Key}(int id)", () => EmitIdSwitch(w, bucket));
+            w.Block($"private static void __Bucket{bucket.Key}(int id)", () => EmitIdSwitch(w, bucket, compact));
         }
     }
 
-    private static void EmitIdSwitch(CodeWriter w, IEnumerable<IdCase> cases)
+    private static void EmitIdSwitch(CodeWriter w, IEnumerable<IdCase> cases, GeneratedCode.NamespaceAliases compact)
     {
         w.Block("switch (id)", () =>
         {
@@ -240,10 +254,10 @@ internal static class RegistryEmitter
                 w.Line($"case {c.Id}:");
                 w.Indented(() =>
                 {
-                    w.Line(c.First);
+                    w.Line(compact.Shorten(c.First));
                     if (c.Rest != null)
                         foreach (var statement in c.Rest)
-                            w.Line(statement);
+                            w.Line(compact.Shorten(statement));
                     w.Line("break;");
                 });
             }
