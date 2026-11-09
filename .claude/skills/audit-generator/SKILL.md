@@ -252,6 +252,10 @@ Indent each registry case with a value-type scope to avoid its capturing action.
 emission saved about 55 KB per pass in both load orders. The 577 generated files matched,
 all 572 models were reused on tracked edits, and collection and 58 targeted tests passed
 (`3380bf7f`).
+Insert registration statements directly into their ID cases in the existing order. This removes
+the per-registration tuple arrays and the iterator chains in both registry emitters. The
+isolated registry replay allocated about 35 KB less in both load orders. The 577 outputs matched,
+incremental reuse and collection checks passed, and cold and edit times varied (`9ef11af1`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
