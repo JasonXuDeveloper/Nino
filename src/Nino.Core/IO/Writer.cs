@@ -342,7 +342,12 @@ namespace Nino.Core
 
             ref byte dst = ref Reserve(1 + NinoLayout<T>.Size);
             dst = NinoWire.NotNull;
+#if NET8_0_OR_GREATER
+            // Pass the nullable's value directly to the layout writer, which takes it by readonly reference.
+            NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), in Nullable.GetValueRefOrDefaultRef(in value));
+#else
             NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
+#endif
         }
 
         /// <summary>Writes a collection length; use -1 for null.</summary>
