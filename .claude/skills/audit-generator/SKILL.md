@@ -329,6 +329,12 @@ This removed about 1.06 MB per isolated emission and per method-body edit. Isola
 varied by load order. Both Roslyn 4.8 and 4.12 output sets matched all 577 files. Tracked
 model reuse and collection checks passed, and .NET 8 and 10 each passed 78 targeted tests
 (`e958537d`).
+Omit generated namespace qualifiers while appending interceptor signature and call slices.
+Keep the final rewrite for qualifiers outside those slices. Isolated emission allocated
+about 1.28 MB less and median times fell 5–10% in both load orders. Eight method-body
+edits saved 1.28–1.29 MB with variable whole-project timing. Both Roslyn 4.8 and 4.12
+matched all 577 files, incremental reuse and collection probes passed, and 78 targeted
+tests passed on each of .NET 8 and 10 (`31b7ef5c`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
