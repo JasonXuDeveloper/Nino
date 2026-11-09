@@ -69,6 +69,30 @@ namespace Nino.Core.Internal
         /// <summary>Whether a value's memory is its block: a collection of them is one copy.</summary>
         public static readonly bool IsMemory = ComputeIsMemory();
 
+        /// <summary>A short identity-mapped prefix and one mapped final byte, calculated only on a single write.</summary>
+        internal static class SingleWrite
+        {
+            public static readonly int LastByte = FindLastByte();
+
+            private static int FindLastByte()
+            {
+                if (Size < 9 || Size > 17 || Map == null)
+                    return -1;
+
+                int last = -1;
+                for (int i = 0; i < Map.Length; i += 3)
+                {
+                    int memory = Map[i], wire = Map[i + 1], length = Map[i + 2];
+                    if (wire < Size - 1 && memory != wire)
+                        return -1;
+                    if (wire + length == Size)
+                        last = memory + length - 1;
+                }
+
+                return last;
+            }
+        }
+
         private static bool ComputeIsMemory()
         {
             if (Map == null || Unsafe.SizeOf<T>() != NinoBlockCollections.FixedSize<T, TFormatter>())
