@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 
 namespace Nino.Generator.Generation;
 
@@ -20,8 +22,9 @@ namespace Nino.Generator.Generation;
 /// The top-level <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls are cached by file and position
 /// (<see cref="GetOrBuildCall"/>): what a call registers and how it is intercepted depends on its own tree (its
 /// location), the method it binds to, and the declarations of the type it names. Binding them was most of the
-/// generator's time on every keystroke, so a call is not even bound again while its tree is the same and no other
-/// tree's declarations changed (<see cref="CompilationState.Epoch"/>).
+/// generator's time on every keystroke. Within the same declaration epoch, an identical reparse keeps the result.
+/// After an isolated method-body edit, calls outside that body keep their bindings and get current interceptor
+/// locations.
 /// </para>
 /// </summary>
 internal static class ModelCache
@@ -60,6 +63,7 @@ internal static class ModelCache
         public MetadataReference[] References = null!;
         public string[] Paths = null!;
         public string Rules = "";
+        public CompilationOptions Options = null!;
 
         /// <summary>Models by type name. Guarded by <see cref="Lock"/>.</summary>
         public readonly Dictionary<string, Entry> Entries = new();
@@ -89,7 +93,8 @@ internal static class ModelCache
 
         public bool SameAs(ProjectState other)
         {
-            if (ProjectKey != other.ProjectKey || Rules != other.Rules ||
+            // Some compiler-host resolvers cannot be compared by value.
+            if (ProjectKey != other.ProjectKey || Rules != other.Rules || !ReferenceEquals(Options, other.Options) ||
                 References.Length != other.References.Length || Paths.Length != other.Paths.Length)
                 return false;
             for (int i = 0; i < References.Length; i++)
@@ -115,12 +120,27 @@ internal static class ModelCache
     private sealed class CompilationState
     {
         public ProjectState Project = null!;
+        public Dictionary<SyntaxTree, SyntaxTree>? Reparsed;
+        public BodyEdit? Edit;
 
         /// <summary>
         /// The <see cref="ProjectState.Epoch"/> of the compilation: two compilations of a project with the same epoch
         /// declare the same symbols, so a call in a tree both share binds to the same method in both.
         /// </summary>
         public int Epoch;
+    }
+
+    private sealed record BodyEdit(SyntaxTree Previous, SyntaxTree Current, TextSpan Body, int Delta)
+    {
+        public readonly Dictionary<int, CallEntry> Calls = new();
+
+        public CallEntry? At(int position)
+        {
+            if (Body.Contains(position))
+                return null;
+            int oldPosition = position < Body.Start ? position : position - Delta;
+            return Calls.TryGetValue(oldPosition, out var entry) ? entry : null;
+        }
     }
 
     private static readonly object Lock = new();
@@ -175,20 +195,50 @@ internal static class ModelCache
     /// <c>typeof</c> argument), null for a call that names none, and the result is the one built before while the
     /// method, the type and the trees the type reaches are the same, else <paramref name="build"/>'s.
     /// </summary>
-    public static TopLevelCall? GetOrBuildCall(SyntaxNode call, Compilation compilation,
+    public static TopLevelCall? GetOrBuildCall(GeneratorSyntaxContext context,
         System.Func<(IMethodSymbol Method, ITypeSymbol Type)?> bind,
-        System.Func<IMethodSymbol, ITypeSymbol, TopLevelCall?> build)
+        System.Func<IMethodSymbol, ITypeSymbol, TopLevelCall?> build, System.Threading.CancellationToken ct)
     {
+        var call = context.Node;
+        var compilation = context.SemanticModel.Compilation;
         var known = GetState(compilation);
         var state = known.Project;
         var tree = call.SyntaxTree;
         var key = (tree.FilePath, call.SpanStart);
         CallEntry? entry;
+        CallEntry? moved = null;
         lock (Lock)
         {
             // What a call binds to and builds depends on declarations only (no method body is read).
-            if (state.Calls.TryGetValue(key, out entry) && entry.Tree == tree && entry.Epoch == known.Epoch)
-                return entry.Call;
+            if (state.Calls.TryGetValue(key, out entry) && entry.Epoch == known.Epoch)
+            {
+                if (entry.Tree == tree)
+                    return entry.Call;
+                if (known.Reparsed != null && known.Reparsed.TryGetValue(tree, out var previous) && entry.Tree == previous)
+                {
+                    entry.Tree = tree;
+                    return entry.Call;
+                }
+            }
+            if (known.Edit is { } edit && edit.Current == tree)
+                moved = edit.At(call.SpanStart);
+        }
+
+        if (moved != null)
+        {
+            var relocated = moved.Call;
+#if ROSLYN4_8
+            if (relocated?.Intercepted is { } interceptor)
+            {
+                var located = Interceptors.AtLocation(context, interceptor, ct);
+                relocated = located == null && relocated.Usage == null ? null : relocated with { Intercepted = located };
+            }
+#endif
+            SaveCall(state, key, new CallEntry
+            {
+                Tree = tree, Epoch = known.Epoch, Method = moved.Method, Trees = moved.Trees, Call = relocated,
+            }, compilation);
+            return relocated;
         }
 
         var bound = bind();
@@ -210,23 +260,28 @@ internal static class ModelCache
             trees = Dependencies(found.Type, compilation);
         }
 
+        SaveCall(state, key, new CallEntry
+        {
+            Tree = tree, Epoch = known.Epoch, Method = identity, Trees = trees, Call = result,
+        }, compilation);
+        return result;
+    }
+
+    private static void SaveCall(ProjectState state, (string Path, int Position) key, CallEntry entry,
+        Compilation compilation)
+    {
         lock (Lock)
         {
-            state.Calls[key] = new CallEntry
-            {
-                Tree = tree, Epoch = known.Epoch, Method = identity, Trees = trees, Call = result,
-            };
+            state.Calls[key] = entry;
             if (state.Calls.Count >= state.CallSweepAt)
             {
-                // Calls whose file changed are bound again under their new positions: drop the old ones.
+                // Calls in changed files are stored at their new positions: drop old entries.
                 foreach (var stale in state.Calls.Where(p => !compilation.ContainsSyntaxTree(p.Value.Tree))
                              .Select(static p => p.Key).ToList())
                     state.Calls.Remove(stale);
                 state.CallSweepAt = System.Math.Max(MinSweep, state.Calls.Count * 2);
             }
         }
-
-        return result;
     }
 
     /// <summary>The method a call binds to and the type it names, as a string.</summary>
@@ -291,6 +346,7 @@ internal static class ModelCache
             ProjectKey = (compilation.AssemblyName ?? "") + "|" + SymbolKey(options),
             References = compilation.References.ToArray(),
             Paths = paths.ToArray(),
+            Options = compilation.Options,
             // The compilation's own formatter registrations: one edited in a file no model depends on still changes
             // the formatters models resolve.
             Rules = FormatterRules.OwnSignature(compilation, TypeFacts.For(compilation, options).Symbols),
@@ -308,8 +364,10 @@ internal static class ModelCache
 
         // Outside the lock: comparing an edited tree walks its declarations.
         var trees = compilation.SyntaxTrees.ToArray();
-        bool sameDeclarations = latest != null && latest.SameAs(state) && declared != null &&
-                                DeclareTheSame(declared, trees);
+        bool comparable = latest != null && latest.SameAs(state) && declared != null;
+        var reparsed = comparable ? MatchReparsedSources(declared!, trees) : null;
+        bool sameDeclarations = comparable && (reparsed != null || DeclareTheSame(declared!, trees));
+        var edit = sameDeclarations && reparsed == null ? MatchBodyEdit(declared!, trees) : null;
 
         lock (Lock)
         {
@@ -323,13 +381,93 @@ internal static class ModelCache
                 LatestState[state.ProjectKey] = new System.WeakReference<ProjectState>(state);
             // Compared against the trees another compilation may have replaced meanwhile: then a new epoch.
             if (!sameDeclarations || state != latest || state.Declared != declared)
+            {
                 state.Epoch++;
+                reparsed = null;
+                edit = null;
+            }
+            if (edit != null)
+            {
+                // A shifted call can take another old call's position. Snapshot before saving new positions.
+                foreach (var pair in state.Calls)
+                    if (pair.Value.Tree == edit.Previous && pair.Value.Epoch == state.Epoch)
+                        edit.Calls.Add(pair.Key.Position, pair.Value);
+            }
             state.Declared = trees;
             Touch(state);
-            var created = new CompilationState { Project = state, Epoch = state.Epoch };
+            var created = new CompilationState { Project = state, Epoch = state.Epoch, Reparsed = reparsed, Edit = edit };
             States.Add(compilation, created);
             return created;
         }
+    }
+
+    /// <summary>Finds a single edit confined to a directive-free method body. The other bodies keep their bindings.</summary>
+    private static BodyEdit? MatchBodyEdit(SyntaxTree[] before, SyntaxTree[] now)
+    {
+        SyntaxTree? previous = null, current = null;
+        for (int i = 0; i < now.Length; i++)
+        {
+            if (before[i] == now[i])
+                continue;
+            if (current != null || now[i].Options.Kind != SourceCodeKind.Regular ||
+                !now[i].Options.Equals(before[i].Options))
+                return null;
+            previous = before[i];
+            current = now[i];
+        }
+
+        if (current == null)
+            return null;
+        var changes = current.GetText().GetChangeRanges(previous!.GetText());
+        if (changes.Count != 1)
+            return null;
+        var change = changes[0];
+        var oldBody = MethodBodyContaining(previous, change.Span);
+        var newBody = MethodBodyContaining(current, new TextSpan(change.Span.Start, change.NewLength));
+        int delta = change.NewLength - change.Span.Length;
+        return oldBody != null && newBody != null && oldBody.SpanStart == newBody.SpanStart &&
+               oldBody.Span.End + delta == newBody.Span.End
+            ? new BodyEdit(previous!, current, newBody.Span, delta)
+            : null;
+    }
+
+    private static BlockSyntax? MethodBodyContaining(SyntaxTree tree, TextSpan change)
+    {
+        var body = tree.GetRoot().FindToken(change.Start).Parent?.FirstAncestorOrSelf<BlockSyntax>(
+            static block => block.Parent is MethodDeclarationSyntax);
+        return body != null && !body.ContainsDirectives && !body.OpenBraceToken.IsMissing &&
+               !body.CloseBraceToken.IsMissing && change.Start >= body.OpenBraceToken.Span.End &&
+               change.End <= body.CloseBraceToken.SpanStart ? body : null;
+    }
+
+    /// <summary>Pairs trees reparsed from the same project text, including the interceptor's file checksum.</summary>
+    private static Dictionary<SyntaxTree, SyntaxTree>? MatchReparsedSources(SyntaxTree[] before, SyntaxTree[] now)
+    {
+        if (before.Length != now.Length)
+            return null;
+        Dictionary<SyntaxTree, SyntaxTree>? matches = null;
+        for (int i = 0; i < now.Length; i++)
+        {
+            var current = now[i];
+            var previous = before[i];
+            if (current.Options.Kind != SourceCodeKind.Regular)
+                return null;
+            if (current == previous)
+                continue;
+            if (current.FilePath != previous.FilePath || !current.Options.Equals(previous.Options))
+                return null;
+            var text = current.GetText();
+            var oldText = previous.GetText();
+            if (!ReferenceEquals(text, oldText) &&
+                (text.ChecksumAlgorithm != oldText.ChecksumAlgorithm || !text.ContentEquals(oldText) ||
+                 !text.GetChecksum().SequenceEqual(oldText.GetChecksum())))
+                return null;
+            if (!current.IsEquivalentTo(previous))
+                return null;
+            (matches ??= new Dictionary<SyntaxTree, SyntaxTree>()).Add(current, previous);
+        }
+
+        return matches;
     }
 
     /// <summary>

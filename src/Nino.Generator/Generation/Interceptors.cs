@@ -78,26 +78,8 @@ internal static class Interceptors
     private static InterceptedCall? Intercept(GeneratorSyntaxContext ctx, InvocationExpressionSyntax invocation,
         IMethodSymbol method, ITypeSymbol type, string target, FormatterRef? formatter, CancellationToken ct)
     {
-#if ROSLYN4_12
-        if (ctx.SemanticModel.GetInterceptableLocation(invocation, ct) is not { } location)
+        if (Location(ctx, invocation, ct) is not { } location)
             return null;
-        string attribute = $"{location.Version}, \"{location.Data}\"";
-        // The opaque data does not say where the call is: a comment does, "File.cs(line,column)" (no directory, so
-        // the code is the same on every machine).
-        string where = System.IO.Path.GetFileName(location.GetDisplayLocation());
-#else
-        // The method name: after the receiver, or alone (using static).
-        var name = invocation.Expression is MemberAccessExpressionSyntax access
-            ? access.Name
-            : (SimpleNameSyntax)invocation.Expression;
-        var position = name.Identifier.GetLocation().GetLineSpan().StartLinePosition;
-        string path = invocation.SyntaxTree.FilePath;
-        if (path.Length == 0)
-            return null;
-        string attribute = "@\"" + path.Replace("\"", "\"\"") + $"\", {position.Line + 1}, {position.Character + 1}";
-        string where = ""; // the attribute says it
-#endif
-
         var signature = new StringBuilder();
         var arguments = new StringBuilder();
         signature.Append(method.ReturnsVoid ? "void" : TypeNames.Global(method.ReturnType))
@@ -131,7 +113,39 @@ internal static class Interceptors
         bool inlinable = target == method.Name &&
                          !method.Parameters.Any(p => p.RefKind == RefKind.Ref && p.Type.Name is "Reader" or "Writer");
         return new InterceptedCall(signature.ToString(), target, TypeNames.Global(type), formatter,
-            arguments.ToString(), attribute, inlinable, where);
+            arguments.ToString(), location.Attribute, inlinable, location.Where);
+    }
+
+    /// <summary>Updates a reused call with the current tree's interceptor coordinates and checksum.</summary>
+    public static InterceptedCall? AtLocation(GeneratorSyntaxContext ctx, InterceptedCall call, CancellationToken ct) =>
+        Location(ctx, (InvocationExpressionSyntax)ctx.Node, ct) is { } location
+            ? call with { Location = location.Attribute, Where = location.Where }
+            : null;
+
+    private static (string Attribute, string Where)? Location(GeneratorSyntaxContext ctx,
+        InvocationExpressionSyntax invocation, CancellationToken ct)
+    {
+#if ROSLYN4_12
+        if (ctx.SemanticModel.GetInterceptableLocation(invocation, ct) is not { } location)
+            return null;
+        string attribute = $"{location.Version}, \"{location.Data}\"";
+        // The opaque data does not say where the call is: a comment does, "File.cs(line,column)" (no directory, so
+        // the code is the same on every machine).
+        string where = System.IO.Path.GetFileName(location.GetDisplayLocation());
+#else
+        // The method name: after the receiver, or alone (using static).
+        var name = invocation.Expression is MemberAccessExpressionSyntax access
+            ? access.Name
+            : (SimpleNameSyntax)invocation.Expression;
+        var position = name.Identifier.GetLocation().GetLineSpan().StartLinePosition;
+        string path = invocation.SyntaxTree.FilePath;
+        if (path.Length == 0)
+            return null;
+        string attribute = "@\"" + path.Replace("\"", "\"\"") + $"\", {position.Line + 1}, {position.Character + 1}";
+        string where = ""; // the attribute says it
+#endif
+
+        return (attribute, where);
     }
 
     /// <summary>

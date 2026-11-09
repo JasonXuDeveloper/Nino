@@ -475,7 +475,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
     {
         var compilation = ctx.SemanticModel.Compilation;
         var options = ctx.SemanticModel.SyntaxTree.Options;
-        return ModelCache.GetOrBuildCall(ctx.Node, compilation, () => BindCall(ctx, ct), (method, type) =>
+        return ModelCache.GetOrBuildCall(ctx, () => BindCall(ctx, ct), (method, type) =>
         {
             var facts = TypeFacts.For(compilation, options);
             var usage = facts.TopLevelUsage(type);
@@ -490,7 +490,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             InterceptedCall? intercepted = null;
 #endif
             return usage == null && intercepted == null ? null : new TopLevelCall(usage, intercepted);
-        });
+        }, ct);
     }
 
     /// <summary>

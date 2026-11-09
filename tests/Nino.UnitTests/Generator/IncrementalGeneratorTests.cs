@@ -607,6 +607,79 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     }
 
     [TestMethod]
+    public void ReparsedSourcesReuseCallBindings()
+    {
+        var compilation = Create(
+            ("Alias.cs", "global using Saver = Nino.Core.NinoSerializer;"),
+            ("Calls.cs", Usings + """
+                public static class Calls
+                {
+                    public static byte[] Write(System.Collections.Generic.List<int> value) => Saver.Serialize(value);
+                }
+                public static class Other { public static byte[] Serialize<T>(T value) => null; }
+                }
+                """));
+
+        object? Call(GeneratorRunResult result) =>
+            result.TrackedSteps.TryGetValue("TopLevelCall", out var steps)
+                ? steps.SelectMany(step => step.Outputs).Single().Value
+                : null;
+
+        var first = RunTracked(compilation);
+        Assert.IsNotNull(Call(first));
+        var reparsed = compilation.RemoveAllSyntaxTrees().AddSyntaxTrees(compilation.SyntaxTrees.Select(tree =>
+        {
+            var text = tree.GetText();
+            return CSharpSyntaxTree.ParseText(SourceText.From(text.ToString(), text.Encoding, text.ChecksumAlgorithm),
+                (CSharpParseOptions)tree.Options, tree.FilePath);
+        }));
+        var second = RunTracked(reparsed);
+        Assert.AreSame(Call(first), Call(second));
+        CollectionAssert.AreEqual(first.GeneratedSources.Select(source => source.SourceText.ToString()).ToArray(),
+            second.GeneratedSources.Select(source => source.SourceText.ToString()).ToArray());
+
+        var changed = Edit(reparsed, "Alias.cs", "Nino.Core.NinoSerializer", "Inc.Other");
+        Assert.IsNull(Call(RunTracked(changed)));
+    }
+
+    [TestMethod]
+    public void MethodBodyEditRebindsOnlyItsOwnCalls()
+    {
+        var compilation = Create(("Calls.cs", Usings + """
+            using System.Collections.Generic;
+            public static class Calls
+            {
+                public static byte[] First() { return NinoSerializer.Serialize(new List<int>()); }
+                public static byte[] Second() { return NinoSerializer.Serialize(new List<byte>()); }
+            }
+            }
+            """));
+        var first = CallBindings(RunTracked(compilation));
+        compilation = Edit(compilation, "Calls.cs", "new List<int>()", "new List<long>()");
+        var result = RunTracked(compilation);
+        var second = CallBindings(result);
+        Assert.AreNotSame(first[0], second[0]);
+        Assert.AreSame(first[1], second[1]);
+        var usages = result.GeneratedSources.Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
+        StringAssert.Contains(usages, "List<long>");
+        Assert.IsFalse(usages.Contains("List<int>"));
+
+        // A directive may change binding outside the method's braces.
+        compilation = Edit(compilation, "Calls.cs", "return NinoSerializer.Serialize(new List<long>());",
+            "\n#nullable enable\nreturn NinoSerializer.Serialize(new List<long>());");
+        Assert.AreNotSame(second[1], CallBindings(RunTracked(compilation))[1]);
+
+        static object?[] CallBindings(GeneratorRunResult run) =>
+            run.TrackedSteps["TopLevelCall"].SelectMany(step => step.Outputs).Select(o => o.Value).ToArray();
+    }
+
+    private static GeneratorRunResult RunTracked(CSharpCompilation compilation) =>
+        CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
+                driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None,
+                    trackIncrementalGeneratorSteps: true))
+            .RunGenerators(compilation).GetRunResult().Results[0];
+
+    [TestMethod]
     public void CallsFollowEditsToTheirTypes()
     {
         // A top-level call is reused while its file and its type are unchanged (ModelCache.GetOrBuildCall): an edit to
