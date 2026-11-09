@@ -146,6 +146,9 @@ lists until their path needs them. Keep traversal sets separate per root.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
+Append runtime namespaces and containing-type arguments directly to the type name's builder. Preserve unescaped
+namespace names and outermost-first argument order. The local nested-name probe went from 604 to 436 bytes per
+render, and the unit test project's 628 generated files remained byte-identical.
 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
