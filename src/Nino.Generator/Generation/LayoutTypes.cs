@@ -73,5 +73,5 @@ internal static class LayoutTypes
 
     /// <summary>Sorted, without duplicates: the registry's attribute list is stable across builds.</summary>
     public static EquatableArray<string> ToArray(IEnumerable<string> types) =>
-        new(types.Distinct().OrderBy(t => t, System.StringComparer.Ordinal).ToArray());
+        new(types.Distinct().OrderBy(t => t, System.StringComparer.Ordinal));
 }

@@ -26,9 +26,9 @@ internal sealed record ProjectFacts(bool Enabled, GeneratorOptions Options, Equa
                 TypeNames.CanName(c, "UnityEngine.RuntimeInitializeOnLoadMethodAttribute"),
                 TypeNames.CanName(c, "UnityEditor.InitializeOnLoadMethodAttribute"),
                 new EquatableArray<string>(FormatterRules.RegisteringReferences(c, formatterAttribute)
-                    .OrderBy(n => n, StringComparer.Ordinal).ToArray()),
+                    .OrderBy(n => n, StringComparer.Ordinal)),
                 new EquatableArray<FormatterMarks>(FormatterRules.OwnMarks(c, formatterAttribute)
-                    .OrderBy(m => m.Formatter, StringComparer.Ordinal).ToArray())),
+                    .OrderBy(m => m.Formatter, StringComparer.Ordinal))),
             InheritedCandidates.ReferencedNinoTypes(c, ct),
             LayoutTypes.CanEmit(c));
     }
