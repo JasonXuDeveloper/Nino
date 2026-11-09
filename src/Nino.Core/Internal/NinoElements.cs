@@ -233,7 +233,7 @@ namespace Nino.Core.Internal
         /// multi-dimensional array's), as <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> reads a span of them.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader)
+        public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader, bool prechecked = false)
             where TFormatter : struct, INinoFormatter<T>
         {
 #if NETSTANDARD2_0
@@ -241,14 +241,14 @@ namespace Nino.Core.Internal
             if (RawFormatter.Is<T, TFormatter>() && NinoLayout<T>.CopiesAsIs)
             {
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first),
-                    ref reader.ReadElements(count, Unsafe.SizeOf<T>()), (uint)count * (uint)Unsafe.SizeOf<T>());
+                    ref TakeElements(ref reader, count, Unsafe.SizeOf<T>(), prechecked), (uint)count * (uint)Unsafe.SizeOf<T>());
                 return;
             }
 
             for (int i = 0; i < count; i++)
                 default(TFormatter).Deserialize(ref reader, ref Unsafe.Add(ref first, i));
 #else
-            Read<T, TFormatter>(MemoryMarshal.CreateSpan(ref first, count), ref reader);
+            Read<T, TFormatter>(MemoryMarshal.CreateSpan(ref first, count), ref reader, prechecked);
 #endif
         }
 

@@ -50,7 +50,7 @@ namespace Nino.Core
             }
 
             if (shape.Total != 0)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0], shape.Total, ref reader);
+                NinoElements.Read<T, TFormatter>(ref array[0, 0], shape.Total, ref reader, prechecked: true);
         }
     }
 
@@ -96,7 +96,7 @@ namespace Nino.Core
             }
 
             if (shape.Total != 0)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0], shape.Total, ref reader);
+                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0], shape.Total, ref reader, prechecked: true);
         }
     }
 
@@ -142,7 +142,7 @@ namespace Nino.Core
             }
 
             if (shape.Total != 0)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0, 0], shape.Total, ref reader);
+                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0, 0], shape.Total, ref reader, prechecked: true);
         }
     }
 }

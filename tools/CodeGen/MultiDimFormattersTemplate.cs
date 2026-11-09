@@ -89,7 +89,7 @@ namespace Nino.CodeGen
             sb.Append("            }\n");
             sb.Append("\n");
             sb.Append("            if (shape.Total != 0)\n");
-            sb.Append($"                NinoElements.Read<T, TFormatter>(ref array[{first}], shape.Total, ref reader);\n");
+            sb.Append($"                NinoElements.Read<T, TFormatter>(ref array[{first}], shape.Total, ref reader, prechecked: true);\n");
             sb.Append("        }\n");
             sb.Append("    }\n");
         }
