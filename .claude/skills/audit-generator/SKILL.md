@@ -155,6 +155,9 @@ Build prefetch member lists only for eligible formatter models, after confirming
 Skip the prefetch metadata in analyzer models and allocate the small member list only on the first match.
 Recognize shared immutable arrays before walking their elements. The local 128-string equality probe went
 from about 75 ns to 2 ns for shared arrays and stayed on par for distinct arrays with equal contents.
+Use a cheap bucket key for emitted formatters, followed by full model equality. Include a member type
+to distinguish common same-name edits. The local 97-member cache-hit probe avoided a full model hash
+and the generated files of the unit test project stayed byte-identical.
 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
