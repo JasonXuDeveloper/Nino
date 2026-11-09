@@ -30,7 +30,7 @@ internal sealed class CodeWriter
             return this;
         }
 
-        string code = text.Trim();
+        ReadOnlySpan<char> code = text.AsSpan().Trim();
         if (code.Length == 0)
             return Line();
         StartLine(code[0], code[code.Length - 1]);
