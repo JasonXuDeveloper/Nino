@@ -83,12 +83,16 @@ namespace Nino.Core
         /// <summary>Copies the written bytes into a new array.</summary>
         public byte[] ToArray()
         {
-            // Every byte is overwritten by the copy: a copy of the written bytes (Index never exceeds the buffer's
-            // length), where Buffer.BlockCopy would check both arrays' types and bounds first. Empty for 0.
+            // The written bytes fill the result, including when it is allocated uninitialized.
             int count = Index;
             var result = NinoUnsafe.NewArray<byte>(count, uninitialized: true);
-            NinoUnsafe.CopyToNew(ref NinoUnsafe.GetArrayDataReference(result),
-                ref NinoUnsafe.GetArrayDataReference(Buffer), (uint)count);
+            ref byte destination = ref NinoUnsafe.GetArrayDataReference(result);
+            ref byte source = ref NinoUnsafe.GetArrayDataReference(Buffer);
+            // Skip the call for short results that Copy handles inline.
+            if (NinoUnsafe.Is64Bit && (uint)count <= 64)
+                NinoUnsafe.Copy(ref destination, ref source, (uint)count);
+            else
+                NinoUnsafe.CopyToNew(ref destination, ref source, (uint)count);
             return result;
         }
 
