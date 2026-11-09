@@ -45,6 +45,10 @@ of bytes in a block.
   On netstandard, register the same four-byte lane operation through `NinoKernels.Interleave32`. Gate on raw
   layout and no padding, call once for full vectors, and leave the remaining pairs to the existing scalar loop.
   Check unaligned output and the untouched bytes beyond the vector prefix in the Burst kernel tests.
+  For a generic 16/32/64-bit interleave, fold the lane-width gate before calling a generic helper and
+  precompute the pair stride: `i * size * 2` became two shifts for 32-bit lanes. Skipping Tier 0 in the
+  generic helper recovered short 32-bit throughput locally, but the 2,047-pair control slowed by 4–9%.
+  Keep the candidate isolated while tuning dispatch; the 16- and 64-bit large cases improved consistently.
 - Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
   Keep the order check before publishing the arrays and use the same wire block for out-of-order insertion.
   Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
