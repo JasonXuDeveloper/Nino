@@ -194,17 +194,6 @@ namespace Nino.Core
 #endif
         }
 
-        /// <summary>The next <paramref name="length"/> bytes (checked by the caller).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ReadOnlySpan<byte> Peek(int length)
-        {
-#if NET8_0_OR_GREATER
-            return MemoryMarshal.CreateReadOnlySpan(ref _cur, length);
-#else
-            return _data.Slice(_pos, length);
-#endif
-        }
-
         /// <summary>The data up to <paramref name="end"/> (at most its length, checked by the caller).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ReadOnlySpan<byte> Prefix(ReadOnlySpan<byte> data, int end)
@@ -819,11 +808,15 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlySpan<byte> ReadRaw(int length)
         {
+#if !NET8_0_OR_GREATER
             if ((uint)length > (uint)Avail)
                 NinoThrow.EndOfData();
-            var span = Peek(length);
+            var span = _data.Slice(_pos, length);
             Skip(length);
             return span;
+#else
+            return MemoryMarshal.CreateReadOnlySpan(ref ReadBlock(length), length);
+#endif
         }
 
         /// <summary>Copies a block of unmanaged values (no length prefix) into <paramref name="destination"/>.</summary>
