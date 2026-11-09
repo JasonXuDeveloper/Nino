@@ -200,6 +200,14 @@ of bytes in a block.
   bytes versus production. The small mix improved in three of four rounds, with variable
   larger mixes, byte-identical output at offsets 0, 1 and 7, and 0 B allocations. Keep the
   shape-specific probe for comparison with a general contiguous-prefix plan.
+  Generalize this to an 8- to 16-byte prefix and one mapped final byte. The 13- and 15-byte
+  qualifying shapes improved 8.9–13.1% and 4.5–11.2% in four small-weighted Arm64 rounds.
+  The 11-byte nonqualifying control kept its caller and loop sizes and had no consistent
+  slowdown. Larger profiles varied. The general `WriteAll` is 121 IL bytes. Arm64 stayed
+  at 520 bytes for the mixed-profile caller and 196 for the 15-byte loop, while optimized
+  offline x64 used 440 bytes in `WriteAll` and 2,257 in `ArrayFormatter.Serialize`. All
+  probes allocated 0 B and matched wire bytes at offsets 0, 1 and 7. Targeted .NET 8/10
+  tests passed with and without hardware intrinsics (`d2688fac`).
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
