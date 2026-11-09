@@ -256,16 +256,18 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            int count = value.Length, size = (int)(((uint)count + 7) / 8);
+            int count = value.Length;
 #if NET10_0_OR_GREATER
             // The public view is already in wire order, but can expose dirty padding in the final byte.
-            var source = CollectionsMarshal.AsBytes(value).Slice(0, size);
+            var source = CollectionsMarshal.AsBytes(value);
+            int size = source.Length;
             ref byte block = ref writer.Reserve(NinoWire.LengthSize + size);
             NinoUnsafe.Write(ref block, count);
             var target = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref block, NinoWire.LengthSize), size);
             source.CopyTo(target);
             MaskTail(target, count);
 #else
+            int size = (int)(((uint)count + 7) / 8);
             var buffer = writer.ReserveArray(NinoWire.LengthSize + size, out int offset);
             NinoUnsafe.Write(ref buffer[offset], count);
             value.CopyTo(buffer, offset + NinoWire.LengthSize);
