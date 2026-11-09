@@ -93,6 +93,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - Pack a keyed member's constant key and byte length into one unaligned header store on write.
   Keep symbolic lengths on the existing path. The real unit test project emitted 2,329 fewer source bytes.
   For `KeyedStruct`, the x64 listing changed four header stores to two and the Arm64 listing stayed the same size.
+- Check a constant keyed header and its plain raw value together on read. Leave the cursor unchanged on a
+  mismatch so the checked fallback handles truncation, unknown keys and reordered members. Emit little-endian
+  constants directly because Reader already rejects big-endian hosts. The unit test project emitted 3,820
+  fewer bytes and the local `KeyedStruct[]` timing was broadly on par.
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
   pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
   signature generated code repeats is written once in `Signature`.
