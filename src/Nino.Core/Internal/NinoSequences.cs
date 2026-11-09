@@ -22,13 +22,12 @@ namespace Nino.Core.Internal
         /// input, so the array can go back as soon as the read returns.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static byte[] Rent(in ReadOnlySequence<byte> data, out int length)
+        public static byte[] Rent(in ReadOnlySequence<byte> data, long length)
         {
             // A span holds at most int.MaxValue bytes; the data is already in memory, so the copy is in proportion.
-            if (data.Length > int.MaxValue)
+            if (length > int.MaxValue)
                 throw new ArgumentException("Nino: data longer than int.MaxValue bytes.", nameof(data));
-            length = (int)data.Length;
-            byte[] rented = ArrayPool<byte>.Shared.Rent(length);
+            byte[] rented = ArrayPool<byte>.Shared.Rent((int)length);
             data.CopyTo(rented);
             return rented;
         }

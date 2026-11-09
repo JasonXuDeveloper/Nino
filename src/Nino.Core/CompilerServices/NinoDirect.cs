@@ -343,19 +343,20 @@ namespace Nino.Core.CompilerServices
         private static void DeserializeSegments<T, TFormatter>(in ReadOnlySequence<byte> data, ref T value)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (data.Length <= NinoSequences.StackBytes)
+            long length = data.Length;
+            if (length <= NinoSequences.StackBytes)
             {
                 Span<byte> stack = stackalloc byte[NinoSequences.StackBytes];
-                stack = stack.Slice(0, (int)data.Length);
+                stack = stack.Slice(0, (int)length);
                 data.CopyTo(stack);
                 Deserialize<T, TFormatter>(stack, ref value);
                 return;
             }
 
-            byte[] rented = NinoSequences.Rent(data, out int length);
+            byte[] rented = NinoSequences.Rent(data, length);
             try
             {
-                Deserialize<T, TFormatter>(new ReadOnlySpan<byte>(rented, 0, length), ref value);
+                Deserialize<T, TFormatter>(new ReadOnlySpan<byte>(rented, 0, (int)length), ref value);
             }
             finally
             {

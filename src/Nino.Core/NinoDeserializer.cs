@@ -111,19 +111,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void DeserializeSegments<T>(in ReadOnlySequence<byte> data, ref T value)
         {
-            if (data.Length <= NinoSequences.StackBytes)
+            long length = data.Length;
+            if (length <= NinoSequences.StackBytes)
             {
                 Span<byte> stack = stackalloc byte[NinoSequences.StackBytes];
-                stack = stack.Slice(0, (int)data.Length);
+                stack = stack.Slice(0, (int)length);
                 data.CopyTo(stack);
                 Deserialize(stack, ref value);
                 return;
             }
 
-            byte[] rented = NinoSequences.Rent(data, out int length);
+            byte[] rented = NinoSequences.Rent(data, length);
             try
             {
-                Deserialize(new ReadOnlySpan<byte>(rented, 0, length), ref value);
+                Deserialize(new ReadOnlySpan<byte>(rented, 0, (int)length), ref value);
             }
             finally
             {
