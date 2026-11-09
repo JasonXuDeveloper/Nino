@@ -141,9 +141,10 @@ namespace Nino.Core
         {
             if (_count == _objects.Length)
                 Grow();
-            At(_count++) = null;
-            Pending = _count;
-            return _count;
+            // The new slot is already null: growth zeroes the tail and Return clears every used slot.
+            int index = ++_count;
+            Pending = index;
+            return index;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]

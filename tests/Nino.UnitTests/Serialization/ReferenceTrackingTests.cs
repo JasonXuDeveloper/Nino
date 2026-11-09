@@ -66,6 +66,37 @@ public class PlainHolder
 public class ReferenceTrackingTests
 {
     [TestMethod]
+    public void CachedReferenceTableOpensEmptySlotsAfterGrowth()
+    {
+        const int count = 32;
+        var table = new NinoReferenceReadTable();
+        try
+        {
+            for (int i = 0; i < count; i++)
+                table.Set(table.Begin(), new object());
+        }
+        finally
+        {
+            NinoReferenceReadTable.Return(table);
+        }
+
+        var reused = NinoReferenceReadTable.Rent();
+        try
+        {
+            Assert.AreSame(table, reused);
+            for (int i = 0; i < count; i++)
+            {
+                int index = reused.Begin();
+                Assert.ThrowsExactly<NinoDataException>(() => reused.Get(index));
+            }
+        }
+        finally
+        {
+            NinoReferenceReadTable.Return(reused);
+        }
+    }
+
+    [TestMethod]
     public void SharedReferencesStayShared()
     {
         var leaf = new TrackedLeaf { Name = "x" };
