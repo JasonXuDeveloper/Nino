@@ -37,6 +37,8 @@ of bytes in a block.
   every group and the scalar tail pass. The enqueue fallback overwrites unpublished raw slots. Keep a
   single bulk copy without SIMD; scalar per-pair stores regressed. Fusing the vector stores saved another
   24–25% on the local 8,193-pair probe.
+  Advance the source, destination and parent priority cursors by their strides across vector groups.
+  This removed indexed address arithmetic and saved a further 22–24% in the same local large-heap probe.
 - Keep indexed offsets in the scalar block-read tail until a measured case benefits from cursor stepping.
   On the local `BlockWaypoint` probe, two bumped cursors removed the two loop multiplications but grew
   `ReadEach` by 33 IL bytes and did not consistently improve the direct or public read paths.
