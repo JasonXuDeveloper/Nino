@@ -19,6 +19,13 @@ A path through a runtime's internals (`CollectionViews`: the fields of `List<T>`
 Mono), checks it against an instance with known contents at startup and uses the public API when none matches. Keep
 the fallback (the enumerator) out of line.
 
+- Capture the published head of an exact CoreCLR `ConcurrentStack<T>` once when writing raw elements. On the
+  checked .NET 8 and 10 layouts, popping and clearing replace the head and keep the published chain intact. Count
+  that chain, reserve once and walk it again to write bottom to top. Check field shape and offsets before using
+  the mirrors, and retain the public snapshot on other runtimes or with other formatters. The local Arm64
+  8,192-element cases went from 98,632 B (`int`) and 393,496 B (`Guid`) to zero warmed allocation. See
+  `ConcurrentStackNodes` and the compacting GC regression in `CollectionSerializationTests`.
+
 ## Building a runtime's objects without its public API
 
 `Nino.Immutable/HashTrees.cs` (an `ImmutableDictionary` or `ImmutableHashSet` built as its tree, instead of one

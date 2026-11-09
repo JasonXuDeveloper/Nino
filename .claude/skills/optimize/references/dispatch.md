@@ -68,6 +68,12 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   `NinoRawArray<T>` as loads, so an array of raw elements is one `INinoRawArrayFormatter` interface call per call
   under NativeAOT, and the dead virtual branches stay in the code; generic `[NinoType]`s use no `CachedFormatter`
   (Unity kernels and IL2CPP).
+- Split exact BCL collection paths from interface snapshots when a concrete API does the same work. Test the
+  runtime type before calling the concrete API so a subclass's interface implementation still runs. In
+  `ProducerConsumerFormatter.Serialize` (6415b715), the exact `ConcurrentQueue<T>` fixed-width path calls
+  `ConcurrentQueue<T>.ToArray` directly and keeps the other snapshots out of line. On local Arm64 FullOpts,
+  the variable-width queue entry and its helper together went from 2,340 to 1,336 bytes. Fixed-width queues
+  still allocate the bulk snapshot.
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
 - Leave the one indirect call a top-level call makes in shared generic code (T a class, the caller not inlined with T
   exact: `NinoDeserializer.Deserialize<__Canon>`'s `INinoRawArrayFormatter.Read`, `NinoTopFormatter<T>.Formatter`'s
