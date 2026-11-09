@@ -559,19 +559,46 @@ namespace Nino.Core
 
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             var collection = value ??= NinoActivator<TCollection>.Create();
-            if (collection.GetType() == typeof(ConcurrentStack<T>))
+            NinoRecycler.DrainAndDiscard(collection);
+
+            for (int i = 0; i < length; i++)
             {
-                RefillStack(Unsafe.As<ConcurrentStack<T>>(collection), length, ref reader);
+                T item = default;
+                default(TFormatter).Deserialize(ref reader, ref item);
+                collection.TryAdd(item);
+            }
+        }
+    }
+
+    /// <summary>
+    /// <c>ConcurrentStack&lt;T&gt;</c>: the producer/consumer wire format, with concrete calls when refilling a stack.
+    /// </summary>
+    public struct ConcurrentStackFormatter<T, TFormatter> : INinoFormatter<ConcurrentStack<T>>
+        where TFormatter : struct, INinoFormatter<T>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(ConcurrentStack<T> value, ref Writer writer) =>
+            default(ProducerConsumerFormatter<ConcurrentStack<T>, T, TFormatter>).Serialize(value, ref writer);
+
+        public void Deserialize(ref Reader reader, ref ConcurrentStack<T> value)
+        {
+            if (value != null && value.GetType() != typeof(ConcurrentStack<T>))
+            {
+                default(ProducerConsumerFormatter<ConcurrentStack<T>, T, TFormatter>).Deserialize(ref reader, ref value);
                 return;
             }
 
-            NinoRecycler.DrainAndDiscard(collection);
-            for (int i = 0; i < length; i++)
-                collection.TryAdd(ReadItem(ref reader));
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
+                return;
+
+            if (value == null)
+                value = BclCollections<T, TFormatter>.TryCreate<ConcurrentStack<T>>(length, ref reader);
+            else
+                Refill(value, length, ref reader);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void RefillStack(ConcurrentStack<T> stack, int length, ref Reader reader)
+        private static void Refill(ConcurrentStack<T> stack, int length, ref Reader reader)
         {
             if (NinoRecycler<T>.MayRecycle)
             {
@@ -584,15 +611,11 @@ namespace Nino.Core
             }
 
             for (int i = 0; i < length; i++)
-                stack.Push(ReadItem(ref reader));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static T ReadItem(ref Reader reader)
-        {
-            T item = default;
-            default(TFormatter).Deserialize(ref reader, ref item);
-            return item;
+            {
+                T item = default;
+                default(TFormatter).Deserialize(ref reader, ref item);
+                stack.Push(item);
+            }
         }
     }
 }

@@ -32,7 +32,8 @@ internal static class WireEncoding
         {
             "ArrayFormatter" or "ArraySegmentFormatter" or "MemoryFormatter" or "ReadOnlyMemoryFormatter"
                 or "ReadOnlySequenceFormatter" or "ListFormatter" or "CollectionFormatter" or "HashSetFormatter"
-                or "QueueFormatter" or "StackFormatter" or "ProducerConsumerFormatter" or "BlockingCollectionFormatter"
+                or "QueueFormatter" or "StackFormatter" or "ProducerConsumerFormatter"
+                or "ConcurrentStackFormatter" or "BlockingCollectionFormatter"
                 or "InterfaceListFormatter" or "InterfaceSetFormatter" => $"seq({e[0]})",
             "UnmanagedArrayFormatter" or "UnmanagedListFormatter" => $"seq({RawLayout.Describe(types[types.Length - 1])})",
             "NullableArrayFormatter" or "NullableListFormatter" => $"seq({RawLayout.Describe(compilation

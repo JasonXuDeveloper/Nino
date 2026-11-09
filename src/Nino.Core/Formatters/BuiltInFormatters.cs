@@ -67,6 +67,7 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(StackFormatter<,,>), Priority = 25)]
 [assembly: NinoFormatter(typeof(DictionaryFormatter<,,,,>), Priority = 20)]
 [assembly: NinoFormatter(typeof(DictionaryLikeFormatter<,,,,>), Priority = 10)]
+[assembly: NinoFormatter(typeof(ConcurrentStackFormatter<,>), Priority = 5)]
 [assembly: NinoFormatter(typeof(ProducerConsumerFormatter<,,>), Priority = 5)]
 [assembly: NinoFormatter(typeof(CollectionFormatter<,,>))]
 

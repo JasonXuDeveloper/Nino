@@ -481,10 +481,8 @@ public class CollectionSerializationTests
     {
         var stack = new AlternateRefillStack();
         stack.Push(99);
-        var reader = new Reader(NinoSerializer.Serialize(new[] { 1, 2 }));
-        var target = stack;
-        default(ProducerConsumerFormatter<AlternateRefillStack, int, UnmanagedFormatter<int>>)
-            .Deserialize(ref reader, ref target);
+        ConcurrentStack<int> target = stack;
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(new[] { 1, 2 }), ref target);
 
         Assert.AreSame(stack, target);
         Assert.AreEqual(2, stack.TakeCalls);
@@ -576,7 +574,10 @@ public class CollectionSerializationTests
         Assert.IsTrue(tempQueue.TryDequeue(out int val1) && val1 == 1);
         Assert.IsTrue(tempQueue.TryDequeue(out int val2) && val2 == 2);
 
-        // Test ConcurrentStack ref overload
+        // The concrete stack registration also wins when the runtime resolves the formatter itself.
+        var formatter = NinoFormatterResolver.GetFormatterType(typeof(ConcurrentStack<int>), topLevel: true);
+        Assert.AreEqual(typeof(ConcurrentStackFormatter<,>), formatter.GetGenericTypeDefinition());
+
         ConcurrentStack<int> concurrentStack = new ConcurrentStack<int>();
         concurrentStack.Push(1);
         concurrentStack.Push(2);
