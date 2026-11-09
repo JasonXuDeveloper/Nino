@@ -140,5 +140,10 @@ internal sealed class CodeWriter
     }
 
     /// <summary>The source written, ending with the blank line asked for last (one that separates it from what follows).</summary>
-    public override string ToString() => _blank ? _sb.ToString() + "\n" : _sb.ToString();
+    public string Finish()
+    {
+        if (_blank)
+            _sb.Append('\n');
+        return _sb.ToString();
+    }
 }

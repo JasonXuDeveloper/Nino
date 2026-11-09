@@ -98,8 +98,8 @@ internal static class RegistryEmitter
         w.Line($"internal const {CompilerServices}MethodImplOptions NoInline = {CompilerServices}MethodImplOptions.NoInlining;");
         w.Close();
         var aliases = new List<string>();
-        string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
-        return GeneratedCode.File(preamble.ToString(), aliases, body, fileScoped);
+        string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
+        return GeneratedCode.File(preamble.Finish(), aliases, body, fileScoped);
     }
 
     public static string EmitUsages(IEnumerable<FormatterRegistration> usages, IEnumerable<FactoryRegistration> factories,
@@ -156,7 +156,7 @@ internal static class RegistryEmitter
             w.AliasedLine(type, compact, "[__NinoDynamicDependency(__Fields, typeof(", "))]");
         EmitIdDispatch(w, "internal static", "", cases, compact);
         w.Close();
-        string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
+        string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         return GeneratedCode.File("", aliases, body, fileScoped);
     }
 

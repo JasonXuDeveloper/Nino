@@ -19,7 +19,7 @@ internal static class FormatterEmitter
         AccessorEmitter.EmitGenericUnsafeAccessors(w, m);
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
         // name has the formatter's type parameters.
-        string unaliased = w.ToString();
+        string unaliased = w.Finish();
         GeneratedCode.ReturnScratch(scratch);
         var aliases = new List<string>();
         string body = GeneratedCode.WithAliases(unaliased, m.IsGeneric ? null : m.TypeName, aliases,

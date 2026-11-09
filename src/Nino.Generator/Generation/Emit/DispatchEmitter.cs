@@ -101,7 +101,7 @@ internal static class DispatchEmitter
         var aliases = new List<string>();
         if (services == CompactServices)
             aliases.Add($"using __NinoCS = {CoreCompilerServices.TrimEnd('.')};");
-        string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
+        string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(aliases), body, fileScoped);
     }
 

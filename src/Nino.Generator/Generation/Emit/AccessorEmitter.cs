@@ -105,7 +105,7 @@ internal static class AccessorEmitter
             w.Close();
         if (hasNamespace)
             w.Close();
-        return w.ToString();
+        return w.Finish();
     }
 
     private static void EmitAccessorClass(CodeWriter w, TypeModel m)
