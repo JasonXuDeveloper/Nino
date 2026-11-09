@@ -166,6 +166,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   variadic concatenation saved about 590 KB but repeatedly produced slower model-edit samples. With
   fixed arity the model-edit timings varied in both directions, and incremental model reuse and collection
   of obsolete compiler objects matched the baseline. The emitter helper grew from 304 to 319 IL bytes.
+  For block namespaces, reserve the body length plus one quarter for indentation instead of twice
+  the body length. The largest block file in the replay was a 617 KB interceptor file with about
+  3% extra indentation. The smaller reservation saved 0.92 MB cold and 0.90 MB on a method-body edit
+  with identical output and timings within the local noise floor.
 - Reuse the first successful alias rewrite's builder for the rest of that file. The rewrite only
   shortens the body and the builder stays local, so later aliases do not allocate another
   body-sized buffer or retain one in the generator. The 577-file unit test replay matched byte for
