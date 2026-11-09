@@ -34,8 +34,9 @@ For .NET, Unity, Godot and HybridCLR, with the same bytes on every platform and 
   or name a type to create; every invalid input throws one `NinoDataException`. [Untrusted data](https://nino.xgamedev.net/en/docs/v4/security)
 - **Zero allocation.** Serialize into an `IBufferWriter<byte>`, deserialize into existing or pooled objects: nothing
   allocated per call, thread-safe, with no locks on the hot path. [Zero allocation](https://nino.xgamedev.net/en/docs/v4/advanced/zero-allocation)
-- **Everything at compile time.** No reflection, no IL emit, no registration, no init call: works on IL2CPP, Native AOT
-  and HybridCLR hot updates, and compiles up to 221× faster than v3. [Platforms](https://nino.xgamedev.net/en/docs/v4/platforms)
+- **Source-generated formatters.** Generated formatters access members directly, with no runtime IL emit or manual
+  registration. Nino works on IL2CPP, Native AOT and HybridCLR hot updates, and compiles up to 221× faster than v3.
+  [Platforms](https://nino.xgamedev.net/en/docs/v4/platforms)
 - **The same bytes everywhere.** Identical bytes on every runtime and CPU, and from Go, Rust and TypeScript through the
   code `nino-gen` writes for your types. [Other languages](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)
 - **Rich types that evolve.** Polymorphism without tags, keyed and version-tolerant types, reference tracking, every

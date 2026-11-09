@@ -260,7 +260,8 @@ Never suppress NINO006 or NINO007 blindly. Each id and its fix: [references/diag
 
 - No framing of several messages on one stream (the `Stream` overloads read one value to the end), no
   compression, no `System.Type`, no schema in the bytes, no human-readable output, no reading of v3 data.
-- No runtime registration of formatters and no reflection fallback: the generator must see every type.
+- Generated formatters access members directly. On JIT runtimes, Nino can use reflection on first use to resolve
+  a missing formatter registration. For Native AOT and IL2CPP, make the types visible to the generator.
 - No languages besides .NET, TypeScript/JavaScript, Go and Rust (use Protocol Buffers or MessagePack there).
 
 ## Example

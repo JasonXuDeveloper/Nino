@@ -24,7 +24,8 @@ https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore.md
 
 ## IL2CPP and Native AOT
 
-- No reflection at serialization time: types must appear in code the generator sees (a member type, the type
+- Generated formatters access members directly. Types that need a generated registration must appear in code the
+  generator sees (a member type, the type
   argument of a `NinoSerializer`/`NinoDeserializer` call, or the `typeof` argument of `SerializeBoxed`,
   `DeserializeBoxed` or `IsSupported`). A `Type` known only at run time registers nothing.
 - Native AOT on x64 takes Nino's SSSE3 paths on CPUs that have SSSE3; its AVX2 and AVX-512 paths need
