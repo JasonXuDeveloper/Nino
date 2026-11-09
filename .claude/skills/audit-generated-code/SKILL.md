@@ -78,9 +78,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   folded the duplicate source check in the inspected Arm64 and x64 listings. A ref-returning `TryReadBlock`
   with an out flag reduced generated source by 706 bytes but enlarged the Arm64 `PaddedItem[]` read loop and
   slowed the local A/B. Keep the checked member-by-member fallback for old data and truncated fields.
-- Omit `EndRegion` for a version-tolerant member region that only reads raw values and built-in strings. Keep
-  `ReadRegion` to validate lengths and any section of deferred bodies from newer writers. These reads cannot
-  change the reader context or enqueue work for the region. The Arm64 `PaddedItem[]` loop dropped from 572 to
+- Omit `EndRegion` for a version-tolerant member region whose raw members and formatters preserve read context.
+  Classify built-in strings, raw arrays and lists, and dictionaries with raw keys and raw or UTF-16 string
+  values in `FormatterTraitsOf`. Keep `ReadRegion` to validate lengths and any section of deferred bodies
+  from newer writers. The Arm64 `PaddedItem[]` loop dropped from 572 to
   452 machine-code bytes and `NamedItem`'s body from 1,136 to 940. Keep the unaligned raw reads and check a
   region at offset one.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
