@@ -43,6 +43,9 @@ internal enum FormatterTraits
 
     /// <summary>The generated formatter of the type itself.</summary>
     Generated = 1 << 7,
+
+    /// <summary>Reads without creating reference or deferral state in its reader.</summary>
+    PreservesReadContext = 1 << 8,
 }
 
 internal static class FormatterTraitsOf
@@ -55,17 +58,18 @@ internal static class FormatterTraitsOf
     public static FormatterTraits Of(string name, IReadOnlyList<FormatterTraits>? arguments = null) =>
         FormatterTraits.Core | name switch
         {
-            "StringFormatter" => FormatterTraits.String | FormatterTraits.Flat,
-            "Utf8StringFormatter" => FormatterTraits.Utf8String | FormatterTraits.Flat,
+            "StringFormatter" => FormatterTraits.String | FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
+            "Utf8StringFormatter" => FormatterTraits.Utf8String | FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
             "UnmanagedFormatter" => FormatterTraits.Raw,
             "ObjectFormatter" => FormatterTraits.Object,
             "CachedFormatter" => FormatterTraits.Cached,
-            "UnmanagedArrayFormatter" or "UnmanagedListFormatter" => FormatterTraits.Flat,
+            "UnmanagedArrayFormatter" or "UnmanagedListFormatter" => FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
             // DictionaryFormatter<[TDictionary, ]TKey, TValue, TKeyFormatter, TValueFormatter>
             "DictionaryFormatter" when arguments is { Count: >= 4 } &&
                                        (arguments[arguments.Count - 2] & FormatterTraits.Raw) != 0 &&
                                        (arguments[arguments.Count - 1] &
-                                        (FormatterTraits.Raw | FormatterTraits.String)) != 0 => FormatterTraits.Flat,
+                                        (FormatterTraits.Raw | FormatterTraits.String)) != 0 =>
+                FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
             _ => FormatterTraits.None,
         };
 
