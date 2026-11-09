@@ -129,12 +129,12 @@ internal static class TypeNames
             : name;
 
     /// <summary>Appends <c>Ns.Sub.</c> (escaped, with a trailing dot); nothing for the global namespace.</summary>
-    private static void AppendNamespace(StringBuilder sb, INamespaceSymbol? ns)
+    private static void AppendNamespace(StringBuilder sb, INamespaceSymbol? ns, bool escape = true)
     {
         if (ns == null || ns.IsGlobalNamespace)
             return;
-        AppendNamespace(sb, ns.ContainingNamespace);
-        sb.Append(Identifier(ns.Name)).Append('.');
+        AppendNamespace(sb, ns.ContainingNamespace, escape);
+        sb.Append(escape ? Identifier(ns.Name) : ns.Name).Append('.');
     }
 
     private static void AppendGlobal(StringBuilder sb, ITypeSymbol type)
@@ -371,23 +371,27 @@ internal static class TypeNames
                 if (named.IsTupleType && named.TupleUnderlyingType != null)
                     named = named.TupleUnderlyingType;
                 AppendDefinitionName(sb, named);
-                var args = AllTypeArguments(named);
-                if (args.Count == 0)
-                    return;
-                sb.Append('<');
-                for (int i = 0; i < args.Count; i++)
-                {
-                    if (i != 0)
-                        sb.Append(',');
-                    AppendRuntimeName(sb, args[i]);
-                }
-
-                sb.Append('>');
+                if (named.IsGenericType && AppendRuntimeArguments(sb, named))
+                    sb.Append('>');
                 return;
             default:
                 sb.Append(type.Name);
                 return;
         }
+    }
+
+    // The runtime puts every containing type's arguments in one list, outermost first.
+    private static bool AppendRuntimeArguments(StringBuilder sb, INamedTypeSymbol type)
+    {
+        bool written = type.ContainingType is { } containing && AppendRuntimeArguments(sb, containing);
+        foreach (var argument in type.TypeArguments)
+        {
+            sb.Append(written ? ',' : '<');
+            AppendRuntimeName(sb, argument);
+            written = true;
+        }
+
+        return written;
     }
 
     private static void AppendDefinitionName(StringBuilder sb, INamedTypeSymbol type)
@@ -398,10 +402,7 @@ internal static class TypeNames
             sb.Append('+');
         }
         else if (type.ContainingNamespace is { IsGlobalNamespace: false } ns)
-        {
-            sb.Append(Namespace(ns));
-            sb.Append('.');
-        }
+            AppendNamespace(sb, ns, escape: false);
 
         string name = type.MetadataName;
         int arity = name.IndexOf('`');
