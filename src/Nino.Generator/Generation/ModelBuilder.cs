@@ -365,9 +365,14 @@ internal static class ModelBuilder
             baseAttr.Format != attr.Format || SharedInstance(baseType))
             return 0;
         var baseSymbols = facts.Members.Of(baseType, baseAttr);
-        if (baseSymbols.Count > symbols.Count ||
-            !baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbols[i])).All(x => x))
+        if (baseSymbols.Count > symbols.Count)
             return 0;
+        for (int i = 0; i < baseSymbols.Count; i++)
+        {
+            if (!SymbolEqualityComparer.Default.Equals(baseSymbols[i], symbols[i]))
+                return 0;
+        }
+
         baseFormatter = facts.Resolver.GeneratedFormatter(baseType).ToString();
         return baseSymbols.Count;
     }
@@ -382,22 +387,21 @@ internal static class ModelBuilder
     /// </summary>
     private static bool SharedInstance(INamedTypeSymbol type)
     {
-        var arguments = new List<ITypeSymbol>();
+        bool shared = false;
         for (var t = type; t != null; t = t.ContainingType)
-            arguments.AddRange(t.TypeArguments);
-        return !arguments.Any(ContainsTypeParameter) && arguments.Any(Shares);
+        {
+            foreach (var argument in t.TypeArguments)
+            {
+                if (ContainsTypeParameter(argument))
+                    return false;
+                shared |= Shares(argument);
+            }
+        }
+
+        return shared;
 
         static bool Shares(ITypeSymbol t) =>
             t.IsReferenceType || t is INamedTypeSymbol { IsGenericType: true } n && n.TypeArguments.Any(Shares);
-
-        static bool ContainsTypeParameter(ITypeSymbol t) => t switch
-        {
-            ITypeParameterSymbol => true,
-            IArrayTypeSymbol a => ContainsTypeParameter(a.ElementType),
-            INamedTypeSymbol n => n.TypeArguments.Any(ContainsTypeParameter) ||
-                                  n.ContainingType != null && ContainsTypeParameter(n.ContainingType),
-            _ => false,
-        };
     }
 
     /// <summary>

@@ -248,13 +248,23 @@ internal static class TypeNames
     /// Whether <paramref name="type"/> names a type parameter anywhere: in its type arguments, its element type, or
     /// those of its containing types (<c>Outer&lt;T&gt;.Inner</c>).
     /// </summary>
-    public static bool ContainsTypeParameter(ITypeSymbol type) => type switch
+    public static bool ContainsTypeParameter(ITypeSymbol type)
     {
-        ITypeParameterSymbol => true,
-        IArrayTypeSymbol a => ContainsTypeParameter(a.ElementType),
-        INamedTypeSymbol n => AllTypeArguments(n).Any(ContainsTypeParameter),
-        _ => false,
-    };
+        if (type is ITypeParameterSymbol)
+            return true;
+        if (type is IArrayTypeSymbol array)
+            return ContainsTypeParameter(array.ElementType);
+        for (var named = type as INamedTypeSymbol; named != null; named = named.ContainingType)
+        {
+            foreach (var argument in named.TypeArguments)
+            {
+                if (ContainsTypeParameter(argument))
+                    return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>Whether <paramref name="type"/> is or contains the type parameter <paramref name="p"/>.</summary>
     public static bool Mentions(ITypeSymbol type, ITypeParameterSymbol p) => type switch
