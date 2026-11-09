@@ -374,6 +374,23 @@ public class BclTypeTests
         CollectionAssert.AreEqual(expected, value);
     }
 
+    [TestMethod]
+    public void TwoSegmentByteArrayReadsAcceptSplitHeaders()
+    {
+        byte[] expected = { 10, 11, 4, 5, 6, 7 };
+        byte[] wire = NinoSerializer.Serialize(expected);
+        for (int split = 0; split < sizeof(int); split++)
+        {
+            var first = new Segment<byte>(wire[..split]);
+            var last = first.Append(wire[split..]);
+            var data = new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length);
+            CollectionAssert.AreEqual(expected, NinoDeserializer.Deserialize<byte[]>(data));
+
+            var truncated = new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length - 1);
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<byte[]>(truncated));
+        }
+    }
+
     private sealed class Segment<T> : ReadOnlySequenceSegment<T>
     {
         public Segment(T[] items) => Memory = items;

@@ -30,18 +30,24 @@ namespace Nino.Core.Internal
                 return false;
 
             var position = data.Start;
-            if (!data.TryGet(ref position, out var first) || first.Length < NinoWire.LengthSize ||
-                !data.TryGet(ref position, out var second) || position.GetObject() != null ||
+            if (!data.TryGet(ref position, out var first))
+                return false;
+            if (first.Length < NinoWire.LengthSize)
+                return TryReadSplitByteArray(data, position, first, length, ref value);
+            if (!data.TryGet(ref position, out var second) || position.GetObject() != null ||
                 (long)first.Length + second.Length != length)
                 return false;
-
             var prefix = first.Span;
             int count = NinoUnsafe.Read<int>(ref MemoryMarshal.GetReference(prefix));
             if (count <= 0 || (long)count + NinoWire.LengthSize != length || NinoLimits.TooLong(count))
                 return false;
 
-            var left = prefix.Slice(NinoWire.LengthSize);
-            var right = second.Span;
+            return CopyByteArray(prefix.Slice(NinoWire.LengthSize), second.Span, count, ref value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool CopyByteArray(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, int count, ref byte[] value)
+        {
             if (value != null && (value.Length != count || left.Overlaps(value) || right.Overlaps(value)))
                 return false;
 
@@ -50,6 +56,26 @@ namespace Nino.Core.Internal
             right.CopyTo(array.AsSpan(left.Length));
             value = array;
             return true;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryReadSplitByteArray(in ReadOnlySequence<byte> data, SequencePosition position,
+            ReadOnlyMemory<byte> first, long length, ref byte[] value)
+        {
+            if (length < NinoWire.LengthSize || !data.TryGet(ref position, out var second) ||
+                position.GetObject() != null || (long)first.Length + second.Length != length)
+                return false;
+
+            var right = second.Span;
+            int rest = NinoWire.LengthSize - first.Length;
+            Span<byte> header = stackalloc byte[NinoWire.LengthSize];
+            first.Span.CopyTo(header);
+            right.Slice(0, rest).CopyTo(header.Slice(first.Length));
+            int count = NinoUnsafe.Read<int>(ref MemoryMarshal.GetReference(header));
+            if (count <= 0 || (long)count + NinoWire.LengthSize != length || NinoLimits.TooLong(count))
+                return false;
+
+            return CopyByteArray(default, right.Slice(rest), count, ref value);
         }
 
         /// <summary>
