@@ -297,7 +297,7 @@ internal static class Interceptors
             if (n != 0)
                 w.Line();
             foreach (var call in group)
-                w.AttributeLine("__NinoIntercepts", call.Location, call.Where);
+                w.AttributeLine(GeneratedCode.InterceptsName, call.Location, call.Where);
             w.Line(GeneratedCode.Inline);
             // "R Name(params)" becomes "public static R NameN(params) => call;"
             // Compact type names only. The legacy attribute contains a physical path.

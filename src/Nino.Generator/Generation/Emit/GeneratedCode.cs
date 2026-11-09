@@ -20,8 +20,9 @@ internal static class GeneratedCode
     /// <summary>The alias of <c>NinoDirect</c> (<c>__NinoDirect</c>), which the interceptors call.</summary>
     public const string DirectAlias = "using __NinoDirect = " + TypeNames.CoreCompilerServices + "NinoDirect;";
 
-    /// <summary>The alias of <c>InterceptsLocationAttribute</c> (<c>__NinoIntercepts</c>).</summary>
-    public const string InterceptsAlias = "using __NinoIntercepts = " + TypeNames.CompilerServices +
+    /// <summary>The alias of <c>InterceptsLocationAttribute</c> (<c>__NinoAt</c>).</summary>
+    public const string InterceptsName = "__NinoAt";
+    public const string InterceptsAlias = "using " + InterceptsName + " = " + TypeNames.CompilerServices +
                                           "InterceptsLocationAttribute;";
 
     /// <summary>
