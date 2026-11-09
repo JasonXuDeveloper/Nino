@@ -102,6 +102,10 @@ and when `asm.py compare` lists methods the change did not touch.
   errors and zero allocations in the reuse probe. It reduced the Arm64 Tier 1 formatter from
   1,280 to 1,220 bytes but increased x64 ReadyToRun from 388 to 413 bytes. No timing advantage
   persisted across the measured lengths. Keep the shared pointer append for now.
+  Append a single Latin-1 character directly instead of sizing the builder and widening a
+  chunk. The one-character reuse probe fell from about 30 ns to 6 ns in four local rounds,
+  with zero allocations and identical bytes. Longer inputs had no stable regression.
+  The helper went from 97 to 111 IL bytes and 421 to 450 x64 ReadyToRun bytes.
 - Write the zero count of an empty raw dictionary without entering its out-of-line pair loop. Keep the
   reservation shared with non-empty dictionaries. The Arm64 probe saved about 7–9 ns on empty dictionaries
   at both output offsets, with the non-empty controls on par.
