@@ -143,6 +143,9 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   The emitter-only replay of 572 real models saved about 32 KB in both load orders.
   Cold and edit timings varied, all 577 generated files matched, and incremental reuse,
   collection probes, and 69 targeted tests passed (`f19ec5b7`).
+  Keep the raw-run description as a readonly value. This removes one object per run and
+  saved 17–18 KB in the emitter-only replay in both load orders. The 577 outputs matched,
+  and tracked edits, collection probes and 69 targeted tests passed (`8a3b47aa`).
 - Create inherited-type cache entries only after an assembly passes the Nino-reference filter.
   Keeping plain symbols in the temporary list avoided entries for unrelated references and saved
   about 33 KB of cold allocations in the unit test project replay. All 577 files matched.
