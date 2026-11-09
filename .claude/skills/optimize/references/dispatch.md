@@ -81,6 +81,10 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   round. At one item the Arm64 Tier 1 caller and helper totaled 1,216 bytes against 1,200 before, while
   the x64 cross listing had a smaller caller with the work moved into a helper. Check tiering before
   interpreting the reference case: the initial string base listing did not reach Tier 1.
+  For two to four items, directly enqueuing individual reads or batching into an inline array saved
+  40 B for ints and 72 B for strings. The inline array restored one bulk read, but two-string reads
+  still slowed in every local round, and the enqueue path still uses synchronization per element.
+  Keep the measured empty and single-item path and the existing bulk constructor for larger reads.
 - Clear the full rented reference array on return from concurrent collection construction. Clearing only
   the used prefix left a sentinel from an earlier renter in the unused suffix of the same shared buffer.
   The 65-item ownership probe returned a clean prefix in both builds and a clean suffix only with
