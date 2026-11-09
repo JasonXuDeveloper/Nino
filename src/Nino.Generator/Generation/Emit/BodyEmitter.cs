@@ -26,7 +26,7 @@ internal sealed class BodyEmitter
     private int _blocks;
 
     /// <summary>
-    /// Which body is being emitted. Set for the extent of one copy of the body (<see cref="In"/>), never changed in
+    /// Which body is being emitted. Set for the extent of one copy of the body (<see cref="InMode"/>), never changed in
     /// the middle of one.
     /// </summary>
     /// <param name="Shallow">
@@ -38,7 +38,7 @@ internal sealed class BodyEmitter
     /// The instance member reads go to: <c>value</c>, or the local a class body caches it in (a store through
     /// <c>ref value</c> would otherwise make the JIT reload the reference after every call).
     /// </param>
-    private sealed record BodyMode(bool Shallow, bool Fresh, string Target)
+    private readonly record struct BodyMode(bool Shallow, bool Fresh, string Target)
     {
         /// <summary>The type's own formatter's body, reading into <c>value</c>.</summary>
         public static readonly BodyMode Own = new(false, false, "value");
@@ -46,19 +46,22 @@ internal sealed class BodyEmitter
 
     private BodyMode _mode = BodyMode.Own;
 
-    /// <summary>Emits <paramref name="emit"/> in <paramref name="mode"/>, then returns to the mode around it.</summary>
-    private void In(BodyMode mode, Action emit)
+    /// <summary>Switches to a mode until the emitted section ends.</summary>
+    private ModeScope InMode(BodyMode mode) => new(this, mode);
+
+    private readonly struct ModeScope : IDisposable
     {
-        var outer = _mode;
-        _mode = mode;
-        try
+        private readonly BodyEmitter _emitter;
+        private readonly BodyMode _previous;
+
+        public ModeScope(BodyEmitter emitter, BodyMode mode)
         {
-            emit();
+            _emitter = emitter;
+            _previous = emitter._mode;
+            emitter._mode = mode;
         }
-        finally
-        {
-            _mode = outer;
-        }
+
+        public void Dispose() => _emitter._mode = _previous;
     }
 
     public BodyEmitter(TypeModel model, CodeWriter writer, FormatterNames names)
@@ -105,12 +108,12 @@ internal sealed class BodyEmitter
     /// </summary>
     public void EmitShallowBodies()
     {
-        In(_mode with { Shallow = true }, () =>
+        using (InMode(_mode with { Shallow = true }))
         {
             EmitWriteBody();
             _w.Line();
             EmitReadBody();
-        });
+        }
     }
 
     // ----- entry ---------------------------------------------------------------------------------------------
@@ -770,7 +773,8 @@ internal sealed class BodyEmitter
             // collection constructors of the member reads. An instance passed in anyway is still read correctly
             // (its members are replaced, not reused).
             ReadIntoLocal(_m.Need(_m.Construction.Creator, nameof(ConstructionModel.Creator)) + "()");
-            In(_mode with { Fresh = true, Target = "__v" }, () => EmitInPlaceMembers(r));
+            using (InMode(_mode with { Fresh = true, Target = "__v" }))
+                EmitInPlaceMembers(r);
         }
         else if (_m.Construction.Recreate)
             EmitRecreatingRead(r);
@@ -882,7 +886,8 @@ internal sealed class BodyEmitter
                     _w.Line("var __v = value;");
                 else
                     ReadIntoLocal(create);
-                In(_mode with { Target = "__v" }, () => EmitInPlaceMembers(r));
+                using (InMode(_mode with { Target = "__v" }))
+                    EmitInPlaceMembers(r);
                 return;
             }
 
