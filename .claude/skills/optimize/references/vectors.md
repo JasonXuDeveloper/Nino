@@ -68,8 +68,10 @@ of bytes in a block.
   FullOpts cross listing from 140 to 113 bytes. Reads of 1,025 items and the 1,640/1,700-item pair
   straddling a 64 KiB source-plus-destination budget were within 0.5% across four rounds. The two sides
   emitted identical wire bytes and allocations matched. Keep this as evidence of smaller scalar machine
-  code. The extra branch and duplicate loop raised `ReadEach` from 459 to 503 IL bytes, so isolate where
-  the SIMD timing difference originates before considering this shape for production.
+  code. The extra branch and duplicate loop raised `ReadEach` from 459 to 503 IL bytes. A byte-identical
+  A/A control reproduced a timing gap across load contexts. With a process per build and offsets 0, 1,
+  and 7, the 64-item SIMD result showed no repeatable regression across four rounds per offset. Use the
+  separate-process protocol from `benchmark` for this case.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.

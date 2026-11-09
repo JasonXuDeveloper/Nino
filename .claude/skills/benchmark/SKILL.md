@@ -38,6 +38,10 @@ and median. `NinoDeserializePooled` read 213-284 ns (rc.7), 250-296 (main) round
 gave overlapping ranges. Never pin it to one CPU (`taskset`): the tiering thread starves and the loop times Tier0 code
 (1,000 ns instead of 250); `DOTNET_TieredCompilation=0` times code whose `static readonly` fields do not fold, not what
 runners measure. Runners still decide (round 123).
+Use a byte-identical A/A control before trusting a small-case result from two assembly load contexts in one
+process. The 64-item `BlockWaypoint` A/A showed a 5–15% gap on multiple Arm64 runs, even after alternating
+warmup order. In a process per build, four default-JIT A/B rounds at each of three offsets showed no repeatable
+SIMD regression for the scalar cursor gate. See `optimize/references/vectors.md` for the code-generation result.
 
 In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
 6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused
