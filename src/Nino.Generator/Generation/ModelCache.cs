@@ -121,8 +121,7 @@ internal static class ModelCache
     private sealed class CompilationState
     {
         public ProjectState Project = null!;
-        public Dictionary<SyntaxTree, SyntaxTree>? Reparsed;
-        public BodyEdit? Edit;
+        public MovedCalls? Edit;
 
         /// <summary>
         /// The <see cref="ProjectState.Epoch"/> of the compilation: two compilations of a project with the same epoch
@@ -131,7 +130,9 @@ internal static class ModelCache
         public int Epoch;
     }
 
-    private sealed record BodyEdit(SyntaxTree Previous, SyntaxTree Current, TextSpan Body, int Delta)
+    private sealed record BodyEdit(SyntaxTree Previous, SyntaxTree Current, TextSpan Body, int Delta);
+
+    private sealed record MovedCalls(SyntaxTree Current, TextSpan Body, int Delta)
     {
         public readonly Dictionary<int, CallEntry> Calls = new();
 
@@ -149,12 +150,6 @@ internal static class ModelCache
     private static readonly ConditionalWeakTable<ParseOptions, string> SymbolKeys = new();
     /// <summary>The latest state of each project (by <see cref="ProjectState.ProjectKey"/>), weakly. Guarded by <see cref="Lock"/>.</summary>
     private static readonly Dictionary<string, System.WeakReference<ProjectState>> LatestState = new();
-
-    /// <summary>The states used most recently, kept alive (<see cref="Touch"/>). Guarded by <see cref="Lock"/>.</summary>
-    private static readonly LinkedList<ProjectState> RecentStates = new();
-
-    /// <summary>How many states <see cref="RecentStates"/> keeps: more than the projects one solution builds at once.</summary>
-    private const int Recent = 32;
 
     private const int MinPrune = 64;
 
@@ -211,16 +206,8 @@ internal static class ModelCache
         lock (Lock)
         {
             // What a call binds to and builds depends on declarations only (no method body is read).
-            if (state.Calls.TryGetValue(key, out entry) && entry.Epoch == known.Epoch)
-            {
-                if (entry.Tree == tree)
-                    return entry.Call;
-                if (known.Reparsed != null && known.Reparsed.TryGetValue(entry.Tree, out var current) && current == tree)
-                {
-                    entry.Tree = tree;
-                    return entry.Call;
-                }
-            }
+            if (state.Calls.TryGetValue(key, out entry) && entry.Epoch == known.Epoch && entry.Tree == tree)
+                return entry.Call;
             if (known.Edit is { } edit && edit.Current == tree)
                 moved = edit.At(call.SpanStart);
         }
@@ -389,18 +376,63 @@ internal static class ModelCache
             }
             if (reparsed != null || edit != null)
                 RebaseModelTrees(state, reparsed, edit);
-            if (edit != null)
-            {
-                // A shifted call can take another old call's position. Snapshot before saving new positions.
-                foreach (var pair in state.Calls)
-                    if (pair.Value.Tree == edit.Previous && pair.Value.Epoch == state.Epoch)
-                        edit.Calls.Add(pair.Key.Position, pair.Value);
-            }
+            if (reparsed != null)
+                RebaseReparsedCalls(state, reparsed);
+            var moved = edit != null ? CaptureMovedCalls(state, edit) : null;
             state.Declared = trees;
-            Touch(state);
-            var created = new CompilationState { Project = state, Epoch = state.Epoch, Reparsed = reparsed, Edit = edit };
+            PruneDeadProjects();
+            var created = new CompilationState { Project = state, Epoch = state.Epoch, Edit = moved };
             States.Add(compilation, created);
             return created;
+        }
+    }
+
+    /// <summary>Detaches the edited tree's calls before a shifted call can take another old call's position.</summary>
+    private static MovedCalls CaptureMovedCalls(ProjectState state, BodyEdit edit)
+    {
+        var moved = new MovedCalls(edit.Current, edit.Body, edit.Delta);
+        List<(string Path, int Position)>? oldKeys = null;
+        foreach (var pair in state.Calls)
+        {
+            var entry = pair.Value;
+            if (entry.Tree == edit.Previous)
+            {
+                (oldKeys ??= new List<(string, int)>()).Add(pair.Key);
+                if (entry.Epoch == state.Epoch &&
+                    (pair.Key.Position < edit.Body.Start || pair.Key.Position >= edit.Body.End - edit.Delta))
+                {
+                    entry.Tree = edit.Current;
+                    moved.Calls.Add(pair.Key.Position, entry);
+                }
+            }
+
+            if (entry.Epoch != state.Epoch)
+                continue;
+            var dependencies = entry.Trees;
+            for (int i = 0; i < dependencies.Length; i++)
+                if (dependencies[i] == edit.Previous)
+                    dependencies[i] = edit.Current;
+        }
+
+        if (oldKeys != null)
+            foreach (var key in oldKeys)
+                state.Calls.Remove(key);
+        return moved;
+    }
+
+    /// <summary>Updates identical reparses before publishing the state, so it need not keep the old tree map.</summary>
+    private static void RebaseReparsedCalls(ProjectState state, Dictionary<SyntaxTree, SyntaxTree> reparsed)
+    {
+        foreach (var entry in state.Calls.Values)
+        {
+            if (entry.Epoch != state.Epoch)
+                continue;
+            if (reparsed.TryGetValue(entry.Tree, out var tree))
+                entry.Tree = tree;
+            var dependencies = entry.Trees;
+            for (int i = 0; i < dependencies.Length; i++)
+                if (reparsed.TryGetValue(dependencies[i], out var replacement))
+                    dependencies[i] = replacement;
         }
     }
 
@@ -516,16 +548,10 @@ internal static class ModelCache
         LatestState.TryGetValue(key, out var weak) && weak.TryGetTarget(out var state) ? state : null;
 
     /// <summary>
-    /// Keeps <paramref name="state"/> among the <see cref="Recent"/> ones, which stay alive between compilations (the
-    /// IDE may drop one compilation before it creates the next); any other state lives only as long as a compilation
-    /// of its project, so closed projects (and their syntax trees) are not kept. Guarded by <see cref="Lock"/>.
+    /// Drops names of projects whose compilations no longer keep their state alive. Guarded by <see cref="Lock"/>.
     /// </summary>
-    private static void Touch(ProjectState state)
+    private static void PruneDeadProjects()
     {
-        RecentStates.Remove(state);
-        RecentStates.AddFirst(state);
-        if (RecentStates.Count > Recent)
-            RecentStates.RemoveLast();
         if (LatestState.Count < PruneAt)
             return;
         foreach (var key in LatestState.Where(static p => !p.Value.TryGetTarget(out _)).Select(static p => p.Key).ToList())

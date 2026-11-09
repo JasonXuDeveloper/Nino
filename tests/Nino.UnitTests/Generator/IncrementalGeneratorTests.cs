@@ -634,6 +634,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
                 (CSharpParseOptions)tree.Options, tree.FilePath);
         }));
         var second = RunTracked(reparsed);
+        GC.KeepAlive(compilation);
         Assert.AreSame(Call(first), Call(second));
         CollectionAssert.AreEqual(first.GeneratedSources.Select(source => source.SourceText.ToString()).ToArray(),
             second.GeneratedSources.Select(source => source.SourceText.ToString()).ToArray());
@@ -655,8 +656,9 @@ public class MadeList : System.Collections.Generic.List<Made> { }
             }
             """));
         var first = CallBindings(RunTracked(compilation));
-        compilation = Edit(compilation, "Calls.cs", "new List<int>()", "new List<long>()");
-        var result = RunTracked(compilation);
+        var edited = Edit(compilation, "Calls.cs", "new List<int>()", "new List<long>()");
+        var result = RunTracked(edited);
+        GC.KeepAlive(compilation);
         var second = CallBindings(result);
         Assert.AreNotSame(first[0], second[0]);
         Assert.AreSame(first[1], second[1]);
@@ -665,7 +667,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
         Assert.IsFalse(usages.Contains("List<int>"));
 
         // A directive may change binding outside the method's braces.
-        compilation = Edit(compilation, "Calls.cs", "return NinoSerializer.Serialize(new List<long>());",
+        compilation = Edit(edited, "Calls.cs", "return NinoSerializer.Serialize(new List<long>());",
             "\n#nullable enable\nreturn NinoSerializer.Serialize(new List<long>());");
         Assert.AreNotSame(second[1], CallBindings(RunTracked(compilation))[1]);
 
@@ -697,11 +699,13 @@ public class MadeList : System.Collections.Generic.List<Made> { }
         var reparsed = compilation.RemoveAllSyntaxTrees().AddSyntaxTrees(compilation.SyntaxTrees.Select(tree =>
             CSharpSyntaxTree.ParseText(tree.GetText(), (CSharpParseOptions)tree.Options, tree.FilePath)));
         var second = RunTracked(reparsed);
+        GC.KeepAlive(compilation);
         Assert.AreSame(Model(first, "Box"), Model(second, "Box"));
         Assert.AreSame(Model(first, "Holder"), Model(second, "Holder"));
 
         var edited = Edit(reparsed, "Box.cs", "_ = 1;", "_ = 2;");
         var third = RunTracked(edited);
+        GC.KeepAlive(reparsed);
         Assert.AreSame(Model(second, "Box"), Model(third, "Box"));
         Assert.AreSame(Model(second, "Holder"), Model(third, "Holder"));
 
@@ -850,6 +854,73 @@ public static class Other { public static int GetFixedSize<T>() => 0; }
             Assert.AreSame(pair.Value, after[pair.Key], pair.Key);
         StringAssert.Contains(after["NinoGen.Inc_A0Formatter.g.cs"].ToString(), "Inc.A0");
         StringAssert.Contains(after["NinoGen.Registry.g.cs"].ToString(), "Inc_A0Formatter");
+    }
+
+    [TestMethod]
+    public void ClosedProjectReleasesGeneratorInputsAndOutputs()
+    {
+        var (tree, text) = GenerateAndReleaseProject();
+        for (int i = 0; i < 5 && (tree.IsAlive || text.IsAlive); i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        Assert.IsFalse(tree.IsAlive, "A closed project retained its syntax tree.");
+        Assert.IsFalse(text.IsAlive, "A closed project retained its generated formatter text.");
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void ActiveProjectReleasesThePreviousTree(bool editBody)
+    {
+        var (compilation, driver, previous) = GenerateAndReplaceTree(editBody);
+        for (int i = 0; i < 5 && previous.IsAlive; i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+
+        Assert.IsFalse(previous.IsAlive, "The active compilation retained its previous tree.");
+        GC.KeepAlive(compilation);
+        GC.KeepAlive(driver);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static (Compilation Compilation, GeneratorDriver Driver, WeakReference Previous) GenerateAndReplaceTree(
+        bool editBody)
+    {
+        var compilation = Create(("Reparsed.cs", Usings + """
+            [NinoType] public class Box { public int X; }
+            public static class Calls
+            {
+                public static byte[] Write(Box value) => NinoSerializer.Serialize(value);
+                public static void Work() { _ = 1; }
+            }
+            }
+            """));
+        var before = compilation.SyntaxTrees.Single();
+        var first = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator()).RunGenerators(compilation);
+        var next = CSharpSyntaxTree.ParseText(before.GetText(), (CSharpParseOptions)before.Options, before.FilePath);
+        var edited = editBody ? Edit(compilation, "Reparsed.cs", "_ = 1;", "_ = 2;")
+            : compilation.ReplaceSyntaxTree(before, next);
+        var second = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator()).RunGenerators(edited);
+        GC.KeepAlive(first);
+        GC.KeepAlive(compilation);
+        return (edited, second, new WeakReference(before));
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static (WeakReference Tree, WeakReference Text) GenerateAndReleaseProject()
+    {
+        var compilation = Create(("Closed.cs", Usings + "[NinoType] public class Closed { public int X; } }"));
+        var driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator()).RunGenerators(compilation);
+        var text = driver.GetRunResult().Results[0].GeneratedSources
+            .Single(source => source.HintName == "NinoGen.Inc_ClosedFormatter.g.cs").SourceText;
+        return (new WeakReference(compilation.SyntaxTrees.Single()), new WeakReference(text));
     }
 
     [TestMethod]
