@@ -175,10 +175,12 @@ namespace Nino.Core
             Writer local = default;
             writer.CopyTo(ref local);
             local.WriteLength(count);
+            ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
+            ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
             for (int i = 0; i < count; i++)
             {
-                default(TKeyFormatter).Serialize(keys[i], ref local);
-                default(TValueFormatter).Serialize(values[i], ref local);
+                default(TKeyFormatter).Serialize(Unsafe.Add(ref key, i), ref local);
+                default(TValueFormatter).Serialize(Unsafe.Add(ref value, i), ref local);
             }
 
             local.CopyTo(ref writer);
