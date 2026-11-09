@@ -181,7 +181,13 @@ internal static class GeneratedCode
         if (formatters is { Count: > 0 })
         {
             formatterAliases = new List<string>();
-            body = WithFormatterAliases(body, formatters, formatterAliases);
+            if (formatters.Count == 1)
+            {
+                string name = formatters[0].Replace(TypeNames.Gen, "");
+                body = WithAlias(body, name, "__NinoF0", $"using __NinoF0 = {name};", formatterAliases);
+            }
+            else
+                body = WithFormatterAliases(body, formatters, formatterAliases);
         }
 
         if (self != null)
@@ -226,6 +232,9 @@ internal static class GeneratedCode
             if (formatterAliases.Count != count)
                 aliased.Add(name);
         }
+
+        if (aliased.Count <= 1)
+            return body;
 
         // Renumbered from the order of replacement to the order given.
         var order = aliased.OrderBy(names.IndexOf).ToList();
