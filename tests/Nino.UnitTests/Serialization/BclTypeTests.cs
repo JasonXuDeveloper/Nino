@@ -138,6 +138,26 @@ public class BclTypeTests
         Assert.IsNull(RoundTrip((BitArray)null));
     }
 
+#if NET10_0_OR_GREATER
+    [TestMethod]
+    public void BitArrayPaddingStaysOffTheWireAndOutOfTheDecodedArray()
+    {
+        var bits = new BitArray(9);
+        var storage = System.Runtime.InteropServices.CollectionsMarshal.AsBytes(bits);
+        storage[1] = 0xFF;
+
+        var data = NinoSerializer.Serialize(bits);
+        CollectionAssert.AreEqual(new byte[] { 9, 0, 0, 0, 0, 1 }, data);
+        Assert.AreEqual((byte)0xFF, storage[1]);
+
+        data[^1] = 0xFF;
+        var decoded = NinoDeserializer.Deserialize<BitArray>(data);
+        Assert.AreEqual(9, decoded.Length);
+        Assert.IsTrue(decoded[8]);
+        Assert.AreEqual((byte)1, System.Runtime.InteropServices.CollectionsMarshal.AsBytes(decoded)[1]);
+    }
+#endif
+
     [TestMethod]
     public void TimeZones()
     {

@@ -203,12 +203,22 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            int count = value.Length, size = (count + 7) / 8;
+            int count = value.Length, size = (int)(((uint)count + 7) / 8);
+#if NET10_0_OR_GREATER
+            // The public view is already in wire order, but can expose dirty padding in the final byte.
+            var source = CollectionsMarshal.AsBytes(value).Slice(0, size);
+            ref byte block = ref writer.Reserve(NinoWire.LengthSize + size);
+            NinoUnsafe.Write(ref block, count);
+            var target = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref block, NinoWire.LengthSize), size);
+            source.CopyTo(target);
+            MaskTail(target, count);
+#else
             var bytes = ArrayPool<byte>.Shared.Rent(size);
             value.CopyTo(bytes, 0);
             writer.WriteLength(count);
             writer.WriteRaw(bytes.AsSpan(0, size));
             ArrayPool<byte>.Shared.Return(bytes);
+#endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -217,10 +227,34 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, 0, out int count))
                 return;
 
-            var bytes = reader.ReadRaw((int)(((uint)count + 7) / 8)).ToArray();
+            var bytes = reader.ReadRaw((int)(((uint)count + 7) / 8));
+#if NET10_0_OR_GREATER
+            value = ReadBits(bytes, count);
+#else
             // The last byte may hold bits past the count: Length cuts them off.
-            value = new BitArray(bytes) { Length = count };
+            value = new BitArray(bytes.ToArray()) { Length = count };
+#endif
         }
+
+#if NET10_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static BitArray ReadBits(ReadOnlySpan<byte> bytes, int count)
+        {
+            var bits = new BitArray(count);
+            var target = CollectionsMarshal.AsBytes(bits);
+            bytes.CopyTo(target);
+            MaskTail(target, count);
+            return bits;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void MaskTail(Span<byte> bytes, int count)
+        {
+            int tail = count & 7;
+            if (tail != 0)
+                bytes[bytes.Length - 1] &= (byte)((1 << tail) - 1);
+        }
+#endif
     }
 
     /// <summary>
