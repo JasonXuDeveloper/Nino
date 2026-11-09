@@ -171,6 +171,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   body-sized buffer or retain one in the generator. The 577-file unit test replay matched byte for
   byte and saved 11.6 MB of cold allocations per run. Cold and hot timing differences were within
   local noise, with the `WithAliases` IL growing from 473 to 490 bytes.
+  Storing the first eight match offsets on the stack skipped the duplicate prefix scan, but did
+  not materially change allocations or whole-project timings. The emitter-only result changed
+  direction with load order and the 577 files matched byte for byte. `WithAlias` grew from 242
+  to 352 IL bytes and from 760 to 1,212 Arm64 FullOpts bytes. Keep the simpler profitability scan.
 - Prefer one compiler-services namespace alias when it can replace overlapping type aliases. Adding it as a
   separate rewrite allocated about 6.7 MB more in a cold local generator replay. Skipping the overlapping
   rewrites reduced that overhead to about 0.94 MB and removed 47,024 bytes from the unit test project's
