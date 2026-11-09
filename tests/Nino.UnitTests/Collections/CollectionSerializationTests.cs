@@ -434,6 +434,41 @@ public class CollectionSerializationTests
     }
 
     [TestMethod]
+    public void ConcurrentQueueWritesASnapshotWhenItemsChangeDuringSerialization()
+    {
+        var queue = new ConcurrentQueue<SnapshotItem>();
+        queue.Enqueue(new SnapshotItem(1, () =>
+        {
+            queue.TryDequeue(out _);
+            queue.TryDequeue(out _);
+            queue.Enqueue(new SnapshotItem(3));
+        }));
+        queue.Enqueue(new SnapshotItem(2));
+
+        using var buffer = new NinoArrayBufferWriter(0);
+        var writer = new Writer(buffer);
+        default(ProducerConsumerFormatter<ConcurrentQueue<SnapshotItem>, SnapshotItem, SnapshotItemFormatter>)
+            .Serialize(queue, ref writer);
+        writer.Flush();
+
+        CollectionAssert.AreEqual(new[] { 1, 2 }, NinoDeserializer.Deserialize<int[]>(buffer.WrittenSpan));
+        Assert.AreEqual(1, queue.Count);
+    }
+
+    private sealed record SnapshotItem(int Value, Action OnWrite = null);
+
+    private struct SnapshotItemFormatter : INinoFormatter<SnapshotItem>
+    {
+        public void Serialize(SnapshotItem value, ref Writer writer)
+        {
+            value.OnWrite?.Invoke();
+            writer.Write(value.Value);
+        }
+
+        public void Deserialize(ref Reader reader, ref SnapshotItem value) => value = new SnapshotItem(reader.Read<int>());
+    }
+
+    [TestMethod]
     public void TestConcurrentCollectionsRefOverload()
     {
         // Test ConcurrentQueue ref overload

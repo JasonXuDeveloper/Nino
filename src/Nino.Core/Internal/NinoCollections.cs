@@ -84,7 +84,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, ref Writer writer)
+        internal static void WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             int countPos = writer.ReserveInt32();
