@@ -51,10 +51,13 @@ namespace Nino.Codegen.Inspect
             return child;
         }
 
-        public void Set(string text, string json)
+        private string? _fullValue;
+
+        public void Set(string text, string json, string? fullValue = null)
         {
             Value = text;
             Json = json;
+            _fullValue = fullValue;
         }
 
         public void SetNull() => Set("null", "null");
@@ -62,11 +65,11 @@ namespace Nino.Codegen.Inspect
         /// <summary>Adds to <see cref="Note"/>.</summary>
         public void AddNote(string note) => Note = Note == null ? note : Note + "; " + note;
 
-        /// <summary>The value as text with its children's, to compare two keys of a map or set.</summary>
+        /// <summary>The full value with its children's, to compare two keys of a map or set.</summary>
         public string Canonical()
         {
             if (Value != null)
-                return Value;
+                return _fullValue ?? Value;
             var sb = new StringBuilder("{");
             foreach (var child in Children)
                 sb.Append(child.Name).Append('=').Append(child.Canonical()).Append(';');

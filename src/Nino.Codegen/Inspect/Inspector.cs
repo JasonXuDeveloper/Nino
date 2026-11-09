@@ -418,7 +418,7 @@ namespace Nino.Codegen.Inspect
             string json = InspectNode.JsonString(text);
             node.Set(text.Length <= ShownChars
                 ? json
-                : InspectNode.JsonString(text.Substring(0, ShownChars)) + $" ... ({text.Length} chars)", json);
+                : InspectNode.JsonString(text.Substring(0, ShownChars)) + $" ... ({text.Length} chars)", json, json);
             node.AddNote($"{form}, {text.Length} char(s)");
         }
 
@@ -493,8 +493,12 @@ namespace Nino.Codegen.Inspect
             {
                 var child = node.Add(label(i), _r.Pos);
                 Value(element, env, child);
-                if (seen != null && !seen.Add(child.Canonical()))
-                    throw WireReader.Fail(child.Offset, $"{unique} {child.Canonical()} repeated");
+                if (seen != null)
+                {
+                    string canonical = child.Canonical();
+                    if (!seen.Add(canonical))
+                        throw WireReader.Fail(child.Offset, $"{unique} {child.Value ?? canonical} repeated");
+                }
             }
         }
 
@@ -519,7 +523,7 @@ namespace Nino.Codegen.Inspect
                 if (key.Json == "null")
                     throw WireReader.Fail(key.Offset, "a null key");
                 if (!seen.Add(canonical))
-                    throw WireReader.Fail(key.Offset, $"key {canonical} repeated");
+                    throw WireReader.Fail(key.Offset, $"key {key.Value ?? canonical} repeated");
                 var value = entry.Add("value", _r.Pos);
                 value.Type = TypeNames.Runtime(v.Value!.Clr);
                 Value(v.Value!, env, value);
@@ -626,7 +630,7 @@ namespace Nino.Codegen.Inspect
                         text.Append((bytes[i / 8] >> (i % 8) & 1) == 1 ? '1' : '0');
                     string all = text.ToString();
                     node.Set(bits <= 256 ? all : string.Concat(all.AsSpan(0, 256), $" ... ({bits} bits)"),
-                        InspectNode.JsonString(all));
+                        InspectNode.JsonString(all), all);
                     return;
                 }
                 case "timezone":

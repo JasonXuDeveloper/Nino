@@ -61,6 +61,29 @@ namespace Nino.Codegen.Tests
             return (exit, output.ToString());
         }
 
+        [TestMethod]
+        public void LongKeysAreComparedBeyondTheirDisplayPrefix()
+        {
+            string prefix = new string('x', 300);
+            string first = prefix + "a", second = prefix + "b";
+            const string setType = "System.Collections.Generic.HashSet<System.String>";
+            const string mapType = "System.Collections.Generic.Dictionary<System.String,System.Int32>";
+
+            Assert.IsNull(Inspect(_conformance, setType, NinoSerializer.Serialize(new HashSet<string>
+            {
+                first, second
+            })).Error);
+            Assert.IsNull(Inspect(_conformance, mapType, NinoSerializer.Serialize(new Dictionary<string, int>
+            {
+                [first] = 1, [second] = 2
+            })).Error);
+
+            // An array has the same encoding as a set and can write a repeated element.
+            var duplicate = Inspect(_conformance, setType, NinoSerializer.Serialize(new[] { first, first }));
+            Assert.IsNotNull(duplicate.Error);
+            StringAssert.Contains(duplicate.Error.Message, "repeated");
+        }
+
         // ---------------------------------------------------------------- the corpus
 
         [TestMethod]
