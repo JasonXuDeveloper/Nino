@@ -6,6 +6,13 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Inlining budget
 
+- Write canonical arrays directly into the span of a generic buffer writer. Reuse
+  `NinoLayout.CopyToWire` for the disjoint case and preserve overlap and padding semantics.
+  Plain span copying regressed the 8 KiB byte case in four local rounds. The existing kernel
+  improved it in each rerun and reduced the 8,192-element int path to two active 32 KiB
+  buffers instead of three. Both builds allocated 0 B after warmup. The raw array dispatch
+  remains out of line from the concrete buffer writer path.
+
 - Delay copying the prefix of a full synchronous stream buffer until the next read returns bytes.
   A non-seekable stream ending at a buffer boundary needs the EOF read but no prefix copy.
   The 64 KiB wire case improved in each of four local rounds, with the adjacent 64 KiB plus
