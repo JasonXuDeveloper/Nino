@@ -107,6 +107,9 @@ and when `asm.py compare` lists methods the change did not touch.
   length once and pass it to the pooled copy. Keep the bounds check there, before converting the length to an int.
   Share the copy out of line across direct and regular callers. Its bounded spans must consume exactly the
   reported length, so a custom segment's inconsistent `RunningIndex` cannot expose unfilled scratch bytes.
+  Keep the explicit `TryGet` loop and stop at the last segment. Replacing it with `foreach` made two
+  32-byte segments slower on both reads and writes in two local rounds, even though Arm64 machine code shrank
+  from 708 to 684 bytes. The JIT already shared the `CopyTo` and `Slice` bounds check.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
