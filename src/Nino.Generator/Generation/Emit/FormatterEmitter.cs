@@ -222,7 +222,9 @@ internal static class FormatterEmitter
         {
             w.Line(names.NoInline);
             w.Open($"private static void __SerializeTop({Signature.WriteParameters(t)})");
-            BodyEmitter.OnLocalCopy(w, reader: false, () => EmitTopWrite(w));
+            BodyEmitter.BeginLocalCopy(w, reader: false);
+            EmitTopWrite(w);
+            BodyEmitter.EndLocalCopy(w, reader: false);
             w.Close();
             w.Line();
             w.Line(names.NoInline);

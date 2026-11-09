@@ -177,8 +177,11 @@ internal sealed class BodyEmitter
         if (write ? !LocalWriter : !ReadTop)
             return $"private static void {body}({parameters})";
         // The members are written or read by the inlinable twin (__Top's, or one made for this), through the local.
-        _w.Block($"private static void {body}({parameters})", () => OnLocalCopy(_w, reader: !write,
-            () => _w.Line($"{body}Inline({(write ? $"{value}, ref __w" : "ref __r, ref value")});")));
+        _w.Open($"private static void {body}({parameters})");
+        BeginLocalCopy(_w, reader: !write);
+        _w.Line($"{body}Inline({(write ? $"{value}, ref __w" : "ref __r, ref value")});");
+        EndLocalCopy(_w, reader: !write);
+        _w.Close();
         _w.Line();
         _w.Line(_names.Inline);
         return $"private static void {body}Inline({parameters})";
@@ -746,7 +749,11 @@ internal sealed class BodyEmitter
     private void EmitReadBodyContents(bool fresh, bool local, bool present = false)
     {
         if (local)
-            OnLocalCopy(_w, reader: true, () => EmitReads(fresh, "__r", present));
+        {
+            BeginLocalCopy(_w, reader: true);
+            EmitReads(fresh, "__r", present);
+            EndLocalCopy(_w, reader: true);
+        }
         else
             EmitReads(fresh, "reader", present);
     }
@@ -771,18 +778,16 @@ internal sealed class BodyEmitter
             EmitInPlaceRead(r, present);
     }
 
-    /// <summary>
-    /// <paramref name="body"/> on a local copy of the reader (<c>__r</c>) or writer (<c>__w</c>), copied from the
-    /// parameter before and written back after (see <see cref="TypeModel.LocalReader"/>).
-    /// </summary>
-    internal static void OnLocalCopy(CodeWriter w, bool reader, Action body)
+    /// <summary>Copies the reader or writer into a local before emitting its body.</summary>
+    internal static void BeginLocalCopy(CodeWriter w, bool reader)
     {
-        var (type, parameter, local) = reader ? ("Reader", "reader", "__r") : ("Writer", "writer", "__w");
-        w.Line($"{Core}{type} {local} = default;");
-        w.Line($"{parameter}.CopyTo(ref {local});");
-        body();
-        w.Line($"{local}.CopyTo(ref {parameter});");
+        w.Line(reader ? Core + "Reader __r = default;" : Core + "Writer __w = default;");
+        w.Line(reader ? "reader.CopyTo(ref __r);" : "writer.CopyTo(ref __w);");
     }
+
+    /// <summary>Copies the local reader or writer back to the parameter after its body.</summary>
+    internal static void EndLocalCopy(CodeWriter w, bool reader) =>
+        w.Line(reader ? "__r.CopyTo(ref reader);" : "__w.CopyTo(ref writer);");
 
     /// <summary>
     /// The local <c>__v</c>, which the reads that follow go to (<see cref="BodyMode.Target"/>): the instance in
@@ -847,8 +852,11 @@ internal sealed class BodyEmitter
         if (ReadTop)
         {
             // The new-instance read is also __ReadTop's: inlinable, called here on a local copy of the reader.
-            _w.Block($"private static void {body}Fresh({parameters})",
-                () => OnLocalCopy(_w, reader: true, () => _w.Line($"{body}FreshInline(ref __r, ref value);")));
+            _w.Open($"private static void {body}Fresh({parameters})");
+            BeginLocalCopy(_w, reader: true);
+            _w.Line($"{body}FreshInline(ref __r, ref value);");
+            EndLocalCopy(_w, reader: true);
+            _w.Close();
             _w.Line();
             _w.Line(_names.Inline);
             _w.Open($"private static void {body}FreshInline({parameters})");
