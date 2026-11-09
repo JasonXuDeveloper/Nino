@@ -2,8 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.CompilerServices;
 
 namespace Nino.UnitTests;
 
@@ -375,6 +377,12 @@ public static partial class SettingsProbes
         }
     }
 
+    [StructLayout(LayoutKind.Sequential, Size = 1024)]
+    private struct LargeRaw
+    {
+        public int V;
+    }
+
     public static string UntrustedTrailing(byte[] _)
     {
         NinoSettings.Untrusted = true;
@@ -384,17 +392,22 @@ public static partial class SettingsProbes
         var deep = NinoSerializer.Serialize(Chain(300));
         var plain = NinoSerializer.Serialize(UntrustedChain.Of(300));
         var ints = NinoSerializer.Serialize(new[] { 1, 2 });
+        var raw = NinoSerializer.Serialize(new LargeRaw { V = 17 });
         // Exactly the value: read, also with its bodies deferred past the inline depth (in a region and outside).
         if (NinoDeserializer.Deserialize<UntrustedHolder>(holder).Name != "x" ||
             NinoDeserializer.Deserialize<StrictChain>(chain).Depth() != 300 ||
             NinoDeserializer.Deserialize<UntrustedStructNode>(deep).V != 1 ||
             NinoDeserializer.Deserialize<UntrustedChain>(plain).Next.Next.V != 3 ||
             NinoDeserializer.Deserialize<int[]>(ints).Length != 2 ||
-            NinoDeserializer.Deserialize<int>(new byte[4]) != 0)
+            NinoDeserializer.Deserialize<int>(new byte[4]) != 0 ||
+            NinoDirect.DeserializeRaw<int>(new byte[4]) != 0 ||
+            NinoDirect.DeserializeRaw<LargeRaw>(raw).V != 17)
             return "exact";
         UntrustedHolder into = null;
         object boxed = null;
         return Fails<int>(new byte[5], "int") ??
+               Throws<NinoDataException>(() => NinoDirect.DeserializeRaw<int>(new byte[5]), "direct raw int") ??
+               Throws<NinoDataException>(() => NinoDirect.DeserializeRaw<LargeRaw>(Plus(raw)), "direct large raw") ??
                Fails<int[]>(Plus(ints), "int[]") ??
                Fails<UntrustedHolder>(Plus(holder), "class") ??
                Fails<StrictChain>(Plus(chain), "deferred in a region") ??

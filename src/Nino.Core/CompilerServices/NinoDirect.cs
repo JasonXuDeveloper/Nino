@@ -246,26 +246,49 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// <see cref="NinoDeserializer.Deserialize{T}(ReadOnlySpan{byte})"/> of a value the generator found is copied
-        /// as its raw bytes: a length check and a load. One return, whose value is loaded in the block that returns
-        /// it: an inlinee with several returns (or a value that crosses a branch) passes a struct through a stack
-        /// temporary, which a struct the JIT cannot promote (a raw struct with <c>Pack</c>) keeps in memory, a load
-        /// and a store more per 8 bytes. A value that is not raw after all (a runtime whose layout is not the wire's) is read by the regular call into a heap copy, which it is loaded from.
+        /// as its raw bytes: a length check and a load. When that path is unavailable, small values use a stack
+        /// local. Large values keep the heap fallback so the caller does not reserve another large stack slot.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T DeserializeRaw<T>(ReadOnlySpan<byte> data)
         {
+            // Keep the stack local in a separate method: Tier0 would reserve it for large T even on a dead branch.
+            if (Unsafe.SizeOf<T>() <= MaxStackRawCopy)
+                return DeserializeSmallRaw<T>(data);
+
             ref byte source = ref MemoryMarshal.GetReference(data);
             // Folded to one of the two branches (NinoSettings.Untrusted: the other, which checks the value and the
             // length).
             if (!NinoRaw.IsRead<T>() || NinoLimits.Untrusted)
-                source = ref DeserializeOther<T>(data);
+                source = ref DeserializeLargeRaw<T>(data);
+            else if (data.Length < Unsafe.SizeOf<T>())
+                NinoThrow.EndOfData();
+            return NinoUnsafe.Read<T>(ref source);
+        }
+
+        private const int MaxStackRawCopy = 256;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static T DeserializeSmallRaw<T>(ReadOnlySpan<byte> data)
+        {
+            scoped ref byte source = ref MemoryMarshal.GetReference(data);
+            T copy;
+            if (!NinoRaw.IsRead<T>() || NinoLimits.Untrusted)
+            {
+                DeserializeOther(data, out copy);
+                source = ref Unsafe.As<T, byte>(ref copy);
+            }
             else if (data.Length < Unsafe.SizeOf<T>())
                 NinoThrow.EndOfData();
             return NinoUnsafe.Read<T>(ref source);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static ref byte DeserializeOther<T>(ReadOnlySpan<byte> data)
+        private static void DeserializeOther<T>(ReadOnlySpan<byte> data, out T value) =>
+            value = NinoDeserializer.Deserialize<T>(data);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ref byte DeserializeLargeRaw<T>(ReadOnlySpan<byte> data)
         {
             var copy = new T[1];
             copy[0] = NinoDeserializer.Deserialize<T>(data);
