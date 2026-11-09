@@ -805,15 +805,18 @@ namespace Nino.Core.Internal
                 }
             }
 
-            while (true)
-            {
-                var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, i));
-                lower.StoreUnsafe(ref destination, i);
-                upper.StoreUnsafe(ref destination, i + 8);
-                if (i + 16 == n)
-                    return;
-                i = i + 32 <= n ? i + 16 : n - 16;
-            }
+            nuint last = n - 16;
+            for (; i < last; i += 16)
+                Widen16(ref source, ref destination, i);
+            Widen16(ref source, ref destination, last);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Widen16(ref byte source, ref ushort destination, nuint offset)
+        {
+            var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, offset));
+            lower.StoreUnsafe(ref destination, offset);
+            upper.StoreUnsafe(ref destination, offset + 8);
         }
 #endif
 
