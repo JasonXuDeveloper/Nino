@@ -256,6 +256,11 @@ Insert registration statements directly into their ID cases in the existing orde
 the per-registration tuple arrays and the iterator chains in both registry emitters. The
 isolated registry replay allocated about 35 KB less in both load orders. The 577 outputs matched,
 incremental reuse and collection checks passed, and cold and edit times varied (`9ef11af1`).
+Index registry buckets by their dense masked IDs and enumerate them in ascending order.
+This avoids grouping, sorting bucket keys, and creating per-bucket delegates. Isolated
+registry emission saved about 17.6 KB in both load orders. Cold timings stayed within 1%,
+the 577 generated files matched, incremental reuse and collection checks passed, and
+73 targeted tests passed (`5071d778`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
