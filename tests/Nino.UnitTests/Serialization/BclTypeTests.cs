@@ -121,6 +121,11 @@ public class BclTypeTests
         NinoDeserializer.Deserialize(NinoSerializer.Serialize(new StringBuilder("new")), ref existing);
         Assert.AreEqual("new", existing.ToString());
 
+        var same = existing;
+        NinoDeserializer.Deserialize(new byte[] { 3, 0xE9 }, ref existing);
+        Assert.AreSame(same, existing);
+        Assert.AreEqual("é", existing.ToString());
+
         Assert.IsNull(RoundTrip((StringBuilder)null));
         Assert.AreEqual("", RoundTrip(new StringBuilder()).ToString());
     }

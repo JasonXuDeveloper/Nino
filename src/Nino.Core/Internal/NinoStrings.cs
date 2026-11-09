@@ -618,6 +618,12 @@ namespace Nino.Core.Internal
         /// </summary>
         public static unsafe void AppendLatin1(System.Text.StringBuilder builder, ref byte source, int length)
         {
+            if (length == 1)
+            {
+                builder.Append((char)source);
+                return;
+            }
+
 #if NET8_0_OR_GREATER
             // Widened straight into the builder's chunks, which Append sized (and zeroed): one pass, no copy.
             builder.Append('\0', length);
