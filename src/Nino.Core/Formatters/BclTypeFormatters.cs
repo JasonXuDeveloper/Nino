@@ -177,10 +177,34 @@ namespace Nino.Core
 #if !NETSTANDARD2_0
             value.CopyTo(0, MemoryMarshal.CreateSpan(ref Unsafe.As<byte, char>(ref body), length), length);
 #else
+            if (length >= 4096)
+            {
+                CopyPooled(value, length, ref body);
+                return;
+            }
+
             var chars = MemoryMarshal.AsBytes(value.ToString().AsSpan());
             NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(chars), (uint)chars.Length);
 #endif
         }
+
+#if NETSTANDARD2_0
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CopyPooled(StringBuilder value, int length, ref byte body)
+        {
+            var chars = ArrayPool<char>.Shared.Rent(length);
+            try
+            {
+                value.CopyTo(0, chars, 0, length);
+                ref byte source = ref Unsafe.As<char, byte>(ref chars[0]);
+                NinoUnsafe.Copy(ref body, ref source, (uint)length * sizeof(char));
+            }
+            finally
+            {
+                ArrayPool<char>.Shared.Return(chars);
+            }
+        }
+#endif
 
         public unsafe void Deserialize(ref Reader reader, ref StringBuilder value)
         {
