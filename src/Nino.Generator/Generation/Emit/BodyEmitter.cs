@@ -364,30 +364,25 @@ internal sealed class BodyEmitter
     private (List<(MemberModel Member, string Offset)> Members, string Size) FixedLayout()
     {
         int constant = _m.Kind == FormatterKind.SealedClass ? 1 : 0;
-        var symbolic = new List<string>();
-        string Offset()
-        {
-            var parts = new List<string>(symbolic);
-            if (constant != 0 || parts.Count == 0)
-                parts.Insert(0, constant.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            return string.Join(" + ", parts);
-        }
+        string symbolic = "";
 
         var members = new List<(MemberModel, string)>();
         foreach (var member in _m.Members)
         {
-            members.Add((member, Offset()));
+            members.Add((member, RawBlock.Offset(constant, symbolic)));
             if (member.Raw is { IsConstant: true } raw)
+            {
                 constant += raw.Bytes;
-            else if (member.Raw != null)
-                symbolic.Add(member.Raw.Expression);
-            else if (IsBlockItem(member))
-                symbolic.Add($"{CoreCompilerServices}NinoBlocks.FixedSize<{member.TypeName}, {Formatter(member)}>()");
-            else
-                symbolic.Add($"default({Formatter(member)}).FixedSize");
+                continue;
+            }
+
+            string size = member.Raw?.Expression ?? (IsBlockItem(member)
+                ? $"{CoreCompilerServices}NinoBlocks.FixedSize<{member.TypeName}, {Formatter(member)}>()"
+                : $"default({Formatter(member)}).FixedSize");
+            symbolic = RawBlock.AppendSymbolic(symbolic, size);
         }
 
-        return (members, Offset());
+        return (members, RawBlock.Offset(constant, symbolic));
     }
 
     /// <summary>

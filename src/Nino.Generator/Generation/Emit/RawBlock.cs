@@ -55,16 +55,20 @@ internal sealed class RawBlock
             if (raw.IsConstant)
                 _constant += raw.Bytes;
             else
-                _symbolic = _symbolic.Length == 0 ? raw.Expression : _symbolic + " + " + raw.Expression;
+                _symbolic = AppendSymbolic(_symbolic, raw.Expression);
         }
     }
 
-    private string Sum(int extra)
+    private string Sum(int extra) => Offset(_constant + extra, _symbolic);
+
+    internal static string AppendSymbolic(string symbolic, string size) =>
+        symbolic.Length == 0 ? size : symbolic + " + " + size;
+
+    internal static string Offset(int constant, string symbolic)
     {
-        int constant = _constant + extra;
-        if (_symbolic.Length == 0)
+        if (symbolic.Length == 0)
             return constant.ToString(CultureInfo.InvariantCulture);
-        return constant == 0 ? _symbolic : constant.ToString(CultureInfo.InvariantCulture) + " + " + _symbolic;
+        return constant == 0 ? symbolic : constant.ToString(CultureInfo.InvariantCulture) + " + " + symbolic;
     }
 
     /// <summary>A contiguous slice of a model's immutable member array.</summary>
