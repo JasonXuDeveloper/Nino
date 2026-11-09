@@ -181,28 +181,7 @@ internal static class GeneratedCode
         if (formatters is { Count: > 0 })
         {
             formatterAliases = new List<string>();
-            // Replaced longest first (a name inside a longer one is replaced with it), numbered in the order given
-            // (the members').
-            var names = formatters.Select(static n => n.Replace(TypeNames.Gen, "")).Distinct().ToList();
-            var aliased = new List<string>();
-            foreach (var name in names.OrderByDescending(static n => n.Length))
-            {
-                // Declared inside the namespace too, where the generated types need no qualifier either.
-                int count = formatterAliases.Count;
-                string alias = FormatterAlias(count);
-                body = WithAlias(body, name, alias, $"using {alias} = {name};", formatterAliases);
-                if (formatterAliases.Count != count)
-                    aliased.Add(name);
-            }
-
-            // Renumbered from the order of replacement to the order given.
-            var order = aliased.OrderBy(names.IndexOf).ToList();
-            if (!order.SequenceEqual(aliased))
-            {
-                body = Regex.Replace(body, @"\b__NinoF(\d+)\b", x =>
-                    FormatterAlias(order.IndexOf(aliased[int.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture)])));
-                formatterAliases = order.Select((name, i) => $"using {FormatterAlias(i)} = {name};").ToList();
-            }
+            body = WithFormatterAliases(body, formatters, formatterAliases);
         }
 
         if (self != null)
@@ -222,6 +201,35 @@ internal static class GeneratedCode
 
         if (formatterAliases != null)
             declarations.AddRange(formatterAliases);
+        return body;
+    }
+
+    private static string WithFormatterAliases(string body, IReadOnlyList<string> formatters,
+        List<string> formatterAliases)
+    {
+        // Replaced longest first (a name inside a longer one is replaced with it), numbered in the order given
+        // (the members').
+        var names = formatters.Select(static n => n.Replace(TypeNames.Gen, "")).Distinct().ToList();
+        var aliased = new List<string>();
+        foreach (var name in names.OrderByDescending(static n => n.Length))
+        {
+            // Declared inside the namespace too, where the generated types need no qualifier either.
+            int count = formatterAliases.Count;
+            string alias = FormatterAlias(count);
+            body = WithAlias(body, name, alias, $"using {alias} = {name};", formatterAliases);
+            if (formatterAliases.Count != count)
+                aliased.Add(name);
+        }
+
+        // Renumbered from the order of replacement to the order given.
+        var order = aliased.OrderBy(names.IndexOf).ToList();
+        if (!order.SequenceEqual(aliased))
+        {
+            body = Regex.Replace(body, @"\b__NinoF(\d+)\b", x =>
+                FormatterAlias(order.IndexOf(aliased[int.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture)])));
+            formatterAliases.Clear();
+            formatterAliases.AddRange(order.Select((name, i) => $"using {FormatterAlias(i)} = {name};"));
+        }
         return body;
     }
 
