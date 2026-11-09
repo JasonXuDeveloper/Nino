@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
@@ -487,10 +488,14 @@ namespace Nino.Core
                 array = items = new T[length];
             }
 
+#if NETSTANDARD2_0
             var span = new Span<T>(items, 0, length);
+#else
+            var span = MemoryMarshal.CreateSpan(ref NinoUnsafe.GetArrayDataReference(items), length);
+#endif
             if (!NinoElements.ReadOverwrites<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 span.Clear();
-            NinoElements.Read<T, TFormatter>(span, ref reader);
+            NinoElements.Read<T, TFormatter>(span, ref reader, prechecked: true);
             return items;
         }
     }
