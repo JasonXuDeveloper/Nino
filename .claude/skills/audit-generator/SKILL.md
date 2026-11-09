@@ -93,6 +93,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Chained comment edits on tests/Nino.UnitTests took 150 ms instead of 520 ms, TopLevelCall 2 ms instead of 290 ms
   (round 129). Measure edits there, not on `GeneratorBenchmark` alone: its comment edit lands in the file of every
   model, which rebuilds them all.
+- Reuse call bindings across identical reparses only with matching parse options, reference identities, and
+  source checksums. Require the same compilation options instance: the compiler server's resolver can throw
+  from value equality. For a single directive-free method-body edit, bind that body again and map calls outside it
+  back to their previous positions. Ask Roslyn for current interceptor locations even before the edit position,
+  because the file checksum changed. Compare each edited output with a baseline that bound the calls normally.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations

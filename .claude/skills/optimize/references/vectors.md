@@ -37,6 +37,9 @@ of bytes in a block.
 - Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (78f9a1ea).
   `GetChunks` can allocate a chunk index, even for a short but unusually fragmented builder. Keep the modern
   small-write loop where it measured faster, and advance the reader by the exact byte count already checked.
+- Refill a matching-length `BitArray` through its public byte span after validating the payload (0e55e78c).
+  Setting its length to the same value clears the unused bits and invalidates existing enumerators. A single
+  copy body for fresh and reused instances avoided duplicating the Arm64 copy code.
 
 - Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
   `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
