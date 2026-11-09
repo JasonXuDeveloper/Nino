@@ -78,6 +78,26 @@ public class StrictReadTests
     }
 
     [TestMethod]
+    public void TolerantRawGroupCanEndBetweenMembersButNotInsideOne()
+    {
+        var old = Ints(4, 42);
+        var fresh = NinoDeserializer.Deserialize<PaddedItem>(old);
+        Assert.AreEqual(42, fresh.Id);
+        Assert.AreEqual((short)0, fresh.Count);
+        Assert.IsFalse(fresh.Bound);
+
+        var reused = new PaddedItem { Id = -1, Count = 123, Bound = true };
+        NinoDeserializer.Deserialize(old, ref reused);
+        Assert.AreEqual(42, reused.Id);
+        Assert.AreEqual((short)123, reused.Count);
+        Assert.IsTrue(reused.Bound);
+
+        Invalid<PaddedItem>(Concat(Ints(3), new byte[] { 42, 0, 0 }));
+        Invalid<PaddedItem>(Concat(Ints(5, 42), new byte[] { 123 }));
+        Invalid<PaddedItem>(Ints(7, 42));
+    }
+
+    [TestMethod]
     public void BoolsOtherThanZeroOrOneAreErrors()
     {
         Assert.IsTrue(NinoDeserializer.Deserialize<bool>(new byte[] { 1 }));
