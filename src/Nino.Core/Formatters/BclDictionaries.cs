@@ -50,6 +50,11 @@ namespace Nino.Core
                     ReadSorted(sorted, length, ref reader);
                     return true;
                 case SortedList<TKey, TValue> list:
+#if NET8_0_OR_GREATER
+                    if (typeof(TKey) == typeof(int) && typeof(TValue) == typeof(int) && length >= 16 &&
+                        TryReadSortedInt32Pairs(list, length, ref reader))
+                        return true;
+#endif
                     ReadSortedList(list, length, ref reader);
                     return true;
                 case ConcurrentDictionary<TKey, TValue> concurrent:
@@ -307,6 +312,54 @@ namespace Nino.Core
                 NinoCollections.ReturnRented(pairs);
             }
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryReadSortedInt32Pairs(SortedList<TKey, TValue> list, int length, ref Reader reader)
+        {
+            if (!CollectionViews.SortedList || !RawFormatter.Is<TKey, TKeyFormatter>() ||
+                !RawFormatter.Is<TValue, TValueFormatter>() ||
+                !ReferenceEquals(CollectionFields.Comparer(list), Comparer<TKey>.Default))
+                return false;
+
+            ref byte source = ref reader.ReadElements(length, 8);
+            ReadSortedInt32Pairs(Unsafe.As<SortedList<int, int>>(list), ref source, length);
+            return true;
+        }
+
+        private static void ReadSortedInt32Pairs(SortedList<int, int> list, ref byte source, int length)
+        {
+            // Validate order before changing the arrays. The same checked wire block feeds the comparer fallback.
+            int previous = NinoUnsafe.Read<int>(ref source);
+            for (int i = 1; i < length; i++)
+            {
+                int key = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, i * 8));
+                if (key <= previous)
+                {
+                    for (int j = 0; j < length; j++)
+                    {
+                        ref byte pair = ref Unsafe.Add(ref source, j * 8);
+                        NinoCollections.AddUnique(list, NinoUnsafe.Read<int>(ref pair),
+                            NinoUnsafe.Read<int>(ref Unsafe.Add(ref pair, 4)), j);
+                    }
+
+                    return;
+                }
+
+                previous = key;
+            }
+
+            int[] keys = CollectionFields.Keys(list), values = CollectionFields.Values(list);
+            if (keys.Length < length)
+                CollectionFields.Keys(list) = keys = new int[length];
+            if (values.Length < length)
+                CollectionFields.Values(list) = values = new int[length];
+            NinoBlockCollections.DeinterleaveInt32(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
+                ref NinoUnsafe.GetArrayDataReference(values), length);
+            CollectionFields.Size(list) = length;
+            CollectionFields.Version(list)++;
+        }
+#endif
 
         private static bool TryAdopt(SortedList<TKey, TValue> list, KeyValuePair<TKey, TValue>[] pairs, int length)
         {

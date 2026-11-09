@@ -173,6 +173,35 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void SortedListReadsRawPairsInOrderAndOutOfOrder()
+    {
+        var expected = new SortedList<int, int>();
+        for (int i = 0; i < 19; i++)
+            expected.Add(i * 3 - 5, -i * 13 - 1);
+
+        using var buffer = new NinoArrayBufferWriter();
+        buffer.GetSpan(1);
+        buffer.Advance(1);
+        NinoSerializer.Serialize(expected, buffer);
+        byte[] bytes = buffer.WrittenSpan.Slice(1).ToArray();
+        var list = new SortedList<int, int>(32) { [123] = 456 };
+        NinoDeserializer.Deserialize(buffer.WrittenSpan.Slice(1), ref list);
+        CollectionAssert.AreEqual(expected.ToList(), list.ToList());
+
+        byte[] descending = NinoSerializer.Serialize(expected.Reverse().ToDictionary(p => p.Key, p => p.Value));
+        NinoDeserializer.Deserialize(descending, ref list);
+        CollectionAssert.AreEqual(expected.ToList(), list.ToList());
+        var reverseComparer = new SortedList<int, int>(Comparer<int>.Create((a, b) => b.CompareTo(a)));
+        NinoDeserializer.Deserialize(bytes, ref reverseComparer);
+        CollectionAssert.AreEqual(expected.Reverse().ToList(), reverseComparer.ToList());
+        Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize<SortedList<int, int>>(bytes.AsSpan(0, bytes.Length - 1)));
+
+        Buffer.BlockCopy(bytes, 4, bytes, 12, 4);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SortedList<int, int>>(bytes));
+    }
+
+    [TestMethod]
     public void ExistingSortedAndConcurrentDictionariesAreRefilled()
     {
         var bytes = NinoSerializer.Serialize(new Dictionary<int, int> { [5] = 50, [1] = 10 });

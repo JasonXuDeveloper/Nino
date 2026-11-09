@@ -54,6 +54,35 @@ namespace Nino.Core.Internal
             }
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void DeinterleaveInt32(ref byte source, ref int first, ref int second, int count)
+        {
+            if (AdvSimd.Arm64.IsSupported || Sse2.IsSupported)
+            {
+                while (count >= Vector128<int>.Count)
+                {
+                    var a = Vector128.LoadUnsafe(ref source).AsInt32();
+                    var b = Vector128.LoadUnsafe(ref source, 16).AsInt32();
+                    var keys = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.UnzipEven(a, b)
+                        : Sse.Shuffle(a.AsSingle(), b.AsSingle(), 0x88).AsInt32();
+                    var values = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.UnzipOdd(a, b)
+                        : Sse.Shuffle(a.AsSingle(), b.AsSingle(), 0xDD).AsInt32();
+                    keys.StoreUnsafe(ref first);
+                    values.StoreUnsafe(ref second);
+                    source = ref Unsafe.Add(ref source, 32);
+                    first = ref Unsafe.Add(ref first, 4);
+                    second = ref Unsafe.Add(ref second, 4);
+                    count -= 4;
+                }
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                Unsafe.Add(ref first, i) = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, i * 8));
+                Unsafe.Add(ref second, i) = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, i * 8 + 4));
+            }
+        }
+
 #else
         /// <summary>Interleaves full vectors from checked, canonical four-byte arrays without padding.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
