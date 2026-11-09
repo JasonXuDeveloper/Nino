@@ -19,9 +19,11 @@ instructions in the loop. Record the remaining tradeoff alongside the evidence.
 When an experiment removes real work but the first A/B shows no gain, inspect the caller and loop for where the
 cost moved, then test a materially different variant before shelving it. Repair build or test infrastructure
 failures and rerun the relevant check before treating it as an outcome for the candidate.
-For a sound byref loop with disappointing timings, compare the frame, spills, helper inlining and tier promotion
-before changing the loop back. Try a different helper boundary or dispatch placement and measure the original
-and revised callers under default tiering.
+Keep a sound byref loop available as an A/B candidate while diagnosing a flat result or regression.
+Compare Tier 0 and Tier 1 at the public or generated caller and the loop on Arm64 and x64. Check cursor register
+pressure, spills, frame size, helper inlining and tier promotion. Keep the cursor loop fixed while testing a
+different helper boundary or short-tail dispatch. Remeasure short and representative inputs under default tiering
+before deciding what to land. See the `BlockWaypoint` example in [vectors.md](references/vectors.md).
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
