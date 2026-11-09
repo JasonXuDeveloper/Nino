@@ -208,7 +208,11 @@ namespace Nino.Core
             }
             catch
             {
-                Initialized.TryAdd(assembly, true);
+                lock (Lock)
+                {
+                    if (!IsRemoved(assembly))
+                        Initialized.TryAdd(assembly, true);
+                }
                 return;
             }
 

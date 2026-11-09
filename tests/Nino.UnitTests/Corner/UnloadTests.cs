@@ -6,6 +6,8 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
@@ -88,6 +90,58 @@ namespace Unloadable
         /// </summary>
         [TestMethod]
         public void RemovedAssemblyIsNotRegisteredAgain() => AssertUnloads(removeFirst: true, scanAfterRemove: true);
+
+        [TestMethod]
+        public void RemovedAssemblyIsNotRetainedWhenReadingAttributesFails()
+        {
+            var assembly = RemoveWhileReadingAttributes();
+            Collect(assembly);
+            Assert.IsFalse(assembly.IsAlive, "Initialization retained the assembly after removal.");
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference RemoveWhileReadingAttributes()
+        {
+            using var started = new ManualResetEventSlim();
+            using var resume = new ManualResetEventSlim();
+            var assembly = new FailingAttributeAssembly(started, resume);
+            var initialize = Task.Run(() => NinoRegistry.EnsureInitialized(assembly));
+            try
+            {
+                Assert.IsTrue(started.Wait(TimeSpan.FromSeconds(10)));
+                NinoRegistry.Remove(assembly);
+            }
+            finally
+            {
+                resume.Set();
+                initialize.GetAwaiter().GetResult();
+            }
+
+            return new WeakReference(assembly);
+        }
+
+        private sealed class FailingAttributeAssembly : Assembly
+        {
+            private readonly ManualResetEventSlim _started;
+            private readonly ManualResetEventSlim _resume;
+
+            public FailingAttributeAssembly(ManualResetEventSlim started, ManualResetEventSlim resume)
+            {
+                _started = started;
+                _resume = resume;
+            }
+
+            public override object[] GetCustomAttributes(Type attributeType, bool inherit)
+            {
+                _started.Set();
+                _resume.Wait();
+                throw new TypeLoadException();
+            }
+
+            public override bool Equals(object other) => ReferenceEquals(this, other);
+            public override int GetHashCode() => RuntimeHelpers.GetHashCode(this);
+            public override AssemblyName GetName(bool copiedName) => new AssemblyName(nameof(FailingAttributeAssembly));
+        }
 
         /// <summary>
         /// An unload followed by a load leaves the number of assemblies unchanged: the scan of every assembly must
