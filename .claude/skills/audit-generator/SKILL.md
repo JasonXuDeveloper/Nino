@@ -223,6 +223,9 @@ immutable body string exists. This lets the alias pass borrow the same slot and 
 a fresh writer buffer for each file. Four cold replays allocated 4.72–4.82 MB less and wall
 time stayed within 0.6%. All 577 outputs matched, tracked edits reused all 572 models, and the
 collection probes and 71 targeted tests passed (`2616fc2c`).
+Write a single indented line directly instead of allocating a closure for `CodeWriter.Indented`.
+Four cold replays allocated 111–184 KB less with wall time within 0.7%. All 577 files matched,
+the 572 models were reused on tracked edits, and the collection probes passed (`cb904042`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
