@@ -159,6 +159,14 @@ namespace Nino.Core
             TValue[] values = CollectionFields.Values(list);
             if ((uint)count > (uint)keys.Length || (uint)count > (uint)values.Length)
                 NinoThrow.ModifiedDuringWrite();
+            if (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>())
+            {
+                ref byte target = ref writer.ReserveCounted(count, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
+                if (count != 0)
+                    WriteSortedListRaw(keys, values, count, ref target);
+                return;
+            }
+
             Writer local = default;
             writer.CopyTo(ref local);
             local.WriteLength(count);
@@ -169,6 +177,24 @@ namespace Nino.Core
             }
 
             local.CopyTo(ref writer);
+        }
+
+        // The two arrays and the single destination reservation were checked by the caller.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteSortedListRaw(TKey[] keys, TValue[] values, int count, ref byte target)
+        {
+            int keySize = Unsafe.SizeOf<TKey>();
+            int pairSize = keySize + Unsafe.SizeOf<TValue>();
+            ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
+            ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
+            for (int i = 0; i < count; i++)
+            {
+                NinoUnsafe.WriteValueIn(ref target, 0, in key);
+                NinoUnsafe.WriteValueIn(ref target, keySize, in value);
+                key = ref Unsafe.Add(ref key, 1);
+                value = ref Unsafe.Add(ref value, 1);
+                target = ref Unsafe.Add(ref target, pairSize);
+            }
         }
 
         /// <summary>
