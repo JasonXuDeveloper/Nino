@@ -26,6 +26,9 @@ of bytes in a block.
 
 ## Vector loops
 
+- Keep indexed offsets in the scalar block-read tail until a measured case benefits from cursor stepping.
+  On the local `BlockWaypoint` probe, two bumped cursors removed the two loop multiplications but grew
+  `ReadEach` by 33 IL bytes and did not consistently improve the direct or public read paths.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
