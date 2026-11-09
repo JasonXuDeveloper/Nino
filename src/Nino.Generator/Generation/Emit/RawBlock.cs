@@ -16,7 +16,7 @@ internal sealed class RawBlock
     /// <summary>Size of a keyed member's header: key and length.</summary>
     private const int HeaderSize = KeySize + NinoWire.LengthSize;
 
-    private readonly List<string> _symbolic = new();
+    private string _symbolic = "";
     private int _constant;
 
     /// <summary>Byte offset of each member's value.</summary>
@@ -29,7 +29,7 @@ internal sealed class RawBlock
     public string Total => Sum(0);
 
     /// <summary>Whether <see cref="Total"/> is a number (no struct's size in it).</summary>
-    public bool IsConstant => _symbolic.Count == 0;
+    public bool IsConstant => _symbolic.Length == 0;
 
     /// <summary>Size expression of the block followed by <paramref name="extra"/> more bytes.</summary>
     public string Plus(int extra) => Sum(extra);
@@ -55,19 +55,16 @@ internal sealed class RawBlock
             if (raw.IsConstant)
                 _constant += raw.Bytes;
             else
-                _symbolic.Add(raw.Expression);
+                _symbolic = _symbolic.Length == 0 ? raw.Expression : _symbolic + " + " + raw.Expression;
         }
     }
 
     private string Sum(int extra)
     {
         int constant = _constant + extra;
-        if (_symbolic.Count == 0)
+        if (_symbolic.Length == 0)
             return constant.ToString(CultureInfo.InvariantCulture);
-        var parts = new List<string>(_symbolic);
-        if (constant != 0)
-            parts.Insert(0, constant.ToString(CultureInfo.InvariantCulture));
-        return string.Join(" + ", parts);
+        return constant == 0 ? _symbolic : constant.ToString(CultureInfo.InvariantCulture) + " + " + _symbolic;
     }
 
     /// <summary>A contiguous slice of a model's immutable member array.</summary>
