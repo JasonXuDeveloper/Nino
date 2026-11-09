@@ -128,6 +128,8 @@ and when `asm.py compare` lists methods the change did not touch.
   an array with an element or array recycler registered. Recyclers can mutate the source before it is copied.
   Keep split headers in a separate cold method that joins only the four header bytes. Joining them inside
   the ordinary two-segment reader regressed complete-header inputs in the local A/B.
+  Sharing both segment and count validation through inlined helpers still slowed split-header reuse
+  across both loading orders. Keep those checks local and share payload copying and replacement.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took

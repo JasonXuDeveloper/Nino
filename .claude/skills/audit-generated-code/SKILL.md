@@ -60,6 +60,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   Carrying original indices and building a remap saved about 48 KB per replay of the unit test formatters,
   but throughput followed load order and the Arm64 alias method grew from 3,060 to 3,480 bytes. Keep the
   simpler renumbering on this workload.
+  Keep formatter alias ordering and renumbering together, separate from self, Core and raw type aliases.
 - Find dispatch ID collisions with a set of seen IDs and allocate a collision set only on demand. Keep the
   original order and omit every entry with a colliding ID. This saved about 100 KB per dispatch emission on
   the unit test project with identical output. A separate attempt to stream the generated checks instead of
