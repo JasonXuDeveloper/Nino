@@ -68,14 +68,26 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
         }
     }
 
-    public IEnumerator<T> GetEnumerator()
-    {
-        return Items.AsEnumerable().GetEnumerator();
-    }
+    public Enumerator GetEnumerator() => new(Items);
 
-    IEnumerator IEnumerable.GetEnumerator()
+    IEnumerator<T> IEnumerable<T>.GetEnumerator() => ((IEnumerable<T>)Items).GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => Items.GetEnumerator();
+
+    public struct Enumerator
     {
-        return GetEnumerator();
+        private readonly T[] _items;
+        private int _index;
+
+        internal Enumerator(T[] items)
+        {
+            _items = items;
+            _index = -1;
+        }
+
+        public readonly T Current => _items[_index];
+
+        public bool MoveNext() => ++_index < _items.Length;
     }
 
     public static bool operator ==(EquatableArray<T> left, EquatableArray<T> right)
