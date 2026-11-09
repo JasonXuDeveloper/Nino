@@ -46,6 +46,15 @@ public struct StrictFlags
     public string Name;
 }
 
+[NinoType(format: NinoFormat.VersionTolerant)]
+public struct PaddedItemWithChain
+{
+    public int Id;
+    public short Count;
+    public bool Bound;
+    public StrictChain Added;
+}
+
 /// <summary>
 /// Bytes Nino never writes are errors in every mode: a bool or presence byte other than 0 or 1, a keyed member whose
 /// value does not fill its entry, a deferred section that does not match its region.
@@ -95,6 +104,25 @@ public class StrictReadTests
         Invalid<PaddedItem>(Concat(Ints(3), new byte[] { 42, 0, 0 }));
         Invalid<PaddedItem>(Concat(Ints(5, 42), new byte[] { 123 }));
         Invalid<PaddedItem>(Ints(7, 42));
+    }
+
+    [TestMethod]
+    public void UnalignedRawRegionSkipsAndValidatesUnknownDeferredBodies()
+    {
+        var bytes = NinoSerializer.Serialize(new PaddedItemWithChain
+        {
+            Id = 42, Count = 123, Bound = true, Added = StrictChain.Of(2000)
+        });
+        Assert.IsTrue(BitConverter.ToInt32(bytes, 0) < 0);
+        var unaligned = Concat(new byte[1], bytes, Ints(99));
+        var reader = new Reader(unaligned.AsSpan(1));
+        var value = NinoDeserializer.Deserialize<PaddedItem>(ref reader);
+        Assert.AreEqual(42, value.Id);
+        Assert.AreEqual((short)123, value.Count);
+        Assert.IsTrue(value.Bound);
+        Assert.AreEqual(99, reader.UnsafeRead<int>());
+
+        Invalid<PaddedItem>(With(bytes, bytes.Length - sizeof(int), -1));
     }
 
     [TestMethod]

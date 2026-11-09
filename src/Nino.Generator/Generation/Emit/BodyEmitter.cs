@@ -941,7 +941,18 @@ internal sealed class BodyEmitter
     private void EndRegionRead(string outer)
     {
         if (Tolerant)
+        {
+            // Raw reads do not register references or queue deferred bodies. ReadRegion still validates a
+            // section written by a newer version whose members we do not read.
+            if (!_m.IsCollection && _m.Members.All(static m => m.Raw != null))
+            {
+                _w.Line(EndLabel + ":;");
+                return;
+            }
+
             _w.Line(EndLabel + ":");
+        }
+
         _w.Line($"{outer}.EndRegion(in __reader);");
     }
 
