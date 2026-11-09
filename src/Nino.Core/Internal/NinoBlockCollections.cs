@@ -511,7 +511,11 @@ namespace Nino.Core.Internal
         {
             // The bools of the blocks first: the copy and the vector paths move their bytes without a look, where
             // ReadBlock checks them (null for values without bools, and the test folds away).
-            if (NinoBlockPlan<T, TFormatter>.Bools != null && !GroupsCheck<T, TFormatter>(count))
+            if (NinoBlockPlan<T, TFormatter>.Bools != null &&
+#if NET8_0_OR_GREATER
+                NinoBlockPlan<T, TFormatter>.ScalarChecks.Copies &&
+#endif
+                !GroupsCheck<T, TFormatter>(count))
                 CheckBools<T, TFormatter>(ref source, count);
             if (NinoBlockPlan<T, TFormatter>.IsMemory)
             {

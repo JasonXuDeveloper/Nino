@@ -634,6 +634,13 @@ namespace Nino.Core.Internal
             }
         }
 
+        internal static class ScalarChecks
+        {
+            /// <summary>Whether a read can bypass the per-value formatter and its checks.</summary>
+            public static readonly bool Copies =
+                IsMemory || Shuffles || ReadPlan<NinoPhase0>.Enabled || LanePlan<NinoReads>.Enabled;
+        }
+
         /// <summary>Values per 64-byte vector (at least 2).</summary>
         public static readonly int PerVector = 64 / Unsafe.SizeOf<T>();
 
