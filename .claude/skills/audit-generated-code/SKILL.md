@@ -210,6 +210,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   replayed files. It removed 2,444 source bytes with identical normalized unit test assembly IL, but
   added about 740 KB of cold generator allocations and enlarged the alias helper from 473 to 512 IL
   bytes. Prefer emitting such an alias directly if a workload uses it often enough.
+  A shorter `__NC` namespace alias for Core replaced the overlapping reader and writer aliases
+  after the compiler-services pass. It removed 36,002 bytes across 577 replayed files and saved
+  0.50 MB of cold allocations. The normalized unit test assembly IL matched, timings were flat,
+  and the alias helper grew from 490 to 571 IL bytes.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
   `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
