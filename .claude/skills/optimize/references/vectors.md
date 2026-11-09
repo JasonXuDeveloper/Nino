@@ -151,7 +151,7 @@ of bytes in a block.
   `KeyValuePair<int, int>` 0.844 (head 128 ns in 22 of 24 rounds; base 105, 151 or 182; floor median 1.006), `Queue<int>`
   0.690 (head 74 or 43, base 93-109 or 58; floor 0.999). Not on other CPUs: AMD's rep movsb lost to the loop 2-30 times up to 16 KB, and other C
   runtimes' memmove was not measured.
-- Allocate a new array uninitialized only where the read writes every byte of it, padding included
+- Allocate a new array uninitialized only where the operation writes every byte of it, padding included
   (`NinoElements.CopiedWhole`), or it hands stale heap memory to `MemoryMarshal.AsBytes` or a raw re-serializer: block
   reads write a padded value's padding as zero (`NinoBlockCollections.ReadOne` clears a value before `ReadBlock`;
   AVX-512's `vpermb`/`vpermt2b` read only an index's low bits, so their padding bytes are masked with a `vpand` per
@@ -171,6 +171,8 @@ of bytes in a block.
   (`SelfNestingCollectionTests`, main e2e28fe7). In Release the same test through an inlined method returning a
   constant, though it folded, made `ArrayFormatter<int, ...>` stop inlining `NinoElements.Read` into the
   ImmutableHashSet, ImmutableDictionary, ReadOnlyCollection and Memory<int> reads (1 stack access to 15, `asm.py`).
+- Skip the initial clear for large canonical raw serialization results (202bd66d). The layout write fills the
+  entire array and clears padding. Keep the small direct allocation and use the shared 6 KiB cutoff.
 - Read values over 16 bytes whose blocks never fill whole vectors in four of memory in groups that fill whole memory
   vectors (`ReadPlan.Group`: 8 24-byte values in three vectors, each one `vpermt2b` of two 64-byte loads, aligned
   stores), and check their bools in those loads (`ReadPlan.Checks`: OR `load & 0xFE-at-bools` into one accumulator,

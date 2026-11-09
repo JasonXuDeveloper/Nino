@@ -98,6 +98,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   from value equality. For a single directive-free method-body edit, bind that body again and map calls outside it
   back to their previous positions. Ask Roslyn for current interceptor locations even before the edit position,
   because the file checksum changed. Compare each edited output with a baseline that bound the calls normally.
+- Carry type-model dependencies to replacement trees only for those same identical reparses or ordinary
+  method-body edits. Constructor bodies, initializers and accessors still affect the model and must invalidate
+  it. In the real unit test project, editing a method in the generic polymorphism fixture rebuilt 80 models
+  even though all 80 were structurally unchanged.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
