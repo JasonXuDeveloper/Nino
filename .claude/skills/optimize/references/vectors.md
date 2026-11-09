@@ -81,6 +81,17 @@ of bytes in a block.
   at most 0.22%. All timed reads allocated 0 B. The full-value zero stores before the field writes
   remained in the loop. Check those stores independently of cursor stepping in the next variant,
   preserving zero padding and bool validation.
+- Count zeroing stores as well as bytes before specializing a padded scalar read. The `BlockWaypoint`
+  15-byte wire / 24-byte memory probe used the validated map to narrow its two zero stores from 24
+  bytes to 10, including the bool byte overwritten by the formatter. `ReadOne` grew from 37 to 77 IL
+  bytes and `ReadEach` stayed at 459. Arm64 Tier 1 stayed at 240 bytes with SIMD and 172 without it,
+  and the x64 FullOpts SIMD cross listing went from 186 to 185. Four separate-process A/B rounds
+  at offset 1 allocated 0 B per read. The 1,700-item scalar case stayed within 0.11% and with SIMD
+  it improved by 0.48–3.14%, within the local noise for this case. Sizes 1 and 65 varied in both
+  directions. The probe compared wire bytes at offsets 0, 1 and 7, checked zero padding on reused
+  arrays prefilled with 0xCD, and rejected truncated input and a final bool of 2, with SIMD on and
+  off. Keep the layout-specific variant as a probe. Reducing the number of stores would require
+  combining padding zeroing with a field store while preserving field validation.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
