@@ -243,6 +243,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 
 ## The machine code
 
+- Keep the unchanged-string check at the generated field assignment. An assembly-wide byref
+  helper for normal string fields removed 18,847 source bytes in the real test project. The
+  probe read body fell from 167 to 90 IL bytes plus a 19-byte helper, and x64 ReadyToRun fell
+  from 501 to 377 bytes including that helper. Arm64 FullOpts grew from 1,500 to 1,524 bytes.
+  After reversing run order, unchanged-string reuse was 4–8% slower across four rounds despite
+  matching wire bytes and allocations. The isolated candidate passed 82 targeted tests.
+
 - Everything a top-level call reaches inlines into one method under one budget (`optimize`): the generated
   read and write bodies keep rare paths (deferral, pooling, growth, polymorphic fallback) in calls out of line and
   the common path inline; a run of fixed-size members is one bounds check and one block copy where the layout allows.
