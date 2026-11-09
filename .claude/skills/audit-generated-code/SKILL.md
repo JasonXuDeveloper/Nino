@@ -161,6 +161,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   output files still matched. The candidate kept 310 IL bytes in the original helper and added a
   177-byte renumbering helper (383 bytes combined before). Keep the simpler production path until a
   representative workload shows a larger benefit.
+- Join declarations before concatenating the file-scoped output. The fixed-arity concatenation kept all
+  577 replayed files byte-identical and saved about 229 KB per cold run on the unit test project. The
+  variadic concatenation saved about 590 KB but repeatedly produced slower model-edit samples. With
+  fixed arity the model-edit timings varied in both directions, and incremental model reuse and collection
+  of obsolete compiler objects matched the baseline. The emitter helper grew from 304 to 319 IL bytes.
 - Prefer one compiler-services namespace alias when it can replace overlapping type aliases. Adding it as a
   separate rewrite allocated about 6.7 MB more in a cold local generator replay. Skipping the overlapping
   rewrites reduced that overhead to about 0.94 MB and removed 47,024 bytes from the unit test project's
