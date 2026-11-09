@@ -265,9 +265,10 @@ namespace Nino.Core.Internal
         public static Info Get(Type type, int runtimeSize) =>
             runtimeSize < 0 ? Create(type, runtimeSize) : GetCached(type, runtimeSize);
 
-        // The size as the factory's argument where the runtime has that overload: no closure per call.
 #if NETSTANDARD2_0
-        private static Info GetCached(Type type, int runtimeSize) => Cache.GetOrAdd(type, t => Create(t, runtimeSize));
+        // This target lacks the GetOrAdd overload with factory state. Compute only on a miss without capturing the size.
+        private static Info GetCached(Type type, int runtimeSize) =>
+            Cache.TryGetValue(type, out var info) ? info : Cache.GetOrAdd(type, Create(type, runtimeSize));
 #else
         private static Info GetCached(Type type, int runtimeSize) => Cache.GetOrAdd(type, Create, runtimeSize);
 #endif
