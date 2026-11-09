@@ -307,6 +307,12 @@ prefetch enabled and 16.6 KB with it disabled, with similar times in both load o
 Both 577-file output sets matched their baselines. The enabled replay kept all 39
 prefetch calls and the disabled replay emitted none. Model reuse, collection probes
 and 68 tests on each of .NET 8 and 10 passed (`b13fd0d2`).
+Render interceptor calls and nested formatter names into one string through the
+existing bounded character buffer. Four cold replays saved 1.52–1.54 MB, and eight
+method-body edits saved 1.55–1.56 MB. Isolated emitter replays saved about 630 KB
+and their median time fell 16–25% in both load orders. Whole-project timings varied.
+All 577 outputs matched, model reuse and collection checks passed, and 78 targeted
+tests passed on each of .NET 8 and 10 (`0ff49c6a`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
