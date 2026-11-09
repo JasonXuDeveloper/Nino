@@ -28,14 +28,15 @@ internal static class InheritedCandidates
 {
     public static TypeDeclarationInfo From(TypeDeclarationSyntax syntax, bool marked)
     {
-        var bases = new List<string>();
-        if (syntax.BaseList != null)
+        // Marked declarations seed the search by name alone.
+        List<string>? bases = null;
+        if (!marked && syntax.BaseList is { } baseList)
         {
-            foreach (var type in syntax.BaseList.Types)
+            foreach (var type in baseList.Types)
             {
                 var name = SimpleName(type.Type);
                 if (name != null)
-                    bases.Add(name);
+                    (bases ??= new List<string>()).Add(name);
             }
         }
 
