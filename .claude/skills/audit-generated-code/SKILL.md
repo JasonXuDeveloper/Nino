@@ -57,6 +57,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - Reuse common alias declarations and only rewrite alias numbers when their order changes. A file-scoped body
   already has its final indentation, so concatenate it with the preamble and alias block directly. Use the first
   generator pass to measure emission allocations, since later passes can reuse cached formatter source.
+- Find dispatch ID collisions with a set of seen IDs and allocate a collision set only on demand. Keep the
+  original order and omit every entry with a colliding ID. This saved about 100 KB per dispatch emission on
+  the unit test project with identical output. A separate attempt to stream the generated checks instead of
+  materializing their list enlarged the Arm64 emitter method from 328 to 1,044 bytes and gave mixed timings.
 - Traverse raw member groups as ranges of the existing model array. Continue from the first group after emitting
   its region prefix, so a mixed body needs neither copied groups nor a second grouping pass.
 - Write the length up front when a region consists entirely of one raw member group. Reserve the header and
