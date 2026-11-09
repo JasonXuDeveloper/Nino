@@ -94,6 +94,8 @@ of bytes in a block.
 - Reserve a fixed-size queue's count and both ring segments together. Keep the variable-size element loop separate
   so it does not repeat the fixed-size check for each segment. A stack's backing span can use the existing
   counted span writer.
+- Reserve a raw sorted list's count and pairs together, then walk its checked key and value arrays by reference.
+  Use `WriteValueIn` for both fields so the raw path retains the padding masks.
 
 - Write a runtime's strided entries (a `HashSet<T>`'s or `Dictionary<K, V>`'s entry array) through the block path
   (`SetEntryBlock`, `MapEntryBlock`: a block map of the key and value at their offsets in the entry), never one
