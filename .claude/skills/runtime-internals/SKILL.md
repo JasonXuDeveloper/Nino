@@ -15,6 +15,8 @@ tested on every runtime it can meet.
 - Adopt a raw integer priority queue heap only after validating the runtime's node layout and four-way
   parent rule. Check the entire wire block and its priority order before copying, keep equal priorities in
   their original order, and leave custom comparers and capacity growth to public enqueue.
+  For writes, reuse the validated node array and copy only the live count, with a version check around the
+  copy. The comparer does not matter on write, because the bytes preserve the existing heap order.
 
 ## Reading a runtime's collections through their fields
 

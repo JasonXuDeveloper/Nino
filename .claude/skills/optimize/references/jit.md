@@ -69,6 +69,8 @@ and when `asm.py compare` lists methods the change did not touch.
   Adopting an already ordered integer heap through checked .NET 10 fields cut the local 8,193-pair reuse
   time by about 74%, with zero steady-state allocation. Keep the public enqueue fallback for any wire
   order or comparer that does not match the checked heap (`runtime-internals`).
+  Reuse that checked node array for writes, copying the live count in heap order. The local 8,193-pair
+  integer case cut write time by about 90% against the counted enumerator path.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
