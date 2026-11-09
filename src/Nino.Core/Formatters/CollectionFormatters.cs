@@ -156,25 +156,25 @@ namespace Nino.Core
                 : NinoActivator<TSet>.Create();
             if (NinoRecycler.DiscardAll(set, set.Count))
                 set.Clear();
+            if (length == 0)
+                return;
 
 #if NETSTANDARD2_1 || NET8_0_OR_GREATER
             // Sized for the elements, unless its entries would take far more memory than the data (large elements,
             // strings among them: a null or empty one takes one byte): then it grows as they are added.
-            if (length != 0)
-                set.EnsureCapacity(Unsafe.SizeOf<T>() + NinoElements.HashSlot > NinoElements.Amplification &&
-                                   NinoElements.HeavyHashed<T, TFormatter>.Value
-                    ? NinoElements.Capacity(length, Unsafe.SizeOf<T>() + NinoElements.HashSlot, reader.Remaining)
-                    : length);
+            set.EnsureCapacity(Unsafe.SizeOf<T>() + NinoElements.HashSlot > NinoElements.Amplification &&
+                               NinoElements.HeavyHashed<T, TFormatter>.Value
+                ? NinoElements.Capacity(length, Unsafe.SizeOf<T>() + NinoElements.HashSlot, reader.Remaining)
+                : length);
 #endif
             if (raw)
             {
                 int size = Unsafe.SizeOf<T>();
                 ref byte src = ref reader.ReadElements(length, size);
                 // Filled directly where it can be, else added out of line (each checks bools: 0 or 1).
-                if (created && length != 0 && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
+                if (created && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
                     return;
-                if (length != 0)
-                    AddRaw(set, ref src, length);
+                AddRaw(set, ref src, length);
                 return;
             }
 
@@ -182,8 +182,7 @@ namespace Nino.Core
             // others out of line, where each is inserted or its bucket walked (HashTables.Plan).
             if (HashTables.Plan<T>.Inserts || HashTables.Plan<T>.Walks)
             {
-                if (length != 0)
-                    reader = AddEach(set, length, reader);
+                reader = AddEach(set, length, reader);
                 return;
             }
 
