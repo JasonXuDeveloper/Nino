@@ -41,10 +41,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   twins `__Top` / `__Shallow`. A text-based alias matches whole names at both ends: the struct's own declaration
   once became `struct __NinoF0` when a self-holding type's formatter was a candidate. Member formatters are numbered in member order and
   declared without `global::NinoGen.` (alias declarations are inside the namespace too). Share the inlining flags as
-  constants in the assembly's generated registry file: `[__NinoInline(__NinoIL.Inline)]` and
-  `[__NinoInline(__NinoIL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
+  constants in the assembly's generated registry file: `[__NinoMI(__NinoIL.Inline)]` and
+  `[__NinoMI(__NinoIL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
   if a formatter's type parameter shadows the flags type. The compiler folds the constants into the same method
   flags, with no helper calls.
+  Shortening the attribute alias removed 29,864 source bytes from the unit test project (6d82f7a7),
+  with identical generated IL and controlled Arm64 Tier 1 listings.
 - Reuse common alias declarations and only rewrite alias numbers when their order changes. A file-scoped body
   already has its final indentation, so concatenate it with the preamble and alias block directly. Use the first
   generator pass to measure emission allocations, since later passes can reuse cached formatter source.

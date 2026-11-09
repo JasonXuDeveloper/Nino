@@ -107,6 +107,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   compilation and driver alive, then measure reopening separately after dropping both and collecting.
   A strong recent-project list kept closed projects' trees alive and masked the cost of reopening.
   Improve reopening by measuring the cold binding and model stages rather than extending their lifetime.
+  In the real unit test project, cold call binding took roughly half a second and model construction another
+  130 ms. Skipping identity and dependency work for calls without output reduced allocations but lost on
+  default-JIT reopening. Scan interceptor feature names and metadata-name arity directly without split arrays.
+  The local feature lookup went from 280 B per call to zero, with identical real-project output.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations

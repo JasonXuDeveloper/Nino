@@ -43,6 +43,9 @@ of bytes in a block.
 - Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
   (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations,
   at the cost of a larger native helper.
+- Copy byte writer results up to 64 bytes with the existing inline copy on 64-bit targets (88315b4c).
+  Keep larger copies on `CopyToNew`; an extra out-of-line allocation-and-copy helper lost on the larger
+  local cases. The short-string caller listing stayed identical while the copy helper grew.
 
 - Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
   `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
