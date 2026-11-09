@@ -59,17 +59,18 @@ internal static class InheritedCandidates
     public static EquatableArray<InheritedCandidate> Find(IEnumerable<TypeDeclarationInfo> declarations,
         IEnumerable<string> referencedNinoTypes, IEnumerable<string> markedTypes)
     {
-        var all = declarations.ToList();
+        var pending = new List<TypeDeclarationInfo>();
         var names = new HashSet<string>(referencedNinoTypes);
         names.UnionWith(markedTypes);
-        foreach (var d in all)
+        foreach (var d in declarations)
         {
             if (d.Marked)
                 names.Add(d.Name);
+            else
+                pending.Add(d);
         }
 
         // Grow the set until no unmarked declaration adds a name (derived types of derived types).
-        var pending = all.Where(d => !d.Marked).ToList();
         var result = new List<InheritedCandidate>();
         bool changed = true;
         while (changed)
@@ -78,7 +79,7 @@ internal static class InheritedCandidates
             for (int i = pending.Count - 1; i >= 0; i--)
             {
                 var d = pending[i];
-                if (!d.BaseNames.Any(names.Contains))
+                if (!HasKnownBase(d.BaseNames, names))
                     continue;
                 names.Add(d.Name);
                 result.Add(new InheritedCandidate(d.Name, d.FilePath, d.Position));
@@ -93,6 +94,14 @@ internal static class InheritedCandidates
             return c != 0 ? c : a.Position.CompareTo(b.Position);
         });
         return new EquatableArray<InheritedCandidate>(result);
+    }
+
+    private static bool HasKnownBase(EquatableArray<string> bases, HashSet<string> names)
+    {
+        for (int i = 0; i < bases.Length; i++)
+            if (names.Contains(bases[i]))
+                return true;
+        return false;
     }
 
     /// <summary>Binds each candidate's declaration in the current compilation.</summary>
