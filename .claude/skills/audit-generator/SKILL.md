@@ -132,6 +132,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   interfaces for LINQ and preserve the array's value equality and ownership. The 577-file project replay
   saved about 18 KB of cold allocations with identical output. `LayoutEmitter.Members` fell from
   320 to 310 IL bytes, from 1,472 to 1,364 Arm64 bytes, and from 735 to 695 x64 ReadyToRun bytes.
+- Count eligible models before changing fixed-layout emission for allocation savings. An exact-length
+  offset array saved 192 bytes per replay of the three fixed-size formatters in the unit-test project.
+  The emitter timing changed direction when the load order was reversed and `FixedLayout` grew from
+  266 to 287 IL bytes. Four whole-project cold replays had no repeatable change beyond noise.
+  All 577 generated files matched, tracked edits reused all 572 models, and the old compilation
+  objects and generated text collected. Keep the simpler production shape until a representative
+  project with many fixed-size models shows a larger effect.
 - Create inherited-type cache entries only after an assembly passes the Nino-reference filter.
   Keeping plain symbols in the temporary list avoided entries for unrelated references and saved
   about 33 KB of cold allocations in the unit test project replay. All 577 files matched.
