@@ -11,6 +11,11 @@ and when `asm.py compare` lists methods the change did not touch.
   The 64 KiB wire case improved in each of four local rounds, with the adjacent 64 KiB plus
   one byte case within noise and zero steady-state allocations on both sides. The 4 KiB timing
   was noisy. Keep the ownership and EOF paths out of the common read loop.
+  In async reads, retaining both rentals across the await raised `MoveNext` from 376 to 510 IL bytes
+  and added 8 B per operation in the suspended 4 KiB probe. Testing for immediate EOF in a non-async
+  helper kept the suspended 4 KiB allocation flat and limited `MoveNext` to 387 IL bytes. It improved
+  immediate 64 KiB reads in four local rounds but regressed immediate 4 KiB reads, so keep both
+  variants as experiments. Measure immediate and suspended completions separately.
 
 - Use a direct lookup before constructing a cached value when the target has no stateful factory overload.
   On a miss, pass the value to `GetOrAdd` and return the value that wins publication. The portable layout cache's
