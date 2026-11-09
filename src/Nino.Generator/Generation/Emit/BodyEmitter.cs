@@ -551,6 +551,13 @@ internal sealed class BodyEmitter
         _blocks = 0;
         var first = groups.Current;
         var block = new RawBlock(first, headers: _m.Keyed, start: NinoWire.LengthSize);
+        if (first.Count == OwnMembers.Count)
+        {
+            // Raw stores cannot defer any bodies, so there is no open region or length to patch.
+            EmitRawBlock(first, block, $"writer.ReserveFixedRegion({block.Plus(-NinoWire.LengthSize)})");
+            return true;
+        }
+
         EmitRawBlock(first, block, $"writer.BeginRegion({block.Total}, out int __length)");
         if (_m.Keyed)
             EmitKeyedWrites(groups);

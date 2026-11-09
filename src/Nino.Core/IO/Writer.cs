@@ -453,6 +453,16 @@ namespace Nino.Core
             return ref Reserve(size);
         }
 
+        /// <summary>Generated code reserves a complete raw region and returns a reference to its written length.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref byte ReserveFixedRegion(int payloadSize)
+        {
+            ref byte block = ref ReserveLarge(NinoWire.LengthSize + (ulong)(uint)payloadSize);
+            NinoUnsafe.Write(ref block, payloadSize);
+            return ref block;
+        }
+
         /// <summary>
         /// Generated code: <see cref="BeginRegion()"/> after <paramref name="prefix"/> bytes (a keyed member's key, and
         /// the raw members before it), in one reservation of <paramref name="prefix"/> + 4 bytes that ends with the
