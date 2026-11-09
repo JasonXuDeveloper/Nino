@@ -290,6 +290,12 @@ The isolated emitter saved about 519 KB in both load orders with similar median
 time. The eight method-body edit samples allocated 514–536 KB less. All 577 files
 matched, tracked model reuse and collection checks passed, and 68 targeted tests
 passed on each of .NET 8 and 10 (`82b7bbb3`).
+Preserve formatter reference identity through unchanged twin substitutions. Allocate
+a replacement argument array only after the first changed child. This avoided about
+676 KB and reduced median emitter time by 7–11% in both isolated load orders. The eight
+method-body edit samples saved 632–664 KB, with variable whole-project timing. All 577
+outputs matched, tracked model reuse and collection checks passed, and 78 targeted
+tests passed on each of .NET 8 and 10 (`b467a67c`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
