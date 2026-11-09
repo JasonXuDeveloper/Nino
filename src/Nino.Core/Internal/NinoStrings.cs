@@ -536,12 +536,24 @@ namespace Nino.Core.Internal
         private static unsafe bool NarrowVector(ref ushort source, ref byte destination, nuint n)
         {
             // ASCII through the runtime's own narrowing (512-bit and unrolled where it can be): 1,000 chars in 22 ns
-            // against 40 for the loop below. It stops at the first char above U+007F; Latin-1 text with such chars
-            // is narrowed again below.
-            if (n >= 32 && System.Text.Ascii.FromUtf16(
-                    MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<ushort, char>(ref source), (int)n),
-                    MemoryMarshal.CreateSpan(ref destination, (int)n), out _) == System.Buffers.OperationStatus.Done)
-                return true;
+            // against 40 for the loop below. Continue the Latin-1 pass from where the ASCII pass stopped, keeping
+            // at least one vector of input for the overlapping tail.
+            if (n >= 32)
+            {
+                if (System.Text.Ascii.FromUtf16(
+                        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<ushort, char>(ref source), (int)n),
+                        MemoryMarshal.CreateSpan(ref destination, (int)n), out int written) ==
+                    System.Buffers.OperationStatus.Done)
+                    return true;
+
+                if (Unsafe.Add(ref source, written) > 0xFF)
+                    return false;
+
+                nuint start = Math.Min((nuint)written, n - 16);
+                source = ref Unsafe.Add(ref source, (nint)start);
+                destination = ref Unsafe.Add(ref destination, (nint)start);
+                n -= start;
+            }
             if (Vector256.IsHardwareAccelerated && n >= 32)
             {
                 var high = Vector256.Create((ushort)0xFF00);
