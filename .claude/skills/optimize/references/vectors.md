@@ -109,6 +109,15 @@ of bytes in a block.
   and 34.3–35.0% at 1,700, with 0 B allocated. One item varied, including a 24% scalar regression
   in one round. SIMD timings varied in both directions. Repeat the byte, dirty-padding, truncation
   and invalid-bool checks on both paths before trying a general implementation.
+- Skip the bool prepass when the read plan can only call `ReadBlock`, which already validates each
+  bool. Keep it for whole-block copies and vector paths that do not validate. Keep the decision in
+  a read-only nested plan so writes do not initialize the read masks. At offset 1, four local
+  `BlockWaypoint` A/B rounds with intrinsics disabled reduced time by 32–37% for one item, 7–13%
+  for 65 and about 7.3% for 1,700. SIMD timings varied and allocation stayed at 0 B. The Arm64
+  scalar `ReadRejecting` Tier 1 shrank from 176 to 116 bytes, while the x64 FullOpts cross listing
+  grew from 385 to 443 bytes with the static field load. `ReadUnchecked` grew from 54 to 61 IL
+  bytes. The wire bytes and rejection checks matched, and the targeted .NET 8/10 tests passed
+  with hardware intrinsics both on and off (`2916df8b`).
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
