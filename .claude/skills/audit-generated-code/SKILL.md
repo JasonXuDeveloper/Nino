@@ -177,6 +177,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   Appending the location attribute and its optional comment directly saved another 0.50 MB on cold
   and edited replays. It kept the same output and reduced the main emitter to 764 IL bytes, adding
   a separate 99-byte append helper.
+  Estimate the interceptor body buffer from both call sites and grouped methods, capped at the
+  previous call-only reservation. The replay had 1,930 locations and 1,192 methods. The estimate
+  reduced initial capacity from 741,120 to 628,480 characters and saved about 223 KB in each cold
+  or edited replay, with identical output and no stable timing difference.
 - Reuse the first successful alias rewrite's builder for the rest of that file. The rewrite only
   shortens the body and the builder stays local, so later aliases do not allocate another
   body-sized buffer or retain one in the generator. The 577-file unit test replay matched byte for
