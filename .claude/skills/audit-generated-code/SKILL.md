@@ -36,9 +36,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   generated types lose `global::NinoGen.` there (every body is in that namespace), and a formatter names its own
   twins `__Top` / `__Shallow`. A text-based alias matches whole names at both ends: the struct's own declaration
   once became `struct __NinoF0` when a self-holding type's formatter was a candidate. Member formatters are numbered in member order and
-  declared without `global::NinoGen.` (alias declarations are inside the namespace too); the inlining attributes are
-  `[__NinoInline(AggressiveInlining)]` through `using static ...MethodImplOptions` (round 129: 4% of the unit tests'
-  output was the second alias's name).
+  declared without `global::NinoGen.` (alias declarations are inside the namespace too). Share the inlining flags as
+  constants in the assembly's generated registry file: `[__NinoInline(__NinoIL.Inline)]` and
+  `[__NinoInline(__NinoIL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
+  if a formatter's type parameter shadows the flags type. The compiler folds the constants into the same method
+  flags, with no helper calls.
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
   pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
   signature generated code repeats is written once in `Signature`.
