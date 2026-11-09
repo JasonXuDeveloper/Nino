@@ -156,7 +156,15 @@ of bytes in a block.
   Moving the condition inside `WriteEach` kept the Arm64 caller at 484 bytes, enlarged its
   65-item loop from 196 to 260 bytes, and lost the repeatable single-item gain. A no-inline
   single-item helper limited the Arm64 caller to 520 bytes, but had variable timings. Keep
-  the inline outer candidate for a mixed-count profile and an optimized x64 formatter listing.
+  the inline outer candidate for comparison. Four mixed-profile rounds with five one-item writes
+  per eight calls improved by 2.6–10.6%. The profile containing one 1,700-item write per eight
+  varied from flat to 33% slower. A byte-identical A/A control was 4–10% apart on that profile.
+  The large-weighted mix varied in both directions. Allocations stayed at 0 B and the wire
+  comparison passed. Use `crossgen2 -O` to get an optimized offline x64 listing. With this
+  specialization, `ArrayFormatter.Serialize` grew from 2,117 to 3,232 bytes and `WriteAll`
+  from 356 to 1,241 bytes. The added branch inlined layout initialization, padding clearing,
+  and layout conversion paths that were absent from the baseline caller. Keep the prototype
+  separate until the scalar store can be inlined without pulling those paths into the caller.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
