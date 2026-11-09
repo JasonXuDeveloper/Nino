@@ -141,6 +141,29 @@ public class BclTypeTests
         Assert.IsNull(RoundTrip((BitArray)null));
     }
 
+    [TestMethod]
+    public void BitArrayWritesIntoAnExistingBufferAtItsCurrentPosition()
+    {
+        var payload = new byte[24 * 1024];
+        new Random(123).NextBytes(payload);
+        var bits = new BitArray(payload) { Length = payload.Length * 8 - 3 };
+        payload[payload.Length - 1] &= 31;
+
+        using var buffer = new NinoArrayBufferWriter(8);
+        buffer.GetSpan(1)[0] = 0xA5;
+        buffer.Advance(1);
+        NinoSerializer.Serialize(bits, buffer);
+        buffer.GetSpan(1)[0] = 0x5A;
+        buffer.Advance(1);
+
+        var bytes = buffer.WrittenSpan;
+        Assert.AreEqual(payload.Length + 6, bytes.Length);
+        Assert.AreEqual((byte)0xA5, bytes[0]);
+        Assert.AreEqual(bits.Length, System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(1)));
+        Assert.IsTrue(bytes.Slice(5, payload.Length).SequenceEqual(payload));
+        Assert.AreEqual((byte)0x5A, bytes[bytes.Length - 1]);
+    }
+
 #if NET10_0_OR_GREATER
     [TestMethod]
     public void BitArrayPaddingStaysOffTheWireAndOutOfTheDecodedArray()

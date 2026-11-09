@@ -227,11 +227,9 @@ namespace Nino.Core
             source.CopyTo(target);
             MaskTail(target, count);
 #else
-            var bytes = ArrayPool<byte>.Shared.Rent(size);
-            value.CopyTo(bytes, 0);
-            writer.WriteLength(count);
-            writer.WriteRaw(bytes.AsSpan(0, size));
-            ArrayPool<byte>.Shared.Return(bytes);
+            var buffer = writer.ReserveArray(NinoWire.LengthSize + size, out int offset);
+            NinoUnsafe.Write(ref buffer[offset], count);
+            value.CopyTo(buffer, offset + NinoWire.LengthSize);
 #endif
         }
 

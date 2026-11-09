@@ -267,6 +267,18 @@ namespace Nino.Core
             return ref block;
         }
 
+#if !NET10_0_OR_GREATER
+        // Some BCL copy APIs take an array and offset instead of a span.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal byte[] ReserveArray(int size, out int offset)
+        {
+            Ensure(size);
+            offset = Pos;
+            Skip(size);
+            return _owner.Buffer;
+        }
+#endif
+
         /// <summary>Makes room for <paramref name="size"/> bytes and returns a reference to the first one.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref byte Ensure(int size)
