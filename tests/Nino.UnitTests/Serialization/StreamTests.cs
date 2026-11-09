@@ -171,7 +171,7 @@ public class StreamTests
 
 #if NET
     [TestMethod]
-    public void SteadyStateCallsAllocateNothing()
+    public unsafe void SteadyStateCallsAllocateNothing()
     {
         // The owner's question: are the stream calls zero GC? Into a reused instance, after a warm-up, yes, for every
         // kind of stream: in place, or through a pooled array.
@@ -180,7 +180,9 @@ public class StreamTests
         var target = new MemoryStream();
         var exposed = new MemoryStream();
         exposed.Write(bytes, 0, bytes.Length);
-        var native = NativeStream.Of(bytes);
+        byte* nativeBytes = stackalloc byte[bytes.Length];
+        bytes.CopyTo(new Span<byte>(nativeBytes, bytes.Length));
+        using var native = new UnmanagedMemoryStream(nativeBytes, bytes.Length);
         var copied = new MemoryStream(bytes, writable: false);
         var streams = new Stream[] { exposed, native, copied };
         SimpleClass into = null;
