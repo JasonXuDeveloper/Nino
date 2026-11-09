@@ -245,6 +245,13 @@ of bytes in a block.
   and formatter IL stayed at 83 bytes. Four A/B and A/A rounds varied, with 0 B allocated
   and byte-identical writes at offsets 0, 1 and 7. The 98/99 targeted tests passed on
   .NET 8/10 with hardware intrinsics on and off (`c82748e0`).
+  For queue and stack backing-array reads, reuse both the capacity proof and the fixed-stride
+  length validation. Removing only the payload comparison repeatedly slowed 65 items in
+  the first aligned probe. Creating the span from its validated ref and length brought
+  both 65-item timings back within the variable A/A range. Arm64 Tier 1 callers shrank
+  by 44 bytes each and offline x64 `ReadInto` went from 780 to 686 bytes. IL went from
+  127 to 130 bytes. Wire bytes matched at offsets 0, 1 and 7, allocations were 0 B,
+  and 111/112 targeted tests passed on .NET 8/10 with intrinsics on and off (`ef43854c`).
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
