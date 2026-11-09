@@ -45,6 +45,9 @@ and when `asm.py compare` lists methods the change did not touch.
   reference elements saved about a fifth of the time for 512 and 2,048 strings in the forced fallback, but
   grew the raw Tier 0 helper from 356 to 408 Arm64 bytes. The 64-integer case slowed by 2–4% across four
   local rounds even after a value-type gate restored its FullOpts listing to 1,572 bytes.
+  A separate reverse-walk helper restored the raw Tier 0 helper to 356 bytes. Dispatching to it from
+  `Serialize` added 40 IL bytes there and grew the normal-layout Arm64 probe from 4,240 to 4,624 bytes.
+  The 64-integer normal-layout control slowed in every round, so keep that dispatch out of the hot entry.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
