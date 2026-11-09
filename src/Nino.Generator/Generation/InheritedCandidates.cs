@@ -137,12 +137,7 @@ internal static class InheritedCandidates
     /// <summary>Simple names of the NinoTypes (including inherited ones) declared in referenced assemblies.</summary>
     public static EquatableArray<string> ReferencedNinoTypes(Compilation compilation, CancellationToken ct)
     {
-        var assemblies = new List<IAssemblySymbol>();
-        foreach (var reference in compilation.References)
-        {
-            if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol assembly)
-                assemblies.Add(assembly);
-        }
+        var assemblies = compilation.SourceModule.ReferencedAssemblySymbols;
 
         // Only assemblies that reference Nino.Core, directly or through another such assembly, can declare or
         // inherit NinoTypes.
