@@ -124,6 +124,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
   without that cache.
+- Pass ordered enumerables directly into `EquatableArray<T>` when the constructor owns materialization.
+  Removing the extra `ToArray` from project facts and layout names reduced the two methods by 15 IL
+  bytes and kept all 577 replayed files, incremental hits and collection checks unchanged.
+  The whole-project timing and allocation differences were within noise.
 - Use the value-type enumerator when directly iterating an `EquatableArray<T>`. Keep the enumerable
   interfaces for LINQ and preserve the array's value equality and ownership. The 577-file project replay
   saved about 18 KB of cold allocations with identical output. `LayoutEmitter.Members` fell from
