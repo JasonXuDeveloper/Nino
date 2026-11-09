@@ -32,6 +32,9 @@ of bytes in a block.
   Moving the same two-cursor loop to a no-inline tail helper improved 1,025-element reads with SIMD
   enabled by 6–11% across four local rounds, but the one-element cases paid for the new call.
   Keep the long-run candidate and measure a short-tail route separately.
+  A single-element early return inside `ReadEach` sped up that isolated case, but erased the long-run gain.
+  Moving it to `ReadUnchecked` grew the inlined rejecting caller from 176 to 304 Arm64 Tier 1 bytes and
+  showed no consistent gain at the public entry. Check the generated interceptor path before tuning further.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
