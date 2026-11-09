@@ -48,6 +48,16 @@ internal sealed class CodeWriter
         _sb.Append(suffix).Append('\n');
     }
 
+    /// <summary>Writes an attribute and its optional comment without assembling a temporary line.</summary>
+    public void AttributeLine(string name, string arguments, string comment)
+    {
+        StartLine('[', ']');
+        _sb.Append('[').Append(name).Append('(').Append(arguments).Append(")]");
+        if (comment.Length != 0)
+            _sb.Append(" // ").Append(comment);
+        _sb.Append('\n');
+    }
+
     /// <summary>Writes a numbered static forwarder without materializing its signature fragments.</summary>
     public void NumberedForwarder(string signature, int number, string target, string call)
     {
