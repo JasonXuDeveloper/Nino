@@ -151,6 +151,8 @@ namespace names and outermost-first argument order. The local nested-name probe 
 render, and the unit test project's 628 generated files remained byte-identical.
 Append formatter name stems directly, doubling literal underscores while appending each namespace or type name.
 The local mixed-name probe went from about 619 to 403 bytes per render with unchanged hint names and source.
+Build prefetch member lists only for eligible formatter models, after confirming a property is reference-typed.
+Skip the prefetch metadata in analyzer models and allocate the small member list only on the first match.
 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
