@@ -55,6 +55,9 @@ and when `asm.py compare` lists methods the change did not touch.
   This removed range failures and saved 196 Arm64 bytes for `int` keys and string values. Single-pair writes
   slowed in four local rounds. Keep the one loop: a separate single-pair arm duplicated the inlined formatter,
   growing Arm64 from 1,828 to 2,772 bytes and x64 from 1,584 to 2,770.
+- Keep the current seeded string hash loop. An unaligned UTF-16 word load and a byref tail preserved the
+  reference hash and removed range failures (Arm64 588 to 428 bytes, x64 611 to 550), but four-character
+  inputs slowed by 6–8% across four local default-tiering rounds and 15-character inputs also slowed.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
