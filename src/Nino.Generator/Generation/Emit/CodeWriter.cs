@@ -48,6 +48,16 @@ internal sealed class CodeWriter
         _sb.Append(suffix).Append('\n');
     }
 
+    /// <summary>Writes a numbered static forwarder without materializing its signature fragments.</summary>
+    public void NumberedForwarder(string signature, int number, string target, string call)
+    {
+        int parameters = signature.IndexOf('(');
+        StartLine('p', ';');
+        _sb.Append("public static ").Append(signature, 0, parameters).Append(number)
+            .Append(signature, parameters, signature.Length - parameters).Append(" => ").Append(target)
+            .Append(call).Append(";\n");
+    }
+
     private void StartLine(char first, char last)
     {
         if (_blank && first != '}')

@@ -270,8 +270,7 @@ internal static class Interceptors
             // Compact type names only. The legacy attribute contains a physical path.
             string signature = compact.Shorten(group.Key.Signature);
             string code = compact.Shorten(group.Key.Call);
-            int paren = signature.IndexOf('(');
-            w.Line($"public static {signature.Substring(0, paren)}{n++}{signature.Substring(paren)} => __NinoDirect.{code};");
+            w.NumberedForwarder(signature, n++, "__NinoDirect.", code);
         }
 
         w.Close();
