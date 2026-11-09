@@ -516,6 +516,11 @@ namespace Nino.Core
                 return;
             }
 
+#if NET8_0_OR_GREATER
+            if (RawFormatter.Is<T, TFormatter>() && value.GetType() == typeof(ConcurrentStack<T>) &&
+                ConcurrentStackNodes<T>.TryWrite(Unsafe.As<ConcurrentStack<T>>(value), ref writer))
+                return;
+#endif
             WriteOtherSnapshot(value, ref writer);
         }
 

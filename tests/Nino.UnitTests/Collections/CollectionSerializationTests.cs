@@ -1,10 +1,12 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.Core.Internal;
 
 #nullable disable
 namespace Nino.UnitTests;
@@ -486,6 +488,43 @@ public class CollectionSerializationTests
 
         public void Deserialize(ref Reader reader, ref SnapshotItem value) => value = new SnapshotItem(reader.Read<int>());
     }
+
+#if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
+    [TestMethod]
+    [DoNotParallelize] // Forces a process-wide compacting collection.
+    public void ConcurrentStackKeepsTheCapturedChainAcrossPopsAndCompaction()
+    {
+        Assert.IsTrue(ConcurrentStackNodes<int>.Usable);
+        var stack = new ConcurrentStack<int>(new[] { 1, 2, 3, 4 });
+        using var buffer = new NinoArrayBufferWriter(0, new RentCallbackPool(() =>
+        {
+            Assert.IsTrue(stack.TryPop(out _));
+            Assert.AreEqual(2, stack.TryPopRange(new int[2]));
+            stack.Clear();
+            stack.Push(99);
+            GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+        }));
+        NinoSerializer.Serialize(stack, buffer);
+        CollectionAssert.AreEqual(new[] { 1, 2, 3, 4 }, NinoDeserializer.Deserialize<int[]>(buffer.WrittenSpan));
+        CollectionAssert.AreEqual(new[] { 99 }, stack.ToArray());
+    }
+
+    private sealed class RentCallbackPool : ArrayPool<byte>
+    {
+        private readonly Action _callback;
+
+        public RentCallbackPool(Action callback) => _callback = callback;
+
+        public override byte[] Rent(int minimumLength)
+        {
+            _callback();
+            return ArrayPool<byte>.Shared.Rent(minimumLength);
+        }
+
+        public override void Return(byte[] array, bool clearArray = false) =>
+            ArrayPool<byte>.Shared.Return(array, clearArray);
+    }
+#endif
 
     [TestMethod]
     public void TestConcurrentCollectionsRefOverload()

@@ -172,6 +172,9 @@ public static class Program
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.ConcurrentTables", "Chains"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.ConcurrentTables", "ReferenceChains"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.ConcurrentTables", "Builds"),
+#if NET10_0_OR_GREATER
+        (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.ConcurrentStackNodes`1", "Usable"),
+#endif
         (typeof(Nino.Immutable.ImmutableArrayFormatter<,>).Assembly, "Nino.Immutable.HashTrees", "Usable"),
         (typeof(Nino.Immutable.ImmutableArrayFormatter<,>).Assembly, "Nino.Immutable.SortedTrees", "Usable"),
     };
@@ -251,7 +254,10 @@ public static class Program
         {
             if (!Expected(fieldName))
                 continue;
-            var field = assembly.GetType(typeName)?.GetField(fieldName,
+            var type = assembly.GetType(typeName);
+            if (type?.IsGenericTypeDefinition == true)
+                type = type.MakeGenericType(typeof(int)); // ConcurrentStack<int> below exercises the raw node path.
+            var field = type?.GetField(fieldName,
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
             object found = field?.GetValue(null);
             paths.Add(typeName.Substring(typeName.LastIndexOf('.') + 1) + "." + fieldName + "=" + found);

@@ -166,6 +166,7 @@ NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates i
 HashTables.cs                fills new HashSet / Dictionary entries and buckets directly, counting collisions
                              against MaxHashCollisions (Plan, TryFill, Insert, Added, Walk)
 ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
+ConcurrentStackNodes.cs      read-only CoreLib ConcurrentStack node snapshots for raw writes, startup-checked
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoHash.cs                  FNV-1a behind type ids and member keys (also compiled into the generator)
 NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, BCL structs inside them included (tuples,
