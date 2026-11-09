@@ -1,7 +1,9 @@
 using System;
 using System.Buffers;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 #if !NETSTANDARD2_0
 using System.Threading;
@@ -24,7 +26,8 @@ namespace Nino.Core.Internal
     /// <see cref="NinoDeserializer"/> and <c>NinoDirect</c>, shared by all of them. A write puts exactly the bytes of
     /// the span and buffer overloads on the stream, from the per-thread scratch buffer (<see cref="NinoScratch"/>),
     /// with no framing. A read takes the stream to its end into an array rented from
-    /// <see cref="ArrayPool{T}.Shared"/> (a <see cref="MemoryStream"/> whose buffer is exposed is read in place), then
+    /// <see cref="ArrayPool{T}.Shared"/> (a stream whose bytes are already in memory is read in place: a
+    /// <see cref="MemoryStream"/> whose buffer is exposed, an <see cref="UnmanagedMemoryStream"/>, a memory-mapped view), then
     /// deserializes it as the span overloads do, so every check of the data (and <see cref="NinoSettings.Untrusted"/>,
     /// trailing bytes included) applies as there. The array grows by doubling as bytes arrive, never ahead of them, so
     /// a stream makes Nino hold at most about twice what it actually delivered: bounding a stream an untrusted peer
@@ -71,11 +74,8 @@ namespace Nino.Core.Internal
         {
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
-            if (stream is MemoryStream memory && memory.TryGetBuffer(out var segment))
-            {
-                reader.Read(Consume(memory, segment), ref value);
+            if (TryReadInPlace(stream, ref value, reader))
                 return;
-            }
 
             byte[] rented = ReadToEnd(stream, out int length);
             Read(rented, length, ref value, reader);
@@ -94,6 +94,85 @@ namespace Nino.Core.Internal
                 // Nothing a read creates keeps a reference to its input (NinoSequences), so the array goes back now.
                 ArrayPool<byte>.Shared.Return(rented);
             }
+        }
+
+        /// <summary>
+        /// Deserializes the unread bytes of a stream that already holds them in memory, where they lie, with no copy:
+        /// a <see cref="MemoryStream"/> whose buffer is exposed (<see cref="MemoryStream.TryGetBuffer"/>; not one made
+        /// with <c>new MemoryStream(bytes)</c>), an <see cref="UnmanagedMemoryStream"/> over a pointer, and a
+        /// <see cref="MemoryMappedViewStream"/>. The stream is left at its end, as a read to the end leaves any other.
+        /// False for any other stream, which is then read to its end into a pooled array.
+        /// </summary>
+        private static bool TryReadInPlace<T, TReader>(Stream stream, ref T value, TReader reader)
+            where TReader : struct, INinoStreamReader<T>
+        {
+            if (stream is MemoryStream memory)
+            {
+                if (!memory.TryGetBuffer(out var segment))
+                    return false;
+                reader.Read(Consume(memory, segment), ref value);
+                return true;
+            }
+
+            if (stream is UnmanagedMemoryStream unmanaged && unmanaged.CanRead)
+                return ReadUnmanaged(unmanaged, ref value, reader);
+            return false;
+        }
+
+        /// <summary>
+        /// <see cref="TryReadInPlace{T,TReader}"/> for an <see cref="UnmanagedMemoryStream"/>: its memory through
+        /// <see cref="UnmanagedMemoryStream.PositionPointer"/>, or, for a memory-mapped view (whose
+        /// <see cref="SafeBuffer"/> has no position pointer), through the view's handle, held while the bytes are read.
+        /// False for a stream over another <see cref="SafeBuffer"/>, whose start is not public.
+        /// </summary>
+        private static unsafe bool ReadUnmanaged<T, TReader>(UnmanagedMemoryStream stream, ref T value, TReader reader)
+            where TReader : struct, INinoStreamReader<T>
+        {
+            long position = stream.Position;
+            long length = stream.Length;
+            long left = position < length ? length - position : 0;
+            if (left > NinoUnsafe.MaxArrayLength)
+                NinoThrow.InvalidData("the stream holds more bytes than an array can.");
+            if (left == 0)
+            {
+                // At or past its end (where PositionPointer would throw): no bytes, which the read rejects as truncated.
+                reader.Read(default, ref value);
+                return true;
+            }
+
+            if (stream is MemoryMappedViewStream view)
+            {
+                var handle = view.SafeMemoryMappedViewHandle;
+                byte* start = null;
+                handle.AcquirePointer(ref start);
+                try
+                {
+                    // The view's bytes start PointerOffset past the mapped pages (the offset rounded down to them).
+                    reader.Read(new ReadOnlySpan<byte>(start + view.PointerOffset + position, (int)left), ref value);
+                }
+                finally
+                {
+                    handle.ReleasePointer();
+                }
+
+                stream.Position = length;
+                return true;
+            }
+
+            byte* at;
+            try
+            {
+                at = stream.PositionPointer;
+            }
+            catch (NotSupportedException)
+            {
+                // Created over a SafeBuffer: read to its end like any other stream.
+                return false;
+            }
+
+            reader.Read(new ReadOnlySpan<byte>(at, (int)left), ref value);
+            stream.Position = length;
+            return true;
         }
 
         /// <summary>
@@ -236,18 +315,15 @@ namespace Nino.Core.Internal
                 throw new ArgumentNullException(nameof(stream));
             if (cancellationToken.IsCancellationRequested)
                 return new ValueTask<T>(Task.FromCanceled<T>(cancellationToken));
-            if (stream is MemoryStream memory && memory.TryGetBuffer(out var segment))
+            try
             {
-                try
-                {
-                    T value = default;
-                    reader.Read(Consume(memory, segment), ref value);
+                T value = default;
+                if (TryReadInPlace(stream, ref value, reader))
                     return new ValueTask<T>(value);
-                }
-                catch (Exception e)
-                {
-                    return new ValueTask<T>(Task.FromException<T>(e));
-                }
+            }
+            catch (Exception e)
+            {
+                return new ValueTask<T>(Task.FromException<T>(e));
             }
 
             return ReadAsyncCore<T, TReader>(stream, reader, cancellationToken);

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Runtime.InteropServices;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,7 +13,8 @@ namespace Nino.UnitTests;
 
 /// <summary>
 /// The Stream overloads: the bytes of the span and buffer overloads with no framing, read back to the end of the stream
-/// from a MemoryStream (in place), a seekable stream and a non-seekable one that hands over a few bytes per read,
+/// from a MemoryStream, an UnmanagedMemoryStream and a memory-mapped view (in place), an UnmanagedMemoryStream over a
+/// SafeBuffer, a seekable stream and a non-seekable one that hands over a few bytes per read,
 /// synchronously and asynchronously, new values and into existing ones, through the interceptors and the boxed API;
 /// truncated, empty and oversized input, a stream that claims more than it holds, cancellation, and a write still
 /// pending while the thread serializes something else.
@@ -37,7 +40,11 @@ public class StreamTests
         return stream.ToArray();
     }
 
-    /// <summary>Each stream a payload is read from: in place, seekable without an exposed buffer, a trickle.</summary>
+    /// <summary>
+    /// Each stream a payload is read from: in place (an exposed MemoryStream, native memory, a memory-mapped view not
+    /// aligned to a page), an UnmanagedMemoryStream over a SafeBuffer (no position pointer: copied), seekable without
+    /// an exposed buffer, a trickle.
+    /// </summary>
     private static IEnumerable<Func<byte[], Stream>> Sources() => new Func<byte[], Stream>[]
     {
         bytes =>
@@ -47,6 +54,9 @@ public class StreamTests
             exposed.Position = 0;
             return exposed;
         },
+        NativeStream.Of,
+        bytes => MappedView(bytes, accessor: false),
+        bytes => MappedView(bytes, accessor: true),
         bytes => new MemoryStream(bytes, writable: false),
         bytes => new TrickleStream(bytes, 3),
         bytes => new TrickleStream(bytes, 1000),
@@ -116,6 +126,65 @@ public class StreamTests
         AssertSame(sample, NinoDeserializer.Deserialize<SimpleClass>(readOnly));
         Assert.AreEqual(readOnly.Length, readOnly.Position);
     }
+
+    [TestMethod]
+    public void ReadsNativeMemoryFromItsPosition()
+    {
+        var sample = Sample(11);
+        byte[] bytes = NinoSerializer.Serialize(sample);
+        var native = NativeStream.Of(new byte[] { 9, 9, 9, 9 }.Concat(bytes).ToArray());
+        native.Position = 4;
+        AssertSame(sample, NinoDeserializer.Deserialize<SimpleClass>(native));
+        Assert.AreEqual(native.Length, native.Position); // read to its end
+        native.Position = native.Length + 10; // past its end: no bytes
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SimpleClass>(native));
+        var view = (MemoryMappedViewStream)MappedView(new byte[] { 9, 9 }.Concat(bytes).ToArray(), accessor: false);
+        view.Position = 2;
+        AssertSame(sample, NinoDeserializer.Deserialize<SimpleClass>(view));
+        Assert.AreEqual(view.Length, view.Position);
+    }
+
+#if NET
+    [TestMethod]
+    public void SteadyStateCallsAllocateNothing()
+    {
+        // The owner's question: are the stream calls zero GC? Into a reused instance, after a warm-up, yes, for every
+        // kind of stream: in place, or through a pooled array.
+        var sample = Sample(12, 40);
+        byte[] bytes = NinoSerializer.Serialize(sample);
+        var target = new MemoryStream();
+        var exposed = new MemoryStream();
+        exposed.Write(bytes, 0, bytes.Length);
+        var native = NativeStream.Of(bytes);
+        var copied = new MemoryStream(bytes, writable: false);
+        var streams = new Stream[] { exposed, native, copied };
+        SimpleClass into = null;
+
+        void Once()
+        {
+            target.Position = 0;
+            NinoSerializer.Serialize(sample, target);
+            foreach (var stream in streams)
+            {
+                stream.Position = 0;
+                NinoDeserializer.Deserialize(stream, ref into);
+            }
+
+#if !NINO_CORE_NETSTANDARD2_0
+            target.Position = 0;
+            NinoSerializer.SerializeAsync(sample, target).GetAwaiter().GetResult();
+#endif
+        }
+
+        for (int i = 0; i < 100; i++)
+            Once();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 1000; i++)
+            Once();
+        Assert.AreEqual(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        AssertSame(sample, into);
+    }
+#endif
 
     [TestMethod]
     public void ReadsIntoExistingInstances()
@@ -340,6 +409,46 @@ public class StreamTests
         Assert.IsTrue(called.Contains("SerializeAsync"), all);
         Assert.IsTrue(called.Contains("DeserializeAsync"), all);
 #endif
+    }
+
+    /// <summary>
+    /// <paramref name="bytes"/> in a memory-mapped view that does not start on a page (its bytes PointerOffset into the
+    /// mapping): a MemoryMappedViewStream, or, with <paramref name="accessor"/>, an UnmanagedMemoryStream over the
+    /// SafeBuffer of a view accessor, which has no position pointer. The mapping lives as long as the view.
+    /// </summary>
+    private static Stream MappedView(byte[] bytes, bool accessor)
+    {
+        const int offset = 4099;
+        if (bytes.Length == 0)
+            return new MemoryStream(); // a view of size 0 is the rest of its mapping, so there is no empty view
+        var file = MemoryMappedFile.CreateNew(null, offset + bytes.Length + 1);
+        using (var writer = file.CreateViewStream(offset, bytes.Length))
+            writer.Write(bytes, 0, bytes.Length);
+        if (!accessor)
+            return file.CreateViewStream(offset, bytes.Length, MemoryMappedFileAccess.Read);
+        var view = file.CreateViewAccessor(offset, bytes.Length, MemoryMappedFileAccess.Read);
+        return new UnmanagedMemoryStream(view.SafeMemoryMappedViewHandle, view.PointerOffset, bytes.Length);
+    }
+
+    /// <summary>An UnmanagedMemoryStream over native memory it frees when collected.</summary>
+    private sealed unsafe class NativeStream : UnmanagedMemoryStream
+    {
+        private IntPtr _memory;
+
+        private NativeStream(IntPtr memory, int length) : base((byte*)memory, length) => _memory = memory;
+
+        public static Stream Of(byte[] bytes)
+        {
+            IntPtr memory = Marshal.AllocHGlobal(Math.Max(bytes.Length, 1));
+            Marshal.Copy(bytes, 0, memory, bytes.Length);
+            return new NativeStream(memory, bytes.Length);
+        }
+
+        ~NativeStream()
+        {
+            Marshal.FreeHGlobal(_memory);
+            _memory = IntPtr.Zero;
+        }
     }
 
     /// <summary>A non-seekable stream over bytes that hands over at most a few per read, asynchronously when awaited.</summary>

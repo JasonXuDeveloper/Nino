@@ -192,8 +192,9 @@ NinoScratch.cs               the per-thread scratch buffer of the top-level call
 NinoSequences.cs             the pooled contiguous copy of a multi-segment ReadOnlySequence<byte> the sequence
                              overloads read from
 NinoStreams.cs               the I/O of every Stream overload: writes from the scratch buffer (a pending async write
-                             takes its array), reads to the end into a pooled array grown as bytes arrive (a
-                             MemoryStream's exposed buffer in place); INinoStreamReader
+                             takes its array), reads to the end into a pooled array grown as bytes arrive (bytes
+                             already in memory in place: a MemoryStream's exposed buffer, an UnmanagedMemoryStream, a
+                             memory-mapped view); INinoStreamReader
 NinoThreadCache.cs           helpers for the per-thread caches
 NinoUnload.cs                hooks that forget an unloaded assembly's types (NinoRegistry.Remove)
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
