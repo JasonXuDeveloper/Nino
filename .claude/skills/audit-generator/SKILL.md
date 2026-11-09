@@ -214,6 +214,10 @@ unit-test project replay, with wall time within 1% and all 577 files identical. 
 rounds with an identical-binary A/A control found no repeatable edit timing shift. Each tracked
 edit reused all 572 models and re-emitted only the block-namespace interceptor file
 (`0abfc154`).
+Return empty member layout text directly and use the same bounded scratch for nonempty layouts.
+Four cold replays allocated 181–313 KB less with no repeatable timing change. The 577 output
+files matched, all 572 models were reused on the tracked edits, and the collection probes
+passed (`3db04963`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
