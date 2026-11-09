@@ -205,6 +205,11 @@ and when `asm.py compare` lists methods the change did not touch.
   512-byte read improved in four local rounds, but the write had mixed results. Allocations stayed
   at zero and wire bytes matched. The helper grew from 76 to 110 IL bytes, 728 to 736 Arm64 Tier 1
   bytes, and 207 to 233 x64 ReadyToRun bytes. Keep this variant as a read-path experiment.
+  Isolating scratch reads and switching to `CopyToNew` or `CopyBlockUnaligned` did not reproduce
+  the read throughput improvement. Both scratch helpers used 114 IL bytes and 238 x64 ReadyToRun
+  bytes, versus 76 IL and 207 x64 bytes for the shared helper. The Arm64 Tier 1 sizes were 736
+  and 724 bytes versus 732. Wire bytes and steady-state allocations matched. Keep the shared copy
+  while the read-only alternatives remain in the experiment worktree.
   Keep the explicit `TryGet` loop and stop at the last segment. Replacing it with `foreach` made two
   32-byte segments slower on both reads and writes in two local rounds, even though Arm64 machine code shrank
   from 708 to 684 bytes. The JIT already shared the `CopyTo` and `Slice` bounds check.
