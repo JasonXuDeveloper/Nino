@@ -101,51 +101,10 @@ internal sealed class LayoutEntry
 
     private const string ElementsPrefix = "[elements]::";
 
-    /// <summary>
-    /// Whether <see cref="FromLayout"/> of these arguments (with this entry's key) makes an entry equal to this one,
-    /// found by reading <paramref name="members"/> against the fields without splitting it: what a type whose layout
-    /// did not change costs the analyzer. False when unsure (another spelling of the same layout); compare then.
-    /// </summary>
-    public bool Matches(int format, int header, bool trackReferences, bool raw, int id, bool? deferrable,
-        string members)
-    {
-        if (Format != Name(FormatNames, format) || Header != Name(HeaderNames, header) ||
-            TrackReferences != trackReferences || Id != id || Deferrable != deferrable)
-            return false;
-        if (raw)
-            return Raw == members && Elements == null && Members.Count == 0;
-        if (Raw != null)
-            return false;
-        int at = 0;
-        if (Elements != null && !(Next(members, ref at, ElementsPrefix) && Next(members, ref at, Elements)))
-            return false;
-        foreach (var member in Members)
-        {
-            if (at != 0 && !Next(members, ref at, ";"))
-                return false;
-            if (!Next(members, ref at, member.Name) || !Next(members, ref at, ":") ||
-                !Next(members, ref at, member.Type) || !Next(members, ref at, ":") ||
-                !Next(members, ref at, member.Encoding))
-                return false;
-            if (member.Key is { } key && !Next(members, ref at, ":key=" + LayoutBaseline.Hex(key)))
-                return false;
-            if (member.Former.Count != 0 &&
-                !Next(members, ref at, ":former=" + string.Join(",", member.Former.Select(LayoutBaseline.Hex))))
-                return false;
-        }
-
-        return at == members.Length;
-    }
-
-    /// <summary>Whether <paramref name="text"/> continues with <paramref name="expected"/> at <paramref name="at"/>; moves past it.</summary>
-    private static bool Next(string text, ref int at, string expected)
-    {
-        if (text.Length - at < expected.Length ||
-            string.CompareOrdinal(text, at, expected, 0, expected.Length) != 0)
-            return false;
-        at += expected.Length;
-        return true;
-    }
+    /// <summary>Whether the fixed fields of a published layout match this section.</summary>
+    public bool MatchesHeader(int format, int header, bool trackReferences, int id, bool? deferrable) =>
+        Format == Name(FormatNames, format) && Header == Name(HeaderNames, header) &&
+        TrackReferences == trackReferences && Id == id && Deferrable == deferrable;
 
     private static string Name(string[] names, int value) =>
         value >= 0 && value < names.Length ? names[value] : value.ToString(CultureInfo.InvariantCulture);

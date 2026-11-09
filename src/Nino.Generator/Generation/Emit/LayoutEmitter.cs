@@ -30,12 +30,33 @@ internal static class LayoutEmitter
             m.PublishesDeferrable ? m.Depth.Deferrable : null, Members(m));
 
     /// <summary>
-    /// Whether the layout <see cref="Emit"/> publishes is <paramref name="section"/>'s, read without building its
-    /// entry (<see cref="LayoutEntry.Matches"/>): the analyzer then has nothing to compare.
+    /// Whether the layout <see cref="Emit"/> publishes is already in <paramref name="section"/>. Compare the model
+    /// directly so the unchanged case does not have to format the member layout.
     /// </summary>
-    public static bool Matches(TypeModel m, LayoutEntry section) =>
-        section.Matches((int)m.Format, Header(m), m.TrackReferences, m.RawStruct, m.TypeId,
-            m.PublishesDeferrable ? m.Depth.Deferrable : null, Members(m));
+    public static bool Matches(TypeModel m, LayoutEntry section)
+    {
+        if (!section.MatchesHeader((int)m.Format, Header(m), m.TrackReferences, m.TypeId,
+                m.PublishesDeferrable ? m.Depth.Deferrable : null) ||
+            section.Raw != (m.RawStruct ? m.RawLayout : null) || section.Elements != m.Collection?.Encoding ||
+            section.Members.Count != m.Members.Length)
+            return false;
+
+        for (int i = 0; i < m.Members.Length; i++)
+        {
+            var member = m.Members[i];
+            var saved = section.Members[i];
+            int formerCount = m.Keyed ? member.FormerKeys.Length : 0;
+            if (saved.Name != member.SourceName || saved.Type != Plain(member.TypeName) ||
+                saved.Encoding != member.Encoding || saved.Key != (m.Keyed ? member.Key : (int?)null) ||
+                saved.Former.Count != formerCount)
+                return false;
+            for (int j = 0; j < formerCount; j++)
+                if (saved.Former[j] != member.FormerKeys[j])
+                    return false;
+        }
+
+        return true;
+    }
 
     /// <summary>What is written in front of the body (<c>NinoHeader</c>): nothing, a presence byte or a type id.</summary>
     private static int Header(TypeModel m) => m.Kind switch

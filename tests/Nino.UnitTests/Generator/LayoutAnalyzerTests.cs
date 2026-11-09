@@ -177,7 +177,9 @@ namespace Game
     }
 
     [NinoType(format: NinoFormat.Keyed)]
-    public sealed record Profile(string Name, Outer<int>.Inner<string> Data, Animal Pet);
+    public sealed record Profile(
+        [property: NinoFormerName(""Title"")] [property: NinoFormerName(""Label"")] string Name,
+        Outer<int>.Inner<string> Data, Animal Pet);
 
     [NinoType]
     public abstract class Animal { public string Name; }
