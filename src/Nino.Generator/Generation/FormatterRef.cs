@@ -86,6 +86,22 @@ internal sealed record FormatterRef(string Name, EquatableArray<FormatterRef> Ar
         var sb = t_builder ?? new StringBuilder(64);
         sb.Clear();
         Append(sb);
+        return Finish(sb);
+    }
+
+    /// <summary>Renders an intercepted call and its formatter into one string.</summary>
+    public string RenderCall(string method, string type, string arguments)
+    {
+        var sb = t_builder ?? new StringBuilder(64);
+        sb.Clear();
+        sb.Append(method).Append('<').Append(type).Append(", ");
+        Append(sb);
+        sb.Append(">(").Append(arguments).Append(')');
+        return Finish(sb);
+    }
+
+    private static string Finish(StringBuilder sb)
+    {
         string text = sb.ToString();
         t_builder = sb.Capacity <= MaxCachedCapacity ? sb : null;
         return text;

@@ -511,7 +511,7 @@ internal sealed record InterceptedCall(string Signature, string Method, string T
 {
     /// <summary>A call of the <c>NinoDirect</c> method <paramref name="method"/> with <paramref name="formatter"/>, and this call's type and arguments.</summary>
     public string CallWith(string method, FormatterRef? formatter) =>
-        $"{method}<{TypeName}{(formatter != null ? ", " + formatter : "")}>({Arguments})";
+        formatter == null ? $"{method}<{TypeName}>({Arguments})" : formatter.RenderCall(method, TypeName, Arguments);
 
     /// <summary>The <c>NinoDirect</c> call, without the class name.</summary>
     public string Call => CallWith(Method, Formatter);
