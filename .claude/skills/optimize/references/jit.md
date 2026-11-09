@@ -21,6 +21,10 @@ and when `asm.py compare` lists methods the change did not touch.
 - Decode a portable `BigInteger` payload of at most four bytes as a signed integer after the length check.
   Sign-extend the last byte of a three-byte payload and use the existing unaligned reads for two and four bytes.
   This removes a 32-byte temporary allocation per short value on CoreCLR running the netstandard2.0 build.
+- Rent a character buffer for portable `StringBuilder` writes of 4,096 or more characters. Use the existing
+  UTF-16 reservation and copy only the builder's length. A 1,024-character cutoff regressed multi-chunk
+  builders, while 4,096-character single- and multi-chunk cases improved without a steady-state allocation.
+  An empty pool bucket still allocates on the first rent.
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
