@@ -48,6 +48,9 @@ and when `asm.py compare` lists methods the change did not touch.
   A separate reverse-walk helper restored the raw Tier 0 helper to 356 bytes. Dispatching to it from
   `Serialize` added 40 IL bytes there and grew the normal-layout Arm64 probe from 4,240 to 4,624 bytes.
   The 64-integer normal-layout control slowed in every round, so keep that dispatch out of the hot entry.
+  Replacing the reverse-walk span indexer with `Unsafe.Add` removed its range failure in both listings
+  (Arm64 1,172 to 1,164 bytes, x64 920 to 858). The one-string forced-fallback case slowed in all four
+  local rounds, so the bounds-check removal alone does not justify reviving that candidate.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
