@@ -11,6 +11,10 @@ and when `asm.py compare` lists methods the change did not touch.
   Keep the final-byte mask and verify dirty padding on unaligned output. The formatter
   went from 86 to 77 IL bytes and from 409 to 369 x64 ReadyToRun bytes. Arm64 timing
   varied around 4 KiB after changing run order, with identical bytes and zero allocations.
+  An explicit nonempty guard let x64 fold the final-byte index check without using a byref.
+  The standalone mask was 38 x64 bytes with the guard, 44 at baseline, and 62 with a guarded byref.
+  Both guarded forms had the same 712-byte Arm64 Tier 1 caller versus 716 at baseline. Neither
+  consistently improved the local timings. Keep the existing mask and its bounds check.
 
 - Build the raw span from `ReadBlock` on the byref reader targets. This gives the span and
   block reads one bounds check and cursor advance in the source. The standalone IL fell from
