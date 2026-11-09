@@ -248,6 +248,10 @@ can enumerate twice without copying the entries into a list. Replaying the real 
 saved 16.7–16.9 KB per emission in both load orders. Cold and edit timing varied. All 577 outputs
 matched, tracked edits reused all 572 models, and collection and targeted tests passed
 (`de92db3d`).
+Indent each registry case with a value-type scope to avoid its capturing action. Registry
+emission saved about 55 KB per pass in both load orders. The 577 generated files matched,
+all 572 models were reused on tracked edits, and collection and 58 targeted tests passed
+(`3380bf7f`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
