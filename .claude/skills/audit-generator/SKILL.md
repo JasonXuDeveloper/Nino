@@ -193,6 +193,9 @@ Keep oversized rewrites out of the slot. Growing a leased buffer beyond the cap 
 makes the next small rewrite allocate again. Bypassing the lease saved another 0.60–0.71 MB
 per cold replay across four rounds, with cold wall time within 0.6% and all outputs identical
 (`0febf582`).
+Delay formatting an alias declaration until the occurrence count pays for it. Compute its length
+from the alias and original name first. Four cold replays allocated 45–58 KB less, wall time
+stayed within 0.3%, and all 577 outputs matched (`abc295cc`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
