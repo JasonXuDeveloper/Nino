@@ -33,8 +33,10 @@ internal static class GeneratedCode
     /// </summary>
     public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped)
     {
-        var sb = new StringBuilder(Header, body.Length * (fileScoped ? 1 : 2) + preamble.Length + 1024);
-        sb.Append(preamble);
+        // File-scoped bodies need no indentation. Concatenate the existing strings directly into the final file.
+        var sb = new StringBuilder(fileScoped ? 256 : body.Length * 2 + preamble.Length + 1024);
+        if (!fileScoped)
+            sb.Append(Header).Append(preamble);
         string indent = fileScoped ? "" : "    ";
         sb.Append(fileScoped ? "namespace " + TypeNames.GenNamespace + ";\n\n" : "namespace " + TypeNames.GenNamespace + "\n{\n");
         int length = sb.Length;
@@ -43,7 +45,7 @@ internal static class GeneratedCode
         if (sb.Length != length)
             sb.Append('\n');
         if (fileScoped)
-            return sb.Append(body).ToString();
+            return Header + preamble + sb.ToString() + body;
         // The body's lines one level in (blank lines stay empty).
         int start = 0;
         while (start < body.Length)
