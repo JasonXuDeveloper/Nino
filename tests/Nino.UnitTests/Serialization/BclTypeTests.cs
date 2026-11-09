@@ -133,6 +133,14 @@ public class BclTypeTests
         Assert.AreSame(same, existing);
         Assert.AreEqual(shortLatin1, existing.ToString());
 
+        foreach (int count in new[] { 17, 256, 257 })
+        {
+            string latin1 = new string('é', count);
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(latin1), ref existing);
+            Assert.AreSame(same, existing);
+            Assert.AreEqual(latin1, existing.ToString());
+        }
+
         Assert.IsNull(RoundTrip((StringBuilder)null));
         Assert.AreEqual("", RoundTrip(new StringBuilder()).ToString());
     }

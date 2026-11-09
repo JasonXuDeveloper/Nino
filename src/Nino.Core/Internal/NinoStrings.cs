@@ -631,16 +631,13 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            // Widened straight into the builder's chunks, which Append sized (and zeroed): one pass, no copy.
-            builder.Append('\0', length);
-            int done = 0;
-            foreach (var chunk in builder.GetChunks())
+            if (length <= 256)
             {
-                ref char destination = ref MemoryMarshal.GetReference(chunk.Span);
-                Widen(ref Unsafe.Add(ref source, done), ref Unsafe.As<char, ushort>(ref destination),
-                    (uint)chunk.Length);
-                done += chunk.Length;
+                AppendMediumLatin1(builder, ref source, length);
+                return;
             }
+
+            AppendLatin1Chunks(builder, ref source, length);
 #else
             const int bufferChars = 256;
             char* buffer = stackalloc char[bufferChars];
@@ -654,6 +651,29 @@ namespace Nino.Core.Internal
         }
 
 #if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void AppendLatin1Chunks(System.Text.StringBuilder builder, ref byte source, int length)
+        {
+            // Widened straight into the builder's chunks, which Append sized (and zeroed): one pass, no copy.
+            builder.Append('\0', length);
+            int done = 0;
+            foreach (var chunk in builder.GetChunks())
+            {
+                ref char destination = ref MemoryMarshal.GetReference(chunk.Span);
+                Widen(ref Unsafe.Add(ref source, done), ref Unsafe.As<char, ushort>(ref destination),
+                    (uint)chunk.Length);
+                done += chunk.Length;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe void AppendMediumLatin1(System.Text.StringBuilder builder, ref byte source, int length)
+        {
+            char* buffer = stackalloc char[length];
+            Widen(ref source, ref *(ushort*)buffer, (uint)length);
+            builder.Append(buffer, length);
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static unsafe void AppendShortLatin1(System.Text.StringBuilder builder, ref byte source, int length)
         {
