@@ -106,6 +106,11 @@ and when `asm.py compare` lists methods the change did not touch.
   chunk. The one-character reuse probe fell from about 30 ns to 6 ns in four local rounds,
   with zero allocations and identical bytes. Longer inputs had no stable regression.
   The helper went from 97 to 111 IL bytes and 421 to 450 x64 ReadyToRun bytes.
+  For two to sixteen Latin-1 characters, widen into one small stack buffer and append once.
+  Keep the stack allocation out of line from the single-character and chunk paths. Local
+  Arm64 reuse probes for 2, 8 and 16 characters improved in all four rounds, at zero
+  allocations. The 17-character control was mixed. Output bytes matched, including
+  unaligned input, and a test covers embedded nulls and high Latin-1 characters.
 - Write the zero count of an empty raw dictionary without entering its out-of-line pair loop. Keep the
   reservation shared with non-empty dictionaries. The Arm64 probe saved about 7–9 ns on empty dictionaries
   at both output offsets, with the non-empty controls on par.
