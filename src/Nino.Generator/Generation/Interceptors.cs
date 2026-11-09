@@ -21,6 +21,12 @@ namespace Nino.Generator.Generation;
 /// </summary>
 internal static class Interceptors
 {
+    private static readonly (string Prefix, string Alias)[] Namespaces =
+    {
+        (TypeNames.Core, "__NinoCore"),
+        ("global::System.Collections.Generic.", "__NinoCollections"),
+    };
+
     /// <summary>Whether the project lets generated code intercept calls (the namespace list holds NinoGen).</summary>
     public static bool Enabled(ParseOptions options)
     {
@@ -211,9 +217,27 @@ internal static class Interceptors
         attribute.Line();
         var w = new CodeWriter(calls.Length * 384);
         w.Open($"{scope} static class NinoInterceptors");
+        var groups = calls.GroupBy(c => (c.Signature,
+            Call: c.Inlinable ? WithTopCall(c, tops, shallow, prefetch) : c.Call)).ToList();
+        var aliases = new List<string> { GeneratedCode.InterceptsAlias };
+        aliases.AddRange(GeneratedCode.InlineAliases);
+        aliases.Add(GeneratedCode.DirectAlias);
+        var compact = new List<(string Prefix, string Alias)>();
+        foreach (var (prefix, name) in Namespaces)
+        {
+            int count = 0;
+            foreach (var group in groups)
+                count += CountPrefix(group.Key.Signature, prefix) + CountPrefix(group.Key.Call, prefix);
+            string alias = name + ".";
+            string declaration = $"using {name} = {prefix.TrimEnd('.')};";
+            if (count * (prefix.Length - alias.Length) <= declaration.Length + 5)
+                continue;
+            aliases.Add(declaration);
+            compact.Add((prefix, alias));
+        }
+
         int n = 0;
-        foreach (var group in calls.GroupBy(c => (c.Signature,
-                     Call: c.Inlinable ? WithTopCall(c, tops, shallow, prefetch) : c.Call)))
+        foreach (var group in groups)
         {
             if (n != 0)
                 w.Line();
@@ -223,19 +247,36 @@ internal static class Interceptors
                     : $"[__NinoIntercepts({call.Location})] // {call.Where}");
             w.Line(GeneratedCode.Inline);
             // "R Name(params)" becomes "public static R NameN(params) => call;"
-            var signature = group.Key.Signature;
+            string signature = group.Key.Signature;
+            string code = group.Key.Call;
+            // Compact type names only. The legacy attribute contains a physical path.
+            foreach (var (prefix, alias) in compact)
+            {
+                signature = signature.Replace(prefix, alias);
+                code = code.Replace(prefix, alias);
+            }
+
             int paren = signature.IndexOf('(');
-            w.Line($"public static {signature.Substring(0, paren)}{n++}{signature.Substring(paren)} => __NinoDirect.{group.Key.Call};");
+            w.Line($"public static {signature.Substring(0, paren)}{n++}{signature.Substring(paren)} => __NinoDirect.{code};");
         }
 
         w.Close();
-        // Aliases: each interceptor names them, more than a thousand times in a large project.
-        var aliases = new List<string> { GeneratedCode.InterceptsAlias };
-        aliases.AddRange(GeneratedCode.InlineAliases);
-        aliases.Add(GeneratedCode.DirectAlias);
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
         // A block namespace: the file declares the attribute in another namespace.
         return GeneratedCode.File(attribute.ToString(), aliases, body, fileScoped: false);
+    }
+
+    private static int CountPrefix(string text, string prefix)
+    {
+        int count = 0;
+        int start = 0;
+        while ((start = text.IndexOf(prefix, start, System.StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            start += prefix.Length;
+        }
+
+        return count;
     }
 }
 #endif
