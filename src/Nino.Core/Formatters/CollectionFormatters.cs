@@ -71,15 +71,18 @@ namespace Nino.Core
                 int size = Unsafe.SizeOf<T>();
                 int count = value.Count;
                 ref byte elements = ref writer.ReserveCounted(count, size);
+                if (count == 0)
+                    return;
+
                 // The set's own entries when none is free: a loop over an array, without the enumerator's version
                 // check and reloads of the set's fields on each element. The enumerator out of line, so that its
                 // state does not take registers or inlining budget here.
                 var entries = CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
-                if (entries != null && count != 0 && count <= entries.Length)
+                if (entries != null && count <= entries.Length)
                     // Several entries at a time where the CPU permutes vectors, each value packed out of its entry.
                     NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBlock<T>>(ref elements,
                         ref entries[0], count, size);
-                else if (count != 0)
+                else
                     WriteEnumerated(value, ref elements, count);
                 return;
             }
