@@ -124,6 +124,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
   without that cache.
+- Create inherited-type cache entries only after an assembly passes the Nino-reference filter.
+  Keeping plain symbols in the temporary list avoided entries for unrelated references and saved
+  about 33 KB of cold allocations in the unit test project replay. All 577 files matched.
+  `ReferencedNinoTypes` dropped from 596 to 576 IL bytes and the previous compiler objects
+  still collected after an edit and after the driver was released.
 - Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on tests/Nino.UnitTests is the project's
   own `[assembly: NinoFormatter]` registrations (binding the new source assembly's attributes, then `Read`), which hold
   that compilation's symbols and cannot outlive it; every reference together read in 25 ms once. A per-
