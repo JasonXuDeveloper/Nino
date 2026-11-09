@@ -119,8 +119,7 @@ namespace Nino.Core.Internal
                     var b = Vector128.LoadUnsafe(ref source, 16).AsInt32();
                     var keys = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.UnzipEven(a, b)
                         : Sse.Shuffle(a.AsSingle(), b.AsSingle(), 0x88).AsInt32();
-                    var values = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.UnzipOdd(a, b)
-                        : Sse.Shuffle(a.AsSingle(), b.AsSingle(), 0xDD).AsInt32();
+                    var values = OddInt32(a, b);
                     keys.StoreUnsafe(ref first);
                     values.StoreUnsafe(ref second);
                     source = ref Unsafe.Add(ref source, 32);
@@ -136,6 +135,11 @@ namespace Nino.Core.Internal
                 Unsafe.Add(ref second, i) = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, i * 8 + 4));
             }
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static Vector128<int> OddInt32(Vector128<int> a, Vector128<int> b) =>
+            AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.UnzipOdd(a, b)
+                : Sse.Shuffle(a.AsSingle(), b.AsSingle(), 0xDD).AsInt32();
 
 #else
         /// <summary>Interleaves full vectors from checked, canonical four-byte arrays without padding.</summary>

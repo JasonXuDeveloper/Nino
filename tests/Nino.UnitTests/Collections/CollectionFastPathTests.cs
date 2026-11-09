@@ -180,11 +180,11 @@ public class CollectionFastPathTests
     [TestMethod]
     public void PriorityQueueReadsRawHeapWithoutChangingInsertionOrder()
     {
-        foreach (bool ordered in new[] { true, false })
+        const int count = 19;
+        foreach (int unorderedIndex in new[] { -1, 3, count - 1 })
         foreach (bool customComparer in new[] { false, true })
         foreach (int capacity in new[] { 1, 32 })
         {
-            const int count = 19;
             var comparer = customComparer ? Comparer<int>.Create((a, b) => b.CompareTo(a)) : Comparer<int>.Default;
             var expected = new PriorityQueue<int, int>(capacity, comparer);
             var actual = new PriorityQueue<int, int>(capacity, comparer);
@@ -195,7 +195,7 @@ public class CollectionFastPathTests
             NinoSerializer.Serialize(count, buffer);
             for (int i = 0; i < count; i++)
             {
-                int priority = ordered ? i / 3 : -i / 3;
+                int priority = i == unorderedIndex ? int.MinValue : i / 3;
                 expected.Enqueue(i, priority);
                 NinoSerializer.Serialize(i, buffer);
                 NinoSerializer.Serialize(priority, buffer);

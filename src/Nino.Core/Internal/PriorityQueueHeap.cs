@@ -1,6 +1,9 @@
 #if NET10_0_OR_GREATER
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
 using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
@@ -19,7 +22,21 @@ namespace Nino.Core.Internal
                 return false;
             // The default comparer leaves a node in place when its priority equals its parent.
             ref byte source = ref reader.Peek();
-            for (int i = 1; i < count; i++)
+            int i = 1;
+            if (AdvSimd.Arm64.IsSupported || Sse2.IsSupported)
+            {
+                for (; i <= count - 4; i += 4)
+                {
+                    ref byte children = ref Unsafe.Add(ref source, i * 8);
+                    var a = Vector128.LoadUnsafe(ref children).AsInt32();
+                    var b = Vector128.LoadUnsafe(ref children, 16).AsInt32();
+                    int parent = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, ((i - 1) >> 2) * 8 + 4));
+                    if (Vector128.GreaterThanAny(Vector128.Create(parent), NinoBlockCollections.OddInt32(a, b)))
+                        return false;
+                }
+            }
+
+            for (; i < count; i++)
                 if (NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, i * 8 + 4)) <
                     NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, ((i - 1) >> 2) * 8 + 4)))
                     return false;
