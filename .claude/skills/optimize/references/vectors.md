@@ -34,6 +34,9 @@ of bytes in a block.
 - Use the counted byte length to place long UTF-8 payloads at their final offset. When strict transcoding stops at an
   unpaired surrogate, continue the replacement encoder at the consumed char and written byte offsets, which differ
   after a non-ASCII prefix. Keep the replacement work out of line.
+- Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (78f9a1ea).
+  `GetChunks` can allocate a chunk index, even for a short but unusually fragmented builder. Keep the modern
+  small-write loop where it measured faster, and advance the reader by the exact byte count already checked.
 
 - Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
   `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the

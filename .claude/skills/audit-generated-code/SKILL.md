@@ -53,6 +53,9 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   alone. Compare consumer DLL metadata as well as method IL: typed aliases and factoring opaque location strings
   made the DLL larger in the local prototype. Reusing the namespace alias selector for usage registrations
   (07650d43) removed 20,759 source bytes in the unit test project with identical generated IL and DLL size.
+  Stop counting once the declaration pays for itself. For registration statements, merge the next exact prefix
+  matches and append their source slices directly to the output writer. This preserves the emitted text and
+  avoids intermediate replacement strings. Scanning every `global::` token was slower in the local probe.
 - Emit constant type IDs directly in formatter and twin accessors. When no generated caller needs a constant
   field, retaining it duplicates consumer metadata without changing the getter's IL.
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
