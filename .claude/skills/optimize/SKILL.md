@@ -13,6 +13,10 @@ techniques are `optimize-runtimes`.
 
 ## Before committing a read or write path
 
+When a representative workload improves and a narrow small-input case slows, first isolate the large-input loop
+or its dispatch and retest both. Compare Tier 0, Tier 1 and the caller before attributing a slowdown to the extra
+instructions in the loop. Record the remaining tradeoff alongside the evidence.
+
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
 one, run `python3 benchmarks/asm.py compare origin/main` (about two minutes, see benchmarks/README.md) and explain or

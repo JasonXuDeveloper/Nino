@@ -147,6 +147,10 @@ reusing is written down before the task ends, in the same series of commits as t
 
 ## Rules
 
+- **Performance tradeoffs**: Keep pursuing a change with a repeatable gain on representative workloads when a
+  narrower case regresses. First try to preserve the small-input path and isolate the larger loop or dispatch.
+  Measure both paths and record the tradeoff before deciding what to keep (`optimize`, `benchmark`).
+
 - **Numbers**: performance claims come only from GitHub runners (`report.yml` for releases, the A/B workflows while
   developing). Never publish quick, local or editor numbers. Within 5 % is on par; the docs never call Nino
   "slower". v3 means 3.3.13.
