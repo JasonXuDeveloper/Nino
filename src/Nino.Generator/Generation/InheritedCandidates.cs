@@ -137,11 +137,11 @@ internal static class InheritedCandidates
     /// <summary>Simple names of the NinoTypes (including inherited ones) declared in referenced assemblies.</summary>
     public static EquatableArray<string> ReferencedNinoTypes(Compilation compilation, CancellationToken ct)
     {
-        var assemblies = new List<(IAssemblySymbol Assembly, AssemblyInfo Info)>();
+        var assemblies = new List<IAssemblySymbol>();
         foreach (var reference in compilation.References)
         {
             if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol assembly)
-                assemblies.Add((assembly, Assemblies.GetValue(assembly, static _ => new AssemblyInfo())));
+                assemblies.Add(assembly);
         }
 
         // Only assemblies that reference Nino.Core, directly or through another such assembly, can declare or
@@ -151,7 +151,7 @@ internal static class InheritedCandidates
         while (grew)
         {
             grew = false;
-            foreach (var (assembly, info) in assemblies)
+            foreach (var assembly in assemblies)
             {
                 if (ninoAware.Contains(assembly.Name) || !AssemblyReferences.Of(assembly).Overlaps(ninoAware))
                     continue;
@@ -161,10 +161,11 @@ internal static class InheritedCandidates
         }
 
         var names = new List<string>();
-        foreach (var (assembly, info) in assemblies)
+        foreach (var assembly in assemblies)
         {
             if (assembly.Name == NinoNames.CoreAssembly || !ninoAware.Contains(assembly.Name))
                 continue;
+            var info = Assemblies.GetValue(assembly, static _ => new AssemblyInfo());
             if (info.NinoTypes == null)
             {
                 // Races collect the same names.
