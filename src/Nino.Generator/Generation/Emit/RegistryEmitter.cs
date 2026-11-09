@@ -168,25 +168,39 @@ internal static class RegistryEmitter
                 : r.Top ? $"RegisterTop<{r.TypeName}, {r.Formatter}, {r.Formatter}{Top}>"
                 : $"{(r.Fixed ? "RegisterFixed" : "Register")}<{r.TypeName}, {r.Formatter}>");
             atId = call + "(id);";
-            atNameId = call + "(" + r.Id + ");";
+            atNameId = r.NameId == r.Id ? atId : call + "(" + r.Id + ");";
         }
 
         return r.NameId == r.Id ? new[] { (r.Id, atId) } : new[] { (r.Id, atId), (r.NameId, atNameId) };
     }
 
+    private readonly record struct IdCase(int Id, string First, List<string>? Rest);
+
     /// <summary>The statements by id, in the order of the ids, each id's in the order given.</summary>
-    private static List<KeyValuePair<int, List<string>>> ById(IEnumerable<(int Id, string Code)> statements) =>
-        statements.GroupBy(s => s.Id).OrderBy(g => g.Key)
-            .Select(g => new KeyValuePair<int, List<string>>(g.Key, g.Select(s => s.Code).ToList()))
-            .ToList();
+    private static List<IdCase> ById(IEnumerable<(int Id, string Code)> statements)
+    {
+        var cases = new Dictionary<int, IdCase>();
+        foreach (var (id, code) in statements)
+        {
+            if (!cases.TryGetValue(id, out var entry))
+                cases.Add(id, new IdCase(id, code, null));
+            else if (entry.Rest == null)
+                cases[id] = entry with { Rest = new List<string> { code } };
+            else
+                entry.Rest.Add(code);
+        }
+
+        var ordered = cases.Values.ToList();
+        ordered.Sort(static (a, b) => a.Id.CompareTo(b.Id));
+        return ordered;
+    }
 
     /// <summary>
     /// Emits <c>Register(int id)</c> as a switch over small bucket methods: the JIT resolves every call in a method
     /// it compiles, so one switch over every type would load every formatter on the first lookup. With buckets of
     /// about <see cref="IdsPerBucket"/> ids, a lookup only loads the types of its bucket.
     /// </summary>
-    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude,
-        List<KeyValuePair<int, List<string>>> cases)
+    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, List<IdCase> cases)
     {
         int buckets = 1;
         while (buckets < MaxBuckets && buckets * IdsPerBucket < cases.Count)
@@ -197,12 +211,13 @@ internal static class RegistryEmitter
             w.Line(prelude);
         if (buckets == 1)
         {
-            EmitIdSwitch(w, cases);
+            if (cases.Count != 0)
+                EmitIdSwitch(w, cases);
             w.Close();
             return;
         }
 
-        var byBucket = cases.GroupBy(c => c.Key & (buckets - 1)).OrderBy(g => g.Key).ToList();
+        var byBucket = cases.GroupBy(c => c.Id & (buckets - 1)).OrderBy(g => g.Key).ToList();
         w.Block($"switch (id & {buckets - 1})", () =>
         {
             foreach (var bucket in byBucket)
@@ -212,23 +227,23 @@ internal static class RegistryEmitter
         foreach (var bucket in byBucket)
         {
             w.Line();
-            w.Block($"private static void __Bucket{bucket.Key}(int id)", () => EmitIdSwitch(w, bucket.ToList()));
+            w.Block($"private static void __Bucket{bucket.Key}(int id)", () => EmitIdSwitch(w, bucket));
         }
     }
 
-    private static void EmitIdSwitch(CodeWriter w, List<KeyValuePair<int, List<string>>> cases)
+    private static void EmitIdSwitch(CodeWriter w, IEnumerable<IdCase> cases)
     {
-        if (cases.Count == 0)
-            return;
         w.Block("switch (id)", () =>
         {
             foreach (var c in cases)
             {
-                w.Line($"case {c.Key}:");
+                w.Line($"case {c.Id}:");
                 w.Indented(() =>
                 {
-                    foreach (var statement in c.Value)
-                        w.Line(statement);
+                    w.Line(c.First);
+                    if (c.Rest != null)
+                        foreach (var statement in c.Rest)
+                            w.Line(statement);
                     w.Line("break;");
                 });
             }
