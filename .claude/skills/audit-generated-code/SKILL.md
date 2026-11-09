@@ -173,6 +173,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - Inspect trimmed line boundaries through a span in `CodeWriter.Line`. Keep writing the original
   text so the output's whitespace stays identical. The unit test project replay saved about 15 KB
   of cold allocations and matched all 577 files. Timing was flat and the helper gained 11 IL bytes.
+  Scanning ranges instead of splitting in `CodeWriter.Lines` saved only another 21 KB cold.
+  It matched the same 577 files and did not improve elapsed time. The method grew from 62 to 73
+  IL bytes, from 260 to 320 Arm64 bytes, and from 205 to 268 x64 cross-JIT bytes. Keep the simpler
+  split for the registry and pool hook templates.
 - Append interceptor signature slices and the method ordinal directly to the code writer. This
   avoids allocating two substrings and the assembled method line. In the 577-file unit test replay,
   cold and method-body edit runs each allocated about 1.1 MB less with byte-identical output.
