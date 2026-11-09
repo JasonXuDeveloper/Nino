@@ -141,6 +141,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Replacing the cold per-assembly LINQ name collection with a lazy set also matched all 577 files,
   but did not move replay time or allocations beyond noise. The entry and new collector totaled
   524 IL bytes versus 478 before. Keep the existing collection for now.
+  For source declarations, collect unmarked candidates in the same pass that records marked names.
+  Check base names by index to avoid the predicate allocation in each fixed-point pass. The real
+  project replay saved 66 KB cold and 48 KB on method-body edits with the same 577 generated files.
+  Timings were flat and the entry plus helper used 296 IL bytes instead of 318.
 - Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on tests/Nino.UnitTests is the project's
   own `[assembly: NinoFormatter]` registrations (binding the new source assembly's attributes, then `Read`), which hold
   that compilation's symbols and cannot outlive it; every reference together read in 25 ms once. A per-
