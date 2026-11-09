@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nino.Generator.Common;
 using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;
@@ -22,18 +23,18 @@ internal static class RegistryEmitter
     /// The registry of <paramref name="entries"/> (sorted by formatter name), registering the function pointer fields
     /// <paramref name="pointerFields"/> (arguments of <c>NinoFunctionPointerFields.Register</c>, sorted).
     /// </summary>
-    public static string EmitRegistry(GeneratorOptions options, IEnumerable<RegistryEntry> entries,
-        IEnumerable<string> pointerFields, bool fileScoped)
+    public static string EmitRegistry(GeneratorOptions options, EquatableArray<RegistryEntry> entries,
+        EquatableArray<string> pointerFields, bool fileScoped)
     {
         string name = "NinoGenRegistry_" + new string(options.AssemblyName
             .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
         var preamble = new CodeWriter();
         preamble.Line($"[assembly: {CoreCompilerServices}NinoGenerated(typeof({Gen}{name}))]");
-        var list = entries.ToList();
         // Generic [NinoType]s are closed at runtime: their formatter definitions are ordinary formatter
         // registrations (each implements INinoFormatter<Box<T>> in exactly the type's own parameters).
-        foreach (var entry in list.Where(e => e.Arity != 0))
-            preamble.Line($"[assembly: {Core}NinoFormatter(typeof({Gen}{entry.FormatterName}<{new string(',', entry.Arity - 1)}>))]");
+        foreach (var entry in entries)
+            if (entry.Arity != 0)
+                preamble.Line($"[assembly: {Core}NinoFormatter(typeof({Gen}{entry.FormatterName}<{new string(',', entry.Arity - 1)}>))]");
         preamble.Line();
         var w = new CodeWriter();
         w.Lines($$"""
@@ -62,7 +63,7 @@ internal static class RegistryEmitter
         });
         w.Line();
         EmitIdDispatch(w, "public", $"{Gen}{UsagesClass}.Register(id);",
-            ById(list.Where(e => e.Arity == 0 && e.Registration != null).SelectMany(e => Statements(e.Registration!))));
+            ById(entries.Where(e => e.Arity == 0 && e.Registration != null).SelectMany(e => Statements(e.Registration!))));
         w.Line();
         w.Line("/// <summary>Runs the registration (once).</summary>");
         w.Block("public static void Init()", () => { });
