@@ -494,6 +494,10 @@ public class BclTypeTests
         CollectionAssert.AreEqual(blocking.ToArray(), back.ToArray());
         back.Add(100);
         Assert.AreEqual(0, back.Take());
+        Assert.AreEqual(0, RoundTrip(new BlockingCollection<int>()).Count);
+        var single = RoundTrip(new BlockingCollection<string> { "only" });
+        Assert.AreEqual("only", single.Take());
+        Assert.AreEqual(0, single.Count);
         Assert.IsNull(RoundTrip((BlockingCollection<int>)null));
     }
 
