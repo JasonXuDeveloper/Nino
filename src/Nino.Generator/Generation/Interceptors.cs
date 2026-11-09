@@ -239,10 +239,12 @@ internal static class Interceptors
         attribute.Close();
         attribute.Close();
         attribute.Line();
-        var w = new CodeWriter(calls.Length * 384);
-        w.Open($"{scope} static class NinoInterceptors");
         var groups = calls.GroupBy(c => (c.Signature,
             Call: c.Inlinable ? WithTopCall(c, tops, shallow, prefetch) : c.Call)).ToList();
+        // One location attribute per call site, but only one method per group.
+        int capacity = System.Math.Min(calls.Length * 384, calls.Length * 128 + groups.Count * 320);
+        var w = new CodeWriter(capacity);
+        w.Open($"{scope} static class NinoInterceptors");
         var aliases = new List<string> { GeneratedCode.InterceptsAlias };
         aliases.AddRange(GeneratedCode.InlineAliases);
         aliases.Add(GeneratedCode.DirectAlias);
