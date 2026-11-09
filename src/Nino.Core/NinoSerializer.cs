@@ -99,7 +99,8 @@ namespace Nino.Core
 
         /// <summary>
         /// Serializes <paramref name="value"/> into <paramref name="bufferWriter"/>. Writing into a
-        /// <see cref="NinoArrayBufferWriter"/> is done in place; other buffer writers receive one copy.
+        /// <see cref="NinoArrayBufferWriter"/> or writing a raw value or array is done in place.
+        /// Other values are copied from a scratch buffer.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(in T value, IBufferWriter<byte> bufferWriter)
@@ -136,6 +137,12 @@ namespace Nino.Core
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
                 WriteFormatted(value, nino, formatter);
+                return;
+            }
+
+            if (value != null && NinoRawArray<T>.Formatter is { } raw)
+            {
+                raw.WriteTo(bufferWriter, Unsafe.As<Array>(value));
                 return;
             }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
@@ -60,6 +61,29 @@ namespace Nino.Core
             int length = values.Length;
             NinoLayout<T>.WriteLengthPrefixed(ref buffer.Reserve(WireSize(length)),
                 ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), length);
+        }
+
+        void INinoRawArrayFormatter.WriteTo(IBufferWriter<byte> buffer, Array array)
+        {
+            var values = Unsafe.As<T[]>(array);
+            int size = WireSize(values.Length);
+            var destination = buffer.GetSpan(size).Slice(0, size);
+            var body = destination.Slice(NinoWire.LengthSize);
+            var source = MemoryMarshal.AsBytes(values.AsSpan());
+            if (!source.IsEmpty)
+            {
+                // A caller-provided span may alias the source. Publish the header after the payload copy.
+                if (source.Overlaps(body))
+                {
+                    source.CopyTo(body);
+                    NinoLayout<T>.ClearPadding(ref MemoryMarshal.GetReference(body), values.Length);
+                }
+                else
+                    NinoLayout<T>.CopyToWire(ref MemoryMarshal.GetReference(body),
+                        ref MemoryMarshal.GetReference(source), values.Length);
+            }
+            NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), values.Length);
+            buffer.Advance(size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

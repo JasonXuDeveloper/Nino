@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
@@ -181,6 +182,9 @@ namespace Nino.Core
         /// <paramref name="buffer"/>: one capacity check, the length and one block copy.
         /// </summary>
         void Write(NinoArrayBufferWriter buffer, System.Array array);
+
+        /// <summary>Writes the array directly into a caller-provided buffer.</summary>
+        void WriteTo(IBufferWriter<byte> buffer, System.Array array);
 
         /// <summary><paramref name="array"/> (not null) as a new byte array of exactly its size.</summary>
         byte[] Serialize(System.Array array);

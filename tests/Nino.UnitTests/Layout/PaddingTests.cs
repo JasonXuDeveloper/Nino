@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -90,6 +91,9 @@ namespace Nino.UnitTests
 
             CollectionAssert.AreEqual(NinoSerializer.Serialize(cleanHolder.Array), NinoSerializer.Serialize(dirtyHolder.Array));
             CollectionAssert.DoesNotContain(NinoSerializer.Serialize(dirtyHolder.Array), (byte)0xAB);
+            var output = new ArrayBufferWriter<byte>();
+            NinoSerializer.Serialize(dirtyHolder.Array, output);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(cleanHolder.Array), output.WrittenSpan.ToArray());
             CollectionAssert.DoesNotContain(NinoSerializer.Serialize(dirtyHolder.List), (byte)0xAB);
             CollectionAssert.DoesNotContain(NinoSerializer.Serialize(new SortedList<int, SubsetPadded> { [2] = nino }),
                 (byte)0xAB);
