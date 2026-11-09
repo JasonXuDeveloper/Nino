@@ -92,7 +92,7 @@ internal sealed record MemberModel(
     string Name,
     // The member's name in C#.
     string SourceName,
-    // Id of the member in keyed bodies: the hash of its name.
+    // Id of the member in keyed bodies: the hash of its name. Zero for other bodies.
     int Key,
     // Keys of its [NinoFormerName]s (keyed bodies only), also accepted when reading.
     EquatableArray<int> FormerKeys,
@@ -106,7 +106,7 @@ internal sealed record MemberModel(
     RawSize? Raw,
     bool IsProperty,
     MemberAccess Access,
-    // Type that declares the member (global-qualified), used by accessors.
+    // Type that declares the member (global-qualified), when emitted code needs to name it.
     string DeclaringType,
     bool DeclaringTypeIsValueType,
     // Whether the member can only be assigned while constructing the instance (readonly field, init-only).

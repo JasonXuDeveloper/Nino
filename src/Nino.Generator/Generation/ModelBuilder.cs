@@ -64,9 +64,10 @@ internal static class ModelBuilder
 
         bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
         bool fixedSize = !rawStruct && facts.IsFixedSize(type);
+        string typeName = Global(type);
         return new TypeModel(
-            TypeName: Global(type),
-            OpenTypeName: generic ? OpenName(type) : Global(type),
+            TypeName: typeName,
+            OpenTypeName: generic ? OpenName(type) : typeName,
             FormatterName: FormatterName(type),
             TypeParameters: new EquatableArray<string>(typeParameters.Select(p => p.Name)),
             Constraints: Constraints(typeParameters),
@@ -634,7 +635,7 @@ internal static class ModelBuilder
         int typeId = registered && raw == null ? facts.TypeId(memberType) : 0;
         string name = renamed == 0 ? symbol.Name : $"{symbol.Name}__{renamed}";
         // Keyed: a renamed member's key is its declaring type's name with its own.
-        int key = ComputeId(KeyName(symbol.Name, renamed != 0, declaring));
+        int key = keyed ? ComputeId(KeyName(symbol.Name, renamed != 0, declaring)) : 0;
         var formerKeys = keyed
             ? new EquatableArray<int>(FormerKeys(symbol, renamed != 0, known).Select(static f => f.Key)
                 .Where(former => former != key).Distinct())
@@ -658,7 +659,7 @@ internal static class ModelBuilder
             Raw: raw,
             IsProperty: symbol is IPropertySymbol,
             Access: access,
-            DeclaringType: Global(declaring),
+            DeclaringType: access is MemberAccess.Direct or MemberAccess.Partial ? "" : Global(declaring),
             DeclaringTypeIsValueType: declaring.IsValueType,
             ConstructionOnly: Visibility.IsConstructionOnly(symbol),
             // Decided with the construction (ModelBuilder.Build), once every member is known.
