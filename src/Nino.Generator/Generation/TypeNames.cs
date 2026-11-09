@@ -324,9 +324,7 @@ internal static class TypeNames
     private static StringBuilder Stem(INamedTypeSymbol type)
     {
         var sb = new StringBuilder();
-        string ns = Namespace(type.ContainingNamespace);
-        if (ns.Length != 0)
-            sb.Append(ns.Replace("_", "__").Replace('.', '_')).Append('_');
+        AppendNamespaceStem(sb, type.ContainingNamespace);
         AppendStem(sb, type);
         return sb;
     }
@@ -339,9 +337,30 @@ internal static class TypeNames
             sb.Append('_');
         }
 
-        sb.Append(type.Name.Replace("_", "__"));
+        AppendStemPart(sb, type.Name);
         if (type.Arity > 0)
             sb.Append('_').Append(type.Arity);
+    }
+
+    private static void AppendNamespaceStem(StringBuilder sb, INamespaceSymbol? ns)
+    {
+        if (ns == null || ns.IsGlobalNamespace)
+            return;
+        AppendNamespaceStem(sb, ns.ContainingNamespace);
+        AppendStemPart(sb, ns.Name);
+        sb.Append('_');
+    }
+
+    private static void AppendStemPart(StringBuilder sb, string name)
+    {
+        int start = 0;
+        for (int at = name.IndexOf('_'); at >= 0; at = name.IndexOf('_', start))
+        {
+            sb.Append(name, start, at - start).Append("__");
+            start = at + 1;
+        }
+
+        sb.Append(name, start, name.Length - start);
     }
 
     /// <summary>
