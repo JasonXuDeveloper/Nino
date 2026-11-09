@@ -118,6 +118,12 @@ and when `asm.py compare` lists methods the change did not touch.
   and improved too. Tier 1 was present on both sides, with the probe caller shrinking from
   2,004 to 1,336 Arm64 bytes at 16,384 characters. The dispatcher fell from 125 to 54 IL bytes,
   with separate 26- and 97-byte helpers. Wire bytes and steady-state allocations matched.
+  Pre-sizing the cleared builder before the chunk loop saved 16 B when growing from a small
+  capacity, but regressed 1,024 characters. Restricting it to insufficient capacity at 4,096 or
+  more characters improved growing builders at 4,096 and 16,384 in all four local rounds, yet the
+  4,096-character reuse control slowed in each round. The guarded helper grew from 97 to 122
+  IL bytes, 928 to 992 Arm64 FullOpts bytes and 421 to 472 x64 ReadyToRun bytes. Wire bytes
+  matched. Keep the existing chunk growth for now.
 - Write the zero count of an empty raw dictionary without entering its out-of-line pair loop. Keep the
   reservation shared with non-empty dictionaries. The Arm64 probe saved about 7–9 ns on empty dictionaries
   at both output offsets, with the non-empty controls on par.
