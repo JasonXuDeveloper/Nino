@@ -193,11 +193,11 @@ namespace Nino.Core.Internal
                 if (last >= 0)
                 {
                     ref byte source = ref Unsafe.As<T, byte>(ref first);
-                    Unsafe.WriteUnaligned(ref destination, Unsafe.ReadUnaligned<ulong>(ref source));
+                    NinoUnsafe.Write(ref destination, NinoUnsafe.Read<ulong>(ref source, 0));
                     // Both word stores stay inside the 8- to 16-byte prefix.
                     int tail = size - 1;
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, tail - 8),
-                        Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, tail - 8)));
+                    int second = tail - 8;
+                    NinoUnsafe.Write(ref destination, second, NinoUnsafe.Read<ulong>(ref source, second));
                     Unsafe.Add(ref destination, tail) = Unsafe.Add(ref source, last);
                     return;
                 }
