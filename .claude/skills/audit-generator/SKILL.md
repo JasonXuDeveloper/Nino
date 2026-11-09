@@ -238,6 +238,11 @@ while avoiding both the callback and a new mode object. Re-emitting the 572 mode
 73 KB per pass in both load orders. Whole-project cold and edit timings varied, all 577 outputs
 matched, and tracked edits reused every model. Collection and 97 targeted tests passed
 (`5c1fc60b`).
+The singleton formatter-candidate probe held the first name in a local and allocated a list
+only on the second. It saved about 16 KB per pass over 451 alias-eligible models in both
+load orders. Whole-project wall time showed no repeatable change. All 577 outputs matched,
+incremental edits reused all 572 models, and old compiler objects and output collected.
+Keep the lazy list for now given the small allocation difference and the extra collector state.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
