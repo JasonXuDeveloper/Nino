@@ -25,6 +25,35 @@ namespace Nino.Core.Internal
         /// </summary>
         internal const int TableBits = 4, Written = 16, Loaded = 20;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool CanInterleaveInt32(int count) =>
+            count >= Vector128<int>.Count && (AdvSimd.Arm64.IsSupported || Sse2.IsSupported);
+
+        /// <summary>Interleaves two checked int arrays into one little-endian block of pairs.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void InterleaveInt32(ref int first, ref int second, ref byte target, int count)
+        {
+            while (count >= Vector128<int>.Count)
+            {
+                var a = Vector128.LoadUnsafe(ref first);
+                var b = Vector128.LoadUnsafe(ref second);
+                var lower = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipLow(a, b) : Sse2.UnpackLow(a, b);
+                var upper = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
+                lower.AsByte().StoreUnsafe(ref target);
+                upper.AsByte().StoreUnsafe(ref target, 16);
+                first = ref Unsafe.Add(ref first, 4);
+                second = ref Unsafe.Add(ref second, 4);
+                target = ref Unsafe.Add(ref target, 32);
+                count -= 4;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, i * 8), Unsafe.Add(ref first, i));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, i * 8 + 4), Unsafe.Add(ref second, i));
+            }
+        }
+
 #endif
         /// <summary>
         /// The <see cref="INinoFixedSizeFormatter{T}.FixedSize"/> of the block formatter
