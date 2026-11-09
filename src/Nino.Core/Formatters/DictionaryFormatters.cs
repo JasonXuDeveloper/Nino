@@ -298,10 +298,41 @@ namespace Nino.Core
         private static void RemoveStale(Dictionary<TKey, TValue> dictionary, TKey[] keys, int count)
         {
             // A key read twice is one key (the last value won).
+#if NETSTANDARD2_1 || NET8_0_OR_GREATER
+            // Every distinct key read is now in the dictionary, and there can be at most one per pair.
+            var read = new HashSet<TKey>(Math.Min(count, dictionary.Count), dictionary.Comparer);
+#else
             var read = new HashSet<TKey>(dictionary.Comparer);
+#endif
             for (int i = 0; i < count; i++)
                 read.Add(keys[i]);
 
+            if (dictionary.Count == read.Count)
+                return;
+
+#if NET8_0_OR_GREATER
+            // Remove keeps a .NET Core dictionary enumerator valid. Only keep the dropped pairs when they
+            // must be recycled, after every stale entry has been removed.
+            if (!NinoRecycler<TKey>.MayRecycle && !NinoRecycler<TValue>.MayRecycle)
+            {
+                foreach (var pair in dictionary)
+                    if (!read.Contains(pair.Key))
+                        dictionary.Remove(pair.Key);
+                return;
+            }
+#endif
+
+            RemoveAndRecycleStale(dictionary, read);
+        }
+
+#if NET8_0_OR_GREATER
+        // Keep the list and recycling walk out of the method that usually removes keys directly.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        private static void RemoveAndRecycleStale(Dictionary<TKey, TValue> dictionary, HashSet<TKey> read)
+        {
             var stale = new List<KeyValuePair<TKey, TValue>>(dictionary.Count - read.Count);
             foreach (var pair in dictionary)
             {
