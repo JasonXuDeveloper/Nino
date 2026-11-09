@@ -1,6 +1,8 @@
 using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
@@ -15,6 +17,40 @@ namespace Nino.Core.Internal
         /// pool's rent and return on the small messages pipes most often split.
         /// </summary>
         public const int StackBytes = 1024;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool HasTwoSegments(in ReadOnlySequence<byte> data) =>
+            data.Start.GetObject() is ReadOnlySequenceSegment<byte> first &&
+            ReferenceEquals(first.Next, data.End.GetObject());
+
+        /// <summary>Reads a complete byte array whose header and payload fit in two segments.</summary>
+        public static bool TryReadByteArray(in ReadOnlySequence<byte> data, long length, ref byte[] value)
+        {
+            if (NinoRawArray<byte[]>.Formatter is not UnmanagedArrayFormatter<byte>)
+                return false;
+
+            var position = data.Start;
+            if (!data.TryGet(ref position, out var first) || first.Length < NinoWire.LengthSize ||
+                !data.TryGet(ref position, out var second) || position.GetObject() != null ||
+                (long)first.Length + second.Length != length)
+                return false;
+
+            var prefix = first.Span;
+            int count = NinoUnsafe.Read<int>(ref MemoryMarshal.GetReference(prefix));
+            if (count <= 0 || (long)count + NinoWire.LengthSize != length || NinoLimits.TooLong(count))
+                return false;
+
+            var left = prefix.Slice(NinoWire.LengthSize);
+            var right = second.Span;
+            if (value != null && (value.Length != count || left.Overlaps(value) || right.Overlaps(value)))
+                return false;
+
+            var array = value ?? NinoUnsafe.NewArray<byte>(count, uninitialized: true);
+            left.CopyTo(array);
+            right.CopyTo(array.AsSpan(left.Length));
+            value = array;
+            return true;
+        }
 
         /// <summary>
         /// Copies <paramref name="data"/> into an array rented from the shared pool, <paramref name="length"/> bytes

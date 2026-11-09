@@ -343,6 +343,37 @@ public class BclTypeTests
         }
     }
 
+    [TestMethod]
+    public void TwoSegmentByteArrayReadsReuseWithoutOverwritingAliasedInput()
+    {
+        byte[] expected = { 10, 11, 4, 5, 6, 7 };
+        var first = new Segment<byte>(new byte[] { 6, 0, 0, 0, 10, 11 });
+        var last = first.Append(new byte[] { 4, 5, 6, 7 });
+        var data = new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length);
+        CollectionAssert.AreEqual(expected, NinoDeserializer.Deserialize<byte[]>(data));
+
+        byte[] existing = new byte[expected.Length];
+        byte[] value = existing;
+        NinoDeserializer.Deserialize(data, ref value);
+        Assert.AreSame(existing, value);
+        CollectionAssert.AreEqual(expected, value);
+
+        first = new Segment<byte>(new byte[] { 6, 0, 0, 0, 10, 11 });
+        existing = new byte[] { 4, 5, 6, 7, 8, 9 };
+        last = first.Append(existing);
+        data = new ReadOnlySequence<byte>(first, 0, last, 4);
+        value = existing;
+        NinoDeserializer.Deserialize(data, ref value);
+        Assert.AreSame(existing, value);
+        CollectionAssert.AreEqual(expected, value);
+
+        first = new Segment<byte>(new byte[] { 6, 0, 0, 0, 10, 11 });
+        last = first.Append(new byte[] { 4, 5, 6, 7 }, offset: 1);
+        data = new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length);
+        Assert.ThrowsExactly<ArgumentException>(() => NinoDeserializer.Deserialize(data, ref value));
+        CollectionAssert.AreEqual(expected, value);
+    }
+
     private sealed class Segment<T> : ReadOnlySequenceSegment<T>
     {
         public Segment(T[] items) => Memory = items;

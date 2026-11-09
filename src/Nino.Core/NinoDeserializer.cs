@@ -80,7 +80,7 @@ namespace Nino.Core
 
         /// <summary>
         /// Deserializes a new value from data that may span several segments (a <c>PipeReader</c>'s buffer, a gRPC
-        /// payload). One segment is read in place; several are copied once into a pooled array first.
+        /// payload). One segment is read in place. Two segments can be copied directly into a byte array result.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(in ReadOnlySequence<byte> data) =>
@@ -88,8 +88,8 @@ namespace Nino.Core
 
         /// <summary>
         /// Deserializes into <paramref name="value"/>, as <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>,
-        /// from data that may span several segments. One segment is read in place; several are copied once into a
-        /// pooled array first.
+        /// from data that may span several segments. One segment is read in place. Two segments can be copied
+        /// directly into a byte array result.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(in ReadOnlySequence<byte> data, ref T value)
@@ -112,6 +112,10 @@ namespace Nino.Core
         private static void DeserializeSegments<T>(in ReadOnlySequence<byte> data, ref T value)
         {
             long length = data.Length;
+            if (typeof(T) == typeof(byte[]) && !NinoLimits.Untrusted && NinoSequences.HasTwoSegments(data) &&
+                NinoSequences.TryReadByteArray(data, length, ref Unsafe.As<T, byte[]>(ref value)))
+                return;
+
             if (length <= NinoSequences.StackBytes)
             {
                 Span<byte> stack = stackalloc byte[NinoSequences.StackBytes];
