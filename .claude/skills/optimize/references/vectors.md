@@ -125,8 +125,12 @@ of bytes in a block.
   across four local rounds, scalar reads of 65 and 1,700 items stayed within 0.25%, with 0 B
   allocated. The SIMD one-item case improved in three rounds but slowed in one. The 1,700-item
   SIMD case varied from 3.4% faster to 13.2% slower. Wire bytes, dirty padding and invalid data
-  checks matched. Keep this candidate for a SIMD long-run A/A control and compare the branches
-  in the inlined caller before landing.
+  checks matched. In six further rounds, an identical-binary A/A control for 1,700 items ranged
+  from 3.7% faster to 5.5% slower, while A/B ranged from 4.9% faster to 9.8% slower. The single-item
+  A/B improved in all six rounds, by 23.7–36.0%. The Arm64 caller gained a compare and a branch
+  that skip the prepass below eight items for this plan. Keep the short-input improvement and
+  report the long SIMD case separately. The .NET 8 and 10 targeted suites passed with intrinsics
+  on and off (`9d51e10a`).
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
