@@ -276,6 +276,19 @@ internal static class Interceptors
             compact.Count(group.Key.Signature);
             compact.Count(group.Key.Call);
         }
+        if (preindent && !calls.Any(static c => c.Where.Contains(GeneratedCode.BytesType)))
+        {
+            int matches = 0;
+            foreach (var group in groups)
+            {
+                matches = GeneratedCode.CountBytesType(group.Key.Signature, matches);
+                matches = GeneratedCode.CountBytesType(group.Key.Call, matches);
+                if (matches == GeneratedCode.BytesAliasThreshold)
+                    break;
+            }
+
+            compact.UseBytesAlias = matches == GeneratedCode.BytesAliasThreshold;
+        }
         compact.Declare(aliases);
 
         int n = 0;
@@ -295,6 +308,8 @@ internal static class Interceptors
         if (preindent)
             w.Close();
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
+        if (compact.UseBytesAlias && !aliases.Contains(GeneratedCode.BytesDeclaration))
+            aliases.Add(GeneratedCode.BytesDeclaration);
         // A block namespace: the file declares the attribute in another namespace.
         string preamble = attribute.Finish();
         return preindent ? GeneratedCode.IndentedFile(preamble, aliases, body)

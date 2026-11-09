@@ -97,6 +97,15 @@ internal static class GeneratedCode
             sb.Append('\n');
     }
 
+    public const string BytesType = "global::System.ReadOnlySpan<byte>";
+    public const string BytesAlias = "__NinoBytes";
+    public const string BytesDeclaration = "using " + BytesAlias + " = " + BytesType + ";";
+
+    public static readonly int BytesAliasThreshold = AliasUsesNeeded(BytesDeclaration.Length,
+        BytesType.Length - BytesAlias.Length);
+
+    private static int AliasUsesNeeded(int declarationLength, int saving) => (declarationLength + 5) / saving + 1;
+
     /// <summary>
     /// The names generated bodies repeat most, each with the alias <see cref="WithAliases"/> writes it as.
     /// A name ending in a dot is a static class, always followed by a member.
@@ -109,7 +118,7 @@ internal static class GeneratedCode
         CoreAlias(TypeNames.CoreCompilerServices + "NinoUnsafe.", "__NinoUnsafe."),
         CoreAlias(TypeNames.CoreCompilerServices + "NinoBlocks.", "__NinoBlocks."),
         CoreAlias(TypeNames.CoreCompilerServices + "NinoTypes.", "__NinoTypes."),
-        CoreAlias("global::System.ReadOnlySpan<byte>", "__NinoBytes"),
+        (BytesType, BytesAlias, BytesDeclaration),
     };
 
     private static (string Name, string Alias, string Declaration) CoreAlias(string name, string alias) =>
@@ -128,6 +137,7 @@ internal static class GeneratedCode
         private static readonly int CollectionsThreshold =
             (CollectionsDeclaration.Length + 5) / (Collections.Length - CollectionsAlias.Length) + 1;
         public bool OmitGeneratedNamespace;
+        public bool UseBytesAlias;
         private int _coreUses;
         private int _collectionUses;
 
@@ -180,6 +190,23 @@ internal static class GeneratedCode
         }
 
         private readonly void AppendRange(StringBuilder builder, string code, int start, int end)
+        {
+            if (UseBytesAlias)
+            {
+                int at = FindName(code, BytesType, start, member: false);
+                while (at >= 0 && at + BytesType.Length <= end)
+                {
+                    AppendGeneratedRange(builder, code, start, at);
+                    builder.Append(BytesAlias);
+                    start = at + BytesType.Length;
+                    at = FindName(code, BytesType, start, member: false);
+                }
+            }
+
+            AppendGeneratedRange(builder, code, start, end);
+        }
+
+        private readonly void AppendGeneratedRange(StringBuilder builder, string code, int start, int end)
         {
             if (OmitGeneratedNamespace)
             {
@@ -338,7 +365,7 @@ internal static class GeneratedCode
         if (saving <= 0)
             return body;
         int declarationLength = declaration?.Length ?? ("using ".Length + alias.Length + " = ".Length + name.Length + 1);
-        int needed = (declarationLength + 5) / saving + 1;
+        int needed = AliasUsesNeeded(declarationLength, saving);
         bool member = name[name.Length - 1] == '.';
         int first = FindName(body, name, 0, member);
         int at = first;
@@ -359,6 +386,18 @@ internal static class GeneratedCode
         sb.Append(body, start, body.Length - start);
         declarations.Add(declaration ?? $"using {alias} = {name};");
         return sb.ToString();
+    }
+
+    public static int CountBytesType(string text, int count)
+    {
+        int start = 0;
+        while (count < BytesAliasThreshold && (start = FindName(text, BytesType, start, member: false)) >= 0)
+        {
+            count++;
+            start += BytesType.Length;
+        }
+
+        return count;
     }
 
     private static int FindName(string body, string name, int start, bool member)
