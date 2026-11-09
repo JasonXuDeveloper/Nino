@@ -573,8 +573,16 @@ internal sealed class BodyEmitter
         {
             if (headers)
             {
-                _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {group[i].Key});");
-                _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].Raw!.Expression});");
+                var member = group[i];
+                string keyOffset = block.HeaderOffsets[2 * i];
+                // Writer only accepts little-endian hosts, so the key occupies the low word.
+                if (member.Raw is { IsConstant: true } raw)
+                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<long>(ref {p}, {keyOffset}, {PackKeyHeader(member.Key, raw.Bytes)}L);");
+                else
+                {
+                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {keyOffset}, {member.Key});");
+                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {member.Raw!.Expression});");
+                }
             }
 
             _w.Line(RawWrite(group[i], p, block.Offsets[i]));
@@ -1137,10 +1145,12 @@ internal sealed class BodyEmitter
             return null;
         int size = raw.Bytes;
         uint key = unchecked((uint)member.Key);
-        long le = (long)size << 32 | key;
+        long le = PackKeyHeader(member.Key, size);
         long be = (long)key << 32 | (uint)size;
         return le == be ? $"{le}L" : $"global::System.BitConverter.IsLittleEndian ? {le}L : {be}L";
     }
+
+    private static long PackKeyHeader(int key, int size) => (long)size << 32 | unchecked((uint)key);
 
     /// <summary>
     /// Reads members written in declaration order straight through (raw members check key and length with one
