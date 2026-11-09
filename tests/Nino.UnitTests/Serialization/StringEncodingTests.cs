@@ -156,7 +156,7 @@ public class StringEncodingTests
     [TestMethod]
     public void TruncatedStringsAreRejected()
     {
-        foreach (var s in new[] { "abcdefghijklmnopqrstuvwxyz", "中文テキスト" })
+        foreach (var s in new[] { "abcdefghijklmnopqrstuvwxyz", "中文テキスト", new string('é', 97) })
         {
             var bytes = NinoSerializer.Serialize(s);
             for (int length = 0; length < bytes.Length; length++)
@@ -167,6 +167,37 @@ public class StringEncodingTests
         }
     
     }
+
+#if NET8_0_OR_GREATER
+    [TestMethod]
+    [DoNotParallelize]
+    public void LongLatin1ReuseComparesEveryCharWithoutReadingPastTheInput()
+    {
+        for (int length = 64; length <= 96; length++)
+        {
+            var value = new string('é', length);
+            var data = GuardedMemory.AtEnd(NinoSerializer.Serialize(value));
+            if (data.IsEmpty)
+                Assert.Inconclusive("Guard pages are unavailable on this platform.");
+
+            string current = new string('é', length);
+            string original = current;
+            NinoDeserializer.Deserialize(data, ref current);
+            Assert.AreSame(original, current);
+
+            var chars = value.ToCharArray();
+            for (int i = 0; i < chars.Length; i++)
+            {
+                // Keep the low byte: the full UTF-16 code unit must be compared.
+                chars[i] = '\u01e9';
+                current = new string(chars);
+                NinoDeserializer.Deserialize(data, ref current);
+                Assert.AreEqual(value, current);
+                chars[i] = 'é';
+            }
+        }
+    }
+#endif
 
     [TestMethod]
     public void MalformedHeadersAreRejected()

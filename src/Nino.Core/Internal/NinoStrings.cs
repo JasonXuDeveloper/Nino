@@ -415,7 +415,7 @@ namespace Nino.Core.Internal
                     if (length > (uint)available)
                         NinoThrow.EndOfData();
                     size = start + (int)length;
-                    return current != null && current.Length == (int)length && SameLatin1(ref chars, current)
+                    return current != null && current.Length == (int)length && SameLongLatin1(ref chars, current)
                         ? current
                         : NewLatin1(ref chars, (int)length);
                 }
@@ -852,12 +852,69 @@ namespace Nino.Core.Internal
         private static bool SameLatin1(ref byte source, string value)
         {
 #if NET8_0_OR_GREATER
-            // ASCII text compared vectorized; other Latin-1 text is read again.
             return SameAscii(ref source, value);
 #else
             return SameBytes(ref source, value, 0);
 #endif
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>Compares Latin-1 text with a long header, whose length is at least 64.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool SameLongLatin1(ref byte source, string value)
+        {
+            // Compare the tail first: a same-length edit at the end need not scan the whole prefix.
+            nuint n = (uint)value.Length;
+            ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
+            if (Vector256.IsHardwareAccelerated)
+            {
+                nuint last = n - 32;
+                if (!Same32(ref source, ref chars, last))
+                    return false;
+                for (nuint i = 0; i < last; i += 32)
+                {
+                    if (!Same32(ref source, ref chars, i))
+                        return false;
+                }
+
+                return true;
+            }
+
+            if (Vector128.IsHardwareAccelerated)
+            {
+                nuint last = n - 16;
+                if (!Same16(ref source, ref chars, last))
+                    return false;
+                for (nuint i = 0; i < last; i += 16)
+                {
+                    if (!Same16(ref source, ref chars, i))
+                        return false;
+                }
+
+                return true;
+            }
+            return SameBytes(ref source, value, 0);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool Same32(ref byte source, ref ushort chars, nuint i)
+        {
+            var (lower, upper) = Vector256.Widen(Vector256.LoadUnsafe(ref source, i));
+            return ((lower ^ Vector256.LoadUnsafe(ref chars, i)) |
+                    (upper ^ Vector256.LoadUnsafe(ref chars, i + 16))) == Vector256<ushort>.Zero;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool Same16(ref byte source, ref ushort chars, nuint i)
+        {
+            var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, i));
+            return ((lower ^ Vector128.LoadUnsafe(ref chars, i)) |
+                    (upper ^ Vector128.LoadUnsafe(ref chars, i + 8))) == Vector128<ushort>.Zero;
+        }
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool SameLongLatin1(ref byte source, string value) => SameLatin1(ref source, value);
+#endif
 
         /// <summary>
         /// Whether the bytes at <paramref name="source"/> are the chars of <paramref name="value"/> (as long), all
@@ -872,7 +929,6 @@ namespace Nino.Core.Internal
 #endif
         }
 
-#if !NET8_0_OR_GREATER
         /// <summary>
         /// Whether the bytes at <paramref name="source"/> are the chars of <paramref name="value"/> (as long), none
         /// with a bit of <paramref name="high"/> set (0x80 in each byte: ASCII only; 0: any Latin-1). Eight at a time
@@ -918,7 +974,6 @@ namespace Nino.Core.Internal
             x = (x | x << 16) & 0x0000_FFFF_0000_FFFF;
             return (x | x << 8) & 0x00FF_00FF_00FF_00FF;
         }
-#endif
 
         /// <summary>Whether the UTF-16 chars at <paramref name="source"/> are those of <paramref name="value"/> (as long).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
