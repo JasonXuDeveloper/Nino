@@ -47,6 +47,11 @@ internal static class TypeNames
     /// <summary>Fully qualified C# name, e.g. <c>global::Ns.Outer.Box&lt;int&gt;</c>.</summary>
     public static string Global(ITypeSymbol type)
     {
+        if (type is ITypeParameterSymbol parameter)
+            return Identifier(parameter.Name);
+        if (type is INamedTypeSymbol { TypeKind: not TypeKind.Error } named && Keyword(named.SpecialType) is { } keyword)
+            return keyword;
+
         var sb = new StringBuilder(64);
         AppendGlobal(sb, type);
         return sb.ToString();
@@ -140,18 +145,14 @@ internal static class TypeNames
             {
                 // C# writes rank specifiers outermost first: int[][,] is an array of int[,].
                 ITypeSymbol element = array;
-                var ranks = new List<int>();
                 while (element is IArrayTypeSymbol a)
-                {
-                    ranks.Add(a.Rank);
                     element = a.ElementType;
-                }
 
                 AppendGlobal(sb, element);
-                foreach (var rank in ranks)
+                for (ITypeSymbol current = array; current is IArrayTypeSymbol ranked; current = ranked.ElementType)
                 {
                     sb.Append('[');
-                    sb.Append(',', rank - 1);
+                    sb.Append(',', ranked.Rank - 1);
                     sb.Append(']');
                 }
 
@@ -312,20 +313,25 @@ internal static class TypeNames
 
     private static StringBuilder Stem(INamedTypeSymbol type)
     {
-        var parts = new List<string>();
-        for (var t = type; t != null; t = t.ContainingType)
-            parts.Add(t.Name.Replace("_", "__") + (t.Arity > 0 ? "_" + t.Arity : ""));
-        parts.Reverse();
-        var ns = type.ContainingNamespace;
-        var nsName = Namespace(ns);
         var sb = new StringBuilder();
-        if (nsName.Length != 0)
+        string ns = Namespace(type.ContainingNamespace);
+        if (ns.Length != 0)
+            sb.Append(ns.Replace("_", "__").Replace('.', '_')).Append('_');
+        AppendStem(sb, type);
+        return sb;
+    }
+
+    private static void AppendStem(StringBuilder sb, INamedTypeSymbol type)
+    {
+        if (type.ContainingType is { } containing)
         {
-            sb.Append(nsName.Replace("_", "__").Replace('.', '_'));
+            AppendStem(sb, containing);
             sb.Append('_');
         }
 
-        return sb.Append(string.Join("_", parts));
+        sb.Append(type.Name.Replace("_", "__"));
+        if (type.Arity > 0)
+            sb.Append('_').Append(type.Arity);
     }
 
     /// <summary>
