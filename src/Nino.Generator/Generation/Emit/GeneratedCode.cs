@@ -33,19 +33,23 @@ internal static class GeneratedCode
     /// </summary>
     public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped)
     {
-        // File-scoped bodies need no indentation. Concatenate the existing strings directly into the final file.
-        var sb = new StringBuilder(fileScoped ? 256 : body.Length * 2 + preamble.Length + 1024);
-        if (!fileScoped)
-            sb.Append(Header).Append(preamble);
-        string indent = fileScoped ? "" : "    ";
-        sb.Append(fileScoped ? "namespace " + TypeNames.GenNamespace + ";\n\n" : "namespace " + TypeNames.GenNamespace + "\n{\n");
+        if (fileScoped)
+        {
+            const string fileNamespace = "namespace " + TypeNames.GenNamespace + ";\n\n";
+            string declarations = string.Join("\n", aliases);
+            return declarations.Length == 0
+                ? string.Concat(Header, preamble, fileNamespace, body)
+                : string.Concat(Header, preamble, string.Concat(fileNamespace, declarations, "\n\n"), body);
+        }
+
+        var sb = new StringBuilder(body.Length * 2 + preamble.Length + 1024);
+        sb.Append(Header).Append(preamble).Append("namespace " + TypeNames.GenNamespace + "\n{\n");
+        const string indent = "    ";
         int length = sb.Length;
         foreach (var alias in aliases)
             sb.Append(indent).Append(alias).Append('\n');
         if (sb.Length != length)
             sb.Append('\n');
-        if (fileScoped)
-            return Header + preamble + sb.ToString() + body;
         // The body's lines one level in (blank lines stay empty).
         int start = 0;
         while (start < body.Length)
