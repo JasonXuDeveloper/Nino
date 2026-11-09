@@ -28,6 +28,11 @@ and when `asm.py compare` lists methods the change did not touch.
   the non-seekable stream's read calls from six to ten at that size and from seven to twelve at
   96 KiB. It also grew the full-buffer helper from 88 to 129 IL bytes and had no repeatable
   steady-state gain at 64 KiB. Keep the growth read as one call into the next rental.
+  A single bounded read for exact hidden-buffer `MemoryStream` instances did not improve throughput
+  consistently. The variant in the synchronous rental path left the exposed-buffer branch intact but
+  grew `ReadToEnd` from 91 to 174 IL bytes, plus a 44-byte helper. The 64 KiB hidden-buffer case
+  had more slower than faster rounds with either placement, with zero steady-state allocations.
+  Keep the existing stream path.
   In async reads, retaining both rentals across the await raised `MoveNext` from 376 to 510 IL bytes
   and added 8 B per operation in the suspended 4 KiB probe. Testing for immediate EOF in a non-async
   helper kept the suspended 4 KiB allocation flat and limited `MoveNext` to 387 IL bytes. It improved
