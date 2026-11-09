@@ -10,6 +10,10 @@ and when `asm.py compare` lists methods the change did not touch.
   On a miss, pass the value to `GetOrAdd` and return the value that wins publication. The portable layout cache's
   factory already computed outside the dictionary lock. The new hit path removed the closure and allocation calls
   in both Arm64 and x64 listings. Use the stateful factory overload where the target supports it.
+- Reserve the output array and its offset when a BCL copy API accepts those directly. The portable
+  `BitArray.CopyTo` path writes into the output instead of renting and copying a temporary. For 24 KiB of
+  bits the active payload footprint falls from about 72 KiB to 48 KiB, with the same padding on the wire
+  (a0ee2414).
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,

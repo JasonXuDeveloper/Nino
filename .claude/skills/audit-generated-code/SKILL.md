@@ -71,6 +71,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   avoids intermediate replacement strings. Scanning every `global::` token was slower in the local probe.
 - Emit constant type IDs directly in formatter and twin accessors. When no generated caller needs a constant
   field, retaining it duplicates consumer metadata without changing the getter's IL.
+- Keep the presence-byte writes in their null and non-null branches in top-level local-writer wrappers.
+  Sharing one capacity check reduced the `SimpleClass` listing on both architectures, but the same-process
+  Arm64 A/B moved from about 47 ns to 49 ns. Keep the null test's existing operator semantics in any follow-up.
+- Pack a keyed member's constant key and byte length into one unaligned header store on write.
+  Keep symbolic lengths on the existing path. The real unit test project emitted 2,329 fewer source bytes.
+  For `KeyedStruct`, the x64 listing changed four header stores to two and the Arm64 listing stayed the same size.
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
   pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
   signature generated code repeats is written once in `Signature`.
