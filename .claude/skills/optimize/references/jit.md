@@ -6,6 +6,11 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Inlining budget
 
+- Use a direct lookup before constructing a cached value when the target has no stateful factory overload.
+  On a miss, pass the value to `GetOrAdd` and return the value that wins publication. The portable layout cache's
+  factory already computed outside the dictionary lock. The new hit path removed the closure and allocation calls
+  in both Arm64 and x64 listings. Use the stateful factory overload where the target supports it.
+
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
   element by element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline.

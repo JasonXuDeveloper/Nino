@@ -50,6 +50,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   Alias repeated non-generic named raw member types in symbolic sizes and loads (acc67d4b). Avoid aliases
   of constructed types that add TypeSpec metadata. Expanding the aliases recovered the same source;
   generated IL, Arm64 Tier 1 summaries and normalized x64 listings matched the baseline.
+- Alias the compiler-services namespace in closed dispatch fallbacks when at least two bodies share the alias.
+  Keep open generic partial bodies qualified because user type parameters can shadow a namespace alias.
+  This saved 10,659 generated source bytes in the unit test project with identical dispatch IL and DLL size
+  (ddd7bc90). Check both file-scoped and block namespaces with an alias-named type parameter.
 - Reuse common alias declarations and only rewrite alias numbers when their order changes. A file-scoped body
   already has its final indentation, so concatenate it with the preamble and alias block directly. Use the first
   generator pass to measure emission allocations, since later passes can reuse cached formatter source.

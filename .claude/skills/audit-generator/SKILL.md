@@ -114,6 +114,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - Skip binding explicit type arguments that name a method's own lexical type parameter from inside its body.
   Keep qualified names, contextual keywords and inferred calls on Roslyn's binding path. The real unit test
   project lost 47 binding candidates, all checked against baseline semantic results, with identical output.
+  A follow-up filter for single-argument `Serialize` with a cast or a typed `default` removed only three more
+  candidates in that project, so keep the shared binding path. Time closed-call binding separately from identity,
+  dependencies, usage and interception. Binding dominated the instrumented project even when machine load varied.
+- Pass the current syntax context and cancellation token to static callbacks in the call cache, and build a model
+  directly on a miss. Capturing callbacks allocate before the lookup, even when the lookup hits. Keep the sweep's
+  temporary key list lazy as well, so saving a call does not allocate a closure for a sweep that may never run.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations

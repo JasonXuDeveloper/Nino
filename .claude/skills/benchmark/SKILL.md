@@ -13,6 +13,10 @@ Every number that counts comes from a GitHub runner. Local runs only choose betw
 
 ## What to run
 
+- Use 64 KiB as the L1 data-cache budget when estimating a hot path's working set. Count the live input, output,
+  lookup data and temporary buffers together. For hardware measurements, report the real CPU and core type, and
+  compare load and store misses per operation. Cross-JIT assembly provides instruction evidence only.
+
 | Question | Run |
 |---|---|
 | .NET case against competitors, locally | `QUICK=1 FILTER='*SimpleTest*' benchmarks/run.sh` (any BenchmarkDotNet filter; quick mode stops each case at 6 to 10 iterations under 2 % error, about 30-45 min for everything) |
