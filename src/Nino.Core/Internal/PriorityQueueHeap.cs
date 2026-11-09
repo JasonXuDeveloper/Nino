@@ -13,6 +13,24 @@ namespace Nino.Core.Internal
         internal static readonly bool Usable = ObjectTypes.Passes(Check);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static bool TryWrite(PriorityQueue<int, int> queue, int count, ref Writer writer)
+        {
+            if (!Usable)
+                return false;
+
+            int version = Fields<int, int>.Version(queue);
+            var nodes = Fields<int, int>.Nodes(queue);
+            if (nodes.Length < count || Fields<int, int>.Size(queue) != count)
+                NinoThrow.ModifiedDuringWrite();
+            ref byte target = ref writer.ReserveCounted(count, 8);
+            ref byte source = ref Unsafe.As<(int, int), byte>(ref NinoUnsafe.GetArrayDataReference(nodes));
+            NinoUnsafe.CopyToNew(ref target, ref source, (uint)(count * 8));
+            if (Fields<int, int>.Version(queue) != version)
+                NinoThrow.ModifiedDuringWrite();
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         internal static bool TryAdopt(PriorityQueue<int, int> queue, int count, ref Reader reader)
         {
             if (!Usable || !ReferenceEquals(queue.Comparer, Comparer<int>.Default))

@@ -38,6 +38,11 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteRawPairs(PriorityQueue<TElement, TPriority> queue, int count, ref Writer writer)
         {
+#if NET10_0_OR_GREATER
+            if (typeof(TElement) == typeof(int) && typeof(TPriority) == typeof(int) &&
+                PriorityQueueHeap.TryWrite(Unsafe.As<PriorityQueue<int, int>>(queue), count, ref writer))
+                return;
+#endif
             int elementSize = Unsafe.SizeOf<TElement>();
             int pairSize = elementSize + Unsafe.SizeOf<TPriority>();
             ref byte target = ref writer.ReserveCounted(count, pairSize);
