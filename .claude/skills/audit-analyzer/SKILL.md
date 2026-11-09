@@ -164,12 +164,12 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
   (`LayoutAnalyzerTests.NestedGenericAndPolymorphicTypesMatchTheirSections`). Without `[assembly: NinoLayouts]` the
   check costs one attribute lookup per compilation (`LayoutCheck.For`); with one, the text is parsed once and a type
   without a section costs a dictionary lookup, the walk over the assembly's types only runs while a section has no
-  type (removed or renamed). A type whose layout is its section's costs a walk of its published members text
-  against the section's fields (`LayoutEntry.Matches`), never `LayoutEntry.FromLayout` and `LayoutRules.Compare`:
+  type (removed or renamed). Compare the existing model against the baseline fields in `LayoutEmitter.Matches`.
+  An unchanged type needs no member layout string, parsed entry or `LayoutRules.Compare`:
   building and comparing every type's entry made the analyzers' own time 26-28 % longer on GeneratorBenchmark
   `--layouts` (330 types; EPYC 9V45, 9V74, Neoverse-N2; runtime-ab run 42509534286) and the analysis wall time 2-6 %
-  (run 42518707231); with `Matches` the wall time is on par (Neoverse-N2 0.994, n=50), and a project without a
-  baseline was on par throughout. What the analyzers' own time still shows (+11-15 % on Neoverse-N2) is the
+  (run 42518707231); with the earlier text-based shortcut the wall time was on par (Neoverse-N2 0.994, n=50).
+  A project without a baseline was on par throughout. What the analyzers' own time still shows (+11-15 % on Neoverse-N2) is the
   removed-type check (`LayoutCheck.Missing`, from a syntax node action) binding the types' attributes before the
   driver does: without it, the same types' `GetAttributes()` cost nothing in the symbol actions (local timing), so
   it moves the compiler's work into the analyzer's column rather than adding any. Judge such a move by the wall

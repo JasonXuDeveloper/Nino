@@ -31,6 +31,9 @@ of bytes in a block.
   at the end of a guarded page to catch a load past either end of the input.
 - Continue Latin-1 narrowing at the prefix written by `Ascii.FromUtf16`, overlapping the final vector if needed.
   When the first unwritten character exceeds Latin-1, take the UTF-16 path immediately.
+- Use the counted byte length to place long UTF-8 payloads at their final offset. When strict transcoding stops at an
+  unpaired surrogate, continue the replacement encoder at the consumed char and written byte offsets, which differ
+  after a non-ASCII prefix. Keep the replacement work out of line.
 
 - Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
   `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
