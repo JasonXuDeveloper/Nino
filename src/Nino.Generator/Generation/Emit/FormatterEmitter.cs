@@ -23,7 +23,7 @@ internal static class FormatterEmitter
 
         // The partial classes of the members' accessors follow in the types' own namespaces.
         bool partial = m.Partial.Declarations.Length > 0;
-        string file = GeneratedCode.File(LayoutEmitter.Emit(m) + "\n", names.Declarations(aliases), body,
+        string file = GeneratedCode.File(LayoutEmitter.Emit(m), names.Declarations(aliases), body,
             fileScoped && !partial);
         return partial ? file + AccessorEmitter.EmitPartial(m) : file;
     }

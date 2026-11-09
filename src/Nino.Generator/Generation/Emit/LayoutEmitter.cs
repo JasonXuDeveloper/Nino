@@ -19,7 +19,7 @@ internal static class LayoutEmitter
         $"[assembly: {Core}NinoTypeLayout(typeof({m.OpenTypeName}), {Core}NinoFormat.{m.Format}, " +
         $"{Core}NinoHeader.{LayoutEntry.HeaderNames[Header(m)]}, {Bool(m.TrackReferences)}, {Bool(m.RawStruct)}, " +
         $"{m.TypeId.ToString(CultureInfo.InvariantCulture)}, \"{EscapeString(Members(m))}\"" +
-        (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Depth.Deferrable)}" : "") + ")]\n";
+        (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Depth.Deferrable)}" : "") + ")]\n\n";
 
     /// <summary>
     /// The layout <see cref="Emit"/> publishes, as a layout baseline holds it (the analyzer compares it with the
@@ -48,9 +48,11 @@ internal static class LayoutEmitter
     /// <summary>The members part: <c>name:type:encoding</c> per member, in written order.</summary>
     private static string Members(TypeModel m)
     {
-        var sb = new StringBuilder();
+        // Raw structs have no member models or collection body. Their layout text is already complete.
         if (m.RawStruct)
-            sb.Append(m.RawLayout);
+            return m.RawLayout;
+
+        var sb = new StringBuilder();
         if (m.Collection is { } collection)
             sb.Append("[elements]::").Append(collection.Encoding);
         foreach (var member in m.Members)
