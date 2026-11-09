@@ -383,7 +383,8 @@ public class PrefetchTests
             Assert.IsFalse(Run(off).Any(s => s.SourceText.ToString().Contains("Prefetch")), off ?? "unset");
         var sources = Run("true");
         string Output(string type) =>
-            sources.Single(s => s.HintName == $"NinoGen.Pf_{type}Formatter.g.cs").SourceText.ToString();
+            sources.Single(s => s.HintName == $"NinoGen.Pf_{type}Formatter.g.cs").SourceText.ToString()
+                .Replace("__NinoCS.", "global::Nino.Core.CompilerServices.");
 
         // Two reference members at most, fields and auto-properties only, read directly.
         string item = Output("Item");
