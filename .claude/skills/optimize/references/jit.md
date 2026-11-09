@@ -98,6 +98,10 @@ and when `asm.py compare` lists methods the change did not touch.
   UTF-16 reservation and copy only the builder's length. A 1,024-character cutoff regressed multi-chunk
   builders, while 4,096-character single- and multi-chunk cases improved without a steady-state allocation.
   An empty pool bucket still allocates on the first rent.
+  Replacing the pinned UTF-16 reader append with the span overload kept bytes, truncated-input
+  errors and zero allocations in the reuse probe. It reduced the Arm64 Tier 1 formatter from
+  1,280 to 1,220 bytes but increased x64 ReadyToRun from 388 to 413 bytes. No timing advantage
+  persisted across the measured lengths. Keep the shared pointer append for now.
 - Write the zero count of an empty raw dictionary without entering its out-of-line pair loop. Keep the
   reservation shared with non-empty dictionaries. The Arm64 probe saved about 7–9 ns on empty dictionaries
   at both output offsets, with the non-empty controls on par.
