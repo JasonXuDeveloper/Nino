@@ -86,46 +86,71 @@ internal static class GeneratedCode
         private const string Collections = "global::System.Collections.Generic.";
         private const string CoreAlias = "__NinoCore.";
         private const string CollectionsAlias = "__NinoCollections.";
+        private const string CoreDeclaration = "using __NinoCore = global::Nino.Core;";
+        private const string CollectionsDeclaration = "using __NinoCollections = global::System.Collections.Generic;";
+        private static readonly int CoreThreshold =
+            (CoreDeclaration.Length + 5) / (TypeNames.Core.Length - CoreAlias.Length) + 1;
+        private static readonly int CollectionsThreshold =
+            (CollectionsDeclaration.Length + 5) / (Collections.Length - CollectionsAlias.Length) + 1;
         private int _coreUses;
         private int _collectionUses;
-        private bool _useCore;
-        private bool _useCollections;
+
+        private readonly bool UseCore => _coreUses == CoreThreshold;
+        private readonly bool UseCollections => _collectionUses == CollectionsThreshold;
+        public readonly bool Ready => UseCore && UseCollections;
 
         public void Count(string code)
         {
-            _coreUses += CountPrefix(code, TypeNames.Core);
-            _collectionUses += CountPrefix(code, Collections);
+            _coreUses = CountUntil(code, TypeNames.Core, _coreUses, CoreThreshold);
+            _collectionUses = CountUntil(code, Collections, _collectionUses, CollectionsThreshold);
         }
 
-        public void Declare(List<string> declarations)
+        public readonly void Declare(List<string> declarations)
         {
-            _useCore = Declare(TypeNames.Core, CoreAlias, _coreUses, declarations);
-            _useCollections = Declare(Collections, CollectionsAlias, _collectionUses, declarations);
+            if (UseCore)
+                declarations.Add(CoreDeclaration);
+            if (UseCollections)
+                declarations.Add(CollectionsDeclaration);
         }
 
         public readonly string Shorten(string code)
         {
-            if (_useCore)
+            if (UseCore)
                 code = code.Replace(TypeNames.Core, CoreAlias);
-            if (_useCollections)
+            if (UseCollections)
                 code = code.Replace(Collections, CollectionsAlias);
             return code;
         }
 
-        private static bool Declare(string prefix, string alias, int count, List<string> declarations)
+        public readonly void Append(StringBuilder builder, string code)
         {
-            string declaration = $"using {alias.TrimEnd('.')} = {prefix.TrimEnd('.')};";
-            if (count * (prefix.Length - alias.Length) <= declaration.Length + 5)
-                return false;
-            declarations.Add(declaration);
-            return true;
+            // Keep the other prefix's next match when one is written.
+            int core = UseCore ? code.IndexOf(TypeNames.Core, StringComparison.Ordinal) : -1;
+            int collections = UseCollections ? code.IndexOf(Collections, StringComparison.Ordinal) : -1;
+            int copied = 0;
+            while (core >= 0 || collections >= 0)
+            {
+                if (core >= 0 && (collections < 0 || core < collections))
+                {
+                    builder.Append(code, copied, core - copied).Append(CoreAlias);
+                    copied = core + TypeNames.Core.Length;
+                    core = code.IndexOf(TypeNames.Core, copied, StringComparison.Ordinal);
+                }
+                else
+                {
+                    builder.Append(code, copied, collections - copied).Append(CollectionsAlias);
+                    copied = collections + Collections.Length;
+                    collections = code.IndexOf(Collections, copied, StringComparison.Ordinal);
+                }
+            }
+
+            builder.Append(code, copied, code.Length - copied);
         }
 
-        private static int CountPrefix(string text, string prefix)
+        private static int CountUntil(string text, string prefix, int count, int threshold)
         {
-            int count = 0;
             int start = 0;
-            while ((start = text.IndexOf(prefix, start, StringComparison.Ordinal)) >= 0)
+            while (count < threshold && (start = text.IndexOf(prefix, start, StringComparison.Ordinal)) >= 0)
             {
                 count++;
                 start += prefix.Length;

@@ -219,6 +219,8 @@ internal static class Interceptors
         var compact = new GeneratedCode.NamespaceAliases();
         foreach (var group in groups)
         {
+            if (compact.Ready)
+                break;
             compact.Count(group.Key.Signature);
             compact.Count(group.Key.Call);
         }

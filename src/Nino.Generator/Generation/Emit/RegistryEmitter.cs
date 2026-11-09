@@ -128,18 +128,24 @@ internal static class RegistryEmitter
         var compact = new GeneratedCode.NamespaceAliases();
         foreach (var entry in cases)
         {
+            if (compact.Ready)
+                break;
             compact.Count(entry.First);
             if (entry.Rest != null)
                 foreach (var statement in entry.Rest)
                     compact.Count(statement);
         }
         foreach (var type in kept)
+        {
+            if (compact.Ready)
+                break;
             compact.Count(type);
+        }
         compact.Declare(aliases);
 
         // The registry calls Register, so these stay with it: NativeAOT keeps the fields NinoLayout measures.
         foreach (var type in kept)
-            w.Line($"[__NinoDynamicDependency(__Fields, typeof({compact.Shorten(type)}))]");
+            w.AliasedLine(type, compact, "[__NinoDynamicDependency(__Fields, typeof(", "))]");
         EmitIdDispatch(w, "internal static", "", cases, compact);
         w.Close();
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
@@ -254,10 +260,10 @@ internal static class RegistryEmitter
                 w.Line($"case {c.Id}:");
                 w.Indented(() =>
                 {
-                    w.Line(compact.Shorten(c.First));
+                    w.AliasedLine(c.First, compact);
                     if (c.Rest != null)
                         foreach (var statement in c.Rest)
-                            w.Line(compact.Shorten(statement));
+                            w.AliasedLine(statement, compact);
                     w.Line("break;");
                 });
             }

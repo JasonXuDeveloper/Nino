@@ -33,12 +33,28 @@ internal sealed class CodeWriter
         string code = text.Trim();
         if (code.Length == 0)
             return Line();
-        if (_blank && code[0] != '}')
+        StartLine(code[0], code[code.Length - 1]);
+        _sb.Append(text).Append('\n');
+        return this;
+    }
+
+    /// <summary>Writes a nonblank registration line, compacting only the supplied code fragment.</summary>
+    public void AliasedLine(string code, GeneratedCode.NamespaceAliases aliases, string prefix = "", string suffix = "")
+    {
+        StartLine(prefix.Length == 0 ? code[0] : prefix[0],
+            suffix.Length == 0 ? code[code.Length - 1] : suffix[suffix.Length - 1]);
+        _sb.Append(prefix);
+        aliases.Append(_sb, code);
+        _sb.Append(suffix).Append('\n');
+    }
+
+    private void StartLine(char first, char last)
+    {
+        if (_blank && first != '}')
             _sb.Append('\n');
         _blank = false;
-        _opened = code[code.Length - 1] == '{';
-        _sb.Append(' ', _indent * 4).Append(text).Append('\n');
-        return this;
+        _opened = last == '{';
+        _sb.Append(' ', _indent * 4);
     }
 
     /// <summary>
