@@ -37,6 +37,10 @@ of bytes in a block.
   On netstandard, register the same four-byte lane operation through `NinoKernels.Interleave32`. Gate on raw
   layout and no padding, call once for full vectors, and leave the remaining pairs to the existing scalar loop.
   Check unaligned output and the untouched bytes beyond the vector prefix in the Burst kernel tests.
+- Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
+  Keep the order check before publishing the arrays and use the same wire block for out-of-order insertion.
+  Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
+  method's IL. The local Arm64 2,047- and 8,193-pair reuse probes cut elapsed time by roughly 35–45%.
 - Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
   complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
   at the end of a guarded page to catch a load past either end of the input.
