@@ -5,6 +5,10 @@ per platform), and every attempt measured in .NET, Go and Rust with why it did o
 touching a collection loop's prefetch, `NinoPrefetchLargeCollections`, `PREFETCH_BYTES`, or before trying
 prefetch again anywhere.
 
+- Prefetch member references only through fields or bodyless auto-property getters that cannot dispatch to an
+  override. A backing field alone also describes a custom getter using `field`; executing either getter during
+  prefetch would add a user-visible access before the formatter reads the member.
+
 - Decide whether a collection loop prefetches when the code is generated, never per element at run time (the owner's
   design). Eligible: elements of a reference type in a contiguous container (array, `List<T>`, a span of references),
   since each object and each of its reference members (strings, children) is a separate cache miss. Not eligible:
