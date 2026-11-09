@@ -133,6 +133,9 @@ and when `asm.py compare` lists methods the change did not touch.
   Keep the regular and direct sequence readers' stack and pool scopes around their own span calls.
   Reusing the stream reader adapters inside a shared sequence scope made the 32-segment probe slower
   in both entry points across four rounds. Share the segment copy, rent and return primitives.
+  Keep `Span.CopyTo` for direct two-segment payloads even when disjointness is known. Using
+  `NinoUnsafe.Copy` made all measured sizes slower across both load orders and grew the Arm64
+  two-segment method from 1,796 to 2,196 bytes.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
