@@ -145,6 +145,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Check base names by index to avoid the predicate allocation in each fixed-point pass. The real
   project replay saved 66 KB cold and 48 KB on method-body edits with the same 577 generated files.
   Timings were flat and the entry plus helper used 296 IL bytes instead of 318.
+  Reusing only the last semantic model in candidate resolution did not reduce replay allocations.
+  Filtering the file-path lookup to candidate paths saved about 19 KB on a method-body edit,
+  without changing timings, incremental hits or any of the 577 files. Its iterator grew from
+  469 to 565 IL bytes, 1,388 to 1,864 Arm64 bytes and 1,183 to 1,381 x64 ReadyToRun bytes.
+  Keep the current lookup until a larger project shows a stronger benefit.
 - Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on tests/Nino.UnitTests is the project's
   own `[assembly: NinoFormatter]` registrations (binding the new source assembly's attributes, then `Read`), which hold
   that compilation's symbols and cannot outlive it; every reference together read in 25 ms once. A per-
