@@ -12,6 +12,12 @@ and when `asm.py compare` lists methods the change did not touch.
   improved it in each rerun and reduced the 8,192-element int path to two active 32 KiB
   buffers instead of three. Both builds allocated 0 B after warmup. The raw array dispatch
   remains out of line from the concrete buffer writer path.
+  The boxed buffer writer overload already uses the same path. Removing the repeated formatter
+  lookup improved short boxed arrays locally, both when dispatch moved into the public method and
+  when the existing helper received the lookup result. Both versions produced slower 8,192-item
+  external writer samples in three of four rounds. Moving dispatch into the caller grew its
+  Arm64 Tier 1 listing from 668 to 1,880 bytes, while passing the result kept it at 668 bytes.
+  Keep the isolated alternatives for future measurement.
 
 - Delay copying the prefix of a full synchronous stream buffer until the next read returns bytes.
   A non-seekable stream ending at a buffer boundary needs the EOF read but no prefix copy.
