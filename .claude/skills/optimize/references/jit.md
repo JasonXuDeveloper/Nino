@@ -11,6 +11,12 @@ and when `asm.py compare` lists methods the change did not touch.
   smaller path but did not produce a repeatable gain across 64 KiB and adjacent inputs.
   The threshold variant grew from 148 to 195 IL bytes and from 233 to 325 x64 ReadyToRun
   bytes. Prefix bytes and allocations matched.
+- Keep the existing empty handling in `NinoArrayBufferWriter.ToArray`. An early return
+  accelerated the empty result but slowed the 65-byte export in all four local rounds.
+  Checking for zero inside the short copy branch removed that pattern, but gave no stable
+  empty-case gain. Exported bytes and allocations matched for zero through 32 KiB.
+  The early return grew from 63 to 72 IL bytes and from 548 to 556 Arm64 Tier 1 bytes.
+  The short-branch form used 66 IL bytes and the same Arm64 and x64 sizes as the baseline.
 
 - Keep the shared span read in `MemoryFormatter.Deserialize`. Sending a fresh array directly
   to the reader instead of obtaining its span through `Memory<T>` did not change allocations.
