@@ -284,6 +284,12 @@ This saves a second full string copy without predicting output size. The isolate
 saved 20.1 KB and four cold project replays saved 461–660 KB. Cold and edit timing varied.
 All 577 files matched, incremental model reuse and collection checks passed, and 88 targeted
 tests passed (`a411f88c`).
+Append interceptor aliases directly for the two signature slices and the call. This
+removes the intermediate replaced strings while leaving location attributes alone.
+The isolated emitter saved about 519 KB in both load orders with similar median
+time. The eight method-body edit samples allocated 514–536 KB less. All 577 files
+matched, tracked model reuse and collection checks passed, and 68 targeted tests
+passed on each of .NET 8 and 10 (`82b7bbb3`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
