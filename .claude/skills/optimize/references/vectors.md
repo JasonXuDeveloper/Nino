@@ -181,6 +181,16 @@ of bytes in a block.
   with variable mixed and large profiles. Wire bytes matched at offsets 0, 1 and 7, and
   allocations stayed at 0 B. Isolate the padding paths next if revisiting this shape, since
   they still expand inside the x64 caller after removing the conversion bodies.
+  Moving only padding clearing behind a no-inline call reduced the outer candidate's offline
+  x64 `WriteAll` from 1,241 to 720 bytes and `ArrayFormatter.Serialize` from 3,232 to 2,807.
+  `NinoLayout<T>.Write` grew from 30 to 36 IL bytes plus an 8-byte helper. The non-padded
+  `BlockWaypoint` Arm64 caller and loop stayed at 548 and 196 bytes. A tuple containing
+  `PaddedPlain` from the padding tests used the helper once per element, enlarging Arm64
+  `WriteEach` from 72 to 112 bytes plus the 28-byte helper. Against the same outer branch
+  with inline padding, the padded large-weighted workload slowed by 43–48% in every round.
+  Both probes wrote identical bytes at offsets 0, 1 and 7 and allocated 0 B. Keep per-value
+  padding stores inline on the ordinary tuple path. Any further isolation must be local to
+  the one-item specialization.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
