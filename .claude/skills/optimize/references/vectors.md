@@ -105,6 +105,13 @@ of bytes in a block.
   path. The Arm64 builder probe improved at 256 and 16,384 characters in most rounds. The 31
   character recheck was flat within the A/A variation. A separate short-vector branch regressed
   the 16,384-character control, so keep the shared loop. Wire bytes and allocations matched.
+  For x64 listings of this vector method, compile Nino.Core and System.Private.CoreLib in the
+  same Crossgen2 composite version bubble. A single-assembly compile skips the method because
+  its vector call requires a compatible ABI. The retained loop reduced the offline listing
+  from 648 to 539 bytes with the baseline ISA and from 609 to 493 with AVX2. Replacing the
+  tuple widening call with explicit lower and upper operations removed seven helper IL bytes
+  but left the Arm64 Tier 1 and both x64 listing sizes unchanged. It slowed the 256-character
+  local probe in all four rounds, so keep the tuple form.
 - Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (1b2e3404).
   `GetChunks` can allocate a chunk index, even for a short but unusually fragmented builder. Keep the modern
   small-write loop where it measured faster, and advance the reader by the exact byte count already checked.
