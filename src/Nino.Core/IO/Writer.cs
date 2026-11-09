@@ -794,10 +794,9 @@ namespace Nino.Core
 
             int countSize = NinoStrings.WriteHeader(ref destination, (uint)length + 1);
             ref byte sizeAt = ref Unsafe.Add(ref destination, countSize);
-            // The bytes go after a byte count as long as the char count's, the fewest it can take (there are at
-            // least as many bytes as chars): exactly that for ASCII text. When the byte count turns out longer,
-            // they move up by the difference (into the room for 10 bytes of counts).
-            int sizeSize = NinoStrings.HeaderSize((uint)length);
+            // Long strings already have an exact byte count. For short ones, leave room for the smallest
+            // possible count and move the bytes up only if they need a wider header.
+            int sizeSize = NinoStrings.HeaderSize((uint)(length <= Utf8WorstCaseMaxChars ? length : capacity));
             ref byte bytes = ref Unsafe.Add(ref sizeAt, sizeSize);
 #if NET8_0_OR_GREATER
             // Without replacement, the transcoder's call is all that is inlined; an unpaired surrogate stops it.
