@@ -243,6 +243,11 @@ only on the second. It saved about 16 KB per pass over 451 alias-eligible models
 load orders. Whole-project wall time showed no repeatable change. All 577 outputs matched,
 incremental edits reused all 572 models, and old compiler objects and output collected.
 Keep the lazy list for now given the small allocation difference and the extra collector state.
+Pass registry entries and pointer fields as their existing equatable arrays. The registry emitter
+can enumerate twice without copying the entries into a list. Replaying the real project registry
+saved 16.7–16.9 KB per emission in both load orders. Cold and edit timing varied. All 577 outputs
+matched, tracked edits reused all 572 models, and collection and targeted tests passed
+(`de92db3d`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
