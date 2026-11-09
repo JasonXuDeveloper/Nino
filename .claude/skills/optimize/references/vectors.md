@@ -117,6 +117,11 @@ of bytes in a block.
   at 64, 4,096 and 32,768 Latin-1 characters in all four rounds, with identical wire bytes and
   zero allocations. The x64 composite listing left the vector helper out of line, so include its
   body when comparing offline size and do not infer x64 throughput.
+  A direct unsigned vector comparison emitted `cmhi` on Arm64 and slowed the 64-character
+  probe. An Arm64-only maximum reduction emitted `umaxv` and shrank the hot writer from 836
+  to 824 bytes, but the ASCII control was slower in all four reversed-order rounds. Its x64
+  composite helper also grew from 280 to 415 bytes. The variants matched the wire bytes and
+  allocated nothing after warmup. Keep the mask-based range check.
 - Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (1b2e3404).
   `GetChunks` can allocate a chunk index, even for a short but unusually fragmented builder. Keep the modern
   small-write loop where it measured faster, and advance the reader by the exact byte count already checked.
