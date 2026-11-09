@@ -300,7 +300,7 @@ namespace Nino.Core.CompilerServices
             byte value = Unsafe.Add(ref source, offset);
             if (value > 1)
                 NinoThrow.InvalidBool(value);
-            return value != 0;
+            return Unsafe.As<byte, bool>(ref value);
         }
 
         /// <summary>
