@@ -189,7 +189,7 @@ internal static class Interceptors
             _ => c.Method,
         };
         var formatter = c.Formatter?.WithTwins(tops, shallow);
-        string? prefetched = !Prefetches(c.Formatter, prefetch) ? null : method switch
+        string? prefetched = prefetch.Count == 0 ? null : method switch
         {
             // An array or a list of a class whose formatter prefetches: written, or read into its existing objects
             // (a new collection's objects are allocated in order).
@@ -197,7 +197,7 @@ internal static class Interceptors
             "Deserialize" when c.Arguments == "a0, ref a1" => "DeserializePrefetched",
             _ => null,
         };
-        if (prefetched == null)
+        if (prefetched == null || !Prefetches(c.Formatter, prefetch))
             return c.CallWith(method, formatter);
         // The prefetched methods take the element type and formatter, so the collection formatters stay as they are.
         var args = formatter!.Args;
@@ -210,11 +210,11 @@ internal static class Interceptors
     /// </summary>
     private static bool Prefetches(FormatterRef? formatter, HashSet<string> prefetch) =>
         formatter is { Generated: false, Args.Length: > 1 } &&
+        formatter.Args[formatter.Args.Length - 1] is { Generated: true, Args.Length: 0 } element &&
+        prefetch.Contains(element.Name) &&
         (formatter.Name == TypeNames.Core + "ArrayFormatter" ||
          formatter.Name == TypeNames.Core + "ListFormatter" && formatter.Args.Length == 3 &&
-         formatter.Args[0].ToString() == "global::System.Collections.Generic.List<" + formatter.Args[1] + ">") &&
-        formatter.Args[formatter.Args.Length - 1] is { Generated: true, Args.Length: 0 } element &&
-        prefetch.Contains(element.Name);
+         formatter.Args[0].ToString() == "global::System.Collections.Generic.List<" + formatter.Args[1] + ">");
 
     /// <summary>
     /// <paramref name="fileLocal"/>: C# 11 or later, where the attribute and the interceptors are file-local, so
