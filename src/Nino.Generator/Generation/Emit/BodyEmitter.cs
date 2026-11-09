@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MemberGroups = Nino.Generator.Generation.Emit.RawBlock.MemberGroups;
+using MemberRange = Nino.Generator.Generation.Emit.RawBlock.MemberRange;
 using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
 
@@ -76,7 +78,11 @@ internal sealed class BodyEmitter
 
     private bool Delegates => _m.Inheritance.BaseFormatter.Length != 0 && !(_mode.Shallow && _m.ShallowInlinesBase);
 
-    private IEnumerable<MemberModel> OwnMembers => Delegates ? _m.Members.Skip(_m.Inheritance.BaseMemberCount) : _m.Members;
+    private MemberRange AllMembers => new(_m.Members, 0, _m.Members.Length);
+
+    private MemberRange OwnMembers => Delegates
+        ? AllMembers.Slice(_m.Inheritance.BaseMemberCount, _m.Members.Length - _m.Inheritance.BaseMemberCount)
+        : AllMembers;
 
     private string Formatter(MemberModel member) =>
         (_mode.Shallow ? member.ShallowFormatter : member.Formatter).ToString();
@@ -311,7 +317,7 @@ internal sealed class BodyEmitter
     /// </summary>
     private void EmitRawBody()
     {
-        var block = new RawBlock(_m.Members.ToList());
+        var block = new RawBlock(AllMembers);
         string self = _m.Self;
         _w.Line($"public int BodySize => {block.Total};");
         _w.Line();
@@ -520,11 +526,11 @@ internal sealed class BodyEmitter
             _w.Line($"{BaseFormatter}.WriteMembers(value, ref writer);");
         if (_m.Keyed)
         {
-            EmitKeyedWrites(RawBlock.Groups(_m.Members));
+            EmitKeyedWrites(RawBlock.Groups(AllMembers));
             return;
         }
 
-        EmitPositionalWrites(OwnMembers);
+        EmitPositionalWrites(RawBlock.Groups(OwnMembers));
     }
 
     /// <summary>
@@ -537,15 +543,16 @@ internal sealed class BodyEmitter
         if (Delegates || _m.IsCollection)
             return false;
         var groups = RawBlock.Groups(OwnMembers);
-        if (groups.Count == 0 || groups[0][0].Raw == null)
+        if (!groups.MoveNext() || groups.Current[0].Raw == null)
             return false;
         _blocks = 0;
-        var block = new RawBlock(groups[0], headers: _m.Keyed, start: NinoWire.LengthSize);
-        EmitRawBlock(groups[0], block, $"writer.BeginRegion({block.Total}, out int __length)");
+        var first = groups.Current;
+        var block = new RawBlock(first, headers: _m.Keyed, start: NinoWire.LengthSize);
+        EmitRawBlock(first, block, $"writer.BeginRegion({block.Total}, out int __length)");
         if (_m.Keyed)
-            EmitKeyedWrites(groups.Skip(1));
+            EmitKeyedWrites(groups);
         else
-            EmitPositionalWrites(groups.Skip(1).SelectMany(g => g));
+            EmitPositionalWrites(groups);
         _w.Line("writer.EndRegion(__length);");
         return true;
     }
@@ -554,7 +561,7 @@ internal sealed class BodyEmitter
     /// The raw members of <paramref name="block"/> (keyed: each after its key and length) in the reservation that
     /// <paramref name="reserve"/> returns.
     /// </summary>
-    private string EmitRawBlock(List<MemberModel> group, RawBlock block, string reserve)
+    private string EmitRawBlock(MemberRange group, RawBlock block, string reserve)
     {
         string p = "__p" + _blocks++;
         _w.Line($"ref byte {p} = ref {reserve};");
@@ -573,10 +580,11 @@ internal sealed class BodyEmitter
         return p;
     }
 
-    private void EmitPositionalWrites(IEnumerable<MemberModel> members)
+    private void EmitPositionalWrites(MemberGroups groups)
     {
-        foreach (var group in RawBlock.Groups(members))
+        while (groups.MoveNext())
         {
+            var group = groups.Current;
             var first = group[0];
             if (first.Raw == null)
             {
@@ -632,12 +640,13 @@ internal sealed class BodyEmitter
     /// Each member as (key, length, value). Consecutive raw members share one reservation, which also holds the key
     /// and length of the member after them; any other member's key and length are one reservation.
     /// </summary>
-    private void EmitKeyedWrites(IEnumerable<List<MemberModel>> groups)
+    private void EmitKeyedWrites(MemberGroups groups)
     {
         int lengths = 0;
-        List<MemberModel>? run = null;
-        foreach (var group in groups)
+        MemberRange run = default;
+        while (groups.MoveNext())
         {
+            var group = groups.Current;
             var first = group[0];
             if (first.Raw != null)
             {
@@ -646,18 +655,18 @@ internal sealed class BodyEmitter
             }
 
             string l = "__l" + lengths++;
-            var block = new RawBlock(run ?? new List<MemberModel>(), headers: true);
+            var block = new RawBlock(run, headers: true);
             string reserve = $"writer.BeginRegionAfter({block.Plus(NinoWire.KeySize)}, out int {l})";
-            string p = run != null ? EmitRawBlock(run, block, reserve) : "__p" + _blocks++;
-            if (run == null)
+            string p = run.Count != 0 ? EmitRawBlock(run, block, reserve) : "__p" + _blocks++;
+            if (run.Count == 0)
                 _w.Line($"ref byte {p} = ref {reserve};");
             _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.Total}, {first.Key});");
-            run = null;
+            run = default;
             EmitFormatterWrite(first);
             _w.Line($"writer.EndRegion({l});");
         }
 
-        if (run != null)
+        if (run.Count != 0)
         {
             var block = new RawBlock(run, headers: true);
             EmitRawBlock(run, block, $"writer.Reserve({block.Total})");
@@ -979,13 +988,13 @@ internal sealed class BodyEmitter
         _blocks = 0;
         // Base members through the base formatter (in place only: recreated types read everything into locals).
         bool delegates = inPlace && Delegates;
-        var members = inPlace ? OwnMembers : _m.Members;
+        var members = inPlace ? OwnMembers : AllMembers;
         if (delegates)
             _w.Line($"{BaseFormatter}.ReadMembers(ref {r}, {_mode.Target});");
 
         if (_m.Keyed)
         {
-            EmitKeyedReads(members.ToList(), r, inPlace);
+            EmitKeyedReads(members, r, inPlace);
             return;
         }
 
@@ -1013,10 +1022,10 @@ internal sealed class BodyEmitter
             EmitRawBlockRead(group, block, r, inPlace);
             _w.Close();
             _w.Open("else");
-            foreach (var member in group)
+            for (int i = 0; i < group.Count; i++)
             {
                 _w.Line($"if ({r}.Eof) {eof}");
-                EmitMemberRead(member, r, inPlace);
+                EmitMemberRead(group[i], r, inPlace);
             }
 
             _w.Close();
@@ -1032,7 +1041,7 @@ internal sealed class BodyEmitter
     };
 
     /// <summary>The raw members of <paramref name="group"/>, read from one block of <paramref name="r"/>.</summary>
-    private void EmitRawBlockRead(List<MemberModel> group, RawBlock block, string r, bool inPlace)
+    private void EmitRawBlockRead(MemberRange group, RawBlock block, string r, bool inPlace)
     {
         string p = "__p" + _blocks++;
         _w.Line($"ref byte {p} = ref {r}.ReadBlock({block.Total});");
@@ -1134,10 +1143,11 @@ internal sealed class BodyEmitter
     /// Reads members written in declaration order straight through (raw members check key and length with one
     /// 8-byte compare); at the first unexpected key, falls back to a loop that dispatches any key.
     /// </summary>
-    private void EmitKeyedReads(List<MemberModel> members, string r, bool inPlace)
+    private void EmitKeyedReads(MemberRange members, string r, bool inPlace)
     {
-        foreach (var member in members)
+        for (int i = 0; i < members.Count; i++)
         {
+            var member = members[i];
             var header = KeyHeader(member);
             if (header != null)
             {
@@ -1165,8 +1175,9 @@ internal sealed class BodyEmitter
         {
             // A member's value fills its entry exactly; an unknown member is skipped with its entry.
             _w.Open("switch (__key)");
-            foreach (var member in members)
+            for (int i = 0; i < members.Count; i++)
             {
+                var member = members[i];
                 _w.Line($"case {member.Key}:");
                 // Data written before a [NinoFormerName] rename; writes always use the current name.
                 foreach (int formerKey in member.FormerKeys)
