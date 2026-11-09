@@ -379,27 +379,24 @@ internal sealed class BodyEmitter
         member.Raw == null && (member.Traits & FormatterTraits.Generated) == 0;
 
     /// <summary>The statements writing the members of a value of fixed size at <c>destination</c> (<see cref="FixedLayout"/>).</summary>
-    private List<string> FixedWrites()
+    private void EmitFixedWrites(List<(MemberModel Member, string Offset)> members)
     {
-        var lines = new List<string>();
         if (_m.Kind == FormatterKind.SealedClass)
-            lines.Add($"destination = {NinoWire.NotNull};");
-        foreach (var (member, offset) in FixedLayout().Members)
+            _w.Line($"destination = {NinoWire.NotNull};");
+        foreach (var (member, offset) in members)
         {
             if (member.Raw != null)
             {
-                lines.Add(RawWrite(member, "destination", offset));
+                _w.Line(RawWrite(member, "destination", offset));
                 continue;
             }
 
             string formatter = Formatter(member);
             string at = $"ref {CoreCompilerServices}NinoUnsafe.Add(ref destination, {offset})";
-            lines.Add(IsBlockItem(member)
+            _w.Line(IsBlockItem(member)
                 ? $"{CoreCompilerServices}NinoBlocks.WriteFixed<{member.TypeName}, {formatter}>({Get(_m, member, "value")}, {at});"
                 : $"default({formatter}).WriteFixed({Get(_m, member, "value")}, {at});");
         }
-
-        return lines;
     }
 
     /// <summary>
@@ -409,31 +406,29 @@ internal sealed class BodyEmitter
     /// </summary>
     public void EmitFixed()
     {
-        _w.Line($"public int FixedSize => {FixedLayout().Size};");
+        var (members, size) = FixedLayout();
+        _w.Line($"public int FixedSize => {size};");
         _w.Line();
         _w.Line(_names.Inline);
+        string signature = $"public void WriteFixed(in {T} value, ref byte destination)";
         // A struct with a member generated code reaches through an accessor: those take the struct by `ref`, which an
         // `in` parameter cannot give.
         if (_m.Kind == FormatterKind.SealedClass || _m.Members.Any(x => x.Access != MemberAccess.Direct))
         {
             // A class's members read through the reference passed by value: through the `in` reference, the JIT
             // loads the object again for every member, as a store into the destination might change it.
-            _w.Line($"public void WriteFixed(in {T} value, ref byte destination) => __WriteFixed(value, ref destination);");
+            _w.Line(signature + " => __WriteFixed(value, ref destination);");
             _w.Line();
             _w.Line(_names.Inline);
-            _w.Block($"private static void __WriteFixed({T} value, ref byte destination)", () =>
-            {
-                foreach (var line in FixedWrites())
-                    _w.Line(line);
-            });
-            return;
+            signature = $"private static void __WriteFixed({T} value, ref byte destination)";
         }
 
-        _w.Block($"public void WriteFixed(in {T} value, ref byte destination)", () =>
+        _w.Block(signature, () => EmitFixedWrites(members));
+        if (_m.Block)
         {
-            foreach (var line in FixedWrites())
-                _w.Line(line);
-        });
+            _w.Line();
+            EmitBlock(members);
+        }
     }
 
     /// <summary>
@@ -443,17 +438,16 @@ internal sealed class BodyEmitter
     /// reference, an auto-property where a marked value stored through it lands), which lets collections of it move
     /// several values at a time by vector shuffles.
     /// </summary>
-    public void EmitBlock()
+    private void EmitBlock(List<(MemberModel Member, string Offset)> members)
     {
         string iface = $"{CoreCompilerServices}INinoBlockFormatter<{T}>";
-        var layout = FixedLayout();
         _w.Block($"{CoreCompilerServices}NinoBlockMap {iface}.BlockMap()", () =>
         {
             _w.Line($"var __v = default({T});");
             _w.Line($"return new {CoreCompilerServices}NinoBlockMap()");
-            for (int i = 0; i < layout.Members.Count; i++)
+            for (int i = 0; i < members.Count; i++)
             {
-                var (member, offset) = layout.Members[i];
+                var (member, offset) = members[i];
                 string memory = member.IsProperty
                     ? $"{CoreCompilerServices}NinoBlocks.Find<{T}>({CoreCompilerServices}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
                       $$"""{ var __m = default({{T}}); {{Set(_m, member, "__m", $"{CoreCompilerServices}NinoBlocks.Marked<{member.TypeName}>()")}} return __m; })"""
@@ -461,14 +455,14 @@ internal sealed class BodyEmitter
                 string item = member.Raw != null
                     ? $"Raw<{member.TypeName}>"
                     : $"Block<{member.TypeName}, {Formatter(member)}>";
-                _w.Line($"    .{item}({memory}, {offset}){(i == layout.Members.Count - 1 ? ";" : "")}");
+                _w.Line($"    .{item}({memory}, {offset}){(i == members.Count - 1 ? ";" : "")}");
             }
         });
         _w.Line();
         _w.Line(_names.Inline);
         _w.Block($"void {iface}.ReadBlock(ref {T} value, ref byte source)", () =>
         {
-            foreach (var (member, offset) in layout.Members)
+            foreach (var (member, offset) in members)
             {
                 // As ReadBody: a bool through its own read, which rejects a byte other than 0 or 1.
                 if (member.Raw != null)

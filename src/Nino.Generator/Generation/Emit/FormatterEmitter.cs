@@ -135,12 +135,6 @@ internal static class FormatterEmitter
             body.EmitFixed();
         }
 
-        if (m.Block)
-        {
-            w.Line();
-            body.EmitBlock();
-        }
-
         if (m.HasTop)
         {
             w.Line();
