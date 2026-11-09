@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Nino.Generator.Common;
 using static Nino.Generator.Generation.Emit.MemberCode;
@@ -367,8 +368,14 @@ internal static class FormatterEmitter
             return;
         }
 
-        w.Line($"public const int Id = {m.TypeId};");
-        w.Line("public int TypeId => Id;");
+        string id = m.TypeId.ToString(CultureInfo.InvariantCulture);
+        if (m.HasTop || m.Depth.Shallow)
+        {
+            w.Line($"public const int Id = {id};");
+            id = "Id";
+        }
+
+        w.Line($"public int TypeId => {id};");
     }
 
     /// <summary>Whether a body nested too deep can be read later, and the empty instance it is read into.</summary>

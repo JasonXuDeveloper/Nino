@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Nino.Generator.Common;
 using static Nino.Generator.Generation.TypeNames;
@@ -101,7 +102,7 @@ internal static class DispatchEmitter
     {
         w.Open("switch (id)");
         for (int i = 0; i < subtypes.Count; i++)
-            w.Line($"case {subtypes[i].FormatterName}.Id: __ReadExact{i}(ref reader, ref value); return;");
+            w.Line($"case {subtypes[i].TypeId.ToString(CultureInfo.InvariantCulture)}: __ReadExact{i}(ref reader, ref value); return;");
         w.Close();
     }
 
