@@ -43,6 +43,7 @@ namespace Nino.Core
             // Thresholds off first and on last: a thread between the two sees no kernels, or the new ones whole (each
             // call site also loads its pointer once and tests it for null).
             NinoKernelHook.MinBlocks = int.MaxValue;
+            NinoKernelHook.MinInterleave = int.MaxValue;
             NinoKernelHook.MinCopies = int.MaxValue;
             NinoKernelHook.MinNarrow = int.MaxValue;
             NinoKernelHook.MinWiden = int.MaxValue;
@@ -50,6 +51,7 @@ namespace Nino.Core
             NinoKernelHook.MinWidenAscii = int.MaxValue;
             Thread.MemoryBarrier();
             NinoKernelHook.Permute = kernels == null ? null : kernels.Permute;
+            NinoKernelHook.Interleave32 = kernels == null ? null : kernels.Interleave32;
             NinoKernelHook.Narrow = kernels == null ? null : kernels.Narrow;
             NinoKernelHook.Widen = kernels == null ? null : kernels.Widen;
             NinoKernelHook.NarrowAscii = kernels == null ? null : kernels.NarrowAscii;
@@ -65,6 +67,8 @@ namespace Nino.Core
                 NinoKernelHook.MinCopies = Math.Max(NinoKernelHook.CopyFloor, minBlocks);
             }
 
+            if (kernels.Interleave32 != null)
+                NinoKernelHook.MinInterleave = Math.Max(16, minBlocks);
             if (kernels.Narrow != null)
                 NinoKernelHook.MinNarrow = minChars;
             if (kernels.Widen != null)
@@ -93,6 +97,11 @@ namespace Nino.Core
         /// raw structs with their padding cleared. Reference: <see cref="PermuteScalar"/>.
         /// </summary>
         public delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void> Permute { get; set; }
+
+        /// <summary>
+        /// Interleaves two arrays of four-byte raw values into the checked destination. Count is a multiple of four.
+        /// </summary>
+        public delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void> Interleave32 { get; set; }
 
         /// <summary>
         /// <c>int Narrow(ushort* source, byte* destination, int length)</c>: narrows the <c>length</c> UTF-16 chars at
@@ -186,6 +195,7 @@ namespace Nino.Core
         internal static NinoKernels Registered;
 
         internal static delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void> Permute;
+        internal static delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void> Interleave32;
         internal static delegate* unmanaged[Cdecl]<ushort*, byte*, int, int> Narrow;
         internal static delegate* unmanaged[Cdecl]<byte*, ushort*, int, void> Widen;
         internal static delegate* unmanaged[Cdecl]<ushort*, byte*, int, int> NarrowAscii;
@@ -203,6 +213,22 @@ namespace Nino.Core
         // the kernels' call and setup only paid off from 12 to 16 values (Burst, IL2CPP players on Linux x64, Unity
         // 2022.3 and 6000.3: 0.75-0.8x at 1-2 values, 1.06-1.09x at 16), where blocks of tuples gain from 2.
         internal const int CopyFloor = 16;
+
+        internal static int MinInterleave = int.MaxValue;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static int TryInterleave32(ref int first, ref int second, ref byte target, int count)
+        {
+            var interleave = Interleave32;
+            if (interleave == null)
+                return 0;
+
+            int pairs = count & ~3;
+            fixed (int* a = &first, b = &second)
+            fixed (byte* into = &target)
+                interleave(a, b, into, pairs);
+            return pairs;
+        }
 
         /// <summary>
         /// <see cref="NinoKernels.Permute"/> of the <paramref name="count"/> values at <paramref name="source"/>; false

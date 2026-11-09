@@ -197,6 +197,15 @@ namespace Nino.Core
                     ref Unsafe.As<TValue, int>(ref value), ref target, count);
                 return;
             }
+#else
+            int pairs = NinoBlockCollections.TryInterleave32(ref key, ref value, ref target, count);
+            if (pairs != 0)
+            {
+                key = ref Unsafe.Add(ref key, pairs);
+                value = ref Unsafe.Add(ref value, pairs);
+                target = ref Unsafe.Add(ref target, pairs * 8);
+                count -= pairs;
+            }
 #endif
             for (int i = 0; i < count; i++)
             {

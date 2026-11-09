@@ -54,6 +54,21 @@ namespace Nino.Core.Internal
             }
         }
 
+#else
+        /// <summary>Interleaves full vectors from checked, canonical four-byte arrays without padding.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int TryInterleave32<TKey, TValue>(ref TKey keys, ref TValue values, ref byte target, int count)
+        {
+            if (count < NinoKernelHook.MinInterleave || !IsPackedLane32<TKey>() || !IsPackedLane32<TValue>())
+                return 0;
+
+            return NinoKernelHook.TryInterleave32(ref Unsafe.As<TKey, int>(ref keys),
+                ref Unsafe.As<TValue, int>(ref values), ref target, count);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool IsPackedLane32<T>() =>
+            Unsafe.SizeOf<T>() == 4 && (typeof(T).IsPrimitive || !NinoLayout<T>.HasPadding);
 #endif
         /// <summary>
         /// The <see cref="INinoFixedSizeFormatter{T}.FixedSize"/> of the block formatter

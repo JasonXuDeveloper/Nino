@@ -52,6 +52,9 @@ namespace Nino.Burst
             byte* table, int count);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate void Interleave32Function(int* first, int* second, byte* target, int count);
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate int NarrowFunction(ushort* source, byte* destination, int length);
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -124,6 +127,7 @@ namespace Nino.Burst
                     }
 
                     var permute = BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute).Value;
+                    var interleave = BurstCompiler.CompileFunctionPointer<Interleave32Function>(Interleave32).Value;
                     var narrow = BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow).Value;
                     var widen = BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Value;
                     var narrowAscii = BurstCompiler.CompileFunctionPointer<NarrowFunction>(NarrowAscii).Value;
@@ -137,6 +141,7 @@ namespace Nino.Burst
                         MinBlocks = 2,
                         MinChars = 16,
                         Permute = (delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void>)p,
+                        Interleave32 = (delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void>)interleave,
                         Narrow = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrow,
                         Widen = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, void>)widen,
                         NarrowAscii = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrowAscii,
@@ -505,6 +510,38 @@ namespace Nino.Burst
             for (; i < length && source[i] < 0x80; i++)
                 destination[i] = source[i];
             return i;
+        }
+
+        [BurstCompile(CompileSynchronously = true)]
+        [MonoPInvokeCallback(typeof(Interleave32Function))]
+        public static void Interleave32(int* first, int* second, byte* target, int count)
+        {
+            if (Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported)
+            {
+                for (int i = 0; i < count; i += 4, target += 32)
+                {
+                    v128 a = Load((byte*)(first + i)), b = Load((byte*)(second + i));
+                    if (Arm.Neon.IsNeonSupported)
+                    {
+                        Store(target, Arm.Neon.vzip1q_u32(a, b));
+                        Store(target + 16, Arm.Neon.vzip2q_u32(a, b));
+                    }
+                    else if (X86.Sse2.IsSse2Supported)
+                    {
+                        Store(target, X86.Sse2.unpacklo_epi32(a, b));
+                        Store(target + 16, X86.Sse2.unpackhi_epi32(a, b));
+                    }
+                }
+
+                return;
+            }
+
+            for (int i = 0; i < count; i++, target += 8)
+                for (int b = 0; b < 4; b++)
+                {
+                    target[b] = (byte)((uint)first[i] >> (b * 8));
+                    target[4 + b] = (byte)((uint)second[i] >> (b * 8));
+                }
         }
 
         // The vector operations, one instruction each on both instruction sets. Only called where one of them is

@@ -1,5 +1,6 @@
 #if NINO_BURST
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Nino.Burst;
 using Nino.Core;
@@ -45,7 +46,8 @@ namespace Test.Runtime.Burst
             Assert.AreNotEqual(0, NinoBurst.Isa);
             // Nino.Core calls each kernel through its function pointer.
             Assert.IsTrue(NinoBurst.Registered);
-            Assert.IsTrue(NinoKernels.Current.Permute != null && NinoKernels.Current.Narrow != null &&
+            Assert.IsTrue(NinoKernels.Current.Permute != null && NinoKernels.Current.Interleave32 != null &&
+                          NinoKernels.Current.Narrow != null &&
                           NinoKernels.Current.Widen != null && NinoKernels.Current.NarrowAscii != null &&
                           NinoKernels.Current.WidenAscii != null, "a kernel is missing");
             Debug.Log($"Nino Burst kernels: instruction set {NinoBurst.IsaName}");
@@ -289,6 +291,38 @@ namespace Test.Runtime.Burst
                 Same(new Utf8Text { Text = ascii + "é中\U0001F600" + ascii }, $"[NinoUtf8] mixed x {n}");
                 // An unpaired surrogate is written as U+FFFD with the kernels too.
                 Same(new Utf8Text { Text = ascii + "\uD800" + ascii }, $"[NinoUtf8] unpaired surrogate x {n}");
+            }
+        }
+
+        [Test]
+        public void InterleaveWritesRawPairsAndLeavesTheTailToCore()
+        {
+            foreach (int count in Lengths)
+            {
+                var keys = Enumerable.Range(0, count).ToArray();
+                var values = keys.Select(i => -13 * i - 1).ToArray();
+                int pairs = count & ~3;
+                foreach (int tier in Tiers)
+                {
+                    var kernels = Use(tier);
+                    var actual = Enumerable.Repeat((byte)0xCC, count * 8 + 2).ToArray();
+                    var expected = (byte[])actual.Clone();
+                    for (int i = 0; i < pairs; i++)
+                    {
+                        Buffer.BlockCopy(keys, i * 4, expected, i * 8 + 1, 4);
+                        Buffer.BlockCopy(values, i * 4, expected, i * 8 + 5, 4);
+                    }
+
+                    fixed (int* a = keys, b = values)
+                    fixed (byte* target = actual)
+                        kernels.Interleave32(a, b, target + 1, pairs);
+                    CollectionAssert.AreEqual(expected, actual, $"{NinoBurst.IsaName}: {count} pairs");
+                }
+
+                var list = new SortedList<uint, float>(count);
+                for (int i = 0; i < count; i++)
+                    list.Add((uint)i, -i - 0.5f);
+                Same(list, $"sorted raw pairs x {count}");
             }
         }
 
