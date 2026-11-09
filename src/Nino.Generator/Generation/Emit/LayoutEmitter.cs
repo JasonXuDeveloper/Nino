@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Linq;
-using System.Text;
 using Nino.Generator.Common;
 using static Nino.Generator.Generation.TypeNames;
 
@@ -73,7 +72,10 @@ internal static class LayoutEmitter
         if (m.RawStruct)
             return m.RawLayout;
 
-        var sb = new StringBuilder();
+        if (m.Members.Length == 0 && m.Collection == null)
+            return "";
+
+        var sb = GeneratedCode.RentScratch(64);
         if (m.Collection is { } collection)
             sb.Append("[elements]::").Append(collection.Encoding);
         foreach (var member in m.Members)
@@ -89,7 +91,9 @@ internal static class LayoutEmitter
                     member.FormerKeys.Select(LayoutBaseline.Hex)));
         }
 
-        return sb.ToString();
+        string text = sb.ToString();
+        GeneratedCode.ReturnScratch(sb);
+        return text;
     }
 
     private static string Bool(bool value) => value ? "true" : "false";

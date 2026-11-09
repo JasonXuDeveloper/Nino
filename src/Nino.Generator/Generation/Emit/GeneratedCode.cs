@@ -281,7 +281,7 @@ internal static class GeneratedCode
     private const int MaxScratchCapacity = 8192;
     private static StringBuilder? _scratch;
 
-    private static StringBuilder RentScratch(int capacity)
+    internal static StringBuilder RentScratch(int capacity)
     {
         var scratch = capacity <= MaxScratchCapacity ? Interlocked.Exchange(ref _scratch, null) : null;
         if (scratch == null)
@@ -291,7 +291,7 @@ internal static class GeneratedCode
         return scratch;
     }
 
-    private static void ReturnScratch(StringBuilder? scratch)
+    internal static void ReturnScratch(StringBuilder? scratch)
     {
         if (scratch is { Capacity: <= MaxScratchCapacity })
         {
