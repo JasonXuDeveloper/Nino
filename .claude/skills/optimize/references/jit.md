@@ -150,7 +150,7 @@ and when `asm.py compare` lists methods the change did not touch.
 ## Locals, listing size and arithmetic
 
 - Pass a present nullable's raw value to a readonly-ref layout writer through
-  `Nullable.GetValueRefOrDefaultRef` on .NET 8 and later (92097d93). Taking a value copy first zeroed and copied
+  `Nullable.GetValueRefOrDefaultRef` on .NET 8 and later (546d8265). Taking a value copy first zeroed and copied
   a stack temporary in the local Arm64 listing. The 128-byte probe's frame went from 336 to 208 bytes.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
   down.

@@ -70,12 +70,12 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   (Unity kernels and IL2CPP).
 - Split exact BCL collection paths from interface snapshots when a concrete API does the same work. Test the
   runtime type before calling the concrete API so a subclass's interface implementation still runs. In
-  `ProducerConsumerFormatter.Serialize` (6415b715), the exact `ConcurrentQueue<T>` fixed-width path calls
+  `ProducerConsumerFormatter.Serialize` (afc6ee93), the exact `ConcurrentQueue<T>` fixed-width path calls
   `ConcurrentQueue<T>.ToArray` directly and keeps the other snapshots out of line. On local Arm64 FullOpts,
   the variable-width queue entry and its helper together went from 2,340 to 1,336 bytes. Fixed-width queues
   still allocate the bulk snapshot.
 - Refill exact concurrent stacks through `TryPop` and `Push`, and use one `Clear` when no old item needs
-  recycling. Bind stacks to their own formatter and leave subclasses on their interface (1e45ed16).
+  recycling. Bind stacks to their own formatter and leave subclasses on their interface (62d85a1b).
   Adding the stack branch to the shared producer/consumer method changed the queue's inlining budget. The split
   restored its original IL and normalized Arm64 FullOpts listing.
   Local Arm64 Tier 1 used one release store for the clear, with the read and push inlined. Time each collection

@@ -52,7 +52,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   and type references, where one alias serves the whole file. Leave location attributes and registry literals
   alone. Compare consumer DLL metadata as well as method IL: typed aliases and factoring opaque location strings
   made the DLL larger in the local prototype. Reusing the namespace alias selector for usage registrations
-  (07650d43) removed 20,759 source bytes in the unit test project with identical generated IL and DLL size.
+  (120c9508) removed 20,759 source bytes in the unit test project with identical generated IL and DLL size.
   Stop counting once the declaration pays for itself. For registration statements, merge the next exact prefix
   matches and append their source slices directly to the output writer. This preserves the emitted text and
   avoids intermediate replacement strings. Scanning every `global::` token was slower in the local probe.

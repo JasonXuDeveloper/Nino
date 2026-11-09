@@ -34,12 +34,15 @@ of bytes in a block.
 - Use the counted byte length to place long UTF-8 payloads at their final offset. When strict transcoding stops at an
   unpaired surrogate, continue the replacement encoder at the consumed char and written byte offsets, which differ
   after a non-ASCII prefix. Keep the replacement work out of line.
-- Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (78f9a1ea).
+- Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (1b2e3404).
   `GetChunks` can allocate a chunk index, even for a short but unusually fragmented builder. Keep the modern
   small-write loop where it measured faster, and advance the reader by the exact byte count already checked.
-- Refill a matching-length `BitArray` through its public byte span after validating the payload (0e55e78c).
+- Refill a matching-length `BitArray` through its public byte span after validating the payload (cb6e950e).
   Setting its length to the same value clears the unused bits and invalidates existing enumerators. A single
   copy body for fresh and reused instances avoided duplicating the Arm64 copy code.
+- Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
+  (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations,
+  at the cost of a larger native helper.
 
 - Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
   `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
@@ -171,7 +174,7 @@ of bytes in a block.
   (`SelfNestingCollectionTests`, main e2e28fe7). In Release the same test through an inlined method returning a
   constant, though it folded, made `ArrayFormatter<int, ...>` stop inlining `NinoElements.Read` into the
   ImmutableHashSet, ImmutableDictionary, ReadOnlyCollection and Memory<int> reads (1 stack access to 15, `asm.py`).
-- Skip the initial clear for large canonical raw serialization results (202bd66d). The layout write fills the
+- Skip the initial clear for large canonical raw serialization results (ad425fcc). The layout write fills the
   entire array and clears padding. Keep the small direct allocation and use the shared 6 KiB cutoff.
 - Read values over 16 bytes whose blocks never fill whole vectors in four of memory in groups that fill whole memory
   vectors (`ReadPlan.Group`: 8 24-byte values in three vectors, each one `vpermt2b` of two 64-byte loads, aligned

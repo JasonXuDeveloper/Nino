@@ -121,9 +121,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 ## Measure
 
-Measure name rendering allocations before keeping a reusable builder. Formatter names can reuse a bounded
-thread-local character buffer because their recursive rendering appends to the same builder and retains no model
-or symbol.
+Measure name rendering allocations before keeping a reusable builder. Keep `FormatterRef`'s bounded thread-local
+character buffer and hand immutable strings to models. Extending the buffer to general type naming saved
+allocations but slowed the local default-JIT hot rebuild samples. Delay constraint builders and registration
+lists until their path needs them. Keep traversal sets separate per root.
 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
@@ -146,6 +147,10 @@ dominates; round 128). A new stage gets input in the incremental tests, or its c
 Measure end-to-end runs with tracking disabled. On the real unit test compilation, Roslyn's
 `RecordStepTree` took seconds on a cached run whose generator stages and output callbacks took under 2 ms.
 Use tracked times to rank stages, and a separate untracked A/B with the same compiler arguments for the verdict.
+Time model dependency migration directly before attributing an edit slowdown to the scan. On the collection
+fixture it ran once per edit and took 0.02–0.03 ms. Keep `ForAttributeWithMetadataName` for attribute discovery:
+the local general syntax-provider experiment reused bindings on warm runs, but did not improve cold startup
+and duplicated Roslyn's alias and partial-declaration matching.
 
 ## Look for
 
