@@ -94,6 +94,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   alone. Compare consumer DLL metadata as well as method IL: typed aliases and factoring opaque location strings
   made the DLL larger in the local prototype. Reusing the namespace alias selector for usage registrations
   (120c9508) removed 20,759 source bytes in the unit test project with identical generated IL and DLL size.
+  Use the short `__NinoAt` alias for the location attribute, leaving its arguments intact.
+  This saved 15,448 source bytes in the real unit test project. The probe consumer had identical
+  IL and DLL size, and Arm64 and x64 listings kept their code sizes. Four runtime rounds had no
+  repeatable timing difference, and wire bytes and allocation matched. Both Roslyn versions
+  differed only in the alias spelling, and 80 tests passed on each of .NET 8 and 10 (`237a414a`).
   Stop counting once the declaration pays for itself. For registration statements, merge the next exact prefix
   matches and append their source slices directly to the output writer. This preserves the emitted text and
   avoids intermediate replacement strings. Scanning every `global::` token was slower in the local probe.
