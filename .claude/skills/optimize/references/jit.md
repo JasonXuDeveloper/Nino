@@ -18,6 +18,9 @@ and when `asm.py compare` lists methods the change did not touch.
   formatter. Reuse `NinoSequences.CopySegments` to check the declared length while copying into the reservation.
   Match the exact formatter type so the JIT removes the generic segment loop. The Arm64 entry shrank from
   3,020 to 352 bytes and calls the existing 708-byte copy helper.
+- Decode a portable `BigInteger` payload of at most four bytes as a signed integer after the length check.
+  Sign-extend the last byte of a three-byte payload and use the existing unaligned reads for two and four bytes.
+  This removes a 32-byte temporary allocation per short value on CoreCLR running the netstandard2.0 build.
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
