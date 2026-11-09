@@ -131,6 +131,14 @@ of bytes in a block.
   that skip the prepass below eight items for this plan. Keep the short-input improvement and
   report the long SIMD case separately. The .NET 8 and 10 targeted suites passed with intrinsics
   on and off (`9d51e10a`).
+- Reuse the validated local bool byte in raw block reads. After the check rejects values above
+  one, its representation is already canonical. Arm64 removed the compare against zero and
+  `cset`: scalar `ReadEach` Tier 1 shrank from 172 to 164 bytes. The x64 FullOpts cross listing
+  went from 140 to 135 without SIMD and 186 to 180 with it. `ReadBool` stayed at 22 IL bytes.
+  Four Arm64 A/B rounds with SIMD enabled and offset 1 were 1.6–3.0% faster for one item and
+  1.6–4.6% faster for 65. The 1,700-item and tiny scalar results varied. Scalar results at 65
+  and 1,700 stayed within 0.3%. Allocation stayed at 0 B. Wire, dirty-padding, truncation and
+  invalid-bool probes and targeted .NET 8/10 tests passed (`5518250c`).
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
