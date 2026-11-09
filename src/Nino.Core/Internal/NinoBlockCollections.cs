@@ -26,32 +26,86 @@ namespace Nino.Core.Internal
         internal const int TableBits = 4, Written = 16, Loaded = 20;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool CanInterleaveInt32(int count) =>
-            count >= Vector128<int>.Count && (AdvSimd.Arm64.IsSupported || Sse2.IsSupported);
+        internal static bool CanInterleave<T>(int count) where T : unmanaged =>
+            count >= Vector128<T>.Count && (AdvSimd.Arm64.IsSupported || Sse2.IsSupported);
 
-        /// <summary>Interleaves two checked int arrays into one little-endian block of pairs.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static void InterleaveInt32(ref int first, ref int second, ref byte target, int count)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool TryInterleave<T, TZip, TKey, TValue>(TKey[] first, TValue[] second, ref byte target,
+            int count) where T : unmanaged where TZip : struct, IZip<T>
         {
-            while (count >= Vector128<int>.Count)
+            if (typeof(TKey) != typeof(T) || typeof(TValue) != typeof(T) ||
+                !CanInterleave<T>(count))
+                return false;
+
+            Interleave<T, TZip>(ref Unsafe.As<TKey, T>(ref NinoUnsafe.GetArrayDataReference(first)),
+                ref Unsafe.As<TValue, T>(ref NinoUnsafe.GetArrayDataReference(second)), ref target, count);
+            return true;
+        }
+
+        /// <summary>Interleaves two checked raw arrays into one little-endian block of pairs.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void Interleave<T, TZip>(ref T first, ref T second, ref byte target, int count)
+            where T : unmanaged where TZip : struct, IZip<T>
+        {
+            int lanes = Vector128<T>.Count;
+            int size = Unsafe.SizeOf<T>();
+            int pairSize = size * 2;
+            while (count >= lanes)
             {
                 var a = Vector128.LoadUnsafe(ref first);
                 var b = Vector128.LoadUnsafe(ref second);
-                var lower = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipLow(a, b) : Sse2.UnpackLow(a, b);
-                var upper = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
-                lower.AsByte().StoreUnsafe(ref target);
-                upper.AsByte().StoreUnsafe(ref target, 16);
-                first = ref Unsafe.Add(ref first, 4);
-                second = ref Unsafe.Add(ref second, 4);
+                TZip.Low(a, b).AsByte().StoreUnsafe(ref target);
+                TZip.High(a, b).AsByte().StoreUnsafe(ref target, 16);
+                first = ref Unsafe.Add(ref first, lanes);
+                second = ref Unsafe.Add(ref second, lanes);
                 target = ref Unsafe.Add(ref target, 32);
-                count -= 4;
+                count -= lanes;
             }
 
             for (int i = 0; i < count; i++)
             {
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, i * 8), Unsafe.Add(ref first, i));
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, i * 8 + 4), Unsafe.Add(ref second, i));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, i * pairSize), Unsafe.Add(ref first, i));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, i * pairSize + size), Unsafe.Add(ref second, i));
             }
+        }
+
+        internal interface IZip<T> where T : unmanaged
+        {
+            static abstract Vector128<T> Low(Vector128<T> a, Vector128<T> b);
+            static abstract Vector128<T> High(Vector128<T> a, Vector128<T> b);
+        }
+
+        internal readonly struct Zip16 : IZip<short>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<short> Low(Vector128<short> a, Vector128<short> b) =>
+                AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipLow(a, b) : Sse2.UnpackLow(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<short> High(Vector128<short> a, Vector128<short> b) =>
+                AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
+        }
+
+        internal readonly struct Zip32 : IZip<int>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<int> Low(Vector128<int> a, Vector128<int> b) =>
+                AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipLow(a, b) : Sse2.UnpackLow(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<int> High(Vector128<int> a, Vector128<int> b) =>
+                AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
+        }
+
+        internal readonly struct Zip64 : IZip<long>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<long> Low(Vector128<long> a, Vector128<long> b) =>
+                AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipLow(a, b) : Sse2.UnpackLow(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<long> High(Vector128<long> a, Vector128<long> b) =>
+                AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]

@@ -167,6 +167,12 @@ namespace Nino.Core
             if (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>())
             {
                 ref byte target = ref writer.ReserveCounted(count, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
+#if NET8_0_OR_GREATER
+                if ((Unsafe.SizeOf<TKey>() == 2 || Unsafe.SizeOf<TKey>() == 8) &&
+                    (NinoBlockCollections.TryInterleave<short, NinoBlockCollections.Zip16, TKey, TValue>(keys, values, ref target, count) ||
+                     NinoBlockCollections.TryInterleave<long, NinoBlockCollections.Zip64, TKey, TValue>(keys, values, ref target, count)))
+                    return;
+#endif
                 if (count != 0)
                     WriteSortedListRaw(keys, values, count, ref target);
                 return;
@@ -196,9 +202,9 @@ namespace Nino.Core
             ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
 #if NET8_0_OR_GREATER
             if (typeof(TKey) == typeof(int) && typeof(TValue) == typeof(int) &&
-                NinoBlockCollections.CanInterleaveInt32(count))
+                NinoBlockCollections.CanInterleave<int>(count))
             {
-                NinoBlockCollections.InterleaveInt32(ref Unsafe.As<TKey, int>(ref key),
+                NinoBlockCollections.Interleave<int, NinoBlockCollections.Zip32>(ref Unsafe.As<TKey, int>(ref key),
                     ref Unsafe.As<TValue, int>(ref value), ref target, count);
                 return;
             }

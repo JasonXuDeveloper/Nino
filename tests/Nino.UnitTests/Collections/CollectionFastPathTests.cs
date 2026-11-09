@@ -157,18 +157,25 @@ public class CollectionFastPathTests
     [TestMethod]
     public void SortedListWritesRawPairsAtAnUnalignedOffset()
     {
-        for (int count = 0; count <= 9; count++)
-        {
-            var list = new SortedList<int, int>();
-            for (int i = 0; i < count; i++)
-                list.Add(i, -13 * i - 1);
+        Check<int>(i => i, i => -13 * i - 1);
+        Check<short>(i => (short)i, i => (short)(-13 * i - 1));
+        Check<long>(i => (long)i << 34, i => -13L * i - 1);
 
-            byte[] expected = NinoSerializer.Serialize(new Dictionary<int, int>(list));
-            using var buffer = new NinoArrayBufferWriter();
-            buffer.GetSpan(1);
-            buffer.Advance(1);
-            NinoSerializer.Serialize(list, buffer);
-            CollectionAssert.AreEqual(expected, buffer.WrittenSpan.Slice(1).ToArray(), $"count={count}");
+        static void Check<T>(Func<int, T> key, Func<int, T> value)
+        {
+            for (int count = 0; count <= 17; count++)
+            {
+                var list = new SortedList<T, T>();
+                for (int i = 0; i < count; i++)
+                    list.Add(key(i), value(i));
+
+                byte[] expected = NinoSerializer.Serialize(new Dictionary<T, T>(list));
+                using var buffer = new NinoArrayBufferWriter();
+                buffer.GetSpan(1);
+                buffer.Advance(1);
+                NinoSerializer.Serialize(list, buffer);
+                CollectionAssert.AreEqual(expected, buffer.WrittenSpan.Slice(1).ToArray(), $"{typeof(T)} count={count}");
+            }
         }
     }
 
