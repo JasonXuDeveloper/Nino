@@ -6,6 +6,12 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Inlining budget
 
+- Use the length of the public `BitArray` byte view when reserving its wire payload.
+  The view is already sized for the bits, so slicing it again adds an unnecessary check.
+  Keep the final-byte mask and verify dirty padding on unaligned output. The formatter
+  went from 86 to 77 IL bytes and from 409 to 369 x64 ReadyToRun bytes. Arm64 timing
+  varied around 4 KiB after changing run order, with identical bytes and zero allocations.
+
 - Build the raw span from `ReadBlock` on the byref reader targets. This gives the span and
   block reads one bounds check and cursor advance in the source. The standalone IL fell from
   29 to 14 bytes and the x64 ReadyToRun body from 57 to 49 bytes, with the same Arm64 Tier 1
