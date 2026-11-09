@@ -37,6 +37,10 @@ and when `asm.py compare` lists methods the change did not touch.
   and dictionary callers. A shared inline branch shortened the two callers by 10 IL bytes but added a 14-byte
   helper. The Arm64 listings kept their sizes, only the x64 set listing shrank (6 bytes), and the local A/B showed
   no repeatable throughput gain or allocation change.
+- Leave the empty-tail test inside `NinoElements.WriteItems` for variable-size queue writes. Adding a
+  `first != count` guard at the queue saved work for a one-string queue in three of four local rounds, but
+  the 16-string case varied widely and the 1,024-string case stayed on par. The extra branch grew the Arm64
+  caller by 16 bytes and the x64 queue formatter by 12 bytes. The raw block path keeps its existing guard.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
