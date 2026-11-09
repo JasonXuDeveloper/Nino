@@ -20,7 +20,7 @@ internal static class FormatterEmitter
         // name has the formatter's type parameters.
         var aliases = new List<string>();
         string body = GeneratedCode.WithAliases(w.ToString(), m.IsGeneric ? null : m.TypeName, aliases,
-            names.Formatters);
+            names.Formatters, names.RawTypes);
 
         // The partial classes of the members' accessors follow in the types' own namespaces.
         bool partial = m.Partial.Declarations.Length > 0;

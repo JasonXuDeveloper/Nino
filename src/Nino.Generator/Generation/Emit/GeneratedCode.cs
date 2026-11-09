@@ -167,13 +167,14 @@ internal static class GeneratedCode
     /// of its type's, or a nested type could hide one, and none is named like a generated type). Then the names
     /// become aliases: <paramref name="formatters"/> (generic formatters a type's members are read and written with,
     /// none naming a type parameter; numbered in their order) as <c>__NinoF0</c>, <c>__NinoF1</c>..., <paramref name="self"/> (a type the file is about, when
-    /// given) as <c>__NinoT</c>, and the <see cref="CoreAliases"/>. A name is replaced only where the alias makes the
+    /// given) as <c>__NinoT</c>, <paramref name="rawTypes"/> as <c>__NinoRaw0</c>...,
+    /// and the <see cref="CoreAliases"/>. A name is replaced only where the alias makes the
     /// file shorter, counting its declaration, which is added to <paramref name="declarations"/>; and only as a whole
     /// name: not next to an identifier character, a dot or a colon (a longer name, a qualified or nested one), but for
     /// the member that follows a static class's name.
     /// </summary>
     public static string WithAliases(string body, string? self, List<string> declarations,
-        IReadOnlyList<string>? formatters = null)
+        IReadOnlyList<string>? formatters = null, IReadOnlyList<string>? rawTypes = null)
     {
         body = body.Replace(TypeNames.Gen, "");
         List<string>? formatterAliases = null;
@@ -208,6 +209,16 @@ internal static class GeneratedCode
             body = WithAlias(body, self, "__NinoT", $"using __NinoT = {self};", declarations);
         foreach (var (name, alias, declaration) in CoreAliases)
             body = WithAlias(body, name, alias, declaration, declarations);
+
+        if (rawTypes is { Count: > 0 })
+        {
+            int start = declarations.Count;
+            foreach (string name in rawTypes)
+            {
+                string alias = "__NinoRaw" + (declarations.Count - start).ToString(CultureInfo.InvariantCulture);
+                body = WithAlias(body, name, alias, $"using {alias} = {name};", declarations);
+            }
+        }
 
         if (formatterAliases != null)
             declarations.AddRange(formatterAliases);
