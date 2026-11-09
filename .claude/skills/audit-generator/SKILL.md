@@ -296,6 +296,11 @@ a replacement argument array only after the first changed child. This avoided ab
 method-body edit samples saved 632–664 KB, with variable whole-project timing. All 577
 outputs matched, tracked model reuse and collection checks passed, and 78 targeted
 tests passed on each of .NET 8 and 10 (`b467a67c`).
+Memoize rendered interceptor calls by their shape for one emission, then group by the
+rendered text as before. Multiple source locations can share the same call. Both isolated
+load orders saved 308 KB and stayed within 3% in time. Method-body edits saved 295–312 KB
+in eight samples with variable timing. All 577 files matched, model reuse and collection
+checks passed, and 78 targeted tests passed on each of .NET 8 and 10 (`d6556222`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
