@@ -219,16 +219,15 @@ internal sealed class BodyEmitter
             // As the read body: a struct that can hold itself opens no class body, so the writer counts its nesting
             // here, and an object graph nested too deep (or holding itself through a collection) throws before the
             // stack runs out.
-            _w.Block(signature, () =>
-            {
-                _w.Line($"writer.EnterStruct(typeof({T}));");
-                _w.Open("try");
-                EmitWriteBodyContents();
-                _w.Close();
-                _w.Open("finally");
-                _w.Line("writer.ExitStruct();");
-                _w.Close();
-            });
+            _w.Open(signature);
+            _w.Line($"writer.EnterStruct(typeof({T}));");
+            _w.Open("try");
+            EmitWriteBodyContents();
+            _w.Close();
+            _w.Open("finally");
+            _w.Line("writer.ExitStruct();");
+            _w.Close();
+            _w.Close();
             if (_m.Inheritance.EmitMembers && !_mode.Shallow)
             {
                 _w.Line();
@@ -241,11 +240,10 @@ internal sealed class BodyEmitter
         if (_m.Block && !_mode.Shallow)
         {
             // Keep the body's inlining boundary, but reserve all fixed-size writes in one step.
-            _w.Block(signature, () =>
-            {
-                _w.Line($"var __formatter = default({_m.Self});");
-                _w.Line("__formatter.WriteFixed(in value, ref writer.Reserve(__formatter.FixedSize));");
-            });
+            _w.Open(signature);
+            _w.Line($"var __formatter = default({_m.Self});");
+            _w.Line("__formatter.WriteFixed(in value, ref writer.Reserve(__formatter.FixedSize));");
+            _w.Close();
             return;
         }
 
@@ -257,7 +255,9 @@ internal sealed class BodyEmitter
             return;
         }
 
-        _w.Block(signature, EmitWriteBodyContents);
+        _w.Open(signature);
+        EmitWriteBodyContents();
+        _w.Close();
 
         if (_m.Inheritance.EmitMembers && !_mode.Shallow)
         {
@@ -340,8 +340,9 @@ internal sealed class BodyEmitter
         _w.Line($"{Signature.WriteMembers(T)} => default({self}).WriteBody(value, ref writer);");
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Block(Signature.ReadMembers(T),
-            () => EmitMemberReads("reader", inPlace: true, eof: "return;"));
+        _w.Open(Signature.ReadMembers(T));
+        EmitMemberReads("reader", inPlace: true, eof: "return;");
+        _w.Close();
     }
 
     /// <summary>Static member (de)serializers that derived types call instead of repeating these members.</summary>
@@ -349,12 +350,15 @@ internal sealed class BodyEmitter
     {
         // Inlined so the writer/reader state stays in registers across levels, as if the members were written inline.
         _w.Line(_names.Inline);
-        _w.Block(Signature.WriteMembers(T), EmitMemberWrites);
+        _w.Open(Signature.WriteMembers(T));
+        EmitMemberWrites();
+        _w.Close();
         _w.Line();
         _w.Line(_names.Inline);
         // Version tolerant: reading the region of the type that called it, which may end before any member.
-        _w.Block(Signature.ReadMembers(T),
-            () => EmitMemberReads("reader", inPlace: true, eof: "return;"));
+        _w.Open(Signature.ReadMembers(T));
+        EmitMemberReads("reader", inPlace: true, eof: "return;");
+        _w.Close();
     }
 
     /// <summary>
