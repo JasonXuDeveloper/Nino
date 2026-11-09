@@ -189,6 +189,10 @@ matched byte for byte, all 572 models were reused on tracked edits, and the proj
 edit probes collected old Roslyn objects and output text. Reusing the formatter's own writer
 instead increased cold allocations by 0.38–0.46 MB in the four rounds. A writer that already
 grew into multiple chunks can allocate again when cleared for alias replacement.
+Keep oversized rewrites out of the slot. Growing a leased buffer beyond the cap discards it and
+makes the next small rewrite allocate again. Bypassing the lease saved another 0.60–0.71 MB
+per cold replay across four rounds, with cold wall time within 0.6% and all outputs identical
+(`0febf582`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
