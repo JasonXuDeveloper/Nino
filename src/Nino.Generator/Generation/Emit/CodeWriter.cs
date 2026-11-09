@@ -115,13 +115,20 @@ internal sealed class CodeWriter
         _indent--;
     }
 
-    /// <summary>Indents the lines written by <paramref name="body"/> by one level.</summary>
-    public CodeWriter Indented(Action body)
+    /// <summary>Indents the lines written within the returned scope.</summary>
+    public Indentation Indent() => new(this);
+
+    public readonly struct Indentation : IDisposable
     {
-        _indent++;
-        body();
-        _indent--;
-        return this;
+        private readonly CodeWriter _writer;
+
+        internal Indentation(CodeWriter writer)
+        {
+            _writer = writer;
+            _writer._indent++;
+        }
+
+        public void Dispose() => _writer._indent--;
     }
 
     /// <summary><paramref name="header"/> { <paramref name="body"/> }.</summary>

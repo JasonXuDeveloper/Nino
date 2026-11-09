@@ -259,14 +259,14 @@ internal static class RegistryEmitter
             foreach (var c in cases)
             {
                 w.Line($"case {c.Id}:");
-                w.Indented(() =>
+                using (w.Indent())
                 {
                     w.AliasedLine(c.First, compact);
                     if (c.Rest != null)
                         foreach (var statement in c.Rest)
                             w.AliasedLine(statement, compact);
                     w.Line("break;");
-                });
+                }
             }
         });
     }

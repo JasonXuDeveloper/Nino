@@ -1231,11 +1231,11 @@ internal sealed class BodyEmitter
                 // Data written before a [NinoFormerName] rename; writes always use the current name.
                 foreach (int formerKey in member.FormerKeys)
                     _w.Line($"case {formerKey}:");
-                _w.Indented(() =>
+                using (_w.Indent())
                 {
                     EmitMemberRead(member, "__m", inPlace);
                     _w.Line("break;");
-                });
+                }
             }
 
             _w.Line("default:");
