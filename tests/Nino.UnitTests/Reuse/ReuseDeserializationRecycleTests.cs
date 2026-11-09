@@ -42,6 +42,7 @@ public class Owner
 }
 
 [TestClass]
+[DoNotParallelize]
 public class ReuseDeserializationRecycleTests
 {
     [TestCleanup]
