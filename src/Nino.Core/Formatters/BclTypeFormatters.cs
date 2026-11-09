@@ -39,6 +39,21 @@ namespace Nino.Core
             if ((uint)count > (uint)reader.Remaining || NinoLimits.TooLong(count))
                 NinoThrow.InvalidLength(count);
 #if NETSTANDARD2_0
+            if (count <= sizeof(int))
+            {
+                ref byte bytes = ref reader.UnsafeAdvance(count);
+                int number = count switch
+                {
+                    1 => unchecked((sbyte)bytes),
+                    2 => NinoUnsafe.Read<short>(ref bytes),
+                    3 => NinoUnsafe.Read<ushort>(ref bytes) | (unchecked((sbyte)Unsafe.Add(ref bytes, 2)) << 16),
+                    4 => NinoUnsafe.Read<int>(ref bytes),
+                    _ => 0
+                };
+                value = new BigInteger(number);
+                return;
+            }
+
             value = new BigInteger(reader.ReadRaw(count).ToArray());
 #else
             // The byte count was checked against the remaining data above.

@@ -49,6 +49,7 @@ public class BclTypeTests
                  {
                      BigInteger.Zero, BigInteger.One, BigInteger.MinusOne, new BigInteger(long.MaxValue) * 1000 + 7,
                      -BigInteger.Pow(3, 200), BigInteger.Pow(2, 64), new BigInteger(128), new BigInteger(-129),
+                     new BigInteger(32768), new BigInteger(-32769), new BigInteger(int.MinValue), new BigInteger(int.MaxValue),
                  })
         {
             var bytes = NinoSerializer.Serialize(value);
@@ -56,6 +57,8 @@ public class BclTypeTests
                 .ToArray(), bytes);
             Assert.AreEqual(value, NinoDeserializer.Deserialize<BigInteger>(bytes));
         }
+
+        Assert.AreEqual(BigInteger.Zero, NinoDeserializer.Deserialize<BigInteger>(new byte[4]));
     }
 
     [TestMethod]
