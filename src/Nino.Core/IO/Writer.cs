@@ -801,9 +801,9 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             // Without replacement, the transcoder's call is all that is inlined; an unpaired surrogate stops it.
             var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), MemoryMarshal.CreateSpan(ref bytes, capacity),
-                out _, out int written, replaceInvalidSequences: false);
+                out int consumed, out int written, replaceInvalidSequences: false);
             if (status != System.Buffers.OperationStatus.Done)
-                written = EncodeUtf8Replacing(value, ref bytes, capacity);
+                written = EncodeUtf8Replacing(value, ref bytes, capacity, consumed, written);
 #else
             int written = EncodeUtf8Replacing(value, ref bytes, capacity);
 #endif
@@ -827,6 +827,13 @@ namespace Nino.Core
                 Buffer.MemoryCopy(source, destination, count, count);
         }
 
+#if NET8_0_OR_GREATER
+        /// <summary>Finishes the UTF-8 suffix after strict encoding stops at an unpaired surrogate.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int EncodeUtf8Replacing(string value, ref byte destination, int capacity, int consumed, int written) =>
+            written + Encoding.UTF8.GetBytes(value.AsSpan(consumed),
+                MemoryMarshal.CreateSpan(ref Unsafe.Add(ref destination, written), capacity - written));
+#else
         /// <summary>The UTF-8 bytes of <paramref name="value"/>, each unpaired surrogate written as U+FFFD.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static unsafe int EncodeUtf8Replacing(string value, ref byte destination, int capacity)
@@ -835,7 +842,6 @@ namespace Nino.Core
             fixed (byte* dst = &destination)
             {
                 int length = value.Length, ascii = 0;
-#if !NET8_0_OR_GREATER
                 // The netstandard builds (Unity, .NET Framework): the registered kernel writes the leading ASCII chars
                 // (a byte each, their UTF-8), the encoder the rest from the first other char, which is the start of a
                 // char's bytes: the same bytes as the encoder's alone.
@@ -845,9 +851,9 @@ namespace Nino.Core
                     if (ascii == length)
                         return length;
                 }
-#endif
                 return ascii + Encoding.UTF8.GetBytes(src + ascii, length - ascii, dst + ascii, capacity - ascii);
             }
         }
+#endif
     }
 }

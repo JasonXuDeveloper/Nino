@@ -75,6 +75,10 @@ public class Utf8WireTests
         // An unpaired surrogate is U+FFFD: one char, three bytes.
         CollectionAssert.AreEqual(Wire(3, 5, 0x61, 0xEF, 0xBF, 0xBD, 0x62), Write("a\ud800b"));
         Assert.AreEqual("a�b", Read(Write("a\ud800b"), out _));
+
+        // Both the consumed char count and the written byte count matter when replacing after a non-ASCII prefix.
+        string malformed = new string('é', 3000) + "\ud800😀\udc00x";
+        CollectionAssert.AreEqual(Wire(malformed.Length, Encoding.UTF8.GetBytes(malformed)), Write(malformed));
     }
 
     [TestMethod]
