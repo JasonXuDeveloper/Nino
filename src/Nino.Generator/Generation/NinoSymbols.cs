@@ -66,13 +66,7 @@ internal sealed class NinoSymbols
             return false;
         if (SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, IFormatter))
             return true;
-        foreach (var i in type.AllInterfaces)
-        {
-            if (SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, IFormatter))
-                return true;
-        }
-
-        return false;
+        return ImplementsFormatter(type, null);
     }
 
     /// <summary>
@@ -86,10 +80,15 @@ internal sealed class NinoSymbols
         if (IFormatter == null || !formatter.IsValueType || formatter.IsRefLikeType ||
             formatter.IsUnboundGenericType || formatter.TypeKind == TypeKind.Error)
             return false;
-        foreach (var i in formatter.AllInterfaces)
+        return ImplementsFormatter(formatter, memberType);
+    }
+
+    private bool ImplementsFormatter(ITypeSymbol type, ITypeSymbol? memberType)
+    {
+        foreach (var i in type.AllInterfaces)
         {
             if (SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, IFormatter) &&
-                SymbolEqualityComparer.Default.Equals(i.TypeArguments[0], memberType))
+                (memberType == null || SymbolEqualityComparer.Default.Equals(i.TypeArguments[0], memberType)))
                 return true;
         }
 
