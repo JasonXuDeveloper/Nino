@@ -19,6 +19,9 @@ instructions in the loop. Record the remaining tradeoff alongside the evidence.
 When an experiment removes real work but the first A/B shows no gain, inspect the caller and loop for where the
 cost moved, then test a materially different variant before shelving it. Repair build or test infrastructure
 failures and rerun the relevant check before treating it as an outcome for the candidate.
+For a sound byref loop with disappointing timings, compare the frame, spills, helper inlining and tier promotion
+before changing the loop back. Try a different helper boundary or dispatch placement and measure the original
+and revised callers under default tiering.
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing

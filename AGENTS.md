@@ -150,8 +150,9 @@ reusing is written down before the task ends, in the same series of commits as t
 - **Performance tradeoffs**: Keep pursuing a change with a repeatable gain on representative workloads when a
   narrower case regresses. First try to preserve the small-input path and isolate the larger loop or dispatch.
   If a promising candidate misses its first measurement or verification, diagnose why and try a materially
-  different implementation or repair the failing check before dropping it. Measure both paths and record what
-  each attempt established (`optimize`, `benchmark`).
+  different implementation or repair the failing check before dropping it. For managed hot paths, inspect
+  tiered JIT output and caller code before undoing a sound loop change. Measure both paths and record what each
+  attempt established (`optimize`, `benchmark`).
 
 - **Numbers**: performance claims come only from GitHub runners (`report.yml` for releases, the A/B workflows while
   developing). Never publish quick, local or editor numbers. Within 5 % is on par; the docs never call Nino
