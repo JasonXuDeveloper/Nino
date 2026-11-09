@@ -54,6 +54,11 @@ and when `asm.py compare` lists methods the change did not touch.
   `BitArray.CopyTo` path writes into the output instead of renting and copying a temporary. For 24 KiB of
   bits the active payload footprint falls from about 72 KiB to 48 KiB, with the same padding on the wire
   (a0ee2414).
+- Keep per-segment reservations for the general fixed-width sequence writer. Reserving all
+  segments at once and checking the declared element count removed repeated capacity checks,
+  but slowed both the two- and 32-segment small-int writes in all four Arm64 rounds.
+  The longer writes were mixed, with identical bytes and zero steady-state allocations.
+  `WriteSegments` grew from 118 to 246 IL bytes and from 1,524 to 1,592 Arm64 Tier 1 bytes.
 - Reserve the header and payload together when writing a multi-segment byte sequence with the built-in
   formatter. Reuse `NinoSequences.CopySegments` to check the declared length while copying into the reservation.
   Match the exact formatter type so the JIT removes the generic segment loop. The Arm64 entry shrank from
