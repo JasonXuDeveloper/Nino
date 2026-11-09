@@ -125,6 +125,8 @@ and when `asm.py compare` lists methods the change did not touch.
   Read a complete built-in byte array directly from two segments after validating the header and actual length.
   Check segment adjacency before entering the direct path. Probing both spans on three-segment input regressed
   the fallback. Keep the copy through scratch when the result aliases input or when replacing a reused array.
+  Keep split headers in a separate cold method that joins only the four header bytes. Joining them inside
+  the ordinary two-segment reader regressed complete-header inputs in the local A/B.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
