@@ -313,6 +313,11 @@ method-body edits saved 1.55–1.56 MB. Isolated emitter replays saved about 630
 and their median time fell 16–25% in both load orders. Whole-project timings varied.
 All 577 outputs matched, model reuse and collection checks passed, and 78 targeted
 tests passed on each of .NET 8 and 10 (`0ff49c6a`).
+Keep the call-text dictionary scoped to emission. Reusing the structural key for
+the earlier sort saved only 2–19 KB across the eight method-body edit samples, with
+variable whole-project timing. In the tracked replay the sort stage took 2.43 to
+5.00 ms cold and 1.47 to 2.05 ms on the body edit. The 577 files, model reuse and
+collection results matched. Count the structural hash cost before caching sort keys.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
