@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -18,11 +19,25 @@ internal sealed class FormatterNames
         // Generic ones only: a formatter without type arguments is one type's name, short once its namespace is (the
         // generated ones in NinoGen), and the name to read; and one naming the type's own type parameters
         // (FormatterRef.Open) cannot be aliased outside the type.
-        Formatters = m.Members.Select(x => x.Formatter)
-            .Concat(m.ShallowBodies ? m.Members.Select(x => x.ShallowFormatter) : Enumerable.Empty<FormatterRef>())
-            .Where(f => f.Args.Length != 0 && !f.Open)
-            .Select(f => f.ToString())
-            .ToList();
+        List<string>? formatters = null;
+        AddFormatters(m, false, ref formatters);
+        if (m.ShallowBodies)
+            AddFormatters(m, true, ref formatters);
+        Formatters = formatters is null ? Array.Empty<string>() : formatters;
+    }
+
+    private static void AddFormatters(TypeModel m, bool shallow, ref List<string>? formatters)
+    {
+        FormatterRef? previous = null;
+        for (int i = 0; i < m.Members.Length; i++)
+        {
+            var member = m.Members[i];
+            var formatter = shallow ? member.ShallowFormatter : member.Formatter;
+            if (formatter.Args.Length == 0 || formatter.Open || formatter == previous)
+                continue;
+            (formatters ??= new List<string>()).Add(formatter.ToString());
+            previous = formatter;
+        }
     }
 
     /// <summary>The generic member formatters, as the body writes them, in member order (their aliases').</summary>
