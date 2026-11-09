@@ -6,6 +6,12 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Inlining budget
 
+- Delay copying the prefix of a full synchronous stream buffer until the next read returns bytes.
+  A non-seekable stream ending at a buffer boundary needs the EOF read but no prefix copy.
+  The 64 KiB wire case improved in each of four local rounds, with the adjacent 64 KiB plus
+  one byte case within noise and zero steady-state allocations on both sides. The 4 KiB timing
+  was noisy. Keep the ownership and EOF paths out of the common read loop.
+
 - Use a direct lookup before constructing a cached value when the target has no stateful factory overload.
   On a miss, pass the value to `GetOrAdd` and return the value that wins publication. The portable layout cache's
   factory already computed outside the dictionary lock. The new hit path removed the closure and allocation calls
