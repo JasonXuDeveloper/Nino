@@ -209,6 +209,12 @@ public class RecycleOwnershipTests
         Read(ref concurrent, new ConcurrentQueue<RcItem>(Items(3)));
         Assert.AreEqual(3, concurrent.Count);
         AssertRecycled(As(items[0]), As(items[1]));
+
+        var stackItems = Items(2);
+        var concurrentStack = new ConcurrentStack<RcItem>(stackItems);
+        Read(ref concurrentStack, new ConcurrentStack<RcItem>(Items(1)));
+        Assert.AreEqual(1, concurrentStack.Count);
+        AssertRecycled(As(stackItems[0]), As(stackItems[1]));
     }
 
 #if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only

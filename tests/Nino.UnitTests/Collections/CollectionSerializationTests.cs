@@ -476,6 +476,38 @@ public class CollectionSerializationTests
         int[] IProducerConsumerCollection<int>.ToArray() => new[] { 42 };
     }
 
+    [TestMethod]
+    public void DerivedConcurrentStackKeepsItsInterfaceRefill()
+    {
+        var stack = new AlternateRefillStack();
+        stack.Push(99);
+        var reader = new Reader(NinoSerializer.Serialize(new[] { 1, 2 }));
+        var target = stack;
+        default(ProducerConsumerFormatter<AlternateRefillStack, int, UnmanagedFormatter<int>>)
+            .Deserialize(ref reader, ref target);
+
+        Assert.AreSame(stack, target);
+        Assert.AreEqual(2, stack.TakeCalls);
+        CollectionAssert.AreEqual(new[] { 12, 11 }, stack.ToArray());
+    }
+
+    private sealed class AlternateRefillStack : ConcurrentStack<int>, IProducerConsumerCollection<int>
+    {
+        public int TakeCalls;
+
+        bool IProducerConsumerCollection<int>.TryTake(out int item)
+        {
+            TakeCalls++;
+            return TryPop(out item);
+        }
+
+        bool IProducerConsumerCollection<int>.TryAdd(int item)
+        {
+            Push(item + 10);
+            return true;
+        }
+    }
+
     private sealed record SnapshotItem(int Value, Action OnWrite = null);
 
     private struct SnapshotItemFormatter : INinoFormatter<SnapshotItem>

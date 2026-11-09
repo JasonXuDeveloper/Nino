@@ -559,14 +559,40 @@ namespace Nino.Core
 
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             var collection = value ??= NinoActivator<TCollection>.Create();
+            if (collection.GetType() == typeof(ConcurrentStack<T>))
+            {
+                RefillStack(Unsafe.As<ConcurrentStack<T>>(collection), length, ref reader);
+                return;
+            }
+
             NinoRecycler.DrainAndDiscard(collection);
+            for (int i = 0; i < length; i++)
+                collection.TryAdd(ReadItem(ref reader));
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RefillStack(ConcurrentStack<T> stack, int length, ref Reader reader)
+        {
+            if (NinoRecycler<T>.MayRecycle)
+            {
+                while (stack.TryPop(out var old))
+                    NinoRecycler<T>.Recycle(old);
+            }
+            else
+            {
+                stack.Clear();
+            }
 
             for (int i = 0; i < length; i++)
-            {
-                T item = default;
-                default(TFormatter).Deserialize(ref reader, ref item);
-                collection.TryAdd(item);
-            }
+                stack.Push(ReadItem(ref reader));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static T ReadItem(ref Reader reader)
+        {
+            T item = default;
+            default(TFormatter).Deserialize(ref reader, ref item);
+            return item;
         }
     }
 }
