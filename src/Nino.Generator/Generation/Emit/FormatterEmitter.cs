@@ -275,7 +275,7 @@ internal static class FormatterEmitter
     private static void OpenTwin(CodeWriter w, TypeModel m, string name, string interfaces)
     {
         w.Open($"internal struct {name} : {interfaces}");
-        w.Line("public int TypeId => Id;");
+        EmitTypeId(w, m);
         w.Line($"public int Traits => default({m.Self}).Traits;");
         w.Line($"public {m.TypeName} Create() => default({m.Self}).Create();");
     }
@@ -362,14 +362,7 @@ internal static class FormatterEmitter
             return;
         }
 
-        string id = m.TypeId.ToString(CultureInfo.InvariantCulture);
-        if (m.HasTop || m.Depth.Shallow)
-        {
-            w.Line($"public const int Id = {id};");
-            id = "Id";
-        }
-
-        w.Line($"public int TypeId => {id};");
+        w.Line($"public int TypeId => {m.TypeId.ToString(CultureInfo.InvariantCulture)};");
     }
 
     /// <summary>Whether a body nested too deep can be read later, and the empty instance it is read into.</summary>
