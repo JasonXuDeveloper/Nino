@@ -250,7 +250,7 @@ internal static class FormatterEmitter
             w.Line();
         }
 
-        OpenTwin(w, m, top, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>{Prefetch(m)}");
+        OpenTwin(w, m, names, top, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(serializeTop
             ? $"{Signature.Serialize(t)} => __SerializeTop(value, ref writer);"
@@ -275,12 +275,11 @@ internal static class FormatterEmitter
     /// Opens the twin struct <paramref name="name"/> of the formatter: its type id, traits and empty instance are the
     /// formatter's.
     /// </summary>
-    private static void OpenTwin(CodeWriter w, TypeModel m, string name, string interfaces)
+    private static void OpenTwin(CodeWriter w, TypeModel m, FormatterNames names, string name, string interfaces)
     {
         w.Open($"internal struct {name} : {interfaces}");
         EmitTypeId(w, m);
-        w.Line($"public int Traits => default({m.Self}).Traits;");
-        w.Line($"public {m.TypeName} Create() => default({m.Self}).Create();");
+        EmitDeferral(w, m, names, forwardCreate: true);
     }
 
     /// <summary>A twin's <c>Serialize</c>: the presence byte, then the body with no depth check.</summary>
@@ -329,7 +328,7 @@ internal static class FormatterEmitter
         string t = m.TypeName;
         // The twin by its own name: the code naming it is in the formatter, where its nested types are in scope.
         string twin = ShallowTwinName;
-        OpenTwin(w, m, twin, $"{CoreCompilerServices}INinoBodyFormatter<{t}>{Prefetch(m)}");
+        OpenTwin(w, m, names, twin, $"{CoreCompilerServices}INinoBodyFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(m.Kind == FormatterKind.Struct
             ? $"{Signature.Serialize(t)} => WriteBody(value, ref writer);"
@@ -369,7 +368,7 @@ internal static class FormatterEmitter
     }
 
     /// <summary>Whether a body nested too deep can be read later, and the empty instance it is read into.</summary>
-    private static void EmitDeferral(CodeWriter w, TypeModel m, FormatterNames names)
+    private static void EmitDeferral(CodeWriter w, TypeModel m, FormatterNames names, bool forwardCreate = false)
     {
         string t = m.TypeName;
         // NinoBodyTraits.Nests and NinoBodyTraits.Deferrable.
@@ -381,7 +380,8 @@ internal static class FormatterEmitter
             return;
         }
 
-        w.Line($"public {t} Create() => {BodyEmitter.Create(m, names.CompactSyntax)};");
+        string create = forwardCreate ? $"default({m.Self}).Create()" : BodyEmitter.Create(m, names.CompactSyntax);
+        w.Line($"public {t} Create() => {create};");
     }
 
     /// <summary>Serialize/Deserialize forwarding to the given calls, behind a reference header when tracked.</summary>
