@@ -219,6 +219,15 @@ of bytes in a block.
   x64 machine-code sizes or introducing a copy helper call. Four rounds for each shape
   had variable timings and 0 B allocation. Wire bytes matched at offsets 0, 1 and 7, and
   targeted .NET 8/10 tests passed with hardware intrinsics on and off (`fe927629`).
+- Recheck fixed-stride array reads before bypassing the second bounds check. The length check
+  already proves the block fits before allocation, so an array-only probe advanced the reader
+  without repeating the comparison. The span-read IL grew from 252 to 255 bytes plus a helper.
+  Arm64 Tier 1 caller code fell from 644 to 620 bytes, and offline optimized x64 from 1,071 to
+  1,017. At offset 1, the 65-item SIMD case was 1.8–5.9% slower in four follow-up rounds,
+  while the byte-identical A/A control ranged from 2.8% faster to 9.8% slower. With intrinsics
+  disabled it stayed within 1%. The one-item and 1,700-item results varied. Wire, dirty-padding,
+  truncation and invalid-bool checks passed at offsets 0, 1 and 7, with 0 B allocated per read.
+  Keep the probe separate until the SIMD caller and profile difference is understood.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
