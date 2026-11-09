@@ -55,19 +55,22 @@ internal static class PrefetchRules
     public static EquatableArray<string> Members(IReadOnlyList<MemberModel> models, IReadOnlyList<ISymbol> symbols,
         CancellationToken ct)
     {
-        var names = new List<string>();
-        for (int i = 0; i < models.Count && names.Count < MaxMembers; i++)
+        List<string>? names = null;
+        for (int i = 0; i < models.Count; i++)
         {
             if (models[i].Access != MemberAccess.Direct)
                 continue;
-            ITypeSymbol? type = symbols[i] switch
+            bool eligible = symbols[i] switch
             {
-                IFieldSymbol field => field.Type,
-                IPropertySymbol property when IsSafeGetter(property, ct) => property.Type,
-                _ => null,
+                IFieldSymbol field => field.Type.IsReferenceType,
+                IPropertySymbol property => property.Type.IsReferenceType && IsSafeGetter(property, ct),
+                _ => false,
             };
-            if (type is { IsReferenceType: true })
-                names.Add(models[i].SourceName);
+            if (!eligible)
+                continue;
+            (names ??= new List<string>(MaxMembers)).Add(models[i].SourceName);
+            if (names.Count == MaxMembers)
+                break;
         }
 
         return new EquatableArray<string>(names);
