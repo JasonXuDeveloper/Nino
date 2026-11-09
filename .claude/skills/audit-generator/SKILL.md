@@ -102,6 +102,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   method-body edits. Constructor bodies, initializers and accessors still affect the model and must invalidate
   it. In the real unit test project, editing a method in the generic polymorphism fixture rebuilt 80 models
   even though all 80 were structurally unchanged.
+- Let live compilations own model-cache state through weak keys. Keep symbols in per-compilation tables and
+  release old tree mappings after migrating call dependencies. Measure active-project edits with the prior
+  compilation and driver alive, then measure reopening separately after dropping both and collecting.
+  A strong recent-project list kept closed projects' trees alive and masked the cost of reopening.
+  Improve reopening by measuring the cold binding and model stages rather than extending their lifetime.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations

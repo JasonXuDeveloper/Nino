@@ -25,6 +25,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 
 ## The text
 
+- Keep the by-value formatter text lookup weak. Roslyn can move an equal model to a new slot after a declaration
+  is inserted. Reuse its immutable source text while a consumer holds it, then let the model and text collect.
+  An index bound by entry count alone still held closed projects' generated texts in the real project GC probe.
+
 - **Short names through one alias block**: a type named more than once goes through a file-level `using` alias, not
   `global::System...` in every line; never a plain `using` a user type could shadow. Every file is framed by
   `GeneratedCode.File`, and `GeneratedCode.WithAliases` rewrites a body's repeated names (the type's own as `__NinoT`,
