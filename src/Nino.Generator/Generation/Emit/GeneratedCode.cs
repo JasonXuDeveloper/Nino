@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -225,6 +226,12 @@ internal static class GeneratedCode
 
         if (formatterAliases != null)
             declarations.AddRange(formatterAliases);
+        if (scratch is { Capacity: <= 8192 })
+        {
+            scratch.Clear();
+            Interlocked.CompareExchange(ref _aliasScratch, scratch, null);
+        }
+
         return body;
     }
 
@@ -262,6 +269,9 @@ internal static class GeneratedCode
 
     private static string FormatterAlias(int index) => "__NinoF" + index.ToString(CultureInfo.InvariantCulture);
 
+    // Keep one bounded buffer per generator load context, independent of the compiler thread count.
+    private static StringBuilder? _aliasScratch;
+
     private static string WithAlias(string body, string name, string alias, string declaration,
         List<string> declarations, ref StringBuilder? scratch)
     {
@@ -279,7 +289,16 @@ internal static class GeneratedCode
         if (at < 0)
             return body;
 
-        var sb = scratch ??= new StringBuilder(body.Length);
+        if (scratch == null)
+        {
+            scratch = Interlocked.Exchange(ref _aliasScratch, null);
+            if (scratch == null)
+                scratch = new StringBuilder(body.Length);
+            else
+                scratch.EnsureCapacity(body.Length);
+        }
+
+        var sb = scratch;
         sb.Clear();
         int start = 0;
         for (at = first; at >= 0; at = FindName(body, name, start, member))
