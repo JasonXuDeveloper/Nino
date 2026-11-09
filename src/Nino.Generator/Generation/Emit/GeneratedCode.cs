@@ -267,14 +267,17 @@ internal static class GeneratedCode
     public const string MethodFlags = "__NinoIL";
 
     /// <summary>The alias of <c>MethodImplAttribute</c> used by the generated methods.</summary>
+    public const string MethodImplAlias = "__NinoMI";
+
+    /// <summary>Declarations needed by the generated inlining attributes.</summary>
     public static readonly string[] InlineAliases =
     {
-        "using __NinoInline = " + TypeNames.CompilerServices + "MethodImplAttribute;",
+        "using " + MethodImplAlias + " = " + TypeNames.CompilerServices + "MethodImplAttribute;",
     };
 
     /// <summary>The aggressive inlining attribute, through <see cref="InlineAliases"/>.</summary>
-    public const string Inline = "[__NinoInline(" + MethodFlags + ".Inline)]";
+    public const string Inline = "[" + MethodImplAlias + "(" + MethodFlags + ".Inline)]";
 
     /// <summary>The no-inlining attribute, through <see cref="InlineAliases"/>.</summary>
-    public const string NoInline = "[__NinoInline(" + MethodFlags + ".NoInline)]";
+    public const string NoInline = "[" + MethodImplAlias + "(" + MethodFlags + ".NoInline)]";
 }
