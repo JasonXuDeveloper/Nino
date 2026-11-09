@@ -26,6 +26,9 @@ of bytes in a block.
 
 ## Vector loops
 
+- Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
+  `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
+  take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
 - Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
   complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
   at the end of a guarded page to catch a load past either end of the input.
