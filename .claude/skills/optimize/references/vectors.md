@@ -99,6 +99,8 @@ of bytes in a block.
 - For an exact concurrent queue with variable-size elements, write its snapshot enumerator and patch the count
   from the items written. Reading `Count` separately can observe a different snapshot. Retain bulk writes for
   fixed-size elements and the existing snapshot semantics for derived types, stacks and bags.
+  A pooled chunk loop and direct raw snapshot writes both saved the snapshot array but regressed several fixed
+  queue sizes in a local A/B. Compare fixed-size cases separately before replacing their bulk path.
 
 - Write a runtime's strided entries (a `HashSet<T>`'s or `Dictionary<K, V>`'s entry array) through the block path
   (`SetEntryBlock`, `MapEntryBlock`: a block map of the key and value at their offsets in the entry), never one
