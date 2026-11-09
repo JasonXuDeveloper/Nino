@@ -146,6 +146,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Keep the raw-run description as a readonly value. This removes one object per run and
   saved 17–18 KB in the emitter-only replay in both load orders. The 577 outputs matched,
   and tracked edits, collection probes and 69 targeted tests passed (`8a3b47aa`).
+  Skipping the separate length-offset expression when a keyed header packs both fields
+  did not reduce allocation reproducibly. The project had 50 packed header stores, and
+  the two emitter load orders each differed by 216 bytes in opposite directions. The 577
+  outputs, incremental reuse and collection checks matched. Keep offset construction
+  uniform until a keyed workload shows a measurable benefit.
 - Create inherited-type cache entries only after an assembly passes the Nino-reference filter.
   Keeping plain symbols in the temporary list avoided entries for unrelated references and saved
   about 33 KB of cold allocations in the unit test project replay. All 577 files matched.
