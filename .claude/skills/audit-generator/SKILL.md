@@ -149,6 +149,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Check base names by index to avoid the predicate allocation in each fixed-point pass. The real
   project replay saved 66 KB cold and 48 KB on method-body edits with the same 577 generated files.
   Timings were flat and the entry plus helper used 296 IL bytes instead of 318.
+  Marked declarations seed that search by name alone. Leave their base lists empty and allocate
+  the unmarked declaration list only on the first usable base name. The 577-file replay saved
+  about 7 KB cold and 29 KB on method-body edits. Output, cache hits and compiler-object collection
+  matched, and the apparent model-edit slowdown did not persist after reversing the run order.
   Reusing only the last semantic model in candidate resolution did not reduce replay allocations.
   Filtering the file-path lookup to candidate paths saved about 19 KB on a method-body edit,
   without changing timings, incremental hits or any of the 577 files. Its iterator grew from
