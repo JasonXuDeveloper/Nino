@@ -1,6 +1,7 @@
 #if NET8_0_OR_GREATER
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
 namespace Nino.Core
@@ -34,11 +35,35 @@ namespace Nino.Core
                 WriteEach(value, ref writer);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteRawPairs(PriorityQueue<TElement, TPriority> queue, int count, ref Writer writer)
+        {
+            int elementSize = Unsafe.SizeOf<TElement>();
+            int pairSize = elementSize + Unsafe.SizeOf<TPriority>();
+            ref byte target = ref writer.ReserveCounted(count, pairSize);
+            foreach (var (element, priority) in queue.UnorderedItems)
+            {
+                if (count-- == 0)
+                    NinoThrow.ModifiedDuringWrite();
+                NinoUnsafe.WriteValueIn(ref target, 0, in element);
+                NinoUnsafe.WriteValueIn(ref target, elementSize, in priority);
+                target = ref Unsafe.Add(ref target, pairSize);
+            }
+
+            if (count != 0)
+                NinoThrow.ModifiedDuringWrite();
+        }
+
         // The writer by value and returned, a local whose cursor stays in registers (as HashSetFormatter's).
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteEach(PriorityQueue<TElement, TPriority> value, Writer writer)
         {
-            WriteEach(value, ref writer);
+            int count = value.Count;
+            if (count >= 8 && RawFormatter.Is<TElement, TElementFormatter>() &&
+                RawFormatter.Is<TPriority, TPriorityFormatter>())
+                WriteRawPairs(value, count, ref writer);
+            else
+                WriteEach(value, ref writer);
             return writer;
         }
 

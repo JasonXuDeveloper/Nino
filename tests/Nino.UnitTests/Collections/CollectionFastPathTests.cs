@@ -154,6 +154,30 @@ public class CollectionFastPathTests
             NinoSerializer.Serialize((SortedDictionary<int, int>)null)));
     }
 
+#if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
+    [TestMethod]
+    public void PriorityQueueWritesRawPairsInHeapOrder()
+    {
+        var queue = new PriorityQueue<Subset.Corner.RawPadded, int>();
+        for (int i = 0; i < 19; i++)
+            queue.Enqueue(new Subset.Corner.RawPadded { A = (byte)i, B = -i, C = (short)i, D = 7L * i }, -13 * i);
+
+        using var expected = new NinoArrayBufferWriter();
+        NinoSerializer.Serialize(queue.Count, expected);
+        foreach (var (element, priority) in queue.UnorderedItems)
+        {
+            NinoSerializer.Serialize(element, expected);
+            NinoSerializer.Serialize(priority, expected);
+        }
+
+        using var actual = new NinoArrayBufferWriter();
+        actual.GetSpan(1);
+        actual.Advance(1);
+        NinoSerializer.Serialize(queue, actual);
+        CollectionAssert.AreEqual(expected.WrittenSpan.ToArray(), actual.WrittenSpan.Slice(1).ToArray());
+    }
+#endif
+
     [TestMethod]
     public void SortedListWritesRawPairsAtAnUnalignedOffset()
     {
