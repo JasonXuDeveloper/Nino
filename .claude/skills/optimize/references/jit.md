@@ -14,6 +14,10 @@ and when `asm.py compare` lists methods the change did not touch.
   `BitArray.CopyTo` path writes into the output instead of renting and copying a temporary. For 24 KiB of
   bits the active payload footprint falls from about 72 KiB to 48 KiB, with the same padding on the wire
   (a0ee2414).
+- Reserve the header and payload together when writing a multi-segment byte sequence with the built-in
+  formatter. Reuse `NinoSequences.CopySegments` to check the declared length while copying into the reservation.
+  Match the exact formatter type so the JIT removes the generic segment loop. The Arm64 entry shrank from
+  3,020 to 352 bytes and calls the existing 708-byte copy helper.
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
