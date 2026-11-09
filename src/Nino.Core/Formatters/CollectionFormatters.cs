@@ -282,9 +282,22 @@ namespace Nino.Core
                 int count = CollectionFields.Size<T>(value);
                 int head = CollectionFields.Head<T>(value);
                 int first = Math.Min(count, ring.Length - head);
+                int block = NinoElements.BlockStride<T, TFormatter>();
+                if (block > 0)
+                {
+                    // The prefix and both parts of a wrapped ring fit in the same reservation.
+                    ref byte target = ref writer.ReserveCounted(count, block);
+                    if (first != 0)
+                        NinoElements.WriteBlock<T, TFormatter>(ref target, new ReadOnlySpan<T>(ring, head, first));
+                    if (first != count)
+                        NinoElements.WriteBlock<T, TFormatter>(ref Unsafe.Add(ref target, first * block),
+                            new ReadOnlySpan<T>(ring, 0, count - first));
+                    return;
+                }
+
                 writer.WriteLength(count);
-                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, head, first), ref writer);
-                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, 0, count - first), ref writer);
+                NinoElements.WriteItems<T, TFormatter>(new ReadOnlySpan<T>(ring, head, first), ref writer);
+                NinoElements.WriteItems<T, TFormatter>(new ReadOnlySpan<T>(ring, 0, count - first), ref writer);
                 return;
             }
 
@@ -370,19 +383,17 @@ namespace Nino.Core
                 return;
 
             int count = value.Count;
-            writer.WriteLength(count);
-            if (count == 0)
-                return;
-
             if (CollectionViews.Stack)
             {
                 // The backing array is bottom to top already (a block for raw elements).
-                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(CollectionFields.Array<T>(value), 0, count),
+                NinoCollections.WriteSpan<T, TFormatter>(new ReadOnlySpan<T>(CollectionFields.Array<T>(value), 0, count),
                     ref writer);
                 return;
             }
 
-            writer = WriteReversed(value, count, writer);
+            writer.WriteLength(count);
+            if (count != 0)
+                writer = WriteReversed(value, count, writer);
         }
 
         /// <summary>

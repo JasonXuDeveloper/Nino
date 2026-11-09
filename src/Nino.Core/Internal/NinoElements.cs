@@ -268,6 +268,14 @@ namespace Nino.Core.Internal
                 return;
             }
 
+            WriteItems<T, TFormatter>(values, ref writer);
+        }
+
+        /// <summary>Writes elements whose formatter does not use a fixed-size block.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void WriteItems<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+        {
             if (WritesOnLocal<T>())
             {
                 if (!values.IsEmpty)

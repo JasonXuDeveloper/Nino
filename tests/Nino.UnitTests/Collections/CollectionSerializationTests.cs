@@ -237,6 +237,28 @@ public class CollectionSerializationTests
     }
 
     [TestMethod]
+    public void WrappedQueuesWriteTheirElementsInOrder()
+    {
+        Check(new[] { 1, 2, 3, 4 });
+        var day = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        Check(new[] { day, day.AddDays(1), day.AddDays(2), day.ToOffset(TimeSpan.FromHours(2)) });
+
+        static void Check<T>(T[] values)
+        {
+            var queue = new Queue<T>(values.Length);
+            foreach (T value in values)
+                queue.Enqueue(value);
+            queue.Enqueue(queue.Dequeue()); // Keep it full and wrap its backing array.
+
+            var expected = values.Skip(1).Append(values[0]).ToArray();
+            using var buffer = new NinoArrayBufferWriter(0);
+            NinoSerializer.Serialize(queue, buffer);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(expected), buffer.ToArray());
+            CollectionAssert.AreEqual(expected, NinoDeserializer.Deserialize<Queue<T>>(buffer.WrittenSpan).ToArray());
+        }
+    }
+
+    [TestMethod]
     public void TestNullCollection()
     {
         List<int> a = null;
