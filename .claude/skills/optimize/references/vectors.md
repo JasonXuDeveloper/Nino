@@ -112,6 +112,11 @@ of bytes in a block.
   tuple widening call with explicit lower and upper operations removed seven helper IL bytes
   but left the Arm64 Tier 1 and both x64 listing sizes unchanged. It slowed the 256-character
   local probe in all four rounds, so keep the tuple form.
+- Apply the same full-vector and overlapping-tail loop to 128-bit Latin-1 narrowing, checking each
+  vector before writing it so UTF-16 fallback still works. The unaligned Arm64 writer probe improved
+  at 64, 4,096 and 32,768 Latin-1 characters in all four rounds, with identical wire bytes and
+  zero allocations. The x64 composite listing left the vector helper out of line, so include its
+  body when comparing offline size and do not infer x64 throughput.
 - Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (1b2e3404).
   `GetChunks` can allocate a chunk index, even for a short but unusually fragmented builder. Keep the modern
   small-write loop where it measured faster, and advance the reader by the exact byte count already checked.
