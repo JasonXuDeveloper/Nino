@@ -14,7 +14,7 @@ namespace Nino.Core.Internal
         /// Data up to this many bytes is copied to the stack instead (the module skips zeroing locals), saving the
         /// pool's rent and return on the small messages pipes most often split.
         /// </summary>
-        public const int StackBytes = 512;
+        public const int StackBytes = 1024;
 
         /// <summary>
         /// Copies <paramref name="data"/> into an array rented from the shared pool, <paramref name="length"/> bytes

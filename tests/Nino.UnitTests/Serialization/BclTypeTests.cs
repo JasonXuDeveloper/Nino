@@ -324,7 +324,7 @@ public class BclTypeTests
     [TestMethod]
     public void SegmentedInputChecksItsActualLength()
     {
-        foreach (int count in new[] { 32, 1024 })
+        foreach (int count in new[] { 32, 512, 1020, 1024 })
         {
             var value = Enumerable.Range(0, count).Select(i => (byte)i).ToArray();
             byte[] bytes = NinoSerializer.Serialize(value);
