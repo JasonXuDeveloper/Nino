@@ -19,6 +19,7 @@ namespace Nino.UnitTests
     /// (without the removal, its types would collide with the first context's ids).
     /// </summary>
     [TestClass]
+    [DoNotParallelize] // Assembly scans in other tests can hold a snapshot containing the collectible assembly.
     public class UnloadTests
     {
         private const string Source = @"
@@ -93,7 +94,6 @@ namespace Unloadable
         /// still see the new one (here, to read a type id only its registry knows).
         /// </summary>
         [TestMethod]
-        [DoNotParallelize]
         public void ScanSeesAssemblyLoadedAfterAnUnload()
         {
             var compiled = CornerCompiler.Compile(Source, load: false);
@@ -132,7 +132,6 @@ namespace Unloadable
         /// read repeatedly), and is found once an assembly declaring it loads.
         /// </summary>
         [TestMethod]
-        [DoNotParallelize]
         public void UnknownIdIsFoundOnceItsAssemblyLoads()
         {
             var compiled = CornerCompiler.Compile(Source.Replace("Unloadable", "LoadedLater"), load: false);
@@ -183,9 +182,8 @@ namespace Unloadable
         }
 
         /// <summary>
-        /// Collects until <paramref name="context"/> is gone, for up to 10 s: another test class running in parallel
-        /// can hold the assembly for a moment (a scan of every loaded assembly holds the list it iterates), and 20
-        /// collections back to back passed within such a moment on a loaded machine.
+        /// Collects until <paramref name="context"/> is gone, allowing up to 10 s for finalizers and outstanding
+        /// assembly references to clear.
         /// </summary>
         private static void Collect(WeakReference context)
         {
