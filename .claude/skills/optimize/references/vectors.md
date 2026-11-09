@@ -102,6 +102,13 @@ of bytes in a block.
   The same byte, padding, truncation and invalid-bool checks passed. Keep the probe for the scalar
   path. A general implementation needs an explicit generated-formatter guarantee before replacing
   its field reads. An exact byte map alone does not preserve a custom formatter's validation.
+  Gating the same probe on `!Vector128.IsHardwareAccelerated` restored the original SIMD Arm64
+  Tier 1 instruction stream after normalizing call addresses. The x64 FullOpts cross listing
+  returned to 186 bytes with SIMD and stayed at 107 without it. `ReadOne` reached 141 IL bytes.
+  Four default-tiering A/B rounds at offset 1 retained 37.5–39.7% faster scalar reads at 65 items
+  and 34.3–35.0% at 1,700, with 0 B allocated. One item varied, including a 24% scalar regression
+  in one round. SIMD timings varied in both directions. Repeat the byte, dirty-padding, truncation
+  and invalid-bool checks on both paths before trying a general implementation.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
