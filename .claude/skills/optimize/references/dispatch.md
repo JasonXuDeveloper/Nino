@@ -81,6 +81,11 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   round. At one item the Arm64 Tier 1 caller and helper totaled 1,216 bytes against 1,200 before, while
   the x64 cross listing had a smaller caller with the work moved into a helper. Check tiering before
   interpreting the reference case: the initial string base listing did not reach Tier 1.
+- Clear the full rented reference array on return from concurrent collection construction. Clearing only
+  the used prefix left a sentinel from an earlier renter in the unused suffix of the same shared buffer.
+  The 65-item ownership probe returned a clean prefix in both builds and a clean suffix only with
+  full clearing. The prefix variant had no repeatable throughput gain for string collections at 65,
+  513, 1,024 or 4,097 items. Its Arm64 Tier 1 constructor helper grew from 2,616 to 3,792 bytes.
 - Refill exact concurrent stacks through `TryPop` and `Push`, and use one `Clear` when no old item needs
   recycling. Bind stacks to their own formatter and leave subclasses on their interface (62d85a1b).
   Adding the stack branch to the shared producer/consumer method changed the queue's inlining budget. The split
