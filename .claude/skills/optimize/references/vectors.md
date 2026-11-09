@@ -61,7 +61,15 @@ of bytes in a block.
   start, the direct tail was consistently slower with hardware intrinsics enabled and within noise
   with them disabled. The 1,025-item result was within noise with either setting. The probe verified
   equal wire bytes and 0 B per read. Keep the dual-cursor helper available and isolate the SIMD-side
-  dispatch from the pure scalar path before testing another tail shape.
+  dispatch from the pure scalar path before testing another tail shape. A gate on
+  `Vector128.IsHardwareAccelerated` folded away on the SIMD path and kept its Arm64 Tier 1 instructions
+  identical, although the 64-item timing difference persisted. With hardware intrinsics disabled, cursor
+  stepping removed the loop multiplications and reduced Tier 1 from 172 to 148 Arm64 bytes and the x64
+  FullOpts cross listing from 140 to 113 bytes. Reads of 1,025 items and the 1,640/1,700-item pair
+  straddling a 64 KiB source-plus-destination budget were within 0.5% across four rounds. The two sides
+  emitted identical wire bytes and allocations matched. Keep this as evidence of smaller scalar machine
+  code. The extra branch and duplicate loop raised `ReadEach` from 459 to 503 IL bytes, so isolate where
+  the SIMD timing difference originates before considering this shape for production.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
