@@ -156,8 +156,10 @@ namespace Nino.Core
                 newSize = Math.Max(needed, NinoUnsafe.MaxArrayLength);
 
             var newBuffer = _pool.Rent(newSize);
-            System.Buffer.BlockCopy(Buffer, 0, newBuffer, 0, Index);
             var old = Buffer;
+            int count = Index;
+            if (count != 0)
+                old.AsSpan(0, count).CopyTo(newBuffer);
             Buffer = newBuffer;
             if (old.Length != 0)
                 _pool.Return(old);
