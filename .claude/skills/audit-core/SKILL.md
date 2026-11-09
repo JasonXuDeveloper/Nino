@@ -57,6 +57,10 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
 
 ## Fixing
 
+- Restrict native zero-copy stream reads to concrete types whose pointer, length and position share the same bounds.
+  Subclasses can override the stream contract, so use the existing buffered path for them. Consume the bytes before
+  invoking the formatter, as the buffered path does, so malformed data leaves the same stream position.
+
 - Every bug gets a regression test that fails before the fix.
 - A hot-path change ships with the machine code checked and runner numbers (`optimize`, `benchmark`).
 - A public API change: XML docs, the docs to-dos (`audit-docs`), the public skill, a changelog trailer; a removal or

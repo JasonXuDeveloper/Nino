@@ -187,6 +187,9 @@ Order piped = NinoDeserializer.Deserialize<Order>(sequence); // a pipe's ReadOnl
   what it delivers, growing as bytes arrive). `SerializeBoxed` / `DeserializeBoxed` (and `...Async`) take a `Stream`
   too. A `ReadOnlySequence<byte>` of one segment is read in place, of several copied once (to the stack up to
   512 bytes, else a pooled array).
+- Stream reads consume the remaining bytes before decoding. An exposed `MemoryStream` buffer, a plain
+  pointer-backed `UnmanagedMemoryStream`, and a memory-mapped view can be read in place. See the
+  [Streams guide](https://nino.xgamedev.net/en/docs/v4/advanced/streams#streams) for buffering and framing.
 - On rc.9 and earlier there are no `Stream`, async or sequence overloads: serialize to a buffer and write it, read
   the bytes into a buffer, and read a sequence's `First.Span` when `IsSingleSegment`, else copy it first.
 - Hot paths: one `NinoArrayBufferWriter` per thread or connection, `ResetWrittenCount()` before each message, send

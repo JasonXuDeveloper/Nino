@@ -63,8 +63,8 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`, and 
   DLLs, and after rc.7 Nino.Burst named `NinoKernels`, which the committed Nino.Core.dll lacked (round 121). Compare APIs, never bytes: each DLL embeds the
   commit it was built from, and a cold build ordered PolySharp's polyfill types differently from a warm one (field
   tokens of `RequiresDynamicCodeAttribute`), while two warm builds were identical.
-- Check `git status --short` is empty (or run `tools/agents.sh --check` on a fresh clone) before pushing: --check
-  passes locally with an untracked new file (push 3ec8ee8f went red).
+- Check `git status --short` before pushing. Run `tools/agents.sh --check` against a clean checkout when local
+  generated files are present: the check also includes untracked, non-ignored files.
 - Cherry-pick or merge workers' branches onto `origin/main`, drop session lines from their messages, add the trailers
   a user-facing change needs; then fast-forward `main` (AGENTS.md, Rules). The test branch takes merges only.
 - Watch the runs of the pushed commit to the end, and fix a red one at once (`audit-ci` when the workflow itself is
