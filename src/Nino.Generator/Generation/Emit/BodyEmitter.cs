@@ -229,6 +229,17 @@ internal sealed class BodyEmitter
             return;
         }
 
+        if (_m.Block && !_mode.Shallow)
+        {
+            // Keep the body's inlining boundary, but reserve all fixed-size writes in one step.
+            _w.Block(signature, () =>
+            {
+                _w.Line($"var __formatter = default({_m.Self});");
+                _w.Line("__formatter.WriteFixed(in value, ref writer.Reserve(__formatter.FixedSize));");
+            });
+            return;
+        }
+
         if (_m.Inheritance.EmitMembers && !_mode.Shallow && !Region && !_m.IsCollection && _m.Callbacks == null)
         {
             _w.Line($"{signature} => WriteMembers(value, ref writer);");

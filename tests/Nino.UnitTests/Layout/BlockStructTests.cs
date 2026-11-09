@@ -44,6 +44,12 @@ public class BlockStructTests
     private static void RoundTrips<T>(Func<int, T> create, int size)
     {
         Assert.AreEqual(size, NinoSerializer.GetFixedSize<T>(), typeof(T).Name);
+        var single = create(42);
+        var singleBuffer = new NinoArrayBufferWriter(1);
+        NinoSerializer.Serialize((byte)1, singleBuffer);
+        NinoSerializer.Serialize(single, singleBuffer);
+        CollectionAssert.AreEqual(NinoSerializer.Serialize(single), singleBuffer.WrittenSpan.Slice(1).ToArray(),
+            "single after a byte, " + typeof(T).Name);
         foreach (int length in Lengths)
         {
             var values = Enumerable.Range(0, length).Select(create).ToArray();
