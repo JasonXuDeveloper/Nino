@@ -28,21 +28,21 @@ namespace Nino.Core
             writer.WriteRaw(bytes);
 #else
             int count = value.GetByteCount();
-            writer.WriteLength(count);
-            value.TryWriteBytes(MemoryMarshal.CreateSpan(ref writer.Reserve(count), count), out _);
+            value.TryWriteBytes(MemoryMarshal.CreateSpan(ref writer.ReserveCounted(count, 1), count), out _);
 #endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref BigInteger value)
         {
-            int count = reader.ReadLength();
-            if (count < 0)
+            int count = reader.UnsafeRead<int>();
+            if ((uint)count > (uint)reader.Remaining || NinoLimits.TooLong(count))
                 NinoThrow.InvalidLength(count);
 #if NETSTANDARD2_0
             value = new BigInteger(reader.ReadRaw(count).ToArray());
 #else
-            value = new BigInteger(reader.ReadRaw(count));
+            // The byte count was checked against the remaining data above.
+            value = new BigInteger(MemoryMarshal.CreateReadOnlySpan(ref reader.UnsafeAdvance(count), count));
 #endif
         }
     }
