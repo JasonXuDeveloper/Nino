@@ -208,6 +208,12 @@ of bytes in a block.
   offline x64 used 440 bytes in `WriteAll` and 2,257 in `ArrayFormatter.Serialize`. All
   probes allocated 0 B and matched wire bytes at offsets 0, 1 and 7. Targeted .NET 8/10
   tests passed with and without hardware intrinsics (`d2688fac`).
+  Keep the two explicit word stores for the variable prefix length. Replacing them with
+  `Unsafe.CopyBlockUnaligned` reduced `WriteAll` from 121 to 89 IL bytes, with the same Arm64
+  Tier 1 sizes for both shapes. Offline x64 shrank from 440 to 434 bytes in `WriteAll`, and
+  from 2,257 to 2,245 in the array formatter, but introduced a `CORINFO_HELP_MEMCPY` call in
+  the single-item path. Four local rounds for each shape had no stable timing gain, 0 B
+  allocations, and byte-identical writes at offsets 0, 1 and 7.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
