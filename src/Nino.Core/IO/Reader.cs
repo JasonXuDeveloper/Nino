@@ -706,6 +706,24 @@ namespace Nino.Core
             return true;
         }
 
+        /// <summary>Generated code consumes a matching keyed header and its raw value together.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryReadKeyed<T>(long header, out T value) where T : unmanaged
+        {
+            int size = sizeof(long) + Unsafe.SizeOf<T>();
+            ref byte start = ref Cur;
+            if (Avail < size || NinoUnsafe.Read<long>(ref start) != header)
+            {
+                value = default;
+                return false;
+            }
+
+            value = NinoUnsafe.Read<T>(ref start, sizeof(long));
+            Skip(size);
+            return true;
+        }
+
         /// <summary>
         /// Reads a collection length. Returns -1 for null. Throws if the payload cannot possibly contain
         /// <c>length * minElementSize</c> more bytes.

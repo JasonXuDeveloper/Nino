@@ -209,6 +209,8 @@ public class StrictReadTests
         var longInt = Concat(With(With(keyed, 1, body + 1), 9, 5).AsSpan(0, 17).ToArray(), new byte[] { 0 },
             keyed.AsSpan(17).ToArray());
         Invalid<StrictKeyed>(longInt);
+        // The key and length match, but the outer region ends inside the int.
+        Invalid<StrictKeyed>(With(keyed, 1, 11).AsSpan(0, 16).ToArray());
 
         // Name's entry 1 byte longer than its string.
         int nameLength = BitConverter.ToInt32(keyed, 21);

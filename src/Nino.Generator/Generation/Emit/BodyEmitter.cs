@@ -1161,11 +1161,8 @@ internal sealed class BodyEmitter
     {
         if (member.Raw is not { IsConstant: true } raw)
             return null;
-        int size = raw.Bytes;
-        uint key = unchecked((uint)member.Key);
-        long le = PackKeyHeader(member.Key, size);
-        long be = (long)key << 32 | (uint)size;
-        return le == be ? $"{le}L" : $"global::System.BitConverter.IsLittleEndian ? {le}L : {be}L";
+        // Reader rejects big-endian hosts before reading any headers.
+        return $"{PackKeyHeader(member.Key, raw.Bytes)}L";
     }
 
     private static long PackKeyHeader(int key, int size) => (long)size << 32 | unchecked((uint)key);
@@ -1182,6 +1179,14 @@ internal sealed class BodyEmitter
             var header = KeyHeader(member);
             if (header != null)
             {
+                if (member.Raw!.Read == RawRead.Plain)
+                {
+                    string local = "__k" + i;
+                    _w.Line($"if (!{r}.TryReadKeyed({header}, out {member.TypeName} {local})) goto __keyed;");
+                    _w.Line(Store(_m, member, inPlace, local, _mode.Target));
+                    continue;
+                }
+
                 _w.Line($"if (!{r}.TryReadInt64({header})) goto __keyed;");
                 EmitMemberRead(member, r, inPlace);
                 continue;
