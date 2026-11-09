@@ -29,17 +29,21 @@ namespace Nino.Core.Internal
             {
                 // Until Size is published, a rejected group leaves an empty queue for the enqueue fallback.
                 NinoUnsafe.Write(ref target, NinoUnsafe.Read<long>(ref source));
+                ref byte children = ref Unsafe.Add(ref source, 8);
+                ref byte destination = ref Unsafe.Add(ref target, 8);
+                ref byte parentPriority = ref Unsafe.Add(ref source, 4);
                 for (; i <= count - 4; i += 4)
                 {
-                    ref byte children = ref Unsafe.Add(ref source, i * 8);
                     var a = Vector128.LoadUnsafe(ref children).AsInt32();
                     var b = Vector128.LoadUnsafe(ref children, 16).AsInt32();
-                    int parent = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, ((i - 1) >> 2) * 8 + 4));
+                    int parent = NinoUnsafe.Read<int>(ref parentPriority);
                     if (Vector128.GreaterThanAny(Vector128.Create(parent), NinoBlockCollections.OddInt32(a, b)))
                         return false;
-                    ref byte destination = ref Unsafe.Add(ref target, i * 8);
                     a.AsByte().StoreUnsafe(ref destination);
                     b.AsByte().StoreUnsafe(ref destination, 16);
+                    children = ref Unsafe.Add(ref children, 32);
+                    destination = ref Unsafe.Add(ref destination, 32);
+                    parentPriority = ref Unsafe.Add(ref parentPriority, 8);
                 }
 
                 copied = i;
