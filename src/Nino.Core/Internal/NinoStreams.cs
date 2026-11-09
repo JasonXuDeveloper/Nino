@@ -208,14 +208,15 @@ namespace Nino.Core.Internal
             {
                 while (true)
                 {
+                    int read;
                     if (count == buffer.Length)
                     {
                         if (AtEnd(stream))
                             break;
-                        buffer = Grow(buffer, count);
+                        read = ReadPastFullBuffer(stream, ref buffer, count);
                     }
-
-                    int read = stream.Read(buffer, count, buffer.Length - count);
+                    else
+                        read = stream.Read(buffer, count, buffer.Length - count);
                     if (read <= 0)
                         break;
                     count += read;
@@ -247,19 +248,52 @@ namespace Nino.Core.Internal
         /// </summary>
         private static bool AtEnd(Stream stream) => stream.CanSeek && stream.Position >= stream.Length;
 
-        /// <summary>An array twice as large holding the <paramref name="count"/> bytes read; the old one goes back to the pool.</summary>
-        private static byte[] Grow(byte[] buffer, int count)
+        // Probe the next buffer before copying the prefix. A non-seekable stream may have ended exactly
+        // at the old buffer's boundary.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int ReadPastFullBuffer(Stream stream, ref byte[] buffer, int count)
+        {
+            byte[] larger = RentLarger(buffer.Length, count);
+            bool keep = false;
+            try
+            {
+                int read = stream.Read(larger, count, larger.Length - count);
+                if (read <= 0)
+                    return read;
+
+                Buffer.BlockCopy(buffer, 0, larger, 0, count);
+                keep = true;
+                return read;
+            }
+            finally
+            {
+                if (keep)
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                    buffer = larger;
+                }
+                else
+                    ArrayPool<byte>.Shared.Return(larger);
+            }
+        }
+
+        private static byte[] RentLarger(int capacity, int count)
         {
             if (count >= NinoUnsafe.MaxArrayLength)
                 NinoThrow.InvalidData("the stream holds more bytes than an array can.");
-            int size = (int)Math.Min((long)buffer.Length * 2, NinoUnsafe.MaxArrayLength);
-            byte[] larger = ArrayPool<byte>.Shared.Rent(size);
+            int size = (int)Math.Min((long)capacity * 2, NinoUnsafe.MaxArrayLength);
+            return ArrayPool<byte>.Shared.Rent(size);
+        }
+
+#if !NETSTANDARD2_0
+        /// <summary>An array twice as large holding the <paramref name="count"/> bytes read; the old one goes back to the pool.</summary>
+        private static byte[] Grow(byte[] buffer, int count)
+        {
+            byte[] larger = RentLarger(buffer.Length, count);
             Buffer.BlockCopy(buffer, 0, larger, 0, count);
             ArrayPool<byte>.Shared.Return(buffer);
             return larger;
         }
-
-#if !NETSTANDARD2_0
         /// <summary>
         /// <see cref="Write{T,TWriter}"/> with the stream's asynchronous write. The value is written into the scratch
         /// buffer at once (a <see cref="Writer"/> cannot live in an async method); a stream write that completes at

@@ -264,6 +264,19 @@ public class StreamTests
     }
 
     [TestMethod]
+    [DataRow(4095)]
+    [DataRow(4096)]
+    [DataRow(4097)]
+    public void ReadsAcrossPooledBufferBoundaries(int length)
+    {
+        byte[] expected = Enumerable.Range(0, length - sizeof(int)).Select(i => (byte)(i % 251)).ToArray();
+        byte[] bytes = NinoSerializer.Serialize(expected);
+        Assert.AreEqual(length, bytes.Length);
+        using var stream = new TrickleStream(bytes, 4096);
+        CollectionAssert.AreEqual(expected, NinoDeserializer.Deserialize<byte[]>(stream));
+    }
+
+    [TestMethod]
     public void TruncatedAndEmptyInputThrows()
     {
         byte[] bytes = NinoSerializer.Serialize(Sample(4, 100));
