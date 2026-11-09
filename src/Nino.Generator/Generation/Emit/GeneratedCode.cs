@@ -32,7 +32,7 @@ internal static class GeneratedCode
     /// the file (<c>namespace NinoGen;</c>, C# 10), where nothing follows the body and the preamble declares no
     /// namespace; otherwise it is a block, whose lines are indented one level.
     /// </summary>
-    public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped)
+    public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped, int? indentation = null)
     {
         if (fileScoped)
         {
@@ -54,7 +54,7 @@ internal static class GeneratedCode
         }
 
         // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
-        var sb = RentScratch(body.Length + body.Length / 4 + preamble.Length + 1024);
+        var sb = RentScratch(body.Length + (indentation ?? body.Length / 4) + preamble.Length + 1024);
         sb.Append(Header).Append(preamble).Append("namespace " + TypeNames.GenNamespace + "\n{\n");
         const string indent = "    ";
         int length = sb.Length;

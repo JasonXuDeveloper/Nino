@@ -286,7 +286,9 @@ internal static class Interceptors
         w.Close();
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         // A block namespace: the file declares the attribute in another namespace.
-        return GeneratedCode.File(attribute.Finish(), aliases, body, fileScoped: false);
+        // A class header and braces, one line per location, and two per forwarder.
+        int indentation = (3 + calls.Length + 2 * groups.Count) * 4;
+        return GeneratedCode.File(attribute.Finish(), aliases, body, fileScoped: false, indentation);
     }
 
 }
