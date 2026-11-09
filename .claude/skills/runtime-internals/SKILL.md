@@ -12,6 +12,10 @@ element, rehashing, rebalancing) cost a call or more per element, while its own 
 pass; the price is that every runtime lays those fields out its own way and may change them. So every such path proves its layout at startup and keeps the public API as the fallback, and is
 tested on every runtime it can meet.
 
+- Adopt a raw integer priority queue heap only after validating the runtime's node layout and four-way
+  parent rule. Check the entire wire block and its priority order before copying, keep equal priorities in
+  their original order, and leave custom comparers and capacity growth to public enqueue.
+
 ## Reading a runtime's collections through their fields
 
 A path through a runtime's internals (`CollectionViews`: the fields of `List<T>`, `HashSet<T>`,
