@@ -32,13 +32,17 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
 
     public bool Equals(EquatableArray<T> other)
     {
+        if (ReferenceEquals(_array, other._array))
+            return true;
+
         var items = Items;
         var otherItems = other.Items;
         if (items.Length != otherItems.Length) return false;
 
+        var comparer = EqualityComparer<T>.Default;
         for (int i = 0; i < items.Length; i++)
         {
-            if (!EqualityComparer<T>.Default.Equals(items[i], otherItems[i]))
+            if (!comparer.Equals(items[i], otherItems[i]))
                 return false;
         }
 
