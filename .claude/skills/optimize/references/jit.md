@@ -124,7 +124,8 @@ and when `asm.py compare` lists methods the change did not touch.
   messages in the local probe. Measure both sides of the cutoff and keep the fixed buffer out of inline callers.
   Read a complete built-in byte array directly from two segments after validating the header and actual length.
   Check segment adjacency before entering the direct path. Probing both spans on three-segment input regressed
-  the fallback. Keep the copy through scratch when the result aliases input or when replacing a reused array.
+  the fallback. Keep the copy through scratch when reusing an array that aliases input, or when replacing
+  an array with an element or array recycler registered. Recyclers can mutate the source before it is copied.
   Keep split headers in a separate cold method that joins only the four header bytes. Joining them inside
   the ordinary two-segment reader regressed complete-header inputs in the local A/B.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
