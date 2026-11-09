@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -78,19 +77,15 @@ internal static class PrefetchRules
 
     private static bool IsSafeGetter(IPropertySymbol property, CancellationToken ct)
     {
-        if (property.GetMethod is not { IsAbstract: false } getter ||
+        if (property.GetMethod is not { IsAbstract: false, IsExtern: false } getter ||
             (getter.IsVirtual || getter.IsOverride) && !getter.IsSealed && !property.ContainingType.IsSealed)
             return false;
 
         // A backing field can also belong to a property with a custom getter.
         var references = getter.DeclaringSyntaxReferences;
-        if (references.Length != 1 || references[0].GetSyntax(ct) is not AccessorDeclarationSyntax
-            { Body: null, ExpressionBody: null, Parent.Parent: PropertyDeclarationSyntax declaration } ||
-            declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
-            return false;
-
-        return property.ContainingType.GetMembers().OfType<IFieldSymbol>()
-            .Any(f => SymbolEqualityComparer.Default.Equals(f.AssociatedSymbol, property));
+        return references.Length == 1 && references[0].GetSyntax(ct) is AccessorDeclarationSyntax
+            { Body: null, ExpressionBody: null, Parent.Parent: PropertyDeclarationSyntax declaration } &&
+            !declaration.Modifiers.Any(SyntaxKind.PartialKeyword);
     }
 
     /// <summary>The bytes of <paramref name="type"/>'s own instance fields, a struct's counted in place.</summary>
