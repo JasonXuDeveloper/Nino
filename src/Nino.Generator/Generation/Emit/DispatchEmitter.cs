@@ -148,12 +148,24 @@ internal static class DispatchEmitter
     private static List<DispatchEntry> Subtypes(Dictionary<string, List<DispatchEntry>> subtypesOf, string baseType,
         int baseId)
     {
-        var subtypes = subtypesOf.TryGetValue(baseType, out var all)
-            ? all.Where(t => t.TypeId != baseId).ToList()
-            : new List<DispatchEntry>();
-        var ids = new HashSet<int>(subtypes.GroupBy(static t => t.TypeId).Where(static g => g.Count() > 1)
-            .Select(static g => g.Key));
-        subtypes.RemoveAll(t => ids.Contains(t.TypeId));
+        var subtypes = new List<DispatchEntry>();
+        if (!subtypesOf.TryGetValue(baseType, out var all))
+            return subtypes;
+
+        var seen = new HashSet<int>();
+        HashSet<int>? collisions = null;
+        foreach (var subtype in all)
+        {
+            if (subtype.TypeId == baseId)
+                continue;
+            if (seen.Add(subtype.TypeId))
+                subtypes.Add(subtype);
+            else
+                (collisions ??= new HashSet<int>()).Add(subtype.TypeId);
+        }
+
+        if (collisions != null)
+            subtypes.RemoveAll(t => collisions.Contains(t.TypeId));
         return subtypes;
     }
 
