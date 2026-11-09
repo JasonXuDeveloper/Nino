@@ -181,6 +181,12 @@ Measure name rendering allocations before keeping a reusable builder. Keep `Form
 character buffer and hand immutable strings to models. Extending the buffer to general type naming saved
 allocations but slowed the local default-JIT hot rebuild samples. Delay constraint builders and registration
 lists until their path needs them. Keep traversal sets separate per root.
+An 8,192-character thread-local cap for alias rewrite scratch saved 3.39–3.43 MB on each of
+four real unit-test project cold replays. Cold and same-process reopen times, cached generation
+and edit costs showed no repeatable gain. All 577 files matched byte for byte, and all 572 models
+were reused on the tracked edits. The project-close and edit probes collected their old Roslyn
+objects and generated source text. Keep the experiment separate while testing whether the
+formatter's existing writer can supply the scratch within one emission.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
