@@ -55,7 +55,13 @@ of bytes in a block.
   `ReadEach` into 152 bytes plus a 136-byte tail, with two stride multiplications at the tail boundary.
   The caller-side single-item dispatch enlarged `ReadRejecting` from 176 to 304 bytes even on the long case.
   All variants allocated 0 B per read and timings varied across rounds. Compare short-tail call placement
-  while keeping the cursor loop fixed.
+  while keeping the cursor loop fixed. Dispatching the actual remainder after SIMD directly to `ReadOne`
+  when it is one increased `ReadEach` from 459 to 481 IL bytes and from 240 to 272 Arm64 Tier 1 bytes.
+  The x64 FullOpts cross listing grew from 240 to 260 bytes. With 64 items and a one-byte unaligned
+  start, the direct tail was consistently slower with hardware intrinsics enabled and within noise
+  with them disabled. The 1,025-item result was within noise with either setting. The probe verified
+  equal wire bytes and 0 B per read. Keep the dual-cursor helper available and isolate the SIMD-side
+  dispatch from the pure scalar path before testing another tail shape.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
