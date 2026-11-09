@@ -226,7 +226,7 @@ internal static class GeneratedCode
 
         if (formatterAliases != null)
             declarations.AddRange(formatterAliases);
-        if (scratch is { Capacity: <= 8192 })
+        if (scratch is { Capacity: <= MaxAliasScratchCapacity })
         {
             scratch.Clear();
             Interlocked.CompareExchange(ref _aliasScratch, scratch, null);
@@ -270,6 +270,7 @@ internal static class GeneratedCode
     private static string FormatterAlias(int index) => "__NinoF" + index.ToString(CultureInfo.InvariantCulture);
 
     // Keep one bounded buffer per generator load context, independent of the compiler thread count.
+    private const int MaxAliasScratchCapacity = 8192;
     private static StringBuilder? _aliasScratch;
 
     private static string WithAlias(string body, string name, string alias, string declaration,
@@ -291,7 +292,7 @@ internal static class GeneratedCode
 
         if (scratch == null)
         {
-            scratch = Interlocked.Exchange(ref _aliasScratch, null);
+            scratch = body.Length <= MaxAliasScratchCapacity ? Interlocked.Exchange(ref _aliasScratch, null) : null;
             if (scratch == null)
                 scratch = new StringBuilder(body.Length);
             else
