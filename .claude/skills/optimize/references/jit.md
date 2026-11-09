@@ -25,6 +25,9 @@ and when `asm.py compare` lists methods the change did not touch.
   UTF-16 reservation and copy only the builder's length. A 1,024-character cutoff regressed multi-chunk
   builders, while 4,096-character single- and multi-chunk cases improved without a steady-state allocation.
   An empty pool bucket still allocates on the first rent.
+- Write the zero count of an empty raw dictionary without entering its out-of-line pair loop. Keep the
+  reservation shared with non-empty dictionaries. The Arm64 probe saved about 7–9 ns on empty dictionaries
+  at both output offsets, with the non-empty controls on par.
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
