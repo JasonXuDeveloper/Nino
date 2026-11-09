@@ -200,6 +200,11 @@ and when `asm.py compare` lists methods the change did not touch.
   length once and pass it to the pooled copy. Keep the bounds check there, before converting the length to an int.
   Share the copy out of line across direct and regular callers. Its bounded spans must consume exactly the
   reported length, so a custom segment's inconsistent `RunningIndex` cannot expose unfilled scratch bytes.
+  A byref destination cursor and an exact-length destination span folded the second length
+  check in Arm64 FullOpts. The first warmup did not reach Tier 1. With longer warmup, the 128 by
+  512-byte read improved in four local rounds, but the write had mixed results. Allocations stayed
+  at zero and wire bytes matched. The helper grew from 76 to 110 IL bytes, 728 to 736 Arm64 Tier 1
+  bytes, and 207 to 233 x64 ReadyToRun bytes. Keep this variant as a read-path experiment.
   Keep the explicit `TryGet` loop and stop at the last segment. Replacing it with `foreach` made two
   32-byte segments slower on both reads and writes in two local rounds, even though Arm64 machine code shrank
   from 708 to 684 bytes. The JIT already shared the `CopyTo` and `Slice` bounds check.
