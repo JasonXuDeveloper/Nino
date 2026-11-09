@@ -157,7 +157,7 @@ internal static class ModelCache
     private static int PruneAt = MinPrune;
 
     public static TypeModel? GetOrBuild(INamedTypeSymbol type, Compilation compilation, ParseOptions? options,
-        System.Func<TypeModel?> build)
+        System.Threading.CancellationToken ct)
     {
         var state = GetState(compilation).Project;
         string symbols = SymbolKey(options);
@@ -170,7 +170,7 @@ internal static class ModelCache
                 return entry.Model;
         }
 
-        var model = build();
+        var model = ModelBuilder.Build(type, TypeFacts.For(compilation, options), ct);
         // Direct dependencies are memoized per compilation, so collecting them for every type costs a walk
         // over the closure, not a member lookup per reachable type and root.
         var trees = Dependencies(type.OriginalDefinition, compilation);
@@ -192,8 +192,9 @@ internal static class ModelCache
     /// method, the type and the trees the type reaches are the same, else <paramref name="build"/>'s.
     /// </summary>
     public static TopLevelCall? GetOrBuildCall(GeneratorSyntaxContext context,
-        System.Func<(IMethodSymbol Method, ITypeSymbol Type)?> bind,
-        System.Func<IMethodSymbol, ITypeSymbol, TopLevelCall?> build, System.Threading.CancellationToken ct)
+        System.Func<GeneratorSyntaxContext, System.Threading.CancellationToken, (IMethodSymbol Method, ITypeSymbol Type)?> bind,
+        System.Func<GeneratorSyntaxContext, IMethodSymbol, ITypeSymbol, System.Threading.CancellationToken, TopLevelCall?> build,
+        System.Threading.CancellationToken ct)
     {
         var call = context.Node;
         var compilation = context.SemanticModel.Compilation;
@@ -229,7 +230,7 @@ internal static class ModelCache
             return relocated;
         }
 
-        var bound = bind();
+        var bound = bind(context, ct);
         string identity = bound is { } named ? CallIdentity(named.Method, named.Type) : "";
         lock (Lock)
         {
@@ -244,7 +245,7 @@ internal static class ModelCache
         var trees = System.Array.Empty<SyntaxTree>();
         if (bound is { } found)
         {
-            result = build(found.Method, found.Type);
+            result = build(context, found.Method, found.Type, ct);
             trees = Dependencies(found.Type, compilation);
         }
 
@@ -264,9 +265,13 @@ internal static class ModelCache
             if (state.Calls.Count >= state.CallSweepAt)
             {
                 // Calls in changed files are stored at their new positions: drop old entries.
-                foreach (var stale in state.Calls.Where(p => !compilation.ContainsSyntaxTree(p.Value.Tree))
-                             .Select(static p => p.Key).ToList())
-                    state.Calls.Remove(stale);
+                List<(string Path, int Position)>? stale = null;
+                foreach (var pair in state.Calls)
+                    if (!compilation.ContainsSyntaxTree(pair.Value.Tree))
+                        (stale ??= new List<(string, int)>()).Add(pair.Key);
+                if (stale != null)
+                    foreach (var removed in stale)
+                        state.Calls.Remove(removed);
                 state.CallSweepAt = System.Math.Max(MinSweep, state.Calls.Count * 2);
             }
         }

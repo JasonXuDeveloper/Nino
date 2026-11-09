@@ -534,30 +534,31 @@ public sealed class NinoGenerator : IIncrementalGenerator
         ct.ThrowIfCancellationRequested();
         var compilation = semanticModel.Compilation;
         var options = semanticModel.SyntaxTree.Options;
-        return ModelCache.GetOrBuild(symbol, compilation, options,
-            () => ModelBuilder.Build(symbol, TypeFacts.For(compilation, options), ct));
+        return ModelCache.GetOrBuild(symbol, compilation, options, ct);
     }
 
-    private static TopLevelCall? TransformCall(GeneratorSyntaxContext ctx, CancellationToken ct)
+    private static TopLevelCall? TransformCall(GeneratorSyntaxContext ctx, CancellationToken ct) =>
+        ModelCache.GetOrBuildCall(ctx, static (context, token) => BindCall(context, token),
+            static (context, method, type, token) => BuildCall(context, method, type, token), ct);
+
+    private static TopLevelCall? BuildCall(GeneratorSyntaxContext ctx, IMethodSymbol method, ITypeSymbol type,
+        CancellationToken ct)
     {
         var compilation = ctx.SemanticModel.Compilation;
         var options = ctx.SemanticModel.SyntaxTree.Options;
-        return ModelCache.GetOrBuildCall(ctx, () => BindCall(ctx, ct), (method, type) =>
-        {
-            var facts = TypeFacts.For(compilation, options);
-            var usage = facts.TopLevelUsage(type);
+        var facts = TypeFacts.For(compilation, options);
+        var usage = facts.TopLevelUsage(type);
 #if ROSLYN4_8
-            // Only Serialize and Deserialize (and their Stream forms' SerializeAsync and DeserializeAsync) have
-            // NinoDirect counterparts to intercept with.
-            var intercepted = method.Name is "Serialize" or "Deserialize" or "SerializeAsync" or "DeserializeAsync" &&
-                              Interceptors.Enabled(options)
-                ? Interceptors.Transform(ctx, method, facts, ct)
-                : null;
+        // Only Serialize and Deserialize (and their Stream forms' SerializeAsync and DeserializeAsync) have
+        // NinoDirect counterparts to intercept with.
+        var intercepted = method.Name is "Serialize" or "Deserialize" or "SerializeAsync" or "DeserializeAsync" &&
+                          Interceptors.Enabled(options)
+            ? Interceptors.Transform(ctx, method, facts, ct)
+            : null;
 #else
-            InterceptedCall? intercepted = null;
+        InterceptedCall? intercepted = null;
 #endif
-            return usage == null && intercepted == null ? null : new TopLevelCall(usage, intercepted);
-        }, ct);
+        return usage == null && intercepted == null ? null : new TopLevelCall(usage, intercepted);
     }
 
     /// <summary>
