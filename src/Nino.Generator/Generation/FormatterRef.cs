@@ -53,13 +53,29 @@ internal sealed record FormatterRef(string Name, EquatableArray<FormatterRef> Ar
         if (Generated && Args.Length == 0)
         {
             string twin = tops.Contains(Name) ? TypeNames.Top : shallow.Contains(Name) ? TypeNames.Shallow : "";
-            return twin.Length == 0 ? this : this with { Twin = twin };
+            return twin.Length == 0 || twin == Twin ? this : this with { Twin = twin };
         }
 
         if (Generated || Args.Length == 0)
             return this;
-        var args = Args.Select(a => a.WithTwins(tops, shallow)).ToArray();
-        return args.SequenceEqual(Args) ? this : this with { Args = new EquatableArray<FormatterRef>(args) };
+        FormatterRef[]? args = null;
+        for (int i = 0; i < Args.Length; i++)
+        {
+            var current = Args[i];
+            var next = current.WithTwins(tops, shallow);
+            if (args == null)
+            {
+                if (ReferenceEquals(current, next))
+                    continue;
+                args = new FormatterRef[Args.Length];
+                for (int j = 0; j < i; j++)
+                    args[j] = Args[j];
+            }
+
+            args[i] = next;
+        }
+
+        return args == null ? this : this with { Args = new EquatableArray<FormatterRef>(args) };
     }
 
     /// <summary>The C# source of the formatter.</summary>
