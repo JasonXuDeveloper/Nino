@@ -227,7 +227,12 @@ of bytes in a block.
   while the byte-identical A/A control ranged from 2.8% faster to 9.8% slower. With intrinsics
   disabled it stayed within 1%. The one-item and 1,700-item results varied. Wire, dirty-padding,
   truncation and invalid-bool checks passed at offsets 0, 1 and 7, with 0 B allocated per read.
-  Keep the probe separate until the SIMD caller and profile difference is understood.
+  Pin the probe arrays and select actual input and output alignments before comparing SIMD
+  timing. `Lanes` matched after normalizing addresses at both output alignments. At output
+  alignment zero and input offset one, the four rounds improved 4.2–9.7%; the other
+  offsets and output alignment eight were mixed. The original slowdown did not reproduce.
+  Retain the array-only path. All Core targets built and 106/107 targeted tests passed
+  on .NET 8/10 with and without hardware intrinsics (`b9f1a4be`).
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
