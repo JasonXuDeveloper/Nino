@@ -174,6 +174,9 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   avoids allocating two substrings and the assembled method line. In the 577-file unit test replay,
   cold and method-body edit runs each allocated about 1.1 MB less with byte-identical output.
   The main emitter went from 870 to 813 IL bytes and added a 99-byte append helper.
+  Appending the location attribute and its optional comment directly saved another 0.50 MB on cold
+  and edited replays. It kept the same output and reduced the main emitter to 764 IL bytes, adding
+  a separate 99-byte append helper.
 - Reuse the first successful alias rewrite's builder for the rest of that file. The rewrite only
   shortens the body and the builder stays local, so later aliases do not allocate another
   body-sized buffer or retain one in the generator. The 577-file unit test replay matched byte for
