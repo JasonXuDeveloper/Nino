@@ -58,6 +58,10 @@ and when `asm.py compare` lists methods the change did not touch.
 - Keep the current seeded string hash loop. An unaligned UTF-16 word load and a byref tail preserved the
   reference hash and removed range failures (Arm64 588 to 428 bytes, x64 611 to 550), but four-character
   inputs slowed by 6–8% across four local default-tiering rounds and 15-character inputs also slowed.
+- Reserve the raw `PriorityQueue` count and pairs together inside its existing by-value writer helper.
+  Keep the public writer's dispatch intact: putting the raw gate in `Serialize` slowed the reference-element
+  loop, while moving it into the helper restored the original Arm64 and x64 listings for that loop.
+  The local 257-integer-pair case cut write time by 56–61%, with the enumerator preserving heap order.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
