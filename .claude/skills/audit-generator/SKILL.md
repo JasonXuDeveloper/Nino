@@ -233,6 +233,11 @@ Write local reader and writer copy prologues and write-back lines directly aroun
 Constant lines and removal of the nested closures saved 214–317 KB in four cold replays.
 All 577 outputs matched, the 572 models were reused on tracked edits, and the collection
 probes passed. Cold and edit timings showed no repeatable change (`fe87801f`).
+Use a value-type scope for synchronous formatter body-mode changes. This preserves restoration
+while avoiding both the callback and a new mode object. Re-emitting the 572 models saved about
+73 KB per pass in both load orders. Whole-project cold and edit timings varied, all 577 outputs
+matched, and tracked edits reused every model. Collection and 97 targeted tests passed
+(`5c1fc60b`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
