@@ -49,6 +49,10 @@ of bytes in a block.
   precompute the pair stride: `i * size * 2` became two shifts for 32-bit lanes. Skipping Tier 0 in the
   generic helper recovered short 32-bit throughput locally, but the 2,047-pair control slowed by 4–9%.
   Keep the candidate isolated while tuning dispatch; the 16- and 64-bit large cases improved consistently.
+  Resolve zip operations with static lane policies so the shared loop carries no width switch. This reduced
+  its IL from 440 to 193 bytes and kept the 32-bit Arm64 and Windows x64 FullOpts sizes at 128 and 109 bytes.
+  The local seven-pair 32-bit case still took 3–6% longer; 8,193 short pairs and 2,049 long pairs improved
+  by roughly 79–81% and 29–34%, respectively.
 - Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
   Keep the order check before publishing the arrays and use the same wire block for out-of-order insertion.
   Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
