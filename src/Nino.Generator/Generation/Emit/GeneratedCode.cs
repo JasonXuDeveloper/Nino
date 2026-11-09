@@ -204,8 +204,13 @@ internal static class GeneratedCode
             body = WithAlias(body, TypeNames.CoreCompilerServices, "__NinoCS.",
                 "using __NinoCS = global::Nino.Core.CompilerServices;", declarations, ref scratch);
         bool compilerAlias = declarations.Count != declarationsBefore;
+        declarationsBefore = declarations.Count;
+        if (body.IndexOf("__NC", StringComparison.Ordinal) < 0)
+            body = WithAlias(body, TypeNames.Core, "__NC.", "using __NC = global::Nino.Core;", declarations, ref scratch);
+        bool coreAlias = declarations.Count != declarationsBefore;
         foreach (var (name, alias, declaration) in CoreAliases)
-            if (!compilerAlias || !name.StartsWith(TypeNames.CoreCompilerServices, StringComparison.Ordinal))
+            if ((!coreAlias || !name.StartsWith(TypeNames.Core, StringComparison.Ordinal)) &&
+                (!compilerAlias || !name.StartsWith(TypeNames.CoreCompilerServices, StringComparison.Ordinal)))
                 body = WithAlias(body, name, alias, declaration, declarations, ref scratch);
 
         if (rawTypes is { Count: > 0 })
