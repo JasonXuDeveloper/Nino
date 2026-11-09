@@ -243,6 +243,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 
 ## The machine code
 
+- Emit twin traits from the same model as the main formatter and return `default` directly when a
+  twin cannot defer construction. Forward actual construction so pooling and factories stay in one
+  body. This saved 8,693 source bytes across 140 files in the real test project. The probe twin's
+  trait getter shrank from 15 to 2 IL bytes. The Arm64 and x64 FullOpts reader listings kept their
+  code sizes. Four local A/B rounds showed no repeatable time change, and wire bytes and
+  per-operation allocations matched. The targeted .NET 8 and 10 tests passed (`f0188eea`).
 - Keep the unchanged-string check at the generated field assignment. An assembly-wide byref
   helper for normal string fields removed 18,847 source bytes in the real test project. The
   probe read body fell from 167 to 90 IL bytes plus a 19-byte helper, and x64 ReadyToRun fell
