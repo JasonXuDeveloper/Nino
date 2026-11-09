@@ -572,7 +572,16 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteSegments(ReadOnlySequence<T> value, Writer writer)
         {
-            writer.WriteLength(checked((int)value.Length));
+            int length = checked((int)value.Length);
+#if !NETSTANDARD2_0
+            if (typeof(TFormatter) == typeof(UnmanagedFormatter<byte>))
+            {
+                var destination = MemoryMarshal.CreateSpan(ref writer.ReserveCounted(length, 1), length);
+                NinoSequences.CopySegments(in Unsafe.As<ReadOnlySequence<T>, ReadOnlySequence<byte>>(ref value), destination);
+                return writer;
+            }
+#endif
+            writer.WriteLength(length);
             foreach (var segment in value)
                 NinoElements.Write<T, TFormatter>(segment.Span, ref writer);
             return writer;
