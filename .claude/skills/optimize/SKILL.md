@@ -16,6 +16,9 @@ techniques are `optimize-runtimes`.
 When a representative workload improves and a narrow small-input case slows, first isolate the large-input loop
 or its dispatch and retest both. Compare Tier 0, Tier 1 and the caller before attributing a slowdown to the extra
 instructions in the loop. Record the remaining tradeoff alongside the evidence.
+When an experiment removes real work but the first A/B shows no gain, inspect the caller and loop for where the
+cost moved, then test a materially different variant before shelving it. Repair build or test infrastructure
+failures and rerun the relevant check before treating it as an outcome for the candidate.
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
