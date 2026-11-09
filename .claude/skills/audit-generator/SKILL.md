@@ -138,6 +138,9 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   rebuilding a list through per-reference symbol lookups. The ordinary, extern-aliased, duplicate
   alias and linked-module probes returned equal symbol sets. The isolated scan improved in all four
   local rounds and fell from 576 to 478 IL bytes, with all 577 replayed files unchanged.
+  Replacing the cold per-assembly LINQ name collection with a lazy set also matched all 577 files,
+  but did not move replay time or allocations beyond noise. The entry and new collector totaled
+  524 IL bytes versus 478 before. Keep the existing collection for now.
 - Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on tests/Nino.UnitTests is the project's
   own `[assembly: NinoFormatter]` registrations (binding the new source assembly's attributes, then `Read`), which hold
   that compilation's symbols and cannot outlive it; every reference together read in 25 ms once. A per-
