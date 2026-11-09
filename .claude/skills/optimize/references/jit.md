@@ -6,6 +6,12 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Inlining budget
 
+- Keep the span copy in `NinoArrayBufferWriter.Grow`. Switching to `CopyToNew` regressed
+  the 1 KiB growth case in four local rounds. Applying it only from 64 KiB preserved the
+  smaller path but did not produce a repeatable gain across 64 KiB and adjacent inputs.
+  The threshold variant grew from 148 to 195 IL bytes and from 233 to 325 x64 ReadyToRun
+  bytes. Prefix bytes and allocations matched.
+
 - Keep the shared span read in `MemoryFormatter.Deserialize`. Sending a fresh array directly
   to the reader instead of obtaining its span through `Memory<T>` did not change allocations.
   The inline variant grew the Arm64 Tier 1 caller from 524 to 556 bytes. Moving the fresh path
