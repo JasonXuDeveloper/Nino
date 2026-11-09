@@ -455,6 +455,25 @@ public class CollectionSerializationTests
         Assert.AreEqual(1, queue.Count);
     }
 
+    [TestMethod]
+    public void DerivedConcurrentQueueKeepsItsInterfaceSnapshot()
+    {
+        ConcurrentQueue<int> queue = new AlternateSnapshotQueue();
+        queue.Enqueue(7);
+        using var buffer = new NinoArrayBufferWriter(0);
+        var writer = new Writer(buffer);
+        default(ProducerConsumerFormatter<ConcurrentQueue<int>, int, UnmanagedFormatter<int>>)
+            .Serialize(queue, ref writer);
+        writer.Flush();
+
+        CollectionAssert.AreEqual(new[] { 42 }, NinoDeserializer.Deserialize<int[]>(buffer.WrittenSpan));
+    }
+
+    private sealed class AlternateSnapshotQueue : ConcurrentQueue<int>, IProducerConsumerCollection<int>
+    {
+        int[] IProducerConsumerCollection<int>.ToArray() => new[] { 42 };
+    }
+
     private sealed record SnapshotItem(int Value, Action OnWrite = null);
 
     private struct SnapshotItemFormatter : INinoFormatter<SnapshotItem>

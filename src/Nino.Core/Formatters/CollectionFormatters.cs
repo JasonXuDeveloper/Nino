@@ -507,12 +507,25 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            if (NinoElements.BlockStride<T, TFormatter>() <= 0 && value.GetType() == typeof(ConcurrentQueue<T>))
+            if (value.GetType() == typeof(ConcurrentQueue<T>))
             {
-                WriteQueueSnapshot(value, ref writer);
+                if (NinoElements.BlockStride<T, TFormatter>() <= 0)
+                    WriteQueueSnapshot(value, ref writer);
+                else
+                    WriteQueueBlock(Unsafe.As<ConcurrentQueue<T>>(value), ref writer);
                 return;
             }
 
+            WriteOtherSnapshot(value, ref writer);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteQueueBlock(ConcurrentQueue<T> value, ref Writer writer) =>
+            NinoCollections.WriteSpan<T, TFormatter>(value.ToArray(), ref writer);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteOtherSnapshot(TCollection value, ref Writer writer)
+        {
             var items = value.ToArray(); // snapshot, safe against concurrent modification
             // ToArray() of a stack or bag is in pop order, and adding reverses it: written reversed.
             if (value is ConcurrentStack<T> || value is ConcurrentBag<T>)
