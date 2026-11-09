@@ -170,6 +170,9 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   the body length. The largest block file in the replay was a 617 KB interceptor file with about
   3% extra indentation. The smaller reservation saved 0.92 MB cold and 0.90 MB on a method-body edit
   with identical output and timings within the local noise floor.
+- Inspect trimmed line boundaries through a span in `CodeWriter.Line`. Keep writing the original
+  text so the output's whitespace stays identical. The unit test project replay saved about 15 KB
+  of cold allocations and matched all 577 files. Timing was flat and the helper gained 11 IL bytes.
 - Append interceptor signature slices and the method ordinal directly to the code writer. This
   avoids allocating two substrings and the assembled method line. In the 577-file unit test replay,
   cold and method-body edit runs each allocated about 1.1 MB less with byte-identical output.
