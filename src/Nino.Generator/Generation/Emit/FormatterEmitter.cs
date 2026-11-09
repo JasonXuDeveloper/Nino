@@ -13,7 +13,7 @@ internal static class FormatterEmitter
     public static string Emit(TypeModel m, bool fileScoped)
     {
         var names = new FormatterNames(m);
-        var w = new CodeWriter(4096);
+        var w = new CodeWriter(2048);
         EmitFormatter(w, m, names);
         AccessorEmitter.EmitGenericUnsafeAccessors(w, m);
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
