@@ -118,6 +118,15 @@ of bytes in a block.
   grew from 385 to 443 bytes with the static field load. `ReadUnchecked` grew from 54 to 61 IL
   bytes. The wire bytes and rejection checks matched, and the targeted .NET 8/10 tests passed
   with hardware intrinsics both on and off (`2916df8b`).
+  Combining the bool presence and copy flags in one static field kept the x64 FullOpts caller at
+  443 bytes. Reusing the active group thresholds instead removed the extra class-init guard and
+  reduced the x64 caller to 360 bytes. Arm64 Tier 1 stayed at 116 bytes without SIMD and grew
+  from 176 to 184 with SIMD. The caller/helper IL changed from 61/49 to 54/64 bytes. At offset 1
+  across four local rounds, scalar reads of 65 and 1,700 items stayed within 0.25%, with 0 B
+  allocated. The SIMD one-item case improved in three rounds but slowed in one. The 1,700-item
+  SIMD case varied from 3.4% faster to 13.2% slower. Wire bytes, dirty padding and invalid data
+  checks matched. Keep this candidate for a SIMD long-run A/A control and compare the branches
+  in the inlined caller before landing.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
