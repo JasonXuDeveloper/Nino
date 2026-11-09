@@ -233,6 +233,12 @@ of bytes in a block.
   offsets and output alignment eight were mixed. The original slowdown did not reproduce.
   Retain the array-only path. All Core targets built and 106/107 targeted tests passed
   on .NET 8/10 with and without hardware intrinsics (`b9f1a4be`).
+  A list opened at the exact validated count can use the same path. The reused-list Arm64
+  hot branch already folded the duplicate comparison and the Tier 1 caller stayed at
+  1,216 bytes. Offline x64 shrank from 1,446 to 1,392, with unchanged formatter IL.
+  Pinned-alignment A/B and byte-identical A/A both varied across four rounds, with 0 B
+  allocated. Wire output matched at offsets 0, 1 and 7, and 111/112 targeted tests passed
+  on .NET 8/10 with and without hardware intrinsics (`d3a36d9a`).
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
