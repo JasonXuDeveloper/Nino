@@ -245,7 +245,9 @@ public class FormatterRegistrationTests
     [TestMethod]
     public void TryRegisterSaysWhetherThisCallRegistered()
     {
+        Assert.IsFalse(NinoSerializer.IsSupported(typeof(TryRegisterTarget)));
         Assert.IsTrue(NinoFormatterCache<TryRegisterTarget>.TryRegister<TryRegisterTargetFormatter>());
+        Assert.IsTrue(NinoSerializer.IsSupported(typeof(TryRegisterTarget)));
         Assert.IsFalse(NinoFormatterCache<TryRegisterTarget>.TryRegister<TryRegisterTargetFormatter>());
         Assert.IsTrue(NinoActivator<TryRegisterTarget>.TryRegister(static () => new TryRegisterTarget()));
         Assert.IsFalse(NinoActivator<TryRegisterTarget>.TryRegister(static () => new TryRegisterTarget()));

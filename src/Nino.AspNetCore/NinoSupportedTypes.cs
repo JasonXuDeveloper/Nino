@@ -5,7 +5,7 @@ using Nino.Core;
 namespace Nino.AspNetCore
 {
     /// <summary>
-    /// <see cref="NinoSerializer.IsSupported"/>, cached: MVC asks for every request, through
+    /// Positive <see cref="NinoSerializer.IsSupported"/> results, cached because MVC asks on every request through
     /// <see cref="NinoInputFormatter"/> and <see cref="NinoOutputFormatter"/>.
     /// </summary>
     internal static class NinoSupportedTypes
@@ -17,13 +17,14 @@ namespace Nino.AspNetCore
         /// the cache never keeps its <c>AssemblyLoadContext</c> from unloading.
         /// </summary>
         public static bool IsSupported(Type type) =>
-            Supported.TryGetValue(type, out bool supported) ? supported : CheckSupported(type);
+            Supported.ContainsKey(type) || CheckSupported(type);
 
         private static bool CheckSupported(Type type)
         {
             bool supported = NinoSerializer.IsSupported(type);
-            if (!MentionsCollectible(type))
-                Supported.TryAdd(type, supported);
+            // A formatter can be registered after a negative lookup.
+            if (supported && !MentionsCollectible(type))
+                Supported.TryAdd(type, true);
             return supported;
         }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Nino.Core;
 
 namespace Nino.AspNetCore.Tests
 {
@@ -13,6 +14,27 @@ namespace Nino.AspNetCore.Tests
     [TestClass]
     public class CacheTests
     {
+        [TestMethod]
+        public void TypesCanBecomeSupportedAfterTheFirstLookup()
+        {
+            var type = typeof(LateRegistered);
+            Assert.IsFalse(NinoSupportedTypes.IsSupported(type));
+            Assert.IsTrue(NinoFormatterCache<LateRegistered>.TryRegister<LateRegisteredFormatter>());
+            Assert.IsTrue(NinoSupportedTypes.IsSupported(type));
+            Assert.IsTrue(NinoSupportedTypes.IsCached(type));
+        }
+
+        private sealed class LateRegistered
+        {
+        }
+
+        private struct LateRegisteredFormatter : INinoFormatter<LateRegistered>
+        {
+            public void Serialize(LateRegistered value, ref Writer writer) => writer.Write(0);
+
+            public void Deserialize(ref Reader reader, ref LateRegistered value) => reader.Read(out int _);
+        }
+
         [TestMethod]
         public void CollectibleTypesAreNotCached()
         {

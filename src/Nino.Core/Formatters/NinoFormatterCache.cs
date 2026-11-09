@@ -218,8 +218,8 @@ namespace Nino.Core
         /// </summary>
         public static readonly NinoFormatterBase<T> Formatter = Load();
 
-        /// <summary>Whether <see cref="Formatter"/> is a formatter of <typeparamref name="T"/> (not the missing one).</summary>
-        public static readonly bool Exists = !(Formatter is NinoMissingFormatter<T>);
+        /// <summary>Whether <typeparamref name="T"/> has a formatter, including one registered after the first lookup.</summary>
+        public static bool Exists => Formatter is not NinoMissingFormatter<T> || NinoFormatterCache<T>.IsRegistered;
 
         private static NinoFormatterBase<T> Load()
         {
