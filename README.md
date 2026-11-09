@@ -32,8 +32,8 @@ For .NET, Unity, Godot and HybridCLR, with the same bytes on every platform and 
   **<!--bench:reuse.inplace-->9.5<!--/bench-->× faster** deserialization into existing objects. [Benchmarks](#benchmarks)
 - **Safe on untrusted input.** Crafted bytes cannot crash the process, read past the input, allocate out of proportion
   or name a type to create; every invalid input throws one `NinoDataException`. [Untrusted data](https://nino.xgamedev.net/en/docs/v4/security)
-- **Zero allocation.** Serialize into an `IBufferWriter<byte>`, deserialize into existing or pooled objects: nothing
-  allocated per call, thread-safe, with no locks on the hot path. [Zero allocation](https://nino.xgamedev.net/en/docs/v4/advanced/zero-allocation)
+- **Zero-allocation paths.** Reuse an `IBufferWriter<byte>` and deserialize into existing or pooled objects to
+  avoid allocations on suitable hot paths. [Zero allocation](https://nino.xgamedev.net/en/docs/v4/advanced/zero-allocation)
 - **Source-generated formatters.** Generated formatters access members directly, with no runtime IL emit or manual
   registration. Nino works on IL2CPP, Native AOT and HybridCLR hot updates, and compiles up to 221× faster than v3.
   [Platforms](https://nino.xgamedev.net/en/docs/v4/platforms)

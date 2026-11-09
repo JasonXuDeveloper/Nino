@@ -30,7 +30,7 @@
 
 - **最快。** 序列化比 MemoryPack **最高快 <!--bench:ser.max-->7.2<!--/bench--> 倍**，复用反序列化**最高快 <!--bench:reuse.inplace-->9.5<!--/bench--> 倍**。[性能](#性能)
 - **可放心读取不可信数据。** 伪造的字节不会让进程崩溃，不会越界读取，不会分配与输入不成比例的内存，也无法指定要创建的类型；任何无效输入都只抛出 `NinoDataException` 这一种异常。[不可信数据](https://nino.xgamedev.net/zh/docs/v4/security)
-- **零分配。** 序列化到 `IBufferWriter<byte>`，反序列化到已有对象或池化对象：每次调用都不分配内存，线程安全，热路径上没有锁。[零分配](https://nino.xgamedev.net/zh/docs/v4/advanced/zero-allocation)
+- **零分配路径。** 复用 `IBufferWriter<byte>`，反序列化到已有对象或池化对象，可以让适合的热路径做到零分配。[零分配](https://nino.xgamedev.net/zh/docs/v4/advanced/zero-allocation)
 - **源码生成格式化器。** 生成的格式化器直接读写成员，无需运行时生成 IL 或手动注册。支持 IL2CPP、Native AOT 和 HybridCLR 热更，编译比 v3 最多快 221 倍。[平台](https://nino.xgamedev.net/zh/docs/v4/platforms)
 - **跨平台、跨运行时字节一致。** 不论哪种运行时、哪种 CPU，写出的字节都完全相同；通过 `nino-gen` 生成的代码，Go、Rust 和 TypeScript 也能与之互通。[其他语言](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)
 - **类型丰富，数据可演进。** 多态无需标签；支持版本容错和键控类型、引用追踪，以及全部 BCL 集合。[支持的类型](https://nino.xgamedev.net/zh/docs/v4/types)
