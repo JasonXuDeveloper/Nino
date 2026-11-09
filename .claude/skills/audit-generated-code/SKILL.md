@@ -250,6 +250,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   After reversing run order, unchanged-string reuse was 4–8% slower across four rounds despite
   matching wire bytes and allocations. The isolated candidate passed 82 targeted tests.
 
+  For a private field, a ref local removes the second accessor from source but may add a live
+  interior reference across the string read. The baseline x64 FullOpts listing already had no
+  accessor calls. On the private-field probe the read body IL stayed at 169 bytes, while the
+  enclosing FullOpts read grew from 1,500 to 1,512 Arm64 bytes and from 367 to 373 x64 cross-JIT
+  bytes. Unchanged reuse varied within 1.2% across four default-tiering runs and allocated 0 B.
+  Changed and fresh reads varied across runs, with matching allocation and wire bytes. The real
+  test project replay added 75 bytes across four of 577 generated files. Keep the baseline shape
+  until a probe shows an actual machine-code or throughput benefit.
 - Everything a top-level call reaches inlines into one method under one budget (`optimize`): the generated
   read and write bodies keep rare paths (deferral, pooling, growth, polymorphic fallback) in calls out of line and
   the common path inline; a run of fixed-size members is one bounds check and one block copy where the layout allows.
