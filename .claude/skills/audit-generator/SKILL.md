@@ -139,6 +139,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   All 577 generated files matched, tracked edits reused all 572 models, and the old compilation
   objects and generated text collected. Keep the simpler production shape until a representative
   project with many fixed-size models shows a larger effect.
+- Allocate exact-length raw block offset arrays and omit header storage for non-keyed runs.
+  The emitter-only replay of 572 real models saved about 32 KB in both load orders.
+  Cold and edit timings varied, all 577 generated files matched, and incremental reuse,
+  collection probes, and 69 targeted tests passed (`f19ec5b7`).
 - Create inherited-type cache entries only after an assembly passes the Nino-reference filter.
   Keeping plain symbols in the temporary list avoided entries for unrelated references and saved
   about 33 KB of cold allocations in the unit test project replay. All 577 files matched.
