@@ -29,8 +29,9 @@ namespace Nino.Core
             {
                 // Raw keys and values: one reservation for the whole dictionary, no per-element bounds checks.
                 int count = value.Count;
-                WriteRaw(value, ref writer.ReserveCounted(count, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()),
-                    count);
+                ref byte pairs = ref writer.ReserveCounted(count, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
+                if (count != 0)
+                    WriteRaw(value, ref pairs, count);
                 return;
             }
 
@@ -104,15 +105,13 @@ namespace Nino.Core
             var entries = CollectionViews.Dictionary ? CollectionFields.Entries(value, count) : null;
             if (entries == null || count > entries.Length)
             {
-                if (count != 0)
-                    WriteEnumerated(value, ref pairs, count);
+                WriteEnumerated(value, ref pairs, count);
                 return;
             }
 
             // Several entries at a time where the CPU permutes vectors, each key and value packed out of its entry.
-            if (count != 0)
-                NinoBlockCollections.WriteAll<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
-                    ref pairs, ref entries[0], count, pairSize);
+            NinoBlockCollections.WriteAll<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
+                ref pairs, ref entries[0], count, pairSize);
         }
 
         /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration
