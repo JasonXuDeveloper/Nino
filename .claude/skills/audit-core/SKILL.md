@@ -47,6 +47,8 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   `NinoUnload.OnRemove` hook, and `UnloadTests`' assembly declares the kind of type it holds: `NinoParameterMarks`
   kept a plain dictionary of the formatter definitions generated registries register, so a collectible assembly with
   a generic `[NinoFormatter]` whose parameter is `[NinoRaw]`, `unmanaged` or `[NinoCreated]` never unloaded (r104).
+- Remove stale dictionary entries during enumeration only where the runtime guarantees it and no recycler needs the
+  dropped pairs. The fallback removes every stale entry before invoking any recycler, so callbacks see the final keys.
 - **Threads**: registries and caches are safe to read while another thread registers (copy-on-write or locks, with
   the contract written next to the code); per-thread state does not leak between calls; statics initialize once.
 - **Exceptions**: data errors are `NinoDataException` (`audit-security`), caller mistakes say which call and why.

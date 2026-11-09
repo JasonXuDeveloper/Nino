@@ -26,6 +26,12 @@ of bytes in a block.
 
 ## Vector loops
 
+- Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
+  complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
+  at the end of a guarded page to catch a load past either end of the input.
+- Continue Latin-1 narrowing at the prefix written by `Ascii.FromUtf16`, overlapping the final vector if needed.
+  When the first unwritten character exceeds Latin-1, take the UTF-16 path immediately.
+
 - Bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
   `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
   loop into locals. Scalar tails too: `NinoBlockCollections.WriteEach`'s per-value loop with an index scaled twice per
