@@ -446,6 +446,21 @@ public class UntrustedInputTests
     }
 
     [TestMethod]
+    public void EmptyMultidimensionalArraysOfLargeElementsKeepTheirShape()
+    {
+        var two = new UntrustedBigValue[1, 1];
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(new UntrustedBigValue[0, 2]), ref two);
+        AssertShape(two, 0, 2);
+        AssertShape(NinoDeserializer.Deserialize<UntrustedBigValue[,,]>(
+            NinoSerializer.Serialize(new UntrustedBigValue[2, 0, 3])), 2, 0, 3);
+        AssertShape(NinoDeserializer.Deserialize<UntrustedBigValue[,,,]>(
+            NinoSerializer.Serialize(new UntrustedBigValue[2, 3, 4, 0])), 2, 3, 4, 0);
+
+        static void AssertShape(Array array, params int[] lengths) =>
+            CollectionAssert.AreEqual(lengths, Enumerable.Range(0, array.Rank).Select(array.GetLength).ToArray());
+    }
+
+    [TestMethod]
     public void LargeElementsCanBeReadIntoARentedBuffer()
     {
         // Large in memory, but these version-tolerant values also occupy the full body on the wire.

@@ -34,7 +34,8 @@ namespace Nino.Core
             {
                 // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
                 // (grown as they are read), the array of this shape made once they are.
-                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
+                    shape.Total != 0)
                 {
                     T[] items = null;
                     reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
@@ -79,7 +80,8 @@ namespace Nino.Core
             {
                 // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
                 // (grown as they are read), the array of this shape made once they are.
-                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
+                    shape.Total != 0)
                 {
                     T[] items = null;
                     reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
@@ -124,7 +126,8 @@ namespace Nino.Core
             {
                 // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
                 // (grown as they are read), the array of this shape made once they are.
-                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
+                    shape.Total != 0)
                 {
                     T[] items = null;
                     reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);

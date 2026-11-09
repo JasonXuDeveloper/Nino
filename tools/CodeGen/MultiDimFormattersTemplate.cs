@@ -73,7 +73,8 @@ namespace Nino.CodeGen
             sb.Append("            {\n");
             sb.Append("                // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first\n");
             sb.Append("                // (grown as they are read), the array of this shape made once they are.\n");
-            sb.Append("                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)\n");
+            sb.Append("                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&\n");
+            sb.Append("                    shape.Total != 0)\n");
             sb.Append("                {\n");
             sb.Append("                    T[] items = null;\n");
             sb.Append("                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);\n");
