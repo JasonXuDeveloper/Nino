@@ -100,6 +100,11 @@ of bytes in a block.
 - Use the counted byte length to place long UTF-8 payloads at their final offset. When strict transcoding stops at an
   unpaired surrogate, continue the replacement encoder at the consumed char and written byte offsets, which differ
   after a non-ASCII prefix. Keep the replacement work out of line.
+- Run the 128-bit Latin-1 widening loop over full vectors, then write the final vector once.
+  This removes the per-vector tail choice while preserving the overlapping tail and the AVX2
+  path. The Arm64 builder probe improved at 256 and 16,384 characters in most rounds. The 31
+  character recheck was flat within the A/A variation. A separate short-vector branch regressed
+  the 16,384-character control, so keep the shared loop. Wire bytes and allocations matched.
 - Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (1b2e3404).
   `GetChunks` can allocate a chunk index, even for a short but unusually fragmented builder. Keep the modern
   small-write loop where it measured faster, and advance the reader by the exact byte count already checked.
