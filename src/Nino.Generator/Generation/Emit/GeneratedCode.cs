@@ -42,7 +42,8 @@ internal static class GeneratedCode
                 : string.Concat(Header, preamble, string.Concat(fileNamespace, declarations, "\n\n"), body);
         }
 
-        var sb = new StringBuilder(body.Length * 2 + preamble.Length + 1024);
+        // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
+        var sb = new StringBuilder(body.Length + body.Length / 4 + preamble.Length + 1024);
         sb.Append(Header).Append(preamble).Append("namespace " + TypeNames.GenNamespace + "\n{\n");
         const string indent = "    ";
         int length = sb.Length;
