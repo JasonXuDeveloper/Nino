@@ -72,6 +72,15 @@ of bytes in a block.
   A/A control reproduced a timing gap across load contexts. With a process per build and offsets 0, 1,
   and 7, the 64-item SIMD result showed no repeatable regression across four rounds per offset. Use the
   separate-process protocol from `benchmark` for this case.
+  Stepping only the source byref in the shared tail removed its 15-byte stride multiply on Arm64
+  Tier 1 while leaving the 24-byte destination multiply. This kept the SIMD dispatch and avoided
+  duplicating the tail. `ReadEach` grew from 459 to 470 IL bytes. Arm64 Tier 1 went from 240 to 244
+  bytes with SIMD and from 172 to 160 without it. The x64 FullOpts cross listing went from 186 to
+  192 bytes with SIMD. At a one-byte offset, four default-tiering process-per-build A/B rounds
+  showed no repeatable gain with SIMD, and scalar reads of 1,025, 1,640 and 1,700 items differed by
+  at most 0.22%. All timed reads allocated 0 B. The full-value zero stores before the field writes
+  remained in the loop. Check those stores independently of cursor stepping in the next variant,
+  preserving zero padding and bool validation.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
