@@ -22,9 +22,13 @@ namespace Nino.Core.Internal
                 return false;
             // The default comparer leaves a node in place when its priority equals its parent.
             ref byte source = ref reader.Peek();
+            ref byte target = ref Unsafe.As<(int, int), byte>(ref NinoUnsafe.GetArrayDataReference(nodes));
             int i = 1;
+            int copied = 0;
             if (AdvSimd.Arm64.IsSupported || Sse2.IsSupported)
             {
+                // Until Size is published, a rejected group leaves an empty queue for the enqueue fallback.
+                NinoUnsafe.Write(ref target, NinoUnsafe.Read<long>(ref source));
                 for (; i <= count - 4; i += 4)
                 {
                     ref byte children = ref Unsafe.Add(ref source, i * 8);
@@ -33,16 +37,25 @@ namespace Nino.Core.Internal
                     int parent = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, ((i - 1) >> 2) * 8 + 4));
                     if (Vector128.GreaterThanAny(Vector128.Create(parent), NinoBlockCollections.OddInt32(a, b)))
                         return false;
+                    ref byte destination = ref Unsafe.Add(ref target, i * 8);
+                    a.AsByte().StoreUnsafe(ref destination);
+                    b.AsByte().StoreUnsafe(ref destination, 16);
                 }
+
+                copied = i;
             }
 
             for (; i < count; i++)
-                if (NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, i * 8 + 4)) <
+            {
+                ref byte child = ref Unsafe.Add(ref source, i * 8);
+                if (NinoUnsafe.Read<int>(ref Unsafe.Add(ref child, 4)) <
                     NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, ((i - 1) >> 2) * 8 + 4)))
                     return false;
+            }
 
-            ref byte target = ref Unsafe.As<(int, int), byte>(ref NinoUnsafe.GetArrayDataReference(nodes));
-            NinoUnsafe.CopyToNew(ref target, ref source, (uint)(count * 8));
+            if (copied != count)
+                NinoUnsafe.CopyToNew(ref Unsafe.Add(ref target, copied * 8), ref Unsafe.Add(ref source, copied * 8),
+                    (uint)((count - copied) * 8));
             Fields<int, int>.Size(queue) = count;
             Fields<int, int>.Version(queue) += count;
             reader.Advance(count * 8);
