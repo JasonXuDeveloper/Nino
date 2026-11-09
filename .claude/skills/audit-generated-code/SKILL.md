@@ -152,6 +152,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   that emits them (`type_consts!`: NINO_TYPE_ID, NINO_TYPE_NAME, NINO_LAYOUT). Round 129 took `tests/generated` from
   436 KB to 381 KB. A macro call's layout is rustfmt's: one line when it fits 120 columns, else an argument per line
   when each fits, else left on one line (rustfmt gives up on an overlong string), or `cargo fmt --check` fails.
+- Bypass sorting and renumbering when a formatter has a single alias candidate. In a unit test project
+  snapshot, 122 files declared one formatter alias and 52 needed renumbering. Keeping the multi-alias
+  order unchanged saved about 307 KB of cold allocations in the real project replay. All 577 replayed
+  files matched byte for byte, and the cold and method-body edit timings were flat.
 - Prefer one compiler-services namespace alias when it can replace overlapping type aliases. Adding it as a
   separate rewrite allocated about 6.7 MB more in a cold local generator replay. Skipping the overlapping
   rewrites reduced that overhead to about 0.94 MB and removed 47,024 bytes from the unit test project's
