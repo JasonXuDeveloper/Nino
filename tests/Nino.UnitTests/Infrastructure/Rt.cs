@@ -35,6 +35,9 @@ internal static class Rt
     /// <summary>The stack of the threads <see cref="OnSmallStack"/> runs tests on by default: 512 KB.</summary>
     public const int SmallStack = 512 * 1024;
 
+    /// <summary>A stack for tests that exercise the configured depth limit independently of the host's stack limit.</summary>
+    public const int DepthLimitStack = 2 * 1024 * 1024;
+
     /// <summary>
     /// Runs <paramref name="action"/> on a new thread with a stack of <paramref name="stackSize"/> bytes, so that what
     /// nests without a bound fails there, not in the test host; what it throws fails the test.

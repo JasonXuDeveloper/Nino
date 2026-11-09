@@ -92,14 +92,17 @@ public class WriteDepthTests
     {
         // NinoSettings.MaxDepth nested levels (below the top-level tree, which is not counted, on either side) are
         // written and read; one more is not written.
-        int max = NinoSettings.MaxDepth;
-        var back = NinoDeserializer.Deserialize<SelfTree>(NinoSerializer.Serialize(Nest(max + 1)));
-        int levels = 1;
-        for (var node = back; node.Count != 0; node = node[0])
-            levels++;
-        Assert.AreEqual(max + 1, levels);
-        var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(Nest(max + 2)));
-        StringAssert.Contains(e.Message, max.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        OnSmallStack(() =>
+        {
+            int max = NinoSettings.MaxDepth;
+            var back = NinoDeserializer.Deserialize<SelfTree>(NinoSerializer.Serialize(Nest(max + 1)));
+            int levels = 1;
+            for (var node = back; node.Count != 0; node = node[0])
+                levels++;
+            Assert.AreEqual(max + 1, levels);
+            var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(Nest(max + 2)));
+            StringAssert.Contains(e.Message, max.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }, DepthLimitStack);
     }
 
     [TestMethod]

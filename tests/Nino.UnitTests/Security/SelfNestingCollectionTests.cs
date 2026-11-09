@@ -179,8 +179,11 @@ public class SelfNestingCollectionTests
             StringAssert.Contains(error.Message, "deep", name);
         });
 
-        var read = NinoDeserializer.Deserialize<THolder>(Nested(Legal));
-        Assert.AreEqual(Legal, Depth(get(read), inner), name);
+        OnSmallStack(() =>
+        {
+            var read = NinoDeserializer.Deserialize<THolder>(Nested(Legal));
+            Assert.AreEqual(Legal, Depth(get(read), inner), name);
+        }, DepthLimitStack);
     }
 
     /// <summary>A collection nested <paramref name="depth"/> deep, the innermost one empty.</summary>
