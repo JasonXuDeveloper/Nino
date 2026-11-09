@@ -318,6 +318,11 @@ the earlier sort saved only 2–19 KB across the eight method-body edit samples,
 variable whole-project timing. In the tracked replay the sort stage took 2.43 to
 5.00 ms cold and 1.47 to 2.05 ms on the body edit. The 577 files, model reuse and
 collection results matched. Count the structural hash cost before caching sort keys.
+Use the existing location and forwarder counts to estimate indentation in the
+large interceptor namespace. This needs no extra scan and saved about 265 KB in both
+isolated load orders. Eight method-body edits saved 256–277 KB with variable timing.
+All 577 generated files matched, model reuse and collection checks passed, and 78
+targeted tests passed on each of .NET 8 and 10 (`ce66cee9`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
