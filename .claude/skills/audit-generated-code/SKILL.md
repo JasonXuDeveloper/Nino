@@ -166,6 +166,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   variadic concatenation saved about 590 KB but repeatedly produced slower model-edit samples. With
   fixed arity the model-edit timings varied in both directions, and incremental model reuse and collection
   of obsolete compiler objects matched the baseline. The emitter helper grew from 304 to 319 IL bytes.
+- Reuse the first successful alias rewrite's builder for the rest of that file. The rewrite only
+  shortens the body and the builder stays local, so later aliases do not allocate another
+  body-sized buffer or retain one in the generator. The 577-file unit test replay matched byte for
+  byte and saved 11.6 MB of cold allocations per run. Cold and hot timing differences were within
+  local noise, with the `WithAliases` IL growing from 473 to 490 bytes.
 - Prefer one compiler-services namespace alias when it can replace overlapping type aliases. Adding it as a
   separate rewrite allocated about 6.7 MB more in a cold local generator replay. Skipping the overlapping
   rewrites reduced that overhead to about 0.94 MB and removed 47,024 bytes from the unit test project's
