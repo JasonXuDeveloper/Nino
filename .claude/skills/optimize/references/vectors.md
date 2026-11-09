@@ -191,6 +191,15 @@ of bytes in a block.
   Both probes wrote identical bytes at offsets 0, 1 and 7 and allocated 0 B. Keep per-value
   padding stores inline on the ordinary tuple path. Any further isolation must be local to
   the one-item specialization.
+  For a 15-byte block with an identity-mapped 14-byte prefix, the one-item branch can use
+  two overlapping 8-byte stores and one mapped final byte. The validated map keeps the
+  source and destination accesses within the value and the block. Restrict the probe to
+  64-bit runtimes. It kept the Arm64 multi-item loop at 196 bytes and reduced the outer
+  candidate's caller from 548 to 520. Offline x64 `WriteAll` went from 1,241 to 406 bytes
+  and `ArrayFormatter.Serialize` from 3,232 to 2,217. `WriteAll` grew from 32 to 114 IL
+  bytes versus production. The small mix improved in three of four rounds, with variable
+  larger mixes, byte-identical output at offsets 0, 1 and 7, and 0 B allocations. Keep the
+  shape-specific probe for comparison with a general contiguous-prefix plan.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
