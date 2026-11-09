@@ -129,6 +129,13 @@ namespace Nino.Core.Internal
         public static bool Fits(int length, int slotSize, int remaining) =>
             (ulong)(uint)length * (uint)slotSize <= Budget(remaining);
 
+#if NET8_0_OR_GREATER
+        // CoreLib's shared pool starts at 16 slots and rounds larger requests up to a power of two.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool FitsRented(int length, int slotSize, int remaining) =>
+            (ulong)Math.Max(2u * (uint)length, 16u) * (uint)slotSize <= Budget(remaining);
+#endif
+
         /// <summary>
         /// The capacity to give a collection of <see cref="Heavy(int, int)"/> slots that grows as it is filled, for
         /// <paramref name="length"/> elements: the length where they <see cref="Fits"/>, else what fits the bound.

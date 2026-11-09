@@ -221,8 +221,12 @@ namespace Nino.Core.Internal
         public static T[] ReadRented<T, TFormatter>(int length, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // Elements far larger in memory than on the wire (NinoElements.HeavyElements): out of line.
-            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+            // On CoreLib, rent directly for heavy elements if the pool's buffer fits the allocation budget.
+            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value
+#if NET8_0_OR_GREATER
+                && !NinoElements.FitsRented(length, Unsafe.SizeOf<T>(), reader.Remaining)
+#endif
+            )
             {
                 reader = ReadRentedHeavy<T, TFormatter>(out var rented, length, reader);
                 return rented;

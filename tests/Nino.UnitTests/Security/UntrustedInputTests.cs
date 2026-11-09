@@ -446,6 +446,17 @@ public class UntrustedInputTests
     }
 
     [TestMethod]
+    public void LargeElementsCanBeReadIntoARentedBuffer()
+    {
+        // Large in memory, but these version-tolerant values also occupy the full body on the wire.
+        var items = Enumerable.Range(0, 40).Select(i => new UntrustedBigValue { A0 = i, D15 = -i }).ToArray();
+        var data = NinoSerializer.Serialize(new ConcurrentQueue<UntrustedBigValue>(items));
+        Invalid<ConcurrentQueue<UntrustedBigValue>>(data[..^1]);
+        CollectionAssert.AreEqual(items,
+            NinoDeserializer.Deserialize<ConcurrentQueue<UntrustedBigValue>>(data).ToArray());
+    }
+
+    [TestMethod]
     public void LargeElementsGrowAsTheyAreRead()
     {
         // 5 bytes each on the wire, over 500 in memory: more than the bytes left allow ahead, so each collection
