@@ -21,6 +21,8 @@ internal static class DispatchEmitter
     /// <summary>Above this many subtypes, writes go through the registry rather than a chain of type checks.</summary>
     private const int MaxWriteChain = 64;
 
+    private const string CompactServices = "__NinoCS.";
+
     public static string Emit(EquatableArray<DispatchEntry> entries, bool fileScoped)
     {
         // Subtypes by base type name, in entry order.
@@ -46,6 +48,7 @@ internal static class DispatchEmitter
             }
         }
 
+        string services = UseCompactServices(entries, closedOf) ? CompactServices : CoreCompilerServices;
         var w = new CodeWriter(4096);
         int closedCount = 0;
         foreach (var e in entries)
@@ -55,7 +58,7 @@ internal static class DispatchEmitter
             if (e.TypeParameterList.Length == 0)
             {
                 w.Open($"partial struct {e.Self}");
-                EmitBase(w, e.TypeName, Subtypes(subtypesOf, e.TypeName, e.TypeId));
+                EmitBase(w, e.TypeName, Subtypes(subtypesOf, e.TypeName, e.TypeId), services);
                 w.Close();
                 w.Line();
                 continue;
@@ -74,7 +77,7 @@ internal static class DispatchEmitter
                 string name = $"__NinoDispatch{closedCount++}";
                 classes.Add(name);
                 w.Open($"static class {name}");
-                EmitBase(w, c, Subtypes(subtypesOf, c, 0));
+                EmitBase(w, c, Subtypes(subtypesOf, c, 0), services);
                 w.Close();
                 w.Line();
             }
@@ -96,8 +99,30 @@ internal static class DispatchEmitter
 
         // This file has a few lines per (base, subtype) pair, each repeating the same names.
         var aliases = new List<string>();
+        if (services == CompactServices)
+            aliases.Add($"using __NinoCS = {CoreCompilerServices.TrimEnd('.')};");
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
         return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(aliases), body, fileScoped);
+    }
+
+    private static bool UseCompactServices(EquatableArray<DispatchEntry> entries,
+        Dictionary<string, SortedSet<string>>? closedOf)
+    {
+        // Each non-generic or closed dispatch has two registry fallbacks. Two bodies pay for the alias.
+        int bodies = 0;
+        foreach (var entry in entries)
+        {
+            if (!entry.IsBase)
+                continue;
+            if (entry.TypeParameterList.Length == 0)
+                bodies++;
+            else if (closedOf != null && closedOf.TryGetValue(entry.TypeName, out var instances))
+                bodies += instances.Count;
+            if (bodies >= 2)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -133,7 +158,7 @@ internal static class DispatchEmitter
     }
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
-    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes)
+    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
     {
         // value.GetType() == typeof(X) compiles to one method table compare. WriteExact is inlined where the caller's
         // inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A non-generic
@@ -142,10 +167,10 @@ internal static class DispatchEmitter
         // 2.5% more compile time on a workload of hierarchies.
         Method(w, WriteSubtype(t), (subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>()).Select(s =>
                 $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{CoreCompilerServices}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }"""),
-            WriteOther(t));
+            WriteOther(t, services));
         if (subtypes.Count == 0)
         {
-            w.Line($"{ReadSubtype(t)} => {ReadOther(t)};");
+            w.Line($"{ReadSubtype(t)} => {ReadOther(t, services)};");
             return;
         }
 
@@ -153,7 +178,7 @@ internal static class DispatchEmitter
         w.Block(ReadSubtype(t), () =>
         {
             EmitReadSwitch(w, subtypes);
-            w.Line(ReadOther(t) + ";");
+            w.Line(ReadOther(t, services) + ";");
         });
 
         // Each subtype's instance check and body, out of line in a method of this non-generic struct, where
@@ -173,11 +198,12 @@ internal static class DispatchEmitter
         $"internal static void __ReadSubtype(int id, ref {Core}Reader reader, ref {t} value)";
 
     /// <summary>The write of a subtype the dispatch does not know: through the registry.</summary>
-    private static string WriteOther(string t) => $"{CoreCompilerServices}NinoSubtypes<{t}>.Serialize(value, ref writer)";
+    private static string WriteOther(string t, string services = CoreCompilerServices) =>
+        $"{services}NinoSubtypes<{t}>.Serialize(value, ref writer)";
 
     /// <summary>The read of a subtype the dispatch does not know: through the registry.</summary>
-    private static string ReadOther(string t) =>
-        $"{CoreCompilerServices}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value)";
+    private static string ReadOther(string t, string services = CoreCompilerServices) =>
+        $"{services}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value)";
 
     /// <summary>
     /// A method of <paramref name="signature"/> running <paramref name="checks"/> (each returning when it applies),
