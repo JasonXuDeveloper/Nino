@@ -261,6 +261,12 @@ This avoids grouping, sorting bucket keys, and creating per-bucket delegates. Is
 registry emission saved about 17.6 KB in both load orders. Cold timings stayed within 1%,
 the 577 generated files matched, incremental reuse and collection checks passed, and
 73 targeted tests passed (`5071d778`).
+Keep the registry preamble writer separate unless its size is known cheaply. The real
+project preamble was about 10 KB and a lease with a 256-character request grew beyond
+the 8,192-character cap, allocating 288 bytes more per isolated emission. Counting the
+exact length first saved about 12.5 KB, but repeated the attribute format in sizing code,
+and emitter timings changed direction with the load order. Both emitted the same registry
+bytes. Keep the size estimates in the probe.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
