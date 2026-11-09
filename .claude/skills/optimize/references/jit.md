@@ -28,6 +28,9 @@ and when `asm.py compare` lists methods the change did not touch.
 - Write the zero count of an empty raw dictionary without entering its out-of-line pair loop. Keep the
   reservation shared with non-empty dictionaries. The Arm64 probe saved about 7–9 ns on empty dictionaries
   at both output offsets, with the non-empty controls on par.
+- Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
+  order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
+  same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
