@@ -511,11 +511,7 @@ namespace Nino.Core.Internal
         {
             // The bools of the blocks first: the copy and the vector paths move their bytes without a look, where
             // ReadBlock checks them (null for values without bools, and the test folds away).
-            if (NinoBlockPlan<T, TFormatter>.Bools != null &&
-#if NET8_0_OR_GREATER
-                NinoBlockPlan<T, TFormatter>.ScalarChecks.Copies &&
-#endif
-                !GroupsCheck<T, TFormatter>(count))
+            if (NinoBlockPlan<T, TFormatter>.Bools != null && NeedsBoolPrepass<T, TFormatter>(count))
                 CheckBools<T, TFormatter>(ref source, count);
             if (NinoBlockPlan<T, TFormatter>.IsMemory)
             {
@@ -553,23 +549,25 @@ namespace Nino.Core.Internal
             }
         }
 
-        /// <summary>
-        /// Whether <see cref="ReadEach{T, TFormatter}"/> reads <paramref name="count"/> values in groups that check
-        /// their bools (<see cref="NinoBlockPlan{T, TFormatter}.ReadPlan{TPhase}.Checks"/> with AVX-512, else
-        /// <see cref="LanesChecked{T, TFormatter}"/>: the groups ReadEach takes), and the rest through ReadBlock.
-        /// </summary>
+        /// <summary>Whether the selected block read can move bytes without checking their bools.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool GroupsCheck<T, TFormatter>(int count) where TFormatter : struct, INinoFormatter<T> =>
+        private static bool NeedsBoolPrepass<T, TFormatter>(int count) where TFormatter : struct, INinoFormatter<T>
+        {
 #if NET8_0_OR_GREATER
-            NinoBlockPlan<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled
-                ? NinoBlockPlan<T, TFormatter>.ReadPlan<NinoPhase0>.Checks &&
-                  NinoBlockPlan<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >=
-                  NinoBlockPlan<T, TFormatter>.ReadPlan<NinoPhase0>.Group
-                : NinoBlockPlan<T, TFormatter>.LanePlan<NinoReads>.Checks &&
-                  NinoBlockPlan<T, TFormatter>.LanePlan<NinoReads>.Worth(count);
+            if (NinoBlockPlan<T, TFormatter>.IsMemory || NinoBlockPlan<T, TFormatter>.Shuffles)
+                return true;
+
+            if (NinoBlockPlan<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled &&
+                NinoBlockPlan<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >=
+                NinoBlockPlan<T, TFormatter>.ReadPlan<NinoPhase0>.Group)
+                return !NinoBlockPlan<T, TFormatter>.ReadPlan<NinoPhase0>.Checks;
+
+            return NinoBlockPlan<T, TFormatter>.LanePlan<NinoReads>.Worth(count) &&
+                   !NinoBlockPlan<T, TFormatter>.LanePlan<NinoReads>.Checks;
 #else
-            false;
+            return true;
 #endif
+        }
 
         /// <summary>
         /// Throws if a bool of the <paramref name="count"/> blocks at <paramref name="source"/>
