@@ -13,13 +13,16 @@ internal static class FormatterEmitter
     public static string Emit(TypeModel m, bool fileScoped)
     {
         var names = new FormatterNames(m, fileScoped);
-        var w = new CodeWriter(2048);
+        var scratch = GeneratedCode.RentScratch(2048);
+        var w = new CodeWriter(scratch);
         EmitFormatter(w, m, names);
         AccessorEmitter.EmitGenericUnsafeAccessors(w, m);
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
         // name has the formatter's type parameters.
+        string unaliased = w.ToString();
+        GeneratedCode.ReturnScratch(scratch);
         var aliases = new List<string>();
-        string body = GeneratedCode.WithAliases(w.ToString(), m.IsGeneric ? null : m.TypeName, aliases,
+        string body = GeneratedCode.WithAliases(unaliased, m.IsGeneric ? null : m.TypeName, aliases,
             names.Formatters, names.RawTypes);
 
         // The partial classes of the members' accessors follow in the types' own namespaces.

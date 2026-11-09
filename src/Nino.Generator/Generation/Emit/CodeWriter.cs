@@ -21,6 +21,8 @@ internal sealed class CodeWriter
 
     public CodeWriter(int capacity = 4096) => _sb = new StringBuilder(capacity);
 
+    public CodeWriter(StringBuilder buffer) => _sb = buffer;
+
     /// <summary>Writes one line at the current indentation; an empty string writes a blank line.</summary>
     public CodeWriter Line(string text = "")
     {
