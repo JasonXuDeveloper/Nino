@@ -165,6 +165,15 @@ of bytes in a block.
   from 356 to 1,241 bytes. The added branch inlined layout initialization, padding clearing,
   and layout conversion paths that were absent from the baseline caller. Keep the prototype
   separate until the scalar store can be inlined without pulling those paths into the caller.
+  A primitive-only layout bypass cut the candidate's offline x64 `WriteAll` from 1,241 to 556
+  bytes and `ArrayFormatter.Serialize` from 3,232 to 2,459. Explicit type comparisons grew
+  `NinoLayout<T>.Write` from 30 to 383 IL bytes. `Type.IsPrimitive` with both native pointer types
+  excluded produced the same code sizes with 109 IL bytes. Both candidates kept the Arm64
+  mixed-profile caller and loop at 548 and 196 Tier 1 bytes, and matched wire output and
+  0 B allocations. The explicit comparisons kept the small mix gain and had mixed large-run
+  results. The property version was 7–17% faster in the mixed profile but 9–12% slower across
+  all four large-profile rounds. Keep both as probes and check code layout under the
+  large-run profile before adding a broad primitive branch to the shared layout writer.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
