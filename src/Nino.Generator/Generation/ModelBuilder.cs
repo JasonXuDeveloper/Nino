@@ -298,22 +298,25 @@ internal static class ModelBuilder
         MemberSet members, FormatterRef? collection, List<FactoryRegistration> factories, TypeFacts facts,
         bool namesTypes)
     {
-        var used = new List<FormatterRegistration>();
+        List<FormatterRegistration>? used = null;
         if (!generic && kind != FormatterKind.Polymorphic)
         {
             foreach (var m in members.Models)
             {
                 if (m.TypeId != 0)
-                    used.Add(new FormatterRegistration(m.TypeName, m.Formatter, m.TypeId));
+                    (used ??= new List<FormatterRegistration>()).Add(
+                        new FormatterRegistration(m.TypeName, m.Formatter, m.TypeId));
             }
         }
 
         // Closed generic [NinoType]s named by the members and base types, and the structs whose layout the runtime
         // measures (LayoutTypes).
-        var genericTypes = new List<TypeRegistration>();
-        var layoutTypes = new List<string>();
+        List<TypeRegistration>? genericTypes = null;
+        List<string>? layoutTypes = null;
         if (namesTypes)
         {
+            genericTypes = new List<TypeRegistration>();
+            layoutTypes = new List<string>();
             foreach (var symbol in members.Symbols)
             {
                 if (MemberCollector.MemberType(symbol) is { } memberType)
@@ -330,16 +333,18 @@ internal static class ModelBuilder
         }
 
         return new RegistrationModel(
-            Formatters: new EquatableArray<FormatterRegistration>(used),
+            Formatters: used == null ? EquatableArray<FormatterRegistration>.Empty
+                : new EquatableArray<FormatterRegistration>(used),
             // Generic types name no closed collection types; their formatters resolve creators at runtime.
             Factories: generic || kind == FormatterKind.Polymorphic
                 ? EquatableArray<FactoryRegistration>.Empty
                 : new EquatableArray<FactoryRegistration>(factories.Distinct()
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
-            GenericTypes: new EquatableArray<TypeRegistration>(genericTypes.Distinct()
+            GenericTypes: genericTypes == null ? EquatableArray<TypeRegistration>.Empty
+                : new EquatableArray<TypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
-            LayoutTypes: LayoutTypes.ToArray(layoutTypes),
-            Nesting: namesTypes
+            LayoutTypes: layoutTypes == null ? EquatableArray<string>.Empty : LayoutTypes.ToArray(layoutTypes),
+            Nesting: genericTypes != null
                 ? facts.Resolver.NestingFormattersNamedIn(members.Models.Select(static m => m.Formatter.ToString())
                     .Concat(genericTypes.Select(static g => g.Formatter))
                     .Concat(collection != null ? new[] { collection.ToString() } : System.Array.Empty<string>()))

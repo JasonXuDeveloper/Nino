@@ -21,8 +21,18 @@ internal static class LayoutTypes
     /// Adds the measured structs that <paramref name="type"/> names (itself, type arguments, elements, fields) to
     /// <paramref name="into"/> where generated code can name them.
     /// </summary>
-    public static void Collect(ITypeSymbol type, TypeFacts facts, ICollection<string> into) =>
-        Walk(type, facts, into, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
+    public static void Collect(ITypeSymbol type, TypeFacts facts, ICollection<string> into)
+    {
+        while (type is IArrayTypeSymbol array)
+            type = array.ElementType;
+        if (type is not INamedTypeSymbol named)
+            return;
+        // A top-level non-generic leaf has no type arguments or fields to visit.
+        if (named.ContainingType == null && !named.IsGenericType &&
+            (named.TypeKind != TypeKind.Struct || !named.IsUnmanagedType || RawLayout.Leaf(named) != NinoLeaf.None))
+            return;
+        Walk(named, facts, into, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
+    }
 
     private static void Walk(ITypeSymbol type, TypeFacts facts, ICollection<string> into, HashSet<ITypeSymbol> visited,
         int depth)

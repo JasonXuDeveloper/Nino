@@ -21,17 +21,22 @@ internal static class ClosedGenerics
     private const int MaxDepth = 4;
 
     /// <summary>Adds the closed generic <c>[NinoType]</c>s that <paramref name="type"/> names.</summary>
-    public static void Collect(ITypeSymbol type, TypeFacts facts, List<TypeRegistration> into) =>
-        Walk(type, facts, into, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
+    public static void Collect(ITypeSymbol type, TypeFacts facts, List<TypeRegistration> into)
+    {
+        while (type is IArrayTypeSymbol array)
+            type = array.ElementType;
+        if (type is INamedTypeSymbol { IsGenericType: true })
+            Walk(type, facts, into, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
+    }
 
     /// <summary>Adds the closed generic <c>[NinoType]</c> base types of <paramref name="type"/> (and what they name).</summary>
     public static void CollectBases(INamedTypeSymbol type, TypeFacts facts, List<TypeRegistration> into)
     {
-        var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        HashSet<ITypeSymbol>? visited = null;
         for (var b = type.BaseType; b != null; b = b.BaseType)
         {
             if (b.IsGenericType)
-                Walk(b, facts, into, visited, 0);
+                Walk(b, facts, into, visited ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
         }
     }
 

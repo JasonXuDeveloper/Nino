@@ -402,26 +402,34 @@ internal static class TypeNames
     /// <summary>Constraint clauses for the given type parameters.</summary>
     public static string Constraints(IEnumerable<ITypeParameterSymbol> parameters)
     {
-        var sb = new StringBuilder();
+        StringBuilder? sb = null;
         foreach (var p in parameters)
         {
-            var items = new List<string>();
-            if (p.HasUnmanagedTypeConstraint)
-                items.Add("unmanaged");
-            else if (p.HasValueTypeConstraint)
-                items.Add("struct");
-            else if (p.HasReferenceTypeConstraint)
-                items.Add("class");
-            else if (p.HasNotNullConstraint)
-                items.Add("notnull");
-            items.AddRange(p.ConstraintTypes.Select(Global));
-            if (p.HasConstructorConstraint && !p.HasValueTypeConstraint && !p.HasUnmanagedTypeConstraint)
-                items.Add("new()");
-            if (items.Count != 0)
-                sb.Append(" where ").Append(p.Name).Append(" : ").Append(string.Join(", ", items));
+            string? primary = p.HasUnmanagedTypeConstraint ? "unmanaged"
+                : p.HasValueTypeConstraint ? "struct"
+                : p.HasReferenceTypeConstraint ? "class"
+                : p.HasNotNullConstraint ? "notnull" : null;
+            var types = p.ConstraintTypes;
+            bool constructor = p.HasConstructorConstraint && !p.HasValueTypeConstraint && !p.HasUnmanagedTypeConstraint;
+            if (primary == null && types.Length == 0 && !constructor)
+                continue;
+
+            sb ??= new StringBuilder();
+            sb.Append(" where ").Append(p.Name).Append(" : ").Append(primary);
+            bool needsSeparator = primary != null;
+            foreach (var type in types)
+            {
+                if (needsSeparator)
+                    sb.Append(", ");
+                AppendGlobal(sb, type);
+                needsSeparator = true;
+            }
+
+            if (constructor)
+                sb.Append(needsSeparator ? ", new()" : "new()");
         }
 
-        return sb.ToString();
+        return sb == null ? "" : sb.ToString();
     }
 
     /// <summary>The name of a formatter's <c>__Top</c> twin, a struct nested in it (<c>TypeModel.HasTop</c>).</summary>
