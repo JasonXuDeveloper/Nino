@@ -136,8 +136,9 @@ namespace Nino.Core
         /// <see cref="NinoSerializer.Serialize{T}(in T, Stream)"/> wrote, or any payload the span overload reads). The
         /// bytes are read into a pooled array, which grows only as bytes arrive (bytes already in memory are read in
         /// place: a <see cref="MemoryStream"/> whose buffer is exposed, not one made with <c>new MemoryStream(bytes)</c>,
-        /// an <see cref="UnmanagedMemoryStream"/>, a memory-mapped view); every check of the data is the span overload's, and a stream that ends
-        /// early throws <see cref="NinoDataException"/>. Bound a stream from an untrusted source yourself (its length,
+        /// a pointer-backed <see cref="UnmanagedMemoryStream"/> of that exact type, or a memory-mapped view).
+        /// Every check of the data is the span overload's, and a stream that ends early throws
+        /// <see cref="NinoDataException"/>. Bound a stream from an untrusted source yourself (its length,
         /// a frame): Nino holds what the stream delivers.
         /// </summary>
         /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>

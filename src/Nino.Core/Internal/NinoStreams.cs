@@ -27,11 +27,11 @@ namespace Nino.Core.Internal
     /// the span and buffer overloads on the stream, from the per-thread scratch buffer (<see cref="NinoScratch"/>),
     /// with no framing. A read takes the stream to its end into an array rented from
     /// <see cref="ArrayPool{T}.Shared"/> (a stream whose bytes are already in memory is read in place: a
-    /// <see cref="MemoryStream"/> whose buffer is exposed, an <see cref="UnmanagedMemoryStream"/>, a memory-mapped view), then
-    /// deserializes it as the span overloads do, so every check of the data (and <see cref="NinoSettings.Untrusted"/>,
-    /// trailing bytes included) applies as there. The array grows by doubling as bytes arrive, never ahead of them, so
-    /// a stream makes Nino hold at most about twice what it actually delivered: bounding a stream an untrusted peer
-    /// controls (a length limit, a frame) is the caller's, as with any input. The asynchronous forms are not in the
+    /// <see cref="MemoryStream"/> whose buffer is exposed, a pointer-backed <see cref="UnmanagedMemoryStream"/> of
+    /// that exact type, or a memory-mapped view), then deserializes it as the span overloads do. The initial rental
+    /// uses a capped length hint, then the array doubles when full. All span checks apply, including
+    /// <see cref="NinoSettings.Untrusted"/>. The caller bounds streams from untrusted peers (a length limit, a frame).
+    /// The asynchronous forms are not in the
     /// netstandard2.0 build, which has no <c>ValueTask</c> without a package.
     /// </summary>
     internal static class NinoStreams
@@ -99,8 +99,8 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Deserializes the unread bytes of a stream that already holds them in memory, where they lie, with no copy:
         /// a <see cref="MemoryStream"/> whose buffer is exposed (<see cref="MemoryStream.TryGetBuffer"/>; not one made
-        /// with <c>new MemoryStream(bytes)</c>), an <see cref="UnmanagedMemoryStream"/> over a pointer, and a
-        /// <see cref="MemoryMappedViewStream"/>. The stream is left at its end, as a read to the end leaves any other.
+        /// with <c>new MemoryStream(bytes)</c>), a pointer-backed <see cref="UnmanagedMemoryStream"/> of that exact
+        /// type, and a <see cref="MemoryMappedViewStream"/>. The stream is consumed before deserializing.
         /// False for any other stream, which is then read to its end into a pooled array.
         /// </summary>
         private static bool TryReadInPlace<T, TReader>(Stream stream, ref T value, TReader reader)
@@ -114,8 +114,14 @@ namespace Nino.Core.Internal
                 return true;
             }
 
-            if (stream is UnmanagedMemoryStream unmanaged && unmanaged.CanRead)
-                return ReadUnmanaged(unmanaged, ref value, reader);
+            if (stream is UnmanagedMemoryStream unmanaged)
+            {
+                // A derived stream may override Read, Length or Position.
+                var type = unmanaged.GetType();
+                if ((type == typeof(UnmanagedMemoryStream) || type == typeof(MemoryMappedViewStream)) &&
+                    unmanaged.CanRead)
+                    return ReadUnmanaged(unmanaged, ref value, reader);
+            }
             return false;
         }
 
@@ -148,6 +154,7 @@ namespace Nino.Core.Internal
                 try
                 {
                     // The view's bytes start PointerOffset past the mapped pages (the offset rounded down to them).
+                    stream.Position = length;
                     reader.Read(new ReadOnlySpan<byte>(start + view.PointerOffset + position, (int)left), ref value);
                 }
                 finally
@@ -155,7 +162,6 @@ namespace Nino.Core.Internal
                     handle.ReleasePointer();
                 }
 
-                stream.Position = length;
                 return true;
             }
 
@@ -170,8 +176,8 @@ namespace Nino.Core.Internal
                 return false;
             }
 
-            reader.Read(new ReadOnlySpan<byte>(at, (int)left), ref value);
             stream.Position = length;
+            reader.Read(new ReadOnlySpan<byte>(at, (int)left), ref value);
             return true;
         }
 

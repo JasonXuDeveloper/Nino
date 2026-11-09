@@ -41,9 +41,8 @@ public class StreamTests
     }
 
     /// <summary>
-    /// Each stream a payload is read from: in place (an exposed MemoryStream, native memory, a memory-mapped view not
-    /// aligned to a page), an UnmanagedMemoryStream over a SafeBuffer (no position pointer: copied), seekable without
-    /// an exposed buffer, a trickle.
+    /// Each stream a payload is read from: an exposed MemoryStream, an UnmanagedMemoryStream subclass, a memory-mapped
+    /// view not aligned to a page, an UnmanagedMemoryStream over a SafeBuffer, a hidden buffer, and a trickle.
     /// </summary>
     private static IEnumerable<Func<byte[], Stream>> Sources() => new Func<byte[], Stream>[]
     {
@@ -128,20 +127,46 @@ public class StreamTests
     }
 
     [TestMethod]
-    public void ReadsNativeMemoryFromItsPosition()
+    public unsafe void ReadsNativeMemoryFromItsPosition()
     {
         var sample = Sample(11);
         byte[] bytes = NinoSerializer.Serialize(sample);
-        var native = NativeStream.Of(new byte[] { 9, 9, 9, 9 }.Concat(bytes).ToArray());
-        native.Position = 4;
-        AssertSame(sample, NinoDeserializer.Deserialize<SimpleClass>(native));
-        Assert.AreEqual(native.Length, native.Position); // read to its end
-        native.Position = native.Length + 10; // past its end: no bytes
-        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SimpleClass>(native));
-        var view = (MemoryMappedViewStream)MappedView(new byte[] { 9, 9 }.Concat(bytes).ToArray(), accessor: false);
+        byte[] prefixed = new byte[] { 9, 9, 9, 9 }.Concat(bytes).ToArray();
+        fixed (byte* start = prefixed)
+        {
+            using var native = new UnmanagedMemoryStream(start, prefixed.Length) { Position = 4 };
+            AssertSame(sample, NinoDeserializer.Deserialize<SimpleClass>(native));
+            Assert.AreEqual(native.Length, native.Position);
+            native.Position = native.Length + 10;
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SimpleClass>(native));
+        }
+
+        using var view = MappedView(new byte[] { 9, 9 }.Concat(bytes).ToArray(), accessor: false);
         view.Position = 2;
         AssertSame(sample, NinoDeserializer.Deserialize<SimpleClass>(view));
         Assert.AreEqual(view.Length, view.Position);
+    }
+
+    [TestMethod]
+    public unsafe void ReadsDerivedStreamsThroughTheirReadMethods()
+    {
+        byte* bytes = stackalloc byte[sizeof(int)];
+        using var stream = new LongerStream(bytes);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<int>(stream));
+        Assert.AreEqual(1L, stream.Position);
+    }
+
+    [TestMethod]
+    public unsafe void ConsumesInPlaceStreamsBeforeRejectingThePayload()
+    {
+        byte* bytes = stackalloc byte[1];
+        using var native = new UnmanagedMemoryStream(bytes, 1);
+        using var view = MappedView(new byte[1], accessor: false);
+        foreach (var stream in new Stream[] { native, view })
+        {
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<int>(stream));
+            Assert.AreEqual(stream.Length, stream.Position);
+        }
     }
 
 #if NET
@@ -428,6 +453,14 @@ public class StreamTests
             return file.CreateViewStream(offset, bytes.Length, MemoryMappedFileAccess.Read);
         var view = file.CreateViewAccessor(offset, bytes.Length, MemoryMappedFileAccess.Read);
         return new UnmanagedMemoryStream(view.SafeMemoryMappedViewHandle, view.PointerOffset, bytes.Length);
+    }
+
+    // Its base Read method exposes one byte. The remaining allocated bytes are outside the stream.
+    private sealed unsafe class LongerStream : UnmanagedMemoryStream
+    {
+        public LongerStream(byte* bytes) : base(bytes, 1) { }
+
+        public override long Length => sizeof(int);
     }
 
     /// <summary>An UnmanagedMemoryStream over native memory it frees when collected.</summary>
