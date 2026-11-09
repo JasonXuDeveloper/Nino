@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,6 +21,11 @@ namespace Nino.Generator.Generation;
 internal sealed record FormatterRef(string Name, EquatableArray<FormatterRef> Args, bool Generated, bool Open,
     string Twin = "")
 {
+    // Formatting only appends characters. Retain a small buffer per compiler thread, never a model or symbol.
+    [ThreadStatic] private static StringBuilder? t_builder;
+
+    private const int MaxCachedCapacity = 1024;
+
     /// <summary>A formatter without type arguments (<c>global::Nino.Core.StringFormatter</c>), or a custom one.</summary>
     public static FormatterRef Named(string name) => new(name, EquatableArray<FormatterRef>.Empty, false, false);
 
@@ -61,9 +67,12 @@ internal sealed record FormatterRef(string Name, EquatableArray<FormatterRef> Ar
     {
         if (Args.Length == 0)
             return Twin.Length == 0 ? Name : Name + Twin;
-        var sb = new StringBuilder(64);
+        var sb = t_builder ?? new StringBuilder(64);
+        sb.Clear();
         Append(sb);
-        return sb.ToString();
+        string text = sb.ToString();
+        t_builder = sb.Capacity <= MaxCachedCapacity ? sb : null;
+        return text;
     }
 
     private void Append(StringBuilder sb)
