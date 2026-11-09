@@ -92,6 +92,16 @@ of bytes in a block.
   arrays prefilled with 0xCD, and rejected truncated input and a final bool of 2, with SIMD on and
   off. Keep the layout-specific variant as a probe. Reducing the number of stores would require
   combining padding zeroing with a field store while preserving field validation.
+  A little-endian, exact-map `BlockWaypoint` probe fused the padding into the short and bool stores
+  and paired the floats in one 8-byte move. The JIT emitted four stores instead of seven.
+  With intrinsics off, 65 items read 37.4–37.9% faster and 1,700 items 33.0–34.8% faster across
+  four process-per-build rounds at offset 1. With SIMD on, small cases varied and 1,700 items
+  were slower in three rounds. Allocation stayed at 0 B. `ReadOne` grew from 37 to 134 IL
+  bytes while `ReadEach` Arm64 Tier 1 shrank from 172 to 148 bytes without SIMD and 240 to 220
+  with it. The x64 FullOpts cross listing shrank from 140 to 107 and 186 to 153 bytes respectively.
+  The same byte, padding, truncation and invalid-bool checks passed. Keep the probe for the scalar
+  path. A general implementation needs an explicit generated-formatter guarantee before replacing
+  its field reads. An exact byte map alone does not preserve a custom formatter's validation.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
