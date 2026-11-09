@@ -48,14 +48,39 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool CopyByteArray(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, int count, ref byte[] value)
         {
-            if (value != null && (value.Length != count || left.Overlaps(value) || right.Overlaps(value)))
-                return false;
+            if (value != null)
+            {
+                if (value.Length != count)
+                    return ReplaceByteArray(left, right, count, ref value);
+                if (left.Overlaps(value) || right.Overlaps(value))
+                    return false;
+            }
 
             var array = value ?? NinoUnsafe.NewArray<byte>(count, uninitialized: true);
-            left.CopyTo(array);
-            right.CopyTo(array.AsSpan(left.Length));
+            CopyPayload(left, right, array);
             value = array;
             return true;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool ReplaceByteArray(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, int count,
+            ref byte[] value)
+        {
+            // Recycling may mutate the input. The regular path snapshots it before invoking callbacks.
+            if (NinoRecycler<byte>.MayRecycle || NinoRecycler<byte[]>.MayRecycle)
+                return false;
+
+            var replacement = NinoUnsafe.NewArray<byte>(count, uninitialized: true);
+            CopyPayload(left, right, replacement);
+            value = replacement;
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyPayload(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, byte[] array)
+        {
+            left.CopyTo(array);
+            right.CopyTo(array.AsSpan(left.Length));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
