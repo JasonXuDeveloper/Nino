@@ -16,7 +16,8 @@ namespace Nino.Generator.Generation;
 /// types, member types and their fields, attribute arguments), plus project-wide inputs (references,
 /// preprocessor symbols, the set of files, the compilation's own <c>[assembly: NinoFormatter]</c> registrations,
 /// <see cref="FormatterRules.OwnSignature"/>). Edited files get new <see cref="SyntaxTree"/> instances, so a
-/// model stays valid while every tree it depends on is still part of the compilation.
+/// model stays valid while every tree it depends on is still part of the compilation. An identical reparse or
+/// an isolated ordinary method-body edit can carry those dependencies to the replacement trees.
 /// </para>
 /// <para>
 /// The top-level <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls are cached by file and position
@@ -214,7 +215,7 @@ internal static class ModelCache
             {
                 if (entry.Tree == tree)
                     return entry.Call;
-                if (known.Reparsed != null && known.Reparsed.TryGetValue(tree, out var previous) && entry.Tree == previous)
+                if (known.Reparsed != null && known.Reparsed.TryGetValue(entry.Tree, out var current) && current == tree)
                 {
                     entry.Tree = tree;
                     return entry.Call;
@@ -386,6 +387,8 @@ internal static class ModelCache
                 reparsed = null;
                 edit = null;
             }
+            if (reparsed != null || edit != null)
+                RebaseModelTrees(state, reparsed, edit);
             if (edit != null)
             {
                 // A shifted call can take another old call's position. Snapshot before saving new positions.
@@ -398,6 +401,26 @@ internal static class ModelCache
             var created = new CompilationState { Project = state, Epoch = state.Epoch, Reparsed = reparsed, Edit = edit };
             States.Add(compilation, created);
             return created;
+        }
+    }
+
+    /// <summary>
+    /// Carries cached model dependencies over a proven replacement. An ordinary method body cannot change the
+    /// constructor, member initializer or accessor syntax the model reads. Called under <see cref="Lock"/>.
+    /// </summary>
+    private static void RebaseModelTrees(ProjectState state, Dictionary<SyntaxTree, SyntaxTree>? reparsed, BodyEdit? edit)
+    {
+        foreach (var entry in state.Entries.Values)
+        {
+            var trees = entry.Trees;
+            for (int i = 0; i < trees.Length; i++)
+            {
+                var tree = trees[i];
+                if (edit != null && tree == edit.Previous)
+                    trees[i] = edit.Current;
+                else if (reparsed != null && reparsed.TryGetValue(tree, out var replacement))
+                    trees[i] = replacement;
+            }
         }
     }
 
@@ -440,7 +463,7 @@ internal static class ModelCache
                change.End <= body.CloseBraceToken.SpanStart ? body : null;
     }
 
-    /// <summary>Pairs trees reparsed from the same project text, including the interceptor's file checksum.</summary>
+    /// <summary>Maps old trees to identical reparses, including the interceptor's file checksum.</summary>
     private static Dictionary<SyntaxTree, SyntaxTree>? MatchReparsedSources(SyntaxTree[] before, SyntaxTree[] now)
     {
         if (before.Length != now.Length)
@@ -464,7 +487,7 @@ internal static class ModelCache
                 return null;
             if (!current.IsEquivalentTo(previous))
                 return null;
-            (matches ??= new Dictionary<SyntaxTree, SyntaxTree>()).Add(current, previous);
+            (matches ??= new Dictionary<SyntaxTree, SyntaxTree>()).Add(previous, current);
         }
 
         return matches;

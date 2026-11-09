@@ -680,6 +680,44 @@ public class MadeList : System.Collections.Generic.List<Made> { }
             .RunGenerators(compilation).GetRunResult().Results[0];
 
     [TestMethod]
+    public void ReparsedAndMethodEditedModelsKeepTheirDependencies()
+    {
+        var compilation = Create(
+            ("Box.cs", Usings + """
+                [NinoType] public class Box
+                {
+                    public string Name;
+                    public Box() { }
+                    public void Work() { _ = 1; }
+                }
+                }
+                """),
+            ("Holder.cs", Usings + "[NinoType] public class Holder { public Box Value; } }"));
+        var first = RunTracked(compilation);
+        var reparsed = compilation.RemoveAllSyntaxTrees().AddSyntaxTrees(compilation.SyntaxTrees.Select(tree =>
+            CSharpSyntaxTree.ParseText(tree.GetText(), (CSharpParseOptions)tree.Options, tree.FilePath)));
+        var second = RunTracked(reparsed);
+        Assert.AreSame(Model(first, "Box"), Model(second, "Box"));
+        Assert.AreSame(Model(first, "Holder"), Model(second, "Holder"));
+
+        var edited = Edit(reparsed, "Box.cs", "_ = 1;", "_ = 2;");
+        var third = RunTracked(edited);
+        Assert.AreSame(Model(second, "Box"), Model(third, "Box"));
+        Assert.AreSame(Model(second, "Holder"), Model(third, "Holder"));
+
+        // The constructor affects fresh reads, so even a body-only constructor edit invalidates both models.
+        edited = Edit(edited, "Box.cs", "public Box() { }", "public Box() { Name = \"seed\"; }");
+        var fourth = RunTracked(edited);
+        Assert.AreNotSame(Model(third, "Box"), Model(fourth, "Box"));
+        Assert.AreNotSame(Model(third, "Holder"), Model(fourth, "Holder"));
+
+        static object? Model(GeneratorRunResult result, string name) => result.TrackedSteps["NinoType"]
+            .SelectMany(step => step.Outputs)
+            .Select(output => (System.Runtime.CompilerServices.ITuple)output.Value!)
+            .Single(tuple => (string)tuple[0]! == name)[1];
+    }
+
+    [TestMethod]
     public void CallsFollowEditsToTheirTypes()
     {
         // A top-level call is reused while its file and its type are unchanged (ModelCache.GetOrBuildCall): an edit to
