@@ -140,19 +140,27 @@ namespace Nino.Core
             }
 
             // Up to 4 GB of chars.
-            CopyChunks(value, ref writer.ReserveText((uint)length * sizeof(char)));
+            CopyText(value, length, ref writer.ReserveText((uint)length * sizeof(char)));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void CopyChunks(StringBuilder value, ref byte body)
+        private static void CopyText(StringBuilder value, int length, ref byte body)
         {
 #if NET8_0_OR_GREATER
-            foreach (var chunk in value.GetChunks())
+            // Small copies already have an efficient chunk loop; larger builders may allocate a chunk index.
+            if (length <= 64)
             {
-                var chars = MemoryMarshal.AsBytes(chunk.Span);
-                NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(chars), (uint)chars.Length);
-                body = ref Unsafe.Add(ref body, chars.Length);
+                foreach (var chunk in value.GetChunks())
+                {
+                    var bytes = MemoryMarshal.AsBytes(chunk.Span);
+                    NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+                    body = ref Unsafe.Add(ref body, bytes.Length);
+                }
+                return;
             }
+#endif
+#if !NETSTANDARD2_0
+            value.CopyTo(0, MemoryMarshal.CreateSpan(ref Unsafe.As<byte, char>(ref body), length), length);
 #else
             var chars = MemoryMarshal.AsBytes(value.ToString().AsSpan());
             NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(chars), (uint)chars.Length);
@@ -183,17 +191,17 @@ namespace Nino.Core
             builder.Clear();
             if (length == 0)
                 return;
+
+            // Both advances use the exact byte length checked above, including two bytes per UTF-16 char.
             if (latin1)
             {
-                var latin1Chars = reader.ReadRaw(length);
-                NinoStrings.AppendLatin1(builder, ref MemoryMarshal.GetReference(latin1Chars), length);
+                NinoStrings.AppendLatin1(builder, ref reader.UnsafeAdvance(length), length);
                 return;
             }
 
-            var chars = MemoryMarshal.Cast<byte, char>(reader.ReadRaw(length * sizeof(char)));
-            fixed (char* p = chars)
+            fixed (byte* p = &reader.UnsafeAdvance(length * sizeof(char)))
             {
-                builder.Append(p, chars.Length);
+                builder.Append((char*)p, length);
             }
         }
     }
