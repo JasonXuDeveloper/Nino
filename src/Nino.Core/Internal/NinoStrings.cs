@@ -582,19 +582,22 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool Narrow16s(ref ushort source, ref byte destination, nuint n)
         {
-            var high = Vector128.Create((ushort)0xFF00);
-            nuint j = 0;
-            while (true)
-            {
-                var a = Vector128.LoadUnsafe(ref source, j);
-                var b = Vector128.LoadUnsafe(ref source, j + 8);
-                if (((a | b) & high) != Vector128<ushort>.Zero)
+            nuint last = n - 16;
+            for (nuint i = 0; i < last; i += 16)
+                if (!TryNarrow16(ref source, ref destination, i))
                     return false;
-                Vector128.Narrow(a, b).StoreUnsafe(ref destination, j);
-                if (j + 16 == n)
-                    return true;
-                j = j + 32 <= n ? j + 16 : n - 16;
-            }
+            return TryNarrow16(ref source, ref destination, last);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryNarrow16(ref ushort source, ref byte destination, nuint offset)
+        {
+            var a = Vector128.LoadUnsafe(ref source, offset);
+            var b = Vector128.LoadUnsafe(ref source, offset + 8);
+            if (((a | b) & Vector128.Create((ushort)0xFF00)) != Vector128<ushort>.Zero)
+                return false;
+            Vector128.Narrow(a, b).StoreUnsafe(ref destination, offset);
+            return true;
         }
 #endif
 
