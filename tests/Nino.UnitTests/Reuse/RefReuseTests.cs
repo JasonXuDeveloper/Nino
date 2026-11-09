@@ -97,6 +97,17 @@ public class RefReuseTests
             NinoDeserializer.Deserialize(NinoSerializer.Serialize(new ReuseHolder
                 { Items = new Dictionary<string, ReuseItem> { ["a"] = new() } }), ref target);
             CollectionAssert.AreEqual(new[] { dropped }, recycled);
+
+            var items = target.Items;
+            var first = items["a"];
+            var second = new ReuseItem();
+            items.Add("c", second);
+            recycled.Clear();
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new ReuseHolder
+                { Items = new Dictionary<string, ReuseItem>() }), ref target);
+            Assert.AreSame(items, target.Items);
+            Assert.AreEqual(0, items.Count);
+            CollectionAssert.AreEqual(new[] { first, second }, recycled);
         }
         finally
         {
