@@ -124,6 +124,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
   without that cache.
+- Use the value-type enumerator when directly iterating an `EquatableArray<T>`. Keep the enumerable
+  interfaces for LINQ and preserve the array's value equality and ownership. The 577-file project replay
+  saved about 18 KB of cold allocations with identical output. `LayoutEmitter.Members` fell from
+  320 to 310 IL bytes, from 1,472 to 1,364 Arm64 bytes, and from 735 to 695 x64 ReadyToRun bytes.
 - Create inherited-type cache entries only after an assembly passes the Nino-reference filter.
   Keeping plain symbols in the temporary list avoided entries for unrelated references and saved
   about 33 KB of cold allocations in the unit test project replay. All 577 files matched.
