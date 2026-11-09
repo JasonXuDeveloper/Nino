@@ -74,6 +74,13 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   `ConcurrentQueue<T>.ToArray` directly and keeps the other snapshots out of line. On local Arm64 FullOpts,
   the variable-width queue entry and its helper together went from 2,340 to 1,336 bytes. Fixed-width queues
   still allocate the bulk snapshot.
+- Reuse concurrent queue construction for blocking collection reads. Rent the temporary array for the
+  bulk path, and construct empty and single-item queues directly. Renting for a single item made the
+  raw case slower and allocated 8 B more. The direct path recovered the local single-int timing and
+  saved 32 B. The 1,024-item int case saved 4,080 B and was faster or within noise in each process-per-build
+  round. At one item the Arm64 Tier 1 caller and helper totaled 1,216 bytes against 1,200 before, while
+  the x64 cross listing had a smaller caller with the work moved into a helper. Check tiering before
+  interpreting the reference case: the initial string base listing did not reach Tier 1.
 - Refill exact concurrent stacks through `TryPop` and `Push`, and use one `Clear` when no old item needs
   recycling. Bind stacks to their own formatter and leave subclasses on their interface (62d85a1b).
   Adding the stack branch to the shared producer/consumer method changed the queue's inlining budget. The split
