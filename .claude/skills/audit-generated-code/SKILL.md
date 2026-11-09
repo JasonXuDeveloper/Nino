@@ -84,6 +84,9 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   from newer writers. The Arm64 `PaddedItem[]` loop dropped from 572 to
   452 machine-code bytes and `NamedItem`'s body from 1,136 to 940. Keep the unaligned raw reads and check a
   region at offset one.
+  Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
+  saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
+  1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
