@@ -22,6 +22,10 @@ of bytes in a block.
   use it only with `fixed`.
 - Find the checks left: `CORINFO_HELP_RNGCHKFAIL` in the Tier1 listing (`benchmarks/asm.py dump --asm FILE`),
   counted per method; a hot method with one in its loop is a finding, one on a cold path out of line is not.
+- Validate a pooled reference array's exact element type with a writable span before obtaining a byref for
+  stores. The shared pool checks the returned array's length, and its API expects clients to return their own
+  rentals. In the dictionary refill probe, a checked span or its first ref removed the array-store helper and
+  helped 17 string-key pairs, but the larger cases stayed on par and the formatter's machine code grew.
 - Go, Rust and TypeScript: `optimize-runtimes`, references/blocks.md.
 
 ## Vector loops
