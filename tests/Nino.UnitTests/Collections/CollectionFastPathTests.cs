@@ -176,6 +176,43 @@ public class CollectionFastPathTests
         NinoSerializer.Serialize(queue, actual);
         CollectionAssert.AreEqual(expected.WrittenSpan.ToArray(), actual.WrittenSpan.Slice(1).ToArray());
     }
+
+    [TestMethod]
+    public void PriorityQueueReadsRawHeapWithoutChangingInsertionOrder()
+    {
+        foreach (bool ordered in new[] { true, false })
+        foreach (bool customComparer in new[] { false, true })
+        foreach (int capacity in new[] { 1, 32 })
+        {
+            const int count = 19;
+            var comparer = customComparer ? Comparer<int>.Create((a, b) => b.CompareTo(a)) : Comparer<int>.Default;
+            var expected = new PriorityQueue<int, int>(capacity, comparer);
+            var actual = new PriorityQueue<int, int>(capacity, comparer);
+            actual.Enqueue(-1, 0);
+            using var buffer = new NinoArrayBufferWriter();
+            buffer.GetSpan(1);
+            buffer.Advance(1);
+            NinoSerializer.Serialize(count, buffer);
+            for (int i = 0; i < count; i++)
+            {
+                int priority = ordered ? i / 3 : -i / 3;
+                expected.Enqueue(i, priority);
+                NinoSerializer.Serialize(i, buffer);
+                NinoSerializer.Serialize(priority, buffer);
+            }
+
+            var original = actual;
+            NinoDeserializer.Deserialize(buffer.WrittenSpan.Slice(1), ref actual);
+            Assert.AreSame(original, actual);
+            Assert.AreEqual(expected.EnsureCapacity(0), actual.EnsureCapacity(0));
+            CollectionAssert.AreEqual(expected.UnorderedItems.ToList(), actual.UnorderedItems.ToList());
+            while (expected.TryDequeue(out int element, out int priority))
+            {
+                Assert.IsTrue(actual.TryDequeue(out int actualElement, out int actualPriority));
+                Assert.AreEqual((element, priority), (actualElement, actualPriority));
+            }
+        }
+    }
 #endif
 
     [TestMethod]

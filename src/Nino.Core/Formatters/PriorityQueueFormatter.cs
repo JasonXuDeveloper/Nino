@@ -104,6 +104,13 @@ namespace Nino.Core
                 queue.Clear();
             }
 
+#if NET10_0_OR_GREATER
+            if (length >= 16 && typeof(TElement) == typeof(int) && typeof(TPriority) == typeof(int) &&
+                RawFormatter.Is<TElement, TElementFormatter>() && RawFormatter.Is<TPriority, TPriorityFormatter>() &&
+                PriorityQueueHeap.TryAdopt(Unsafe.As<PriorityQueue<int, int>>(queue), length, ref reader))
+                return;
+#endif
+
             // 1,000 int pairs in 3.5 µs instead of 4.7.
             Reader local = default;
             reader.CopyTo(ref local);

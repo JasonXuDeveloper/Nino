@@ -174,6 +174,7 @@ public static class Program
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.ConcurrentTables", "Builds"),
 #if NET10_0_OR_GREATER
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.ConcurrentStackNodes`1", "Usable"),
+        (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.PriorityQueueHeap", "Usable"),
 #endif
         (typeof(Nino.Immutable.ImmutableArrayFormatter<,>).Assembly, "Nino.Immutable.HashTrees", "Usable"),
         (typeof(Nino.Immutable.ImmutableArrayFormatter<,>).Assembly, "Nino.Immutable.SortedTrees", "Usable"),
