@@ -181,6 +181,8 @@ internal static class GeneratedCode
         IReadOnlyList<string>? formatters = null, IReadOnlyList<string>? rawTypes = null)
     {
         body = body.Replace(TypeNames.Gen, "");
+        // Each successful rewrite shortens the body, so the first builder can hold all later rewrites.
+        StringBuilder? scratch = null;
         List<string>? formatterAliases = null;
         if (formatters is { Count: > 0 })
         {
@@ -188,22 +190,22 @@ internal static class GeneratedCode
             if (formatters.Count == 1)
             {
                 string name = formatters[0].Replace(TypeNames.Gen, "");
-                body = WithAlias(body, name, "__NinoF0", $"using __NinoF0 = {name};", formatterAliases);
+                body = WithAlias(body, name, "__NinoF0", $"using __NinoF0 = {name};", formatterAliases, ref scratch);
             }
             else
-                body = WithFormatterAliases(body, formatters, formatterAliases);
+                body = WithFormatterAliases(body, formatters, formatterAliases, ref scratch);
         }
 
         if (self != null)
-            body = WithAlias(body, self, "__NinoT", $"using __NinoT = {self};", declarations);
+            body = WithAlias(body, self, "__NinoT", $"using __NinoT = {self};", declarations, ref scratch);
         int declarationsBefore = declarations.Count;
         if (body.IndexOf("__NinoCS", StringComparison.Ordinal) < 0)
             body = WithAlias(body, TypeNames.CoreCompilerServices, "__NinoCS.",
-                "using __NinoCS = global::Nino.Core.CompilerServices;", declarations);
+                "using __NinoCS = global::Nino.Core.CompilerServices;", declarations, ref scratch);
         bool compilerAlias = declarations.Count != declarationsBefore;
         foreach (var (name, alias, declaration) in CoreAliases)
             if (!compilerAlias || !name.StartsWith(TypeNames.CoreCompilerServices, StringComparison.Ordinal))
-                body = WithAlias(body, name, alias, declaration, declarations);
+                body = WithAlias(body, name, alias, declaration, declarations, ref scratch);
 
         if (rawTypes is { Count: > 0 })
         {
@@ -211,7 +213,7 @@ internal static class GeneratedCode
             foreach (string name in rawTypes)
             {
                 string alias = "__NinoRaw" + (declarations.Count - start).ToString(CultureInfo.InvariantCulture);
-                body = WithAlias(body, name, alias, $"using {alias} = {name};", declarations);
+                body = WithAlias(body, name, alias, $"using {alias} = {name};", declarations, ref scratch);
             }
         }
 
@@ -221,7 +223,7 @@ internal static class GeneratedCode
     }
 
     private static string WithFormatterAliases(string body, IReadOnlyList<string> formatters,
-        List<string> formatterAliases)
+        List<string> formatterAliases, ref StringBuilder? scratch)
     {
         // Replaced longest first (a name inside a longer one is replaced with it), numbered in the order given
         // (the members').
@@ -232,7 +234,7 @@ internal static class GeneratedCode
             // Declared inside the namespace too, where the generated types need no qualifier either.
             int count = formatterAliases.Count;
             string alias = FormatterAlias(count);
-            body = WithAlias(body, name, alias, $"using {alias} = {name};", formatterAliases);
+            body = WithAlias(body, name, alias, $"using {alias} = {name};", formatterAliases, ref scratch);
             if (formatterAliases.Count != count)
                 aliased.Add(name);
         }
@@ -255,7 +257,7 @@ internal static class GeneratedCode
     private static string FormatterAlias(int index) => "__NinoF" + index.ToString(CultureInfo.InvariantCulture);
 
     private static string WithAlias(string body, string name, string alias, string declaration,
-        List<string> declarations)
+        List<string> declarations, ref StringBuilder? scratch)
     {
         // Count only until the alias pays for its declaration, including a line break and block-namespace indent.
         // Most candidates do not pay off, so leave their body alone without allocating a replacement buffer.
@@ -271,7 +273,8 @@ internal static class GeneratedCode
         if (at < 0)
             return body;
 
-        var sb = new StringBuilder(body.Length);
+        var sb = scratch ??= new StringBuilder(body.Length);
+        sb.Clear();
         int start = 0;
         for (at = first; at >= 0; at = FindName(body, name, start, member))
         {
