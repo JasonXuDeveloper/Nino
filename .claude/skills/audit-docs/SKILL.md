@@ -79,6 +79,16 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    rules a release added (NINO030-NINO033), and added them where those rules' features live (defining types, evolving
    data, untrusted data). A benchmark class Nino adds is described on the benchmarks page and linked from its
    feature's cost section: `UntrustedTest` had synced rows from rc.8 on and no page said what it measured.
+   **The newest release's API is the main text; older releases get a Callout.** When a release adds an API that
+   replaces hand-written code (a built-in overload, an attribute, a command), rewrite every example and sentence to
+   the new API in the same docs pass, and put how earlier releases do it ("On rc.9 and earlier ...") in one short
+   Callout after it, with the old helper in an Accordion if it is long; never keep the old helper as the main code
+   with a note that the new API exists, and never show a built-in call and a hand-written replacement for the same
+   job on one page. Code a page still has to write itself (frames for several messages on one stream, compression)
+   says in its first sentence why no built-in call does it. Grep the release's changelog entries' API names across
+   the site and README to find every page to rewrite. Why: the owner (rc.10: "一会是我们的stream api，一会是自己封装的
+   ... 应该把代码改成最新的，info里说老版本怎么做"); the streams, networking and caching pages kept rc.9's
+   ReadOnlySequence and Stream helpers as the main code with an rc.10 note beside them.
 2. **True to the code**: every API, attribute, option, default, limit and exception named exists today and behaves as
    written; check a doubtful claim with a throwaway test. Names match the code exactly. No API that is not in the
    source (the site's rule).
