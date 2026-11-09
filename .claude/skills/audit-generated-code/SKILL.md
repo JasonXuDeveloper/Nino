@@ -46,6 +46,8 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   generator pass to measure emission allocations, since later passes can reuse cached formatter source.
 - Traverse raw member groups as ranges of the existing model array. Continue from the first group after emitting
   its region prefix, so a mixed body needs neither copied groups nor a second grouping pass.
+- Use target-typed construction for an ordinary constructor when the generated return or assignment names the
+  exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
   pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
   signature generated code repeats is written once in `Signature`.

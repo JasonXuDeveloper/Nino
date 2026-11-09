@@ -36,6 +36,11 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   ("Test the AVX-512 paths"), and a run misses the net10.0 AVX-512 paths only when all four x64 jobs drew EPYCs. Do not add a pinned
   AVX-512 runner or Intel SDE for certainty: the owner decided against it (round 121).
 - Never read a pointer field by reflection: `FieldInfo.GetValue` on `IntPtr`'s `void*` crashed Mono 6.8 with SIGSEGV.
+- On macOS Arm64, isolate a `FieldDesc::GetInstanceField` SIGBUS before blaming the wire reader. The conformance
+  JSON projection of `Packed.B` in `structs-values` and `structs-empty-collections` can hit CoreCLR's `ldapr`
+  when the packed `long` crosses a 16-byte boundary. A standalone boxed Pack=1 struct with a byte followed by a
+  long reproduces through `FieldInfo.GetValue` on 10.0.0 and 10.0.14 when the field address is 9 modulo 16.
+  Logging or changing runtimes can move the boxed object and hide the fault.
 - Take a fact about a type that the generator sees from generated code, never from reflection at run time (the
   owner's rule): reflection differs per runtime, NativeAOT keeps only the metadata it is asked for, and every probe
   costs at startup. A function pointer (`delegate*`) is a pointer, 8 bytes zero-extended, but .NET 8 and later report
