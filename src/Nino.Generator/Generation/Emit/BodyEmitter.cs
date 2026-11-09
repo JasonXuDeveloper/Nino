@@ -411,6 +411,18 @@ internal sealed class BodyEmitter
         _w.Line();
         _w.Line(_names.Inline);
         string signature = $"public void WriteFixed(in {T} value, ref byte destination)";
+        if (_m.RawBody)
+        {
+            _w.Block(signature, () =>
+            {
+                // Storing through the destination must not change which instance the body writes.
+                _w.Line("var __value = value;");
+                _w.Line($"destination = {NinoWire.NotNull};");
+                _w.Line("WriteRawBody(__value, ref destination, 1);");
+            });
+            return;
+        }
+
         // A struct with a member generated code reaches through an accessor: those take the struct by `ref`, which an
         // `in` parameter cannot give.
         if (_m.Kind == FormatterKind.SealedClass || _m.Members.Any(x => x.Access != MemberAccess.Direct))
