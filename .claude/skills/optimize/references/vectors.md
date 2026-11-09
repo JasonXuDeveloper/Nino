@@ -33,6 +33,10 @@ of bytes in a block.
 - Validate four priority-queue children against their shared parent in one signed vector compare.
   Reuse the odd-lane unzip for interleaved raw pairs and keep the scalar tail for incomplete groups.
   The local 8,193-pair heap adoption probe cut read time by 54–58%, with unchanged bytes and allocation.
+  Store each validated vector group directly into the empty backing array, publishing its size only after
+  every group and the scalar tail pass. The enqueue fallback overwrites unpublished raw slots. Keep a
+  single bulk copy without SIMD; scalar per-pair stores regressed. Fusing the vector stores saved another
+  24–25% on the local 8,193-pair probe.
 - Keep indexed offsets in the scalar block-read tail until a measured case benefits from cursor stepping.
   On the local `BlockWaypoint` probe, two bumped cursors removed the two loop multiplications but grew
   `ReadEach` by 33 IL bytes and did not consistently improve the direct or public read paths.
