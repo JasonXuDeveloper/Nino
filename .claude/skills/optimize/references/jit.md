@@ -51,6 +51,10 @@ and when `asm.py compare` lists methods the change did not touch.
   Replacing the reverse-walk span indexer with `Unsafe.Add` removed its range failure in both listings
   (Arm64 1,172 to 1,164 bytes, x64 920 to 858). The one-string forced-fallback case slowed in all four
   local rounds, so the bounds-check removal alone does not justify reviving that candidate.
+- Keep the indexed variable-size `SortedList` write loop. Reusing the checked array lengths with `Unsafe.Add`
+  removed range failures and saved 196 Arm64 bytes for `int` keys and string values, but single-pair writes
+  slowed in four local rounds. A separate single-pair arm restored their timing while duplicating the inlined
+  formatter, growing Arm64 from 1,828 to 2,772 bytes and x64 from 1,584 to 2,770.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
