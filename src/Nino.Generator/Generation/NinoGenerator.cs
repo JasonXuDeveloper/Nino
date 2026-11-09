@@ -406,10 +406,77 @@ public sealed class NinoGenerator : IIncrementalGenerator
     private static bool MayCallNino(InvocationExpressionSyntax invocation) => invocation.Expression switch
     {
         MemberAccessExpressionSyntax { Name: var name, Expression: var receiver } =>
-            NamesType(name, invocation.ArgumentList) && (receiver is IdentifierNameSyntax || IsNinoReceiver(receiver)),
-        SimpleNameSyntax name => NamesType(name, invocation.ArgumentList),
+            NamesType(name, invocation.ArgumentList) && (receiver is IdentifierNameSyntax || IsNinoReceiver(receiver)) &&
+            !NamesOpenMethodParameter(name, invocation),
+        SimpleNameSyntax name => NamesType(name, invocation.ArgumentList) && !NamesOpenMethodParameter(name, invocation),
         _ => false,
     };
+
+    /// <summary>
+    /// An explicit type argument naming a lexical method type parameter cannot register a closed type or be
+    /// named by a file-level interceptor. Qualified identifiers are still bound by Roslyn.
+    /// </summary>
+    private static bool NamesOpenMethodParameter(SimpleNameSyntax name, InvocationExpressionSyntax invocation)
+    {
+        if (name is not GenericNameSyntax { TypeArgumentList.Arguments.Count: 1 } generic)
+            return false;
+        var argument = generic.TypeArgumentList.Arguments[0];
+        if (argument.ContainsDiagnostics)
+            return false;
+        for (var node = invocation.Parent; node != null && node is not TypeDeclarationSyntax; node = node.Parent)
+        {
+            var parameters = node switch
+            {
+                MethodDeclarationSyntax method when method.Body?.Span.Contains(invocation.Span) == true ||
+                                                    method.ExpressionBody?.Span.Contains(invocation.Span) == true =>
+                    method.TypeParameterList,
+                LocalFunctionStatementSyntax local when local.Body?.Span.Contains(invocation.Span) == true ||
+                                                        local.ExpressionBody?.Span.Contains(invocation.Span) == true =>
+                    local.TypeParameterList,
+                _ => null,
+            };
+            if (parameters != null && NamesParameter(argument, parameters.Parameters))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool NamesParameter(TypeSyntax type, SeparatedSyntaxList<TypeParameterSyntax> parameters,
+        bool qualified = false)
+    {
+        switch (type)
+        {
+            case IdentifierNameSyntax identifier when !qualified &&
+                 SyntaxFacts.GetContextualKeywordKind(identifier.Identifier.Text) == SyntaxKind.None &&
+                 identifier.Identifier.Text is not ("dynamic" or "nint" or "nuint" or "var"):
+                foreach (var parameter in parameters)
+                    if (parameter.Identifier.ValueText == identifier.Identifier.ValueText)
+                        return true;
+                break;
+            case ArrayTypeSyntax array:
+                return NamesParameter(array.ElementType, parameters);
+            case NullableTypeSyntax nullable:
+                return NamesParameter(nullable.ElementType, parameters);
+            case GenericNameSyntax generic:
+                foreach (var argument in generic.TypeArgumentList.Arguments)
+                    if (NamesParameter(argument, parameters))
+                        return true;
+                break;
+            case QualifiedNameSyntax name:
+                return NamesParameter(name.Left, parameters, qualified: true) ||
+                       NamesParameter(name.Right, parameters, qualified: true);
+            case AliasQualifiedNameSyntax alias:
+                return NamesParameter(alias.Name, parameters, qualified: true);
+            case TupleTypeSyntax tuple:
+                foreach (var element in tuple.Elements)
+                    if (NamesParameter(element.Type, parameters))
+                        return true;
+                break;
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Whether a call of <paramref name="name"/> names, from syntax, the type it needs a formatter for: by type

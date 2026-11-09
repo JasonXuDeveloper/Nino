@@ -476,6 +476,26 @@ public class Hidden
     }
 
     [TestMethod]
+    public void OpenMethodArgumentsDoNotHideQualifiedClosedTypes()
+    {
+        var compilation = Create(("Calls.cs", Usings + """
+            using System.Collections.Generic;
+            [NinoType] public class T { public int Value; }
+            public static class Calls
+            {
+                public static byte[] Open<T>(List<T> value) => NinoSerializer.Serialize<List<T>>(value);
+                public static byte[] Closed<T>(List<global::Inc.T> value) =>
+                    NinoSerializer.Serialize<List<global::Inc.T>>(value);
+            }
+            }
+            """));
+        var result = RunTracked(compilation);
+        var usages = result.GeneratedSources.Single(source => source.HintName == "NinoGen.Usages.g.cs");
+        StringAssert.Contains(usages.SourceText.ToString(), "List<global::Inc.T>");
+        Assert.IsFalse(usages.SourceText.ToString().Contains("List<T>"));
+    }
+
+    [TestMethod]
     public void TopLevelCallsOnTypesNestedInOpenGenericsCompile()
     {
         // Outer<T>.Items names T through its containing type only: the registry and the interceptors cannot name it.
