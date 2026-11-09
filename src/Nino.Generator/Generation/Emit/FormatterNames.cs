@@ -10,9 +10,11 @@ namespace Nino.Generator.Generation.Emit;
 internal sealed class FormatterNames
 {
     private bool _inline;
+    private readonly bool _shadowsMethodFlags;
 
     public FormatterNames(TypeModel m)
     {
+        _shadowsMethodFlags = m.IsGeneric && m.TypeParameters.Contains(GeneratedCode.MethodFlags);
         // Generic ones only: a formatter without type arguments is one type's name, short once its namespace is (the
         // generated ones in NinoGen), and the name to read; and one naming the type's own type parameters
         // (FormatterRef.Open) cannot be aliased outside the type.
@@ -31,6 +33,8 @@ internal sealed class FormatterNames
     {
         get
         {
+            if (_shadowsMethodFlags)
+                return TypeNames.InlineAttribute;
             _inline = true;
             return GeneratedCode.Inline;
         }
@@ -41,6 +45,8 @@ internal sealed class FormatterNames
     {
         get
         {
+            if (_shadowsMethodFlags)
+                return TypeNames.NoInlineAttribute;
             _inline = true;
             return GeneratedCode.NoInline;
         }

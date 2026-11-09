@@ -179,20 +179,18 @@ internal static class GeneratedCode
     /// <summary>Whether <paramref name="c"/> next to a name makes it part of a longer one (qualified, nested).</summary>
     private static bool IsNamePart(char c) => char.IsLetterOrDigit(c) || c is '_' or '.' or ':';
 
-    /// <summary>
-    /// The alias of <c>MethodImplAttribute</c> and the import of <c>MethodImplOptions</c>' values, one line each
-    /// (without line break), that <see cref="Inline"/> and <see cref="NoInline"/> are written with. Only a
-    /// type in the <c>NinoGen</c> namespace named like one of those values could hide it, and none is.
-    /// </summary>
+    /// <summary>The name of the shared compile-time flags emitted with the assembly registry.</summary>
+    public const string MethodFlags = "__NinoIL";
+
+    /// <summary>The alias of <c>MethodImplAttribute</c> used by the generated methods.</summary>
     public static readonly string[] InlineAliases =
     {
         "using __NinoInline = " + TypeNames.CompilerServices + "MethodImplAttribute;",
-        "using static " + TypeNames.CompilerServices + "MethodImplOptions;",
     };
 
     /// <summary>The aggressive inlining attribute, through <see cref="InlineAliases"/>.</summary>
-    public const string Inline = "[__NinoInline(AggressiveInlining)]";
+    public const string Inline = "[__NinoInline(" + MethodFlags + ".Inline)]";
 
     /// <summary>The no-inlining attribute, through <see cref="InlineAliases"/>.</summary>
-    public const string NoInline = "[__NinoInline(NoInlining)]";
+    public const string NoInline = "[__NinoInline(" + MethodFlags + ".NoInline)]";
 }

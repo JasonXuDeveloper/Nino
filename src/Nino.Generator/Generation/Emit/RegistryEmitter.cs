@@ -88,6 +88,11 @@ internal static class RegistryEmitter
         }
 
         w.Close();
+        w.Line();
+        w.Open($"internal static class {GeneratedCode.MethodFlags}");
+        w.Line($"internal const {CompilerServices}MethodImplOptions Inline = {CompilerServices}MethodImplOptions.AggressiveInlining;");
+        w.Line($"internal const {CompilerServices}MethodImplOptions NoInline = {CompilerServices}MethodImplOptions.NoInlining;");
+        w.Close();
         var aliases = new List<string>();
         string body = GeneratedCode.WithAliases(w.ToString(), null, aliases);
         return GeneratedCode.File(preamble.ToString(), aliases, body, fileScoped);

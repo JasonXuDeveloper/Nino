@@ -514,7 +514,7 @@ public class Outer<T>
         var compilation = Create(("Shapes.cs", Usings + @"
 [NinoType] public class Shape { public int Id; }
 [NinoType] public sealed class Circle : Shape { public float R; }
-[NinoType] public class Box<T> { public T Value; }
+[NinoType] public class Box<__NinoIL> { public __NinoIL Value; }
 [NinoType(includeNonPublicMembers: true)] public partial class Hidden { private int _secret; public int Get() => _secret; }
 public class Tree : System.Collections.Generic.List<Tree> { }
 [NinoType] public class Forest { public Tree Root; }
