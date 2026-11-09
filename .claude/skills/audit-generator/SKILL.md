@@ -109,6 +109,10 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 ## Measure
 
+Measure name rendering allocations before keeping a reusable builder. Formatter names can reuse a bounded
+thread-local character buffer because their recursive rendering appends to the same builder and retains no model
+or symbol.
+
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
 the error. `--generics` adds generic slots, subtypes and closed members, which make the analyzer run

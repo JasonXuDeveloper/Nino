@@ -93,6 +93,10 @@ and when `asm.py compare` lists methods the change did not touch.
   twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
   `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
 
+- Separate the small raw fallback's typed local from the large raw entry. A size check in the same method does not
+  stop Tier 0 from reserving a stack slot for a large `T` on an untaken branch. Keep a single final load within each
+  path and compare trusted packed and wide reads as well as untrusted allocations.
+
 - Read a collection whose shape repeats into its existing instance with a loop of its own over the data, as the fresh
   read does: `Reader.RefillStringPairs` (raw keys and strings into an existing `Dictionary`, the position and the end in
   registers, the value read over the current one with the compare its only call) instead of the general merge, whose

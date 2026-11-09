@@ -96,6 +96,9 @@ of bytes in a block.
   counted span writer.
 - Reserve a raw sorted list's count and pairs together, then walk its checked key and value arrays by reference.
   Use `WriteValueIn` for both fields so the raw path retains the padding masks.
+- For an exact concurrent queue with variable-size elements, write its snapshot enumerator and patch the count
+  from the items written. Reading `Count` separately can observe a different snapshot. Retain bulk writes for
+  fixed-size elements and the existing snapshot semantics for derived types, stacks and bags.
 
 - Write a runtime's strided entries (a `HashSet<T>`'s or `Dictionary<K, V>`'s entry array) through the block path
   (`SetEntryBlock`, `MapEntryBlock`: a block map of the key and value at their offsets in the entry), never one

@@ -51,6 +51,8 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - Shorten repeated namespace qualifiers only in interceptor signatures and calls, where one alias serves the whole
   file. Leave location attributes alone. Compare consumer DLL metadata as well as method IL: typed aliases and
   factoring opaque location strings both made the DLL larger in the local prototype.
+- Emit constant type IDs directly in formatter and twin accessors. When no generated caller needs a constant
+  field, retaining it duplicates consumer metadata without changing the getter's IL.
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
   pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
   signature generated code repeats is written once in `Signature`.
