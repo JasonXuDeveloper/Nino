@@ -323,6 +323,12 @@ large interceptor namespace. This needs no extra scan and saved about 265 KB in 
 isolated load orders. Eight method-body edits saved 256–277 KB with variable timing.
 All 577 generated files matched, model reuse and collection checks passed, and 78
 targeted tests passed on each of .NET 8 and 10 (`ce66cee9`).
+Write the modern interceptor body at its final namespace indentation and concatenate it
+with the small prefix. Keep the line-by-line path for legacy and multiline locations.
+This removed about 1.06 MB per isolated emission and per method-body edit. Isolated timing
+varied by load order. Both Roslyn 4.8 and 4.12 output sets matched all 577 files. Tracked
+model reuse and collection checks passed, and .NET 8 and 10 each passed 78 targeted tests
+(`e958537d`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
