@@ -159,6 +159,26 @@ public class BclTypeTests
         Assert.IsTrue(decoded[8]);
         Assert.AreEqual((byte)1, System.Runtime.InteropServices.CollectionsMarshal.AsBytes(decoded)[1]);
     }
+
+#if !NINO_CORE_NETSTANDARD
+    [TestMethod]
+    public void MatchingBitArrayIsRefilledAndInvalidatesEnumerators()
+    {
+        var target = new BitArray(9, true);
+        var existing = target;
+        var enumerator = target.GetEnumerator();
+        Assert.IsTrue(enumerator.MoveNext());
+
+        var bytes = new byte[] { 9, 0, 0, 0, 0x02, 0xFF };
+        NinoDeserializer.Deserialize(bytes, ref target);
+        Assert.AreSame(existing, target);
+        Assert.IsFalse(target[0]);
+        Assert.IsTrue(target[1]);
+        Assert.IsTrue(target[8]);
+        Assert.AreEqual((byte)1, System.Runtime.InteropServices.CollectionsMarshal.AsBytes(target)[1]);
+        Assert.ThrowsExactly<InvalidOperationException>(() => enumerator.MoveNext());
+    }
+#endif
 #endif
 
     [TestMethod]

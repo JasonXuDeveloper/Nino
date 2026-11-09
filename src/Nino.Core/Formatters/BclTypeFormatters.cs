@@ -206,7 +206,10 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>BitArray</c>: bit count (-1 = null), then the bits, eight to a byte, the first in the lowest bit.</summary>
+    /// <summary>
+    /// <c>BitArray</c>: bit count (-1 = null), then the bits, eight to a byte, the first in the lowest bit.
+    /// On .NET 10 and later a read reuses an existing array of the same length.
+    /// </summary>
     public struct BitArrayFormatter : INinoFormatter<BitArray>
     {
         public void Serialize(BitArray value, ref Writer writer)
@@ -240,7 +243,7 @@ namespace Nino.Core
 
             var bytes = reader.ReadRaw((int)(((uint)count + 7) / 8));
 #if NET10_0_OR_GREATER
-            value = ReadBits(bytes, count);
+            value = ReadBits(bytes, count, value);
 #else
             // The last byte may hold bits past the count: Length cuts them off.
             value = new BitArray(bytes.ToArray()) { Length = count };
@@ -249,12 +252,16 @@ namespace Nino.Core
 
 #if NET10_0_OR_GREATER
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static BitArray ReadBits(ReadOnlySpan<byte> bytes, int count)
+        private static BitArray ReadBits(ReadOnlySpan<byte> bytes, int count, BitArray current)
         {
-            var bits = new BitArray(count);
+            bool reuse = current != null && current.Length == count;
+            var bits = reuse ? current : new BitArray(count);
             var target = CollectionsMarshal.AsBytes(bits);
             bytes.CopyTo(target);
-            MaskTail(target, count);
+            if (reuse)
+                bits.Length = count; // Also clears unused bits and invalidates existing enumerators.
+            else
+                MaskTail(target, count);
             return bits;
         }
 
