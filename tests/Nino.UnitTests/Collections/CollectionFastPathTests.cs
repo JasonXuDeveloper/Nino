@@ -155,6 +155,24 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void SortedListWritesRawPairsAtAnUnalignedOffset()
+    {
+        for (int count = 0; count <= 9; count++)
+        {
+            var list = new SortedList<int, int>();
+            for (int i = 0; i < count; i++)
+                list.Add(i, -13 * i - 1);
+
+            byte[] expected = NinoSerializer.Serialize(new Dictionary<int, int>(list));
+            using var buffer = new NinoArrayBufferWriter();
+            buffer.GetSpan(1);
+            buffer.Advance(1);
+            NinoSerializer.Serialize(list, buffer);
+            CollectionAssert.AreEqual(expected, buffer.WrittenSpan.Slice(1).ToArray(), $"count={count}");
+        }
+    }
+
+    [TestMethod]
     public void ExistingSortedAndConcurrentDictionariesAreRefilled()
     {
         var bytes = NinoSerializer.Serialize(new Dictionary<int, int> { [5] = 50, [1] = 10 });

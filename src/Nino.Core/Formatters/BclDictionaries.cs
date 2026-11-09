@@ -2,6 +2,11 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
+#endif
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
@@ -187,6 +192,25 @@ namespace Nino.Core
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
             ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
             ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
+#if NET8_0_OR_GREATER
+            if (typeof(TKey) == typeof(int) && typeof(TValue) == typeof(int) &&
+                (AdvSimd.Arm64.IsSupported || Sse2.IsSupported))
+            {
+                while (count >= 4)
+                {
+                    var k = Vector128.LoadUnsafe(ref Unsafe.As<TKey, int>(ref key));
+                    var v = Vector128.LoadUnsafe(ref Unsafe.As<TValue, int>(ref value));
+                    var lower = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipLow(k, v) : Sse2.UnpackLow(k, v);
+                    var upper = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(k, v) : Sse2.UnpackHigh(k, v);
+                    lower.AsByte().StoreUnsafe(ref target);
+                    upper.AsByte().StoreUnsafe(ref target, 16);
+                    key = ref Unsafe.Add(ref key, 4);
+                    value = ref Unsafe.Add(ref value, 4);
+                    target = ref Unsafe.Add(ref target, 32);
+                    count -= 4;
+                }
+            }
+#endif
             for (int i = 0; i < count; i++)
             {
                 NinoUnsafe.WriteValueIn(ref target, 0, in key);
