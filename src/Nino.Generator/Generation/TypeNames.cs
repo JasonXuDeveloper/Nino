@@ -393,7 +393,12 @@ internal static class TypeNames
             sb.Append('.');
         }
 
-        sb.Append(type.MetadataName.Split('`')[0]);
+        string name = type.MetadataName;
+        int arity = name.IndexOf('`');
+        if (arity < 0)
+            sb.Append(name);
+        else
+            sb.Append(name, 0, arity);
     }
 
     /// <summary>The id hashed from a name; shares its implementation with <c>NinoTypeId.Compute</c>.</summary>

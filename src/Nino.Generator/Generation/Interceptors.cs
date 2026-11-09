@@ -22,13 +22,29 @@ namespace Nino.Generator.Generation;
 internal static class Interceptors
 {
     /// <summary>Whether the project lets generated code intercept calls (the namespace list holds NinoGen).</summary>
-    public static bool Enabled(ParseOptions options)
+    public static bool Enabled(ParseOptions options) =>
+        ContainsNamespace(options, "InterceptorsNamespaces") ||
+        ContainsNamespace(options, "InterceptorsPreviewNamespaces");
+
+    private static bool ContainsNamespace(ParseOptions options, string key)
     {
-        foreach (var key in new[] { "InterceptorsNamespaces", "InterceptorsPreviewNamespaces" })
+        if (!options.Features.TryGetValue(key, out var value))
+            return false;
+
+        string name = TypeNames.GenNamespace;
+        for (int start = 0; start < value.Length;)
         {
-            if (options.Features.TryGetValue(key, out var value) &&
-                value.Split(';').Any(n => n.Trim() == TypeNames.GenNamespace))
+            int separator = value.IndexOf(';', start);
+            int end = separator < 0 ? value.Length : separator;
+            while (start < end && char.IsWhiteSpace(value[start]))
+                start++;
+            while (end > start && char.IsWhiteSpace(value[end - 1]))
+                end--;
+            if (end - start == name.Length && string.CompareOrdinal(value, start, name, 0, name.Length) == 0)
                 return true;
+            if (separator < 0)
+                break;
+            start = separator + 1;
         }
 
         return false;
