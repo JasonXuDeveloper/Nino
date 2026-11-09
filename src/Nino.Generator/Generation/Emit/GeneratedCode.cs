@@ -44,7 +44,7 @@ internal static class GeneratedCode
         }
 
         // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
-        var sb = new StringBuilder(body.Length + body.Length / 4 + preamble.Length + 1024);
+        var sb = RentScratch(body.Length + body.Length / 4 + preamble.Length + 1024);
         sb.Append(Header).Append(preamble).Append("namespace " + TypeNames.GenNamespace + "\n{\n");
         const string indent = "    ";
         int length = sb.Length;
@@ -65,7 +65,9 @@ internal static class GeneratedCode
         }
 
         sb.Append("}\n");
-        return sb.ToString();
+        string file = sb.ToString();
+        ReturnScratch(sb);
+        return file;
     }
 
     /// <summary>
@@ -226,11 +228,7 @@ internal static class GeneratedCode
 
         if (formatterAliases != null)
             declarations.AddRange(formatterAliases);
-        if (scratch is { Capacity: <= MaxAliasScratchCapacity })
-        {
-            scratch.Clear();
-            Interlocked.CompareExchange(ref _aliasScratch, scratch, null);
-        }
+        ReturnScratch(scratch);
 
         return body;
     }
@@ -270,8 +268,27 @@ internal static class GeneratedCode
     private static string FormatterAlias(int index) => "__NinoF" + index.ToString(CultureInfo.InvariantCulture);
 
     // Keep one bounded buffer per generator load context, independent of the compiler thread count.
-    private const int MaxAliasScratchCapacity = 8192;
-    private static StringBuilder? _aliasScratch;
+    private const int MaxScratchCapacity = 8192;
+    private static StringBuilder? _scratch;
+
+    private static StringBuilder RentScratch(int capacity)
+    {
+        var scratch = capacity <= MaxScratchCapacity ? Interlocked.Exchange(ref _scratch, null) : null;
+        if (scratch == null)
+            return new StringBuilder(capacity);
+
+        scratch.EnsureCapacity(capacity);
+        return scratch;
+    }
+
+    private static void ReturnScratch(StringBuilder? scratch)
+    {
+        if (scratch is { Capacity: <= MaxScratchCapacity })
+        {
+            scratch.Clear();
+            Interlocked.CompareExchange(ref _scratch, scratch, null);
+        }
+    }
 
     private static string WithAlias(string body, string name, string alias, List<string> declarations,
         ref StringBuilder? scratch, string? declaration = null)
@@ -291,16 +308,7 @@ internal static class GeneratedCode
         if (at < 0)
             return body;
 
-        if (scratch == null)
-        {
-            scratch = body.Length <= MaxAliasScratchCapacity ? Interlocked.Exchange(ref _aliasScratch, null) : null;
-            if (scratch == null)
-                scratch = new StringBuilder(body.Length);
-            else
-                scratch.EnsureCapacity(body.Length);
-        }
-
-        var sb = scratch;
+        var sb = scratch ??= RentScratch(body.Length);
         sb.Clear();
         int start = 0;
         for (at = first; at >= 0; at = FindName(body, name, start, member))
