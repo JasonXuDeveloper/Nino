@@ -37,10 +37,20 @@ internal static class GeneratedCode
         if (fileScoped)
         {
             const string fileNamespace = "namespace " + TypeNames.GenNamespace + ";\n\n";
-            string declarations = string.Join("\n", aliases);
-            return declarations.Length == 0
-                ? string.Concat(Header, preamble, fileNamespace, body)
-                : string.Concat(Header, preamble, string.Concat(fileNamespace, declarations, "\n\n"), body);
+            using var items = aliases.GetEnumerator();
+            if (!items.MoveNext())
+                return string.Concat(Header, preamble, fileNamespace, body);
+
+            var prefix = RentScratch(256);
+            prefix.Append(fileNamespace);
+            do
+            {
+                prefix.Append(items.Current).Append('\n');
+            } while (items.MoveNext());
+            prefix.Append('\n');
+            string text = prefix.ToString();
+            ReturnScratch(prefix);
+            return string.Concat(Header, preamble, text, body);
         }
 
         // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
