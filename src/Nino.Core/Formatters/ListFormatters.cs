@@ -60,7 +60,7 @@ namespace Nino.Core
                 NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length));
 
             var span = ListAccess.Open(list, length, overwritten, out var buffer);
-            NinoElements.Read<T, TFormatter>(span, ref reader);
+            NinoElements.Read<T, TFormatter>(span, ref reader, prechecked: true);
             ListAccess.Close(list, length, buffer);
         }
     }
