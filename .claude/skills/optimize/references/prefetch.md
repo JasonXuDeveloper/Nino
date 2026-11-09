@@ -11,6 +11,11 @@ prefetch again anywhere.
   Classify bodyless source getters from their accessor syntax after excluding abstract, extern, partial and
   overridable members. Avoid rescanning the containing type for an associated field on every property.
 
+- Confirm prefetch throughput in separate processes with one copy of the object graph per process. In the
+  local 131,089- and 262,161-object probes, the apparent benefit of processing whole runs instead of
+  checking each element flipped with assembly load order. The isolated ABBA rerun showed about 1–2%
+  median improvement, within noise. Keep the batching variants in the experiment worktree.
+
 - Decide whether a collection loop prefetches when the code is generated, never per element at run time (the owner's
   design). Eligible: elements of a reference type in a contiguous container (array, `List<T>`, a span of references),
   since each object and each of its reference members (strings, children) is a separate cache miss. Not eligible:
