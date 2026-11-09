@@ -174,6 +174,13 @@ of bytes in a block.
   results. The property version was 7–17% faster in the mixed profile but 9–12% slower across
   all four large-profile rounds. Keep both as probes and check code layout under the
   large-run profile before adding a broad primitive branch to the shared layout writer.
+  Marking only `WriteConverted` no-inline removed its two conversion bodies from offline x64
+  `WriteAll`, reducing that listing from 1,241 to 1,159 bytes, but the inlined array formatter
+  grew from 3,232 to 3,431. Arm64 Tier 1 still emitted the 548-byte caller and 196-byte loop.
+  The small-weighted profile remained faster in all four rounds versus the production baseline,
+  with variable mixed and large profiles. Wire bytes matched at offsets 0, 1 and 7, and
+  allocations stayed at 0 B. Isolate the padding paths next if revisiting this shape, since
+  they still expand inside the x64 caller after removing the conversion bodies.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
