@@ -41,6 +41,10 @@ and when `asm.py compare` lists methods the change did not touch.
   `first != count` guard at the queue saved work for a one-string queue in three of four local rounds, but
   the 16-string case varied widely and the 1,024-string case stayed on par. The extra branch grew the Arm64
   caller by 16 bytes and the x64 queue formatter by 12 bytes. The raw block path keeps its existing guard.
+- Keep the portable stack's reverse-then-write path. Walking the rented snapshot backwards for variable-size
+  reference elements saved about a fifth of the time for 512 and 2,048 strings in the forced fallback, but
+  grew the raw Tier 0 helper from 356 to 408 Arm64 bytes. The 64-integer case slowed by 2–4% across four
+  local rounds even after a value-type gate restored its FullOpts listing to 1,572 bytes.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
