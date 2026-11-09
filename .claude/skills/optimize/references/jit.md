@@ -102,7 +102,7 @@ and when `asm.py compare` lists methods the change did not touch.
   The same rule keeps multi-segment input a copy: a `ReadOnlySequence<byte>` read across segments in place would need
   every bounds check to refill the reader out of line instead of throwing (the reader's address in every method that
   reads, or a refill inlined into every check), and regions, sections and deferrals address the data by absolute
-  position. So the sequence overloads copy data that spans segments once, out of line (to the stack up to 512 bytes,
+  position. So the sequence overloads copy data that spans segments once, out of line (to the stack up to 1,024 bytes,
   else a pooled array: `NinoSequences`), and read one segment in place (Nino `d275a71e`). Compute the segmented
   length once and pass it to the pooled copy. Keep the bounds check there, before converting the length to an int.
   Share the copy out of line across direct and regular callers. Its bounded spans must consume exactly the
@@ -110,6 +110,8 @@ and when `asm.py compare` lists methods the change did not touch.
   Keep the explicit `TryGet` loop and stop at the last segment. Replacing it with `foreach` made two
   32-byte segments slower on both reads and writes in two local rounds, even though Arm64 machine code shrank
   from 708 to 684 bytes. The JIT already shared the `CopyTo` and `Slice` bounds check.
+  Raising the stack cutoff from 512 to 1,024 bytes avoided the pool round-trip for 516-, 804- and 1,024-byte
+  messages in the local probe. Measure both sides of the cutoff and keep the fixed buffer out of inline callers.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
