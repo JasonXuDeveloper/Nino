@@ -111,6 +111,9 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   130 ms. Skipping identity and dependency work for calls without output reduced allocations but lost on
   default-JIT reopening. Scan interceptor feature names and metadata-name arity directly without split arrays.
   The local feature lookup went from 280 B per call to zero, with identical real-project output.
+- Skip binding explicit type arguments that name a method's own lexical type parameter from inside its body.
+  Keep qualified names, contextual keywords and inferred calls on Roslyn's binding path. The real unit test
+  project lost 47 binding candidates, all checked against baseline semantic results, with identical output.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations

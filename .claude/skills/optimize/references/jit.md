@@ -149,6 +149,10 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Locals, listing size and arithmetic
 
+- Scope a captured local inside the branch that needs its closure. The netstandard2.0 `Lazy<T>` formatter
+  (a792e149) previously allocated before the presence check. Moving the local into the present branch
+  removed that null-path allocation on Arm64 and x64 listings. A late helper with a large generic local
+  would move that value onto the stack, and changing the Lazy publication mode lost present throughput.
 - Pass a present nullable's raw value to a readonly-ref layout writer through
   `Nullable.GetValueRefOrDefaultRef` on .NET 8 and later (546d8265). Taking a value copy first zeroed and copied
   a stack temporary in the local Arm64 listing. The 128-byte probe's frame went from 336 to 208 bytes.

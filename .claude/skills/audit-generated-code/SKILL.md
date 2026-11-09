@@ -47,6 +47,9 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   flags, with no helper calls.
   Shortening the attribute alias removed 29,864 source bytes from the unit test project (6d82f7a7),
   with identical generated IL and controlled Arm64 Tier 1 listings.
+  Alias repeated non-generic named raw member types in symbolic sizes and loads (acc67d4b). Avoid aliases
+  of constructed types that add TypeSpec metadata. Expanding the aliases recovered the same source;
+  generated IL, Arm64 Tier 1 summaries and normalized x64 listings matched the baseline.
 - Reuse common alias declarations and only rewrite alias numbers when their order changes. A file-scoped body
   already has its final indentation, so concatenate it with the preamble and alias block directly. Use the first
   generator pass to measure emission allocations, since later passes can reuse cached formatter source.

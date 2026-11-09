@@ -71,6 +71,11 @@ a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runt
 
 ## Reading the listings
 
+- On an Arm64 Mac, compare x64 instructions through the matching cross JIT in a private .NET runtime copy.
+  Use the listing to check instructions and code size. Use an actual x64 runner for throughput claims.
+  A short-copy change (88315b4c) grew `ToArray` from 205 to 412 x64 bytes, or 478 with AVX2 and AVX-512
+  disabled, while the x64 serialization caller's normalized listing stayed identical.
+
 
 - x64: `--asm` of `benchmarks/asm.py`, once per ISA (`DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`).
 - NativeAOT: ILC compiles with the JIT, which takes the same options as `--codegenopt`: publish
