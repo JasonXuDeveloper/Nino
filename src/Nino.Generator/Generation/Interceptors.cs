@@ -268,7 +268,7 @@ internal static class Interceptors
         var aliases = new List<string> { GeneratedCode.InterceptsAlias };
         aliases.AddRange(GeneratedCode.InlineAliases);
         aliases.Add(GeneratedCode.DirectAlias);
-        var compact = new GeneratedCode.NamespaceAliases();
+        var compact = new GeneratedCode.NamespaceAliases { OmitGeneratedNamespace = true };
         foreach (var group in groups)
         {
             if (compact.Ready)

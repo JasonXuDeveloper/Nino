@@ -127,6 +127,7 @@ internal static class GeneratedCode
             (CoreDeclaration.Length + 5) / (TypeNames.Core.Length - CoreAlias.Length) + 1;
         private static readonly int CollectionsThreshold =
             (CollectionsDeclaration.Length + 5) / (Collections.Length - CollectionsAlias.Length) + 1;
+        public bool OmitGeneratedNamespace;
         private int _coreUses;
         private int _collectionUses;
 
@@ -161,19 +162,36 @@ internal static class GeneratedCode
             {
                 if (core >= 0 && (collections < 0 || core < collections))
                 {
-                    builder.Append(code, copied, core - copied).Append(CoreAlias);
+                    AppendRange(builder, code, copied, core);
+                    builder.Append(CoreAlias);
                     copied = core + TypeNames.Core.Length;
                     core = code.IndexOf(TypeNames.Core, copied, end - copied, StringComparison.Ordinal);
                 }
                 else
                 {
-                    builder.Append(code, copied, collections - copied).Append(CollectionsAlias);
+                    AppendRange(builder, code, copied, collections);
+                    builder.Append(CollectionsAlias);
                     copied = collections + Collections.Length;
                     collections = code.IndexOf(Collections, copied, end - copied, StringComparison.Ordinal);
                 }
             }
 
-            builder.Append(code, copied, end - copied);
+            AppendRange(builder, code, copied, end);
+        }
+
+        private readonly void AppendRange(StringBuilder builder, string code, int start, int end)
+        {
+            if (OmitGeneratedNamespace)
+            {
+                int at;
+                while ((at = code.IndexOf(TypeNames.Gen, start, end - start, StringComparison.Ordinal)) >= 0)
+                {
+                    builder.Append(code, start, at - start);
+                    start = at + TypeNames.Gen.Length;
+                }
+            }
+
+            builder.Append(code, start, end - start);
         }
 
         private static int CountUntil(string text, string prefix, int count, int threshold)
