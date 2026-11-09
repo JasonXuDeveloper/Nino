@@ -195,10 +195,13 @@ internal sealed class BodyEmitter
     /// The instance a class is read into when the slot is null: its <c>[NinoFactory]</c> or constructor, after the
     /// pool of a pooled type. Also the formatter's <c>Create</c>.
     /// </summary>
-    internal static string Create(TypeModel m)
+    internal static string Create(TypeModel m, bool compactSyntax)
     {
         var c = m.Construction;
-        string create = (c.Factory.Length != 0 ? c.Factory : m.Need(c.Creator, nameof(c.Creator))) + "()";
+        string creator = c.Factory.Length != 0 ? c.Factory : m.Need(c.Creator, nameof(c.Creator));
+        if (compactSyntax && !m.Pooled && creator.StartsWith("new ", StringComparison.Ordinal))
+            return "new()";
+        string create = creator + "()";
         return m.Pooled ? m.TypeName + ".RentFromNinoPool() ?? " + create : create;
     }
 
@@ -849,7 +852,7 @@ internal sealed class BodyEmitter
     {
         if (_m.Kind != FormatterKind.Struct)
         {
-            string create = Create(_m);
+            string create = Create(_m, _names.CompactSyntax);
             // The instance in a local (a collection formatter may replace value, so not for collections).
             if (!_m.IsCollection)
             {

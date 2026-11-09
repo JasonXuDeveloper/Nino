@@ -535,6 +535,7 @@ public static class Calls
 
         var sources = driver.GetRunResult().Results[0].GeneratedSources;
         Assert.IsTrue(sources.Length > 6);
+        Assert.AreEqual(fileScoped, Output(driver, "Circle").Contains("Create() => new();"));
         foreach (var source in sources)
         {
             string text = source.SourceText.ToString();

@@ -12,7 +12,7 @@ internal static class FormatterEmitter
 {
     public static string Emit(TypeModel m, bool fileScoped)
     {
-        var names = new FormatterNames(m);
+        var names = new FormatterNames(m, fileScoped);
         var w = new CodeWriter(2048);
         EmitFormatter(w, m, names);
         AccessorEmitter.EmitGenericUnsafeAccessors(w, m);
@@ -76,7 +76,7 @@ internal static class FormatterEmitter
 
         EmitTypeId(w, m);
         w.Line();
-        EmitDeferral(w, m);
+        EmitDeferral(w, m, names);
         w.Line();
         switch (m.Kind)
         {
@@ -373,7 +373,7 @@ internal static class FormatterEmitter
     }
 
     /// <summary>Whether a body nested too deep can be read later, and the empty instance it is read into.</summary>
-    private static void EmitDeferral(CodeWriter w, TypeModel m)
+    private static void EmitDeferral(CodeWriter w, TypeModel m, FormatterNames names)
     {
         string t = m.TypeName;
         // NinoBodyTraits.Nests and NinoBodyTraits.Deferrable.
@@ -385,7 +385,7 @@ internal static class FormatterEmitter
             return;
         }
 
-        w.Line($"public {t} Create() => {BodyEmitter.Create(m)};");
+        w.Line($"public {t} Create() => {BodyEmitter.Create(m, names.CompactSyntax)};");
     }
 
     /// <summary>Serialize/Deserialize forwarding to the given calls, behind a reference header when tracked.</summary>

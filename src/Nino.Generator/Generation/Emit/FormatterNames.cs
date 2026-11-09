@@ -13,8 +13,9 @@ internal sealed class FormatterNames
     private bool _inline;
     private readonly bool _shadowsMethodFlags;
 
-    public FormatterNames(TypeModel m)
+    public FormatterNames(TypeModel m, bool compactSyntax)
     {
+        CompactSyntax = compactSyntax;
         _shadowsMethodFlags = m.IsGeneric && m.TypeParameters.Contains(GeneratedCode.MethodFlags);
         // Generic ones only: a formatter without type arguments is one type's name, short once its namespace is (the
         // generated ones in NinoGen), and the name to read; and one naming the type's own type parameters
@@ -42,6 +43,9 @@ internal sealed class FormatterNames
 
     /// <summary>The generic member formatters, as the body writes them, in member order (their aliases').</summary>
     public IReadOnlyList<string> Formatters { get; }
+
+    /// <summary>Whether the compilation supports file-scoped namespaces and target-typed construction.</summary>
+    public bool CompactSyntax { get; }
 
     /// <summary>The aggressive inlining attribute, through its aliases (declared once used).</summary>
     public string Inline
