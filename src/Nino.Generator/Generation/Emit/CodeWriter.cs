@@ -61,13 +61,18 @@ internal sealed class CodeWriter
     }
 
     /// <summary>Writes a numbered static forwarder without materializing its signature fragments.</summary>
-    public void NumberedForwarder(string signature, int number, string target, string call)
+    public void NumberedForwarder(string signature, int number, string target, string call,
+        GeneratedCode.NamespaceAliases aliases)
     {
         int parameters = signature.IndexOf('(');
         StartLine('p', ';');
-        _sb.Append("public static ").Append(signature, 0, parameters).Append(number)
-            .Append(signature, parameters, signature.Length - parameters).Append(" => ").Append(target)
-            .Append(call).Append(";\n");
+        _sb.Append("public static ");
+        aliases.Append(_sb, signature, 0, parameters);
+        _sb.Append(number);
+        aliases.Append(_sb, signature, parameters, signature.Length - parameters);
+        _sb.Append(" => ").Append(target);
+        aliases.Append(_sb, call);
+        _sb.Append(";\n");
     }
 
     private void StartLine(char first, char last)

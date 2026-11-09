@@ -131,38 +131,32 @@ internal static class GeneratedCode
                 declarations.Add(CollectionsDeclaration);
         }
 
-        public readonly string Shorten(string code)
-        {
-            if (UseCore)
-                code = code.Replace(TypeNames.Core, CoreAlias);
-            if (UseCollections)
-                code = code.Replace(Collections, CollectionsAlias);
-            return code;
-        }
+        public readonly void Append(StringBuilder builder, string code) => Append(builder, code, 0, code.Length);
 
-        public readonly void Append(StringBuilder builder, string code)
+        public readonly void Append(StringBuilder builder, string code, int start, int length)
         {
-            // Keep the other prefix's next match when one is written.
-            int core = UseCore ? code.IndexOf(TypeNames.Core, StringComparison.Ordinal) : -1;
-            int collections = UseCollections ? code.IndexOf(Collections, StringComparison.Ordinal) : -1;
-            int copied = 0;
+            // Keep the next match for the other prefix when writing one.
+            int end = start + length;
+            int core = UseCore ? code.IndexOf(TypeNames.Core, start, length, StringComparison.Ordinal) : -1;
+            int collections = UseCollections ? code.IndexOf(Collections, start, length, StringComparison.Ordinal) : -1;
+            int copied = start;
             while (core >= 0 || collections >= 0)
             {
                 if (core >= 0 && (collections < 0 || core < collections))
                 {
                     builder.Append(code, copied, core - copied).Append(CoreAlias);
                     copied = core + TypeNames.Core.Length;
-                    core = code.IndexOf(TypeNames.Core, copied, StringComparison.Ordinal);
+                    core = code.IndexOf(TypeNames.Core, copied, end - copied, StringComparison.Ordinal);
                 }
                 else
                 {
                     builder.Append(code, copied, collections - copied).Append(CollectionsAlias);
                     copied = collections + Collections.Length;
-                    collections = code.IndexOf(Collections, copied, StringComparison.Ordinal);
+                    collections = code.IndexOf(Collections, copied, end - copied, StringComparison.Ordinal);
                 }
             }
 
-            builder.Append(code, copied, code.Length - copied);
+            builder.Append(code, copied, end - copied);
         }
 
         private static int CountUntil(string text, string prefix, int count, int threshold)

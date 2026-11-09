@@ -268,9 +268,7 @@ internal static class Interceptors
             w.Line(GeneratedCode.Inline);
             // "R Name(params)" becomes "public static R NameN(params) => call;"
             // Compact type names only. The legacy attribute contains a physical path.
-            string signature = compact.Shorten(group.Key.Signature);
-            string code = compact.Shorten(group.Key.Call);
-            w.NumberedForwarder(signature, n++, "__NinoDirect.", code);
+            w.NumberedForwarder(group.Key.Signature, n++, "__NinoDirect.", group.Key.Call, compact);
         }
 
         w.Close();
