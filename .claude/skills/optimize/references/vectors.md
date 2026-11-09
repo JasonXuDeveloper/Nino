@@ -252,6 +252,12 @@ of bytes in a block.
   by 44 bytes each and offline x64 `ReadInto` went from 780 to 686 bytes. IL went from
   127 to 130 bytes. Wire bytes matched at offsets 0, 1 and 7, allocations were 0 B,
   and 111/112 targeted tests passed on .NET 8/10 with intrinsics on and off (`ef43854c`).
+  Reuse the shape validation for 2D, 3D and 4D fixed-stride array reads, updating the
+  generator template and checked-in output together. In the aligned 2D probe the
+  formatter went from 181 to 182 IL bytes, 1,176 to 1,164 Arm64 Tier 1 bytes, and 973
+  to 926 offline x64 bytes. Four A/B and A/A rounds varied, all writes matched at
+  offsets 0, 1 and 7, and reads allocated 0 B. The 87 targeted tests passed on each
+  of .NET 8 and 10 with intrinsics on and off (`1c1e62df`).
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
