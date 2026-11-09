@@ -133,7 +133,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Explicitly enumerating the candidate set instead of calling `HashSet.Overlaps` kept warmed
   allocations at the same 5,272 B per scan. It slightly improved the isolated scan but left full
   replay timings flat and grew the Arm64 Tier 1 body from 10,004 to 15,380 bytes. Both variants
-  produced the same 577 files. Keep the plain assembly list and shared overlap operation.
+  produced the same 577 files. Keep the shared overlap operation.
+  Use the source module's referenced assembly symbols for inherited-type discovery instead of
+  rebuilding a list through per-reference symbol lookups. The ordinary, extern-aliased, duplicate
+  alias and linked-module probes returned equal symbol sets. The isolated scan improved in all four
+  local rounds and fell from 576 to 478 IL bytes, with all 577 replayed files unchanged.
 - Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on tests/Nino.UnitTests is the project's
   own `[assembly: NinoFormatter]` registrations (binding the new source assembly's attributes, then `Read`), which hold
   that compilation's symbols and cannot outlive it; every reference together read in 25 ms once. A per-
