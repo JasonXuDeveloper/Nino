@@ -157,10 +157,11 @@ reusing is written down before the task ends, in the same series of commits as t
   (docs and skills commits ride along with code) (`benchmark`, "Spend CI as a budget").
 - **Commits**: Conventional Commits, `type(scope): summary` and a body that says why (types `feat`, `fix`, `perf`,
   `refactor`, `docs`, `test`, `ci`, `build`, `chore`; scope = area). Author:
-  `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`. The
-  message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` only: no session link, no model id.
+  `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`.
+  Keep authorship in Git's author field and add a co-author trailer only at the owner's request.
+  Omit session links and model IDs.
 - **Release notes are trailers.** `.github/scripts/release_notes.py` groups commits by type and takes highlights
-  from trailers in the last paragraph, next to `Co-Authored-By`: `Wire-Format:` (bytes that change, for which
+  from trailers in the last paragraph, including `Wire-Format:` (bytes that change, for which
   types), `Added:` (API, attribute, behavior), `Performance:` (what, which types, how much, runner numbers),
   `Fixed:` (a user-visible bug). One or two sentences of Markdown for users; `Closes #N` in the body above them. Tests,
   CI, docs and refactors get none. A trailer that landed wrong is fixed by a git note, never by rewriting `main`:
