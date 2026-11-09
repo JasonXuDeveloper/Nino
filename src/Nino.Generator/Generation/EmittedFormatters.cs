@@ -75,7 +75,10 @@ internal static class EmittedFormatters
     /// </summary>
     public static SourceText Get(TypeModel model, bool fileScoped, System.Func<TypeModel, bool, string> emit)
     {
-        int hash = (model, fileScoped).GetHashCode();
+        // The index compares the full model on a hit; bucket it without hashing every member and registration.
+        int count = model.Members.Length;
+        string? lastType = count == 0 ? null : model.Members[count - 1].TypeName;
+        int hash = (model.FormatterName, model.Format, count, lastType, fileScoped).GetHashCode();
         lock (Lock)
         {
             if (_current.Find(hash, model, fileScoped, out var text) != null)
