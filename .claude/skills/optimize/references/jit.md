@@ -33,6 +33,8 @@ and when `asm.py compare` lists methods the change did not touch.
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
   A shared empty set improved partial removal but made the 16-entry empty refill 5–8% slower across four
   local rounds, including two with reversed loading order.
+  Splitting the empty and partial removal loops grew the Arm64 helper from 620 to 924 bytes. The local
+  partial-removal timing stayed within the noise band, so keep the shared loop.
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
