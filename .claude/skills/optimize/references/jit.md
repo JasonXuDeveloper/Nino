@@ -83,7 +83,8 @@ and when `asm.py compare` lists methods the change did not touch.
   every bounds check to refill the reader out of line instead of throwing (the reader's address in every method that
   reads, or a refill inlined into every check), and regions, sections and deferrals address the data by absolute
   position. So the sequence overloads copy data that spans segments once, out of line (to the stack up to 512 bytes,
-  else a pooled array: `NinoSequences`), and read one segment in place (Nino `d275a71e`).
+  else a pooled array: `NinoSequences`), and read one segment in place (Nino `d275a71e`). Compute the segmented
+  length once and pass it to the pooled copy. Keep the bounds check there, before converting the length to an int.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took

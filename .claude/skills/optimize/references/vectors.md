@@ -91,6 +91,10 @@ of bytes in a block.
 
 ## Blocks, permutes and copies
 
+- Reserve a fixed-size queue's count and both ring segments together. Keep the variable-size element loop separate
+  so it does not repeat the fixed-size check for each segment. A stack's backing span can use the existing
+  counted span writer.
+
 - Write a runtime's strided entries (a `HashSet<T>`'s or `Dictionary<K, V>`'s entry array) through the block path
   (`SetEntryBlock`, `MapEntryBlock`: a block map of the key and value at their offsets in the entry), never one
   `Write` per entry: the permutes pack them like any padded struct. Evidence (GitHub runners, runs 40842440261 and
