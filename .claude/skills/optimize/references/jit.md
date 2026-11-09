@@ -6,6 +6,12 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Inlining budget
 
+- Build the raw span from `ReadBlock` on the byref reader targets. This gives the span and
+  block reads one bounds check and cursor advance in the source. The standalone IL fell from
+  29 to 14 bytes and the x64 ReadyToRun body from 57 to 49 bytes, with the same Arm64 Tier 1
+  caller size. Keep the portable slice. Switching it to the byref form regressed the local
+  1-byte and 32 KiB probes. Byte output, failure cursor and steady-state allocations matched.
+
 - Keep the span copy in `NinoArrayBufferWriter.Grow`. Switching to `CopyToNew` regressed
   the 1 KiB growth case in four local rounds. Applying it only from 64 KiB preserved the
   smaller path but did not produce a repeatable gain across 64 KiB and adjacent inputs.
