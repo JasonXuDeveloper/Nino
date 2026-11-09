@@ -625,6 +625,12 @@ namespace Nino.Core.Internal
             }
 
 #if NET8_0_OR_GREATER
+            if (length <= 16)
+            {
+                AppendShortLatin1(builder, ref source, length);
+                return;
+            }
+
             // Widened straight into the builder's chunks, which Append sized (and zeroed): one pass, no copy.
             builder.Append('\0', length);
             int done = 0;
@@ -646,6 +652,16 @@ namespace Nino.Core.Internal
             }
 #endif
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe void AppendShortLatin1(System.Text.StringBuilder builder, ref byte source, int length)
+        {
+            char* buffer = stackalloc char[16];
+            Widen(ref source, ref *(ushort*)buffer, (uint)length);
+            builder.Append(buffer, length);
+        }
+#endif
 
         /// <summary>The string of the one Latin-1 char <paramref name="c"/>, shared.</summary>
         // Inline: out of line (a call per one-char string) SimpleClass reads were 3% slower on Neoverse-N2 (run

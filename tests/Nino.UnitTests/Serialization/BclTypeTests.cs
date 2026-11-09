@@ -126,6 +126,13 @@ public class BclTypeTests
         Assert.AreSame(same, existing);
         Assert.AreEqual("é", existing.ToString());
 
+        const string shortLatin1 = "é\0ñöàßæÿé\0ñöàßæÿ";
+        var shortBytes = NinoSerializer.Serialize(shortLatin1);
+        Assert.AreEqual((ulong)(shortLatin1.Length * 2 + 1), StringEncodingTests.Header(shortBytes, 0, out _));
+        NinoDeserializer.Deserialize(shortBytes, ref existing);
+        Assert.AreSame(same, existing);
+        Assert.AreEqual(shortLatin1, existing.ToString());
+
         Assert.IsNull(RoundTrip((StringBuilder)null));
         Assert.AreEqual("", RoundTrip(new StringBuilder()).ToString());
     }
