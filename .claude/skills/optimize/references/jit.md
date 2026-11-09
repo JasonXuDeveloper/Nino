@@ -130,6 +130,9 @@ and when `asm.py compare` lists methods the change did not touch.
   the ordinary two-segment reader regressed complete-header inputs in the local A/B.
   Sharing both segment and count validation through inlined helpers still slowed split-header reuse
   across both loading orders. Keep those checks local and share payload copying and replacement.
+  Keep the regular and direct sequence readers' stack and pool scopes around their own span calls.
+  Reusing the stream reader adapters inside a shared sequence scope made the 32-segment probe slower
+  in both entry points across four rounds. Share the segment copy, rent and return primitives.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
