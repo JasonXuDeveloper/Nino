@@ -33,6 +33,10 @@ and when `asm.py compare` lists methods the change did not touch.
   Return once for an empty hash set read after creating or recycling its destination. This keeps reuse and
   comparer setup intact and removes the repeated zero tests before capacity and fill. The local Arm64 probe
   saved 6–8 ns on empty reads with unchanged allocations; the formatter shrank from 424 to 416 IL bytes.
+- Share the actual presizing clamp in `NinoElements.Capacity` and keep the cheap eligibility tests at the hash set
+  and dictionary callers. A shared inline branch shortened the two callers by 10 IL bytes but added a 14-byte
+  helper. The Arm64 listings kept their sizes, only the x64 set listing shrank (6 bytes), and the local A/B showed
+  no repeatable throughput gain or allocation change.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
