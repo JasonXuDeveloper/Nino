@@ -76,6 +76,9 @@ public class BclTypeTests
             var back = RoundTrip(version);
             Assert.AreEqual(version, back);
             Assert.AreEqual(version?.ToString(), back?.ToString());
+            var reused = version;
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(version), ref reused);
+            Assert.AreSame(version, reused);
         }
 
         Assert.AreEqual(4, NinoSerializer.Serialize((Version)null).Length);
