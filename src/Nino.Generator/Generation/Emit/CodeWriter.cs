@@ -19,7 +19,11 @@ internal sealed class CodeWriter
     /// <summary>The last line written opened a block.</summary>
     private bool _opened;
 
-    public CodeWriter(int capacity = 4096) => _sb = new StringBuilder(capacity);
+    public CodeWriter(int capacity = 4096, int indentation = 0)
+    {
+        _sb = new StringBuilder(capacity);
+        _indent = indentation;
+    }
 
     public CodeWriter(StringBuilder buffer) => _sb = buffer;
 

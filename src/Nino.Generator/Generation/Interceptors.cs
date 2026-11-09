@@ -255,7 +255,15 @@ internal static class Interceptors
         var groups = calls.GroupBy(c => (c.Signature, Call: RenderCall(c))).ToList();
         // One location attribute per call site, but only one method per group.
         int capacity = System.Math.Min(calls.Length * 384, calls.Length * 128 + groups.Count * 320);
-        var w = new CodeWriter(capacity);
+        // A class header and braces, one line per location, and two per forwarder.
+        int indentation = (3 + calls.Length + 2 * groups.Count) * 4;
+#if ROSLYN4_12
+        // The opaque location has no line breaks. A display path can have them.
+        bool preindent = !calls.Any(static c => c.Where.IndexOf('\n') >= 0);
+#else
+        bool preindent = false;
+#endif
+        var w = preindent ? new CodeWriter(capacity + indentation + 2, indentation: 1) : new CodeWriter(capacity);
         w.Open($"{scope} static class NinoInterceptors");
         var aliases = new List<string> { GeneratedCode.InterceptsAlias };
         aliases.AddRange(GeneratedCode.InlineAliases);
@@ -284,11 +292,13 @@ internal static class Interceptors
         }
 
         w.Close();
+        if (preindent)
+            w.Close();
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         // A block namespace: the file declares the attribute in another namespace.
-        // A class header and braces, one line per location, and two per forwarder.
-        int indentation = (3 + calls.Length + 2 * groups.Count) * 4;
-        return GeneratedCode.File(attribute.Finish(), aliases, body, fileScoped: false, indentation);
+        string preamble = attribute.Finish();
+        return preindent ? GeneratedCode.IndentedFile(preamble, aliases, body)
+            : GeneratedCode.File(preamble, aliases, body, fileScoped: false, indentation);
     }
 
 }

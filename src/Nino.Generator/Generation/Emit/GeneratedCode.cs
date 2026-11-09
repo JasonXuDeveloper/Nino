@@ -55,13 +55,8 @@ internal static class GeneratedCode
 
         // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
         var sb = RentScratch(body.Length + (indentation ?? body.Length / 4) + preamble.Length + 1024);
-        sb.Append(Header).Append(preamble).Append("namespace " + TypeNames.GenNamespace + "\n{\n");
-        const string indent = "    ";
-        int length = sb.Length;
-        foreach (var alias in aliases)
-            sb.Append(indent).Append(alias).Append('\n');
-        if (sb.Length != length)
-            sb.Append('\n');
+        sb.Append(Header).Append(preamble);
+        AppendBlockPrefix(sb, aliases);
         // The body's lines one level in (blank lines stay empty).
         int start = 0;
         while (start < body.Length)
@@ -69,7 +64,7 @@ internal static class GeneratedCode
             int end = body.IndexOf('\n', start);
             end = end < 0 ? body.Length : end + 1;
             if (body[start] != '\n')
-                sb.Append(indent);
+                sb.Append(BlockIndent);
             sb.Append(body, start, end - start);
             start = end;
         }
@@ -78,6 +73,28 @@ internal static class GeneratedCode
         string file = sb.ToString();
         ReturnScratch(sb);
         return file;
+    }
+
+    private const string BlockIndent = "    ";
+
+    /// <summary>Combines a block namespace prefix with an already indented and closed body.</summary>
+    public static string IndentedFile(string preamble, IEnumerable<string> aliases, string body)
+    {
+        var prefix = RentScratch(256);
+        AppendBlockPrefix(prefix, aliases);
+        string text = prefix.ToString();
+        ReturnScratch(prefix);
+        return string.Concat(Header, preamble, text, body);
+    }
+
+    private static void AppendBlockPrefix(StringBuilder sb, IEnumerable<string> aliases)
+    {
+        sb.Append("namespace " + TypeNames.GenNamespace + "\n{\n");
+        int length = sb.Length;
+        foreach (var alias in aliases)
+            sb.Append(BlockIndent).Append(alias).Append('\n');
+        if (sb.Length != length)
+            sb.Append('\n');
     }
 
     /// <summary>
