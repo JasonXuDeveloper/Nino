@@ -8,7 +8,7 @@ namespace Nino.Generator.Generation.Emit;
 /// Consecutive raw members written into (or read from) one reservation. Offsets are expressions: constant sizes
 /// are summed, struct sizes stay symbolic (<c>NinoUnsafe.SizeOf&lt;T&gt;()</c>).
 /// </summary>
-internal sealed class RawBlock
+internal readonly struct RawBlock
 {
     /// <summary>Size of a keyed member's key, which its length follows.</summary>
     private const int KeySize = NinoWire.KeySize;
@@ -16,8 +16,8 @@ internal sealed class RawBlock
     /// <summary>Size of a keyed member's header: key and length.</summary>
     private const int HeaderSize = KeySize + NinoWire.LengthSize;
 
-    private string _symbolic = "";
-    private int _constant;
+    private readonly string _symbolic;
+    private readonly int _constant;
 
     /// <summary>Byte offset of each member's value.</summary>
     public readonly string[] Offsets;
@@ -42,6 +42,7 @@ internal sealed class RawBlock
         Offsets = new string[run.Count];
         HeaderOffsets = headers ? new string[2 * run.Count] : Array.Empty<string>();
         _constant = start;
+        _symbolic = "";
         for (int i = 0; i < run.Count; i++)
         {
             var member = run[i];
