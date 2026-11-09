@@ -41,6 +41,8 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   when the packed `long` crosses a 16-byte boundary. A standalone boxed Pack=1 struct with a byte followed by a
   long reproduces through `FieldInfo.GetValue` on 10.0.0 and 10.0.14 when the field address is 9 modulo 16.
   Logging or changing runtimes can move the boxed object and hide the fault.
+  [Standalone repro](packed-reflection-repro.cs): copy it to `Program.cs` in a net10.0 console project with
+  `AllowUnsafeBlocks` enabled. Run on macOS Arm64 with either runtime to reproduce exit 138 without Nino.
 - Take a fact about a type that the generator sees from generated code, never from reflection at run time (the
   owner's rule): reflection differs per runtime, NativeAOT keeps only the metadata it is asked for, and every probe
   costs at startup. A function pointer (`delegate*`) is a pointer, 8 bytes zero-extended, but .NET 8 and later report
