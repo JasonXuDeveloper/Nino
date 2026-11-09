@@ -41,6 +41,9 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `[__NinoInline(__NinoIL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
   if a formatter's type parameter shadows the flags type. The compiler folds the constants into the same method
   flags, with no helper calls.
+- Reuse common alias declarations and only rewrite alias numbers when their order changes. A file-scoped body
+  already has its final indentation, so concatenate it with the preamble and alias block directly. Use the first
+  generator pass to measure emission allocations, since later passes can reuse cached formatter source.
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
   pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
   signature generated code repeats is written once in `Signature`.
