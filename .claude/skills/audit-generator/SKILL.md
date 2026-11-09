@@ -149,6 +149,8 @@ Share the type-parameter predicate with the rest of the generator. On the local 
 Append runtime namespaces and containing-type arguments directly to the type name's builder. Preserve unescaped
 namespace names and outermost-first argument order. The local nested-name probe went from 604 to 436 bytes per
 render, and the unit test project's 628 generated files remained byte-identical.
+Append formatter name stems directly, doubling literal underscores while appending each namespace or type name.
+The local mixed-name probe went from about 619 to 403 bytes per render with unchanged hint names and source.
 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
