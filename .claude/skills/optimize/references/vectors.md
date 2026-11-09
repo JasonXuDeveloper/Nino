@@ -219,6 +219,13 @@ of bytes in a block.
   x64 machine-code sizes or introducing a copy helper call. Four rounds for each shape
   had variable timings and 0 B allocation. Wire bytes matched at offsets 0, 1 and 7, and
   targeted .NET 8/10 tests passed with hardware intrinsics on and off (`fe927629`).
+- Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
+  combines the element-byte multiplication and length addition in one `umaddl`. Emitting
+  `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
+  Tier 1 caller from 524 to 608 bytes, and the offline x64 array formatter from 2,257 to
+  2,345. Four empty-weighted A/B rounds varied from 16.7% faster to 0.9% slower. The other
+  profiles varied in both directions. All wire outputs matched at offsets 0, 1 and 7 and
+  all timed writes allocated 0 B. Avoid duplicating the reservation path for an empty array.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
