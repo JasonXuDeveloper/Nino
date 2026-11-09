@@ -478,7 +478,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         return ModelCache.GetOrBuildCall(ctx.Node, compilation, () => BindCall(ctx, ct), (method, type) =>
         {
             var facts = TypeFacts.For(compilation, options);
-            var usage = TransformUsage(type, facts);
+            var usage = facts.TopLevelUsage(type);
 #if ROSLYN4_8
             // Only Serialize and Deserialize (and their Stream forms' SerializeAsync and DeserializeAsync) have
             // NinoDirect counterparts to intercept with.
@@ -511,32 +511,6 @@ public sealed class NinoGenerator : IIncrementalGenerator
         if (facts.Raw.HostSizedVectorIn(type) != null)
             return null;
         return (method, type);
-    }
-
-    private static UsageRegistration? TransformUsage(ITypeSymbol type, TypeFacts facts)
-    {
-        if (TypeNames.ContainsTypeParameter(type))
-            return null;
-        var generics = new List<TypeRegistration>();
-        ClosedGenerics.Collect(type, facts, generics);
-        var layouts = new List<string>();
-        LayoutTypes.Collect(type, facts, layouts);
-        var formatter = facts.Resolver.Resolve(type, false);
-        bool registered = formatter is { Registered: true } && !facts.Raw.IsRawUnmanaged(type) &&
-                          facts.Visibility.CanName(type);
-        // The nesting formatters the registration, the closed generics or the interceptor (the same formatter) name.
-        var nesting = formatter is { } named
-            ? facts.Resolver.NestingFormattersNamedIn(generics.Select(static g => g.Formatter).Append(named.Code.ToString()))
-            : EquatableArray<NestingModel>.Empty;
-        if (!registered && generics.Count == 0 && layouts.Count == 0 && nesting.Length == 0)
-            return null;
-        return new UsageRegistration(
-            registered
-                ? new FormatterRegistration(TypeNames.Global(type), formatter!.Value.Code, facts.TypeId(type))
-                : null,
-            registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
-            new EquatableArray<TypeRegistration>(generics.Distinct()),
-            LayoutTypes.ToArray(layouts), nesting);
     }
 
     private static RegistryEntry ToEntry(TypeModel model) =>

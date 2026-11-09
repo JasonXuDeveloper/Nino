@@ -29,6 +29,8 @@ internal sealed class TypeFacts
     private readonly ConcurrentDictionary<ITypeSymbol, int> _typeIds = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, int> _bounds = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, TypeShape?> _shapes = new(SymbolEqualityComparer.Default);
+    private ConcurrentDictionary<ITypeSymbol, UsageRegistration?>? _topLevelUsages;
+    private readonly Func<ITypeSymbol, UsageRegistration?> _computeTopLevelUsage;
     private readonly Func<ISymbol, TypeShape?> _computeShape;
     [ThreadStatic] private static HashSet<ISymbol>? t_bounding;
     private readonly Func<ISymbol, bool> _computeDelegatable;
@@ -67,6 +69,7 @@ internal sealed class TypeFacts
         _computeDelegatable = s => ComputeIsDelegatable((INamedTypeSymbol)s);
         _computeFixedSize = s => ComputeIsFixedSize((INamedTypeSymbol)s);
         _computeBlock = s => ComputeIsBlock((INamedTypeSymbol)s);
+        _computeTopLevelUsage = ComputeTopLevelUsage;
         _computeShape = s => ((INamedTypeSymbol)s).GetNinoTypeOptions() is { } attr
             ? new TypeShape((INamedTypeSymbol)s, attr, this)
             : null;
@@ -79,6 +82,35 @@ internal sealed class TypeFacts
         WrittenParameters = new WrittenParameters(Members, Symbols, GenericSubtypesOf);
         Raw = new RawRules(Symbols, Members, WrittenParameters);
         Resolver = new FormatterResolver(compilation, Symbols, Raw, Visibility);
+    }
+
+    /// <summary>Registrations for a closed type named by a top-level call, shared by calls to that type.</summary>
+    public UsageRegistration? TopLevelUsage(ITypeSymbol type) =>
+        LazyInitializer.EnsureInitialized(ref _topLevelUsages,
+                static () => new ConcurrentDictionary<ITypeSymbol, UsageRegistration?>(SymbolEqualityComparer.Default))!
+            .GetOrAdd(type, _computeTopLevelUsage);
+
+    private UsageRegistration? ComputeTopLevelUsage(ITypeSymbol type)
+    {
+        if (TypeNames.ContainsTypeParameter(type))
+            return null;
+        var generics = new List<TypeRegistration>();
+        ClosedGenerics.Collect(type, this, generics);
+        var layouts = new List<string>();
+        LayoutTypes.Collect(type, this, layouts);
+        var formatter = Resolver.Resolve(type, false);
+        bool registered = formatter is { Registered: true } && !Raw.IsRawUnmanaged(type) && Visibility.CanName(type);
+        // The nesting formatters named by the registration, closed generics or interceptor.
+        var nesting = formatter is { } named
+            ? Resolver.NestingFormattersNamedIn(generics.Select(static g => g.Formatter).Append(named.Code.ToString()))
+            : EquatableArray<NestingModel>.Empty;
+        if (!registered && generics.Count == 0 && layouts.Count == 0 && nesting.Length == 0)
+            return null;
+        return new UsageRegistration(
+            registered ? new FormatterRegistration(TypeNames.Global(type), formatter!.Value.Code, TypeId(type)) : null,
+            registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
+            new EquatableArray<TypeRegistration>(generics.Distinct()),
+            LayoutTypes.ToArray(layouts), nesting);
     }
 
     /// <summary>
