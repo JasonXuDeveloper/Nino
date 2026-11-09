@@ -94,6 +94,9 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   (round 129). Measure edits there, not on `GeneratorBenchmark` alone: its comment edit lands in the file of every
   model, which rebuilds them all.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
+- Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
+  call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
+  without that cache.
 - Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on tests/Nino.UnitTests is the project's
   own `[assembly: NinoFormatter]` registrations (binding the new source assembly's attributes, then `Read`), which hold
   that compilation's symbols and cannot outlive it; every reference together read in 25 ms once. A per-
@@ -131,6 +134,9 @@ every run (`ModelCache` reuses models by tree instance), and hash the generated 
 same text. Untracked time there is Roslyn's own (declaring the compilation's symbols, binding), which the first stage
 to ask pays. The Debug and Release builds of the generator take the same time on that compilation (binding
 dominates; round 128). A new stage gets input in the incremental tests, or its caching assertion checks nothing.
+Measure end-to-end runs with tracking disabled. On the real unit test compilation, Roslyn's
+`RecordStepTree` took seconds on a cached run whose generator stages and output callbacks took under 2 ms.
+Use tracked times to rank stages, and a separate untracked A/B with the same compiler arguments for the verdict.
 
 ## Look for
 
