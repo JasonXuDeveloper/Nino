@@ -33,7 +33,7 @@ namespace Nino.Core.CompilerServices
         /// arrays of 1,000 KeyValuePair&lt;int, int&gt; and of 1,000 8-byte structs deserialized 14 to 28% more
         /// slowly. Between that and 4 KB, 6 KB.
         /// </summary>
-        private const int MinUninitializedArrayBytes = 6 * 1024;
+        internal const int MinUninitializedArrayBytes = 6 * 1024;
 #endif
 
         /// <summary>

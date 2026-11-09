@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -153,6 +154,27 @@ namespace Nino.UnitTests
             CollectionAssert.DoesNotContain(NinoSerializer.Serialize(new List<RawNested> { nested }), (byte)0xAB);
             CollectionAssert.DoesNotContain(NinoSerializer.Serialize((RawNested?)nested), (byte)0xAB);
             CollectionAssert.DoesNotContain(NinoSerializer.Serialize(new Box<RawNested> { Item = nested }), (byte)0xAB);
+        }
+
+        [StructLayout(LayoutKind.Sequential, Size = 8192)]
+        private struct LargePaddedRaw
+        {
+            public byte A;
+            public long B;
+        }
+
+        [TestMethod]
+        public void LargeRawOutputClearsAllPadding()
+        {
+            var source = new LargePaddedRaw[1];
+            MemoryMarshal.AsBytes(source.AsSpan()).Fill(0xAB);
+            source[0].A = 1;
+            source[0].B = 2;
+
+            var expected = new byte[8192];
+            expected[0] = 1;
+            expected[8] = 2;
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(in source[0]));
         }
 
         [TestMethod]

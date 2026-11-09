@@ -3,6 +3,7 @@ using System.Buffers;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 #if !NETSTANDARD2_0
 using System.Threading;
@@ -66,7 +67,15 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static byte[] SerializeRaw<T>(in T value)
         {
-            var bytes = new byte[Unsafe.SizeOf<T>()];
+            int size = Unsafe.SizeOf<T>();
+#if NET8_0_OR_GREATER
+            // Keep the direct small allocation. A large canonical layout write fills every byte, padding included.
+            var bytes = size < NinoUnsafe.MinUninitializedArrayBytes
+                ? new byte[size]
+                : NinoUnsafe.NewArray<byte>(size, uninitialized: true);
+#else
+            var bytes = new byte[size];
+#endif
             NinoLayout<T>.Write(ref bytes[0], in value);
             return bytes;
         }
