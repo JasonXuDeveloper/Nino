@@ -239,6 +239,12 @@ of bytes in a block.
   Pinned-alignment A/B and byte-identical A/A both varied across four rounds, with 0 B
   allocated. Wire output matched at offsets 0, 1 and 7, and 111/112 targeted tests passed
   on .NET 8/10 with and without hardware intrinsics (`d3a36d9a`).
+  Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
+  In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
+  and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
+  and formatter IL stayed at 83 bytes. Four A/B and A/A rounds varied, with 0 B allocated
+  and byte-identical writes at offsets 0, 1 and 7. The 98/99 targeted tests passed on
+  .NET 8/10 with hardware intrinsics on and off (`c82748e0`).
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
