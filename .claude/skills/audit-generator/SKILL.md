@@ -196,6 +196,11 @@ per cold replay across four rounds, with cold wall time within 0.6% and all outp
 Delay formatting an alias declaration until the occurrence count pays for it. Compute its length
 from the alias and original name first. Four cold replays allocated 45–58 KB less, wall time
 stayed within 0.3%, and all 577 outputs matched (`abc295cc`).
+Share the same lease with block namespace indentation. Four cold replays saved 12–35 KB with
+the test project's default language version (five block namespace files), and 4.80–4.95 MB with
+C# 9 generator parse options (577 block namespace files). Both output sets matched byte for byte
+and cold wall time had no repeatable change. The replay checks generated output. A separate
+C# 9 consumer compiled and round-tripped with matching wire bytes (`b066e8db`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
