@@ -48,9 +48,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   its region prefix, so a mixed body needs neither copied groups nor a second grouping pass.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
-- Shorten repeated namespace qualifiers only in interceptor signatures and calls, where one alias serves the whole
-  file. Leave location attributes alone. Compare consumer DLL metadata as well as method IL: typed aliases and
-  factoring opaque location strings both made the DLL larger in the local prototype.
+- Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
+  and type references, where one alias serves the whole file. Leave location attributes and registry literals
+  alone. Compare consumer DLL metadata as well as method IL: typed aliases and factoring opaque location strings
+  made the DLL larger in the local prototype. Reusing the namespace alias selector for usage registrations
+  (07650d43) removed 20,759 source bytes in the unit test project with identical generated IL and DLL size.
 - Emit constant type IDs directly in formatter and twin accessors. When no generated caller needs a constant
   field, retaining it duplicates consumer metadata without changing the getter's IL.
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`

@@ -25,6 +25,11 @@ the fallback (the enumerator) out of line.
   the mirrors, and retain the public snapshot on other runtimes or with other formatters. The local Arm64
   8,192-element cases went from 98,632 B (`int`) and 393,496 B (`Guid`) to zero warmed allocation. See
   `ConcurrentStackNodes` and the compacting GC regression in `CollectionSerializationTests`.
+  Keep the independently obtained node reference in that probe: public enumeration witnesses values and order,
+  and the mirror reference slot must be checked before the GC can see it as a reference. On .NET 10 an
+  `UnsafeAccessorType` annotation for a private `Node` field rejects the required translated byref return with
+  `NotSupportedException`. An unannotated `ref object` has a different field signature and throws
+  `MissingFieldException`. Revisit when CoreCLR offers a type-checked field read that can return the reference by value.
 
 ## Building a runtime's objects without its public API
 

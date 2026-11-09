@@ -74,6 +74,12 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   `ConcurrentQueue<T>.ToArray` directly and keeps the other snapshots out of line. On local Arm64 FullOpts,
   the variable-width queue entry and its helper together went from 2,340 to 1,336 bytes. Fixed-width queues
   still allocate the bulk snapshot.
+- Refill exact concurrent stacks through `TryPop` and `Push`, and use one `Clear` when no old item needs
+  recycling (8c1ce801). Keep the read loop in a concrete helper and leave subclasses on their interface.
+  Local Arm64 Tier 1 used one release store for the clear, with the read and push inlined. Time each collection
+  in its own process and verify Tier 1 in the listing before comparing: the first run warmed the old interface
+  loop but was still timing instrumented Tier 0 in the new helper. The all-collection constrained-adapter
+  prototype grew the code and did not consistently improve the mixed cases.
 - Do not inline a generic method that needs a runtime lookup into shared code on a hot path.
 - Leave the one indirect call a top-level call makes in shared generic code (T a class, the caller not inlined with T
   exact: `NinoDeserializer.Deserialize<__Canon>`'s `INinoRawArrayFormatter.Read`, `NinoTopFormatter<T>.Formatter`'s
