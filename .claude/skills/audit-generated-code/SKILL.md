@@ -171,6 +171,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   rewrites reduced that overhead to about 0.94 MB and removed 47,024 bytes from the unit test project's
   generated output. The normalized IL matched after accounting for file-local type names, explicit interface
   member spellings and data RVAs. Warm replay and method-body edits were within the local noise floor.
+  A separate post-emission alias for `System.Runtime.CompilerServices` paid off in only 22 of 577
+  replayed files. It removed 2,444 source bytes with identical normalized unit test assembly IL, but
+  added about 740 KB of cold generator allocations and enlarged the alias helper from 473 to 512 IL
+  bytes. Prefer emitting such an alias directly if a workload uses it often enough.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
   `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
