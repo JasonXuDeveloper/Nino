@@ -1089,6 +1089,14 @@ of bytes in a block.
   bytes. Dirty-padding output matched in 39 M4 cases and five emulated x64 cases, with
   zero steady-state allocation. The 512-bit specialization passed 57 software checks for
   dirty padding and destination bounds. Native AVX-512 throughput was unmeasured.
+  Let the final store own the vector at the end of a one-vector mask period. Skipping the
+  tail with an extra branch slowed a 48-byte block with a 12-byte stride by about 8%, even
+  when the branch was limited to one-vector periods. Make the aligned body's bound exclusive
+  instead, including its Arm64 paired loop. Four M4 pairs improved the 48-byte aligned kernel
+  by 4–8%, with an identical-binary control near flat by median. The public writer, the
+  12-byte stride and the 64 KiB boundary had mixed timing. IL grew from 758 to 761 bytes,
+  with Arm64 and emulated AVX2 FullOpts unchanged at 456 and 324 bytes. Wire bytes and
+  destination sentinels matched across 128-bit, emulated AVX2 and software 512-bit probes.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
