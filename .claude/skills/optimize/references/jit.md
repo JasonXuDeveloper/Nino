@@ -389,6 +389,15 @@ and when `asm.py compare` lists methods the change did not touch.
   228 IL bytes, while its int/int Arm64 Tier 1 instance moved from 296 to 292 B. The x64 cross
   instance grew from 222 to 732 B and the corresponding raw caller shrank from 643 to 364 B.
   x64 throughput remains unmeasured (`ef8e4195`).
+- Batch writes at the typed lookup boundary. Trying an array branch in the public grouping formatter
+  removed its enumerator allocation but slowed short foreign groupings even after outlining. Dispatch
+  once from the lookup formatter, write the existing group array and reuse the span writer for each
+  group. Return after the zero count to avoid both dispatch and enumeration on empty lookups.
+  Four local M4 pairs at offsets zero and one reduced the 257- and 8,193-element int and string lookup
+  timings with byte-identical outputs and 1,064 B fewer allocations per write. Foreign short-input
+  timings varied. The lookup entry grew from 75 to 99 IL bytes. For int elements it grew from 1,896
+  to 2,168 B on Arm64 Tier 1 and from 1,417 to 1,670 B on x64 cross-JIT. The x64 listing does not
+  establish throughput (`45570cc1`).
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
