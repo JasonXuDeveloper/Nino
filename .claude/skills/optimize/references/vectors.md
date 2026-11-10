@@ -585,6 +585,14 @@ of bytes in a block.
   AVX-512 execution remain unmeasured. Local M4 fallback timings varied without a repeatable regression
   (`a07cde43`).
   Keep the order check before publishing the arrays and use the same wire block for out-of-order insertion.
+  Fuse the order check and unzip on Arm64 when both arrays already fit. Write only into an empty
+  list and publish the size after every key is validated. A rejected block goes through the same
+  comparer fallback, including the indexer overwrite before a duplicate is reported. At offsets
+  zero and one, four M4 A/B pairs cut 32-pair reuse latency by about a third and 257-, 4,095- and
+  4,097-pair latency by about half at zero allocation. Fresh growth retained the separate order check
+  and allocations. The fused OSR loop was 240 B versus 200 plus 136 B for the two original loops.
+  The caller grew from 154 to 204 IL bytes and the x64 v3 cross listing moved from 402 to 401 B.
+  Wire, scalar fallback and all 582 generated files matched (`86e4efb7`).
   Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
   method's IL. The local Arm64 2,047- and 8,193-pair reuse probes cut elapsed time by roughly 35–45%.
   Validate four signed keys at a time for 32 or more pairs. Share the even-lane extraction with
