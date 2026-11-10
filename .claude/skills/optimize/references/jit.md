@@ -427,6 +427,15 @@ and when `asm.py compare` lists methods the change did not touch.
   results varied. Wire bytes, including an odd tail and padding, and zero steady allocations
   matched. The original writer kept 195 IL bytes. The ring helper added 145 IL bytes and was
   316 B on Arm64 and 240 B in the x64 cross listing for int (`b099fc74`).
+  Keep the checked linked-list builder's current read loop. Separating the first node removed
+  the null predecessor tests without a repeatable end-to-end gain. A second trial consumed
+  raw elements from the collection entry's already checked payload, then advanced the reader
+  once after publishing the ring. It still allocated 48 B per int or long node and timings
+  changed direction across the four M4 pairs at offsets zero and one. The int Arm64 entry was
+  436 B before and 120 B plus a 288 B raw helper after. The x64 cross entry was 517 to 538 B
+  in MinOpts and the raw helper was 284 B in FullOpts. Entry IL was 172 to 177 B with a
+  104 B helper. Wire bytes and allocation matched and the .NET 8/10 targeted suites passed.
+  Both trials were withdrawn.
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
