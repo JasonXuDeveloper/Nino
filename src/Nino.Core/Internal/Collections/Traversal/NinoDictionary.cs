@@ -312,6 +312,12 @@ namespace Nino.Core
                     RemoveExcept(dictionary, keys[0], keys[1]);
                 return;
             }
+            if (count is 3 or 4 && dictionary.Count <= 4 &&
+                !NinoRecycler<TKey>.MayRecycle && !NinoRecycler<TValue>.MayRecycle)
+            {
+                RemoveExcept(dictionary, keys, count);
+                return;
+            }
 #endif
 
             // A key read twice is one key (the last value won).
@@ -348,6 +354,49 @@ namespace Nino.Core
                 if (!comparer.Equals(first, pair.Key) && !comparer.Equals(second, pair.Key))
                     dictionary.Remove(pair.Key);
         }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RemoveExcept(Dictionary<TKey, TValue> dictionary, TKey[] keys, int count)
+        {
+            var comparer = dictionary.Comparer;
+            ref TKey first = ref NinoUnsafe.GetArrayDataReference(keys);
+            KeyHashes hashes = default;
+            bool distinct = dictionary.Count == count;
+            for (int i = 0; i < count; i++)
+            {
+                TKey key = Unsafe.Add(ref first, i);
+                int hash = comparer.GetHashCode(key);
+                if (distinct)
+                    for (int j = 0; j < i; j++)
+                        if (hash == hashes[j] && comparer.Equals(key, Unsafe.Add(ref first, j)))
+                        {
+                            distinct = false;
+                            break;
+                        }
+                hashes[i] = hash;
+            }
+
+            // Every read key is already present, so distinct keys can cover the whole dictionary.
+            if (distinct)
+                return;
+            foreach (var pair in dictionary)
+            {
+                int hash = comparer.GetHashCode(pair.Key);
+                int i = 0;
+                for (; i < count; i++)
+                    if (hash == hashes[i] && comparer.Equals(Unsafe.Add(ref first, i), pair.Key))
+                        break;
+                if (i == count)
+                    dictionary.Remove(pair.Key);
+            }
+        }
+
+        [InlineArray(4)]
+        private struct KeyHashes
+        {
+            private int _element;
+        }
+
 #endif
 
         private static void RemoveUnread(Dictionary<TKey, TValue> dictionary, HashSet<TKey> read)

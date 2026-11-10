@@ -1002,6 +1002,99 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void SmallDictionaryRefillKeepsThreeKeysInAnyOrder(bool repeated)
+    {
+        var target = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ONE"] = "old",
+            ["TWO"] = "old",
+            ["THREE"] = "old",
+            ["stale"] = "old",
+        };
+        var input = new List<KeyValuePair<string, string>>
+        {
+            new("three", "third"),
+            new("one", "first"),
+            new("two", "second"),
+        };
+        if (repeated)
+            input.Add(new("One", "last"));
+
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(input), ref target);
+        Assert.AreEqual(3, target.Count);
+        Assert.AreEqual(repeated ? "last" : "first", target["one"]);
+        Assert.AreEqual("second", target["two"]);
+        Assert.AreEqual("third", target["three"]);
+        Assert.IsFalse(target.ContainsKey("stale"));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void SmallDictionaryRefillKeepsFourReorderedKeys(bool collisions)
+    {
+        IEqualityComparer<string> comparer = collisions
+            ? new CollidingStringComparer()
+            : StringComparer.OrdinalIgnoreCase;
+        var target = new Dictionary<string, string>(comparer)
+        {
+            ["ONE"] = "old",
+            ["TWO"] = "old",
+            ["THREE"] = "old",
+            ["FOUR"] = "old",
+        };
+        var input = new Dictionary<string, string>
+        {
+            ["four"] = "fourth",
+            ["three"] = "third",
+            ["two"] = "second",
+            ["one"] = "first",
+        };
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(input), ref target);
+        Assert.AreEqual(4, target.Count);
+        foreach (var pair in input)
+            Assert.AreEqual(pair.Value, target[pair.Key]);
+    }
+
+    private sealed class CollidingStringComparer : IEqualityComparer<string>
+    {
+        public bool Equals(string x, string y) => StringComparer.OrdinalIgnoreCase.Equals(x, y);
+        public int GetHashCode(string value) => 0;
+    }
+
+    [TestMethod]
+    public void SmallDictionaryRefillUsesItsValueTypeKeyComparer()
+    {
+        var target = new Dictionary<int, string>(new Modulo16Comparer())
+        {
+            [0] = "old",
+            [1] = "old",
+            [2] = "old",
+            [3] = "stale",
+        };
+        var input = new Dictionary<int, string>
+        {
+            [18] = "third",
+            [17] = "second",
+            [16] = "first",
+        };
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(input), ref target);
+        Assert.AreEqual(3, target.Count);
+        Assert.AreEqual("first", target[0]);
+        Assert.AreEqual("second", target[1]);
+        Assert.AreEqual("third", target[2]);
+        Assert.IsFalse(target.ContainsKey(3));
+    }
+
+    private sealed class Modulo16Comparer : IEqualityComparer<int>
+    {
+        public bool Equals(int x, int y) => (x & 15) == (y & 15);
+        public int GetHashCode(int value) => value & 15;
+    }
+
+    [TestMethod]
     public void LinkedListsAreWalkedNodeByNode()
     {
         foreach (int n in new[] { 0, 1, 2, 17, 31, 32, 33, 1000 })
