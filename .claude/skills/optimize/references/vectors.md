@@ -909,6 +909,14 @@ of bytes in a block.
   bytes and 180 to 220 Arm64 FullOpts bytes, with a 93 IL/304 Arm64 byte helper. Emulated x64 kept
   the 126 B and 139 B listings with AVX2 off and on. Wire bytes matched and the guarded test covers
   every mismatch position from 127 through 161 chars (`a9ed6912`).
+  Share the tail-first check and remainder loop between both Arm64 sizes and inline them in the
+  already optimized entry. Inlining alone left 476 Arm64 FullOpts bytes; sharing the tail brought
+  the original 220 + 304 B down to 328 B. Combined IL grew from 201 to 214 B. Emulated x64 retained
+  identical instructions at 126 and 139 B. The initial 65-char offset-zero slowdown did not repeat
+  with a longer warmup, and the near-64-KiB cases showed no repeatable change against the existing
+  batched loop. Long-warm reuse allocated 0 B and wire bytes matched. First-use timing varied
+  alongside same-binary controls. Both .NET suites passed 44 tests and the scalar suite passed 14
+  (`a7849144`).
 - Continue Latin-1 narrowing at the prefix written by `Ascii.FromUtf16`, overlapping the final vector if needed.
   When the first unwritten character exceeds Latin-1, take the UTF-16 path immediately.
   For 32–63 chars, call an outlined 256-bit writer directly without the ASCII setup. Check the first
