@@ -322,6 +322,15 @@ of bytes in a block.
   one IL byte. Four local rounds from empty to near 64 KiB of input plus output overlapped
   A/A with zero allocations. All 45 wire and same-shape reuse checks matched at offsets
   0, 1 and 7. The last-dimension mismatch replaced the array at each rank.
+- Read the trailing dimensions of 3D and 4D headers with one checked reservation after
+  the existing first-length check. A null header still consumes only one length. Keep
+  the single checked read for 2D. On the local 4D one-element fixture, four default-JIT
+  rounds improved by 9–13% with zero allocation. A longer warmup put 2D 32–128 element
+  results near the A/A spread. The split helper grew from 316 to 348 IL bytes but shrank
+  from 632 to 620 Arm64 FullOpts bytes and 579 to 552 offline x64 bytes. Grouping all
+  ranks made the listing smaller, but the first 2D timing series favored the split for
+  short inputs. Wire comparisons matched at offsets 0, 1 and 7. Every cut in the header
+  threw before replacing the target, and the four-byte null sentinel decoded at every rank.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
