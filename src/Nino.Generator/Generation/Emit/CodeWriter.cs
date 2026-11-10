@@ -86,6 +86,21 @@ internal sealed class CodeWriter
         _sb.Append("case ").Append(id).Append(":\n");
     }
 
+    /// <summary>Writes the outer switch's branch to a registry bucket.</summary>
+    public void RegistryBucketCase(int bucket)
+    {
+        StartLine('c', ';');
+        _sb.Append("case ").Append(bucket).Append(": __Bucket").Append(bucket).Append("(id); break;\n");
+    }
+
+    /// <summary>Opens a block whose header contains a number between two nonempty fragments.</summary>
+    public void OpenNumbered(string prefix, int number, string suffix)
+    {
+        StartLine(prefix[0], suffix[suffix.Length - 1]);
+        _sb.Append(prefix).Append(number).Append(suffix).Append('\n');
+        Open();
+    }
+
     private void StartLine(char first, char last)
     {
         if (_blank && first != '}')

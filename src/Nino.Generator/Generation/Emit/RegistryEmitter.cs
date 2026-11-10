@@ -266,7 +266,7 @@ internal static class RegistryEmitter
         w.Open($"switch (id & {mask})");
         for (int i = 0; i < buckets; i++)
             if (ends[i + 1] != ends[i])
-                w.Line($"case {i}: __Bucket{i}(id); break;");
+                w.RegistryBucketCase(i);
         w.Close();
         w.Close();
         for (int i = 0; i < buckets; i++)
@@ -275,7 +275,7 @@ internal static class RegistryEmitter
             if (end == start)
                 continue;
             w.Line();
-            w.Open($"private static void __Bucket{i}(int id)");
+            w.OpenNumbered("private static void __Bucket", i, "(int id)");
             EmitIdSwitch(w, grouped.AsSpan(start, end - start), compact);
             w.Close();
         }
