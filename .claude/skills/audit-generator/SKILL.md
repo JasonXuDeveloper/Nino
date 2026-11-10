@@ -511,6 +511,11 @@ from about 75 ns to 2 ns for shared arrays and stayed on par for distinct arrays
 Use a cheap bucket key for emitted formatters, followed by full model equality. Include a member type
 to distinguish common same-name edits. The local 97-member cache-hit probe avoided a full model hash
 and the generated files of the unit test project stayed byte-identical.
+Store a weak reference directly in a one-entry emission bucket. Allocate a list only for hash
+collisions and compare complete models before reusing text. The real unit test project reopened
+with 45–60 KB less allocation in four local rounds, without a repeatable timing change.
+All 577 generated files matched byte for byte, all 572 models were reused on tracked edits,
+and the old compilation, tree, symbol and generated text were collected after project closure.
 
 `benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back, keep a change only if time and allocations both improve beyond
