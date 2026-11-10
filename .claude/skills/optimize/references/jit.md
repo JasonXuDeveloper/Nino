@@ -247,6 +247,15 @@ and when `asm.py compare` lists methods the change did not touch.
   UTF-16 reservation and copy only the builder's length. A 1,024-character cutoff regressed multi-chunk
   builders, while 4,096-character single- and multi-chunk cases improved without a steady-state allocation.
   An empty pool bucket still allocates on the first rent.
+  Write one UTF-16 builder character directly on modern .NET, with the
+  existing short chunk loop out of line. Keeping the loop inline enlarged
+  the Arm64 Tier 1 caller from 1,552 to 1,636 bytes and did not reliably
+  improve the single-character case. Outlining it took the caller to 988
+  bytes plus an 812-byte helper and beat both controls on one character in
+  four rounds. The x64 cross-JIT formatter moved from 921 to 573 bytes plus
+  a 459-byte helper. Copy dispatch IL went from 108 to 52 bytes plus an
+  82-byte helper. Other sizes and repeated multi-chunk rounds were noisy.
+  Wire bytes and steady-state allocation matched.
   Replacing the pinned UTF-16 reader append with the span overload kept bytes, truncated-input
   errors and zero allocations in the reuse probe. It reduced the Arm64 Tier 1 formatter from
   1,280 to 1,220 bytes but increased x64 ReadyToRun from 388 to 413 bytes. No timing advantage
