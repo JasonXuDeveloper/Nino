@@ -62,6 +62,9 @@ internal static class FormatterTraitsOf
             "ObjectFormatter" => FormatterTraits.Object,
             "CachedFormatter" => FormatterTraits.Cached,
             "UnmanagedArrayFormatter" or "UnmanagedListFormatter" => FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
+            "NullableFormatter" when count == 2 &&
+                                     (last & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 =>
+                FormatterTraits.PreservesReadContext,
             "NullableArrayFormatter" or "NullableListFormatter" => FormatterTraits.PreservesReadContext,
             "MemoryFormatter" or "ReadOnlyMemoryFormatter" or "ArraySegmentFormatter" or "ReadOnlySequenceFormatter" when count == 2 &&
                                    (last & FormatterTraits.Raw) != 0 =>
