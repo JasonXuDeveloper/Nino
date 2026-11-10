@@ -60,7 +60,8 @@ namespace Nino.Core.Internal
 
 #if NET8_0_OR_GREATER
         // Nullable payloads have a full stride after the last flag, so the vector loads stay within the block.
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        // Tier 0 leaves calls inside the scan, so compile this validator with its helpers inlined from the start.
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static bool ValidFlagBlocks(ref byte first, int count, int stride)
         {
             Vector128<ulong> mask;
@@ -75,27 +76,12 @@ namespace Nino.Core.Internal
 
             int bytes = count * stride;
             int end = bytes & -16;
-            var any = Vector128<ulong>.Zero;
-            ref byte at = ref first;
+            var bits = Vector128<byte>.Zero;
             int remaining = end;
-            for (; remaining >= 128; remaining -= 128, at = ref Unsafe.Add(ref at, 128))
-            {
-                var low = (Vector128.LoadUnsafe(ref at) | Vector128.LoadUnsafe(ref at, 16))
-                    | (Vector128.LoadUnsafe(ref at, 32) | Vector128.LoadUnsafe(ref at, 48));
-                var high = (Vector128.LoadUnsafe(ref at, 64) | Vector128.LoadUnsafe(ref at, 80))
-                    | (Vector128.LoadUnsafe(ref at, 96) | Vector128.LoadUnsafe(ref at, 112));
-                any |= (low | high).AsUInt64();
-            }
-            for (; remaining >= 64; remaining -= 64, at = ref Unsafe.Add(ref at, 64))
-            {
-                var a = Vector128.LoadUnsafe(ref at);
-                var b = Vector128.LoadUnsafe(ref at, 16);
-                var c = Vector128.LoadUnsafe(ref at, 32);
-                var d = Vector128.LoadUnsafe(ref at, 48);
-                any |= ((a | b) | (c | d)).AsUInt64();
-            }
-            for (; remaining > 0; remaining -= 16, at = ref Unsafe.Add(ref at, 16))
-                any |= Vector128.LoadUnsafe(ref at).AsUInt64();
+            ref byte at = ref ScanFlagGroups(ref first, ref remaining, ref bits, 128);
+            at = ref ScanFlagGroups(ref at, ref remaining, ref bits, 64);
+            ScanFlagGroups(ref at, ref remaining, ref bits, 16);
+            var any = bits.AsUInt64();
 
             if ((any & mask) != Vector128<ulong>.Zero)
                 return false;
@@ -107,6 +93,26 @@ namespace Nino.Core.Internal
 
             return true;
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ref byte ScanFlagGroups(ref byte at, scoped ref int remaining,
+            scoped ref Vector128<byte> any, int width)
+        {
+            for (; remaining >= width; remaining -= width, at = ref Unsafe.Add(ref at, width))
+            {
+                var bits = width >= 64 ? ReadFlagGroup(ref at, 0) : Vector128.LoadUnsafe(ref at);
+                if (width >= 128)
+                    bits |= ReadFlagGroup(ref at, 64);
+                any |= bits;
+            }
+
+            return ref at;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> ReadFlagGroup(ref byte at, nuint offset) =>
+            (Vector128.LoadUnsafe(ref at, offset) | Vector128.LoadUnsafe(ref at, offset + 16))
+            | (Vector128.LoadUnsafe(ref at, offset + 32) | Vector128.LoadUnsafe(ref at, offset + 48));
 #endif
 
         /// <summary>
