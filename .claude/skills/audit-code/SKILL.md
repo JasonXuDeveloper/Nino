@@ -21,6 +21,11 @@ projects or languages.
 
 ## The code standard (stated here; every skill that writes code applies it)
 
+- Apply `IDE0200` to one-time registrations where the method group preserves behavior. Cache the
+  delegate explicitly at repeated lookup sites built by older Unity compilers so conversion to a
+  method group does not introduce per-call allocations (`64b1a239`). Check compiler informational
+  diagnostics via build SARIF and editor-only suggestions via a separate style scan.
+
 ### DRY
 
 - **One implementation**: the same logic lives in one place (two loops, two parsers, two setup blocks, two copies

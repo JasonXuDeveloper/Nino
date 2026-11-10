@@ -593,6 +593,15 @@ of bytes in a block.
   and allocations. The fused OSR loop was 240 B versus 200 plus 136 B for the two original loops.
   The caller grew from 154 to 204 IL bytes and the x64 v3 cross listing moved from 402 to 401 B.
   Wire, scalar fallback and all 582 generated files matched (`86e4efb7`).
+  Share the Arm64 unzip across signed and unsigned integer lanes of 8, 16, 32 and 64 bits. Use the
+  underlying integral order for enum keys with the default comparer. Keep the lane constants inside
+  the loop and optimize from the first call. The first generic OSR version spilled the predecessor
+  vector. With `AggressiveOptimization`, the sampled Arm64 loops were 224–236 B and the x64 v3
+  fallback remained 401 B (`6f64a961`, `bae2d41b`).
+  Keep custom unmanaged keys in their typed comparer. A four-byte `ReverseIndex` sorted in reverse
+  integer order with the default comparer and matched the baseline bytes in 1,376 round trips. A
+  future raw split can vectorize byte movement after typed validation when both layouts pass
+  `CopiesAsIs`. It still needs the actual pair stride for mixed widths.
   Keep the two-pass check when the arrays need to grow. A speculative fused growth candidate cut ordered
   M4 reads by 26–51% at the same allocations and preserved wire bytes and capacity. Checking the two
   edges avoided extra allocations for descending inputs and a swap at the end, but a middle swap still
