@@ -981,6 +981,26 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void SmallDictionaryRefillKeepsDistinctKeysWhenInputRepeatsAKey()
+    {
+        var target = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ONE"] = "old",
+            ["two"] = "old",
+            ["stale"] = "old",
+        };
+        var input = new List<KeyValuePair<string, string>>
+        {
+            new("one", "first"),
+            new("One", "last"),
+        };
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(input), ref target);
+        Assert.AreEqual(1, target.Count);
+        Assert.AreEqual("last", target["one"]);
+        Assert.IsFalse(target.ContainsKey("stale"));
+    }
+
+    [TestMethod]
     public void LinkedListsAreWalkedNodeByNode()
     {
         foreach (int n in new[] { 0, 1, 2, 17, 31, 32, 33, 1000 })

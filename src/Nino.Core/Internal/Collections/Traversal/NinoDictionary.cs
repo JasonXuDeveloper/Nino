@@ -303,10 +303,13 @@ namespace Nino.Core
             }
 
 #if NET8_0_OR_GREATER
-            if (count == 1 && dictionary.Count <= 16 &&
+            if (count <= 2 && dictionary.Count <= (count == 1 ? 16 : 4) &&
                 !NinoRecycler<TKey>.MayRecycle && !NinoRecycler<TValue>.MayRecycle)
             {
-                RemoveExcept(dictionary, keys[0]);
+                if (count == 1)
+                    RemoveExcept(dictionary, keys[0]);
+                else
+                    RemoveExcept(dictionary, keys[0], keys[1]);
                 return;
             }
 #endif
@@ -334,6 +337,15 @@ namespace Nino.Core
             var comparer = dictionary.Comparer;
             foreach (var pair in dictionary)
                 if (!comparer.Equals(keep, pair.Key))
+                    dictionary.Remove(pair.Key);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RemoveExcept(Dictionary<TKey, TValue> dictionary, TKey first, TKey second)
+        {
+            var comparer = dictionary.Comparer;
+            foreach (var pair in dictionary)
+                if (!comparer.Equals(first, pair.Key) && !comparer.Equals(second, pair.Key))
                     dictionary.Remove(pair.Key);
         }
 #endif
