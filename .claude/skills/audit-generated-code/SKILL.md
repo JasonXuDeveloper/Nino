@@ -129,6 +129,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   1,000 known reordered entries took 16.95–17.13 µs against 8.77–8.79 µs,
   and 16 ordered entries slowed even though they bypassed the helper.
   All 30 wire comparisons passed. Keep the patch as a code-generation experiment.
+  Do not add a separate region-skipping API for the unknown-key branch. An
+  experimental `SkipRegion` shared the section validator and advanced only the
+  parent, but discarding `ReadRegion` already lets the JIT remove the child.
+  The Arm64 Tier 1 body stayed at 1,684 bytes, and offline x64 kept the same
+  instructions and 1,525-byte size. Source size matched and IL saved one byte.
+  Four same-Core A/B rounds overlapped A/A at zero steady allocation, with all
+  30 wire comparisons passing.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
