@@ -5,6 +5,12 @@ Part of the `optimize` skill: removing bounds checks, and the vector loops on x6
 measured and not taken. Read it before writing or changing a loop over elements, a block copy, a permute or a check
 of bytes in a block.
 
+- Keep shared managed SIMD capabilities and CPU policy in `Nino.Core/Internal/Simd/NinoSimd.cs`. At kernels with
+  equivalent implementations, check 512, then 256, then 128, then scalar. Use inlinable capability checks so the
+  JIT can discard unsupported widths. Keep each kernel’s length, alignment, exact ISA requirements and tail beside
+  its loop. Unity and WebGL register function pointers through `NinoKernels`; `Internal/Simd/NinoKernelHook.cs`
+  owns their dispatch. Generated formatters call Core entry points and leave ISA selection to the runtime.
+
 ## Bounds checks
 
 - Index an array or span on a hot path through a ref to its first element and `Unsafe.Add`, never `a[i]` or
@@ -768,7 +774,7 @@ of bytes in a block.
   folds it), never by a `Vector512.IsHardwareAccelerated`-style ISA flag alone: AVX-512 VBMI is on Ice Lake, Sapphire
   Rapids and Zen 4/5 alike. `NinoBlockCollections.WritePairs` (four 24-byte values per `vpermt2b` of 128 bytes of memory
   into 64 of blocks) wrote 1,000 `Waypoint`s in 0.64 times the time of 32-byte lane groups on Xeon Platinum 8573C, 0.74
-  on EPYC 9V45 and 0.97 on 9V74, but 1.44 times on Xeon Platinum 8370C (Ice Lake): `NinoUnsafe.Wide512` takes AMD and
+  on EPYC 9V45 and 0.97 on 9V74, but 1.44 times on Xeon Platinum 8370C (Ice Lake): `NinoSimd.Prefer512` takes AMD and
   every Intel CPU but the Sunny Cove generation, by family 6 and model (`IsIceLake`: 0x6A, 0x6C, 0x7D, 0x7E, 0x9D, 0x8C,
   0x8D, 0xA7). Never gate on a feature bit a newer CPU merely adds: Azure's Xeon Platinum 8573C (Emerald Rapids) hides
   AVX512-FP16 and AMX from its guests (lscpu in the job log), so the first gate, on FP16 (CPUID 7.0 EDX bit 23), turned
@@ -829,7 +835,7 @@ of bytes in a block.
   64-byte load permuted into 128 bytes of memory per four values (`vpermb` twice, overlapping stores), 1.3 to 1.4 times
   the time of lane groups on a local AVX-512 Xeon. Not built: the same fused check in Arm64's lane groups, whose
   windows overlap per output vector (an AND and ORR per window against the strided pass's one load per bool).
-- On Ice Lake, mask padded raw structs with 32-byte vectors (`NinoUnsafe.Wide512` gates `NinoMask`'s 64-byte masks
+- On Ice Lake, mask padded raw structs with 32-byte vectors (`NinoSimd.Prefer512` gates `NinoMask`'s 64-byte masks
   as it gates the pair permutes): GitHub's Xeon Platinum 8370C wrote 1,000 8-byte structs with a padding byte in 116
   ns with 64-byte vectors and 83 with 32-byte ones (MemoryPack 88). Its 64-byte kernels on 8,000 bytes (aligned
   stores 145 ns, a zero-masking load `Avx512BW.MaskLoad` instead of the `vpand` 147, unaligned 167-287) ran no faster
