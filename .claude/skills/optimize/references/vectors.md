@@ -575,6 +575,15 @@ of bytes in a block.
   outliers, while the fixed-alignment A/B medians stayed within 4%. Bytes matched with SIMD on and off,
   and the real project's 582 generated files were identical (`c0025a12`).
 - Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
+  For full wide read batches, use AVX2 lane shuffles plus 64-bit reordering or AVX-512 two-source
+  dword permutes. Keep the exact ISA test in the existing out-of-line entry so Arm64 Tier 0 drops it.
+  Let the wide helper call that entry for the remainder, which is below the wide threshold. Returning the
+  processed count to the narrow entry grew its x64 listing to 205 B. Keeping the remainder in the wide
+  helper brought it to 123 B against the 110 B baseline, with Arm64 Tier 0 and Tier 1 unchanged at
+  488 and 120 B. The AVX2 guest matched wire bytes, including unaligned inputs and sentinels, and the
+  offset-zero 4,095-pair guest control improved in all four rounds. Native x64 throughput and native
+  AVX-512 execution remain unmeasured. Local M4 fallback timings varied without a repeatable regression
+  (`a07cde43`).
   Keep the order check before publishing the arrays and use the same wire block for out-of-order insertion.
   Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
   method's IL. The local Arm64 2,047- and 8,193-pair reuse probes cut elapsed time by roughly 35–45%.
