@@ -41,6 +41,7 @@ public class BclTypeHolder
 [NinoType(format: NinoFormat.VersionTolerant)]
 public struct BclScalarRegion
 {
+    public BitArray Bits;
     public BigInteger Big;
     public Version Version;
     public Uri Link;
@@ -58,6 +59,7 @@ public class BclTypeTests
     {
         var value = new BclScalarRegion
         {
+            Bits = new BitArray(new[] { true, false, true }),
             Big = new BigInteger(128),
             Version = new Version(1, 2, 3),
             Link = new Uri("../relative", UriKind.Relative),
@@ -67,6 +69,7 @@ public class BclTypeTests
         };
         var bytes = NinoSerializer.Serialize(value);
         var read = NinoDeserializer.Deserialize<BclScalarRegion>(bytes);
+        CollectionAssert.AreEqual(value.Bits, read.Bits);
         Assert.AreEqual(value.Big, read.Big);
         Assert.AreEqual(value.Version, read.Version);
         Assert.AreEqual(value.Link, read.Link);
@@ -76,6 +79,7 @@ public class BclTypeTests
 
         var builder = read.Text;
         NinoDeserializer.Deserialize(new byte[sizeof(int)], ref read);
+        CollectionAssert.AreEqual(value.Bits, read.Bits);
         Assert.AreEqual(value.Big, read.Big);
         Assert.AreEqual(value.Version, read.Version);
         Assert.AreEqual(value.Link, read.Link);
