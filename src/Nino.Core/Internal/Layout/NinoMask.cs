@@ -93,8 +93,14 @@ namespace Nino.Core.Internal
             while (period % multiple != 0)
                 period += mask.Length;
             var bytes = new byte[period + extra];
-            for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = mask[i % mask.Length];
+            mask.AsSpan().CopyTo(bytes);
+            // Double the filled prefix until only a partial copy remains.
+            for (int filled = mask.Length; filled < bytes.Length;)
+            {
+                int count = Math.Min(filled, bytes.Length - filled);
+                bytes.AsSpan(0, count).CopyTo(bytes.AsSpan(filled));
+                filled += count;
+            }
             return bytes;
         }
 
