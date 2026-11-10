@@ -267,6 +267,14 @@ and when `asm.py compare` lists methods the change did not touch.
   formatter. Reuse `NinoSequences.CopySegments` to check the declared length while copying into the reservation.
   Match the exact formatter type so the JIT removes the generic segment loop. The Arm64 entry shrank from
   3,020 to 352 bytes and calls the existing 708-byte copy helper.
+  Use TryGet as the sole loop guard; it already handles the end position. Arm64
+  also folds the destination slice check after CopyTo, so keep the two span
+  operations. A separate two-segment branch slowed the 512-byte write by 22–28%
+  on M4. The simpler guard was broadly on par across four default-JIT pairs,
+  including two, four and sixteen segments and the cache-boundary controls.
+  All nine wire comparisons matched at 0 B. CopySegments moved from 87 to 78 IL
+  bytes, 680 to 712 Arm64 FullOpts bytes and 202 to 198 offline x64 bytes.
+  The .NET 8/10 suites and both netstandard builds passed (`fc95d7ea`).
 - Decode a portable `BigInteger` payload of at most four bytes as a signed integer after the length check.
   Sign-extend the last byte of a three-byte payload and use the existing unaligned reads for two and four bytes.
   This removes a 32-byte temporary allocation per short value on CoreCLR running the netstandard2.0 build.
