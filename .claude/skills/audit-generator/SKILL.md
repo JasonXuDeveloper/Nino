@@ -152,6 +152,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   allocation calls were still present in the baseline Arm64 FullOpts listing, so check the
   runtime and tier before predicting the allocation cost from IL. Real-project generated files
   and incremental reuse matched.
+- Pass the visibility context directly when checking whether a derived member hides a base member.
+  Check the override chain by symbol equality without a captured predicate. Across 233 inherited
+  member probes from the unit test project, both .NET 8 and .NET 10 went from 38.04 to 1.92 B per
+  check with identical decisions. The .NET 10 project reopened with 0.17–0.32 MB less allocation
+  across four rounds. Whole-project latency varied within the identical-build spread.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
