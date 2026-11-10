@@ -340,11 +340,10 @@ internal sealed class BodyEmitter
         _w.Line($"public int BodySize => {block.Total};");
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Block($"public void WriteRawBody({T} value, ref byte destination, int offset)", () =>
-        {
-            for (int i = 0; i < _m.Members.Length; i++)
-                _w.Line(RawWrite(_m.Members[i], "destination", block.Offsets[i] == "0" ? "offset" : "offset + " + block.Offsets[i]));
-        });
+        _w.Open($"public void WriteRawBody({T} value, ref byte destination, int offset)");
+        for (int i = 0; i < _m.Members.Length; i++)
+            _w.Line(RawWrite(_m.Members[i], "destination", block.Offsets[i] == "0" ? "offset" : "offset + " + block.Offsets[i]));
+        _w.Close();
         _w.Line();
         _w.Line(_names.Inline);
         _w.Line($"{Signature.WriteBody(T)} => WriteRawBody(value, ref writer.Reserve(BodySize), 0);");
@@ -447,13 +446,12 @@ internal sealed class BodyEmitter
         string signature = $"public void WriteFixed(in {T} value, ref byte destination)";
         if (_m.RawBody)
         {
-            _w.Block(signature, () =>
-            {
-                // Storing through the destination must not change which instance the body writes.
-                _w.Line("var __value = value;");
-                _w.Line($"destination = {NinoWire.NotNull};");
-                _w.Line("WriteRawBody(__value, ref destination, 1);");
-            });
+            _w.Open(signature);
+            // Storing through the destination must not change which instance the body writes.
+            _w.Line("var __value = value;");
+            _w.Line($"destination = {NinoWire.NotNull};");
+            _w.Line("WriteRawBody(__value, ref destination, 1);");
+            _w.Close();
             return;
         }
 
@@ -469,7 +467,9 @@ internal sealed class BodyEmitter
             signature = $"private static void __WriteFixed({T} value, ref byte destination)";
         }
 
-        _w.Block(signature, () => EmitFixedWrites(members));
+        _w.Open(signature);
+        EmitFixedWrites(members);
+        _w.Close();
         if (_m.Block)
         {
             _w.Line();
@@ -487,51 +487,49 @@ internal sealed class BodyEmitter
     private void EmitBlock(List<(MemberModel Member, string Offset)> members)
     {
         string iface = $"{CoreCompilerServices}INinoBlockFormatter<{T}>";
-        _w.Block($"{CoreCompilerServices}NinoBlockMap {iface}.BlockMap()", () =>
+        _w.Open($"{CoreCompilerServices}NinoBlockMap {iface}.BlockMap()");
+        _w.Line($"var __v = default({T});");
+        _w.Line($"return new {CoreCompilerServices}NinoBlockMap()");
+        for (int i = 0; i < members.Count; i++)
         {
-            _w.Line($"var __v = default({T});");
-            _w.Line($"return new {CoreCompilerServices}NinoBlockMap()");
-            for (int i = 0; i < members.Count; i++)
-            {
-                var (member, offset) = members[i];
-                string memory = member.IsProperty
-                    ? $"{CoreCompilerServices}NinoBlocks.Find<{T}>({CoreCompilerServices}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
-                      $$"""{ var __m = default({{T}}); {{Set(_m, member, "__m", $"{CoreCompilerServices}NinoBlocks.Marked<{member.TypeName}>()")}} return __m; })"""
-                    : $"{CoreCompilerServices}NinoBlocks.Offset(ref __v, ref {Get(_m, member, "__v")})";
-                string item = member.Raw != null
-                    ? $"Raw<{member.TypeName}>"
-                    : $"Block<{member.TypeName}, {Formatter(member)}>";
-                _w.Line($"    .{item}({memory}, {offset}){(i == members.Count - 1 ? ";" : "")}");
-            }
-        });
+            var (member, offset) = members[i];
+            string memory = member.IsProperty
+                ? $"{CoreCompilerServices}NinoBlocks.Find<{T}>({CoreCompilerServices}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
+                  $$"""{ var __m = default({{T}}); {{Set(_m, member, "__m", $"{CoreCompilerServices}NinoBlocks.Marked<{member.TypeName}>()")}} return __m; })"""
+                : $"{CoreCompilerServices}NinoBlocks.Offset(ref __v, ref {Get(_m, member, "__v")})";
+            string item = member.Raw != null
+                ? $"Raw<{member.TypeName}>"
+                : $"Block<{member.TypeName}, {Formatter(member)}>";
+            _w.Line($"    .{item}({memory}, {offset}){(i == members.Count - 1 ? ";" : "")}");
+        }
+        _w.Close();
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Block($"void {iface}.ReadBlock(ref {T} value, ref byte source)", () =>
+        _w.Open($"void {iface}.ReadBlock(ref {T} value, ref byte source)");
+        foreach (var (member, offset) in members)
         {
-            foreach (var (member, offset) in members)
+            // As ReadBody: a bool through its own read, which rejects a byte other than 0 or 1.
+            if (member.Raw != null)
             {
-                // As ReadBody: a bool through its own read, which rejects a byte other than 0 or 1.
-                if (member.Raw != null)
-                {
-                    _w.Line(Set(_m, member, "value", ReadRaw(member, "source", offset)));
-                    continue;
-                }
-
-                string read = $"{CoreCompilerServices}NinoBlocks.ReadBlock<{member.TypeName}, {Formatter(member)}>(ref ";
-                string at = $", ref {CoreCompilerServices}NinoUnsafe.Add(ref source, {offset}));";
-                if (Ref(_m, member, "value") is { } field)
-                {
-                    _w.Line($"{read}{field}{at}");
-                    continue;
-                }
-
-                _w.Open();
-                _w.Line($"var __t = default({member.TypeName});");
-                _w.Line($"{read}__t{at}");
-                _w.Line(Set(_m, member, "value", "__t"));
-                _w.Close();
+                _w.Line(Set(_m, member, "value", ReadRaw(member, "source", offset)));
+                continue;
             }
-        });
+
+            string read = $"{CoreCompilerServices}NinoBlocks.ReadBlock<{member.TypeName}, {Formatter(member)}>(ref ";
+            string at = $", ref {CoreCompilerServices}NinoUnsafe.Add(ref source, {offset}));";
+            if (Ref(_m, member, "value") is { } field)
+            {
+                _w.Line($"{read}{field}{at}");
+                continue;
+            }
+
+            _w.Open();
+            _w.Line($"var __t = default({member.TypeName});");
+            _w.Line($"{read}__t{at}");
+            _w.Line(Set(_m, member, "value", "__t"));
+            _w.Close();
+        }
+        _w.Close();
     }
 
     // ----- writes --------------------------------------------------------------------------------------------
