@@ -547,6 +547,13 @@ of bytes in a block.
   scalar case 63–140% slower across four rounds. The ordinary cursor variant had no
   repeatable large-input gain. Keep both patches as probes. Wire and dirty-padding
   checks matched, and targeted and scalar tests and netstandard builds passed.
+  Keep the three-word path inside `Copy` for now. Outlining only that loop increased
+  the default Arm64 Tier 1 entry from 748 to 764 bytes and slowed the 17-element SIMD
+  case by 13–23% in four rounds. Outlining the entire scalar path reduced the default
+  entry to 564 bytes, but the scalar entry plus helper grew from 432 to 492 bytes and
+  the x64 cross listing from 380 to 424 bytes. The apparent 2,665-element SIMD gain
+  did not repeat with an identical-binary control. Keep both patches as probes.
+  Wire and dirty-padding checks matched, and the scalar outline passed targeted tests.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
