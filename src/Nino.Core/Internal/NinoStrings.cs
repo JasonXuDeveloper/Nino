@@ -920,56 +920,84 @@ namespace Nino.Core.Internal
 
 #if NET8_0_OR_GREATER
         /// <summary>Compares Latin-1 text with a long header, whose length is at least 64.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static bool SameLongLatin1(ref byte source, string value)
         {
             // Compare the tail first: a same-length edit at the end need not scan the whole prefix.
             nuint n = (uint)value.Length;
             ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
+            if (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512)
+                return SameLatin1Blocks<CompareLatin1_512>(ref source, ref chars, n);
             if (Vector256.IsHardwareAccelerated)
-            {
-                nuint last = n - 32;
-                if (!Same32(ref source, ref chars, last))
-                    return false;
-                for (nuint i = 0; i < last; i += 32)
-                {
-                    if (!Same32(ref source, ref chars, i))
-                        return false;
-                }
-
-                return true;
-            }
-
+                return SameLatin1Blocks<CompareLatin1_256>(ref source, ref chars, n);
             if (Vector128.IsHardwareAccelerated)
-            {
-                nuint last = n - 16;
-                if (!Same16(ref source, ref chars, last))
-                    return false;
-                for (nuint i = 0; i < last; i += 16)
-                {
-                    if (!Same16(ref source, ref chars, i))
-                        return false;
-                }
-
-                return true;
-            }
+                return SameLatin1Blocks<CompareLatin1_128>(ref source, ref chars, n);
             return SameBytes(ref source, value, 0);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool Same32(ref byte source, ref ushort chars, nuint i)
+        private static bool SameLatin1Blocks<TCompare>(ref byte source, ref ushort chars, nuint count)
+            where TCompare : struct, ICompareLatin1
         {
-            var (lower, upper) = Vector256.Widen(Vector256.LoadUnsafe(ref source, i));
-            return ((lower ^ Vector256.LoadUnsafe(ref chars, i)) |
-                    (upper ^ Vector256.LoadUnsafe(ref chars, i + 16))) == Vector256<ushort>.Zero;
+            nuint width = TCompare.Width;
+            nuint last = count - width;
+            if (!TCompare.Same(ref source, ref chars, last))
+                return false;
+            for (nuint i = 0; i < last; i += width)
+            {
+                if (!TCompare.Same(ref source, ref chars, i))
+                    return false;
+            }
+
+            return true;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool Same16(ref byte source, ref ushort chars, nuint i)
+        private interface ICompareLatin1
         {
-            var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, i));
-            return ((lower ^ Vector128.LoadUnsafe(ref chars, i)) |
-                    (upper ^ Vector128.LoadUnsafe(ref chars, i + 8))) == Vector128<ushort>.Zero;
+            static abstract nuint Width { get; }
+            static abstract bool Same(ref byte source, ref ushort chars, nuint offset);
+        }
+
+        private readonly struct CompareLatin1_128 : ICompareLatin1
+        {
+            public static nuint Width => 16;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool Same(ref byte source, ref ushort chars, nuint offset)
+            {
+                var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, offset));
+                var first = lower ^ Vector128.LoadUnsafe(ref chars, offset);
+                var second = upper ^ Vector128.LoadUnsafe(ref chars, offset + 8);
+                return (first | second) == Vector128<ushort>.Zero;
+            }
+        }
+
+        private readonly struct CompareLatin1_256 : ICompareLatin1
+        {
+            public static nuint Width => 32;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool Same(ref byte source, ref ushort chars, nuint offset)
+            {
+                var (lower, upper) = Vector256.Widen(Vector256.LoadUnsafe(ref source, offset));
+                var first = lower ^ Vector256.LoadUnsafe(ref chars, offset);
+                var second = upper ^ Vector256.LoadUnsafe(ref chars, offset + 16);
+                return (first | second) == Vector256<ushort>.Zero;
+            }
+        }
+
+        private readonly struct CompareLatin1_512 : ICompareLatin1
+        {
+            public static nuint Width => 64;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool Same(ref byte source, ref ushort chars, nuint offset)
+            {
+                var (lower, upper) = Vector512.Widen(Vector512.LoadUnsafe(ref source, offset));
+                var first = lower ^ Vector512.LoadUnsafe(ref chars, offset);
+                var second = upper ^ Vector512.LoadUnsafe(ref chars, offset + 32);
+                return (first | second) == Vector512<ushort>.Zero;
+            }
         }
 #else
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
