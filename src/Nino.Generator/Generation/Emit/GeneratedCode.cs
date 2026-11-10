@@ -200,6 +200,9 @@ internal static class GeneratedCode
 
         private readonly void AppendRange(StringBuilder builder, string code, int start, int end)
         {
+            if (start == end)
+                return;
+
             if (UseBytesAlias)
             {
                 int at = FindName(code, BytesType, start, member: false);
@@ -217,6 +220,9 @@ internal static class GeneratedCode
 
         private readonly void AppendGeneratedRange(StringBuilder builder, string code, int start, int end)
         {
+            if (start == end)
+                return;
+
             if (OmitGeneratedNamespace)
             {
                 int at;
