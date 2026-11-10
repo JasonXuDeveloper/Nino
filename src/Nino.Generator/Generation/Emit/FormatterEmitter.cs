@@ -26,10 +26,9 @@ internal static class FormatterEmitter
             names.Formatters, names.RawTypes);
 
         // The partial classes of the members' accessors follow in the types' own namespaces.
-        bool partial = m.Partial.Declarations.Length > 0;
-        string file = GeneratedCode.File(LayoutEmitter.Emit(m), names.Declarations(aliases), body,
-            fileScoped && !partial);
-        return partial ? file + AccessorEmitter.EmitPartial(m) : file;
+        string? partial = m.Partial.Declarations.Length > 0 ? AccessorEmitter.EmitPartial(m) : null;
+        return GeneratedCode.File(LayoutEmitter.Emit(m), names.Declarations(aliases), body,
+            fileScoped && partial == null, suffix: partial);
     }
 
     private static void EmitFormatter(CodeWriter w, TypeModel m, FormatterNames names)

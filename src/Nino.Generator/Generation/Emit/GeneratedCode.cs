@@ -31,9 +31,10 @@ internal static class GeneratedCode
     /// one per line, then a blank line) and <paramref name="body"/> (written at no indentation, as a
     /// <see cref="CodeWriter"/> writes it). <paramref name="fileScoped"/>: the namespace is declared for the rest of
     /// the file (<c>namespace NinoGen;</c>, C# 10), where nothing follows the body and the preamble declares no
-    /// namespace; otherwise it is a block, whose lines are indented one level.
+    /// namespace; otherwise it is a block, whose lines are indented one level, followed by any suffix.
     /// </summary>
-    public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped, int? indentation = null)
+    public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped,
+        int? indentation = null, string? suffix = null)
     {
         if (fileScoped)
         {
@@ -55,7 +56,7 @@ internal static class GeneratedCode
         }
 
         // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
-        var sb = RentScratch(body.Length + (indentation ?? body.Length / 4) + preamble.Length + 1024);
+        var sb = RentScratch(body.Length + (indentation ?? body.Length / 4) + preamble.Length + Math.Max(1024, suffix?.Length ?? 0));
         sb.Append(Header).Append(preamble);
         AppendBlockPrefix(sb, aliases);
         // The body's lines one level in (blank lines stay empty).
@@ -70,7 +71,7 @@ internal static class GeneratedCode
             start = end;
         }
 
-        sb.Append("}\n");
+        sb.Append("}\n").Append(suffix);
         string file = sb.ToString();
         ReturnScratch(sb);
         return file;
