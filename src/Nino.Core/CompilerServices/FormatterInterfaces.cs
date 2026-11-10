@@ -176,6 +176,14 @@ namespace Nino.Core.CompilerServices
         int PrefetchMembers(object value);
     }
 
+    /// <summary>Prefetches the collection's objects without walking their members.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoObjectPrefetchFormatter
+    {
+        /// <summary>The bytes of one element's object.</summary>
+        int PrefetchBytes { get; }
+    }
+
     /// <summary>
     /// Marker for struct formatters whose output is exactly the in-memory bytes of the value
     /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly.

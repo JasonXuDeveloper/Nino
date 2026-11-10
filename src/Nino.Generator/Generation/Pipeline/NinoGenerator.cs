@@ -120,7 +120,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // no prefetch, and the generated code is what it is without the property.
         var prefetching = context.AnalyzerConfigOptionsProvider.Select(static (o, _) =>
             o.GlobalOptions.TryGetValue("build_property." + PrefetchProperty, out var value) &&
-            string.Equals(value, "true", StringComparison.OrdinalIgnoreCase));
+            string.Equals(value, "true", StringComparison.OrdinalIgnoreCase))
+            .Combine(project.Select(static (p, _) => p.ObjectPrefetch));
         return new[]
         {
             Gate(marked.Select(static (m, _) => m.Model), enabled, prefetching), Gate(inherited, enabled, prefetching),
@@ -373,13 +374,22 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     /// <summary>The models of a stream, in compilations that reference Nino.Core.</summary>
     private static IncrementalValuesProvider<TypeModel> Gate(IncrementalValuesProvider<TypeModel?> models,
-        IncrementalValueProvider<bool> enabled, IncrementalValueProvider<bool> prefetching) =>
+        IncrementalValueProvider<bool> enabled, IncrementalValueProvider<(bool Left, bool Right)> prefetching) =>
         models.Where(static m => m != null)
             .Combine(enabled.Combine(prefetching))
             .Where(static x => x.Right.Left)
-            .Select(static (x, _) => x.Right.Right || x.Left!.PrefetchBytes == 0
-                ? x.Left!
-                : x.Left with { PrefetchBytes = 0, PrefetchMembers = EquatableArray<string>.Empty });
+            .Select(static (x, _) =>
+            {
+                var model = x.Left!;
+                if (model.PrefetchBytes == 0)
+                    return model;
+                var (prefetchEnabled, objectOnly) = x.Right.Right;
+                if (!prefetchEnabled)
+                    return model with { PrefetchBytes = 0, PrefetchMembers = EquatableArray<string>.Empty };
+                return objectOnly && model.PrefetchMembers.Length == 0
+                    ? model with { ObjectOnlyPrefetch = true }
+                    : model;
+            });
 
     /// <summary>The MSBuild property a project sets to true to prefetch its long top-level collections.</summary>
     public const string PrefetchProperty = "NinoPrefetchLargeCollections";

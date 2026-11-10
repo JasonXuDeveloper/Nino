@@ -13,7 +13,7 @@ namespace Nino.Generator.Generation;
 /// and whether NativeAOT's attributes can keep the fields of measured structs (<c>LayoutTypes.CanEmit</c>).
 /// </summary>
 internal sealed record ProjectFacts(bool Enabled, GeneratorOptions Options, EquatableArray<string> ReferencedNinoTypes,
-    bool CanKeepLayouts)
+    bool CanKeepLayouts, bool ObjectPrefetch)
 {
     public static ProjectFacts Of(Compilation c, CancellationToken ct)
     {
@@ -30,6 +30,7 @@ internal sealed record ProjectFacts(bool Enabled, GeneratorOptions Options, Equa
                 new EquatableArray<FormatterMarks>(FormatterRules.OwnMarks(c, formatterAttribute)
                     .OrderBy(m => m.Formatter, StringComparer.Ordinal))),
             InheritedCandidates.ReferencedNinoTypes(c, ct),
-            LayoutTypes.CanEmit(c));
+            LayoutTypes.CanEmit(c),
+            TypeNames.CanName(c, "Nino.Core.CompilerServices.INinoObjectPrefetchFormatter"));
     }
 }

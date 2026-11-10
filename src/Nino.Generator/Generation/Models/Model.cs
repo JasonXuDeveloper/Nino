@@ -270,7 +270,8 @@ internal sealed record TypeModel(
     EquatableArray<string> PrefetchMembers,
     // The serialization callbacks its bodies call (Callbacks.Build), or null for none: then nothing in its formatter
     // differs from a type without the feature.
-    CallbackModel? Callbacks = null)
+    CallbackModel? Callbacks = null,
+    bool ObjectOnlyPrefetch = false)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 

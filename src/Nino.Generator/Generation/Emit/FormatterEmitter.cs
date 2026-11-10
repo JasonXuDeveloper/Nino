@@ -173,7 +173,9 @@ internal static class FormatterEmitter
 
     /// <summary>The interface of a formatter whose collections prefetch (see <see cref="TypeModel.PrefetchBytes"/>).</summary>
     private static string Prefetch(TypeModel m) =>
-        m.PrefetchBytes > 0 ? $", {CoreCompilerServices}INinoPrefetchFormatter" : "";
+        m.PrefetchBytes == 0 ? "" : m.ObjectOnlyPrefetch
+            ? $", {CoreCompilerServices}INinoObjectPrefetchFormatter"
+            : $", {CoreCompilerServices}INinoPrefetchFormatter";
 
     /// <summary>
     /// INinoPrefetchFormatter of a formatter: the bytes an element brings into the cache, and the prefetch of the
@@ -187,6 +189,8 @@ internal static class FormatterEmitter
         const string signature = "public int PrefetchMembers(object value)";
         w.Line();
         w.Line($"public int PrefetchBytes => {m.PrefetchBytes};");
+        if (m.ObjectOnlyPrefetch)
+            return;
         w.Line(names.Inline);
         if (m.PrefetchMembers.Length == 0)
             w.Line($"{signature} => 0;");

@@ -219,9 +219,12 @@ namespace Nino.Core.Internal
             ref object item = ref Unsafe.Add(ref at, 2 * Run);
             for (int i = 0; i < far; i++)
                 sum += At(Unsafe.Add(ref item, i));
-            int near = Math.Min(left - Run, Run);
-            if (near > 0)
-                sum += Members<TFormatter>(ref Unsafe.Add(ref at, Run), near);
+            if (default(TFormatter) is INinoPrefetchFormatter)
+            {
+                int near = Math.Min(left - Run, Run);
+                if (near > 0)
+                    sum += Members<TFormatter>(ref Unsafe.Add(ref at, Run), near);
+            }
 #if NET8_0_OR_GREATER
             if (!Sse.IsSupported)
                 Sink = sum;
@@ -311,10 +314,15 @@ namespace Nino.Core.Internal
         /// </summary>
         public static class Of<TFormatter> where TFormatter : struct
         {
-            public static readonly int Threshold = Supported && default(TFormatter) is INinoPrefetchFormatter formatter
-                ? (int)Math.Min(int.MaxValue - 1,
-                    Math.Max(MinElements, CacheBytes / CacheShare / Math.Max(1, formatter.PrefetchBytes)))
-                : int.MaxValue;
+            public static readonly int Threshold = !Supported ? int.MaxValue : default(TFormatter) switch
+            {
+                INinoPrefetchFormatter formatter => ForBytes(formatter.PrefetchBytes),
+                INinoObjectPrefetchFormatter formatter => ForBytes(formatter.PrefetchBytes),
+                _ => int.MaxValue,
+            };
+
+            private static int ForBytes(int bytes) =>
+                (int)Math.Min(int.MaxValue - 1, Math.Max(MinElements, CacheBytes / CacheShare / Math.Max(1, bytes)));
         }
 
         /// <summary>Whether this runtime prefetches: x64 or Arm64 on .NET 8+ (see <see cref="At"/>).</summary>

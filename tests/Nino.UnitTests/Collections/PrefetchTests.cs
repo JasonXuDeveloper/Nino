@@ -360,6 +360,7 @@ public class PrefetchTests
             [NinoType] public class Computed { public string Name { get => _name; set => _name = value; } private string _name; public List<int> Other; }
             [NinoType] public class Virtual { public virtual string Name { get; set; } public List<int> Other; }
             [NinoType] public class Plain { public int A; public List<int> B; }
+            [NinoType(format: NinoFormat.VersionTolerant)] public sealed class Scalar { public int A; public long B; }
             [NinoType] public sealed class Fixed { public int A; public long B; }
             [NinoType] public struct Value { public int A; public string S; }
             [NinoType] public class Box<T> { public T Item; }
@@ -403,7 +404,11 @@ public class PrefetchTests
         StringAssert.Contains(virtualPrefetch, ".Other");
         Assert.IsFalse(virtualPrefetch.Contains(".Name"), "a getter that can dispatch to an override");
 
+        string scalar = Output("Scalar");
+        StringAssert.Contains(scalar, "INinoObjectPrefetchFormatter");
+        Assert.IsFalse(scalar.Contains("PrefetchMembers"));
+
         foreach (string type in new[] { "Fixed", "Value", "Box_1" })
-            Assert.IsFalse(Output(type).Contains("INinoPrefetchFormatter"), type);
+            Assert.IsFalse(Output(type).Contains("PrefetchBytes"), type);
     }
 }
