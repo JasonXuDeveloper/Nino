@@ -279,5 +279,24 @@ namespace Nino.Core.Internal
                 array[at++] = ObjectFields.At<T>(node, item);
             }
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>Copies directly to the wire when its layout matches <typeparamref name="T"/>.</summary>
+        public static int CopyTo(object root, Span<T> items)
+        {
+            int at = 0;
+            CopyTo(root, items, ref at, At.Item, At.Left, At.Right);
+            return at;
+        }
+
+        private static void CopyTo(object node, Span<T> items, ref int at, int item, int left, int right)
+        {
+            for (; node != null; node = ObjectFields.At<object>(node, right))
+            {
+                CopyTo(ObjectFields.At<object>(node, left), items, ref at, item, left, right);
+                items[at++] = ObjectFields.At<T>(node, item);
+            }
+        }
+#endif
     }
 }

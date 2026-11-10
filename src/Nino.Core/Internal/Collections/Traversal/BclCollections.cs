@@ -2,6 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
@@ -21,9 +24,18 @@ namespace Nino.Core
             switch (value)
             {
                 case SortedSet<T> sorted:
+                    object root = SortedSetTrees.RootOf(sorted);
+#if NET8_0_OR_GREATER
+                    if (!NinoUnsafe.IsReferenceOrContainsReferences<T>())
+                    {
+                        int count = sorted.Count;
+                        if (count >= 32 && TryWritePackedTree(count, root, ref writer))
+                            return true;
+                    }
+#endif
                     // Copied out of its tree: its enumerator keeps a stack of nodes and checks the version per
                     // element.
-                    NinoCollections.WriteCopied<T, TFormatter>(sorted, SortedSetTrees.RootOf(sorted), ref writer);
+                    NinoCollections.WriteCopied<T, TFormatter>(sorted, root, ref writer);
                     return true;
                 case LinkedList<T> linked:
                     WriteLinked(linked, ref writer);
@@ -32,6 +44,22 @@ namespace Nino.Core
                     return false;
             }
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryWritePackedTree(int count, object root, ref Writer writer)
+        {
+            if (!NinoUnsafe.Is64Bit || root == null ||
+                !RawFormatter.Is<T, TFormatter>() || NinoLayout<T>.HasPadding)
+                return false;
+
+            ref byte bytes = ref writer.ReserveCounted(count, Unsafe.SizeOf<T>());
+            var items = MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref bytes), count);
+            if (SortedSetNodes<T>.CopyTo(root, items) != count)
+                NinoThrow.ModifiedDuringWrite();
+            return true;
+        }
+#endif
 
         /// <summary>
         /// Reads <paramref name="length"/> elements into <paramref name="collection"/> (empty) if it is one of these

@@ -801,6 +801,17 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void SortedSetWritesPackedItemsAtAnUnalignedOffset()
+    {
+        var set = new SortedSet<int>(Enumerable.Range(0, 257), Comparer<int>.Create((a, b) => b.CompareTo(a)));
+        using var buffer = new NinoArrayBufferWriter();
+        buffer.GetSpan(1);
+        buffer.Advance(1);
+        NinoSerializer.Serialize(set, buffer);
+        CollectionAssert.AreEqual(NinoSerializer.Serialize(set.ToArray()), buffer.WrittenSpan.Slice(1).ToArray());
+    }
+
+    [TestMethod]
     public void SortedCollectionsReadPairsOutOfOrder()
     {
         // A SortedList, SortedSet or SortedDictionary with another comparer than the writer's: the pairs come out of
