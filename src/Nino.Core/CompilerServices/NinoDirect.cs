@@ -249,7 +249,7 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// <see cref="NinoDeserializer.Deserialize{T}(ReadOnlySpan{byte})"/> of a value the generator found is copied
         /// as its raw bytes: a length check and a load. When that path is unavailable, small values use a stack
-        /// local. Large values keep the heap fallback so the caller does not reserve another large stack slot.
+        /// local. Large values in untrusted mode return directly from the validated read.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T DeserializeRaw<T>(ReadOnlySpan<byte> data)
@@ -258,10 +258,13 @@ namespace Nino.Core.CompilerServices
             if (Unsafe.SizeOf<T>() <= MaxStackRawCopy)
                 return DeserializeSmallRaw<T>(data);
 
+            // Fold the mode check before the layout check. Combining them gives the trusted read a large
+            // temporary return buffer even after the fallback is folded out.
+            if (NinoLimits.Untrusted)
+                return NinoUntrusted.Read<T>(data);
+
             ref byte source = ref MemoryMarshal.GetReference(data);
-            // Folded to one of the two branches (NinoSettings.Untrusted: the other, which checks the value and the
-            // length).
-            if (!NinoRaw.IsRead<T>() || NinoLimits.Untrusted)
+            if (!NinoRaw.IsRead<T>())
                 source = ref DeserializeLargeRaw<T>(data);
             else if (data.Length < Unsafe.SizeOf<T>())
                 NinoThrow.EndOfData();
