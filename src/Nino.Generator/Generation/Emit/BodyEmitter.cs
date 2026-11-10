@@ -302,8 +302,8 @@ internal sealed class BodyEmitter
     private static bool WritesStringDirectly(MemberModel member) =>
         (member.Traits & (FormatterTraits.String | FormatterTraits.Utf8String)) != 0;
 
-    private bool CanPatchKeyedBody =>
-        _m.Keyed && !_m.IsCollection && _m.Members.All(static m => m.Raw != null || WritesStringDirectly(m));
+    private bool CanPatchBody =>
+        !_m.IsCollection && _m.Members.All(static m => m.Raw != null || WritesStringDirectly(m));
 
     private void EmitWrites()
     {
@@ -311,13 +311,13 @@ internal sealed class BodyEmitter
             return;
         // Keyed: the region holds everything; version tolerant: the members (the elements of a collection come
         // first, as positional ones).
-        bool patchOnly = CanPatchKeyedBody;
+        bool patchOnly = Region && CanPatchBody;
         if (_m.Keyed)
             _w.Line(patchOnly ? "int __length = writer.ReserveInt32();" : "int __length = writer.BeginRegion();");
         if (_m.IsCollection)
             _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
         if (Tolerant)
-            _w.Line("int __length = writer.BeginRegion();");
+            _w.Line(patchOnly ? "int __length = writer.ReserveInt32();" : "int __length = writer.BeginRegion();");
         if (_m.Inheritance.EmitMembers && !_mode.Shallow)
             _w.Line("WriteMembers(value, ref writer);");
         else
@@ -570,7 +570,7 @@ internal sealed class BodyEmitter
             return true;
         }
 
-        bool patchOnly = CanPatchKeyedBody;
+        bool patchOnly = CanPatchBody;
         if (patchOnly)
             _w.Line("int __length = writer.Position;");
         EmitRawBlock(first, block, patchOnly ? $"writer.Reserve({block.Total})" : $"writer.BeginRegion({block.Total}, out int __length)");
