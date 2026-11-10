@@ -74,7 +74,7 @@ namespace Nino.CodeGen
             sb.Append("                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&\n");
             sb.Append("                    shape.Total != 0)\n");
             sb.Append("                {\n");
-            sb.Append("                    reader = ReadHeavy(ref value, shape, reader);\n");
+            sb.Append("                    ReadHeavy(ref value, shape, ref reader);\n");
             sb.Append("                    return;\n");
             sb.Append("                }\n");
             sb.Append("\n");
@@ -88,7 +88,7 @@ namespace Nino.CodeGen
             sb.Append("\n");
             sb.Append("        // Publish the new array only after the entire payload has been read.\n");
             sb.Append("        [MethodImpl(MethodImplOptions.NoInlining)]\n");
-            sb.Append($"        private static Reader ReadHeavy(scoped ref {type} value, ArrayShape shape, Reader reader)\n");
+            sb.Append($"        private static void ReadHeavy(ref {type} value, ArrayShape shape, ref Reader reader)\n");
             sb.Append("        {\n");
             sb.Append("            T[] items = null;\n");
             sb.Append("            if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))\n");
@@ -99,7 +99,6 @@ namespace Nino.CodeGen
             sb.Append("            else\n");
             sb.Append($"                MultiDim.Fill(items, ref array[{first}]);\n");
             sb.Append("            NinoRecycler.Replace(ref value, array);\n");
-            sb.Append("            return reader;\n");
             sb.Append("        }\n");
             sb.Append("    }\n");
         }

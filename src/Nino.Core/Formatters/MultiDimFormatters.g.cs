@@ -35,7 +35,7 @@ namespace Nino.Core
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    reader = ReadHeavy(ref value, shape, reader);
+                    ReadHeavy(ref value, shape, ref reader);
                     return;
                 }
 
@@ -49,7 +49,7 @@ namespace Nino.Core
 
         // Publish the new array only after the entire payload has been read.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadHeavy(scoped ref T[,] value, ArrayShape shape, Reader reader)
+        private static void ReadHeavy(ref T[,] value, ArrayShape shape, ref Reader reader)
         {
             T[] items = null;
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
@@ -60,7 +60,6 @@ namespace Nino.Core
             else
                 MultiDim.Fill(items, ref array[0, 0]);
             NinoRecycler.Replace(ref value, array);
-            return reader;
         }
     }
 
@@ -91,7 +90,7 @@ namespace Nino.Core
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    reader = ReadHeavy(ref value, shape, reader);
+                    ReadHeavy(ref value, shape, ref reader);
                     return;
                 }
 
@@ -105,7 +104,7 @@ namespace Nino.Core
 
         // Publish the new array only after the entire payload has been read.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadHeavy(scoped ref T[,,] value, ArrayShape shape, Reader reader)
+        private static void ReadHeavy(ref T[,,] value, ArrayShape shape, ref Reader reader)
         {
             T[] items = null;
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
@@ -116,7 +115,6 @@ namespace Nino.Core
             else
                 MultiDim.Fill(items, ref array[0, 0, 0]);
             NinoRecycler.Replace(ref value, array);
-            return reader;
         }
     }
 
@@ -147,7 +145,7 @@ namespace Nino.Core
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    reader = ReadHeavy(ref value, shape, reader);
+                    ReadHeavy(ref value, shape, ref reader);
                     return;
                 }
 
@@ -161,7 +159,7 @@ namespace Nino.Core
 
         // Publish the new array only after the entire payload has been read.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Reader ReadHeavy(scoped ref T[,,,] value, ArrayShape shape, Reader reader)
+        private static void ReadHeavy(ref T[,,,] value, ArrayShape shape, ref Reader reader)
         {
             T[] items = null;
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
@@ -172,7 +170,6 @@ namespace Nino.Core
             else
                 MultiDim.Fill(items, ref array[0, 0, 0, 0]);
             NinoRecycler.Replace(ref value, array);
-            return reader;
         }
     }
 }
