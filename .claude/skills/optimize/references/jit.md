@@ -397,6 +397,13 @@ and when `asm.py compare` lists methods the change did not touch.
   228 IL bytes, while its int/int Arm64 Tier 1 instance moved from 296 to 292 B. The x64 cross
   instance grew from 222 to 732 B and the corresponding raw caller shrank from 643 to 364 B.
   x64 throughput remains unmeasured (`ef8e4195`).
+  Batch two quaternary parents in the Arm64 adoption loop for heaps of at least 33 pairs.
+  Keep 128-bit NEON loads and stores and OR the two comparison masks before one horizontal
+  reduction. The 257-pair M4 reads improved in all four rounds at offsets zero and one, and
+  8,193-pair reads improved in every pair. Results near 64 KiB of combined input and output
+  and for short heaps varied. Wire inputs matched, decoded heap order matched and steady
+  allocation was zero. Adoption grew from 397 to 661 IL bytes and from 452 to 572 Arm64
+  FullOpts bytes. The emulated x64 listing stayed identical at 341 B (`d7efda09`).
 - Batch writes at the typed lookup boundary. Trying an array branch in the public grouping formatter
   removed its enumerator allocation but slowed short foreign groupings even after outlining. Dispatch
   once from the lookup formatter, write the existing group array and reuse the span writer for each
