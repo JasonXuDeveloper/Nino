@@ -192,8 +192,9 @@ internal static class Callbacks
             return null;
         // Static [NinoOnDeserializing]s run before the instance exists, so before every instance one.
         var beforeRead = calls[(int)CallbackKind.Deserializing];
-        var deserializing = beforeRead?.Where(static c => c.Static)
-            .Concat(beforeRead.Where(static c => !c.Static));
+        IEnumerable<CallbackCall>? deserializing = beforeRead is { Count: 1 }
+            ? beforeRead
+            : beforeRead?.Where(static c => c.Static).Concat(beforeRead.Where(static c => !c.Static));
         return new CallbackModel(new EquatableArray<CallbackCall>(calls[(int)CallbackKind.Serializing]),
             new EquatableArray<CallbackCall>(calls[(int)CallbackKind.Serialized]),
             new EquatableArray<CallbackCall>(deserializing),
