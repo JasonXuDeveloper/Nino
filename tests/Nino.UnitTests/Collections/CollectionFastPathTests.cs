@@ -265,12 +265,13 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
-    public void PriorityQueueReadsRawHeapWithoutChangingInsertionOrder()
+    [DataRow(19)]
+    [DataRow(34)]
+    public void PriorityQueueReadsRawHeapWithoutChangingInsertionOrder(int count)
     {
-        const int count = 19;
-        foreach (int unorderedIndex in new[] { -1, 3, count - 1 })
+        foreach (int unorderedIndex in new[] { -1, 3, 8, count - 1 })
         foreach (bool customComparer in new[] { false, true })
-        foreach (int capacity in new[] { 1, 32 })
+        foreach (int capacity in new[] { 1, 64 })
         {
             var comparer = customComparer ? Comparer<int>.Create((a, b) => b.CompareTo(a)) : Comparer<int>.Default;
             var expected = new PriorityQueue<int, int>(capacity, comparer);

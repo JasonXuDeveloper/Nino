@@ -65,6 +65,32 @@ namespace Nino.Core.Internal
                 ref byte children = ref Unsafe.Add(ref source, 8);
                 ref byte destination = ref Unsafe.Add(ref target, 8);
                 ref byte parentPriority = ref Unsafe.Add(ref source, 4);
+                // Share the horizontal reduction across two parents on NEON.
+                if (AdvSimd.Arm64.IsSupported && count >= 33)
+                {
+                    for (; i <= count - 8; i += 8)
+                    {
+                        var a = Vector128.LoadUnsafe(ref children);
+                        var b = Vector128.LoadUnsafe(ref children, 16);
+                        var c = Vector128.LoadUnsafe(ref children, 32);
+                        var d = Vector128.LoadUnsafe(ref children, 48);
+                        var first = Vector128.GreaterThan(Vector128.Create(NinoUnsafe.Read<int>(ref parentPriority)),
+                            NinoSimd.OddInt32(a.AsInt32(), b.AsInt32()));
+                        var second = Vector128.GreaterThan(
+                            Vector128.Create(NinoUnsafe.Read<int>(ref Unsafe.Add(ref parentPriority, 8))),
+                            NinoSimd.OddInt32(c.AsInt32(), d.AsInt32()));
+                        if ((first | second) != Vector128<int>.Zero)
+                            return false;
+                        a.StoreUnsafe(ref destination);
+                        b.StoreUnsafe(ref destination, 16);
+                        c.StoreUnsafe(ref destination, 32);
+                        d.StoreUnsafe(ref destination, 48);
+                        children = ref Unsafe.Add(ref children, 64);
+                        destination = ref Unsafe.Add(ref destination, 64);
+                        parentPriority = ref Unsafe.Add(ref parentPriority, 16);
+                    }
+                }
+
                 for (; i <= count - 4; i += 4)
                 {
                     var a = Vector128.LoadUnsafe(ref children).AsInt32();
