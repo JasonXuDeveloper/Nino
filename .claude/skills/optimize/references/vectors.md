@@ -347,6 +347,14 @@ of bytes in a block.
   zero allocations. The 2D single-element case held at 3.25 ns and larger cases overlapped
   A/A. The helper grew from 286 to 313 IL bytes, 572 to 600 Arm64 FullOpts bytes, and
   499 to 535 offline x64 bytes. All 45 wire and reuse probes passed at offsets 0, 1 and 7.
+- Keep the separate unsigned product bound before multiplying by the minimum wire size.
+  Combining the high word of the total with the low-word byte product removed one comparison,
+  but four default-JIT A/B rounds showed no repeatable benefit. IL grew from 313 to 322 bytes
+  and offline x64 from 535 to 542, while Arm64 FullOpts fell from 600 to 592. Bounding the
+  count by remaining bytes first instead of `uint.MaxValue` used 318 IL bytes, 600 Arm64 bytes
+  and 532 offline x64 bytes. That form repeatedly slowed the single-item 2D read from around
+  3.25 to 3.72 ns. Both candidates matched the baseline's 45 wire and reuse probes at offsets
+  0, 1 and 7. Keep the alternatives as separate experiments for subsequent JIT diagnosis.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
