@@ -87,10 +87,10 @@ internal sealed class FormatterNames
         }
     }
 
-    /// <summary>
-    /// The alias declarations: the inlining attribute aliases when used, then <paramref name="others"/> (those
-    /// <see cref="GeneratedCode.WithAliases"/> declared).
-    /// </summary>
-    public IEnumerable<string> Declarations(IEnumerable<string> others) =>
-        _inline ? GeneratedCode.InlineAliases.Concat(others) : others;
+    /// <summary>Appends the inlining aliases before the body's other aliases.</summary>
+    public void AddInliningAliases(List<string> aliases)
+    {
+        if (_inline)
+            aliases.AddRange(GeneratedCode.InlineAliases);
+    }
 }

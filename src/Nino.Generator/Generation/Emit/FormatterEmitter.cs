@@ -21,17 +21,17 @@ internal static class FormatterEmitter
         // name has the formatter's type parameters.
         string unaliased = w.Finish();
         GeneratedCode.ReturnScratch(scratch);
-        var aliases = new List<string>();
+        var aliases = new List<string>(4);
+        names.AddInliningAliases(aliases);
         string body = GeneratedCode.WithAliases(unaliased, m.IsGeneric ? null : m.TypeName, aliases,
             names.Formatters, names.RawTypes);
 
         // The partial classes of the members' accessors follow in the types' own namespaces.
         string preamble = LayoutEmitter.Emit(m);
-        var declarations = names.Declarations(aliases);
         if (m.Partial.Declarations.Length == 0)
-            return GeneratedCode.File(preamble, declarations, body, fileScoped);
+            return GeneratedCode.File(preamble, aliases, body, fileScoped);
 
-        var file = GeneratedCode.BuildBlockFile(preamble, declarations, body, tailCapacity: m.Pooled ? 3072 : 1024);
+        var file = GeneratedCode.BuildBlockFile(preamble, aliases, body, tailCapacity: m.Pooled ? 3072 : 1024);
         var accessors = new CodeWriter(file);
         AccessorEmitter.EmitPartial(accessors, m);
         string source = accessors.Finish();
