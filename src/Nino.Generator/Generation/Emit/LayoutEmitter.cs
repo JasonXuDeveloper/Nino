@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using Nino.Generator.Common;
 using static Nino.Generator.Generation.TypeNames;
 
@@ -16,14 +17,18 @@ internal static class LayoutEmitter
 {
     public static string Emit(TypeModel m)
     {
-        string members = EscapeString(Members(m));
         var sb = GeneratedCode.RentScratch(256);
         sb.Append("[assembly: " + Core + "NinoTypeLayout(typeof(").Append(m.OpenTypeName)
             .Append("), " + Core + "NinoFormat.").Append(m.Format.ToString())
             .Append(", " + Core + "NinoHeader.").Append(LayoutEntry.HeaderNames[Header(m)])
             .Append(", ").Append(Bool(m.TrackReferences)).Append(", ").Append(Bool(m.RawStruct))
             .Append(", ").Append(m.TypeId.ToString(CultureInfo.InvariantCulture))
-            .Append(", \"").Append(members).Append('"');
+            .Append(", \"");
+        int start = sb.Length;
+        AppendMembers(sb, m);
+        sb.Replace("\\", "\\\\", start, sb.Length - start);
+        sb.Replace("\"", "\\\"", start, sb.Length - start);
+        sb.Append('"');
         if (m.PublishesDeferrable)
             sb.Append(", Deferrable = ").Append(Bool(m.Depth.Deferrable));
         sb.Append(")]\n\n");
@@ -88,11 +93,26 @@ internal static class LayoutEmitter
             return "";
 
         var sb = GeneratedCode.RentScratch(64);
+        AppendMembers(sb, m);
+        string text = sb.ToString();
+        GeneratedCode.ReturnScratch(sb);
+        return text;
+    }
+
+    private static void AppendMembers(StringBuilder sb, TypeModel m)
+    {
+        if (m.RawStruct)
+        {
+            sb.Append(m.RawLayout);
+            return;
+        }
+
+        int start = sb.Length;
         if (m.Collection is { } collection)
             sb.Append("[elements]::").Append(collection.Encoding);
         foreach (var member in m.Members)
         {
-            if (sb.Length != 0)
+            if (sb.Length != start)
                 sb.Append(';');
             sb.Append(member.SourceName).Append(':').Append(Plain(member.TypeName)).Append(':')
                 .Append(member.Encoding);
@@ -102,10 +122,6 @@ internal static class LayoutEmitter
                 sb.Append(":former=").Append(string.Join(",",
                     member.FormerKeys.Select(LayoutBaseline.Hex)));
         }
-
-        string text = sb.ToString();
-        GeneratedCode.ReturnScratch(sb);
-        return text;
     }
 
     private static string Bool(bool value) => value ? "true" : "false";
