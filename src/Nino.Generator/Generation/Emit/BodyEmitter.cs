@@ -299,14 +299,21 @@ internal sealed class BodyEmitter
         }
     }
 
+    private static bool WritesStringDirectly(MemberModel member) =>
+        (member.Traits & (FormatterTraits.String | FormatterTraits.Utf8String)) != 0;
+
+    private bool CanPatchKeyedBody =>
+        _m.Keyed && !_m.IsCollection && _m.Members.All(static m => m.Raw != null || WritesStringDirectly(m));
+
     private void EmitWrites()
     {
         if (Region && !(_m.Inheritance.EmitMembers && !_mode.Shallow) && TryEmitRegionWithBlock())
             return;
         // Keyed: the region holds everything; version tolerant: the members (the elements of a collection come
         // first, as positional ones).
+        bool patchOnly = CanPatchKeyedBody;
         if (_m.Keyed)
-            _w.Line("int __length = writer.BeginRegion();");
+            _w.Line(patchOnly ? "int __length = writer.ReserveInt32();" : "int __length = writer.BeginRegion();");
         if (_m.IsCollection)
             _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
         if (Tolerant)
@@ -316,7 +323,7 @@ internal sealed class BodyEmitter
         else
             EmitMemberWrites();
         if (Region)
-            _w.Line("writer.EndRegion(__length);");
+            _w.Line(patchOnly ? "writer.PatchLength(__length);" : "writer.EndRegion(__length);");
     }
 
     /// <summary>
@@ -563,12 +570,15 @@ internal sealed class BodyEmitter
             return true;
         }
 
-        EmitRawBlock(first, block, $"writer.BeginRegion({block.Total}, out int __length)");
+        bool patchOnly = CanPatchKeyedBody;
+        if (patchOnly)
+            _w.Line("int __length = writer.Position;");
+        EmitRawBlock(first, block, patchOnly ? $"writer.Reserve({block.Total})" : $"writer.BeginRegion({block.Total}, out int __length)");
         if (_m.Keyed)
             EmitKeyedWrites(groups);
         else
             EmitPositionalWrites(groups);
-        _w.Line("writer.EndRegion(__length);");
+        _w.Line(patchOnly ? "writer.PatchLength(__length);" : "writer.EndRegion(__length);");
         return true;
     }
 
@@ -680,7 +690,7 @@ internal sealed class BodyEmitter
             string l = "__l" + lengths++;
             var block = new RawBlock(run, headers: true);
             // Direct string writes cannot defer bodies into the enclosing region.
-            bool patchOnly = (first.Traits & (FormatterTraits.String | FormatterTraits.Utf8String)) != 0;
+            bool patchOnly = WritesStringDirectly(first);
             string reserve;
             if (patchOnly)
             {
