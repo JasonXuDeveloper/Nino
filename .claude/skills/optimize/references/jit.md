@@ -256,6 +256,15 @@ and when `asm.py compare` lists methods the change did not touch.
   a 459-byte helper. Copy dispatch IL went from 108 to 52 bytes plus an
   82-byte helper. Other sizes and repeated multi-chunk rounds were noisy.
   Wire bytes and steady-state allocation matched.
+  Pack a two-character payload in the short helper. A second inline length
+  check slowed three-character writes, and sharing the inline check with the
+  single-character path moved its timing in the wrong direction. Outlining
+  kept the two-character Arm64 caller near baseline (848 to 852 bytes),
+  while the helper grew from 816 to 1,084 Tier 1 bytes and from 459 to 522
+  x64 cross-JIT bytes. Dispatch IL was 52 to 53 bytes and helper IL 82 to 111.
+  Four cross-chunk CPU-time pairs beat both controls, while wall time did so
+  in three rounds. Single-chunk results overlapped A/A. Eight wire samples
+  and 577 generated files matched, with zero steady write allocation.
   Replacing the pinned UTF-16 reader append with the span overload kept bytes, truncated-input
   errors and zero allocations in the reuse probe. It reduced the Arm64 Tier 1 formatter from
   1,280 to 1,220 bytes but increased x64 ReadyToRun from 388 to 413 bytes. No timing advantage
