@@ -91,7 +91,7 @@ namespace Nino.Core.Internal
 
         // n > 16. Narrow the ASCII prefix, then finish with the widest suitable Latin-1 kernel.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static unsafe bool NarrowVector(ref ushort source, ref byte destination, nuint n)
+        internal static bool NarrowVector(ref ushort source, ref byte destination, nuint n)
         {
             // ASCII through the runtime's own narrowing (512-bit and unrolled where it can be): 1,000 chars in 22 ns
             // against 40 for the loop below. Continue the Latin-1 pass from where the ASCII pass stopped, keeping
@@ -112,6 +112,12 @@ namespace Nino.Core.Internal
                 destination = ref Unsafe.Add(ref destination, (nint)start);
                 n -= start;
             }
+            return NarrowRemainder(ref source, ref destination, n);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe bool NarrowRemainder(ref ushort source, ref byte destination, nuint n)
+        {
             // Test the exact ISA so Tier 0 can discard the wide dispatch on narrower CPUs.
             if (Avx512BW.IsSupported && n >= 128)
             {
@@ -136,6 +142,16 @@ namespace Nino.Core.Internal
             }
 
             // No 256-bit vectors.
+            if (n >= 128)
+            {
+                // Preserve early rejection before looking for a non-Latin-1 suffix.
+                if (!TryNarrow16(ref source, ref destination, 0) ||
+                    Unsafe.Add(ref source, (nint)n - 1) > 0xFF)
+                    return false;
+                source = ref Unsafe.Add(ref source, 16);
+                destination = ref Unsafe.Add(ref destination, 16);
+                n -= 16;
+            }
             return Narrow16s(ref source, ref destination, n);
         }
 

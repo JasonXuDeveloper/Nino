@@ -43,6 +43,8 @@ public class StringEncodingTests
         {
             yield return new string('é', length);
             yield return new string('中', length);
+            yield return new string('é', length - 1) + '中';
+            yield return "é中" + new string('é', length - 2);
         }
     }
 
