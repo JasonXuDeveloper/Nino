@@ -25,6 +25,7 @@ namespace Nino.CodeGen
             sb.Append("// from the repository root. MultiDimFormattersGenerationTests fails while this file is out of date.\n");
             sb.Append("// </auto-generated>\n");
             sb.Append("using System.Runtime.CompilerServices;\n");
+            sb.Append("#if NET8_0_OR_GREATER\nusing System.Runtime.InteropServices;\n#endif\n");
             sb.Append("using Nino.Core.Internal;\n");
             sb.Append("\n");
             sb.Append("namespace Nino.Core\n");
@@ -94,10 +95,15 @@ namespace Nino.CodeGen
             sb.Append("            if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))\n");
             sb.Append("                reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);\n");
             sb.Append($"            var array = new T[{lengths}];\n");
+            sb.Append("#if NET8_0_OR_GREATER\n");
+            sb.Append("            ref T first = ref Unsafe.As<byte, T>(ref MemoryMarshal.GetArrayDataReference(array));\n");
+            sb.Append("#else\n");
+            sb.Append($"            ref T first = ref array[{first}];\n");
+            sb.Append("#endif\n");
             sb.Append("            if (items == null)\n");
-            sb.Append($"                NinoElements.Read<T, TFormatter>(ref array[{first}], shape.Total, ref reader, prechecked: true);\n");
+            sb.Append("                NinoElements.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);\n");
             sb.Append("            else\n");
-            sb.Append($"                MultiDim.Fill(items, ref array[{first}]);\n");
+            sb.Append("                MultiDim.Fill(items, ref first);\n");
             sb.Append("            NinoRecycler.Replace(ref value, array);\n");
             sb.Append("        }\n");
             sb.Append("    }\n");

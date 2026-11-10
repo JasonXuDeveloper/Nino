@@ -4,6 +4,9 @@
 // from the repository root. MultiDimFormattersGenerationTests fails while this file is out of date.
 // </auto-generated>
 using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
 using Nino.Core.Internal;
 
 namespace Nino.Core
@@ -55,10 +58,15 @@ namespace Nino.Core
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
                 reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
             var array = new T[shape.A, shape.B];
+#if NET8_0_OR_GREATER
+            ref T first = ref Unsafe.As<byte, T>(ref MemoryMarshal.GetArrayDataReference(array));
+#else
+            ref T first = ref array[0, 0];
+#endif
             if (items == null)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0], shape.Total, ref reader, prechecked: true);
+                NinoElements.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
             else
-                MultiDim.Fill(items, ref array[0, 0]);
+                MultiDim.Fill(items, ref first);
             NinoRecycler.Replace(ref value, array);
         }
     }
@@ -110,10 +118,15 @@ namespace Nino.Core
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
                 reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
             var array = new T[shape.A, shape.B, shape.C];
+#if NET8_0_OR_GREATER
+            ref T first = ref Unsafe.As<byte, T>(ref MemoryMarshal.GetArrayDataReference(array));
+#else
+            ref T first = ref array[0, 0, 0];
+#endif
             if (items == null)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0], shape.Total, ref reader, prechecked: true);
+                NinoElements.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
             else
-                MultiDim.Fill(items, ref array[0, 0, 0]);
+                MultiDim.Fill(items, ref first);
             NinoRecycler.Replace(ref value, array);
         }
     }
@@ -165,10 +178,15 @@ namespace Nino.Core
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
                 reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
             var array = new T[shape.A, shape.B, shape.C, shape.D];
+#if NET8_0_OR_GREATER
+            ref T first = ref Unsafe.As<byte, T>(ref MemoryMarshal.GetArrayDataReference(array));
+#else
+            ref T first = ref array[0, 0, 0, 0];
+#endif
             if (items == null)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0, 0], shape.Total, ref reader, prechecked: true);
+                NinoElements.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
             else
-                MultiDim.Fill(items, ref array[0, 0, 0, 0]);
+                MultiDim.Fill(items, ref first);
             NinoRecycler.Replace(ref value, array);
         }
     }
