@@ -310,6 +310,26 @@ of bytes in a block.
   rounds, and the 16,384-item timing changed direction. The flag entry and
   new wide path added 174 IL bytes including shared helpers, 356 Arm64
   FullOpts bytes, and 303 x64 cross-JIT bytes. Keep the existing dispatch.
+  Share the 128-, 64-, and 16-byte loops through one inlined scan and pass
+  constant offsets to the four-load helper. A pre-offset reference introduced
+  an address add on Arm64. The helper calls survived in instrumented Tier 0
+  and slowed the scan. Compile the out-of-line validator with
+  `AggressiveOptimization` so it starts with both helpers inlined. The original
+  loop with the same attribute confirmed that tiering accounts for most of
+  the gain. On Apple Silicon with 128-byte cache lines, pinning the wire start
+  at offsets 0, 63, and 127 gave 43–66% less time across four rounds on each
+  side of the 64 KiB working set. Allocation remained zero. The first 128-item
+  read median rose from 1.62 to 1.74 ms. With all widths optimized from entry,
+  64-byte groups generally trailed 128, and 256 did not consistently beat 128
+  at those offsets. Use line size as a benchmark input; keep the batch width
+  separate from native SIMD width. The validator and helpers shrank from
+  493 to 354 IL bytes, with 336 Arm64 FullOpts bytes on both sides. x64
+  cross-JIT went from 295 to 301 bytes with the optimization attribute
+  removed for the listing, since crossgen2 skipped the annotated method.
+  A separate scalar conversion probe replaced the indexed nullable read with
+  two cursors. It removed the stride shift and reduced the `bool?` helper
+  from 212 to 196 Arm64 FullOpts bytes and 261 to 247 x64 bytes, but short
+  reuse readings often regressed. The wire and generated files matched.
   Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
   In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
   and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
