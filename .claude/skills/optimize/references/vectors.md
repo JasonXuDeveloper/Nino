@@ -378,6 +378,22 @@ of bytes in a block.
   wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
   four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
   to 1,404 bytes.
+  On Arm64, bypass that converter for nullable bools with the probed two-byte
+  flag/value layout. Expand each 0/1 presence bit into a lane mask, clear the
+  null slots and end the final vector at the last complete slot. Use 64-bit
+  vectors for four to seven elements and 128-bit vectors thereafter. Check the
+  minimum count before hardware and layout tests so the single-item control
+  stays flat. Compile the bounded vector loop optimized from its first call.
+  The M4 default-JIT 128-item mixed median went from 1.78 us to 38 ns; 16,896
+  mixed items went from 25.9 to 0.59 us. The baseline was still instrumented
+  Tier 0 at 128 items. Offsets zero and one, dirty null slots, and wire output
+  matched at 0 B. Write grew from 197 to 346 IL bytes before its shared helpers;
+  Arm64 FullOpts went from 1,256 to 1,424 bytes plus the 92-byte 128-bit kernel.
+  The x64 FullOpts fallback stayed at 998 bytes. Keep 128/256-bit x64 candidates
+  out: the shift variant still slowed the emulated 129-item probe by over 30%.
+  The 512-bit cross listing showed ZMM loads and stores but did not run on
+  hardware. Both modern suites, the scalar fallback and netstandard builds
+  passed (`cc716ba8`).
 - Keep the 81–128-byte Arm64 shortcut at the checked raw array reader. An inline branch and a
   separate helper in the shared copy dispatcher both slowed the 1 KiB direct control. Extracting
   the existing loop's vector group still affected that control, even after moving the branch.
