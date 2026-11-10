@@ -313,7 +313,13 @@ namespace Nino.Core
             var bits = reuse ? current : new BitArray(count);
             var target = CollectionsMarshal.AsBytes(bits);
             if (bytes.Length > 2)
-                bytes.CopyTo(target);
+            {
+                if (bytes.Length > 64 && reuse && !bytes.Overlaps(target))
+                    NinoUnsafe.CopyOver64(ref MemoryMarshal.GetReference(target), ref MemoryMarshal.GetReference(bytes),
+                        (uint)bytes.Length);
+                else
+                    bytes.CopyTo(target);
+            }
             else if (bytes.Length == 2)
                 NinoUnsafe.Write(ref MemoryMarshal.GetReference(target),
                     NinoUnsafe.Read<ushort>(ref MemoryMarshal.GetReference(bytes)));

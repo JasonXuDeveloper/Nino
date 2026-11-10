@@ -242,6 +242,28 @@ public class BclTypeTests
         Assert.IsTrue(System.Runtime.InteropServices.CollectionsMarshal.AsBytes(target).SequenceEqual(bytes.AsSpan(4)));
         Assert.ThrowsExactly<InvalidOperationException>(() => enumerator.MoveNext());
     }
+
+    [TestMethod]
+    public void BitArrayReuseAcceptsInputOverlappingItsStorage()
+    {
+        const int count = 1021;
+        var value = new BitArray(count);
+        for (int i = 0; i < count; i++)
+            value[i] = i % 3 == 1;
+
+        byte[] wire = NinoSerializer.Serialize(value);
+        var target = new BitArray(wire.Length * 8);
+        var input = System.Runtime.InteropServices.CollectionsMarshal.AsBytes(target);
+        target.Length = count;
+        Assert.IsTrue(input.Overlaps(System.Runtime.InteropServices.CollectionsMarshal.AsBytes(target)));
+        wire.AsSpan().CopyTo(input);
+        var existing = target;
+
+        NinoDeserializer.Deserialize(input, ref target);
+
+        Assert.AreSame(existing, target);
+        CollectionAssert.AreEqual(wire, NinoSerializer.Serialize(target));
+    }
 #endif
 #endif
 

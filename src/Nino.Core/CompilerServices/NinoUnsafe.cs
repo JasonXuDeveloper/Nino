@@ -452,7 +452,7 @@ namespace Nino.Core.CompilerServices
         // NinoUnsafe's class init and loads AmdCopy and IceLakeMemmove) and saved four registers in the prolog of the
         // 65 to 128 byte copies, the ones most callers make.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CopyOver64(ref byte destination, ref byte source, uint size) =>
+        internal static void CopyOver64(ref byte destination, ref byte source, uint size) =>
             CopyOver64Inline(ref destination, ref source, size);
 
         /// <summary><see cref="CopyOver64"/>'s body, inlined there and into <see cref="CopyToNew"/>.</summary>
