@@ -164,6 +164,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   IL. Arm64 Tier 1 fell from 1,672 to 1,532 bytes and offline x64 from 2,495 to 2,405.
   Four 1,000-item ASCII runs fell from 5.95–6.10 to 5.32–5.84 µs at zero steady
   allocation. All 27 wire and round-trip probes passed.
+  Keep `EndRegion` for version-tolerant collection reads. Omitting it when all
+  members preserved context shrank the `NamedList` body from 1,228 to 1,148 Arm64
+  Tier 1 bytes and from 1,744 to 1,643 offline x64 bytes, but 16 ASCII items
+  slowed in all four paired rounds. A guard that skipped the call only at EOF
+  brought the short array back into the A/A spread but added 12 Arm64 bytes,
+  6 offline x64 bytes and 9 IL bytes, with the 1,000-item case still slower.
+  Both experiments matched all 27 wire and round-trip probes at zero steady allocation.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
