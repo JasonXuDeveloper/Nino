@@ -102,13 +102,12 @@ internal static class RegistryEmitter
         return GeneratedCode.File(preamble.Finish(), aliases, body, fileScoped);
     }
 
-    public static string EmitUsages(IEnumerable<FormatterRegistration> usages, IEnumerable<FactoryRegistration> factories,
-        IEnumerable<TypeRegistration> generics, IEnumerable<string> layoutTypes, bool fileScoped)
+    public static string EmitUsages(EquatableArray<FormatterRegistration> usages, EquatableArray<FactoryRegistration> factories,
+        EquatableArray<TypeRegistration> generics, EquatableArray<string> layoutTypes, bool fileScoped)
     {
         var w = new CodeWriter();
-        var kept = layoutTypes.ToList();
         var aliases = new List<string>();
-        if (kept.Count != 0)
+        if (layoutTypes.Length != 0)
         {
             const string codeAnalysis = "global::System.Diagnostics.CodeAnalysis.";
             aliases.Add($"using __NinoDynamicDependency = {codeAnalysis}DynamicDependencyAttribute;");
@@ -116,7 +115,7 @@ internal static class RegistryEmitter
         }
 
         w.Open($"internal static class {UsagesClass}");
-        if (kept.Count != 0)
+        if (layoutTypes.Length != 0)
         {
             w.Line("private const __NinoMembers __Fields = __NinoMembers.PublicFields | __NinoMembers.NonPublicFields;");
             w.Line();
@@ -143,7 +142,7 @@ internal static class RegistryEmitter
                 foreach (var statement in entry.Rest)
                     compact.Count(statement);
         }
-        foreach (var type in kept)
+        foreach (var type in layoutTypes)
         {
             if (compact.Ready)
                 break;
@@ -152,7 +151,7 @@ internal static class RegistryEmitter
         compact.Declare(aliases);
 
         // The registry calls Register, so these stay with it: NativeAOT keeps the fields NinoLayout measures.
-        foreach (var type in kept)
+        foreach (var type in layoutTypes)
             w.AliasedLine(type, compact, "[__NinoDynamicDependency(__Fields, typeof(", "))]");
         EmitIdDispatch(w, "internal static", "", cases, compact);
         w.Close();
