@@ -155,6 +155,9 @@ internal static class DispatchEmitter
         if (all.Count == 1)
             return all[0].TypeId == baseId ? null : all;
 
+        if (all.Count <= 4 && HasUniqueIds(all, baseId))
+            return all;
+
         var subtypes = new List<DispatchEntry>();
         var seen = new HashSet<int>();
         HashSet<int>? collisions = null;
@@ -171,6 +174,23 @@ internal static class DispatchEmitter
         if (collisions != null)
             subtypes.RemoveAll(t => collisions.Contains(t.TypeId));
         return subtypes;
+    }
+
+    private static bool HasUniqueIds(List<DispatchEntry> subtypes, int baseId)
+    {
+        for (int i = 0; i < subtypes.Count; i++)
+        {
+            int id = subtypes[i].TypeId;
+            if (id == baseId)
+                return false;
+            for (int j = 0; j < i; j++)
+            {
+                if (subtypes[j].TypeId == id)
+                    return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
