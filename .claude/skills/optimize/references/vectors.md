@@ -606,6 +606,14 @@ of bytes in a block.
   at offset one regressed in the guest. Arm64 controls showed no stable regression and the two 64 KiB
   cases were noisy. Wire bytes matched with AVX2 on and off, and all timed loops allocated 0 B. Do not
   extrapolate guest timings to native x64 (`2202f782`).
+  For a suffix of at least 128 chars, outline the 512-bit writer and keep CPU preference inside that entry.
+  Keep the AVX2 fallback loop intact. Sharing its loop with the wider path changed guest code shape and hurt
+  some 64- and 127-char controls; splitting out the two ends also grew the v3 caller. With the separate
+  wide entry, the x64 v3 caller's instructions match the baseline at 543 B and Arm64 stays at 476 B.
+  The v4 caller is 639 B versus 561 B, with a 260 B helper that emits two `vpmovwb` operations per 64 chars.
+  Verify the portable kernel directly across offsets and tails. The AVX2 guest and M4 exercise the fallbacks;
+  neither executes native AVX-512. Their timed loops allocated 0 B, and unstable guest timings around the
+  threshold do not establish native throughput (`f9ce316e`).
 - Use the counted byte length to place long UTF-8 payloads at their final offset. When strict transcoding stops at an
   unpaired surrogate, continue the replacement encoder at the consumed char and written byte offsets, which differ
   after a non-ASCII prefix. Keep the replacement work out of line.
