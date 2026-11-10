@@ -140,7 +140,7 @@ namespace Nino.Core.Internal
         public static void CopySegments(in ReadOnlySequence<byte> data, Span<byte> destination)
         {
             var position = data.Start;
-            while (position.GetObject() != null && data.TryGet(ref position, out var segment))
+            while (data.TryGet(ref position, out var segment))
             {
                 var span = segment.Span;
                 if (!span.IsEmpty)
