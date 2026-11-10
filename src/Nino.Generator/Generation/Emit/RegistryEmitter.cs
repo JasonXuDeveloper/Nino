@@ -247,9 +247,16 @@ internal static class RegistryEmitter
         }
 
         int mask = buckets - 1;
+        var counts = new int[buckets];
+        foreach (var entry in cases)
+            counts[entry.Id & mask]++;
+
         var byBucket = new List<IdCase>?[buckets];
         foreach (var entry in cases)
-            (byBucket[entry.Id & mask] ??= new List<IdCase>()).Add(entry);
+        {
+            int bucket = entry.Id & mask;
+            (byBucket[bucket] ??= new List<IdCase>(counts[bucket])).Add(entry);
+        }
 
         w.Open($"switch (id & {mask})");
         for (int i = 0; i < buckets; i++)
