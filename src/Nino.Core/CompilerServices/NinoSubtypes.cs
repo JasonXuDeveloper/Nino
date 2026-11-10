@@ -39,7 +39,7 @@ namespace Nino.Core.CompilerServices
         private static IdEntry[] _byId = new IdEntry[8];
         private static int _count;
         private static bool _tracked;
-        private static readonly object Lock = new object();
+        private static readonly object Lock = new();
 
         /// <summary>Registers a handler. Idempotent for the same type and id.</summary>
         internal static void Register(NinoSubtypeHandler handler)

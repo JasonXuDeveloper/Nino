@@ -19,7 +19,7 @@ namespace Nino.Core.Internal
             public Action<Assembly> Remove;
         }
 
-        private static readonly object Lock = new object();
+        private static readonly object Lock = new();
         private static Hook[] _hooks = Array.Empty<Hook>();
 
         /// <summary>
