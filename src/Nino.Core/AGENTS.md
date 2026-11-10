@@ -208,6 +208,7 @@ BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries
 ```
 NinoBlockBytes.cs            a value's bytes matched to its block's, built once per type for the plans
 NinoBlockCollections.cs      collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
+NinoBlockCollections.Pairs.cs packed pair interleave, deinterleave and ordering checks, including the Burst hook
 NinoBlockPlan.cs             NinoBlockPlan<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)
 NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte lanes (SSSE3, AVX2, Arm64, Wasm)
 ```
