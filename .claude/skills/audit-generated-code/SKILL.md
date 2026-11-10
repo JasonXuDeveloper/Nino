@@ -358,6 +358,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   Using `is` for every sealed target saved 936 source bytes and kept the method-table comparison,
   but added an explicit null branch before the chain. The non-generic case was slower than its
   paired baseline in four local rounds. The wire bytes matched and both probes allocated 0 B.
+  Keep the first comparison exact and use `is` only for later sealed targets. The first method-table
+  load establishes non-nullness without the explicit branch. The benchmark dispatch saved 774
+  source bytes and the sampled IL went from 256 to 151 bytes. The Arm64 entries grew by 4 and 8 bytes.
+  The x64 cross listings shrank from 1,148 to 602 and from 1,068 to 519 bytes. Thread CPU and wall time
+  varied against the same-binary controls, so treat this as a size change. Wire bytes, including
+  unaligned writes, and 0 B steady-state allocation matched.
   A separate post-emission alias for `System.Runtime.CompilerServices` paid off in only 22 of 577
   replayed files. It removed 2,444 source bytes with identical normalized unit test assembly IL, but
   added about 740 KB of cold generator allocations and enlarged the alias helper from 473 to 512 IL
