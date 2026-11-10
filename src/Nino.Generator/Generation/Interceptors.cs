@@ -253,15 +253,28 @@ internal static class Interceptors
 
         var groups = calls.ToLookup(c => (c.Signature, Call: RenderCall(c)));
         // One location attribute per call site, but only one method per group.
-        int capacity = System.Math.Min(calls.Length * 384, calls.Length * 128 + groups.Count * 320);
+        int locationCapacity = calls.Length * 128;
+        bool canAliasBytes = false;
         // A class header and braces, one line per location, and two per forwarder.
         int indentation = (3 + calls.Length + 2 * groups.Count) * 4;
 #if ROSLYN4_12
         // The opaque location has no line breaks. A display path can have them.
-        bool preindent = !calls.Any(static c => c.Where.IndexOf('\n') >= 0);
+        bool preindent = true;
+        canAliasBytes = true;
+        locationCapacity = 0;
+        foreach (var call in calls)
+        {
+            // The name, brackets, parentheses and newline, plus the optional comment.
+            locationCapacity += GeneratedCode.InterceptsName.Length + 5 + call.Location.Length;
+            if (call.Where.Length != 0)
+                locationCapacity += 4 + call.Where.Length;
+            preindent = preindent && call.Where.IndexOf('\n') < 0;
+            canAliasBytes = canAliasBytes && !call.Where.Contains(GeneratedCode.BytesType);
+        }
 #else
         bool preindent = false;
 #endif
+        int capacity = System.Math.Min(calls.Length * 384, locationCapacity + groups.Count * 320);
         var w = preindent ? new CodeWriter(capacity + indentation + 2, indentation: 1) : new CodeWriter(capacity);
         w.Open($"{scope} static class NinoInterceptors");
         var aliases = new List<string> { GeneratedCode.InterceptsAlias };
@@ -275,7 +288,7 @@ internal static class Interceptors
             compact.Count(group.Key.Signature);
             compact.Count(group.Key.Call);
         }
-        if (preindent && !calls.Any(static c => c.Where.Contains(GeneratedCode.BytesType)))
+        if (preindent && canAliasBytes)
         {
             int matches = 0;
             foreach (var group in groups)
