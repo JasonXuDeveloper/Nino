@@ -306,14 +306,14 @@ namespace Nino.Core.Internal
                 return SameLatin1Blocks<CompareLatin1_512>(ref source, ref chars, n);
             if (Has256)
                 return SameLatin1Blocks<CompareLatin1_256>(ref source, ref chars, n);
-            if (HasArm64 && n >= 128)
+            if (HasArm64)
                 return SameLatin1Arm64(ref source, ref chars, n);
             if (Has128)
                 return SameLatin1Blocks<CompareLatin1_128>(ref source, ref chars, n);
             return NinoStrings.SameBytes(ref source, value, 0);
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool SameLatin1Arm64(ref byte source, ref ushort chars, nuint count)
         {
             nuint last = count - 16;
@@ -321,16 +321,26 @@ namespace Nino.Core.Internal
                 return false;
 
             nuint i = 0;
-            // Check two widened blocks with one horizontal reduction.
-            for (; i + 16 < last; i += 32)
+            if (count >= 128)
             {
-                var first = CompareLatin1_128.Difference(ref source, ref chars, i);
-                var second = CompareLatin1_128.Difference(ref source, ref chars, i + 16);
-                if ((first | second) != Vector128<ushort>.Zero)
+                // Check two widened blocks with one horizontal reduction.
+                nuint pairedEnd = last - 16;
+                for (; i < pairedEnd; i += 32)
+                {
+                    var first = CompareLatin1_128.Difference(ref source, ref chars, i);
+                    var second = CompareLatin1_128.Difference(ref source, ref chars, i + 16);
+                    if ((first | second) != Vector128<ushort>.Zero)
+                        return false;
+                }
+            }
+
+            for (; i < last; i += 16)
+            {
+                if (!CompareLatin1_128.Same(ref source, ref chars, i))
                     return false;
             }
 
-            return i >= last || CompareLatin1_128.Same(ref source, ref chars, i);
+            return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
