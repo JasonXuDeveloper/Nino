@@ -374,6 +374,17 @@ of bytes in a block.
   The x64 128-bit listings used different optimization tiers. All 6,144 width/stride/offset cases
   and their invalid-tail mutations passed, with matching wire hashes and zero steady allocation.
   Both candidates were withdrawn.
+  Keep the early exit in the scalar tail. OR-ing the flags into one scalar
+  mask removes the per-flag check but left four M4 default-JIT pairs mixed
+  across strides 2, 4, 8 and 16. The 4,095-item stride-eight case at offset
+  one took longer against the paired baseline in all four rounds, but
+  identical-binary controls also varied. Wire, round trips, invalid-tail
+  and truncation results matched at zero steady allocation. The branchless
+  tail moved the validator from 217 to 225 IL bytes and from 336 to 328
+  Arm64 FullOpts bytes. Emulated x64 grew from 288 to 294 B for 128-bit
+  vectors and from 266 to 286 B for 256-bit vectors. An overlapping load
+  ending exactly at the byte bound also lacked a stable nullable win and
+  is valid only for whole slots, not the shared strided bool bound.
   Keep the bulk clear for converted nullable writes. Per-slot clearing
   wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
   four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
