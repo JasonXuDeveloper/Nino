@@ -653,6 +653,12 @@ and when `asm.py compare` lists methods the change did not touch.
   emulated x64 bytes. Default-JIT timing varied; the 2,048-pair slowdown did not
   repeat when the measured batches ran without GC. Allocations and all 30 wire
   comparisons matched.
+  Use assignments for the outer fresh dictionary copy as well. The pair loop
+  still receives a local and the caller only writes it back after success.
+  Read lost 10 IL bytes (229 to 219). The string- and integer-key Arm64 callers
+  moved from 960 to 952 and 628 to 616 bytes, and emulated x64 from 820 to 807
+  and 448 to 436. Four M4 default-JIT pairs varied alongside the identical-binary
+  controls. Allocations and 30 wire cases matched at offsets zero, one and seven.
 - Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
   the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
   widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
