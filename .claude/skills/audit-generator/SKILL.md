@@ -303,6 +303,11 @@ selections directly. This saved a median 47 KB per dispatch emission in both loa
 the 31 closed classes in the unit test project. Whole-project cold and edit timings showed
 no repeatable gain. All 582 outputs matched on both Roslyn builds, dispatch stayed cached on
 body edits, old project objects collected, and both targeted suites passed (`bf5f8ae7`).
+Skip the filtered list and collision set when a dispatch bucket has at most one candidate.
+Check the singleton against the base ID before reusing its list. This saved about 21 KB per
+dispatch replay in both load orders. Whole-project timings and allocations varied. All 582
+files matched on both Roslyn builds, dispatch stayed cached on body edits, project objects
+collected, and 70 targeted tests passed on each of .NET 8 and .NET 10 (`167d32ce`).
 Write local reader and writer copy prologues and write-back lines directly around the body.
 Constant lines and removal of the nested closures saved 214–317 KB in four cold replays.
 All 577 outputs matched, the 572 models were reused on tracked edits, and the collection
