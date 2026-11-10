@@ -179,8 +179,10 @@ namespace Nino.Core.Internal
                 TType[] found = null;
                 foreach (var i in system.Interfaces(actual))
                 {
+                    if (!SameDefinition(system, i, definition))
+                        continue;
                     var trial = (TType[])types.Clone();
-                    if (!SameDefinition(system, i, definition) || !Unify(system, pattern, i, trial))
+                    if (!Match(system, pattern, i, trial))
                         continue;
                     if (found != null && !SameBindings(system, found, trial))
                         return false;
