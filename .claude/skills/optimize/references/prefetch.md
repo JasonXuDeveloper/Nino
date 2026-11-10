@@ -52,6 +52,14 @@ prefetch again anywhere.
   moved from 132 to 128 B on Arm64 and 120 to 109 B on x64 cross-JIT. The reverse entry took 124 B
   on Arm64; the shared sampler and entries took 112 + 8 + 8 IL bytes against 76 B before.
   Arm64 array read helper sizes matched at 764 and 756 B for the two shapes (`a07f1ce0`).
+  Stop the bidirectional sample after eight local steps. The remaining entries cannot make the sample
+  scattered, while a positive result must still check all 17 entries for nulls. An early exit in both
+  directions slowed the mixed forward sample in three of four rounds, so preserve forward counting.
+  The final candidate cut ordered and reverse bidirectional sample times by 16–48% and 25–41%,
+  respectively, across four M4 pairs. Shuffled and late-null timing varied. Decisions, wire bytes,
+  and zero steady allocations matched. Forward FullOpts instructions were identical on Arm64 and
+  cross-JIT x64. The reverse entry stayed at 124 B on Arm64 and grew from 111 to 115 B in the cross
+  listing. Shared sampler IL grew from 112 to 137 B (`501adee6`).
 
 - Prefetch member references only through fields or bodyless auto-property getters that cannot dispatch to an
   override. A backing field alone also describes a custom getter using `field`; executing either getter during
