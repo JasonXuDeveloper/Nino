@@ -254,8 +254,8 @@ namespace Nino.Core.Internal
             nuint i = 0;
             while (true)
             {
-                Widen32To512(ref source, ref destination, i);
-                Widen32To512(ref source, ref destination, i + 32);
+                LoadWiden32To512(ref source, i).StoreUnsafe(ref destination, i);
+                LoadWiden32To512(ref source, i + 32).StoreUnsafe(ref destination, i + 32);
                 if (i + 64 == n)
                     return;
                 // Align both middle stores to a 64-byte boundary. A UTF-16 destination has an even address.
@@ -265,13 +265,12 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Widen32To512(ref byte source, ref ushort destination, nuint offset)
+        private static Vector512<ushort> LoadWiden32To512(ref byte source, nuint offset)
         {
             var bytes = Vector256.LoadUnsafe(ref source, offset);
-            var chars = Avx512BW.IsSupported
+            return Avx512BW.IsSupported
                 ? Avx512BW.ConvertToVector512UInt16(bytes)
                 : Vector512.WidenLower(bytes.ToVector512Unsafe()); // Only the initialized lower half is read.
-            chars.StoreUnsafe(ref destination, offset);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -356,9 +355,8 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static bool Same(ref byte source, ref ushort chars, nuint offset)
             {
-                var (lower, upper) = Vector512.Widen(Vector512.LoadUnsafe(ref source, offset));
-                var first = lower ^ Vector512.LoadUnsafe(ref chars, offset);
-                var second = upper ^ Vector512.LoadUnsafe(ref chars, offset + 32);
+                var first = LoadWiden32To512(ref source, offset) ^ Vector512.LoadUnsafe(ref chars, offset);
+                var second = LoadWiden32To512(ref source, offset + 32) ^ Vector512.LoadUnsafe(ref chars, offset + 32);
                 return (first | second) == Vector512<ushort>.Zero;
             }
         }
