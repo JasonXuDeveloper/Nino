@@ -286,7 +286,7 @@ internal static class RegistryEmitter
         w.Open("switch (id)");
         foreach (var c in cases)
         {
-            w.Line($"case {c.Id}:");
+            w.CaseLabel(c.Id);
             using (w.Indent())
             {
                 w.AliasedLine(c.First, compact);

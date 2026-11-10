@@ -79,6 +79,13 @@ internal sealed class CodeWriter
         _sb.Append(";\n");
     }
 
+    /// <summary>Writes a numeric switch label without assembling a temporary line.</summary>
+    public void CaseLabel(int id)
+    {
+        StartLine('c', ':');
+        _sb.Append("case ").Append(id).Append(":\n");
+    }
+
     private void StartLine(char first, char last)
     {
         if (_blank && first != '}')
