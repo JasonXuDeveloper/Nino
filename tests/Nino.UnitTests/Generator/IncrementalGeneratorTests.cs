@@ -550,7 +550,7 @@ public class Outer<T>
         var compilation = Create(("Shapes.cs", Usings + @"
 [NinoType] public class Shape { public int Id; }
 [NinoType] public sealed class Circle : Shape { public float R; }
-[NinoType] public class Box<__NinoIL> { public __NinoIL Value; }
+[NinoType] public class Box<__IL> { public __IL Value; }
 [NinoType] public class AliasBox<__MI> { public __MI Value; }
 [NinoType] public class DispatchAlias<__CS> { public __CS Value; }
 [NinoType] public sealed class DispatchAliasLeaf : DispatchAlias<int> { public short Tail; }

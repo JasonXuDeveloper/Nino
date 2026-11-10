@@ -425,7 +425,7 @@ internal static class GeneratedCode
     private static bool IsNamePart(char c) => char.IsLetterOrDigit(c) || c is '_' or '.' or ':';
 
     /// <summary>The name of the shared compile-time flags emitted with the assembly registry.</summary>
-    public const string MethodFlags = "__NinoIL";
+    public const string MethodFlags = "__IL";
 
     /// <summary>The alias of <c>MethodImplAttribute</c> used by the generated methods.</summary>
     public const string MethodImplAlias = "__MI";
