@@ -57,7 +57,7 @@ namespace Nino.Codegen.Tests
         {
             var (text, _) = Run("rust", "nino_types.rs");
             int at = text.IndexOf("impl NinoRead for Recursive {", StringComparison.Ordinal);
-            Assert.IsTrue(at >= 0);
+            Assert.IsGreaterThanOrEqualTo(0, at);
             StringAssert.Contains(text.Substring(at, 400), "r.enter_struct()?;");
         }
 

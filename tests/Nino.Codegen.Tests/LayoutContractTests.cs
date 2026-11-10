@@ -30,7 +30,7 @@ namespace Nino.Codegen.Tests
                 (typeof(string), "members"),
             };
             var constructors = typeof(NinoTypeLayoutAttribute).GetConstructors();
-            Assert.AreEqual(1, constructors.Length, "LayoutReader reads the arguments of one constructor");
+            Assert.HasCount(1, constructors, "LayoutReader reads the arguments of one constructor");
             var parameters = constructors[0].GetParameters().Select(p => (p.ParameterType, p.Name)).ToArray();
             Assert.AreSequenceEqual(expected, parameters);
         }

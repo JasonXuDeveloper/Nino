@@ -101,8 +101,8 @@ namespace Nino.Codegen.Tests
                 cases++;
             }
 
-            Assert.IsTrue(cases > 100, $"{cases} cases");
-            Assert.IsTrue(leaves > 1000, $"{leaves} values compared");
+            Assert.IsGreaterThan(100, cases, $"{cases} cases");
+            Assert.IsGreaterThan(1000, leaves, $"{leaves} values compared");
         }
 
         /// <summary>
@@ -124,7 +124,7 @@ namespace Nino.Codegen.Tests
                 if (json.GetProperty("category").GetString() == "trailing")
                 {
                     Assert.IsNull(result.Error, name);
-                    Assert.IsTrue(result.End < data.Length, name);
+                    Assert.IsLessThan(data.Length, result.End, name);
                     continue;
                 }
 
@@ -132,7 +132,7 @@ namespace Nino.Codegen.Tests
                 Assert.IsTrue(result.Error.Offset >= 0 && result.Error.Offset <= data.Length, name);
             }
 
-            Assert.IsTrue(cases > 100, $"{cases} cases");
+            Assert.IsGreaterThan(100, cases, $"{cases} cases");
         }
 
         [TestMethod]

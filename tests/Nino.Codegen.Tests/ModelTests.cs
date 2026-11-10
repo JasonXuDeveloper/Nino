@@ -197,7 +197,7 @@ namespace Nino.Codegen.Tests
             Assert.AreEqual(ValueKind.Generic, nested.Arguments.Single().Kind);
             Assert.AreEqual(ValueKind.Primitive, nested.Arguments.Single().Arguments.Single().Kind);
             var complex = Member("Complex");
-            Assert.AreEqual(2, complex.Arguments.Count);
+            Assert.HasCount(2, complex.Arguments);
             Assert.AreEqual(ValueKind.Map, complex.Arguments[1].Kind);
             // A closed generic [NinoType] struct as a member is written by its formatter, member by member, even when
             // its arguments are unmanaged: its definition has fields of a type parameter, so it is never raw.
@@ -262,8 +262,8 @@ namespace Nino.Codegen.Tests
         public void RecordsAreNotDeferrable()
         {
             using var model = Load(GeneratedFilesTests.Conformance);
-            Assert.AreEqual(false, Type(model, "Conformance.RecordChain").Deferrable);
-            Assert.AreEqual(true, Type(model, "Conformance.Chain").Deferrable);
+            Assert.IsFalse(Type(model, "Conformance.RecordChain").Deferrable);
+            Assert.IsTrue(Type(model, "Conformance.Chain").Deferrable);
         }
     }
 }
