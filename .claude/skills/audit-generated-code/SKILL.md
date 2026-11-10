@@ -136,6 +136,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   instructions and 1,525-byte size. Source size matched and IL saved one byte.
   Four same-Core A/B rounds overlapped A/A at zero steady allocation, with all
   30 wire comparisons passing.
+- Patch a keyed string member's length without opening a nested writer region.
+  The direct UTF-16 and UTF-8 writes cannot defer bodies. Reserve the preceding raw
+  members, key and length together as before. The `KeyedStruct` writer gained 19
+  source bytes and 7 IL bytes, but fell from 1,232 to 1,092 Arm64 Tier 1 bytes
+  and from 953 to 863 offline x64 bytes. Four local 1,000-item ASCII writes went
+  from 5.20–5.23 to 5.10–5.12 µs at zero steady allocation. All 54 wire and
+  round-trip comparisons matched across both string encodings and offsets 0, 1 and 7.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
