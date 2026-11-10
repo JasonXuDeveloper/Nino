@@ -431,6 +431,11 @@ large interceptor namespace. This needs no extra scan and saved about 265 KB in 
 isolated load orders. Eight method-body edits saved 256–277 KB with variable timing.
 All 577 generated files matched, model reuse and collection checks passed, and 78
 targeted tests passed on each of .NET 8 and 10 (`ce66cee9`).
+Count the actual modern location line lengths in the same pass that checks display paths.
+The isolated emitter saved about 67.6 KB in both load orders and the eight body edits
+saved 62–81 KB. Timings varied. Both Roslyn builds emitted the same 582 files, tracked
+call sites and closed-project collection matched, and 38 targeted tests passed per
+runtime (`908bda02`).
 Write the modern interceptor body at its final namespace indentation and concatenate it
 with the small prefix. Keep the line-by-line path for legacy and multiline locations.
 This removed about 1.06 MB per isolated emission and per method-body edit. Isolated timing
