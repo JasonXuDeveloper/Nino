@@ -144,6 +144,19 @@ namespace Nino.Core.Internal
                     Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 16), c & mask2);
                 }
             }
+            else if (words == 2 && total >= 16)
+            {
+                ulong mask0 = word, mask1 = Unsafe.Add(ref word, 1);
+                for (; i <= total - 16; i += 16)
+                {
+                    ref byte src = ref Unsafe.Add(ref source, i);
+                    ref byte dst = ref Unsafe.Add(ref destination, i);
+                    ulong a = Unsafe.ReadUnaligned<ulong>(ref src);
+                    ulong b = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref src, 8));
+                    Unsafe.WriteUnaligned(ref dst, a & mask0);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 8), b & mask1);
+                }
+            }
 
             for (; i <= total - 8; i += 8)
             {
