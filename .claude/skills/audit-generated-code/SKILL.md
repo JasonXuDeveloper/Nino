@@ -113,6 +113,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   zero steady allocation. Known reordered keys also improved, while the in-order
   array cases overlapped A/A. The file gained 174 source bytes and the body gained
   33 IL bytes, 324 Arm64 Tier 1 bytes and 384 offline x64 bytes.
+  Sharing one region read for known cases after a separate unknown-key check
+  saved 52 source bytes, 200 Arm64 Tier 1 bytes and 304 offline x64 bytes, but
+  increased IL by 7 bytes and slowed 1,000 known reordered entries from roughly
+  8.77 to 9.49–9.76 µs. Mapping each key to an ordinal before reading the shared
+  region also slowed that case and took 8.57–8.68 µs for 1,000 unknown-key entries,
+  against about 7.49 µs with separate reads. All three used the same Core DLL,
+  stayed at zero steady allocation, and matched all 30 wire comparisons per
+  candidate. Keep the per-case reads for small switches.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
