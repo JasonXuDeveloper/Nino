@@ -35,7 +35,7 @@ namespace Nino.Core
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    ReadHeavy(ref value, shape, ref reader);
+                    ReadHeavy(ref value, in shape, ref reader);
                     return;
                 }
 
@@ -49,7 +49,7 @@ namespace Nino.Core
 
         // Publish the new array only after the entire payload has been read.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadHeavy(ref T[,] value, ArrayShape shape, ref Reader reader)
+        private static void ReadHeavy(ref T[,] value, in ArrayShape shape, ref Reader reader)
         {
             T[] items = null;
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
@@ -90,7 +90,7 @@ namespace Nino.Core
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    ReadHeavy(ref value, shape, ref reader);
+                    ReadHeavy(ref value, in shape, ref reader);
                     return;
                 }
 
@@ -104,7 +104,7 @@ namespace Nino.Core
 
         // Publish the new array only after the entire payload has been read.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadHeavy(ref T[,,] value, ArrayShape shape, ref Reader reader)
+        private static void ReadHeavy(ref T[,,] value, in ArrayShape shape, ref Reader reader)
         {
             T[] items = null;
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
@@ -145,7 +145,7 @@ namespace Nino.Core
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    ReadHeavy(ref value, shape, ref reader);
+                    ReadHeavy(ref value, in shape, ref reader);
                     return;
                 }
 
@@ -159,7 +159,7 @@ namespace Nino.Core
 
         // Publish the new array only after the entire payload has been read.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadHeavy(ref T[,,,] value, ArrayShape shape, ref Reader reader)
+        private static void ReadHeavy(ref T[,,,] value, in ArrayShape shape, ref Reader reader)
         {
             T[] items = null;
             if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
