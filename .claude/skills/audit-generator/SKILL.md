@@ -18,7 +18,7 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   `Construction.Creator`, ...) through `TypeModel.Need`, never by interpolating it directly. Decide what a type gets
   from the model's rules (`DispatchesSubtypes`, `IsDispatchRoot`, ...), not from a new check next to them.
 - A feature that adds a way to declare a type (a kind, an attribute option, a place) adds a dimension to
-  `tests/Nino.UnitTests/Corner/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
+  `tests/Nino.UnitTests/Corner/Modeling/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
 - Generated registration code may call back into Nino.Core (`NinoPolymorphic.TryRegister(Type)`), which asks every
   registry again: anything a registry calls must be re-entrant (`NinoRegistry.RegisterType` guards it per thread).
 - Register every closed type a public `NinoSerializer` / `NinoDeserializer` method names, by type argument or by

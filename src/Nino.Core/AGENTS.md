@@ -154,42 +154,67 @@ NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deseria
 
 ## Internal/
 
+### Internal/Collections/
+
 ```
-NinoThrow.cs                 throw helpers, out of line (NinoDataException for the data, InvalidOperationException else)
-NinoLimits.cs                the settings read paths check, frozen as static readonly fields
-NinoUntrusted.cs             the top-level reads in NinoSettings.Untrusted mode (trailing bytes, value checks)
-NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least
-NinoValueChecks.cs           the fields of a raw type Untrusted mode checks (bool, DateTime, decimal, DateOnly, TimeOnly,
-                             DateTimeOffset), checked a field at a time over a run of values, as vectors with periodic
-                             masks on .NET 8+
-NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates in Untrusted mode
+CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode)
+CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
+                             SortedDictionary per runtime, checked at startup against known contents
+ConcurrentStackNodes.cs      read-only CoreLib ConcurrentStack node snapshots for raw writes, startup-checked
+ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
 HashTables.cs                fills new HashSet / Dictionary entries and buckets directly, counting collisions
                              against MaxHashCollisions (Plan, TryFill, Insert, Added, Walk)
-ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
-ConcurrentStackNodes.cs      read-only CoreLib ConcurrentStack node snapshots for raw writes, startup-checked
-PriorityQueueHeap.cs         checked .NET 10 integer heap copies to and from raw pairs, preserving heap order
-NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
-NinoHash.cs                  FNV-1a behind type ids and member keys (also compiled into the generator)
-NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, BCL structs inside them included (tuples,
-                             DateTimeOffset, nint), padding masks, conversion where the runtime differs (x86, Mono,
-                             IL2CPP, .NET Framework), offsets read from an instance (MeasureMemory); NinoLayout<T>
-NinoMask.cs                  NinoMask: padding cleared while copying values to the wire (vector masks, 8-byte words)
-NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
-                             (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
-NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking,
-                             a struct field's type as layouts see it: a registered delegate* as UIntPtr)
-NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
+ListAccess.cs                a List<T>'s elements as a span (CollectionsMarshal, its fields, or copies)
+NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
+NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
                              out-of-line helper per run
-NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
+PriorityQueueHeap.cs         checked .NET 10 integer heap copies to and from raw pairs, preserving heap order
+SortedSetNodes.cs            SortedSet<T> red-black trees built in one pass (SortedSetTrees, node layouts)
+```
+
+### Internal/Blocks/
+
+```
+NinoBlockBytes.cs            a value's bytes matched to its block's, built once per type for the plans
 NinoBlockCollections.cs      collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
 NinoBlockPlan.cs             NinoBlockPlan<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)
-NinoBlockBytes.cs            a value's bytes matched to its block's, built once per type for the plans
 NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte lanes (SSSE3, AVX2, Arm64, Wasm)
-NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;
-                             UTF-8 ([NinoUtf8]) is in Reader / Writer
+```
+
+### Internal/Layout/
+
+```
+NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, BCL structs inside them included (tuples,
+                             DateTimeOffset, nint), padding masks, conversion where the runtime differs (x86, Mono,
+                             IL2CPP, .NET Framework), offsets read from an instance (MeasureMemory); NinoLayout<T>
+NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
+                             (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
+NinoMask.cs                  NinoMask: padding cleared while copying values to the wire (vector masks, 8-byte words)
+ObjectFields.cs              an object's fields at byte offsets
+ObjectTypes.cs               mirror-class instances retyped to the runtime's class (also compiled into Nino.Immutable)
+ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset: UTC ticks, minutes and their
+                             width, found through its public API)
+```
+
+### Internal/Validation/
+
+```
+NinoChecks.cs                checks of values Nino never writes (bools other than 0 or 1) where each costs least
+NinoLimits.cs                the settings read paths check, frozen as static readonly fields
+NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates in Untrusted mode
+NinoThrow.cs                 throw helpers, out of line (NinoDataException for the data, InvalidOperationException else)
+NinoUntrusted.cs             the top-level reads in NinoSettings.Untrusted mode (trailing bytes, value checks)
+NinoValueChecks.cs           the fields of a raw type Untrusted mode checks (bool, DateTime, decimal, DateOnly, TimeOnly,
+                             DateTimeOffset), checked a field at a time over a run of values, as vectors with periodic
+                             masks on .NET 8+
+```
+
+### Internal/Buffers/
+
+```
 NinoScratch.cs               the per-thread scratch buffer of the top-level calls (Rent / Return also for NinoStreams)
 NinoSequences.cs             the pooled contiguous copy of a multi-segment ReadOnlySequence<byte> the sequence
                              overloads read from
@@ -198,16 +223,23 @@ NinoStreams.cs               the I/O of every Stream overload: writes from the s
                              already in memory in place: a MemoryStream's exposed buffer, an UnmanagedMemoryStream, a
                              memory-mapped view); INinoStreamReader
 NinoThreadCache.cs           helpers for the per-thread caches
+```
+
+### Internal/Metadata/
+
+```
+NinoFormatterBinding.cs      binding of [NinoFormatter] registrations, shared with the generator (INinoTypeSystem)
+NinoHash.cs                  FNV-1a behind type ids and member keys (also compiled into the generator)
+NinoReflection.cs            what Nino.Core reads by reflection with the generator's rules (NinoType, raw, tracking,
+                             a struct field's type as layouts see it: a registered delegate* as UIntPtr)
 NinoUnload.cs                hooks that forget an unloaded assembly's types (NinoRegistry.Remove)
-CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
-                             SortedDictionary per runtime, checked at startup against known contents
-CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode)
-ListAccess.cs                a List<T>'s elements as a span (CollectionsMarshal, its fields, or copies)
-ObjectFields.cs              an object's fields at byte offsets
-ObjectTypes.cs               mirror-class instances retyped to the runtime's class (also compiled into Nino.Immutable)
-SortedSetNodes.cs            SortedSet<T> red-black trees built in one pass (SortedSetTrees, node layouts)
-ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset: UTC ticks, minutes and their
-                             width, found through its public API)
+```
+
+### Internal/
+
+```
+NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;
+                             UTF-8 ([NinoUtf8]) is in Reader / Writer
 ```
 
 ## Rules for these files

@@ -38,7 +38,7 @@ skills fix what it finds in their files (the `audit` scopes table says who owns 
 - Give a predicate that must stay mirrored (the generator's and Nino.Core's copy of one decision, which cannot share
   code across the analyzer and the runtime) a parity test that runs both over the same cases, since nothing else
   notices one drifting: r104's `RawRules.HostSizedVectorIn` and `NinoReflection.HostSizedVectorIn`
-  (`tests/Nino.UnitTests/Corner/HostSizedVectorAgreementTests.cs`).
+  (`tests/Nino.UnitTests/Corner/Layout/HostSizedVectorAgreementTests.cs`).
 - Give a fixture that is copied by hand between projects a sync check, or better make it one file linked into both:
   r104 replaced the copy of the BCL layout fixtures with `src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`, which
   `tests/Nino.RuntimeTests` links and Unity's `BclLayoutTests` read.

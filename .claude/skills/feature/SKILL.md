@@ -29,7 +29,7 @@ that skill when the part applies, not only this list.
 - Incremental rules: equatable symbol-free models, a tracking name and caching assertion per stage, no diagnostics
   from the generator (the analyzer reports).
 - A new way to declare a type (kind, attribute option, place) adds a dimension to
-  `tests/Nino.UnitTests/Corner/ShapeMatrixTests.cs`.
+  `tests/Nino.UnitTests/Corner/Modeling/ShapeMatrixTests.cs`.
 - Names the model may leave empty go through `TypeModel.Need`; what a type gets is decided by the model's rules.
 - The generated text reads like hand-written code and compiles to the same machine code as before unless the change
   is meant to change it (`audit-generated-code`).

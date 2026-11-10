@@ -9,7 +9,7 @@ tree builders follow `runtime-internals` (building a runtime's own objects).
 
 ```
 Nino.Immutable.csproj        targets, the Nino.Core reference (-p:NinoCoreTfm=netstandard2.0 / 2.1 picks a build),
-                             System.Collections.Immutable on netstandard2.0, links Nino.Core's Internal/ObjectTypes.cs
+                             System.Collections.Immutable on netstandard2.0, links Nino.Core's Internal/Layout/ObjectTypes.cs
 ImmutableFormatters.cs       the [assembly: NinoFormatter] list and the formatters: ImmutableArray (as T[], wrapped
                              without a copy), ImmutableList, ImmutableHashSet, ImmutableSortedSet, ImmutableQueue,
                              ImmutableStack, ImmutableDictionary, ImmutableSortedDictionary

@@ -1,5 +1,5 @@
 // Package bench compares the Go runtime with Protocol Buffers, MessagePack, encoding/json and encoding/gob on the
-// data of Nino's .NET benchmark (SimpleClass, benchmarks/Nino.Benchmark/SimpleBenchmarkData.cs) and on lists of
+// data of Nino's .NET benchmark (SimpleClass, benchmarks/Nino.Benchmark/Fixtures/SimpleBenchmarkData.cs) and on lists of
 // strings (strings.go). It is a module of its own, so the runtime's module has no dependencies.
 package bench
 

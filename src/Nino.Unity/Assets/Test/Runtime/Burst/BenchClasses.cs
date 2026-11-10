@@ -1,5 +1,5 @@
 // The classes of the Unity benchmark (BurstBenchmark): the shape of the .NET benchmark's SimpleClass
-// (benchmarks/Nino.Benchmark/SimpleBenchmarkData.cs), so the IL2CPP numbers compare with the .NET ones.
+// (benchmarks/Nino.Benchmark/Fixtures/SimpleBenchmarkData.cs), so the IL2CPP numbers compare with the .NET ones.
 #if NINO_BURST && NINO_UNITY_BENCH
 using System;
 using System.Collections.Generic;

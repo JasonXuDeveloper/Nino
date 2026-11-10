@@ -25,7 +25,7 @@ reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `benchmarks
 `NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
 references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs` (the same
 `SimpleTest`, ported to v3's API) with the shared data, job, columns and checks, and goes to `bin/v3` and `obj/v3`.
-`--verify` (`benchmarks/Nino.Benchmark/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
+`--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
 `ci.yml`'s integrations job on x64 and its Arm64 runtime-internals job) checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
 serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`, protobuf-net to

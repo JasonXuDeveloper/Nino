@@ -103,7 +103,7 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     env:
-      # The job's counts, quick or those of the published numbers: head's benchmarks/Nino.Benchmark/NinoJobAttribute.cs.
+      # The job's counts, quick or those of the published numbers: head's benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs.
       NINO_BENCH_QUICK: ${{ inputs.quick && '1' || '0' }}
       FILTER: ${{ matrix.shard.filters }}
 

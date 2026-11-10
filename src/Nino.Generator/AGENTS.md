@@ -53,52 +53,74 @@ LayoutRules.cs               the layout baseline's rules: what a change does to 
 
 ## Generation/ (pipeline and model)
 
+### Generation/Discovery/
+
 ```
-NinoGenerator.cs             the IIncrementalGenerator: one formatter file per [NinoType], NinoGen.Registry.g.cs,
-                             NinoGen.Usages.g.cs, NinoGen.Dispatch.g.cs, NinoGen.Interceptors.g.cs,
-                             NinoGen.Nesting.g.cs
-ProjectFacts.cs              what is read from the whole compilation in one step (enabled, options, referenced NinoTypes)
 AssemblyReferences.cs        the assemblies an assembly references (only those referencing Nino.Core matter)
 AssemblyTypes.cs             every type an assembly declares, nested ones included (the one namespace walk)
-InheritedCandidates.cs       types that may inherit [NinoType], found from syntax without binding
 ClosedGenerics.cs            the closed generic [NinoType]s a compilation names, for registration by type id
-TypeFacts.cs                 everything model builds ask about one compilation's symbols, memoized and shared
-NinoSymbols.cs               the Nino.Core types compared against, resolved once per compilation
-TypeShape.cs                 TypeShape (what a [NinoType] is: kind, format, tracking, raw, ...) and TypeRules (the rules
-                             that decide what its formatter has)
-Model.cs                     the equatable model records (TypeModel, MemberModel, registrations, intercepted calls,
-                             dispatch); TypeModel.Need, DispatchesSubtypes, IsDispatchRoot
-ModelBuilder.cs              turns a [NinoType] symbol into a TypeModel (reports through a DiagnosticSink)
-ModelCache.cs                reuses TypeModels across compilations while nothing they depend on changed
-MemberCollector.cs           the serialized members in wire order, and the findings about their annotations
-MemberCache.cs               MemberCollector's results memoized per compilation
-WrittenParameters.cs         which type parameters of a generic [NinoType] its formatter writes (a fixpoint over the
-                             definitions, memoized per compilation): what NINO029 and NINO007 search of a closed one
-ConstructionPlanner.cs       how a type is instantiated when read: reused, a constructor, or a factory
-Callbacks.cs                 the serialization callbacks: which marked methods a formatter calls (CallbackModel) and
-                             why the others are never called (NINO038-NINO044)
-FormatterResolver.cs         the formatter (as C#) for a member type: built-ins, then [NinoFormatter] registrations;
-                             the nesting formatters of types that hold themselves (class Tree : List<Tree>)
-FormatterRules.cs            the [assembly: NinoFormatter] registrations visible to a compilation, indexed
-FormatterRef.cs              a formatter name kept in parts (twins, type parameters), rendered when written
-FormatterTraits.cs           flags of what a formatter is and how it reads and writes, decided once from symbols
-SymbolTypeSystem.cs          ITypeSymbol for NinoFormatterBinding (the binding shared with the runtime)
-RawRules.cs                  which values are written as raw bytes, memoized per compilation
-RawLayout.cs                 whether a struct's memory is the same on every runtime (the canonical layout)
-PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoPrefetchFormatter):
-                             the object's estimated bytes for the cache budget, and which members' objects it prefetches
-LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
 FunctionPointerFields.cs     the delegate* fields of every struct a compilation sees, registered by the registry: the
                              project's from syntax (aliases: every struct it declares), every reference's from its
                              metadata
-WireEncoding.cs              a member's encoding as the published layout shows it ([NinoTypeLayout])
-TypeNames.cs                 type names as generated code and the runtime spell them, and the ids hashed from them
+InheritedCandidates.cs       types that may inherit [NinoType], found from syntax without binding
+NinoSymbols.cs               the Nino.Core types compared against, resolved once per compilation
+ProjectFacts.cs              what is read from the whole compilation in one step (enabled, options, referenced NinoTypes)
 Visibility.cs                what generated code in one assembly can name, read and assign
+```
+
+### Generation/Models/
+
+```
+Callbacks.cs                 the serialization callbacks: which marked methods a formatter calls (CallbackModel) and
+                             why the others are never called (NINO038-NINO044)
+ConstructionPlanner.cs       how a type is instantiated when read: reused, a constructor, or a factory
+MemberCache.cs               MemberCollector's results memoized per compilation
+MemberCollector.cs           the serialized members in wire order, and the findings about their annotations
+Model.cs                     the equatable model records (TypeModel, MemberModel, registrations, intercepted calls,
+                             dispatch); TypeModel.Need, DispatchesSubtypes, IsDispatchRoot
+ModelBuilder.cs              turns a [NinoType] symbol into a TypeModel (reports through a DiagnosticSink)
+PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoPrefetchFormatter):
+                             the object's estimated bytes for the cache budget, and which members' objects it prefetches
+TypeFacts.cs                 everything model builds ask about one compilation's symbols, memoized and shared
+TypeShape.cs                 TypeShape (what a [NinoType] is: kind, format, tracking, raw, ...) and TypeRules (the rules
+                             that decide what its formatter has)
+WrittenParameters.cs         which type parameters of a generic [NinoType] its formatter writes (a fixpoint over the
+                             definitions, memoized per compilation): what NINO029 and NINO007 search of a closed one
+```
+
+### Generation/Binding/
+
+```
+FormatterRef.cs              a formatter name kept in parts (twins, type parameters), rendered when written
+FormatterResolver.cs         the formatter (as C#) for a member type: built-ins, then [NinoFormatter] registrations;
+                             the nesting formatters of types that hold themselves (class Tree : List<Tree>)
+FormatterRules.cs            the [assembly: NinoFormatter] registrations visible to a compilation, indexed
+FormatterTraits.cs           flags of what a formatter is and how it reads and writes, decided once from symbols
+SymbolTypeSystem.cs          ITypeSymbol for NinoFormatterBinding (the binding shared with the runtime)
+TypeNames.cs                 type names as generated code and the runtime spell them, and the ids hashed from them
+```
+
+### Generation/Layout/
+
+```
+LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
+RawLayout.cs                 whether a struct's memory is the same on every runtime (the canonical layout)
+RawRules.cs                  which values are written as raw bytes, memoized per compilation
+WireEncoding.cs              a member's encoding as the published layout shows it ([NinoTypeLayout])
+```
+
+### Generation/Pipeline/
+
+```
+DiagnosticSink.cs            receives diagnostics while a model is built (the analyzer passes one; the generator none)
+EmittedFormatters.cs         emitted SourceTexts reused by model value
 Interceptors.cs              interceptors of top-level NinoSerializer / NinoDeserializer calls (Roslyn 4.8+ builds;
                              arrays and lists of prefetching classes call NinoDirect's ...Prefetched methods, in a
                              project built with NinoPrefetchLargeCollections)
-EmittedFormatters.cs         emitted SourceTexts reused by model value
-DiagnosticSink.cs            receives diagnostics while a model is built (the analyzer passes one; the generator none)
+ModelCache.cs                reuses TypeModels across compilations while nothing they depend on changed
+NinoGenerator.cs             the IIncrementalGenerator: one formatter file per [NinoType], NinoGen.Registry.g.cs,
+                             NinoGen.Usages.g.cs, NinoGen.Dispatch.g.cs, NinoGen.Interceptors.g.cs,
+                             NinoGen.Nesting.g.cs
 ```
 
 ## Generation/Emit/ (generated text)

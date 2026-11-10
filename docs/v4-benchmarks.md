@@ -67,7 +67,7 @@ in a "vs" column means the case was not measured there, or v4 is not ahead.
 Each library serializes to its own buffer writer: Nino to `NinoArrayBufferWriter`, MemoryPack and MessagePack to
 `ArrayBufferWriter<byte>`, protobuf-net to a `MemoryStream` (its fastest writer). Nino writes in place only into its own; into any other `IBufferWriter<byte>` it writes a
 pooled buffer and then copies it over, one copy more than these tables measure.
-Before the benchmarks run, `--verify` (`benchmarks/Nino.Benchmark/Verify.cs`) checks every case: each serialize case writes
+Before the benchmarks run, `--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`) checks every case: each serialize case writes
 its payload's bytes, and every deserialize case of a category reads back the same value, deep-compared. The data is
 seeded, so every run serializes the same values.
 
@@ -142,7 +142,7 @@ Each against the closest MemoryPack mode: `ReferenceTest` (a graph of 200 nodes 
 `NinoFormat.VersionTolerant`, one length per object, against `GenerateType.VersionTolerant`, a length per member)
 and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 100 of the classes, through the
 `byte[]` APIs of both, so allocating the result is part of every call). `CommonTypesTest` adds data shaped like
-that of common applications (`benchmarks/Nino.Benchmark/CommonTypes.cs`): players with a struct list, a string dictionary,
+that of common applications (`benchmarks/Nino.Benchmark/Fixtures/CommonTypes.cs`): players with a struct list, a string dictionary,
 bytes and strings; orders with `Guid`, `DateTimeOffset`, `decimal` and a list of classes; shapes through an abstract
 base; a tree; a padded struct array; an array of structs of fixed size that are not raw (a value tuple member), which
 are read and written as blocks; and a string dictionary. `CollectionsTest` covers collections of the base

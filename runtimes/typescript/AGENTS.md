@@ -12,6 +12,7 @@ package.json                 the package (exports dist/nino.js + .d.ts) and scri
 package-lock.json            dev dependencies: typescript, @types/node, fast-check
 tsconfig.json                type checks src, test and wasm (noEmit)
 tsconfig.build.json          builds src/nino.ts into dist (npm run build)
+LICENSE                      MIT license text included in the npm package
 README.md                    usage, the API, guarantees, tests, benchmarks
 src/nino.ts                  the runtime: reader and writer, strings, collections, depth and deferral, type ids,
                              reference tracking; embeds the WebAssembly text kernels between wasm:begin / wasm:end

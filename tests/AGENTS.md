@@ -79,10 +79,9 @@ Generator/                   AnalyzerTests (every rule; the AnalyzerReleases fil
                              NINO034-NINO037, their fixes and the refactoring; LayoutBaselineTests), the callbacks'
                              rules and fixes (CallbackAnalyzerTests: NINO038-NINO044), incremental caching,
                              __Top twins, receiver aliases, the tools/CodeGen output checks (*FormattersGenerationTests)
-Corner/                      corner cases compiled in memory (CornerCompiler): ShapeMatrixTests (every way to declare a
-                             type hierarchy, generated, compiled and round-tripped), construction, members, generics,
-                             pooling, references, versioning, concurrency, unloading, layout metadata, raw-rule
-                             agreement between generator and runtime, cross-assembly raw structs
+Corner/                      corner cases grouped into Api/, Layout/, Modeling/, and ObjectGraphs/;
+                             CornerCompiler builds in-memory fixtures, and Modeling/ShapeMatrixTests.cs
+                             generates, compiles and round-trips type hierarchies
 Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/; UnityPackageDllTests: the
                              Unity package's committed DLLs have the public API of their sources), HybridCLR hot-update
                              assemblies, the NinoKernels hook, ET framework collection shapes
@@ -98,7 +97,7 @@ Nino.UnitTests.csproj        targets, references (Nino.Core, Immutable, UnityTyp
 
 - A hostile-input check asserts the exact exception type (`Assert.ThrowsExactly<NinoDataException>`); the caller's
   mistakes and the write side throw `InvalidOperationException`.
-- A new way to declare a type adds a dimension to `Corner/ShapeMatrixTests.cs`; a new path through a runtime's
+- A new way to declare a type adds a dimension to `Corner/Modeling/ShapeMatrixTests.cs`; a new path through a runtime's
   internals adds a case with known contents and a `FastPaths` row to `Nino.RuntimeTests`.
 - Test classes run side by side, the methods of one class in sequence (`Infrastructure/MSTestSettings.cs`). A test
   that changes or measures process-wide state (`NinoKernels`, the shared pools, the whole heap, unloading) is

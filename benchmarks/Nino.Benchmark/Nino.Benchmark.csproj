@@ -38,7 +38,7 @@
     <ItemGroup Condition="'$(NinoBenchV3)' == 'true'">
         <PackageReference Include="Nino" VersionOverride="3.3.13"/>
         <Compile Remove="**/*.cs"/>
-        <Compile Include="Program.cs;Verify.cs;PayloadColumn.cs;NinoJobAttribute.cs;SimpleBenchmarkData.cs;V3/SimpleTest.cs"/>
+        <Compile Include="Program.cs;Harness/Verify.cs;Harness/PayloadColumn.cs;Harness/NinoJobAttribute.cs;Fixtures/SimpleBenchmarkData.cs;V3/SimpleTest.cs"/>
     </ItemGroup>
 
     <ItemGroup>

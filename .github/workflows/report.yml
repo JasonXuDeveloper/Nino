@@ -22,7 +22,7 @@ concurrency:
 env:
   # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few, and one process a
   # case leaves its layout to chance (a 12 ns case moved by 13% between processes); the mean of three does not.
-  # benchmarks/Nino.Benchmark/NinoJobAttribute.cs sets them since 4.0.0-rc.8; they are passed here too, for the tags
+  # benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs sets them since 4.0.0-rc.8; they are passed here too, for the tags
   # before it (remove once no report is run for v4.0.0-rc.7 or older), and named in the report's text.
   BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
   # The release body's sections, their headings (which the docs site, nino.docs scripts/sync-benchmarks.ts, looks for)

@@ -131,7 +131,7 @@ the bytes in a single call without finding their end first.
 The **type id** is a stable 32-bit hash (FNV-1a) of the type's name in runtime form
 (`Namespace.Outer+Inner`, generic arguments in angle brackets). `[NinoFormerName("Old.Name")]` substitutes
 the hashed name, so types can be renamed or moved without breaking existing data. The hash is implemented
-once (`Nino.Core/Internal/NinoHash.cs`) and that file is also compiled into the generator, so ids computed at
+once (`Nino.Core/Internal/Metadata/NinoHash.cs`) and that file is also compiled into the generator, so ids computed at
 compile time and at run time cannot diverge.
 
 After the header comes the **body**: the members in declaration order (or `[NinoMember(n)]` order), base-class
@@ -1097,14 +1097,14 @@ every call it added is a real call under Mono's interpreter and in HybridCLR hot
 Rules that must agree between compile time and run time live once, in Nino.Core, and are compiled into the
 generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 
-* `Internal/NinoHash.cs`: the FNV-1a hash of type ids and keyed member ids.
+* `Internal/Metadata/NinoHash.cs`: the FNV-1a hash of type ids and keyed member ids.
 * `IO/NinoWire.cs`: the wire constants generated code writes (null type id, length and key sizes...).
-* `Internal/NinoLayoutCore.cs`: the struct layout algorithm (leaves, alignment caps, `Pack`, `Size`, explicit
+* `Internal/Layout/NinoLayoutCore.cs`: the struct layout algorithm (leaves, alignment caps, `Pack`, `Size`, explicit
   offsets). The runtime runs it over `System.Type` to get the wire layout and this runtime's memory layout; the
   generator runs it over `ITypeSymbol` under the 64-bit and 32-bit models to decide whether a struct's memory is
   the same everywhere (and so can be written inline as raw bytes). Each side supplies a small view of its type
   system (`INinoLayoutView<TType>`).
-* `Internal/NinoFormatterBinding.cs`: how a formatter rule binds to a type (unify the rule's pattern with the
+* `Internal/Metadata/NinoFormatterBinding.cs`: how a formatter rule binds to a type (unify the rule's pattern with the
   type or one of its supertypes, check the formatter's type parameter constraints, substitute). The runtime
   resolver runs it over `System.Type`, the generator over `ITypeSymbol` (`INinoTypeSystem<TType>`), so a type
   resolves to the same formatter whichever side picks it.

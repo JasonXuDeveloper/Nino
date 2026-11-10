@@ -4,7 +4,7 @@
 #
 # usage: benchmarks/run.sh [output directory]   (default: benchmarks/results)
 #   QUICK=1     development run: shorter iterations that stop at 2% error (NINO_BENCH_QUICK, see
-#               benchmarks/Nino.Benchmark/NinoJobAttribute.cs). For trends and regressions, not for publishing.
+#               benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs). For trends and regressions, not for publishing.
 #   FILTER=...  the v4 benchmarks to run, as BenchmarkDotNet's --filter patterns, separated by spaces (default '*',
 #               e.g. '*PooledTest*' or '*Vectors* *FixedStruct*').
 set -euo pipefail
@@ -16,7 +16,7 @@ V3_DLL=bin/v3/Release/net10.0/Nino.Benchmark.dll
 V4_DLL=bin/Release/net10.0/Nino.Benchmark.dll
 FILTER=${FILTER:-*}
 read -r -a FILTERS <<< "$FILTER"
-# The counts of each mode are in benchmarks/Nino.Benchmark/NinoJobAttribute.cs.
+# The counts of each mode are in benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs.
 if [[ "${QUICK:-0}" == 1 ]]; then
   export NINO_BENCH_QUICK=1
 fi

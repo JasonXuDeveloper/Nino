@@ -17,6 +17,7 @@ build.rs                     sets cfg nino_avx512 when the compiler has the AVX-
 .gitignore                   target/
 fuzz/                        cargo-fuzz targets (own workspace, nightly): conformance and generated read coverage-guided
                              input as the corpus types (fuzz_targets/check.rs); seeds.py writes the corpus as seeds
+LICENSE                      link to the root MIT license; Cargo includes its contents in the crate
 README.md                    the API, derive attributes, guarantees, "Stricter than .NET", tests, benchmarks
 src/
   lib.rs                     crate root: modules, re-exports, the deny lints, and the macros generated code and the
