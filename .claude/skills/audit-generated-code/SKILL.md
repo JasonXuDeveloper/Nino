@@ -136,6 +136,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   instructions and 1,525-byte size. Source size matched and IL saved one byte.
   Four same-Core A/B rounds overlapped A/A at zero steady allocation, with all
   30 wire comparisons passing.
+- Classify `MemoryFormatter` over a raw element formatter as preserving read
+  context, while keeping its existing formatter call. Keyed `Memory<int>` reuse
+  saved 228 Arm64 Tier 1 bytes and 200 offline x64 bytes, with 28 extra source
+  bytes and 21 extra IL bytes. Four local 1,000-item ordered reads fell from
+  about 5.47 to 4.90–4.94 µs, and reordered reads also improved. Allocation
+  stayed at zero. All 30 wire and round-trip comparisons passed. The keyed
+  memory regression checks reuse and the exact-length error.
 - Patch a keyed string member's length without opening a nested writer region.
   The direct UTF-16 and UTF-8 writes cannot defer bodies. Reserve the preceding raw
   members, key and length together as before. The `KeyedStruct` writer gained 19
