@@ -279,7 +279,8 @@ namespace Nino.Core.Internal
             nint previous = Address(first);
             if (previous == 0)
                 return false;
-            int ordered = 0;
+            const int localThreshold = (Sample - 1) / 2;
+            int ordered = reverseIsLocal ? localThreshold : 0;
             for (int i = 1; i < Sample; i++)
             {
                 nint next = Address(Unsafe.Add(ref first, i));
@@ -289,11 +290,16 @@ namespace Nino.Core.Internal
                 if (reverseIsLocal
                         ? unchecked((nuint)(distance + OrderedStride)) <= 2 * OrderedStride
                         : distance > 0 && distance <= OrderedStride)
-                    ordered++;
+                {
+                    if (!reverseIsLocal)
+                        ordered++;
+                    else if (--ordered == 0)
+                        return false;
+                }
                 previous = next;
             }
 
-            return ordered < (Sample - 1) / 2;
+            return reverseIsLocal || ordered < localThreshold;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
