@@ -199,8 +199,16 @@ namespace Nino.Core.Internal
             ref byte mask = ref NinoUnsafe.GetArrayDataReference(masks);
             ops.Store(ops.And(ops.Load(ref source, 0), ops.Load(ref mask, 0)), ref destination, 0);
 
-            nuint i = width - ((nuint)Unsafe.AsPointer(ref AlignedSide(ref destination, ref source)) & (width - 1));
             nuint end = (nuint)total - width;
+            if (end <= width)
+            {
+                // The final vector's offset is still within the first mask period.
+                if (end != 0)
+                    ops.Store(ops.And(ops.Load(ref source, end), ops.Load(ref mask, end)), ref destination, end);
+                return;
+            }
+
+            nuint i = width - ((nuint)Unsafe.AsPointer(ref AlignedSide(ref destination, ref source)) & (width - 1));
             nuint m = i; // i % period (i <= width <= period)
             if (period == width)
             {
