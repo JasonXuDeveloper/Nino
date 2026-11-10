@@ -97,6 +97,15 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   and the old compilation, tree, symbol and output collected. Factory plus MoveNext IL grew
   from 183 to 192 B, Arm64 FullOpts from 344 to 472 B and offline x64 from 386 to 420 B.
   Both Roslyn builds passed 59 targeted tests (`dca6dba7`).
+- Measure the whole project before replacing callback hierarchy lookups with nested attribute loops.
+  Moving attributes outside the callback-kind loop removed repeated GetAttributes calls but slowed
+  the isolated scan in three of four M4 pairs. Hoisting AttributeClass once per attribute then improved
+  the 911-type isolated scan by 2–13% in all four pairs, with equal allocations, but cold project
+  timings were slightly higher in every pair and reopen and body-edit timings varied. Neither trial
+  established an end-to-end gain. The revised Declares grew from 106 to 141 IL bytes, 264 to 368
+  Arm64 FullOpts bytes and 250 to 406 offline x64 bytes. Answers and all 583 files matched,
+  578 models were reused, GC probes passed and both Roslyn suites passed 59 targeted tests.
+  Keep the existing lookup and record both trials rather than claiming the isolated gain as build speed.
 - Bind as few nodes as syntax allows. A syntax provider's semantic transform reruns for every match on every
   compilation change, and `GetSymbolInfo` of a call binds its statement: binding the top-level calls was most of the
   generator's time on tests/Nino.UnitTests (about 2,400 calls; local trace, round 128), more than building the models.
