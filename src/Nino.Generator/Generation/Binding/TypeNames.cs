@@ -123,12 +123,31 @@ internal static class TypeNames
     /// </summary>
     public static string OpenName(INamedTypeSymbol type)
     {
-        string own = Identifier(type.Name) + (type.Arity > 0 ? "<" + new string(',', type.Arity - 1) + ">" : "");
-        if (type.ContainingType != null)
-            return OpenName(type.ContainingType) + "." + own;
-        var sb = new StringBuilder("global::");
-        AppendNamespace(sb, type.ContainingNamespace);
-        return sb.Append(own).ToString();
+        var sb = TextScratch.Rent(64);
+        try
+        {
+            sb.Append("global::");
+            AppendNamespace(sb, type.ContainingNamespace);
+            AppendOpenName(sb, type);
+            return sb.ToString();
+        }
+        finally
+        {
+            TextScratch.Return(sb);
+        }
+    }
+
+    private static void AppendOpenName(StringBuilder sb, INamedTypeSymbol type)
+    {
+        if (type.ContainingType is { } containing)
+        {
+            AppendOpenName(sb, containing);
+            sb.Append('.');
+        }
+
+        sb.Append(Identifier(type.Name));
+        if (type.Arity > 0)
+            sb.Append('<').Append(',', type.Arity - 1).Append('>');
     }
 
     /// <summary>The identifier as C# source: keywords are escaped with <c>@</c>.</summary>
