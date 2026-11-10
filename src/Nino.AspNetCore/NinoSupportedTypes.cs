@@ -10,7 +10,7 @@ namespace Nino.AspNetCore
     /// </summary>
     internal static class NinoSupportedTypes
     {
-        private static readonly ConcurrentDictionary<Type, bool> Supported = new ConcurrentDictionary<Type, bool>();
+        private static readonly ConcurrentDictionary<Type, bool> Supported = new();
 
         /// <summary>
         /// Whether Nino reads and writes <paramref name="type"/>. A type from a collectible assembly is not cached, so

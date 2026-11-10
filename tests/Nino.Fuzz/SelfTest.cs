@@ -17,7 +17,7 @@ namespace Nino.Fuzz
     /// </summary>
     public static class SelfTest
     {
-        public static readonly Target Target = new Target
+        public static readonly Target Target = new()
         {
             Name = "SelfTest",
             Covers = "planted bugs, to test the fuzzer (selftest command)",
@@ -34,7 +34,7 @@ namespace Nino.Fuzz
         /// <see cref="StaleMemory"/> finds). A target of its own: a poisoned one costs a collection per rejected input,
         /// which slowed the planted crashes past the self test's time.
         /// </summary>
-        public static readonly Target Stale = new Target
+        public static readonly Target Stale = new()
         {
             Name = "SelfTestStale",
             Covers = "a planted stale array, to test the fuzzer (selftest command)",

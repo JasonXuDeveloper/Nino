@@ -76,7 +76,7 @@ public sealed class GoldenData
 [TestClass]
 public class GoldenBytesTests
 {
-    private static GoldenData Create() => new GoldenData
+    private static GoldenData Create() => new()
     {
         Flag = true,
         B = 0xAB,

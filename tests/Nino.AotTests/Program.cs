@@ -216,7 +216,7 @@ public sealed class SelfHolder
 public static class Program
 {
     private static int _failures;
-    private static readonly MemoryStream AllBytes = new MemoryStream();
+    private static readonly MemoryStream AllBytes = new();
 
     private static byte[] Ser<T>(T value)
     {
@@ -277,7 +277,7 @@ public static class Program
             Sorted = new SortedDictionary<string, int> { ["b"] = 2, ["a"] = 1 },
             IL = new List<int> { 3, 4 }, IRL = new List<string> { "z" },
             ID = new Dictionary<string, int> { ["k"] = 1 },
-            Points = new List<Point> { new Point { X = 1 } }, PointArr = new[] { new Point { Y = 2 } },
+            Points = new List<Point> { new() { X = 1 } }, PointArr = new[] { new Point { Y = 2 } },
             NullableArr = new int?[] { 1, null }, NullableList = new List<int?> { null, 2 },
             StructKey = new Dictionary<Point, Shape> { [new Point { X = 1 }] = new Rect { W = 4 } },
         };
@@ -357,7 +357,7 @@ public static class Program
         var wr = new WithRaw
         {
             P = new Padded { A = 1, B = 2, C = 3 }, V = new Vec { X = 1.5f, Y = 2.5, In = new Inner { S = 7, L = 8 } },
-            Vs = new[] { new Vec { X = 3, In = new Inner { L = 9 } } }, Ps = new List<Padded> { new Padded { C = 4 } }
+            Vs = new[] { new Vec { X = 3, In = new Inner { L = 9 } } }, Ps = new List<Padded> { new() { C = 4 } }
         };
         var wr2 = NinoDeserializer.Deserialize<WithRaw>(Ser(wr));
         Check(wr2.P.A == 1 && wr2.P.B == 2 && wr2.P.C == 3 && wr2.V.Y == 2.5 && wr2.V.In.S == 7 && wr2.V.In.L == 8
@@ -414,7 +414,7 @@ public static class Program
         // says so instead of failing in the runtime.
         try
         {
-            var gl = GenericList(new List<Vec2> { new Vec2 { A = 1, B = 2 } });
+            var gl = GenericList(new List<Vec2> { new() { A = 1, B = 2 } });
             var gs = GenericSet(new SortedSet<long> { 3, 1, 2 });
             Check(gl[0].B == 2 && gs.SequenceEqual(new long[] { 1, 2, 3 }), "runtime-built formatters (generic code)");
         }

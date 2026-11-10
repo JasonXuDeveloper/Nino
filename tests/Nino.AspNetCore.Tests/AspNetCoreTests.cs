@@ -45,11 +45,11 @@ namespace Nino.AspNetCore.Tests
         public Broken Broken([FromBody] Broken broken) => broken;
 
         [HttpGet("plain")]
-        public Plain Unsupported() => new Plain { X = 1 };
+        public Plain Unsupported() => new() { X = 1 };
         #pragma warning restore CA1822
 
         internal static Order Sample() =>
-            new Order { Id = 42, Customer = "Ada", Items = new List<int> { 1, 2, 3 } };
+            new() { Id = 42, Customer = "Ada", Items = new List<int> { 1, 2, 3 } };
     }
 
     [TestClass]

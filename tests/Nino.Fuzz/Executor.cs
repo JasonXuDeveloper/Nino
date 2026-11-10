@@ -26,7 +26,7 @@ namespace Nino.Fuzz
         public double Milliseconds;
         public long Allocated;
 
-        public static readonly Outcome Rejected = new Outcome { Kind = OutcomeKind.Rejected };
+        public static readonly Outcome Rejected = new() { Kind = OutcomeKind.Rejected };
     }
 
     /// <summary>The alarms' limits (Program.cs options).</summary>
@@ -192,7 +192,7 @@ namespace Nino.Fuzz
         public static bool IsRejection(Exception e) =>
             e is NinoDataException && e.Message.StartsWith("Nino: ", StringComparison.Ordinal);
 
-        static Outcome Finding(string signature, Exception e) => new Outcome
+        static Outcome Finding(string signature, Exception e) => new()
         {
             Kind = OutcomeKind.Finding, Signature = signature, Details = e.ToString(),
         };

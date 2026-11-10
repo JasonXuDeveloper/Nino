@@ -249,7 +249,7 @@ namespace Conformance
             Add("string-collections", "Strings in arrays and lists, mixed encodings and nulls.", new StringCollections
             {
                 Array = new[] { "a", null, "", "é", "中", "😀", "\udc00" },
-                List = new List<string> { null, "x", new string('y', 300) },
+                List = new List<string> { null, "x", new('y', 300) },
                 Utf8A = "é😀", Plain = "plain", Utf8B = "",
             }, "string", "utf8", "seq");
             Add("string-collections-null", "Null string collections.", new StringCollections(), "string", "utf8", "seq");
@@ -405,7 +405,7 @@ namespace Conformance
                 Strings = new List<string> { "a", null, "", "中" },
                 StringSet = new HashSet<string> { "x", "y", "" },
                 Points = new[] { new Point { X = 1, Y = 2 }, null },
-                PointList = new List<Point> { null, new Point { X = -1, Y = -2 } },
+                PointList = new List<Point> { null, new() { X = -1, Y = -2 } },
                 IntMap = new Dictionary<int, int> { [1] = 10, [-1] = -10, [int.MaxValue] = 0 },
                 StringMap = new Dictionary<string, string> { ["k"] = "v", [""] = null, ["中"] = "" },
                 PointMap = new Dictionary<string, Point> { ["origin"] = new Point(), ["none"] = null },
@@ -632,7 +632,7 @@ namespace Conformance
                 new TrackedMix
                 {
                     Any = other, Node = node, Base = based,
-                    Nodes = new List<TrackedNode> { other, null, new TrackedNode { Value = 7 }, node },
+                    Nodes = new List<TrackedNode> { other, null, new() { Value = 7 }, node },
                     ById = new Dictionary<int, TrackedNode> { [1] = node, [2] = null, [7] = other },
                     Tolerant = tolerant,
                 }, "track-references", "type-id", "object", "version-tolerant");
