@@ -92,6 +92,16 @@ of bytes in a block.
   case. Reads allocated 0 B and hashes matched at offsets 0, 1 and 7. The end-byref candidate
   passed 21 targeted tests on .NET 10. Keep both patches and try a pretested loop with the same
   cursor steps to isolate the first-iteration cloning.
+  Testing `remaining > 0` before the body and removing the separate empty-tail guard kept a single
+  field-read body in Arm64 scalar Tier 1. Compared with the original indexed loop, IL went from
+  459 to 492 bytes, Arm64 scalar Tier 1 from 164 to 140, and the x64 scalar FullOpts cross listing
+  from 135 to 108. With SIMD, the listings grew from 232 to 248 and from 180 to 191 bytes.
+  Scalar timing stayed within 5% in all four default-tiering rounds. At 1,700 items with SIMD,
+  all four initial rounds favored the pretested loop, but an alternating replay with an identical
+  baseline control showed up to 40% A/A variation. Keep the patch as a code-generation result
+  and measure the tail separately before attributing a throughput gain. Wire bytes matched at
+  offsets 0, 1 and 7, reads allocated 0 B, and the block, versioning, reference, and deferred-body
+  checks passed on the tested .NET targets.
 - Count zeroing stores as well as bytes before specializing a padded scalar read. The `BlockWaypoint`
   15-byte wire / 24-byte memory probe used the validated map to narrow its two zero stores from 24
   bytes to 10, including the bool byte overwritten by the formatter. `ReadOne` grew from 37 to 77 IL
