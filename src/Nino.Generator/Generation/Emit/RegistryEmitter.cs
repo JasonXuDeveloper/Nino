@@ -66,7 +66,8 @@ internal static class RegistryEmitter
         foreach (var entry in entries)
             if (entry.Arity == 0 && entry.Registration is { } registration)
                 AddStatements(cases, registration);
-        EmitIdDispatch(w, "public", $"{Gen}{UsagesClass}.Register(id);", OrderCases(cases));
+        var ordered = OrderCases(cases, out int mask);
+        EmitIdDispatch(w, "public", $"{Gen}{UsagesClass}.Register(id);", ordered, mask);
         w.Line();
         w.Line("/// <summary>Runs the registration (once).</summary>");
         w.Block("public static void Init()", () => { });
@@ -131,8 +132,9 @@ internal static class RegistryEmitter
             AddCase(registrations, factory.Id, $"{Core}NinoActivator<{factory.TypeName}>.TryRegister({factory.Creator});");
         foreach (var registration in generics)
             AddStatements(registrations, registration);
-        var cases = OrderCases(registrations);
+        var cases = OrderCases(registrations, out int mask);
         var compact = new GeneratedCode.NamespaceAliases();
+        // The alias counts saturate, so the bucket order does not affect which aliases are declared.
         foreach (var entry in cases)
         {
             if (compact.Ready)
@@ -153,7 +155,7 @@ internal static class RegistryEmitter
         // The registry calls Register, so these stay with it: NativeAOT keeps the fields NinoLayout measures.
         foreach (var type in layoutTypes)
             w.AliasedLine(type, compact, "[__NinoDynamicDependency(__Fields, typeof(", "))]");
-        EmitIdDispatch(w, "internal static", "", cases, compact);
+        EmitIdDispatch(w, "internal static", "", cases, mask, compact);
         w.Close();
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         return GeneratedCode.File("", aliases, body, fileScoped);
@@ -214,12 +216,29 @@ internal static class RegistryEmitter
             entry.Rest.Add(code);
     }
 
-    /// <summary>The statements by id, in the order of the ids, statements in insertion order.</summary>
-    private static IdCase[] OrderCases(Dictionary<int, IdCase> cases)
+    /// <summary>The cases in bucket order, then ID order, with their statements in insertion order.</summary>
+    private static IdCase[] OrderCases(Dictionary<int, IdCase> cases, out int mask)
     {
         var ordered = cases.Values.ToArray();
-        Array.Sort(ordered, static (a, b) => a.Id.CompareTo(b.Id));
+        int buckets = 1;
+        while (buckets < MaxBuckets && buckets * IdsPerBucket < ordered.Length)
+            buckets *= 2;
+
+        mask = buckets - 1;
+        if (mask == 0)
+            Array.Sort(ordered, static (a, b) => a.Id.CompareTo(b.Id));
+        else
+            Array.Sort(ordered, new BucketOrder(mask));
         return ordered;
+    }
+
+    private sealed class BucketOrder(int mask) : IComparer<IdCase>
+    {
+        public int Compare(IdCase a, IdCase b)
+        {
+            int bucket = (a.Id & mask).CompareTo(b.Id & mask);
+            return bucket == 0 ? a.Id.CompareTo(b.Id) : bucket;
+        }
     }
 
     /// <summary>
@@ -227,17 +246,13 @@ internal static class RegistryEmitter
     /// it compiles, so one switch over every type would load every formatter on the first lookup. With buckets of
     /// about <see cref="IdsPerBucket"/> ids, a lookup only loads the types of its bucket.
     /// </summary>
-    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, IdCase[] cases,
+    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, IdCase[] cases, int mask,
         GeneratedCode.NamespaceAliases compact = default)
     {
-        int buckets = 1;
-        while (buckets < MaxBuckets && buckets * IdsPerBucket < cases.Length)
-            buckets *= 2;
-
         w.Open($"{modifiers} void Register(int id)");
         if (prelude.Length != 0)
             w.Line(prelude);
-        if (buckets == 1)
+        if (mask == 0)
         {
             if (cases.Length != 0)
                 EmitIdSwitch(w, cases, compact);
@@ -245,38 +260,29 @@ internal static class RegistryEmitter
             return;
         }
 
-        int mask = buckets - 1;
-        var ends = new int[buckets + 1];
-        foreach (var entry in cases)
-            ends[(entry.Id & mask) + 1]++;
-
-        // Turn the counts into bucket starts, then advance them to the ends as each sorted case is copied.
-        int next = 0;
-        for (int i = 1; i < ends.Length; i++)
-        {
-            int count = ends[i];
-            ends[i] = next;
-            next += count;
-        }
-        var grouped = new IdCase[cases.Length];
-        foreach (var entry in cases)
-            grouped[ends[(entry.Id & mask) + 1]++] = entry;
-
         w.Open($"switch (id & {mask})");
-        for (int i = 0; i < buckets; i++)
-            if (ends[i + 1] != ends[i])
-                w.RegistryBucketCase(i);
-        w.Close();
-        w.Close();
-        for (int i = 0; i < buckets; i++)
+        int previous = -1;
+        foreach (var entry in cases)
         {
-            int start = ends[i], end = ends[i + 1];
-            if (end == start)
-                continue;
+            int bucket = entry.Id & mask;
+            if (bucket != previous)
+                w.RegistryBucketCase(bucket);
+            previous = bucket;
+        }
+        w.Close();
+        w.Close();
+        for (int start = 0; start < cases.Length;)
+        {
+            int bucket = cases[start].Id & mask;
+            int end = start + 1;
+            while (end < cases.Length && (cases[end].Id & mask) == bucket)
+                end++;
+
             w.Line();
-            w.OpenNumbered("private static void __Bucket", i, "(int id)");
-            EmitIdSwitch(w, grouped.AsSpan(start, end - start), compact);
+            w.OpenNumbered("private static void __Bucket", bucket, "(int id)");
+            EmitIdSwitch(w, cases.AsSpan(start, end - start), compact);
             w.Close();
+            start = end;
         }
     }
 
