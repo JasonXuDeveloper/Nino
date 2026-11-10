@@ -368,6 +368,13 @@ of bytes in a block.
   Larger results varied. The helper grew from 313 to 366 IL bytes, 600 to 612 Arm64 FullOpts
   bytes and 535 to 549 offline x64 bytes. All 45 wire and reuse probes and 18 header probes
   passed at offsets 0, 1 and 7.
+- Keep dimensions in locals until multidimensional shape validation succeeds, then
+  assign the out fields once. Arm64 FullOpts no longer cleared and reloaded the output
+  during parsing. An object initializer used 334 IL bytes and direct field writes used
+  313, down from 366. Both emitted 592 Arm64 FullOpts bytes and 550 offline x64 bytes,
+  from 612 and 549. The direct variant reduced Arm64 Tier 1 from 640 to 616 bytes
+  with the public entry unchanged. Default-JIT timings overlapped A/A and allocations
+  matched. The 45 wire and 18 header probes passed at offsets 0, 1 and 7.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
