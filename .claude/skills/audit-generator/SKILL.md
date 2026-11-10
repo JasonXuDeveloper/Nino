@@ -293,6 +293,11 @@ median 68 KB per emission in both load orders, and four cold project replays sav
 Timings varied. All 582 outputs matched on both Roslyn builds. Body edits reused the models and
 dispatch output, closed-project objects collected, and 70 targeted tests passed on each of
 .NET 8 and .NET 10 (`7fed214a`).
+Reuse the sorted closed instances and their declaration ordinals to emit the read and write
+selections directly. This saved a median 47 KB per dispatch emission in both load orders on
+the 31 closed classes in the unit test project. Whole-project cold and edit timings showed
+no repeatable gain. All 582 outputs matched on both Roslyn builds, dispatch stayed cached on
+body edits, old project objects collected, and both targeted suites passed (`bf5f8ae7`).
 Write local reader and writer copy prologues and write-back lines directly around the body.
 Constant lines and removal of the nested closures saved 214–317 KB in four cold replays.
 All 577 outputs matched, the 572 models were reused on tracked edits, and the collection
