@@ -64,6 +64,16 @@ and when `asm.py compare` lists methods the change did not touch.
   from 114 to 157 bytes, the Arm64 Tier 1 caller from 896 to 928 bytes, and the
   x64 cross-JIT caller stayed at 224 bytes. Wire bytes and steady-state
   allocations matched.
+  Use the shared copy kernel for payloads above two bytes and keep the tail
+  mask. Copying a shorter prefix and writing the masked tail separately, with
+  either one or two copy sites, gave no repeatable gain around 64 KiB. With
+  the shared kernel, aligned and partial-byte counts at 62 and 66 KiB beat
+  both controls in four local rounds at zero allocation. The short cases
+  varied. IL moved from 157 to 161 bytes and the Arm64 Tier 1 caller from
+  928 to 1,220 bytes. The x64 cross-JIT formatter grew from 471 to 694 bytes,
+  with no x64 timing. An Arm64-only guard was retained by the offline compiler
+  and grew that listing further, to 758 bytes. Seven wire comparisons and
+  577 generated files matched.
 
 - Build the raw span from `ReadBlock` on the byref reader targets. This gives the span and
   block reads one bounds check and cursor advance in the source. The standalone IL fell from
