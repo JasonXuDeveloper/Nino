@@ -57,6 +57,15 @@ and when `asm.py compare` lists methods the change did not touch.
   132 bytes, Arm64 Tier 1 from 752 to 776 bytes and x64 cross-JIT from 272 to
   320 bytes. Allocation stayed at 0 bytes on reuse and 64 bytes for fresh
   reads. Keep the shared tail cleanup and enumerator invalidation.
+  Use the out-of-line large-block kernel for disjoint reuse above 64 bytes.
+  Keep the span move for overlapping input and fresh storage. Inlining the
+  general copy brought all short-copy cases into the reader and took the
+  x64 cross listing to 713 bytes. Calling the existing large helper kept the
+  final listing at 440 bytes (baseline 320), with IL at 189 bytes (from 132)
+  and Arm64 Tier 1 at 888 bytes (from 772 with a short reuse profile).
+  At working sets of about 62 and 66 KiB, four paired local reuse rounds beat
+  both controls at zero allocation. Short and fresh results varied. Wire
+  checks, including the 64-byte boundary, and all 577 generated files matched.
   Share the short-payload gate when adding a two-byte case. On .NET 10 a
   single unaligned masked store consistently improved 15-bit writes in four
   local A/B rounds. A separate gate was less convincing at 66 KiB, while the
