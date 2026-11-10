@@ -184,6 +184,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   53 to 43 IL bytes, 676 to 292 Arm64 Tier 1 bytes and 134 to 114 x64 cross-JIT bytes.
   Both Roslyn builds kept all 577 files and all 572 model hits and passed collection checks.
   The two runtimes each passed 46 focused tests.
+  Keep the simple flattening helper. Appending the rest as a character range into the emitter's
+  leased builder saved 285 B per full encoding in the isolated long-tuple replay, with better
+  timing in both load orders. Whole-project allocation and timing did not improve repeatably.
+  The two affected methods grew from 2,116 to 2,206 IL bytes, 5,136 to 5,772 Arm64 Tier 1 bytes
+  and 3,179 to 3,381 x64 cross-JIT bytes. The candidate also made the model depend on the emitter's
+  buffer pool. Both Roslyn builds matched all 577 files and kept incremental reuse and collection.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
   without that cache.
