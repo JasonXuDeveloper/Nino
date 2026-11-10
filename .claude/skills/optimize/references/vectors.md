@@ -815,6 +815,15 @@ of bytes in a block.
   The separate 512-to-256 half-vector trial grew x64 cross-JIT MinOpts from
   361 to 455 B per width. Retain the existing AVX-512 tail until that variant
   can be timed on supporting hardware (`85789f51`).
+  Use a single element offset in the narrow zip loop and keep the overlapping tail.
+  Unrolling to two 128-bit groups slowed seven- and 33-pair offset-one writes in all
+  four M4 pairs. The indexed loop improved 33 pairs at both offsets and 3,967 pairs
+  at offset one across all four pairs. The latter took 17–29% less time, while same-binary
+  repeats varied from 7% faster to 5% slower. Seven-pair and above-64-KiB timings were
+  mixed. Bytes matched and steady allocation was zero. The shared IL was 190 B before,
+  224 B with unrolling and 214 B indexed. Arm64 FullOpts was 112, 192 and 136 B;
+  emulated x64 with AVX2 disabled was 107, 107 and 121 B. Keep the existing wide
+  dispatch and use native x64 timing to assess throughput there (`0b90f504`).
 - Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
   For full wide read batches, use AVX2 lane shuffles plus 64-bit reordering or AVX-512 two-source
   dword permutes. Keep the exact ISA test in the existing out-of-line entry so Arm64 Tier 0 drops it.
