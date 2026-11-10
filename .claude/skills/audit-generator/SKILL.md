@@ -341,6 +341,10 @@ Indent each registry case with a value-type scope to avoid its capturing action.
 emission saved about 55 KB per pass in both load orders. The 577 generated files matched,
 all 572 models were reused on tracked edits, and collection and 58 targeted tests passed
 (`3380bf7f`).
+Emit the registry switches directly from their bucket lists. This removes the capturing
+callback and boxed enumerator per switch. The 64-switch registry replay saved about 11 KB
+in both load orders. All 582 files matched on both Roslyn builds, body edits reused the
+registry entries, old project objects collected, and both targeted suites passed (`cdf0e8b2`).
 Insert registration statements directly into their ID cases in the existing order. This removes
 the per-registration tuple arrays and the iterator chains in both registry emitters. The
 isolated registry replay allocated about 35 KB less in both load orders. The 577 outputs matched,
