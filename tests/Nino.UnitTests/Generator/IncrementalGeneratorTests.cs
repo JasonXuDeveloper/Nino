@@ -323,11 +323,11 @@ public static class Other { public static T Deserialize<T>(byte[] b) => default;
         Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
         var usages = driver.GetRunResult().Results[0].GeneratedSources
             .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
-        StringAssert.Contains(usages, "using __NinoCollections = global::System.Collections.Generic;");
-        StringAssert.Contains(usages, "NinoFormatterCache<__NinoCollections.List<int>>");
-        StringAssert.Contains(usages, "NinoFormatterCache<__NinoCollections.List<long>>");
-        StringAssert.Contains(usages, "NinoFormatterCache<__NinoCollections.List<short>>");
-        StringAssert.Contains(usages, "NinoFormatterCache<__NinoCollections.List<uint>>");
+        StringAssert.Contains(usages, "using __SCG = global::System.Collections.Generic;");
+        StringAssert.Contains(usages, "NinoFormatterCache<__SCG.List<int>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<__SCG.List<long>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<__SCG.List<short>>");
+        StringAssert.Contains(usages, "NinoFormatterCache<__SCG.List<uint>>");
         Assert.IsFalse(usages.Contains("List<byte>"), usages);
     }
 
@@ -842,7 +842,8 @@ public static class Other { public static int GetFixedSize<T>() => 0; }
             .Single(s => s.HintName == "NinoGen.Usages.g.cs").SourceText.ToString();
         foreach (var registered in new[] { "Pair<int, short>", "Pair<int, long>", "Pair<byte, int>", "Pair<int, int>", "Pair<short, short>" })
             StringAssert.Contains(Usages(), "NinoTypes.Register<global::Inc." + registered);
-        StringAssert.Contains(Usages(), "NinoFormatterCache<global::System.Collections.Generic.List<global::Inc.Pair<int, int>>>");
+        StringAssert.Contains(Usages().Replace("__SCG.", "global::System.Collections.Generic."),
+            "NinoFormatterCache<global::System.Collections.Generic.List<global::Inc.Pair<int, int>>>");
         Assert.IsFalse(Usages().Contains("Pair<long, long>"), Usages());
 
         // The call is cached by position, method and the type it names: an edit of the typeof argument is seen.

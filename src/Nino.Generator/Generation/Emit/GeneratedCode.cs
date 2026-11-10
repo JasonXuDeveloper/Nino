@@ -141,8 +141,9 @@ internal static class GeneratedCode
     internal struct NamespaceAliases
     {
         private const string Collections = "global::System.Collections.Generic.";
-        private const string CollectionsAlias = "__NinoCollections.";
-        private const string CollectionsDeclaration = "using __NinoCollections = global::System.Collections.Generic;";
+        private const string CollectionsAliasName = "__SCG";
+        private const string CollectionsAlias = CollectionsAliasName + ".";
+        private const string CollectionsDeclaration = "using " + CollectionsAliasName + " = global::System.Collections.Generic;";
         private static readonly int CoreThreshold =
             (CoreNamespaceDeclaration.Length + 5) / (TypeNames.Core.Length - CoreNamespacePrefix.Length) + 1;
         private static readonly int CollectionsThreshold =
