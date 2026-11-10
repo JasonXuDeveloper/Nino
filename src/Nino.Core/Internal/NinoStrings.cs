@@ -573,7 +573,8 @@ namespace Nino.Core.Internal
                 destination = ref Unsafe.Add(ref destination, (nint)start);
                 n -= start;
             }
-            if (NinoSimd.Has512 && n >= 128)
+            // Test the exact ISA so Tier 0 can discard the wide dispatch on narrower CPUs.
+            if (Avx512BW.IsSupported && n >= 128)
             {
                 var result = TryNarrow512(ref source, ref destination, n);
                 if (result != WideNarrowResult.Unsupported)
