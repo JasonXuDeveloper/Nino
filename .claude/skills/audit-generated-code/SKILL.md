@@ -147,6 +147,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   x64 bytes. Four M4 replays with longer warmup and QoS gave mixed timings,
   including the identical-binary control. Reuse allocated 0 B and all ten wire
   comparisons matched, including payloads on both sides of 64 KiB.
+  Propagate context preservation through Memory, ReadOnlyMemory, ArraySegment
+  and ReadOnlySequence when their element formatter is raw or preserves context.
+  Their readers do not create context independently of the element read. The
+  Memory<string> fixture lost 38 source bytes and went from 47 to 39 IL bytes,
+  764 to 644 Arm64 FullOpts bytes, and 623 to 483 emulated x64 bytes. Four M4
+  pairs improved the aligned 512-item, two-string reuse case by 2–22%; short,
+  unaligned and larger cases varied. All 18 wire comparisons matched at 0 B
+  per reused item. Keep unknown element formatters on the writeback path.
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
