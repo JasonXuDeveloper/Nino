@@ -487,6 +487,17 @@ of bytes in a block.
   356 bytes with 121 bytes in the two new methods. Arm64 FullOpts grew from
   276 to 356 bytes plus a 252-byte vector loop; the emulated x64 fallback stayed
   at 180 bytes. Dirty-null, invalid-tail and scalar tests passed (`5a9438b9`).
+  Start that reader at one full 128-bit group (eight bool slots). Return
+  through the short scalar loop before the ISA and layout checks for one to
+  seven elements. Moving the vector test ahead of the old scalar test without
+  that early return slowed the singleton. Four M4 pairs with the early return
+  improved the 8-, 9- and 16-item mixed cases by medians of 42%, 39% and 57%;
+  1–7 items, the former threshold's upper neighbor and the cache-boundary
+  control stayed broadly flat. Twelve wire cases matched at 0 B. Entry IL
+  fell from 356 to 348 bytes, Arm64 FullOpts moved from 356 to 364 bytes and
+  the emulated x64 fallback from 180 to 185 bytes. The 252-byte vector loop
+  was unchanged. Test dirty null and invalid tail slots at both 9 and 1,031
+  elements (`c8950716`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
