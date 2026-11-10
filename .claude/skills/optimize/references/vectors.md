@@ -402,6 +402,18 @@ of bytes in a block.
   vectors for four to seven elements and 128-bit vectors thereafter. Check the
   minimum count before hardware and layout tests so the single-item control
   stays flat. Compile the bounded vector loop optimized from its first call.
+  Reuse that write loop for 512/256/128-bit groups on modern .NET. Select the largest complete
+  group through NinoSimd and require its shared Prefer512Int16 policy for 16-bit AVX-512BW shifts.
+  Four-to-seven-element vector groups remain Arm64-only. The width adapters contain the shifts
+  and mask; the traversal and overlapping tail stay shared. Portable tests directly exercised
+  64/128/256/512-bit kernels with dirty null slots, offsets 0/1/7 and sentinels. The x64 guest
+  selected AVX2 or SSE2 and matched the scalar wire bytes. Offline x64 emitted XMM/YMM/ZMM
+  bodies of 78/79/99 B; only the audit copy omitted AggressiveOptimization for ReadyToRun.
+  Native AVX-512 execution and throughput remain unmeasured. Write IL grew from 499 to 616 B,
+  while the shared loop/group stayed 44/48 B. Arm64 bool entry/kernel sizes stayed 1,560/92 B
+  and the raw int entry stayed 1,288 B. The AVX2 guest entry grew from 1,093 to 1,205 B plus
+  a 79 B kernel. Four M4 A/B rounds were noisy with 0 B allocation. .NET 8/10 passed 45 tests
+  each, scalar passed 36 and both netstandard variants passed 32 each (c2c7f291).
   The M4 default-JIT 128-item mixed median went from 1.78 us to 38 ns; 16,896
   mixed items went from 25.9 to 0.59 us. The baseline was still instrumented
   Tier 0 at 128 items. Offsets zero and one, dirty null slots, and wire output
