@@ -58,6 +58,18 @@ namespace Nino.Core
                 return;
             }
 
+            if (typeof(T) == typeof(bool) && values.Length < 4 && BitConverter.IsLittleEndian && Stride == 2 && Offset == 1)
+            {
+                for (int i = 0; i < values.Length; i++)
+                {
+                    bool? element = Unsafe.As<T?, bool?>(ref Unsafe.Add(ref item, i));
+                    bool value = element.GetValueOrDefault();
+                    ushort slot = element.HasValue ? (ushort)(1 | Unsafe.As<bool, byte>(ref value) << 8) : (ushort)0;
+                    NinoUnsafe.Write(ref Unsafe.Add(ref dst, i * 2), slot);
+                }
+                return;
+            }
+
 #if NET8_0_OR_GREATER
             if (typeof(T) == typeof(bool) && values.Length >= 4 && NinoSimd.HasArm64 &&
                 BitConverter.IsLittleEndian && NullableLayout<T>.HasValueOffset == 0 &&

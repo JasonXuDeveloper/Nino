@@ -51,6 +51,8 @@ namespace RawWire
             "02000000" + "01000000" + "03000000" + "04000000" + "00000000" + "00000000" + "00000000");
 
         [TestMethod]
+        [DataRow(1)]
+        [DataRow(2)]
         [DataRow(3)]
         [DataRow(4)]
         [DataRow(7)]
