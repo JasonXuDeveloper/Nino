@@ -143,16 +143,18 @@ namespace Nino.Core.Internal
 
             // No 256-bit vectors.
             if (n >= 128)
-            {
-                // Preserve early rejection before looking for a non-Latin-1 suffix.
-                if (!TryNarrow16(ref source, ref destination, 0) ||
-                    Unsafe.Add(ref source, (nint)n - 1) > 0xFF)
-                    return false;
-                source = ref Unsafe.Add(ref source, 16);
-                destination = ref Unsafe.Add(ref destination, 16);
-                n -= 16;
-            }
+                return NarrowLong16s(ref source, ref destination, n);
             return Narrow16s(ref source, ref destination, n);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static bool NarrowLong16s(ref ushort source, ref byte destination, nuint n)
+        {
+            // Preserve early rejection before looking for a non-Latin-1 suffix.
+            if (!TryNarrow16(ref source, ref destination, 0) ||
+                Unsafe.Add(ref source, (nint)n - 1) > 0xFF)
+                return false;
+            return Narrow16s(ref Unsafe.Add(ref source, 16), ref Unsafe.Add(ref destination, 16), n - 16);
         }
 
         private enum WideNarrowResult
