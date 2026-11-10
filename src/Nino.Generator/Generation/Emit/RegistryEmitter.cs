@@ -28,7 +28,7 @@ internal static class RegistryEmitter
     {
         string name = "NinoGenRegistry_" + new string(options.AssemblyName
             .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
-        var preamble = new CodeWriter();
+        var preamble = new CodeWriter(256);
         preamble.Line($"[assembly: {CoreCompilerServices}NinoGenerated(typeof({Gen}{name}))]");
         // Generic [NinoType]s are closed at runtime: their formatter definitions are ordinary formatter
         // registrations (each implements INinoFormatter<Box<T>> in exactly the type's own parameters).
