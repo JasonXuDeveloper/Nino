@@ -33,7 +33,7 @@ namespace Nino.Core
             }
 
             var array = value;
-            if (!MultiDim.SameShape(array, in shape))
+            if (!MultiDim.SameShape(array, 2, in shape))
             {
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
@@ -93,7 +93,7 @@ namespace Nino.Core
             }
 
             var array = value;
-            if (!MultiDim.SameShape(array, in shape))
+            if (!MultiDim.SameShape(array, 3, in shape))
             {
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
@@ -153,7 +153,7 @@ namespace Nino.Core
             }
 
             var array = value;
-            if (!MultiDim.SameShape(array, in shape))
+            if (!MultiDim.SameShape(array, 4, in shape))
             {
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)

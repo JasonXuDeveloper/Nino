@@ -437,11 +437,11 @@ namespace Nino.Core
         }
 
         /// <summary>Whether <paramref name="array"/> is not null and of <paramref name="shape"/>.</summary>
-        public static bool SameShape(Array array, in ArrayShape shape)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool SameShape(Array array, int rank, in ArrayShape shape)
         {
             if (array == null || array.GetLength(0) != shape.A || array.GetLength(1) != shape.B)
                 return false;
-            int rank = array.Rank;
             return (rank < 3 || array.GetLength(2) == shape.C) && (rank < 4 || array.GetLength(3) == shape.D);
         }
     }
