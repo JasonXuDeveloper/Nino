@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 #else
 using System.Numerics;
 #endif
@@ -75,7 +76,11 @@ namespace Nino.Core.Internal
             if (NinoSimd.Has128 && n >= 8)
             {
                 if (n > 16)
+                {
+                    if (NinoSimd.Has256 && (uint)(length - 32) < 32)
+                        return WriteMedium256(ref destination, ref chars, n);
                     return WriteLong(ref destination, ref chars, length);
+                }
                 if (!Narrow8To16(ref Unsafe.As<char, ushort>(ref chars), ref body, n))
                     return WriteUtf16(ref destination, ref chars, length);
             }
@@ -114,6 +119,21 @@ namespace Nino.Core.Internal
             destination = (byte)(length * 2 + 1);
             return 1 + length;
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int WriteMedium256(ref byte destination, ref char chars, nuint length)
+        {
+            ref ushort source = ref Unsafe.As<char, ushort>(ref chars);
+            ref byte body = ref Unsafe.Add(ref destination, 1);
+            if (!TryNarrow32(ref source, ref body, 0) ||
+                (length != 32 && !TryNarrow32(ref source, ref body, length - 32)))
+                return WriteUtf16(ref destination, ref chars, (int)length);
+
+            destination = (byte)(length * 2 + 1);
+            return 1 + (int)length;
+        }
+#endif
 
         // 64 chars or more: the header's size depends on the length only (2n and 2n + 1 take as many bytes).
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -556,15 +576,11 @@ namespace Nino.Core.Internal
             }
             if (NinoSimd.Has256 && n >= 32)
             {
-                var high = Vector256.Create((ushort)0xFF00);
                 nuint i = 0;
                 while (true)
                 {
-                    var a = Vector256.LoadUnsafe(ref source, i);
-                    var b = Vector256.LoadUnsafe(ref source, i + 16);
-                    if (((a | b) & high) != Vector256<ushort>.Zero)
+                    if (!TryNarrow32(ref source, ref destination, i))
                         return false;
-                    Vector256.Narrow(a, b).StoreUnsafe(ref destination, i);
                     if (i + 32 == n)
                         return true;
                     // After the first vector, on to the destination's next 32-byte boundary (overlapping it): the
@@ -576,6 +592,21 @@ namespace Nino.Core.Internal
 
             // No 256-bit vectors.
             return Narrow16s(ref source, ref destination, n);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryNarrow32(ref ushort source, ref byte destination, nuint offset)
+        {
+            var a = Vector256.LoadUnsafe(ref source, offset);
+            var b = Vector256.LoadUnsafe(ref source, offset + 16);
+            if (((a | b) & Vector256.Create((ushort)0xFF00)) != Vector256<ushort>.Zero)
+                return false;
+            // Every lane fits in a byte. Saturating pack avoids masking before the pack.
+            var packed = Avx2.IsSupported
+                ? Avx2.Permute4x64(Avx2.PackUnsignedSaturate(a.AsInt16(), b.AsInt16()).AsInt64(), 0xD8).AsByte()
+                : Vector256.Narrow(a, b);
+            packed.StoreUnsafe(ref destination, offset);
+            return true;
         }
 
         // n >= 16, sixteen chars at a time, then the last sixteen again overlapping the previous.
