@@ -504,6 +504,16 @@ The filter and helper together grew from 213 to 300 IL bytes, 684 to 892 Arm64 F
 bytes, and 493 to 686 x64 cross-JIT bytes. Ordered buckets through five candidates
 matched the collision rules, and both Roslyn builds matched all 577 generated files
 and kept dispatch cached and old project objects collectible.
+Keep list-backed dispatch buckets for emission. Storing the first candidate directly
+and allocating its list only on the second saved about 3.9 KB per isolated unit-project
+emission in both load orders. The wider dictionary value and the count/index checks
+increased the four sampled methods and new bucket members by 163 IL bytes. The four
+machine-code listings grew by 556 Arm64 FullOpts bytes and 421 x64 cross-JIT bytes.
+Whole-project allocation and timing showed no repeatable improvement. Both Roslyn
+builds matched all 577 generated files, kept dispatch cached, and released old
+project objects. The same fixture had 22 unused ancestor edges across 14 names and
+no unused closed-generic edges, compared with 232 dispatch bases. Measure the
+cost of indexing those bases before adding a filter for the unused edges.
 Write local reader and writer copy prologues and write-back lines directly around the body.
 Constant lines and removal of the nested closures saved 214–317 KB in four cold replays.
 All 577 outputs matched, the 572 models were reused on tracked edits, and the collection
