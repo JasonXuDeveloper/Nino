@@ -38,10 +38,40 @@ public class BclTypeHolder
     public BlockingCollection<int> Blocking;
 }
 
+[NinoType(format: NinoFormat.VersionTolerant)]
+public struct BclScalarRegion
+{
+    public BigInteger Big;
+    public Version Version;
+    public Uri Link;
+}
+
 /// <summary>The BCL types with formatters of their own: round trips, null and the bytes they share with other types.</summary>
 [TestClass]
 public class BclTypeTests
 {
+    [TestMethod]
+    public void BclScalarRegionAcceptsOldDataAndRejectsTruncation()
+    {
+        var value = new BclScalarRegion
+        {
+            Big = new BigInteger(128),
+            Version = new Version(1, 2, 3),
+            Link = new Uri("../relative", UriKind.Relative),
+        };
+        var bytes = NinoSerializer.Serialize(value);
+        var read = NinoDeserializer.Deserialize<BclScalarRegion>(bytes);
+        Assert.AreEqual(value.Big, read.Big);
+        Assert.AreEqual(value.Version, read.Version);
+        Assert.AreEqual(value.Link, read.Link);
+
+        NinoDeserializer.Deserialize(new byte[sizeof(int)], ref read);
+        Assert.AreEqual(value.Big, read.Big);
+        Assert.AreEqual(value.Version, read.Version);
+        Assert.AreEqual(value.Link, read.Link);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<BclScalarRegion>(bytes.AsSpan(0, bytes.Length - 1)));
+    }
+
     [TestMethod]
     public void BigIntegers()
     {
