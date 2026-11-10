@@ -29,6 +29,13 @@ and when `asm.py compare` lists methods the change did not touch.
   `int[]` probe crossed a 64 KiB input-plus-output budget and matched wire bytes at offsets
   0, 1 and 7. Reuse allocated 0 B and fresh allocation was unchanged (`30cd066b`).
 
+- Use the overlap-safe span move for unpadded raw array writes to caller-provided buffers.
+  Keep overlap detection for layouts that fuse padding clearing into the nonoverlapping copy.
+  The `int[]` write shrank from 800 to 444 Arm64 Tier 1 bytes and from 640 to 296 in the x64
+  FullOpts cross listing. At 8,449 items, four local rounds improved by 19–30%, with the
+  identical-binary control within 9%. Short inputs and the 7,935-item replay varied.
+  Wire bytes matched at offsets 0, 1 and 7, and writes allocated 0 B (`c311e969`).
+
 - Keep the span copy in `NinoArrayBufferWriter.Grow`. Switching to `CopyToNew` regressed
   the 1 KiB growth case in four local rounds. Applying it only from 64 KiB preserved the
   smaller path but did not produce a repeatable gain across 64 KiB and adjacent inputs.
