@@ -35,6 +35,12 @@ and when `asm.py compare` lists methods the change did not touch.
   FullOpts cross listing. At 8,449 items, four local rounds improved by 19–30%, with the
   identical-binary control within 9%. Short inputs and the 7,935-item replay varied.
   Wire bytes matched at offsets 0, 1 and 7, and writes allocated 0 B (`c311e969`).
+  Slice the payload once and use its checked length for the source span. Combining the
+  destination slices alone grew Arm64 Tier 1 from 444 to 452 bytes. Sharing the source
+  size removed the duplicate multiplication and copy length check, cutting Tier 1 to 384
+  bytes and the x64 FullOpts cross listing from 296 to 240. Four local rounds and a
+  byte-identical control showed no repeatable timing gain. Wire bytes matched, writes
+  allocated 0 B, and targeted tests and both netstandard builds passed (`6590c2a2`).
 
 - Keep the span copy in `NinoArrayBufferWriter.Grow`. Switching to `CopyToNew` regressed
   the 1 KiB growth case in four local rounds. Applying it only from 64 KiB preserved the
