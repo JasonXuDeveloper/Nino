@@ -138,8 +138,8 @@ namespace Nino.Core
                 NinoThrow.EndOfData();
             ref byte start = ref MemoryMarshal.GetReference(data);
             int length = NinoUnsafe.Read<int>(ref start);
-            uint size = (uint)Unsafe.SizeOf<T>();
-            if ((ulong)(uint)length * size > (uint)(data.Length - NinoWire.LengthSize) || TooLong(length))
+            ulong bytes = (ulong)(uint)length * (uint)Unsafe.SizeOf<T>();
+            if (bytes > (uint)(data.Length - NinoWire.LengthSize) || TooLong(length))
             {
                 if (length != NinoWire.NullLength)
                     NinoThrow.InvalidLength(length);
@@ -148,7 +148,7 @@ namespace Nino.Core
 
             var array = NinoUnsafe.NewArray<T>(length, uninitialized: true);
             NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
-                ref Unsafe.Add(ref start, NinoWire.LengthSize), (uint)length * size);
+                ref Unsafe.Add(ref start, NinoWire.LengthSize), (uint)bytes);
             return array;
         }
 
@@ -168,8 +168,8 @@ namespace Nino.Core
             // One bounds check for the count and the elements: a negative count (null, or invalid) is a huge
             // unsigned size and takes the cold path.
             int length = reader.UnsafeRead<int>();
-            uint size = (uint)Unsafe.SizeOf<T>();
-            if ((ulong)(uint)length * size > (uint)reader.Remaining || TooLong(length))
+            ulong bytes = (ulong)(uint)length * (uint)Unsafe.SizeOf<T>();
+            if (bytes > (uint)reader.Remaining || TooLong(length))
             {
                 if (length != NinoWire.NullLength)
                     NinoThrow.InvalidLength(length);
@@ -178,9 +178,8 @@ namespace Nino.Core
             }
 
             var array = NinoElements.EnsureLength(ref value, length, uninitialized: true);
-            uint bytes = (uint)length * size;
             NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
-                ref reader.UnsafeAdvance((int)bytes), bytes);
+                ref reader.UnsafeAdvance((int)bytes), (uint)bytes);
         }
 
         private static void DeserializeConverted(ref Reader reader, ref T[] value)
