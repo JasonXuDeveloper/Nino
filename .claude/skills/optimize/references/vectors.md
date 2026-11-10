@@ -278,6 +278,15 @@ of bytes in a block.
   bytes, and x64 cross-JIT from 405/283 to 389/261. Local reuse stayed at 0 B with no
   repeatable timing change against the duplicate baseline, including the 64 KiB boundary.
   Wire, truncation and invalid-flag checks matched at aligned and unaligned offsets.
+  Batch raw nullable presence checks in 64-byte vector groups for large payloads with
+  strides of 2, 4, 8 or 16. Unlike strided pair fields, each nullable flag is followed
+  by a full slot, so whole-vector loads stay within the validated payload. Use the
+  scalar scan for short inputs, unsupported strides, and the original invalid-flag
+  diagnostic. The first one-vector loop regressed both 64-item and cache-sized
+  integer arrays. The 64-byte loop with a 128-item gate improved the unaligned
+  4,095- and 4,096-item reuse cases in all four local default-JIT rounds against
+  both baselines, at 0 B allocated. Short inputs varied. The vector helper adds
+  320 IL bytes, 272 Arm64 FullOpts bytes, and 204 x64 cross-JIT bytes.
   Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
   In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
   and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
