@@ -688,6 +688,16 @@ of bytes in a block.
   from 128 to 112 B for 16/32-bit lanes and to 88 B for 64-bit lanes. x64 cross-JIT
   MinOpts grew by 30 B per lane width; no native x64 timing was measured. Both .NET
   suites, scalar fallback and the unaligned destination sentinels passed (`281f03fd`).
+  On the AVX2 path, cover the remainder with one or two 128-bit zips instead of
+  calling the general narrow loop. The x64 emulated guest supported AVX2 and ran
+  four default-JIT pairs. Medians for 17 and 21 int pairs improved 4% and 8%, while
+  exact-vector and 64 KiB controls were noisy. Wire bytes, destination sentinels
+  and zero allocations matched. AVX2-disabled execution and the Arm64 112 B
+  narrow listing matched. The shared dispatcher IL grew from 138 to 219 B,
+  x64 guest FullOpts from 112 to 177 B, and the AVX2 main loop stayed at 79 B.
+  The separate 512-to-256 half-vector trial grew x64 cross-JIT MinOpts from
+  361 to 455 B per width. Retain the existing AVX-512 tail until that variant
+  can be timed on supporting hardware (`85789f51`).
 - Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
   For full wide read batches, use AVX2 lane shuffles plus 64-bit reordering or AVX-512 two-source
   dword permutes. Keep the exact ISA test in the existing out-of-line entry so Arm64 Tier 0 drops it.
