@@ -448,6 +448,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   at 163 B. Unaligned 64-character reuse improved in four paired runs and the A/A/B replay.
   Adjacent lengths varied. Wire bytes, allocations, 577-model reuse and collection matched.
   Both Roslyn target suites passed (`709af0ae`).
+  Apply the same merge to standalone class writes that have no local-writer twin. Keep the
+  struct's static body with its by-reference value. The unit test project saved 37,716
+  source bytes across 252 files in each replay state. The string-holder write kept 22 IL bytes
+  and lost an 8-byte forwarder. The body stayed at 1,208 B on Arm64 and 818 B on x64 cross-JIT,
+  and the caller stayed at 272 and 214 B. Four local rounds showed no meaningful write
+  timing change, with identical wire bytes and zero steady allocation. All 577 models were
+  reused on edits and both Roslyn suites passed (`8ca095f4`).
 - Omit the empty member hook for object-only prefetch formatters when Core exposes the object-only interface.
   Retain the existing generated contract against older Core versions. This removed 15,136 source bytes across
   148 of the unit test project's 582 files. The wire output and the activation threshold matched in both
