@@ -126,6 +126,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   577 files byte for byte on cold and edited runs. Both edits reused all 572 models on Roslyn 4.12, and the
   closed compilation, tree, symbol and generated text collected. Cold and reopen timings varied, and the first
   generic fixture edit slowdown did not reproduce in a four-round follow-up with an identical-build control.
+- Process automatically collected members in declaration order. Allocate a per-level candidate list only for
+  explicit indices, which still sort by index and name. In a 548-type probe, skipping only the sort cut allocation
+  from 1,925 to 1,332 B per type. Sending automatic candidates directly through the existing deduplication rules
+  cut it to 1,106 B with identical member order. Four cold project replays saved 73–115 KB per run. Reopening
+  saved 0.54–0.82 MB against the paired baseline across eight rounds. The initial reopen slowdown did not
+  reproduce in the four rounds with an identical-build control. Both Roslyn builds matched all 577 files,
+  the Roslyn 4.12 edits reused all 572 models, and the project-close and edit probes collected old objects.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
