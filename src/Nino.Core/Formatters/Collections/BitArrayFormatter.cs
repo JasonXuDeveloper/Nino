@@ -51,7 +51,17 @@ namespace Nino.Core
             }
 
             var target = MemoryMarshal.CreateSpan(ref payload, size);
-            NinoUnsafe.Copy(ref payload, ref MemoryMarshal.GetReference(source), (uint)size);
+            ref byte first = ref MemoryMarshal.GetReference(source);
+            if (!System.Runtime.Intrinsics.X86.Sse2.IsSupported &&
+                System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && size > 64)
+            {
+                if (size <= 128)
+                    NinoUnsafe.CopyArm64Short(ref payload, ref first, (uint)size);
+                else
+                    NinoUnsafe.CopyOver64(ref payload, ref first, (uint)size);
+            }
+            else
+                NinoUnsafe.Copy(ref payload, ref first, (uint)size);
             MaskTail(target, count);
 #else
             int size = (int)(((uint)count + 7) / 8);

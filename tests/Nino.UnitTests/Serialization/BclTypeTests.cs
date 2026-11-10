@@ -166,6 +166,9 @@ public class BclTypeTests
 
     [TestMethod]
     [DataRow(2)]
+    [DataRow(65)]
+    [DataRow(128)]
+    [DataRow(129)]
     [DataRow(24 * 1024)]
     public void BitArrayWritesIntoAnExistingBufferAtItsCurrentPosition(int length)
     {
@@ -195,6 +198,8 @@ public class BclTypeTests
     [DataRow(7)]
     [DataRow(8)]
     [DataRow(9)]
+    [DataRow(517)]
+    [DataRow(1021)]
     public void BitArrayPaddingStaysOffTheWireAndOutOfTheDecodedArray(int count)
     {
         var bits = new BitArray(count);
@@ -203,7 +208,7 @@ public class BclTypeTests
 
         var data = NinoSerializer.Serialize(bits);
         var expected = new byte[4 + storage.Length];
-        expected[0] = (byte)count;
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(expected, count);
         int lastBits = (count - 1) % 8 + 1;
         expected[^1] = (byte)((1 << lastBits) - 1);
         CollectionAssert.AreEqual(expected, data);
