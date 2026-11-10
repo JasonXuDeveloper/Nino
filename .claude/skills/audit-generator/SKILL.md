@@ -248,6 +248,11 @@ Measure the state-table cost before adding a filter step to a projection. A sepa
 paired baselines, even though it projected fewer entries. The identical-binary controls also varied.
 All 577 outputs were byte-identical and closing and editing the project still released old objects.
 Compare skipping the allocation inside the existing projection before keeping the extra step.
+Return null for nonparticipants in the existing dispatch projection and filter the collected values
+before sorting. On the 572 models from the unit test project, the isolated projection created 469
+entries and allocated 54,352 bytes instead of 70,840 across all four rounds. Timing varied in
+both directions in the isolated and full-project probes. The 577 generated files matched, the
+dispatch stage stayed cached on both edits, and closed projects released their Roslyn objects.
 
 Measure name rendering allocations before keeping a reusable builder. Keep `FormatterRef`'s bounded thread-local
 character buffer and hand immutable strings to models. Extending the buffer to general type naming saved
