@@ -487,14 +487,21 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   smaller file. Normalize aliases in assertions about registration content, and assert the
   spelling only in the compaction test. Benchmark IL, wire bytes and registration allocations
   matched, with no repeatable timing change.
-  Use `__CS` for the shared compiler-services alias. Avoid a spelling that starts with `__NC`: the
-  Core guard sees the substring and falls back to longer Reader and Writer aliases. The overlapping
+  Use `__CS` for the shared compiler-services alias. With the original substring guard, an alias
+  starting with `__NC` made Core fall back to longer Reader and Writer aliases. The overlapping
   candidate grew the benchmark output by 2,208 B. The final spelling saved 6,024 B across 104 benchmark
   files and 23,409 B across 582 unit-test files. Expanding aliases restored the original sources.
   All 3,340 benchmark method signatures and bodies matched after normalizing file-local type names.
   The sampled Arm64 and x64 cross-JIT dispatch sizes, three wire outputs and runtime allocations matched.
   Timings varied against A/A. Both Roslyn targeted suites and the versioning, tracking and depth tests
   passed (`7053428a`).
+  Check the full Core alias prefix, including the dot, so `__C.` and `__CS.` can coexist.
+  Shortening Core to `__C` saved 9,365 B across all 583 unit-test files. Expanding the
+  alias restored byte-identical output in all four replay stages. Consumer IL matched
+  apart from the two test assertion strings. The sampled version-tolerant writer and
+  reader stayed at 2,648 and 1,348 Arm64 FullOpts bytes and 104 and 170 offline x64 bytes.
+  Wire bytes and zero steady allocation matched. Local timing varied with the duplicate
+  baseline. Both Roslyn builds passed 63 targeted tests (`a8097712`).
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
   `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
