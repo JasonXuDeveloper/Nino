@@ -271,6 +271,13 @@ of bytes in a block.
   Pinned-alignment A/B and byte-identical A/A both varied across four rounds, with 0 B
   allocated. Wire output matched at offsets 0, 1 and 7, and 111/112 targeted tests passed
   on .NET 8/10 with and without hardware intrinsics (`d3a36d9a`).
+  Use the same proof for the shared nullable array/list reader. Every caller checks the
+  whole wire stride and opens a destination of that exact count. Reuse the byte count for
+  advancing and copying, and keep the presence-flag checks. The helper went from 169 to
+  163 IL bytes. For `int?` and `bool?`, Arm64 FullOpts went from 192/248 to 148/212
+  bytes, and x64 cross-JIT from 405/283 to 389/261. Local reuse stayed at 0 B with no
+  repeatable timing change against the duplicate baseline, including the 64 KiB boundary.
+  Wire, truncation and invalid-flag checks matched at aligned and unaligned offsets.
   Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
   In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
   and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
