@@ -397,7 +397,7 @@ public class PrefetchTests
         string computed = Output("Computed");
         string prefetch = computed.Split('\n').Single(l => l.Contains("public int PrefetchMembers(object value)"));
         StringAssert.Contains(prefetch,
-            "=> global::Nino.Core.CompilerServices.NinoPrefetched.At(global::System.Runtime.CompilerServices.Unsafe.As<__NinoT>(value).Other);");
+            "=> global::Nino.Core.CompilerServices.NinoPrefetched.At(global::System.Runtime.CompilerServices.Unsafe.As<__T>(value).Other);");
         Assert.IsFalse(prefetch.Contains(".Name"), "a property with a body of its own");
         string virtualPrefetch = Output("Virtual").Split('\n')
             .Single(l => l.Contains("NinoPrefetched.At"));

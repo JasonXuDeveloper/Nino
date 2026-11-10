@@ -271,7 +271,7 @@ internal static class GeneratedCode
     /// of its type's, or a nested type could hide one, and none is named like a generated type). Then the names
     /// become aliases: <paramref name="formatters"/> (generic formatters a type's members are read and written with,
     /// none naming a type parameter; numbered in their order) as <c>__NinoF0</c>, <c>__NinoF1</c>..., <paramref name="self"/> (a type the file is about, when
-    /// given) as <c>__NinoT</c>, <paramref name="rawTypes"/> as <c>__NinoRaw0</c>...,
+    /// given) as <c>__T</c>, <paramref name="rawTypes"/> as <c>__NinoRaw0</c>...,
     /// and the <see cref="CoreAliases"/>. A name is replaced only where the alias makes the
     /// file shorter, counting its declaration, which is added to <paramref name="declarations"/>; and only as a whole
     /// name: not next to an identifier character, a dot or a colon (a longer name, a qualified or nested one), but for
@@ -297,7 +297,7 @@ internal static class GeneratedCode
         }
 
         if (self != null)
-            body = WithAlias(body, self, "__NinoT", declarations, ref scratch);
+            body = WithAlias(body, self, "__T", declarations, ref scratch);
         int declarationsBefore = declarations.Count;
         if (body.IndexOf(CompilerServicesAlias, StringComparison.Ordinal) < 0)
             body = WithAlias(body, TypeNames.CoreCompilerServices, CompilerServicesPrefix, declarations, ref scratch,
