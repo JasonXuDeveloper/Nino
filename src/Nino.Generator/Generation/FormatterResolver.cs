@@ -262,9 +262,9 @@ internal sealed class FormatterResolver
                 out var formatters))
             return null;
         var code = Code(rule, types, formatters, parameters);
-        var factories = parameters.Created.Count == 0
+        var factories = parameters.Created is not { } created
             ? EquatableArray<FactoryRegistration>.Empty
-            : new EquatableArray<FactoryRegistration>(parameters.Created.Distinct());
+            : new EquatableArray<FactoryRegistration>(created.Distinct());
         // Nino.Core's formatters open no class body themselves (object is ObjectFormatter's, resolved above), only
         // through their element formatters; any other library's formatter may.
         if (!FormatterTraitsOf.IsCore(rule.Formatter))
@@ -276,7 +276,7 @@ internal sealed class FormatterResolver
         var traits = FormatterTraitsOf.Of(rule.Formatter.Name, count,
             count > 0 && formatters[count - 1] is { } last ? parameters.Traits[last] : FormatterTraits.None,
             count > 1 && formatters[count - 2] is { } previous ? parameters.Traits[previous] : FormatterTraits.None);
-        return new ResolvedFormatter(code, true, encoding, factories, parameters.ElementsOpenBodies[0],
+        return new ResolvedFormatter(code, true, encoding, factories, parameters.ElementsOpenBodies,
             Elements: parameters.ElementTypes.ToImmutableArray(), Traits: traits);
     }
 
@@ -310,7 +310,7 @@ internal sealed class FormatterResolver
             {
                 args[i] = FormatterRef.Of(bound);
                 if (IsCreated(rule.Formatter.TypeParameters[i]) && Factory(bound) is { } factory)
-                    parameters.Created.Add(factory);
+                    parameters.AddFactory(factory);
             }
             else
             {
@@ -335,11 +335,22 @@ internal sealed class FormatterResolver
             _utf8 = utf8;
         }
 
-        /// <summary>Creators the bound formatter needs (its element formatters' and its own [NinoCreated] types').</summary>
-        public List<FactoryRegistration> Created { get; } = new();
+        // The binding engine copies Parameters. These two mutable results are shared across those copies.
+        private readonly BindingState _state = new();
 
-        /// <summary>Whether an element formatter bound so far may open class bodies (one element: a mutable flag).</summary>
-        public bool[] ElementsOpenBodies { get; } = new bool[1];
+        private sealed class BindingState
+        {
+            public List<FactoryRegistration>? Created;
+            public bool OpensBodies;
+        }
+
+        /// <summary>Creators the bound formatter needs (its element formatters' and its own [NinoCreated] types').</summary>
+        public List<FactoryRegistration>? Created => _state.Created;
+
+        public void AddFactory(FactoryRegistration factory) => (_state.Created ??= new()).Add(factory);
+
+        /// <summary>Whether an element formatter bound so far may open class bodies.</summary>
+        public bool ElementsOpenBodies => _state.OpensBodies;
 
         /// <summary>The element types bound so far, written through their formatters.</summary>
         public List<ITypeSymbol> ElementTypes { get; } = new();
@@ -369,9 +380,10 @@ internal sealed class FormatterResolver
             formatter = resolved.Code;
             Encodings[formatter] = resolved.Encoding;
             Traits[formatter] = resolved.Traits;
-            Created.AddRange(resolved.Factories);
+            if (resolved.Factories.Length != 0)
+                (_state.Created ??= new()).AddRange(resolved.Factories);
             ElementTypes.Add(element);
-            ElementsOpenBodies[0] |= resolved.OpensBodies;
+            _state.OpensBodies |= resolved.OpensBodies;
             return true;
         }
 
