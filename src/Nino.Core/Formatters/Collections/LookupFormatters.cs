@@ -43,6 +43,15 @@ namespace Nino.Core
             writer.PatchInt32(countPos, count);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void WriteArray(NinoGrouping<TKey, TElement> grouping, ref Writer writer)
+        {
+            var elements = grouping.Elements;
+            writer.WriteLength(elements.Length);
+            default(TKeyFormatter).Serialize(grouping.Key, ref writer);
+            NinoElements.Write<TElement, TElementFormatter>(elements, ref writer);
+        }
+
         public void Deserialize(ref Reader reader, ref IGrouping<TKey, TElement> value)
         {
             int count = reader.ReadLength(NinoElements.MinWireSize<TElement, TElementFormatter>());
@@ -94,10 +103,28 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            writer.WriteLength(value.Count);
+            int count = value.Count;
+            writer.WriteLength(count);
+            if (count == 0)
+                return;
+
+            if (value is NinoLookup<TKey, TElement> lookup)
+            {
+                WriteArray(lookup, ref writer);
+                return;
+            }
+
             foreach (var grouping in value)
                 default(GroupingFormatter<TKey, TElement, TKeyFormatter, TElementFormatter>).Serialize(grouping,
                     ref writer);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteArray(NinoLookup<TKey, TElement> lookup, ref Writer writer)
+        {
+            var groupings = lookup.Groupings;
+            foreach (var grouping in groupings)
+                GroupingFormatter<TKey, TElement, TKeyFormatter, TElementFormatter>.WriteArray(grouping, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref ILookup<TKey, TElement> value)
@@ -144,6 +171,8 @@ namespace Nino.Core
         public TKey Key { get; }
 
         public int Count => _elements.Length;
+
+        internal ReadOnlySpan<TElement> Elements => _elements;
 
         public TElement this[int index] => _elements[index];
 
@@ -198,6 +227,8 @@ namespace Nino.Core
         }
 
         public int Count => _count;
+
+        internal ReadOnlySpan<NinoGrouping<TKey, TElement>> Groupings => _groupings.AsSpan(0, _count);
 
         public IEnumerable<TElement> this[TKey key] =>
             Find(key) ?? (IEnumerable<TElement>)Array.Empty<TElement>();

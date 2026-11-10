@@ -529,6 +529,7 @@ public class BclTypeTests
         var lookup = words.ToLookup(w => w?.Substring(0, 1), w => w?.Length ?? 0);
         var back = RoundTrip(lookup);
         Assert.AreEqual(lookup.Count, back.Count);
+        CollectionAssert.AreEqual(NinoSerializer.Serialize(lookup), NinoSerializer.Serialize(back));
         foreach (var group in lookup)
             CollectionAssert.AreEqual(group.ToArray(), back[group.Key].ToArray());
         CollectionAssert.AreEqual(lookup.Select(g => g.Key).ToArray(), back.Select(g => g.Key).ToArray());
