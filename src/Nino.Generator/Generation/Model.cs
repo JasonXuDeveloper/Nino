@@ -100,6 +100,8 @@ internal sealed record MemberModel(
     FormatterRef Formatter,
     // Which formatter it is (FormatterTraits): strings are read and written directly, flat ones on local copies.
     FormatterTraits Traits,
+    // Whether the bound formatter can open a class body, conservatively true for custom formatters.
+    bool OpensBodies,
     // How the member is written, for its published layout (ResolvedFormatter.Encoding, WireEncoding).
     string Encoding,
     // Set when the member is written raw as part of an unmanaged block, otherwise null.

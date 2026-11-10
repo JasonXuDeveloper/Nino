@@ -548,6 +548,7 @@ internal static class ModelBuilder
         FormatterRef? shallowFormatter = null;
         bool registered = false;
         bool readsLoop = false;
+        bool opensBodies = true;
         FormatterTraits traits;
         var custom = known.CustomFormatterOf(symbol);
         var customType = custom is { ConstructorArguments: { Length: > 0 } args } ? args[0].Value as INamedTypeSymbol : null;
@@ -583,6 +584,7 @@ internal static class ModelBuilder
             if (resolved is { } r)
             {
                 encoding = r.Encoding;
+                opensBodies = r.OpensBodies;
                 factories.AddRange(r.Factories);
                 shallowFormatter = facts.ShallowFormatter(r.Code, r, utf8);
                 readsLoop = r.Elements is { IsDefault: false, Length: > 0 } && (r.Traits & FormatterTraits.Flat) == 0;
@@ -667,6 +669,7 @@ internal static class ModelBuilder
             TypeName: Global(memberType),
             Formatter: formatter,
             Traits: traits,
+            OpensBodies: opensBodies,
             Encoding: raw?.Layout ?? encoding,
             Raw: raw,
             IsProperty: symbol is IPropertySymbol,
