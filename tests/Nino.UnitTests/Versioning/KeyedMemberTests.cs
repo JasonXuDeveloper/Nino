@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -131,6 +132,20 @@ public class KeyedMemberTests
 
         var r = new KeyedRecord(3, "r");
         Assert.AreEqual(r, NinoDeserializer.Deserialize<KeyedRecord>(NinoSerializer.Serialize(r)));
+    }
+
+    [TestMethod]
+    public void InOrderStringRejectsBytesLeftInItsEntry()
+    {
+        var bytes = NinoSerializer.Serialize(new KeyedStruct { A = 1, B = 2, C = "nino" });
+        Array.Resize(ref bytes, bytes.Length + 1);
+        // Skip the body length, the int and long entries, and the string key.
+        const int stringLengthOffset = sizeof(int) + 3 * sizeof(int) + 2 * sizeof(int) + sizeof(long) + sizeof(int);
+        BitConverter.GetBytes(BitConverter.ToInt32(bytes, 0) + 1).CopyTo(bytes, 0);
+        BitConverter.GetBytes(BitConverter.ToInt32(bytes, stringLengthOffset) + 1).CopyTo(bytes, stringLengthOffset);
+
+        var error = Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<KeyedStruct>(bytes));
+        StringAssert.Contains(error.Message, "bytes left over at the end of a keyed member");
     }
 
     [TestMethod]

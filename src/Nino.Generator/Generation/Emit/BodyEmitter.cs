@@ -1209,8 +1209,11 @@ internal sealed class BodyEmitter
             _w.Open();
             _w.Line($"var __m = {r}.ReadRegion();");
             EmitMemberRead(member, "__m", inPlace);
-            // A member's value fills its entry exactly: bytes left over are invalid data.
-            _w.Line($"{r}.EndMember(in __m);");
+            // A context-preserving member only needs the exact-length check.
+            string end = member.Raw != null || (member.Traits & FormatterTraits.PreservesReadContext) != 0
+                ? "if (!__m.Eof) "
+                : "";
+            _w.Line($"{end}{r}.EndMember(in __m);");
             _w.Close();
         }
 
