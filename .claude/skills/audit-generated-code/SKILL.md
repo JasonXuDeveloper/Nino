@@ -233,6 +233,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - Keep the presence-byte writes in their null and non-null branches in top-level local-writer wrappers.
   Sharing one capacity check reduced the `SimpleClass` listing on both architectures, but the same-process
   Arm64 A/B moved from about 47 ns to 49 ns. Keep the null test's existing operator semantics in any follow-up.
+- Let raw stores infer the type from their member expression or typed header literal. Keep the
+  explicit type on reads, where the return value cannot drive inference. This removed 5,020 source
+  bytes across 239 files in the unit test project. The consumer DLL size and normalized IL matched.
+  The keyed write stayed at 129 IL bytes, 804 Arm64 Tier 1 bytes and 541 x64 cross-JIT bytes.
+  Local runtime timings overlapped the identical-binary control, at zero steady allocation.
 - Pack a keyed member's constant key and byte length into one unaligned header store on write.
   Keep symbolic lengths on the existing path. The real unit test project emitted 2,329 fewer source bytes.
   For `KeyedStruct`, the x64 listing changed four header stores to two and the Arm64 listing stayed the same size.
