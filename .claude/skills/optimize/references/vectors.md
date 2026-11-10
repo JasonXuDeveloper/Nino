@@ -81,6 +81,17 @@ of bytes in a block.
   at most 0.22%. All timed reads allocated 0 B. The full-value zero stores before the field writes
   remained in the loop. Check those stores independently of cursor stepping in the next variant,
   preserving zero padding and bool validation.
+  Compare the loop entry as well as its exit condition. Replacing the dual-cursor countdown with
+  an equality check against the last valid destination byref removed the decrement, but both loops
+  cloned the first element's field reads on Arm64 scalar Tier 1. In baseline, countdown, and
+  end-byref order, `ReadEach` was 459/493/503 IL bytes, 164/204/220 Arm64 scalar Tier 1 bytes,
+  and 135/106/122 x64 scalar FullOpts cross-JIT bytes. With SIMD those machine-code sizes were
+  232/244/260 on Arm64 and 180/190/209 in the x64 listing. Four default-tiering process-per-build
+  rounds through the generated array interceptor at offset 1 showed no repeatable gain at
+  1, 65, 1,640 or 1,700 elements. Identical binaries varied by up to 32% on the 65-element SIMD
+  case. Reads allocated 0 B and hashes matched at offsets 0, 1 and 7. The end-byref candidate
+  passed 21 targeted tests on .NET 10. Keep both patches and try a pretested loop with the same
+  cursor steps to isolate the first-iteration cloning.
 - Count zeroing stores as well as bytes before specializing a padded scalar read. The `BlockWaypoint`
   15-byte wire / 24-byte memory probe used the validated map to narrow its two zero stores from 24
   bytes to 10, including the bool byte overwritten by the formatter. `ReadOne` grew from 37 to 77 IL
