@@ -595,6 +595,13 @@ The isolated usage replay saved about 41.7 KB in both load orders and four cold
 project runs saved about 26–52 KB. Timing varied. `EmitUsages` grew from 638 to
 661 IL bytes, 2,972 to 3,028 Arm64 FullOpts bytes, and 1,695 to 1,746 x64
 cross-JIT bytes. Both Roslyn builds kept all 577 outputs, reuse, and collection.
+Format concrete registration statements with their final ID argument directly.
+Reuse the statement for the normal ID and format an alternate only for a distinct
+name ID. This saved 247 KB per isolated registry emission, 59 KB per usage emission,
+and 291–328 KB across four cold project replays. Whole-project timings varied.
+`AddStatements` and its new helper together fell from 454 to 420 IL bytes,
+976 to 888 Arm64 FullOpts bytes, and 837 to 788 x64 cross-JIT bytes. Both Roslyn
+builds matched all 577 outputs, incremental reuse, and collection.
 
 Use the known leaf layout for portability and raw descriptions before allocating
 measurement lists or a builder. Leave types that the canonical view handles
