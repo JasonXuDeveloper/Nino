@@ -302,8 +302,9 @@ internal sealed class BodyEmitter
     private static bool WritesStringDirectly(MemberModel member) =>
         (member.Traits & (FormatterTraits.String | FormatterTraits.Utf8String)) != 0;
 
+    // Version-tolerant collection elements are written before the member region opens.
     private bool CanPatchBody =>
-        !_m.IsCollection && _m.Members.All(static m => m.Raw != null || WritesStringDirectly(m));
+        (!_m.IsCollection || Tolerant) && _m.Members.All(static m => m.Raw != null || WritesStringDirectly(m));
 
     private void EmitWrites()
     {
