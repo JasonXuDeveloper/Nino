@@ -34,7 +34,7 @@ namespace Nino.Core
         // Not a static constructor, which would make every call initialize the class (AddAssembly skips it without
         // dynamic code).
         private static readonly HashSet<Assembly> Scanned =
-            NinoUnload.With(new HashSet<Assembly>(), assembly => RemoveAssembly(assembly));
+            NinoUnload.With(new HashSet<Assembly>(), RemoveAssembly);
         private static Rules _rules = Rules.Empty.With(typeof(NinoFormatterResolver).Assembly);
 
         /// <summary>Adds the formatter registrations of <paramref name="assembly"/> (once).</summary>

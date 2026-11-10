@@ -637,7 +637,7 @@ public class UserCollectionCornerCaseTests
         Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new WrappedInts(new[] { 1 })));
         Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new LegacyList()));
         Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new StructCollection()));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoActivator<InternalCtorList>.Create());
+        Assert.ThrowsExactly<InvalidOperationException>(NinoActivator<InternalCtorList>.Create);
     }
 
     [TestMethod]
@@ -1082,8 +1082,8 @@ public class Holder
     {
         var work = new Func<int>[]
         {
-            () => Use<M0>(), () => Use<M1>(), () => Use<M2>(), () => Use<M3>(),
-            () => Use<M4>(), () => Use<M5>(), () => Use<M6>(), () => Use<M7>(),
+            Use<M0>, Use<M1>, Use<M2>, Use<M3>,
+            Use<M4>, Use<M5>, Use<M6>, Use<M7>,
         };
         int threads = Math.Max(8, Environment.ProcessorCount);
         using var start = new Barrier(threads);

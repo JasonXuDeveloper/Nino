@@ -509,6 +509,6 @@ public class EtCompatibilityTests
 
         // [NinoCreated] rejects types Nino cannot create, like the generator: there is no formatter at all.
         Assert.ThrowsExactly<InvalidOperationException>(() => RoundTripAtRuntime(new RuntimeNoConstructorList(1)));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoActivator<RuntimeAbstractList>.Create());
+        Assert.ThrowsExactly<InvalidOperationException>(NinoActivator<RuntimeAbstractList>.Create);
     }
 }

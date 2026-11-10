@@ -39,7 +39,7 @@ namespace Nino.Fuzz
             Name = "SelfTestStale",
             Covers = "a planted stale array, to test the fuzzer (selftest command)",
             Seeds = Target.Seeds,
-            Read = data => NinoDeserializer.Deserialize<Node>(data),
+            Read = ReadNode,
             ReadInto = ReadInto,
             Fresh = () => new Existing(),
             Poisoned = true,
@@ -48,6 +48,9 @@ namespace Nino.Fuzz
 
         /// <summary>The planted bugs' targets.</summary>
         public static readonly Target[] All = { Target, Stale };
+
+        // Keep an invocation the source generator can intercept.
+        static Node ReadNode(ReadOnlySpan<byte> data) => NinoDeserializer.Deserialize<Node>(data);
 
         static object Read(ReadOnlySpan<byte> data)
         {

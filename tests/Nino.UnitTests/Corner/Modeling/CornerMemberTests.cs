@@ -699,7 +699,7 @@ namespace C
 
         private static void CheckGeneric<T>(T a, T b, Func<T, T, bool> eq = null)
         {
-            eq ??= (x, y) => EqualityComparer<T>.Default.Equals(x, y);
+            eq ??= EqualityComparer<T>.Default.Equals;
             var value = new GenericMembers<T>
             {
                 Value = a, Array = new[] { a, b, default }, List = new List<T> { b, a },

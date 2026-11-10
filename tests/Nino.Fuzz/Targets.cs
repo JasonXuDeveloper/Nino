@@ -78,7 +78,7 @@ namespace Nino.Fuzz
             Name = name,
             Covers = covers,
             Seeds = () => samples.Select(s => NinoSerializer.Serialize(s())).ToList(),
-            Read = data => NinoDeserializer.Deserialize<T>(data),
+            Read = NinoDeserializer.Deserialize<T>,
             ReadInto = (data, existing) =>
             {
                 var value = (T)existing;
@@ -116,9 +116,9 @@ namespace Nino.Fuzz
             Name = "Golden",
             Covers = "the pinned bytes of the unit tests' GoldenBytesTests (version-tolerant types)",
             Seeds = () => new List<byte[]> { GoldenCorpus.Bytes() },
-            Read = data => GoldenCorpus.Read(data),
+            Read = GoldenCorpus.Read,
             ReadInto = (data, existing) => GoldenCorpus.ReadInto(data, (Nino.UnitTests.GoldenData)existing),
-            Fresh = () => GoldenCorpus.Sample(),
+            Fresh = GoldenCorpus.Sample,
             Write = value => GoldenCorpus.Write((Nino.UnitTests.GoldenData)value),
         };
     }

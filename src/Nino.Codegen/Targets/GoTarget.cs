@@ -108,10 +108,10 @@ namespace Nino.Codegen.Targets
             renderer.Set("source", source);
             renderer.Set("package", _options.Package);
             renderer.Set("runtime_import", RuntimeImport);
-            renderer.Set("enums", _enums.OrderBy(e => Name(e), StringComparer.Ordinal)
+            renderer.Set("enums", _enums.OrderBy(Name, StringComparer.Ordinal)
                 .Select(e => new GoEnum(Name(e), e, Primitives[e.Underlying!.Value].Name)).ToList());
             renderer.Set("extra_tags", _options.Tags);
-            renderer.Set("raw_structs", _rawStructs.OrderBy(s => Name(s), StringComparer.Ordinal)
+            renderer.Set("raw_structs", _rawStructs.OrderBy(Name, StringComparer.Ordinal)
                 .Select(s => new GoRawStruct(this, s)).ToList());
             renderer.Set("types", classes.OrderBy(c => c.Name, StringComparer.Ordinal).ToList());
             renderer.Set("named", _namedCollections.OrderBy(n => n.Name, StringComparer.Ordinal).ToList());

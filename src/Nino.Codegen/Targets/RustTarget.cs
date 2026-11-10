@@ -90,7 +90,7 @@ namespace Nino.Codegen.Targets
             renderer.Set("serde", _options.Serde);
             renderer.Set("std_maps", _options.StdMaps);
             renderer.Set("serde_rename_all", SerdeRule);
-            renderer.Set("enums", _enums.OrderBy(e => Name(e), StringComparer.Ordinal)
+            renderer.Set("enums", _enums.OrderBy(Name, StringComparer.Ordinal)
                 .Select(e => new RustEnum(Name(e), e)).ToList());
             renderer.Set("raw_structs", rawStructs.OrderBy(s => s.Name, StringComparer.Ordinal).ToList());
             renderer.Set("types", all.Where(t => !t.Model.Raw && t.Model.IsConcrete)

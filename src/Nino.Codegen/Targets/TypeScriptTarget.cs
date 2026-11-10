@@ -84,7 +84,7 @@ namespace Nino.Codegen.Targets
             var layouts = ResolveTypes();
             NameClosed(layouts);
 
-            var enums = _enums.OrderBy(e => Name(e), StringComparer.Ordinal)
+            var enums = _enums.OrderBy(Name, StringComparer.Ordinal)
                 .Select(e => new TsEnum(Name(e), e, e.Underlying is PrimitiveKind.I64 or PrimitiveKind.U64)).ToList();
             var rawStructs = _rawStructs.OrderBy(r => Name(r.Struct), StringComparer.Ordinal)
                 .Select(r => new TsRawStruct(Name(r.Struct), r.Struct, r.Struct.Fields
@@ -344,7 +344,7 @@ namespace Nino.Codegen.Targets
                     _slotByModel[model] = slot;
                     _slots.Add(slot);
                     // Its closed types are shaped too, so a slot holding one that cannot be written is found here.
-                    foreach (var closed in model.ClosedAssignable.Where(c => _closedSupported.Contains(c)))
+                    foreach (var closed in model.ClosedAssignable.Where(_closedSupported.Contains))
                         ClosedShape(closed);
                 }
 
@@ -1208,7 +1208,7 @@ namespace Nino.Codegen.Targets
             ? _target.BaseShape(Model, Model.BaseValue)
             : null;
 
-        public List<string> InterfaceNames => _target.SupportedInterfaces(Model).Select(i => _target.Name(i)).ToList();
+        public List<string> InterfaceNames => _target.SupportedInterfaces(Model).Select(_target.Name).ToList();
 
         /// <summary>The interfaces it implements, a generic one with its arguments (as a shape), else by name.</summary>
         public List<TsBase> Interfaces => Model.Interfaces.Select((i, n) => (i, n))
