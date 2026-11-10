@@ -377,6 +377,13 @@ only on the second. It saved about 16 KB per pass over 451 alias-eligible models
 load orders. Whole-project wall time showed no repeatable change. All 577 outputs matched,
 incremental edits reused all 572 models, and old compiler objects and output collected.
 Keep the lazy list for now given the small allocation difference and the extra collector state.
+Keep the declaration path separate as well. Reusing the main declaration list for a single
+formatter alias, then moving the declaration to the end, saved 12 KB per 572-model emission
+in both load orders. Whole-project cold, cached and edit timings did not show a repeatable
+change. `WithAliases` grew from 496 to 550 IL bytes, 2,356 to 2,608 instrumented Arm64 Tier 0
+bytes and 1,105 to 1,240 x64 cross-JIT bytes. Both Roslyn builds matched all 577 files, reused
+all 572 models on edits, and released closed-project objects. Keep the current declaration
+list instead of adding a remove-and-reinsert step for one alias.
 Pass registry entries and pointer fields as their existing equatable arrays. The registry emitter
 can enumerate twice without copying the entries into a list. Replaying the real project registry
 saved 16.7–16.9 KB per emission in both load orders. Cold and edit timing varied. All 577 outputs
