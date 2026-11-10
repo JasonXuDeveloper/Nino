@@ -476,6 +476,17 @@ of bytes in a block.
   The entry and short helper moved from 163 to 224 plus 76 IL bytes, 212 to 276
   plus 132 Arm64 FullOpts bytes, and 141 to 180 plus 83 emulated x64 FullOpts bytes.
   Strict bool, fallback and compatibility checks passed (`18396f99`).
+- Reuse the Arm64 nullable bool slot mask for long reads into disjoint storage.
+  Validate presence bytes first as before. Check each masked vector for invalid
+  live values before storing it and use the scalar loop for a rejected group to
+  preserve the first exception and earlier writes. Keep dirty null value bytes
+  out of the destination and keep overlap and small blocks on their prior paths.
+  Four M4 pairs with default JIT moved 1,025 mixed items from 9.53 us to 154 ns
+  and 16,897 mixed items from 12.8 to 1.19 us. Short controls were flat, all eight
+  wire comparisons matched, and reuse allocated 0 B. Entry IL grew from 224 to
+  356 bytes with 121 bytes in the two new methods. Arm64 FullOpts grew from
+  276 to 356 bytes plus a 252-byte vector loop; the emulated x64 fallback stayed
+  at 180 bytes. Dirty-null, invalid-tail and scalar tests passed (`5a9438b9`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
