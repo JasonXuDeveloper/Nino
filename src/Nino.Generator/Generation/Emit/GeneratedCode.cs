@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
+using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -43,7 +43,7 @@ internal static class GeneratedCode
             if (!items.MoveNext())
                 return string.Concat(Header, preamble, fileNamespace, body);
 
-            var prefix = RentScratch(256);
+            var prefix = TextScratch.Rent(256);
             prefix.Append(fileNamespace);
             do
             {
@@ -51,13 +51,13 @@ internal static class GeneratedCode
             } while (items.MoveNext());
             prefix.Append('\n');
             string text = prefix.ToString();
-            ReturnScratch(prefix);
+            TextScratch.Return(prefix);
             return string.Concat(Header, preamble, text, body);
         }
 
         var sb = BuildBlockFile(preamble, aliases, body, indentation);
         string file = sb.ToString();
-        ReturnScratch(sb);
+        TextScratch.Return(sb);
         return file;
     }
 
@@ -66,7 +66,7 @@ internal static class GeneratedCode
         int? indentation = null, int tailCapacity = 1024)
     {
         // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
-        var sb = RentScratch(body.Length + (indentation ?? body.Length / 4) + preamble.Length + tailCapacity);
+        var sb = TextScratch.Rent(body.Length + (indentation ?? body.Length / 4) + preamble.Length + tailCapacity);
         sb.Append(Header).Append(preamble);
         AppendBlockPrefix(sb, aliases);
         // The body's lines one level in (blank lines stay empty).
@@ -89,10 +89,10 @@ internal static class GeneratedCode
     /// <summary>Combines a block namespace prefix with an already indented and closed body.</summary>
     public static string IndentedFile(string preamble, IEnumerable<string> aliases, string body)
     {
-        var prefix = RentScratch(256);
+        var prefix = TextScratch.Rent(256);
         AppendBlockPrefix(prefix, aliases);
         string text = prefix.ToString();
-        ReturnScratch(prefix);
+        TextScratch.Return(prefix);
         return string.Concat(Header, preamble, text, body);
     }
 
@@ -319,7 +319,7 @@ internal static class GeneratedCode
 
         if (formatterAliases != null)
             declarations.AddRange(formatterAliases);
-        ReturnScratch(scratch);
+        TextScratch.Return(scratch);
 
         return body;
     }
@@ -358,29 +358,6 @@ internal static class GeneratedCode
 
     private static string FormatterAlias(int index) => "__NinoF" + index.ToString(CultureInfo.InvariantCulture);
 
-    // Keep one bounded buffer per generator load context, independent of the compiler thread count.
-    private const int MaxScratchCapacity = 8192;
-    private static StringBuilder? _scratch;
-
-    internal static StringBuilder RentScratch(int capacity)
-    {
-        var scratch = capacity <= MaxScratchCapacity ? Interlocked.Exchange(ref _scratch, null) : null;
-        if (scratch == null)
-            return new StringBuilder(capacity);
-
-        scratch.EnsureCapacity(capacity);
-        return scratch;
-    }
-
-    internal static void ReturnScratch(StringBuilder? scratch)
-    {
-        if (scratch is { Capacity: <= MaxScratchCapacity })
-        {
-            scratch.Clear();
-            Interlocked.CompareExchange(ref _scratch, scratch, null);
-        }
-    }
-
     private static string WithAlias(string body, string name, string alias, List<string> declarations,
         ref StringBuilder? scratch, string? declaration = null)
     {
@@ -399,7 +376,7 @@ internal static class GeneratedCode
         if (at < 0)
             return body;
 
-        var sb = scratch ??= RentScratch(body.Length);
+        var sb = scratch ??= TextScratch.Rent(body.Length);
         sb.Clear();
         int start = 0;
         for (at = first; at >= 0; at = FindName(body, name, start, member))

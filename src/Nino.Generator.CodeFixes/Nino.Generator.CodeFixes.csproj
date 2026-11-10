@@ -21,6 +21,7 @@
         <Compile Include="..\Nino.Generator\Common\LayoutBaseline.cs" Link="Shared\LayoutBaseline.cs"/>
         <Compile Include="..\Nino.Generator\Common\LayoutRules.cs" Link="Shared\LayoutRules.cs"/>
         <Compile Include="..\Nino.Generator\Generation\Binding\TypeNames.cs" Link="Shared\TypeNames.cs"/>
+        <Compile Include="..\Nino.Generator\Common\TextScratch.cs" Link="Shared\TextScratch.cs"/>
         <Compile Include="..\Nino.Core\Internal\Metadata\NinoHash.cs" Link="Shared\NinoHash.cs"/>
     </ItemGroup>
 

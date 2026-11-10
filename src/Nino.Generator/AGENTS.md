@@ -39,6 +39,7 @@ LayoutCheck.cs               the layout baseline of a compilation as the analyze
 ## Common/
 
 ```
+TextScratch.cs               one bounded character buffer for type names and emitter rewrites
 EquatableArray.cs            immutable array with value equality, for incremental caching
 NinoNames.cs                 Nino.Core names for syntax-only filters and metadata lookups (also in the code fixes)
 NinoTypeHelper.cs            which [NinoType] applies to a type, context-free (also over referenced assemblies);
@@ -153,7 +154,7 @@ src/Nino.Generator.Roslyn4.12/   csproj only: the same against Roslyn 4.12 with 
 src/Nino.Generator.CodeFixes/    NinoCodeFixProvider.cs: the IDE code fixes, a separate assembly because they need
                                  Microsoft.CodeAnalysis.Workspaces, which the compiler and Unity never load; links
                                  NinoDiagnostics.cs, NinoNames.cs, PoolHooks.cs, LayoutBaseline.cs, LayoutRules.cs,
-                                 TypeNames.cs (and Nino.Core's NinoHash.cs) from here; packed in every
+                                 TypeNames.cs and TextScratch.cs (and Nino.Core's NinoHash.cs) from here; packed in every
                                  roslyn<version>/cs folder. NinoLayoutFixes.cs: the layout baseline's fixes
                                  (NINO034-NINO036: accept, Fix All accepting at once, former name, sealed, move to the
                                  end) and the refactoring that creates or rewrites NinoLayouts.cs from the published

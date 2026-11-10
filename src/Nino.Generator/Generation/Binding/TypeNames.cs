@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
 
@@ -53,9 +54,16 @@ internal static class TypeNames
         if (type is INamedTypeSymbol { TypeKind: not TypeKind.Error } named && Keyword(named.SpecialType) is { } keyword)
             return keyword;
 
-        var sb = new StringBuilder(64);
-        AppendGlobal(sb, type);
-        return sb.ToString();
+        var sb = TextScratch.Rent(64);
+        try
+        {
+            AppendGlobal(sb, type);
+            return sb.ToString();
+        }
+        finally
+        {
+            TextScratch.Return(sb);
+        }
     }
 
     /// <summary>Dotted namespace name without <c>global::</c>; empty for the global namespace.</summary>

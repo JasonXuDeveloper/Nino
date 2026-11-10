@@ -17,7 +17,7 @@ internal static class LayoutEmitter
 {
     public static string Emit(TypeModel m)
     {
-        var sb = GeneratedCode.RentScratch(256);
+        var sb = TextScratch.Rent(256);
         sb.Append("[assembly: " + Core + "NinoTypeLayout(typeof(").Append(m.OpenTypeName)
             .Append("), " + Core + "NinoFormat.").Append(m.Format.ToString())
             .Append(", " + Core + "NinoHeader.").Append(LayoutEntry.HeaderNames[Header(m)])
@@ -33,7 +33,7 @@ internal static class LayoutEmitter
             sb.Append(", Deferrable = ").Append(Bool(m.Depth.Deferrable));
         sb.Append(")]\n\n");
         string text = sb.ToString();
-        GeneratedCode.ReturnScratch(sb);
+        TextScratch.Return(sb);
         return text;
     }
 
@@ -92,10 +92,10 @@ internal static class LayoutEmitter
         if (m.Members.Length == 0 && m.Collection == null)
             return "";
 
-        var sb = GeneratedCode.RentScratch(64);
+        var sb = TextScratch.Rent(64);
         AppendMembers(sb, m);
         string text = sb.ToString();
-        GeneratedCode.ReturnScratch(sb);
+        TextScratch.Return(sb);
         return text;
     }
 
