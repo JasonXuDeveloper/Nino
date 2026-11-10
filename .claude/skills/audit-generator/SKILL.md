@@ -756,6 +756,14 @@ in all four states, 577 models were reused and the collection probes passed. The
 moved from 460 to 586 IL bytes, 1,444 to 1,432 Arm64 FullOpts bytes and 1,565 to 1,518
 cross-JIT x64 MinOpts bytes. The 356 IL-byte duplicate path and both Roslyn targets were
 covered by the duplicate-path regression (`acd8a7e4`).
+Keep the existing index growth until a capacity hint also improves lookup time. On the same
+512-pass candidate probe, pre-sizing from the C# tree count reduced allocations from 5.55
+to 2.27 MB but increased time in all four rounds. Keeping the current syntax root in the
+iterator did not recover throughput. Adding 50% capacity headroom allocated 3.22 MB and was
+still slower than the baseline in all four isolated pairs. For the size-only trial, iterator
+IL grew from 586 to 624 B, Arm64 FullOpts from 1,432 to 1,516 B and cross-JIT x64 MinOpts from
+1,518 to 1,694 B. The root and size-only trials kept all 582 files byte-identical, with the
+same model reuse and recovery. Both targeted Roslyn suites passed on the headroom trial.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
