@@ -330,6 +330,19 @@ of bytes in a block.
   two cursors. It removed the stride shift and reduced the `bool?` helper
   from 212 to 196 Arm64 FullOpts bytes and 261 to 247 x64 bytes, but short
   reuse readings often regressed. The wire and generated files matched.
+  Specialize the same scan for native 128-, 256-, and 512-bit vectors through
+  inlined load, OR, and mask operations. Select the width outside the loop
+  with JIT-foldable acceleration checks and the existing `Wide512` policy.
+  Keep the 128-byte scan batch independent of vector width. On Arm64 the
+  128-bit specialization stayed at 336 FullOpts bytes with no repeatable
+  local timing change. x64 cross-JIT
+  emitted XMM, YMM, and ZMM variants of 296, 277, and 271 bytes, respectively.
+  Native x64 timings are still needed. A direct probe validated all widths
+  for the four strides, including unaligned loads and invalid flags in tails.
+  Keep the bulk clear for converted nullable writes. Per-slot clearing
+  wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
+  four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
+  to 1,404 bytes.
   Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
   In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
   and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
