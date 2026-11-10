@@ -68,31 +68,26 @@ internal static class DispatchEmitter
             // base, in a class of its own (where ReadExact is not shared code). The generic formatter selects it by
             // comparing types, which the JIT folds where the type arguments are value types; for reference types it is
             // one lookup in the method's generic context.
-            var closed = closedOf != null && closedOf.TryGetValue(e.TypeName, out var instances)
-                ? instances.ToArray()
-                : Array.Empty<string>();
-            var classes = new List<string>();
-            foreach (var c in closed)
+            var closed = closedOf != null && closedOf.TryGetValue(e.TypeName, out var instances) ? instances : null;
+            int first = closedCount;
+            if (closed != null)
             {
-                string name = $"__NinoDispatch{closedCount++}";
-                classes.Add(name);
-                w.Open($"static class {name}");
-                EmitBase(w, c, Subtypes(subtypesOf, c, 0), services);
-                w.Close();
-                w.Line();
+                foreach (var c in closed)
+                {
+                    w.Open($"static class __NinoDispatch{closedCount++}");
+                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services);
+                    w.Close();
+                    w.Line();
+                }
             }
 
             string t = e.TypeName;
             w.Open($"partial struct {e.Self}");
-            Method(w, WriteSubtype(t), closed.Select((c, i) =>
-                    $$"""if (typeof({{t}}) == typeof({{c}})) { {{classes[i]}}.__WriteSubtype({{CoreCompilerServices}}NinoObject.SameType<{{c}}>(value), ref writer); return; }"""),
-                WriteOther(t));
+            EmitClosedSelection(w, t, closed, first, write: true);
             // Two one-line forwarders stay together.
-            if (closed.Length != 0)
+            if (closed is { Count: > 0 })
                 w.Line();
-            Method(w, ReadSubtype(t), closed.Select((c, i) =>
-                    $$"""if (typeof({{t}}) == typeof({{c}})) { {{classes[i]}}.__ReadSubtype(id, ref reader, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{c}}>(ref value)); return; }"""),
-                ReadOther(t));
+            EmitClosedSelection(w, t, closed, first, write: false);
             w.Close();
             w.Line();
         }
@@ -227,23 +222,27 @@ internal static class DispatchEmitter
         $"{services}NinoSubtypes<{t}>.DeserializeOther(id, ref reader, ref value)";
 
     /// <summary>
-    /// A method of <paramref name="signature"/> running <paramref name="checks"/> (each returning when it applies),
-    /// then <paramref name="fallback"/>: with no checks, the one-line forwarder to it.
+    /// Selects a closed dispatch class in the same sorted order as its declaration, or forwards to the registry.
     /// </summary>
-    private static void Method(CodeWriter w, string signature, IEnumerable<string> checks, string fallback)
+    private static void EmitClosedSelection(CodeWriter w, string t, SortedSet<string>? closed, int first, bool write)
     {
-        var lines = checks.ToList();
-        if (lines.Count == 0)
+        string signature = write ? WriteSubtype(t) : ReadSubtype(t);
+        string fallback = write ? WriteOther(t) : ReadOther(t);
+        if (closed is not { Count: > 0 })
         {
             w.Line($"{signature} => {fallback};");
             return;
         }
 
-        w.Block(signature, () =>
+        w.Open(signature);
+        foreach (var c in closed)
         {
-            foreach (var line in lines)
-                w.Line(line);
-            w.Line(fallback + ";");
-        });
+            w.Line(write
+                ? $$"""if (typeof({{t}}) == typeof({{c}})) { __NinoDispatch{{first}}.__WriteSubtype({{CoreCompilerServices}}NinoObject.SameType<{{c}}>(value), ref writer); return; }"""
+                : $$"""if (typeof({{t}}) == typeof({{c}})) { __NinoDispatch{{first}}.__ReadSubtype(id, ref reader, ref {{CoreCompilerServices}}NinoObject.SameTypeSlot<{{t}}, {{c}}>(ref value)); return; }""");
+            first++;
+        }
+        w.Line(fallback + ";");
+        w.Close();
     }
 }
