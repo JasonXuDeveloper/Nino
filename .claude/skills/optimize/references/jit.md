@@ -646,6 +646,13 @@ and when `asm.py compare` lists methods the change did not touch.
   Emulated x64 callers shrank from 947 to 935 and 397 to 383 B. Passing and returning Reader by
   value instead grew both callers and both refill listings. Four warmed M4 pairs did not reproduce the
   first run's large integer-key swings. Allocations and 30 wire comparisons matched.
+  Use the same assignments for the local Reader in fresh dictionary pair loops.
+  ReadPairs and ReadGuarded each lost 10 IL bytes. The string-key ReadPairs went
+  from 1,156 to 1,080 Arm64 FullOpts bytes and 932 to 925 emulated x64 bytes.
+  The integer-key guarded loop moved from 520 to 524 Arm64 bytes and 373 to 371
+  emulated x64 bytes. Default-JIT timing varied; the 2,048-pair slowdown did not
+  repeat when the measured batches ran without GC. Allocations and all 30 wire
+  comparisons matched.
 - Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
   the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
   widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
