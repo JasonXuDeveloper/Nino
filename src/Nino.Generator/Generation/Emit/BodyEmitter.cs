@@ -161,6 +161,13 @@ internal sealed class BodyEmitter
             return $"internal static void __{name}Shallow({parameters})";
         }
 
+        // Without a top-level reader, no caller needs a separate static read body.
+        if (!write && OutOfLine && !_m.InlineBody && !ReadTop)
+        {
+            _w.Line(_names.NoInline);
+            return $"public void {name}({forwarded})";
+        }
+
         // AggressiveInlining, as the entry points (see FormatterEmitter.EmitFormatter).
         _w.Line(_names.Inline);
         if (!OutOfLine)
