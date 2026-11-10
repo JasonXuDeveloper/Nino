@@ -408,6 +408,17 @@ of bytes in a block.
   Arm64 FullOpts moved from 1,296 to 1,340 bytes for `byte` and stayed at 1,256 bytes for `int`.
   x64 cross-JIT printed MinOpts, where the byte formatter moved from 475 to 480 bytes and emitted
   no short-copy call. Keep that listing separate from x64 throughput (`7f4103cf`).
+- Use the fixed Arm64 head and tail for fresh one-byte raw array writes at 65–128 bytes.
+  The new output is distinct and the four-byte header deliberately offsets the destination.
+  Starting at 81 bytes left an 80-byte slowdown. Putting the range check in the shared
+  length-prefixed method also slowed the 64-byte Int32 control. Dispatch in the explicit
+  allocating array formatter instead. Four M4 default-JIT A/B rounds with repeated-binary
+  controls lowered 65, 80, 96 and 128 byte medians by 28–37%; the 32, 64 and 1,024 byte
+  controls and both sides of the 64 KiB input-plus-output footprint showed no meaningful
+  regression. Byte output and allocation matched. Formatter IL grew from 46 to 110 B;
+  Arm64 FullOpts went from 532 to 588 B and uses the existing 64 B helper. The public caller
+  stayed at 660 B on Arm64, and x64 cross-JIT caller/formatter stayed at 501/419 B.
+  The boundary wire checks and both frameworks passed (`7939e974`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
