@@ -19,6 +19,11 @@ prefetch again anywhere.
   sometimes took longer. All six outputs matched byte for byte, and timed writes allocated nothing.
   Keep this broad policy out of the default and evaluate eligibility with short, ordered and shuffled
   inputs of the same type. Compare native code as well as IL, since the benchmark callers had the same IL size.
+  A sealed-only policy requiring an eligible reference member changed 12 benchmark sources. It preserved
+  the write gains on a million scattered items. Reuse reads kept their array and wire bytes with no steady-state
+  allocation. The million ordered items were 11–33% slower than the gate-only variant across four local rounds.
+  The sampler returned false for the ordered graph in every process. Compare the ordinary writer reached after
+  sampling with the one used below the length threshold, since neither case runs the prefetch loop.
 
 - Confirm prefetch throughput in separate processes with one copy of the object graph per process. In the
   local 131,089- and 262,161-object probes, the apparent benefit of processing whole runs instead of
