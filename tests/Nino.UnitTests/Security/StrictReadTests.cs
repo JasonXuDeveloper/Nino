@@ -126,6 +126,33 @@ public class StrictReadTests
     }
 
     [TestMethod]
+    public void NullableBlocksRejectInvalidPresenceInVectorGroupsAndTail()
+    {
+        Check(2, byte.MaxValue);
+        Check(4, (short)-1);
+        Check(8, -1);
+        Check(16, -1L);
+
+        static void Check<T>(int stride, T value) where T : unmanaged
+        {
+            const int count = 129;
+            const int offset = 3;
+            var values = new T?[count];
+            for (int i = 0; i < count; i += 2)
+                values[i] = value;
+            var data = Concat(new byte[offset], NinoSerializer.Serialize(values));
+            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<T?[]>(data.AsSpan(offset)));
+            foreach (int index in new[] { 0, count / 2, count - 1 })
+            {
+                int flag = offset + sizeof(int) + index * stride;
+                data[flag] = 2;
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<T?[]>(data.AsSpan(offset)));
+                data[flag] = 1;
+            }
+        }
+    }
+
+    [TestMethod]
     public void BoolsOtherThanZeroOrOneAreErrors()
     {
         Assert.IsTrue(NinoDeserializer.Deserialize<bool>(new byte[] { 1 }));

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 #endif
 
 namespace Nino.Core.Internal
@@ -48,10 +49,57 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void Flags(ref byte first, int count, int stride)
         {
+#if NET8_0_OR_GREATER
+            if (Vector128.IsHardwareAccelerated && count >= 128 && ValidFlagBlocks(ref first, count, stride))
+                return;
+#endif
             int any = Strided(ref first, count, stride);
             if ((any & 0xFE) != 0)
                 NinoThrow.InvalidPresence(any);
         }
+
+#if NET8_0_OR_GREATER
+        // Nullable payloads have a full stride after the last flag, so the vector loads stay within the block.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool ValidFlagBlocks(ref byte first, int count, int stride)
+        {
+            Vector128<ulong> mask;
+            switch (stride)
+            {
+                case 2: mask = Vector128.Create(0x00FE_00FE_00FE_00FEUL); break;
+                case 4: mask = Vector128.Create(0x0000_00FE_0000_00FEUL); break;
+                case 8: mask = Vector128.Create(0xFEUL); break;
+                case 16: mask = Vector128.Create(0xFEUL, 0UL); break;
+                default: return false;
+            }
+
+            int bytes = count * stride;
+            int end = bytes & -16;
+            var any = Vector128<ulong>.Zero;
+            ref byte at = ref first;
+            int remaining = end;
+            for (; remaining >= 64; remaining -= 64, at = ref Unsafe.Add(ref at, 64))
+            {
+                var a = Vector128.LoadUnsafe(ref at);
+                var b = Vector128.LoadUnsafe(ref at, 16);
+                var c = Vector128.LoadUnsafe(ref at, 32);
+                var d = Vector128.LoadUnsafe(ref at, 48);
+                any |= ((a | b) | (c | d)).AsUInt64();
+            }
+            for (; remaining > 0; remaining -= 16, at = ref Unsafe.Add(ref at, 16))
+                any |= Vector128.LoadUnsafe(ref at).AsUInt64();
+
+            if ((any & mask) != Vector128<ulong>.Zero)
+                return false;
+            for (int offset = end; offset < bytes; offset += stride)
+            {
+                if ((Unsafe.Add(ref first, offset) & 0xFE) != 0)
+                    return false;
+            }
+
+            return true;
+        }
+#endif
 
         /// <summary>
         /// Throws if a bool of the <paramref name="count"/> at <paramref name="first"/>, <paramref name="stride"/>
