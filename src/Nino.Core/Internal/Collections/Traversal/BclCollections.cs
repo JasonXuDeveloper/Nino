@@ -2,9 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-#if NET8_0_OR_GREATER
-using System.Runtime.InteropServices;
-#endif
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
@@ -53,10 +50,7 @@ namespace Nino.Core
                 !RawFormatter.Is<T, TFormatter>() || NinoLayout<T>.HasPadding)
                 return false;
 
-            ref byte bytes = ref writer.ReserveCounted(count, Unsafe.SizeOf<T>());
-            var items = MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref bytes), count);
-            if (SortedSetNodes<T>.CopyTo(root, items) != count)
-                NinoThrow.ModifiedDuringWrite();
+            SortedSetNodes<T>.WritePacked(root, count, ref writer);
             return true;
         }
 #endif

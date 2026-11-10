@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.InteropServices;
+#endif
 using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
@@ -281,12 +284,23 @@ namespace Nino.Core.Internal
         }
 
 #if NET8_0_OR_GREATER
-        /// <summary>Copies directly to the wire when its layout matches <typeparamref name="T"/>.</summary>
-        public static int CopyTo(object root, Span<T> items)
+        /// <summary>Writes the checked tree directly when the caller has proved the packed layout.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WritePacked(object root, int count, ref Writer writer)
         {
+            ref byte bytes = ref writer.ReserveCounted(count, Unsafe.SizeOf<T>());
+            var items = MemoryMarshal.CreateSpan(ref Unsafe.As<byte, T>(ref bytes), count);
             int at = 0;
             CopyTo(root, items, ref at, At.Item, At.Left, At.Right);
-            return at;
+            if (at != count)
+                NinoThrow.ModifiedDuringWrite();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WritePackedItem(object root, ref Writer writer)
+        {
+            ref byte bytes = ref writer.ReserveCounted(1, Unsafe.SizeOf<T>());
+            NinoUnsafe.WriteIn(ref bytes, in ObjectFields.At<T>(root, At.Item));
         }
 
         private static void CopyTo(object node, Span<T> items, ref int at, int item, int left, int right)

@@ -22,10 +22,17 @@ namespace Nino.Core
             switch (value)
             {
                 case SortedDictionary<TKey, TValue> sorted:
+                    object root = SortedSetTrees.RootOf(sorted);
+#if NET8_0_OR_GREATER
+                    if (Unsafe.SizeOf<KeyValuePair<TKey, TValue>>() <= 8 &&
+                        !NinoUnsafe.IsReferenceOrContainsReferences<KeyValuePair<TKey, TValue>>() &&
+                        TryWritePackedTree(sorted.Count, root, ref writer))
+                        return true;
+#endif
                     // Copied out of its tree, then written as an array of pairs (raw ones as one block): its
                     // enumerator keeps a stack of nodes and checks the version per pair.
                     NinoCollections.WriteCopiedPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(sorted,
-                        SortedSetTrees.RootOf(sorted), ref writer);
+                        root, ref writer);
                     return true;
                 case SortedList<TKey, TValue> list when CollectionViews.SortedList:
                     WriteSortedList(list, ref writer);
@@ -37,6 +44,23 @@ namespace Nino.Core
                     return false;
             }
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryWritePackedTree(int count, object root, ref Writer writer)
+        {
+            if (!NinoUnsafe.Is64Bit || root == null ||
+                !NinoBlockPlan<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>.IsMemory)
+                return false;
+
+            if (count == 1)
+                SortedSetNodes<KeyValuePair<TKey, TValue>>.WritePackedItem(root, ref writer);
+            else
+                SortedSetNodes<KeyValuePair<TKey, TValue>>.WritePacked(root, count, ref writer);
+            return true;
+        }
+#endif
 
         /// <summary>
         /// Reads <paramref name="length"/> pairs into <paramref name="dictionary"/> (empty) if it is one of these
