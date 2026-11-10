@@ -114,8 +114,8 @@ internal static class MemberCollector
         {
             // Findings cover every member the type declares, serialized or not.
             bool inspect = findings != null && SymbolEqualityComparer.Default.Equals(level, type);
-            var candidates = new List<(ISymbol Symbol, int Index)>();
-            int declarationIndex = 0;
+            List<(ISymbol Symbol, int Index)>? candidates = null;
+            bool fromInterface = level.TypeKind == TypeKind.Interface;
             foreach (var member in level.GetMembers())
             {
                 bool candidate = IsCandidate(member, containNonPublic, constructorNames);
@@ -163,38 +163,34 @@ internal static class MemberCollector
                     member.DeclaredAccessibility is Accessibility.Private)
                     continue;
 
-                int index;
                 if (autoCollect)
-                    index = declarationIndex++;
-                else if (memberIndex is { } i)
-                    index = i;
-                else
-                    continue;
-
-                candidates.Add((member, index));
+                    AddCandidate(member, fromInterface);
+                else if (memberIndex is { } index)
+                    (candidates ??= new()).Add((member, index));
             }
 
-            var sorted = candidates
-                .OrderBy(c => c.Index)
-                .ThenBy(c => c.Symbol.Name, StringComparer.Ordinal);
-
-            foreach (var c in sorted)
+            if (candidates != null)
             {
-                // Interface members are serialized through the implementing type's member of the same name, once
-                // whatever the number of interfaces declaring it.
-                bool fromInterface = level.TypeKind == TypeKind.Interface;
-                var symbol = fromInterface ? FindImplementation(type, c.Symbol) : c.Symbol;
-                // An override is the member it overrides, already collected with its base. A member hiding a base
-                // one (`new`) is another member: both are serialized, the base one first.
-                if ((fromInterface && names.Contains(symbol.Name)) || Overrides(symbol, inserted) ||
-                    !inserted.Add(symbol))
-                    continue;
-                names.Add(symbol.Name);
-                result.Add(symbol);
+                foreach (var candidate in candidates.OrderBy(static c => c.Index)
+                             .ThenBy(static c => c.Symbol.Name, StringComparer.Ordinal))
+                    AddCandidate(candidate.Symbol, fromInterface);
             }
         }
 
         return result;
+
+        void AddCandidate(ISymbol member, bool fromInterface)
+        {
+            // Interface members are serialized through the implementing type's member of the same name, once
+            // whatever the number of interfaces declaring it.
+            var symbol = fromInterface ? FindImplementation(type, member) : member;
+            // An override is the member it overrides, already collected with its base. A member hiding a base
+            // one (`new`) is another member: both are serialized, the base one first.
+            if ((fromInterface && names.Contains(symbol.Name)) || Overrides(symbol, inserted) || !inserted.Add(symbol))
+                return;
+            names.Add(symbol.Name);
+            result.Add(symbol);
+        }
     }
 
     /// <summary>
