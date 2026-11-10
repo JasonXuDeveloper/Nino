@@ -132,6 +132,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   reopening saved 441–476 KB, with mixed latency. `Dependencies` grew from 494 to 602 IL bytes,
   2,272 to 2,716 Arm64 FullOpts bytes and 1,972 to 2,346 emulated x64 FullOpts bytes. All 582
   generated files matched, both edit probes reused all 577 models, and closed-project collection passed.
+  Keep the set construction in the traversal. Outlining only the two initial insertions reduced the
+  Arm64 FullOpts entry from 2,716 to 2,600 bytes but added a 152-byte helper; emulated x64 went from
+  2,346 to 2,275 plus 96 bytes, and IL from 602 to 588 plus 22 bytes. After measuring the
+  single-tree and multi-tree groups in separate warmed processes, the single-tree group still took
+  3–11% longer than baseline over four M4 pairs, against -0.2% to +7% for an identical-binary
+  control. The multi-tree group improved against the first baseline but varied against the control.
+  Isolated allocations, 582 generated files, model reuse and collection matched. The candidate was withdrawn.
   The local feature lookup went from 280 B per call to zero, with identical real-project output.
 - Skip binding explicit type arguments that name a method's own lexical type parameter from inside its body.
   Keep qualified names, contextual keywords and inferred calls on Roslyn's binding path. The real unit test
