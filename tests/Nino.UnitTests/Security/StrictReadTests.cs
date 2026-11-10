@@ -195,12 +195,12 @@ public class StrictReadTests
                 var pairs = Enumerable.Range(0, length).Select(i => (i % 2 == 0, i)).ToArray();
                 Invalid<(bool, int)[]>(WithByte(NinoSerializer.Serialize(pairs), 4 + at * 5, b));
                 Invalid<List<(bool, int)>>(WithByte(NinoSerializer.Serialize(pairs.ToList()), 4 + at * 5, b));
-                var swapped = pairs.Select(p => (p.Item2, (short)1, p.Item1)).ToArray();
+                var swapped = pairs.Select(p => (p.i, (short)1, p.Item1)).ToArray();
                 Invalid<(int, short, bool)[]>(WithByte(NinoSerializer.Serialize(swapped), 4 + at * 7 + 6, b));
-                var kvps = pairs.Select(p => new KeyValuePair<bool, int>(p.Item1, p.Item2)).ToArray();
+                var kvps = pairs.Select(p => new KeyValuePair<bool, int>(p.Item1, p.i)).ToArray();
                 Invalid<KeyValuePair<bool, int>[]>(WithByte(NinoSerializer.Serialize(kvps), 4 + at * 5, b));
                 // Not a block (a tuple item is not raw): read a value at a time.
-                var padded = pairs.Select(p => (1f, 2f, (p.Item2, (short)3), p.Item1)).ToArray();
+                var padded = pairs.Select(p => (1f, 2f, (p.i, (short)3), p.Item1)).ToArray();
                 Invalid<(float, float, (int, short), bool)[]>(WithByte(NinoSerializer.Serialize(padded), 4 + at * 15 + 14, b));
             }
 

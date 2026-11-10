@@ -648,11 +648,10 @@ namespace Nino.Codegen.Inspect
                 }
             }
 
-            int? size = KnownSize(v) ?? (opaqueEnd >= 0 ? opaqueEnd - at : null);
-            if (size == null)
-                throw Fail($"cannot read {node.Name}: {Reason(v)}, and its length is not written, so nothing after " +
+            int size = KnownSize(v) ?? (opaqueEnd >= 0 ? opaqueEnd - at : (int?)null)
+                ?? throw Fail($"cannot read {node.Name}: {Reason(v)}, and its length is not written, so nothing after " +
                            "it can be read");
-            var (hex, json) = Scalars.Hex(_r.Take(size.Value));
+            var (hex, json) = Scalars.Hex(_r.Take(size));
             node.Set(hex, json);
             node.AddNote("opaque: " + Reason(v));
         }

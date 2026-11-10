@@ -958,7 +958,7 @@ public class ArraySerializationTests
         CollectionAssert.AreEqual(new[] { 6, 7 }, result.MultiOfJagged[1, 1]);
         Assert.IsNull(result.MultiOfJagged[0, 1]);
         CollectionAssert.AreEqual(value.Tuples, result.Tuples);
-        Assert.AreEqual(3, result.Named["x"].Item1);
-        CollectionAssert.AreEqual(new[] { 1f }, result.Named["x"].Item2);
+        Assert.AreEqual(3, result.Named["x"].Id);
+        CollectionAssert.AreEqual(new[] { 1f }, result.Named["x"].Values);
     }
 }

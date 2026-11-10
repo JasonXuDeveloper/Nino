@@ -166,7 +166,7 @@ namespace Nino.UnitTests.UnityMock
             var dict2Values = dict2 != null ? string.Join(",", dict2.Values) : "";
             
             return
-                $"{v3}, {dt}, {ni}, {qsStr}, {m.ToString()}\n" +
+                $"{v3}, {dt}, {ni}, {qsStr}, {m}\n" +
                 $"dict.keys: {dictKeys},\n" +
                 $"dict.values:{dictValues}\n" +
                 $"dict2.keys: {dict2Keys},\n" +

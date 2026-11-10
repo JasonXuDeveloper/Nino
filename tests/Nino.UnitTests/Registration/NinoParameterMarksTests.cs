@@ -72,7 +72,7 @@ namespace Nino.UnitTests
                 .Where(t => t.IsGenericTypeDefinition && t.Namespace == "Nino.Core" && t.GetInterfaces().Any(i =>
                     i.IsGenericType && i.GetGenericTypeDefinition() == typeof(INinoFormatter<>)))
                 .SelectMany(t => t.GetGenericArguments()).ToArray();
-            string Name(System.Type p) => $"{p.DeclaringType!.Name}[{p.GenericParameterPosition}]";
+            static string Name(System.Type p) => $"{p.DeclaringType!.Name}[{p.GenericParameterPosition}]";
             var marked = parameters.Select(p => $"{Name(p)} raw={NinoParameterMarks.Raw(p)} " +
                                                 $"unmanaged={NinoParameterMarks.Unmanaged(p)} created={NinoParameterMarks.Created(p)}")
                 .OrderBy(s => s).ToArray();

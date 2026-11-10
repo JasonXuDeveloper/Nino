@@ -171,13 +171,10 @@ internal static class InheritedCandidates
             if (assembly.Name == NinoNames.CoreAssembly || !ninoAware.Contains(assembly.Name))
                 continue;
             var info = Assemblies.GetValue(assembly, static _ => new AssemblyInfo());
-            if (info.NinoTypes == null)
-            {
-                // Races collect the same names.
-                info.NinoTypes = AssemblyTypes.Of(assembly, ct)
-                    .Where(static t => t.TypeKind is TypeKind.Class or TypeKind.Interface && t.IsNinoType())
-                    .Select(static t => t.Name).Distinct().ToArray();
-            }
+            // Races collect the same names.
+            info.NinoTypes ??= AssemblyTypes.Of(assembly, ct)
+                .Where(static t => t.TypeKind is TypeKind.Class or TypeKind.Interface && t.IsNinoType())
+                .Select(static t => t.Name).Distinct().ToArray();
 
             names.AddRange(info.NinoTypes);
         }

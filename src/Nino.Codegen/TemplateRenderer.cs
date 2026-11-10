@@ -51,10 +51,9 @@ namespace Nino.Codegen
         {
             string name = $"templates/{language}/{template}";
             var assembly = typeof(TemplateRenderer).Assembly;
-            string? resource = assembly.GetManifestResourceNames()
-                .FirstOrDefault(n => n.Replace('\\', '/') == name);
-            if (resource == null)
-                throw new FileNotFoundException($"No template {name}.");
+            string resource = assembly.GetManifestResourceNames()
+                .FirstOrDefault(n => n.Replace('\\', '/') == name)
+                ?? throw new FileNotFoundException($"No template {name}.");
             using var stream = assembly.GetManifestResourceStream(resource)!;
             using var reader = new StreamReader(stream, Encoding.UTF8);
             return reader.ReadToEnd().Replace("\r\n", "\n");

@@ -285,8 +285,8 @@ namespace Nino.Core.Internal
         private static bool Empty<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count)
         {
             var buckets = ObjectFields.At<int[]>(dictionary, MapBuckets);
-            var entries = ObjectFields.At<object>(dictionary, MapEntries) as Array;
-            return buckets != null && buckets.Length != 0 && entries != null && entries.Length >= count &&
+            return buckets != null && buckets.Length != 0 &&
+                   ObjectFields.At<object>(dictionary, MapEntries) is Array entries && entries.Length >= count &&
                    ObjectFields.At<int>(dictionary, MapBound) == 0 &&
                    ReferenceEquals(dictionary.Comparer, EqualityComparer<TKey>.Default);
         }
@@ -348,8 +348,8 @@ namespace Nino.Core.Internal
         private static bool Empty<T>(HashSet<T> set, int count)
         {
             var buckets = ObjectFields.At<int[]>(set, SetBuckets);
-            var entries = ObjectFields.At<object>(set, SetEntries) as Array;
-            return buckets != null && buckets.Length != 0 && entries != null && entries.Length >= count &&
+            return buckets != null && buckets.Length != 0 &&
+                   ObjectFields.At<object>(set, SetEntries) is Array entries && entries.Length >= count &&
                    ObjectFields.At<int>(set, SetBound) == 0 &&
                    ReferenceEquals(set.Comparer, EqualityComparer<T>.Default);
         }

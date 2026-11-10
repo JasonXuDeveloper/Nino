@@ -85,9 +85,9 @@ func main() {
                 }
 
                 Assert.AreEqual(0, vet.Value.Code, vet.Value.Output);
-                var run = GenericSamples.Run(dir, "go", "run", ".", "cases.txt")!.Value;
-                Assert.AreEqual(0, run.Code, run.Output);
-                GenericSamples.AssertRoundTrips(cases, run.Output);
+                var (code, output) = GenericSamples.Run(dir, "go", "run", ".", "cases.txt")!.Value;
+                Assert.AreEqual(0, code, output);
+                GenericSamples.AssertRoundTrips(cases, output);
             }
             finally
             {

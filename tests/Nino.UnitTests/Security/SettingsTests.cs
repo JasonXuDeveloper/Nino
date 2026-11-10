@@ -141,7 +141,7 @@ public static partial class SettingsProbes
     public static string CollectionLength(byte[] _)
     {
         NinoSettings.MaxCollectionLength = 3;
-        byte[] Bytes<T>(T value) => NinoSerializer.Serialize(value);
+        static byte[] Bytes<T>(T value) => NinoSerializer.Serialize(value);
         // Written before any read: the writer has no length limit.
         var list4 = Bytes(new List<int> { 1, 2, 3, 4 });
         var array4 = Bytes(new[] { 1, 2, 3, 4 });

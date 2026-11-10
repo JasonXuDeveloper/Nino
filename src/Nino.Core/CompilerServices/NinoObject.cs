@@ -175,7 +175,7 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void EnsureSubtype<T>(object value) where T : class
         {
-            if (value != null && !(value is T))
+            if (value != null && value is not T)
                 NinoThrow.NotASubtype(typeof(T), value.GetType());
         }
 
@@ -208,8 +208,7 @@ namespace Nino.Core.CompilerServices
             {
                 if ((default(TFormatter).Traits & NinoBodyTraits.Deferrable) != 0)
                 {
-                    if (value == null)
-                        value = default(TFormatter).Create();
+                    value ??= default(TFormatter).Create();
                     reader.DeferBody<T, TFormatter>(value);
                 }
                 else

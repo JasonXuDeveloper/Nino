@@ -386,7 +386,7 @@ public static partial class SettingsProbes
     public static string UntrustedTrailing(byte[] _)
     {
         NinoSettings.Untrusted = true;
-        byte[] Plus(byte[] data) => data.Concat(new byte[] { 0 }).ToArray();
+        static byte[] Plus(byte[] data) => data.Concat(new byte[] { 0 }).ToArray();
         var holder = NinoSerializer.Serialize(new UntrustedHolder { Name = "x" });
         var chain = NinoSerializer.Serialize(StrictChain.Of(300));
         var deep = NinoSerializer.Serialize(Chain(300));

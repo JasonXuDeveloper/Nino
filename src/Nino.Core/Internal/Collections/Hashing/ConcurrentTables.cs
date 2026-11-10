@@ -502,10 +502,10 @@ namespace Nino.Core.Internal
                 return null;
             if (tablesComparerAt >= 0 && !ObjectFields.Holds(tables, tablesComparerAt, Probe))
                 return null;
-            if (!(ObjectFields.At<object>(tables, locksAt) is object[] locks) || locks.Length != 1 ||
-                !(ObjectFields.At<object>(tables, countPerLockAt) is int[] counts) || counts.Length != 1 ||
+            if (ObjectFields.At<object>(tables, locksAt) is not object[] locks || locks.Length != 1 ||
+                ObjectFields.At<object>(tables, countPerLockAt) is not int[] counts || counts.Length != 1 ||
                 counts[0] != d.Count ||
-                !(ObjectFields.At<object>(tables, bucketsAt) is Array buckets) || buckets.Length != budget)
+                ObjectFields.At<object>(tables, bucketsAt) is not Array buckets || buckets.Length != budget)
                 return null;
             var offsets = new Offsets(tablesAt, dictionaryComparerAt, growLockArrayAt, bucketsAt, locksAt, countPerLockAt,
                 tablesComparerAt);

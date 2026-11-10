@@ -81,12 +81,12 @@ public class RecycleOwnershipTests
     private void AssertRecycled(params (Type Declared, object Value)[] expected)
     {
         var left = _recycled.ToList();
-        foreach (var e in expected)
+        foreach (var (declared, value) in expected)
         {
-            int i = left.FindIndex(r => r.Declared == e.Declared &&
-                                        (ReferenceEquals(r.Value, e.Value) ||
-                                         (e.Value is ValueType && Equals(r.Value, e.Value))));
-            Assert.IsTrue(i >= 0, $"expected a recycle of {e.Value} as {e.Declared.Name}; got {Describe()}");
+            int i = left.FindIndex(r => r.Declared == declared &&
+                                        (ReferenceEquals(r.Value, value) ||
+                                         (value is ValueType && Equals(r.Value, value))));
+            Assert.IsTrue(i >= 0, $"expected a recycle of {value} as {declared.Name}; got {Describe()}");
             left.RemoveAt(i);
         }
 

@@ -1005,8 +1005,8 @@ public class Holder
         }
 
         var lists = new ListOfLists { new RawList { 1 }, null, new RawList() };
-        var nested = BothPaths(new ListOfListsHolder { Value = lists }, h => h.Value);
-        foreach (var result in new[] { nested.Generated, nested.Runtime })
+        var (generatedNested, runtimeNested) = BothPaths(new ListOfListsHolder { Value = lists }, h => h.Value);
+        foreach (var result in new[] { generatedNested, runtimeNested })
         {
             Assert.IsInstanceOfType(result[0], typeof(RawList));
             CollectionAssert.AreEqual(new[] { 1 }, result[0]);

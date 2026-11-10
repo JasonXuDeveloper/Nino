@@ -127,7 +127,7 @@ namespace Nino.Fuzz
             NinoDeserializer.Deserialize<HashColl>(spread); // warm up
             // Reading the colliding keys may be rejected (NinoSettings.MaxHashCollisions): then the time to the
             // rejection counts.
-            double Time(byte[] data)
+            static double Time(byte[] data)
             {
                 var sw = Stopwatch.StartNew();
                 try { NinoDeserializer.Deserialize<HashColl>(data); }

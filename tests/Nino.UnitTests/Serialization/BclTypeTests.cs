@@ -808,7 +808,7 @@ public class BclTypeTests
             RoundTrip(colliding.Select((k, i) => new KeyValuePair<long, int>(k, i)).ToImmutableDictionary()));
         Assert.ThrowsExactly<NinoDataException>(() => RoundTrip(colliding.ToImmutableHashSet()));
 
-        void SameSorted<TKey>(TKey[] keys, TKey absent)
+        static void SameSorted<TKey>(TKey[] keys, TKey absent)
         {
             var dictionary = keys.Select((k, i) => new KeyValuePair<TKey, int>(k, i)).ToImmutableSortedDictionary();
             CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionary.ToArray()), NinoSerializer.Serialize(dictionary));

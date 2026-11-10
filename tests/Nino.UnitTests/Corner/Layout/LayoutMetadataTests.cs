@@ -278,7 +278,7 @@ namespace Deferral
         [TestMethod]
         public void ChangesExactlyWhenTheBytesDo()
         {
-            string Of(string source, string type) => Layout(Compile(source), type).ToString();
+            static string Of(string source, string type) => Layout(Compile(source), type).ToString();
             string baseline = Of(Types, "Layout.Player");
 
             // Renaming the namespace of an unrelated type, or reformatting the source, changes nothing.

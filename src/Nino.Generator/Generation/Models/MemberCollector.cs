@@ -191,9 +191,9 @@ internal static class MemberCollector
 
             if (candidates != null)
             {
-                foreach (var candidate in candidates.OrderBy(static c => c.Index)
+                foreach (var (symbol, _) in candidates.OrderBy(static c => c.Index)
                              .ThenBy(static c => c.Symbol.Name, StringComparer.Ordinal))
-                    AddCandidate(candidate.Symbol, fromInterface);
+                    AddCandidate(symbol, fromInterface);
             }
         }
 

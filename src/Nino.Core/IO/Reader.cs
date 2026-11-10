@@ -312,8 +312,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndSlice(in Reader slice)
         {
-            if (_context == null)
-                _context = slice._context;
+            _context ??= slice._context;
         }
 
         /// <summary>

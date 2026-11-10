@@ -611,8 +611,8 @@ public class MadeList : System.Collections.Generic.List<Made> { }
         driver = driver.RunGenerators(compilation);
         var result = driver.GetRunResult().Results[0];
         Assert.AreEqual(0, result.Diagnostics.Length, "the generator reports nothing; the analyzer does");
-        foreach (var output in result.TrackedOutputSteps.SelectMany(s => s.Value).SelectMany(s => s.Outputs))
-            Assert.AreEqual(IncrementalStepRunReason.Cached, output.Reason);
+        foreach (var (_, reason) in result.TrackedOutputSteps.SelectMany(s => s.Value).SelectMany(s => s.Outputs))
+            Assert.AreEqual(IncrementalStepRunReason.Cached, reason);
         // The models, the calls and every step that collects them or reads the whole compilation.
         foreach (var step in new[]
                  {
@@ -625,9 +625,9 @@ public class MadeList : System.Collections.Generic.List<Made> { }
             Assert.IsTrue(first.TrackedSteps.ContainsKey(step), step + " not in " + string.Join(", ", first.TrackedSteps.Keys));
             if (!result.TrackedSteps.TryGetValue(step, out var runs))
                 continue;
-            foreach (var output in runs.SelectMany(s => s.Outputs))
-                Assert.IsTrue(output.Reason is IncrementalStepRunReason.Unchanged or IncrementalStepRunReason.Cached,
-                    $"{step}: {output.Reason}");
+            foreach (var (_, reason) in runs.SelectMany(s => s.Outputs))
+                Assert.IsTrue(reason is IncrementalStepRunReason.Unchanged or IncrementalStepRunReason.Cached,
+                    $"{step}: {reason}");
         }
     }
 
@@ -645,7 +645,7 @@ public class MadeList : System.Collections.Generic.List<Made> { }
                 }
                 """));
 
-        object? Call(GeneratorRunResult result) =>
+        static object? Call(GeneratorRunResult result) =>
             result.TrackedSteps.TryGetValue("TopLevelCall", out var steps)
                 ? steps.SelectMany(step => step.Outputs).Single().Value
                 : null;

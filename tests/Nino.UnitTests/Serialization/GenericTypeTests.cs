@@ -130,7 +130,7 @@ public class GenericTypeTests
             B = "Test"
         };
 
-        void Test(byte[] bytes)
+        static void Test(byte[] bytes)
         {
             Console.WriteLine(string.Join(", ", bytes));
             Assert.IsNotNull(bytes);

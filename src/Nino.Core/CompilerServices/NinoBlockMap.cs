@@ -46,7 +46,7 @@ namespace Nino.Core.CompilerServices
             where TFormatter : struct, INinoFormatter<TItem>
         {
             if (_failed || memory < 0 || NinoUnsafe.IsReferenceOrContainsReferences<TItem>() ||
-                !(default(TFormatter) is INinoBlockFormatter<TItem> block) || block.FixedSize <= 0 ||
+                default(TFormatter) is not INinoBlockFormatter<TItem> block || block.FixedSize <= 0 ||
                 !(block.BlockMap() is { _failed: false } inner))
                 return Fail();
             for (int i = 0; i < inner._runs.Count; i += 3)

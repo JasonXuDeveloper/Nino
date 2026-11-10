@@ -281,7 +281,7 @@ namespace Nino.Codegen.Integration.Tests
                 .Select(c => (c.Type.Substring("Samples.".Length) + "Codec", c.Bytes)).ToList();
             var results = RunNode(cases);
             for (int i = 0; i < cases.Count; i++)
-                Assert.AreEqual(GenericSamples.Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Error}");
+                Assert.AreEqual(GenericSamples.Hex(cases[i].Bytes), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Error}");
 
             // The last case is the full value (the harness adds a value of its own after the cases).
             string full = results[cases.Count - 1].Json;
@@ -308,7 +308,7 @@ namespace Nino.Codegen.Integration.Tests
             // block past 64 bytes; enums keep their constants' type.
             var typedResults = RunNode(cases, _typed);
             for (int i = 0; i < cases.Count; i++)
-                Assert.AreEqual(GenericSamples.Hex(cases[i].Item2), typedResults[i].Hex, $"typed case {i} ({cases[i].Item1}): {typedResults[i].Error}");
+                Assert.AreEqual(GenericSamples.Hex(cases[i].Bytes), typedResults[i].Hex, $"typed case {i} ({cases[i].Item1}): {typedResults[i].Error}");
             Assert.AreEqual(full, typedResults[cases.Count - 1].Json);
             string typed = File.ReadAllText(Path.Combine(_typed, "Nino.Codegen.Integration.Tests.ts"));
             StringAssert.Contains(typed, "export class BoxInt32Array extends Box<Int32Array | null> {}");

@@ -134,9 +134,9 @@ public class TupleAndKeyValuePairTests
         bytes = NinoSerializer.Serialize(val2);
         Assert.IsNotNull(bytes);
 
-        (bool a, string b) result6 = NinoDeserializer.Deserialize<(bool a, string b)>(bytes);
-        Assert.AreEqual(val2.Item1, result6.a);
-        Assert.AreEqual(val2.Item2, result6.b);
+        (bool a, string b) = NinoDeserializer.Deserialize<(bool a, string b)>(bytes);
+        Assert.AreEqual(val2.Item1, a);
+        Assert.AreEqual(val2.Item2, b);
     }
 
     [TestMethod]
