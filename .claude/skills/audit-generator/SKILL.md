@@ -589,6 +589,12 @@ This saved 52,240 B per isolated registry emission and 11–84 KB in four cold r
 Timing gains varied with load order. `EmitRegistry` grew from 924 to 970 IL bytes,
 2,924 to 2,928 Arm64 FullOpts bytes, and 1,791 to 1,880 x64 cross-JIT bytes.
 Both Roslyn builds kept all 577 outputs, incremental reuse, and collection.
+Seed the usages case dictionary with the sum of the formatter, factory, and
+closed-generic counts. This avoids a second scan for the rare alternate IDs.
+The isolated usage replay saved about 41.7 KB in both load orders and four cold
+project runs saved about 26–52 KB. Timing varied. `EmitUsages` grew from 638 to
+661 IL bytes, 2,972 to 3,028 Arm64 FullOpts bytes, and 1,695 to 1,746 x64
+cross-JIT bytes. Both Roslyn builds kept all 577 outputs, reuse, and collection.
 
 Use the known leaf layout for portability and raw descriptions before allocating
 measurement lists or a builder. Leave types that the canonical view handles
