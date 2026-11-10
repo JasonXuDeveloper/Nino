@@ -22,6 +22,13 @@ and when `asm.py compare` lists methods the change did not touch.
   sets showed no repeatable timing change. Formatter IL grew from 77 to 114 bytes and the Arm64
   Tier 1 caller from 868 to 896 bytes. The x64 cross-JIT caller stayed at 224 bytes, while the
   standalone Tier 0 formatter grew from 274 to 372 bytes. Generated files and wire bytes matched.
+  Skip the span copy for empty and one-byte reads. Keep the multi-byte test first and share the
+  existing cleanup, including the length setter that invalidates enumerators on reuse. Masking
+  inside a new single-byte branch slowed three fresh seven-bit rounds. A separate reuse branch
+  also made the seven-bit samples less consistent. The shared path beat the empty reuse control
+  in all four local rounds at 0 B per read, with no repeatable longer-input timing change.
+  Read IL grew from 63 to 98 bytes, Arm64 Tier 1 from 728 to 752 bytes and x64 offline from
+  211 to 272 bytes. The round trips, dirty tails and generated files matched.
 
 - Build the raw span from `ReadBlock` on the byref reader targets. This gives the span and
   block reads one bounds check and cursor advance in the source. The standalone IL fell from
