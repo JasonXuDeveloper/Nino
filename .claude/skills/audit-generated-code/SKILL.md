@@ -149,6 +149,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   fell from 2,260 to 2,008 bytes and offline x64 from 3,904 to 3,472.
   Sixteen reordered items improved in four paired rounds, while the 1,000-item
   results overlapped the A/A spread. All 30 wire and round-trip probes passed.
+  `ArraySegmentFormatter` over raw elements preserves context as well.
+  Keep the fresh backing array and the default segment's null marker.
+  The keyed fixture added 28 source bytes and 21 IL bytes, but Arm64 Tier 1
+  fell from 1,928 to 1,712 bytes and offline x64 from 1,666 to 1,466.
+  After longer warmup, 1,000 reordered items fell from 9.80–10.04 to
+  9.35–9.49 µs over four rounds. Ordered results overlapped A/A and allocation
+  stayed at 40 B per item. All 30 wire and round-trip probes passed.
 - Patch a keyed string member's length without opening a nested writer region.
   The direct UTF-16 and UTF-8 writes cannot defer bodies. Reserve the preceding raw
   members, key and length together as before. The `KeyedStruct` writer gained 19
