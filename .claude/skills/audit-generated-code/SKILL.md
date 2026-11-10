@@ -84,6 +84,15 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   from newer writers. The Arm64 `PaddedItem[]` loop dropped from 572 to
   452 machine-code bytes and `NamedItem`'s body from 1,136 to 940. Keep the unaligned raw reads and check a
   region at offset one.
+  Classify the built-in fixed-stride nullable array and list formatters as context-preserving,
+  without granting the separate flat trait. They validate presence bytes and advance the
+  reader without registering references or deferring bodies. The 582-file unit-test replay
+  saved 254 bytes across four formatters. The mixed nullable array/list probe saved 73 source
+  bytes and moved the reusable read body from 129 to 120 IL bytes, 500 to 416 Arm64 FullOpts
+  bytes and 230 to 216 offline x64 bytes. Four M4 default-JIT pairs showed about 3–5% lower
+  medians for 16, 512 and 1,024 objects at offsets zero and one, with a mixed single-object
+  control. All 84 samples allocated 0 B. Wire bytes matched exactly, and the legacy empty
+  region, truncation and deferred-body tests passed (`1dc38168`).
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
