@@ -178,6 +178,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   The x64 cross-JIT listing for binding and formatting, excluding the shared array builder,
   moved from 4,076 to 4,330 bytes. Both Roslyn builds matched all 577 files, reused the
   models on edits and passed the collection checks.
+  Flatten the last element of a long value tuple in the binder-owned array. On the real 8-,
+  9- and 15-element shapes the isolated helper saved 88 B per call and was faster in both
+  load orders. Whole-project allocation and timing stayed within noise. `Flat` moved from
+  53 to 43 IL bytes, 676 to 292 Arm64 Tier 1 bytes and 134 to 114 x64 cross-JIT bytes.
+  Both Roslyn builds kept all 577 files and all 572 model hits and passed collection checks.
+  The two runtimes each passed 46 focused tests.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
   without that cache.
