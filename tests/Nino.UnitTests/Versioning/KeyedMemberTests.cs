@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -60,6 +61,12 @@ public struct KeyedReadOnlyMemory
 public struct KeyedArraySegment
 {
     public ArraySegment<int> Values;
+}
+
+[NinoType(format: NinoFormat.Keyed)]
+public struct KeyedSequence
+{
+    public ReadOnlySequence<int> Values;
 }
 
 [NinoType(format: NinoFormat.Keyed)]
@@ -231,6 +238,14 @@ public class KeyedMemberTests
 
         NinoDeserializer.Deserialize(NinoSerializer.Serialize(default(KeyedArraySegment)), ref decoded);
         Assert.IsNull(decoded.Values.Array);
+    }
+
+    [TestMethod]
+    public void SequenceEntryRoundTrips()
+    {
+        var value = new KeyedSequence { Values = new ReadOnlySequence<int>(new[] { 1, 2, 3 }) };
+        var decoded = NinoDeserializer.Deserialize<KeyedSequence>(NinoSerializer.Serialize(value));
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, decoded.Values.ToArray());
     }
 
     [TestMethod]
