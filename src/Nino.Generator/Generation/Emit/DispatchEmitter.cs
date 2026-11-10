@@ -178,7 +178,7 @@ internal static class DispatchEmitter
         // subtypes, but more where the bodies would have been inlined, and one more method per subtype costs about
         // 2.5% more compile time on a workload of hierarchies.
         Method(w, WriteSubtype(t), (subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>()).Select(s =>
-                $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{CoreCompilerServices}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }"""),
+                $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }"""),
             WriteOther(t, services));
         if (subtypes.Count == 0)
         {
@@ -200,7 +200,7 @@ internal static class DispatchEmitter
         for (int i = 0; i < subtypes.Count; i++)
         {
             var s = subtypes[i];
-            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {CoreCompilerServices}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
+            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
         }
     }
 
