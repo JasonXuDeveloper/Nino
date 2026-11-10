@@ -865,6 +865,18 @@ of bytes in a block.
   FullOpts sizes but moved default-JIT controls: 23-character Latin-1 reuse slowed
   until both string call sites were restored, and fresh 96-byte array writes
   slowed by about 5%. Leave those gates local (`78f93168`).
+- Keep per-segment reservations for general fixed-stride ReadOnlySequence writes.
+  One counted reservation followed by bounded segment writes saved about 10% on the
+  2- and 4-segment Int32 probes but slowed a 16-segment small input. Outlining and
+  forcing FullOpts made the 2- and 4-segment probes much faster against Tier 0 but
+  almost doubled the 16-segment case: the original reached PGO Tier 1 (1,544 bytes),
+  while the outlined loop could not. After restoring normal tiering, the 4-segment
+  32-element probe improved by 4–6%, but 2 segments, 16 segments and the cases
+  straddling a 64 KiB input/output footprint were flat or noisy. The final trial
+  moved from 118 IL bytes to 137 plus 121; Arm64 FullOpts from 2,432 to 1,304 plus
+  1,108 bytes; emulated x64 FullOpts from 2,855 to 1,397 plus 1,041 bytes. All eight
+  wire comparisons matched at zero steady allocation. Do not trade the mature
+  PGO loop for this general reservation split.
 - Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
   (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations,
   at the cost of a larger native helper.
