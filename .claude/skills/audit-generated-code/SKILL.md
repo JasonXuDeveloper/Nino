@@ -337,6 +337,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   rewrites reduced that overhead to about 0.94 MB and removed 47,024 bytes from the unit test project's
   generated output. The normalized IL matched after accounting for file-local type names, explicit interface
   member spellings and data RVAs. Warm replay and method-body edits were within the local noise floor.
+  Reuse the existing dispatch namespace alias for the exact subtype calls as well as fallbacks.
+  This removed 3,380 bytes from the unit-test dispatch and 1,872 from the benchmark dispatch,
+  with all 760 dispatch method bodies byte-identical in IL. The 1,000-element polymorphic array
+  wrote the same bytes, with identical allocation and no repeatable timing change. The sampled
+  Arm64 and x64 cross-JIT dispatch method sizes matched. Both targeted suites passed (`686fd8d1`).
   A separate post-emission alias for `System.Runtime.CompilerServices` paid off in only 22 of 577
   replayed files. It removed 2,444 source bytes with identical normalized unit test assembly IL, but
   added about 740 KB of cold generator allocations and enlarged the alias helper from 473 to 512 IL
