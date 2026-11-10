@@ -797,6 +797,14 @@ files, 577-model reuse and collection of the closed compilation and previous tre
 direct-append trial passed 47 targeted tests each on Roslyn 4.8 and 4.12. Both were withdrawn.
 Append formatter name stems directly, doubling literal underscores while appending each namespace or type name.
 The local mixed-name probe went from about 619 to 403 bytes per render with unchanged hint names and source.
+Store only the fixed-layout offset strings in member order, and skip them when the fixed
+writer emits one raw body. Three actual fixed models (one raw body) saved 280,000 bytes
+per 1,000 isolated passes in each M4 round, with mixed timing. Whole-project cold starts,
+reopens and body edits had no stable gain; a follow-up alternating run did not reproduce
+the generic-edit slowdown. All 582 generated files matched across four stages, all 577
+models were reused after edits, and the closed compilation and previous tree collected.
+FixedLayout moved from 266 to 281 IL bytes, 1,184 to 1,088 Arm64 FullOpts bytes and
+728 to 745 offline x64 bytes. Both Roslyn builds passed 81 targeted tests (`f8eb5377`).
 Share the existing bounded text scratch slot with fully qualified type-name rendering and return it in a
 finally block. Keep only the final name string. Four real project cold replays saved 3.0–3.2 MB,
 reopens saved 2.6–2.7 MB, and method-body edits saved 103–115 KB. Isolated rendering of actual project
