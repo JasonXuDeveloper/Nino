@@ -409,14 +409,25 @@ namespace Nino.Core
             // Any sign bit or bit 30 requires an exact dimension check.
             if (((a | b | c | d) & unchecked((int)0xC0000000)) != 0)
                 CheckDimensions(a, b, c, d);
-            // One dimension multiplied in at a time, each product checked: a * b * c * d overflows a long (three
-            // dimensions of 2^29 wrap around to 0). An empty array too: the runtime rejects one whose leading
-            // dimensions multiply past 2^32 (CoreCLR: OutOfMemoryException for 65536 x 65536 x 0).
-            long total = a;
-            // The last product times the fewest bytes an element takes (NinoElements.MinWireSize, under 2^31):
-            // under 2^63.
-            if ((total *= b) > uint.MaxValue || (total *= c) > uint.MaxValue || (total *= d) > uint.MaxValue ||
-                total * minElementSize > reader.Remaining || NinoLimits.LengthCapped && total > NinoLimits.MaxCollectionLength)
+            long total = (long)a * b;
+            if (rank > 2)
+            {
+                // Check each prefix before multiplying to keep the next product in range.
+                // CoreCLR also rejects a trailing-zero shape whose leading dimensions exceed this limit.
+                if (total > uint.MaxValue)
+                    NinoThrow.InvalidLength(int.MaxValue);
+                total *= c;
+                if (rank > 3)
+                {
+                    if (total > uint.MaxValue)
+                        NinoThrow.InvalidLength(int.MaxValue);
+                    total *= d;
+                }
+            }
+
+            // Once the final product fits in a uint, multiplying by the minimum wire size fits in a long.
+            if (total > uint.MaxValue || total * minElementSize > reader.Remaining ||
+                NinoLimits.LengthCapped && total > NinoLimits.MaxCollectionLength)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));
             shape.Total = (int)total;
             return true;
