@@ -756,6 +756,14 @@ in all four states, 577 models were reused and the collection probes passed. The
 moved from 460 to 586 IL bytes, 1,444 to 1,432 Arm64 FullOpts bytes and 1,565 to 1,518
 cross-JIT x64 MinOpts bytes. The 356 IL-byte duplicate path and both Roslyn targets were
 covered by the duplicate-path regression (`acd8a7e4`).
+Keep the inherited-name fixed-point loop for sparse matches. Compaction into a live tail
+preserved scan order, but a probe derived from 700 real declarations with 26 matches
+took longer in all four rounds and allocated the same 15.65 MB per batch. Using only
+the result of `HashSet.Add` to suppress a redundant pass also gave no repeatable gain.
+Compaction increased `Find` from 258 to 306 IL bytes; both trials grew the Arm64 listing
+from 1,252 to 1,272 B. The x64 cross JIT did not print the method. Both trials preserved
+candidate order, 582 generated files, 577-model reuse and collection. The stopping-condition
+trial passed 48 tests on each Roslyn target. Neither change was retained.
 Keep the existing index growth until a capacity hint also improves lookup time. On the same
 512-pass candidate probe, pre-sizing from the C# tree count reduced allocations from 5.55
 to 2.27 MB but increased time in all four rounds. Keeping the current syntax root in the
