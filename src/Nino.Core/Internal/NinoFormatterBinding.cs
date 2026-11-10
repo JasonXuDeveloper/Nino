@@ -90,6 +90,13 @@ namespace Nino.Core.Internal
             where TParameters : INinoFormatterParameters<TType, TFormatter>
         {
             int count = parameters.Count;
+            if (count == 0)
+            {
+                types = System.Array.Empty<TType>();
+                formatters = System.Array.Empty<TFormatter>();
+                return Match(system, pattern, target, types);
+            }
+
             types = new TType[count];
             if (!Unify(system, pattern, target, types))
             {
