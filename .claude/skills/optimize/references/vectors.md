@@ -548,7 +548,7 @@ of bytes in a block.
 - Zip raw `SortedList<int, int>` key and value vectors straight into the counted reservation. Use Arm64
   `zip1/zip2` or SSE2 unpack on x64 and x86, and keep the scalar tail. The one-source permute kernel cannot
   take the two arrays directly. The local Arm64 2,047- and 8,193-pair probes cut elapsed time by 56–70%.
-  Keep the dual-source loop in `NinoBlockCollections.InterleaveInt32` and call it only for at least one vector.
+  Keep the dual-source loop in `NinoSimd.Interleave` and call it only for at least one vector.
   Extracting it cut seven-pair write time by about 30% locally while the larger cases remained broadly on par.
   On netstandard, register the same four-byte lane operation through `NinoKernels.Interleave32`. Gate on raw
   layout and no padding, call once for full vectors, and leave the remaining pairs to the existing scalar loop.
@@ -569,6 +569,11 @@ of bytes in a block.
   The x64 guest verified AVX2 and its fallback, including unaligned writes, while the AVX-512 listing
   showed `vpermt2w/d/q`. The guest lacks AVX-512 and no native x64 throughput was measured. Four M4 A/B
   pairs gave mixed results with zero allocations and identical output around 64 KiB (`3c871bab`).
+  Keep pair interleave, deinterleave, ordering and the Burst bridge together in `NinoSimd.Pairs.cs`.
+  Moving the guard with its kernel preserved the sampled IL, Arm64 Tier 1 sizes, and x64 v3/v4 sizes.
+  Pin both buffers to control their actual addresses around 64 KiB. Uncontrolled timings showed large
+  outliers, while the fixed-alignment A/B medians stayed within 4%. Bytes matched with SIMD on and off,
+  and the real project's 582 generated files were identical (`c0025a12`).
 - Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
   Keep the order check before publishing the arrays and use the same wire block for out-of-order insertion.
   Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
