@@ -109,16 +109,9 @@ namespace Nino.Core
             var buffer = Buffer;
             int index = Index;
             if ((uint)size > (uint)(buffer.Length - index))
-                buffer = GrowFor(size);
+                buffer = Grow(size);
             Index = index + size;
             return ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(buffer), index);
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private byte[] GrowFor(int size)
-        {
-            Grow(size);
-            return Buffer;
         }
 
         public void Advance(int count)
@@ -151,7 +144,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal void Grow(int sizeHint)
+        internal byte[] Grow(int sizeHint)
         {
             int current = Buffer.Length;
             int needed = checked(Index + sizeHint);
@@ -167,6 +160,7 @@ namespace Nino.Core
             Buffer = newBuffer;
             if (old.Length != 0)
                 _pool.Return(old);
+            return newBuffer;
         }
 
         /// <summary>

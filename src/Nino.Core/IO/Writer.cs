@@ -248,8 +248,7 @@ namespace Nino.Core
             if (size < 0)
                 NinoThrow.TooLarge();
             owner.Index = pos;
-            owner.Grow(size);
-            return owner.Buffer;
+            return owner.Grow(size);
         }
 
         /// <summary>
