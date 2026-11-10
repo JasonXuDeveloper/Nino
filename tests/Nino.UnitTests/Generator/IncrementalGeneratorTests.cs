@@ -141,10 +141,10 @@ public class IncrementalGeneratorTests
             ("Holder.cs", Usings + "[NinoType] public class Holder { public Box<int> Ints; }\n}"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
         driver = driver.RunGenerators(compilation);
-        string box = Output(driver, "Box_1").Replace("__NC.", "global::Nino.Core.");
+        string box = Output(driver, "Box_1").Replace("__C.", "global::Nino.Core.");
         StringAssert.Contains(box, "where __F_T : struct, global::Nino.Core.INinoFormatter<T>");
         Assert.IsFalse(box.Contains("CachedFormatter"), box);
-        StringAssert.Contains(Output(driver, "Holder").Replace("__NC.", "global::Nino.Core."),
+        StringAssert.Contains(Output(driver, "Holder").Replace("__C.", "global::Nino.Core."),
             "Inc_Box_1Formatter<int, global::Nino.Core.UnmanagedFormatter<int>>");
     }
 

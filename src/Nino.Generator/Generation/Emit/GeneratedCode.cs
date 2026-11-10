@@ -138,7 +138,7 @@ internal static class GeneratedCode
     internal const string CompilerServicesDeclaration = "using " + CompilerServicesAlias + " = " +
                                                         TypeNames.Core + "CompilerServices;";
 
-    private const string CoreNamespaceAlias = "__NC";
+    private const string CoreNamespaceAlias = "__C";
     private const string CoreNamespacePrefix = CoreNamespaceAlias + ".";
     private const string CoreNamespaceDeclaration = "using " + CoreNamespaceAlias + " = global::Nino.Core;";
 
@@ -304,7 +304,7 @@ internal static class GeneratedCode
                 CompilerServicesDeclaration);
         bool compilerAlias = declarations.Count != declarationsBefore;
         declarationsBefore = declarations.Count;
-        if (body.IndexOf(CoreNamespaceAlias, StringComparison.Ordinal) < 0)
+        if (body.IndexOf(CoreNamespacePrefix, StringComparison.Ordinal) < 0)
             body = WithAlias(body, TypeNames.Core, CoreNamespacePrefix, declarations, ref scratch, CoreNamespaceDeclaration);
         bool coreAlias = declarations.Count != declarationsBefore;
         foreach (var (name, alias, declaration) in CoreAliases)
