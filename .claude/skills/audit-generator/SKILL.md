@@ -761,6 +761,15 @@ bytes and 300 to 405 cross-JIT x64 bytes. The 4.8 and 4.12 targeted suites passe
 Append runtime namespaces and containing-type arguments directly to the type name's builder. Preserve unescaped
 namespace names and outermost-first argument order. The local nested-name probe went from 604 to 436 bytes per
 render, and the unit test project's 628 generated files remained byte-identical.
+Keep the current open generic name builder until a replacement holds the project edit timing.
+A single pooled builder reduced a 96-pass batch over 910 actual symbols from 40,816,128 to
+9,633,024 allocated bytes and was faster in four isolated rounds. Method-body edits saved
+28–50 KB but often took longer, including in an A/A/B replay. Appending directly to the
+formatter registration signature without pooling also failed to show an edit timing gain.
+The pooled method and helper took 33 + 109 IL bytes, 184 + 600 Arm64 bytes and 120 + 454 x64
+cross-JIT bytes, versus 129, 508 and 410 B before. Both trials preserved all 582 generated
+files, 577-model reuse and collection of the closed compilation and previous tree. The
+direct-append trial passed 47 targeted tests each on Roslyn 4.8 and 4.12. Both were withdrawn.
 Append formatter name stems directly, doubling literal underscores while appending each namespace or type name.
 The local mixed-name probe went from about 619 to 403 bytes per render with unchanged hint names and source.
 Share the existing bounded text scratch slot with fully qualified type-name rendering and return it in a
