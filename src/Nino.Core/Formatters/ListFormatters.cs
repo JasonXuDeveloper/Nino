@@ -156,7 +156,7 @@ namespace Nino.Core
             // slot once filled (see NinoElements.CopiedWhole).
             var list = value ?? ListAccess.CreateOverwritten<TList, T?>(length, NinoNullables<T>.Raw);
             var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
-            NinoNullables<T>.Read(span, ref reader);
+            NinoNullables<T>.ReadPrechecked(span, ref reader);
             ListAccess.Close(list, length, buffer);
             value = list;
         }

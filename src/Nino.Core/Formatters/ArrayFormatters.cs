@@ -230,12 +230,12 @@ namespace Nino.Core
             {
                 var current = value;
                 var array = NinoElements.NewOrSame(current, length);
-                NinoNullables<T>.Read(array, ref reader);
+                NinoNullables<T>.ReadPrechecked(array, ref reader);
                 NinoElements.Publish(ref value, current, array);
                 return;
             }
 
-            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, overwritten: true), ref reader);
+            NinoNullables<T>.ReadPrechecked(NinoElements.EnsureLength(ref value, length, overwritten: true), ref reader);
         }
     }
 
@@ -299,10 +299,11 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>Reads <c>destination.Length</c> elements (the count has been read).</summary>
-        public static void Read(Span<T?> destination, ref Reader reader)
+        /// <summary>Reads the elements after the count check has bounded the full fixed-stride payload.</summary>
+        public static void ReadPrechecked(Span<T?> destination, ref Reader reader)
         {
-            ref byte src = ref reader.ReadElements(destination.Length, Stride);
+            int bytes = destination.Length * Stride;
+            ref byte src = ref reader.UnsafeAdvance(bytes);
             if (destination.IsEmpty)
                 return;
             // Presence bytes other than 0 or 1 are invalid data (copied as they are, they would make HasValue true
@@ -311,7 +312,7 @@ namespace Nino.Core
             ref T? item = ref MemoryMarshal.GetReference(destination);
             if (Raw)
             {
-                NinoUnsafe.CopyToNew(ref Unsafe.As<T?, byte>(ref item), ref src, (uint)(destination.Length * Stride));
+                NinoUnsafe.CopyToNew(ref Unsafe.As<T?, byte>(ref item), ref src, (uint)bytes);
                 return;
             }
 
