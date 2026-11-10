@@ -45,6 +45,12 @@ public struct KeyedStruct
 }
 
 [NinoType(format: NinoFormat.Keyed)]
+public struct KeyedMemory
+{
+    public Memory<int> Values;
+}
+
+[NinoType(format: NinoFormat.Keyed)]
 public sealed record KeyedRecord(int Id, string Name);
 
 [NinoType(format: NinoFormat.Keyed)]
@@ -173,6 +179,23 @@ public class KeyedMemberTests
 
         BitConverter.GetBytes(bytes.Length).CopyTo(bytes, 2 * sizeof(int));
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<KeyedStruct>(bytes));
+    }
+
+    [TestMethod]
+    public void MemoryEntryReusesStorageAndRejectsTrailingBytes()
+    {
+        var bytes = NinoSerializer.Serialize(new KeyedMemory { Values = new[] { 1, 2 } });
+        var backing = new int[2];
+        var value = new KeyedMemory { Values = backing };
+        NinoDeserializer.Deserialize(bytes, ref value);
+        Assert.IsTrue(value.Values.Equals(backing.AsMemory()));
+        CollectionAssert.AreEqual(new[] { 1, 2 }, backing);
+
+        Array.Resize(ref bytes, bytes.Length + 1);
+        const int memberLength = 2 * sizeof(int);
+        BitConverter.GetBytes(BitConverter.ToInt32(bytes, 0) + 1).CopyTo(bytes, 0);
+        BitConverter.GetBytes(BitConverter.ToInt32(bytes, memberLength) + 1).CopyTo(bytes, memberLength);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<KeyedMemory>(bytes));
     }
 
     [TestMethod]
