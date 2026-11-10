@@ -50,13 +50,20 @@ namespace Nino.Core.Internal
         public static void Flags(ref byte first, int count, int stride)
         {
 #if NET8_0_OR_GREATER
-            if (Vector128.IsHardwareAccelerated && count >= 128 &&
-                (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512
-                    ? ValidFlagBlocks<Vector512<byte>, FlagVectors512>(ref first, count, stride)
-                    : Vector256.IsHardwareAccelerated
-                        ? ValidFlagBlocks<Vector256<byte>, FlagVectors256>(ref first, count, stride)
-                        : ValidFlagBlocks<Vector128<byte>, FlagVectors128>(ref first, count, stride)))
-                return;
+            if (count >= 128)
+            {
+                bool valid;
+                if (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512)
+                    valid = ValidFlagBlocks<Vector512<byte>, FlagVectors512>(ref first, count, stride);
+                else if (Vector256.IsHardwareAccelerated)
+                    valid = ValidFlagBlocks<Vector256<byte>, FlagVectors256>(ref first, count, stride);
+                else
+                    valid = Vector128.IsHardwareAccelerated &&
+                            ValidFlagBlocks<Vector128<byte>, FlagVectors128>(ref first, count, stride);
+
+                if (valid)
+                    return;
+            }
 #endif
             int any = Strided(ref first, count, stride);
             if ((any & 0xFE) != 0)
