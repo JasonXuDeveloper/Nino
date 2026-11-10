@@ -528,6 +528,16 @@ of bytes in a block.
   369 to 424 bytes plus a 56-byte helper. The singleton probe's Arm64 FullOpts
   entry grew from 600 to 656 bytes plus 128; emulated x64 from 185 to 220
   plus 70 bytes. Both runtime suites and scalar validation passed (`4ee7e0c8`).
+- Unroll two- and three-element presence scans in the shared validator. Keep
+  the OR reduction and validate every flag before writing any slots. Four M4
+  default-JIT pairs at offsets zero and one improved nullable bool array medians
+  by 19–20% and nullable Int32 list medians by 14–18%. Four- and 128-element
+  bool arrays and 16-element lists stayed within 2.2% by median. The singleton
+  bypasses this validator and its timings varied. Eighteen wire comparisons
+  matched and timed reuse allocated 0 B. The validator grew from 46 to 92 IL
+  bytes, 152 to 200 Arm64 FullOpts bytes and 88 to 132 emulated x64 FullOpts
+  bytes. Test the final flag at an unaligned offset and assert that the reuse
+  destination is still untouched when validation rejects it.
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
