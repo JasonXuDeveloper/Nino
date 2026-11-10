@@ -762,6 +762,15 @@ symbols saved about 119 B per call with unchanged timing. All 582 files matched 
 cold, cached and edited runs, 577 models were reused, and the closed-project and previous-tree
 collection probes passed. The render method grew from 78 to 93 IL bytes, 328 to 376 Arm64 bytes and
 258 to 285 cross-JIT x64 bytes. The Roslyn 4.8 and 4.12 targeted suites passed (`461354bb`).
+Reuse the same slot for runtime names and ordinary formatter stems. Keep the nesting formatter's
+construction separate: the combined pooled method made the isolated nesting path slower in most rounds.
+On actual project symbols, runtime and formatter rendering saved about 263 and 338 B per call and
+median times fell about 6% and 12%, respectively. Nesting stayed on par. Four reopens saved
+0.85–0.99 MB and four body edits saved 9–18 KB without a stable end-to-end time change. All 582 files
+matched and 577 models were reused across both edits. The GC probes and both Roslyn test sets passed.
+The runtime name's IL grew from 18 to 33 B and the formatter name's from 22 to 43 B. Their Arm64
+listings grew from 136 to 184 B and 172 to 288 B, and their x64 cross-JIT listings from 106 to 120 B
+and 124 to 200 B, respectively (`8b6fd14d`).
 Build prefetch member lists only for eligible formatter models, after confirming a property is reference-typed.
 Skip the prefetch metadata in analyzer models and allocate the small member list only on the first match.
 Recognize shared immutable arrays before walking their elements. The local 128-string equality probe went
