@@ -175,8 +175,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Select(static (x, _) => new EquatableArray<FormatterRegistration>(
                 x.Left.Select(static u => u.Formatter).OfType<FormatterRegistration>()
                     .Concat(x.Right.SelectMany(static a => a)).Distinct()
-                    .OrderBy(u => u.TypeName, StringComparer.Ordinal)
-                    .ThenBy(u => u.Formatter.ToString(), StringComparer.Ordinal)))
+                    .OrderBy(static u => u, FormatterRegistrationOrder)))
             .WithTrackingName("FormatterRegistrations");
         var factories = Merge(usages, CollectAll(models, static m => m.Registrations.Factories), static u => u.Factories,
             static all => all.OrderBy(f => f.TypeName, StringComparer.Ordinal))
@@ -363,6 +362,14 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     spc.AddSource("NinoGen.Registry.g.cs", RegistryEmitter.EmitRegistry(opts, list, pointers, scoped));
             });
     }
+
+    private static readonly IComparer<FormatterRegistration> FormatterRegistrationOrder =
+        Comparer<FormatterRegistration>.Create(static (left, right) =>
+        {
+            int byName = StringComparer.Ordinal.Compare(left.TypeName, right.TypeName);
+            return byName != 0 ? byName :
+                StringComparer.Ordinal.Compare(left.Formatter.ToString(), right.Formatter.ToString());
+        });
 
     /// <summary>The models of a stream, in compilations that reference Nino.Core.</summary>
     private static IncrementalValuesProvider<TypeModel> Gate(IncrementalValuesProvider<TypeModel?> models,
