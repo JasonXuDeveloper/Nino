@@ -33,6 +33,13 @@ and when `asm.py compare` lists methods the change did not touch.
   from 387 to 373 bytes in the x64 FullOpts cross listing. Alternating direct and writer probes
   from 16 bytes through 33 KiB showed no repeatable timing gain with the identical-binary
   control. Wire bytes, pool ownership checks, and allocations matched (`a76fff7c`).
+  Check the span return registers before sharing the buffer and index with `GetSpan` and
+  `GetMemory`. An inline helper removed both field reloads but spilled the span length in
+  Arm64 Tier 1. A separate out-of-line growth branch removed the spill and reduced the
+  `GetSpan` entry from 172 to 124 Arm64 Tier 1 bytes and from 168 to 124 x64 FullOpts cross-JIT
+  bytes, excluding the new helper. Four alternating runs with a byte-identical control
+  showed no repeatable gain. Both candidates matched the written bytes and allocated 0 B
+  without growth. Keep the split shape as a probe and the shared capacity check in production.
 - Keep the existing empty handling in `NinoArrayBufferWriter.ToArray`. An early return
   accelerated the empty result but slowed the 65-byte export in all four local rounds.
   Checking for zero inside the short copy branch removed that pattern, but gave no stable
