@@ -826,6 +826,17 @@ of bytes in a block.
   to 824 bytes, but the ASCII control was slower in all four reversed-order rounds. Its x64
   composite helper also grew from 280 to 415 bytes. The variants matched the wire bytes and
   allocated nothing after warmup. Keep the mask-based range check.
+- Keep the fixed Arm64 head and tail in the 33–63-character UTF-16 fallback with
+  a known one-byte header. Putting the range in the shared UTF-16 writer slowed
+  the 65-character control, including after reusing the small-copy dispatcher.
+  The one-byte branch reduced M4 default-JIT medians by 27–36% across four pairs
+  with first/last non-Latin-1 characters and offsets zero/one. The 32-, 64- and
+  65-character and ASCII controls were within the local spread, as were cases
+  around the 64 KiB working set. All 13 wire comparisons matched at 0 B allocation.
+  WriteLong grew from 81 to 131 IL bytes and 256 to 336 Arm64 FullOpts bytes;
+  the caller stayed at 612 B and the two x64 ReadyToRun listings matched exactly.
+  Both framework suites, scalar string checks and netstandard builds passed
+  (`c3fa2df1`).
 - Copy large UTF-16 `StringBuilder` values directly into the reserved span with `CopyTo` (1b2e3404).
   `GetChunks` can allocate a chunk index, even for a short but unusually fragmented builder. Keep the modern
   small-write loop where it measured faster, and advance the reader by the exact byte count already checked.
