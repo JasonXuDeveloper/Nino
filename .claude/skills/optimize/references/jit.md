@@ -298,6 +298,12 @@ and when `asm.py compare` lists methods the change did not touch.
   Check segment adjacency before entering the direct path. Probing both spans on three-segment input regressed
   the fallback. Keep the copy through scratch when reusing an array that aliases input, or when replacing
   an array with an element or array recycler registered. Recyclers can mutate the source before it is copied.
+  Passing the checked start position cut 12 IL bytes from `TryReadByteArray`
+  but grew its offline x64 from 1,688 to 1,711 bytes without a repeatable timing
+  gain. Checking adjacency inside that helper grew it to 212 IL bytes, 1,944
+  Arm64 Tier 1 bytes and 1,757 offline x64 bytes. The extra call slowed
+  three-segment input in all four paired rounds. Both candidate patches passed
+  six wire and round-trip comparisons.
   Keep split headers in a separate cold method that joins only the four header bytes. Joining them inside
   the ordinary two-segment reader regressed complete-header inputs in the local A/B.
   Assemble the split length directly from the two spans. The 2+2 split of a
