@@ -174,6 +174,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   saved 43–130 KB. Timing varied with load order. All 582 outputs matched on both Roslyn builds,
   tracked body edits reused all 577 models, and closed-project objects collected. The .NET 8
   and .NET 10 targeted suites passed (`0ccae04c`).
+  Visit base classes and interfaces separately in dispatch, preserving their order without
+  boxing either array for `Concat`. The isolated dispatch replay saved a median 43 KB in
+  both load orders, with no repeatable timing gain. Both Roslyn builds emitted identical
+  files, dispatch stayed cached on body edits, old project objects collected, and 70 targeted
+  tests passed on each of .NET 8 and .NET 10 (`284d0c63`).
 - Count eligible models before changing fixed-layout emission for allocation savings. An exact-length
   offset array saved 192 bytes per replay of the three fixed-size formatters in the unit-test project.
   The emitter timing changed direction when the load order was reversed and `FixedLayout` grew from
