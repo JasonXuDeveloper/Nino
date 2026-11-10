@@ -41,6 +41,12 @@ and when `asm.py compare` lists methods the change did not touch.
   was 2,180 bytes at baseline, 2,177 with the separate path and 2,122 with the shared
   path. Neither consistently beat the identical-binary control for one byte. Seven wire
   checks matched for both versions and steady-state allocation stayed at zero.
+- Keep the existing reservation for canonical span writes. Passing the 64-bit payload
+  size from `Writer.Write` to a reservation overload removed the separate 32-bit shift
+  from the no-padding copy path, but kept the Arm64 FullOpts callers at 1,896 bytes.
+  The x64 cross-JIT callers shrank by 14 bytes and the changed Writer methods grew
+  from 124 to 134 IL bytes. Four local default-JIT rounds with duplicate baselines
+  showed no repeatable gain for short or cache-sized inputs, at 0 B allocated.
 - Keep the existing custom-formatter `ReadSlice` cursor update. Folding header and payload
   advancement into one update grew the method from 43 to 122 IL bytes while standalone x64
   cross-JIT shrank from 120 to 114 bytes. A 64-byte slice through a byref parent reduced its
