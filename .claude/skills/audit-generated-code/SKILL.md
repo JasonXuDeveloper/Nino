@@ -155,6 +155,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   pairs improved the aligned 512-item, two-string reuse case by 2–22%; short,
   unaligned and larger cases varied. All 18 wire comparisons matched at 0 B
   per reused item. Keep unknown element formatters on the writeback path.
+  Propagate the same trait through ArrayFormatter and ListFormatter. Their
+  collection management does not change reader context. Ten unit-test formatters
+  lost 362 source bytes in total. In a string array/list fixture, ReadBody went
+  from 78 to 70 IL bytes, 1,472 to 1,328 Arm64 FullOpts bytes, and 1,226 to
+  1,013 emulated x64 bytes. Short and unaligned timing varied after longer
+  warmup. The larger batch was within 1% at both offsets. All 18 wire comparisons
+  matched, and reuse allocated 0 B.
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
