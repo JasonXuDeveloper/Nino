@@ -451,8 +451,7 @@ namespace Nino.Core
             }
 
             // A local reader, so its fields stay in registers inside the loop.
-            Reader reader = default;
-            source.CopyTo(ref reader);
+            Reader reader = source;
             for (int i = 0; i < length; i++)
             {
                 TKey key = default;
@@ -462,7 +461,7 @@ namespace Nino.Core
                 NinoCollections.AddUnique(dictionary, key, item);
             }
 
-            reader.CopyTo(ref source);
+            source = reader;
         }
 
         /// <summary><see cref="ReadPairs"/>, each key inserted or its bucket walked (hash flooding).</summary>
@@ -470,8 +469,7 @@ namespace Nino.Core
         private static void ReadGuarded(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
         {
             // A local reader, so its fields stay in registers inside the loop.
-            Reader reader = default;
-            source.CopyTo(ref reader);
+            Reader reader = source;
             // Each key added here, its bucket walked as it is, where the dictionary is as expected (new, sized for the
             // pairs); else added by the dictionary, and its bucket walked after (HashTables: hash flooding).
             // One loop (the formatters inlined once), the choice made per pair: predicted, and cheaper than a second
@@ -497,7 +495,7 @@ namespace Nino.Core
                 }
             }
 
-            reader.CopyTo(ref source);
+            source = reader;
         }
     }
 }
