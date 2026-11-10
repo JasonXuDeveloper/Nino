@@ -442,6 +442,16 @@ of bytes in a block.
   from 592 to 590. Output and allocation matched in all probes. Do not move the
   short array copy into the list writer without a dispatch that preserves the
   small-list controls.
+- Read short nullable bool blocks with the existing checked bool primitive after
+  validating every presence flag. The cursor-only trial had no repeatable gain.
+  Inlining the checked conversion for every size slowed the above-64-KiB default
+  JIT case despite a smaller OSR loop. Keep blocks beyond 1,024 elements on the
+  original loop. Four M4 pairs improved mixed 16–1,024-element reads by roughly
+  10–11%, with zero allocation and matching bytes. The 1,025-element control was
+  flat, the cache-boundary cases varied, and emulated x64 timings were inconclusive.
+  The entry and short helper moved from 163 to 224 plus 76 IL bytes, 212 to 276
+  plus 132 Arm64 FullOpts bytes, and 141 to 180 plus 83 emulated x64 FullOpts bytes.
+  Strict bool, fallback and compatibility checks passed (`18396f99`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
