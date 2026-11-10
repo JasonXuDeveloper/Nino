@@ -147,13 +147,15 @@ internal static class DispatchEmitter
     /// The subtypes of <paramref name="baseType"/> (other than itself, id <paramref name="baseId"/>) that bases dispatch
     /// to, without colliding ids, which cannot be switch cases: the registry reports the collision when one is used.
     /// </summary>
-    private static List<DispatchEntry> Subtypes(Dictionary<string, List<DispatchEntry>> subtypesOf, string baseType,
+    private static List<DispatchEntry>? Subtypes(Dictionary<string, List<DispatchEntry>> subtypesOf, string baseType,
         int baseId)
     {
-        var subtypes = new List<DispatchEntry>();
         if (!subtypesOf.TryGetValue(baseType, out var all))
-            return subtypes;
+            return null;
+        if (all.Count == 1)
+            return all[0].TypeId == baseId ? null : all;
 
+        var subtypes = new List<DispatchEntry>();
         var seen = new HashSet<int>();
         HashSet<int>? collisions = null;
         foreach (var subtype in all)
@@ -172,14 +174,14 @@ internal static class DispatchEmitter
     }
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
-    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
+    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services)
     {
         // value.GetType() == typeof(X) compiles to one method table compare. WriteExact is inlined where the caller's
         // inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A non-generic
         // method per subtype, as on read, was measured: it writes 4.5% fewer instructions for an array of 20
         // subtypes, but more where the bodies would have been inlined, and one more method per subtype costs about
         // 2.5% more compile time on a workload of hierarchies.
-        if (subtypes.Count is > 0 and <= MaxWriteChain)
+        if (subtypes is { Count: > 0 and <= MaxWriteChain })
         {
             w.Open(WriteSubtype(t));
             foreach (var s in subtypes)
@@ -192,7 +194,7 @@ internal static class DispatchEmitter
             w.Line($"{WriteSubtype(t)} => {WriteOther(t, services)};");
         }
 
-        if (subtypes.Count == 0)
+        if (subtypes is not { Count: > 0 })
         {
             w.Line($"{ReadSubtype(t)} => {ReadOther(t, services)};");
             return;
