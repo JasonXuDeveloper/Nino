@@ -550,8 +550,7 @@ namespace Nino.Core.Internal
         }
 
 #if NET8_0_OR_GREATER
-        // n > 16. Whole vectors, then the last one again overlapping the previous (the chars are the same). Inlined
-        // into its one caller, WriteLong, which is out of line itself.
+        // n > 16. Narrow the ASCII prefix, then finish with the widest suitable Latin-1 kernel.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe bool NarrowVector(ref ushort source, ref byte destination, nuint n)
         {
@@ -574,6 +573,12 @@ namespace Nino.Core.Internal
                 destination = ref Unsafe.Add(ref destination, (nint)start);
                 n -= start;
             }
+            if (NinoSimd.Has512 && n >= 128)
+            {
+                var result = TryNarrow512(ref source, ref destination, n);
+                if (result != WideNarrowResult.Unsupported)
+                    return result == WideNarrowResult.Written;
+            }
             if (NinoSimd.Has256 && n >= 32)
             {
                 nuint i = 0;
@@ -592,6 +597,41 @@ namespace Nino.Core.Internal
 
             // No 256-bit vectors.
             return Narrow16s(ref source, ref destination, n);
+        }
+
+        private enum WideNarrowResult
+        {
+            Unsupported,
+            Written,
+            OutsideLatin1
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WideNarrowResult TryNarrow512(ref ushort source, ref byte destination, nuint n)
+        {
+            if (!NinoSimd.Prefer512)
+                return WideNarrowResult.Unsupported;
+            return Narrow512(ref source, ref destination, n)
+                ? WideNarrowResult.Written
+                : WideNarrowResult.OutsideLatin1;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe bool Narrow512(ref ushort source, ref byte destination, nuint n)
+        {
+            nuint i = 0;
+            while (true)
+            {
+                var a = Vector512.LoadUnsafe(ref source, i);
+                var b = Vector512.LoadUnsafe(ref source, i + 32);
+                if (((a | b) & Vector512.Create((ushort)0xFF00)) != Vector512<ushort>.Zero)
+                    return false;
+                Vector512.Narrow(a, b).StoreUnsafe(ref destination, i);
+                if (i + 64 == n)
+                    return true;
+                nuint next = i == 0 ? 64 - ((nuint)Unsafe.AsPointer(ref destination) & 63) : i + 64;
+                i = next + 64 <= n ? next : n - 64;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
