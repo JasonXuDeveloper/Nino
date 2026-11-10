@@ -27,6 +27,10 @@ internal static class RawLayout
 {
     public static bool IsPortable(ITypeSymbol type)
     {
+        var leaf = Leaf(type);
+        if (leaf != NinoLeaf.None)
+            return leaf is not (NinoLeaf.Unsupported or NinoLeaf.Vector);
+
         var wide = new List<NinoLayoutCore.Leaf>();
         var narrow = new List<NinoLayoutCore.Leaf>();
         var view = new SymbolView(type, canonical: false);
@@ -45,6 +49,14 @@ internal static class RawLayout
     /// </summary>
     public static string Describe(ITypeSymbol type)
     {
+        var leaf = Leaf(type);
+        if (leaf is not (NinoLeaf.None or NinoLeaf.Unsupported or NinoLeaf.Vector))
+        {
+            // The known leaves are fixed-width and have no fields of their own in the published layout.
+            int size = NinoLayoutCore.SizeOf(leaf, NinoLayoutModel.Canonical.PointerSize);
+            return $"raw({size.ToString(CultureInfo.InvariantCulture)})";
+        }
+
         var sb = new StringBuilder();
         return Describe(type, sb) ? sb.ToString() : "raw";
     }
