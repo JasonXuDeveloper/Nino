@@ -29,7 +29,7 @@ namespace Nino.Core
         /// <summary>Default of <see cref="MaxHashCollisions"/>.</summary>
         public const int DefaultMaxHashCollisions = 100;
 
-        private static readonly object Lock = new object();
+        private static readonly object Lock = new();
         private static bool _frozen;
         private static int _maxDepth = DefaultMaxDepth;
         private static int _maxCollectionLength = int.MaxValue;

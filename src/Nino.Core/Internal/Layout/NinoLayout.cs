@@ -104,7 +104,7 @@ namespace Nino.Core.Internal
         /// measured (<see cref="MeasureMemory"/>).
         /// </summary>
         private static readonly NinoLayoutModel Runtime =
-            new NinoLayoutModel(LongAlign, DecimalAlign, IntPtr.Size, Int128Align, DateTimeAlign);
+            new(LongAlign, DecimalAlign, IntPtr.Size, Int128Align, DateTimeAlign);
 
 #if NET8_0_OR_GREATER
         private struct Int128Probe
@@ -534,7 +534,7 @@ namespace Nino.Core.Internal
                     return null;
                 var all = new List<KeyValuePair<Type, int>>(inner.Count + 2)
                 {
-                    new KeyValuePair<Type, int>(type, 0), new KeyValuePair<Type, int>(typeof(bool), 0),
+                    new(type, 0), new(typeof(bool), 0),
                 };
                 foreach (var value in inner)
                     all.Add(new KeyValuePair<Type, int>(value.Key, valueOffset + value.Value));

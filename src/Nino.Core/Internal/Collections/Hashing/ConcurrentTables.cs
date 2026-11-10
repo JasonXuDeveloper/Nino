@@ -150,7 +150,7 @@ namespace Nino.Core.Internal
 
         // First, in textual order: the checks below use it.
         /// <summary>The comparer of every probe dictionary, found in the layouts by its address.</summary>
-        private static readonly ProbeComparer Probe = new ProbeComparer();
+        private static readonly ProbeComparer Probe = new();
 
         private static readonly Offsets? Layout = Find();
         private static readonly int TablesAt = Layout?.Tables ?? 0;
@@ -578,7 +578,7 @@ namespace Nino.Core.Internal
         /// <summary>The offset of an array's first element, or 0 (not found).</summary>
         private static int FindElements()
         {
-            object first = new object(), second = new object();
+            object first = new(), second = new();
             var array = new[] { first, second };
             int at = ObjectFields.OffsetOf(array, ref array[0]);
             return at > 0 && ObjectTypes.Passes(() => ReferenceEquals(ObjectFields.At<object>(array, at), first) &&

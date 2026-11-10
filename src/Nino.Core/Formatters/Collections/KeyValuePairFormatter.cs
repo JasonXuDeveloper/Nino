@@ -57,7 +57,7 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static KeyValuePair<TKey, TValue> ReadRaw(ref byte source) =>
-            new KeyValuePair<TKey, TValue>(NinoLayout<TKey>.Read(ref source),
+            new(NinoLayout<TKey>.Read(ref source),
                 NinoLayout<TValue>.Read(ref Unsafe.Add(ref source, NinoLayout<TKey>.Size)));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

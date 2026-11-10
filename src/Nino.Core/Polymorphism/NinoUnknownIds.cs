@@ -36,7 +36,7 @@ namespace Nino.Core
         private sealed class Misses
         {
             public readonly Stamp Stamp;
-            public readonly HashSet<int> Ids = new HashSet<int>();
+            public readonly HashSet<int> Ids = new();
 
             public Misses(Stamp stamp) => Stamp = stamp;
         }
@@ -48,7 +48,7 @@ namespace Nino.Core
         /// count tells every load, an unload followed by a load included, without listing the assemblies; elsewhere
         /// the assembly count does what it can.
         /// </summary>
-        public static Stamp Now() => new Stamp(NinoRegistry.Epoch, NinoRegistry.Loads,
+        public static Stamp Now() => new(NinoRegistry.Epoch, NinoRegistry.Loads,
             NinoRegistry.LoadsCounted ? 0 : AppDomain.CurrentDomain.GetAssemblies().Length);
 
         /// <summary>Whether a search for <paramref name="id"/> found nothing, with nothing changed since.</summary>

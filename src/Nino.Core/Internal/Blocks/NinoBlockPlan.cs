@@ -352,7 +352,7 @@ namespace Nino.Core.Internal
         internal static class ReadPlan<TPhase> where TPhase : struct, INinoPhase
         {
             // Before the constants read from it (static fields initialize in order).
-            private static readonly GroupReads Plan = new GroupReads(default(TPhase).Bytes);
+            private static readonly GroupReads Plan = new(default(TPhase).Bytes);
 
             /// <summary>Whether values are read this way.</summary>
             public static readonly bool Enabled = Plan.Masks != null;

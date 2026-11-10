@@ -37,11 +37,11 @@ namespace Nino.Core.Internal
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static Dictionary<TKey, TValue> NewDictionary<TKey, TValue>(int capacity) =>
-            new Dictionary<TKey, TValue>(capacity, Keys<TKey>.Comparer);
+            new(capacity, Keys<TKey>.Comparer);
 
         /// <summary>A new set, as <see cref="NewDictionary{TKey,TValue}"/>.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        public static HashSet<T> NewSet<T>() => new HashSet<T>(Keys<T>.Comparer);
+        public static HashSet<T> NewSet<T>() => new(Keys<T>.Comparer);
 
         /// <summary>The comparer Nino gives the tables it creates for keys of <typeparamref name="T"/>.</summary>
         internal static class Keys<T>

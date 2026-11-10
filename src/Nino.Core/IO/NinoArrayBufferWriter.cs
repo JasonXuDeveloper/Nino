@@ -74,11 +74,11 @@ namespace Nino.Core
         public ReadOnlySpan<byte> WrittenSpan
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => new ReadOnlySpan<byte>(Buffer, 0, Index);
+            get => new(Buffer, 0, Index);
         }
 
         /// <summary>The bytes written so far.</summary>
-        public ReadOnlyMemory<byte> WrittenMemory => new ReadOnlyMemory<byte>(Buffer, 0, Index);
+        public ReadOnlyMemory<byte> WrittenMemory => new(Buffer, 0, Index);
 
         /// <summary>Copies the written bytes into a new array.</summary>
         public byte[] ToArray()

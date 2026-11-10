@@ -17,18 +17,18 @@ namespace Nino.Core
     /// </summary>
     public static class NinoRegistry
     {
-        private static readonly object Lock = new object();
+        private static readonly object Lock = new();
 
         /// <summary>Assemblies whose registration has completed (not merely started).</summary>
         private static readonly ConcurrentDictionary<Assembly, bool> Initialized =
-            new ConcurrentDictionary<Assembly, bool>();
+            new();
 
         /// <summary>
         /// Assemblies passed to <see cref="Remove"/> (weakly held): never registered again, although an unloading
         /// assembly stays in <c>AppDomain.GetAssemblies</c> until it is collected.
         /// </summary>
         private static readonly ConditionalWeakTable<Assembly, object> Removed =
-            new ConditionalWeakTable<Assembly, object>();
+            new();
 
         /// <summary>The assembly count and load count <see cref="EnsureAllInitialized"/> last scanned (-1: never).</summary>
         private static int _scannedAssemblyCount = -1, _scannedLoads = -1;
@@ -138,7 +138,7 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
         /// <summary>Collectible assemblies whose unloading is hooked (weakly held: the context owns the hook).</summary>
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, object> Hooked =
-            new System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, object>();
+            new();
 #endif
 
         /// <summary>Asks every generated registry to register the types with type id <paramref name="id"/>.</summary>

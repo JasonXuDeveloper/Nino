@@ -27,7 +27,7 @@ namespace Nino.Core
 
         private NinoPoolLine _line;
 
-        private readonly object _lock = new object();
+        private readonly object _lock = new();
         private T[] _items = new T[ThreadCapacity];
         private int _count;
         private int _maxRetained = NinoSettings.PoolMaxRetained;

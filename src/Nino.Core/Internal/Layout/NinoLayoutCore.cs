@@ -133,7 +133,7 @@ namespace Nino.Core.Internal
         /// The canonical layout, the wire format of raw structs: 64-bit CoreCLR's (8-byte primitives, <c>decimal</c>,
         /// <c>DateTime</c> and pointers at 8, <c>Int128</c> at 16, its auto-layout rule).
         /// </summary>
-        public static NinoLayoutModel Canonical => new NinoLayoutModel(8, 8, 8, 16, 8, 8);
+        public static NinoLayoutModel Canonical => new(8, 8, 8, 16, 8, 8);
     }
 
     /// <summary>

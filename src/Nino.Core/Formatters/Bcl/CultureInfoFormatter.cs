@@ -80,7 +80,7 @@ namespace Nino.Core
         /// <see cref="MaxAccepted"/> bounds it whatever the runtime accepts. Rejected names are never kept.
         /// </summary>
         private static readonly ConcurrentDictionary<string, CultureInfo> Accepted =
-            new ConcurrentDictionary<string, CultureInfo>(StringComparer.OrdinalIgnoreCase);
+            new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// The most names <see cref="Accepted"/> keeps: above the cultures ICU ships (about 900), so that every

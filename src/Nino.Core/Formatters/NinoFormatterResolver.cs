@@ -30,7 +30,7 @@ namespace Nino.Core
         internal const string DynamicCodeMessage =
             "Builds formatter types at run time (MakeGenericType); only for types without a generated registration.";
         private static readonly ConcurrentDictionary<Type, Type> Cache = NinoUnload.Cache<Type>(formatter => formatter);
-        private static readonly object Lock = new object();
+        private static readonly object Lock = new();
         // Not a static constructor, which would make every call initialize the class (AddAssembly skips it without
         // dynamic code).
         private static readonly HashSet<Assembly> Scanned =
@@ -345,12 +345,12 @@ namespace Nino.Core
         /// <summary>The registrations seen so far, indexed like the generator's; replaced as a whole when one is added.</summary>
         private sealed class Rules
         {
-            public static readonly Rules Empty = new Rules(new List<Rule>());
+            public static readonly Rules Empty = new(new List<Rule>());
 
             private readonly List<Rule> _all;
-            private readonly Dictionary<Type, List<Rule>> _byDefinition = new Dictionary<Type, List<Rule>>();
-            private readonly Dictionary<int, List<Rule>> _byArrayRank = new Dictionary<int, List<Rule>>();
-            public readonly List<Rule> Open = new List<Rule>();
+            private readonly Dictionary<Type, List<Rule>> _byDefinition = new();
+            private readonly Dictionary<int, List<Rule>> _byArrayRank = new();
+            public readonly List<Rule> Open = new();
 
             private Rules(List<Rule> all)
             {

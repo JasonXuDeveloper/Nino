@@ -17,7 +17,7 @@ namespace Nino.Core.CompilerServices
     public sealed class NinoBlockMap
     {
         // (memory offset, block offset, size) triples.
-        private readonly List<int> _runs = new List<int>();
+        private readonly List<int> _runs = new();
 
         // The block offsets of the bools, whose bytes a read checks (0 or 1).
         private List<int> _bools;

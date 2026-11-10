@@ -21,7 +21,7 @@ namespace Nino.Core.Internal
             "that formatter constraints name by Nino.Core's formatters.";
 
         // Every ValueTuple definition (8 = with a nested TRest): tuples have their own format, never raw.
-        private static readonly HashSet<Type> ValueTuples = new HashSet<Type>
+        private static readonly HashSet<Type> ValueTuples = new()
         {
             typeof(ValueTuple<>), typeof(ValueTuple<,>), typeof(ValueTuple<,,>), typeof(ValueTuple<,,,>),
             typeof(ValueTuple<,,,,>), typeof(ValueTuple<,,,,,>), typeof(ValueTuple<,,,,,,>),

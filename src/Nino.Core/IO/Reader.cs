@@ -1319,7 +1319,7 @@ namespace Nino.Core
         }
 
 #if !NET8_0_OR_GREATER
-        private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
+        private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 #endif
     }
 }
