@@ -88,10 +88,14 @@ namespace Nino.Core.Internal
         {
             int count = parameters.Count;
             types = new TType[count];
+            if (!Unify(system, pattern, target, types))
+            {
+                formatters = System.Array.Empty<TFormatter>();
+                return false;
+            }
+
             formatters = new TFormatter[count];
             var resolved = new bool[count];
-            if (!Unify(system, pattern, target, types))
-                return false;
 
             bool progress = true;
             while (progress)
