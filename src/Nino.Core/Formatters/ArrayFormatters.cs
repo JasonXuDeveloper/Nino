@@ -66,23 +66,30 @@ namespace Nino.Core
         void INinoRawArrayFormatter.WriteTo(IBufferWriter<byte> buffer, Array array)
         {
             var values = Unsafe.As<T[]>(array);
-            int size = WireSize(values.Length);
-            var destination = buffer.GetSpan(size).Slice(0, size);
-            var body = destination.Slice(NinoWire.LengthSize);
-            var source = MemoryMarshal.AsBytes(values.AsSpan());
-            if (!source.IsEmpty)
+            int length = values.Length;
+            int size = WireSize(length);
+            int payloadSize = size - NinoWire.LengthSize;
+            var destination = buffer.GetSpan(size);
+            var body = destination.Slice(NinoWire.LengthSize, payloadSize);
+            if (length != 0)
             {
+#if NETSTANDARD2_0
+                var source = MemoryMarshal.AsBytes(values.AsSpan());
+#else
+                var source = MemoryMarshal.CreateReadOnlySpan(
+                    ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), payloadSize);
+#endif
                 // A caller-provided span may alias the source. Publish the header after the payload copy.
                 if (!NinoLayout<T>.HasPadding || source.Overlaps(body))
                 {
                     source.CopyTo(body);
-                    NinoLayout<T>.ClearPadding(ref MemoryMarshal.GetReference(body), values.Length);
+                    NinoLayout<T>.ClearPadding(ref MemoryMarshal.GetReference(body), length);
                 }
                 else
                     NinoLayout<T>.CopyToWire(ref MemoryMarshal.GetReference(body),
-                        ref MemoryMarshal.GetReference(source), values.Length);
+                        ref MemoryMarshal.GetReference(source), length);
             }
-            NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), values.Length);
+            NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), length);
             buffer.Advance(size);
         }
 
