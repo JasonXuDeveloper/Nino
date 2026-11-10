@@ -243,6 +243,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 ## Measure
 
+Pass the existing equatable arrays to the usage emitter. Enumerate their struct enumerators and
+reuse the layout names for both passes. On the real unit test input this removed about 2.4 KiB
+of allocation per emission in all four isolated local rounds. IL went from 713 to 634 bytes,
+Arm64 instrumented Tier 0 from 3,864 to 3,188 bytes, and x64 offline code from 1,695 to 1,649 bytes.
+The 236,789-byte usages file and all other outputs matched. Incremental hits and collection were
+preserved, and timings varied in both directions.
+
 Measure the state-table cost before adding a filter step to a projection. A separate Roslyn
 `Where` before creating dispatch entries allocated more on all four local cold runs against their
 paired baselines, even though it projected fewer entries. The identical-binary controls also varied.
