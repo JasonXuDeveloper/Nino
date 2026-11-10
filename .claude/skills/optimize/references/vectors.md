@@ -838,6 +838,14 @@ of bytes in a block.
   reuse allocated 0 B. All ten wire comparisons matched; the overlapping-buffer tests covered
   both endpoints. ReadBits grew from 189 to 234 IL bytes and 616 to 660 Arm64 FullOpts bytes.
   Linux x64 offline ReadyToRun stayed at 440 B; it was not timed (`6defca8c`).
+  Use the same kernel on writes after the 64-byte split, and mask the final byte as before.
+  Adding a separate unsigned range check before the shared copy slowed the 129-byte control.
+  Dispatching larger Arm64 writes directly to CopyOver64 removed the repeatable regression.
+  Four M4 pairs gave 21–37% lower medians for 65–128 bytes with mixed offsets and tail masks;
+  the 96-byte follow-up also improved in all four pairs. Small and cache-boundary controls
+  varied. All 12 wire cases matched with 0 B allocation. Serialize grew from 161 to 210 IL
+  bytes and 828 to 872 Arm64 FullOpts bytes; its caller stayed 196 B and offline x64 stayed
+  694 B. Dirty-tail and unaligned writer tests passed (`054e6900`).
 - Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
   (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations,
   at the cost of a larger native helper.
