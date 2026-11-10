@@ -402,9 +402,13 @@ namespace Nino.Core.CompilerServices
         private static void Copy16To32(ref byte destination, ref byte source, uint size)
         {
             var head = Unsafe.ReadUnaligned<Bytes16>(ref source);
-            var tail = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 16));
+            if (size != 16)
+            {
+                nint tailOffset = (nint)size - 16;
+                var tail = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, tailOffset));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, tailOffset), tail);
+            }
             Unsafe.WriteUnaligned(ref destination, head);
-            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 16), tail);
         }
 
         /// <summary>0 to 15 bytes: two overlapping moves of the largest width that fits.</summary>
