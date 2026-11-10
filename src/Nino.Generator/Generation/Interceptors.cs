@@ -284,7 +284,7 @@ internal static class Interceptors
 #else
         bool preindent = false;
 #endif
-        int capacity = System.Math.Min(calls.Length * 384, locationCapacity + groups.Count * 320);
+        int capacity = System.Math.Min(calls.Length * 384, locationCapacity + groups.Count * (preindent ? 312 : 320));
         var w = preindent ? new CodeWriter(capacity + indentation + 2, indentation: 1) : new CodeWriter(capacity);
         w.Open($"{scope} static class NinoInterceptors");
         var aliases = new List<string> { GeneratedCode.InterceptsAlias };
