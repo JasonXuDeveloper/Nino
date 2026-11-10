@@ -6,6 +6,17 @@ and when `asm.py compare` lists methods the change did not touch.
 
 ## Inlining budget
 
+- Advance the parent cursor once for a plain `Reader.ReadRegion` on .NET 8+.
+  Share the child constructor across the normal and deferred-section paths.
+  Keep the consumed header visible if section validation throws. A split
+  returning a reader through a no-inline slow path grew the Arm64 Tier 1
+  keyed caller from 1,616 to 1,764 bytes and slowed the ordered 700-item
+  case from about 4 to 24 microseconds. Sharing the constructor took
+  the caller to 1,496 Arm64 bytes and 1,435 x64 cross-JIT bytes (from
+  1,525), though `ReadRegion` grew from 74 to 143 IL bytes. The shared
+  variant improved both ordered array sizes straddling 64 KiB in all four
+  local rounds at zero steady allocation. The ordered 16-item timing
+  overlapped A/A. Wire and generated files matched.
 - Use the length of the public `BitArray` byte view when reserving its wire payload.
   The view is already sized for the bits, so slicing it again adds an unnecessary check.
   Keep the final-byte mask and verify dirty padding on unaligned output. The formatter
