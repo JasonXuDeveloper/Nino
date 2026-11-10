@@ -286,6 +286,12 @@ and when `asm.py compare` lists methods the change did not touch.
   shared read path overlapped A/A. The helper grew from 76 to 85 IL bytes,
   728 to 732 Arm64 Tier 1 bytes, and 641 to 649 offline x64 bytes.
   All six wire cases matched at an unaligned output offset, at zero allocation.
+  Test the segment position before `TryGet` in the loop condition. Dropping the
+  position check slowed the two nonempty 32-byte segments. Moving it into the
+  condition kept nonempty timings within A/A and improved the interleaved-empty
+  short writes. Arm64 Tier 1 fell from 732 to 700 bytes and offline x64 from
+  649 to 603, with 2 more IL bytes. Six wire and round-trip checks per candidate
+  passed at zero steady allocation.
   Raising the stack cutoff from 512 to 1,024 bytes avoided the pool round-trip for 516-, 804- and 1,024-byte
   messages in the local probe. Measure both sides of the cutoff and keep the fixed buffer out of inline callers.
   Read a complete built-in byte array directly from two segments after validating the header and actual length.
