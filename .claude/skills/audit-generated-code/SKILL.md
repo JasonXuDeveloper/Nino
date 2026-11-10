@@ -100,6 +100,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   same-Core M4 pairs at each size and offset had mixed timing, so retain this for
   code size. All 84 samples allocated 0 B and four serialized arrays matched byte
   for byte. The two Roslyn builds and .NET 8 passed 54 targeted tests each (`47dda0cb`).
+  Propagate the trait through the built-in NullableFormatter only for a raw or already
+  context-preserving inner formatter. The real EnumHolder lost its EndRegion call and
+  saved 35 bytes across the 582-file replay. Its ReadBody fell from 65 to 56 IL bytes,
+  3,124 to 2,724 Arm64 FullOpts bytes and 823 to 809 offline x64 bytes. Four same-Core
+  M4 default-JIT pairs per case gave 4–9% lower medians at 16, 128 and 512 objects,
+  with mixed repeats and a flat single-object control. All 84 samples allocated 0 B
+  and serialized arrays matched byte for byte. Three configurations passed 59
+  targeted tests each (`49ba68fe`).
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
