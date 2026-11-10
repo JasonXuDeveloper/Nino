@@ -747,6 +747,15 @@ saved eight IL bytes but grew Arm64 `AppendRange` from 616 to 628 bytes. The x64
 listing shrank from 219 to 218 bytes. Neither project replay showed a repeatable
 gain against A/A, and allocation matched. Both Roslyn outputs, tracking, collection
 and targeted suites matched. Keep the short-range patch as a probe.
+Index inherited candidates by unique syntax-tree path during binding. Sorted candidates can reuse
+one current semantic model. Keep the compilation-ordered lookup when paths repeat, and keep
+all trees and models local to the iterator. A 512-pass replay of the real candidate set dropped
+from about 14 to 8.1 ms and 7.56 to 5.55 MB per batch. Eight whole-project body edits were
+0.8–8.8% faster and saved 4–12 KB each. Cold timings varied. The 582 generated files matched
+in all four states, 577 models were reused and the collection probes passed. The fast iterator
+moved from 460 to 586 IL bytes, 1,444 to 1,432 Arm64 FullOpts bytes and 1,565 to 1,518
+cross-JIT x64 MinOpts bytes. The 356 IL-byte duplicate path and both Roslyn targets were
+covered by the duplicate-path regression (`acd8a7e4`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
