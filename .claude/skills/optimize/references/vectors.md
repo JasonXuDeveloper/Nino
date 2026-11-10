@@ -375,6 +375,15 @@ of bytes in a block.
   from 612 and 549. The direct variant reduced Arm64 Tier 1 from 640 to 616 bytes
   with the public entry unchanged. Default-JIT timings overlapped A/A and allocations
   matched. The 45 wire and 18 header probes passed at offsets 0, 1 and 7.
+- Keep the multidimensional header fallback inside the shape reader while its caller
+  keeps the Reader in registers. Moving the tail or just the first length to a
+  no-inline byref helper shrank the Arm64 Tier 1 shape reader from 616 to 504 or
+  568 bytes, but grew the read entry from 676 to 756 or 804 bytes and introduced
+  stack loads and stores of the cursor on the fast path. The 2D single-item probe
+  slowed from 3.18 to at least 4.01 ns. Copying the Reader into the cold helper
+  improved on that result but still took 3.63–3.67 ns. All three forms kept the
+  45 wire and reuse probes identical at offsets 0, 1 and 7. Keep their patches
+  for JIT diagnosis.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
