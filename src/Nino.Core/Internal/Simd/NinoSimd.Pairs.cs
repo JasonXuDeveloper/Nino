@@ -88,22 +88,32 @@ namespace Nino.Core.Internal
         private static void InterleaveWide<T, TZip>(ref T first, ref T second, ref byte target, int count)
             where T : unmanaged where TZip : struct, IZip<T>
         {
-            int pairs;
+            int pairSize = 2 * Unsafe.SizeOf<T>();
             if (Avx512F.IsSupported && (typeof(T) != typeof(short) || Avx512BW.IsSupported) &&
                 count >= Vector512<T>.Count * 2 && Prefer512)
             {
-                pairs = count & -Vector512<T>.Count;
-                Interleave512<T, TZip>(ref first, ref second, ref target, pairs);
-            }
-            else
-            {
-                pairs = count & -Vector256<T>.Count;
-                Interleave256<T, TZip>(ref first, ref second, ref target, pairs);
+                int widePairs = count & -Vector512<T>.Count;
+                Interleave512<T, TZip>(ref first, ref second, ref target, widePairs);
+                if (widePairs != count)
+                    Interleave<T, TZip>(ref Unsafe.Add(ref first, widePairs), ref Unsafe.Add(ref second, widePairs),
+                        ref Unsafe.Add(ref target, widePairs * pairSize), count - widePairs);
+                return;
             }
 
+            int pairs = count & -Vector256<T>.Count;
+            Interleave256<T, TZip>(ref first, ref second, ref target, pairs);
             if (pairs != count)
-                Interleave<T, TZip>(ref Unsafe.Add(ref first, pairs), ref Unsafe.Add(ref second, pairs),
-                    ref Unsafe.Add(ref target, pairs * (2 * Unsafe.SizeOf<T>())), count - pairs);
+            {
+                int lanes = Vector128<T>.Count;
+                // At most two narrow vectors can cover the tail. End the last one at the final pair.
+                if (count - pairs > lanes)
+                    Zip128<T, TZip>(ref Unsafe.Add(ref first, pairs), ref Unsafe.Add(ref second, pairs),
+                        ref Unsafe.Add(ref target, pairs * pairSize));
+
+                int last = count - lanes;
+                Zip128<T, TZip>(ref Unsafe.Add(ref first, last), ref Unsafe.Add(ref second, last),
+                    ref Unsafe.Add(ref target, last * pairSize));
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
