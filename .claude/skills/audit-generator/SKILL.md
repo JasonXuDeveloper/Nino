@@ -350,6 +350,10 @@ about 40 KB per emission in both load orders and four cold project replays saved
 with no repeatable timing change. Both Roslyn builds emitted the same 582 files, registry
 entries stayed cached on body edits, project objects collected, and both targeted suites
 passed (`3687fb79`).
+Append bucket numbers directly in both the outer switch labels and method headers. The
+64-bucket registry replay saved about 17 KB in both load orders. Whole-project time and
+allocation varied. All 582 files matched on both Roslyn builds, registry entries stayed
+cached on body edits, project objects collected, and both targeted suites passed (`5309a6e5`).
 Insert registration statements directly into their ID cases in the existing order. This removes
 the per-registration tuple arrays and the iterator chains in both registry emitters. The
 isolated registry replay allocated about 35 KB less in both load orders. The 577 outputs matched,
