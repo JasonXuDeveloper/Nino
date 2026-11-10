@@ -84,9 +84,16 @@ namespace Nino.Core.Internal
         /// not in allocation order (<see cref="Scattered"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Takes<T, TFormatter>(ReadOnlySpan<T> values) where TFormatter : struct, INinoFormatter<T> =>
-            Long<TFormatter>(values.Length) &&
-            Scattered(ref Unsafe.As<T, object>(ref MemoryMarshal.GetReference(values)));
+        public static bool Takes<T, TFormatter>(ReadOnlySpan<T> values, bool reverseIsLocal = false)
+            where TFormatter : struct, INinoFormatter<T> =>
+            Long<TFormatter>(values.Length) && Scattered<T>(values, reverseIsLocal);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool Scattered<T>(ReadOnlySpan<T> values, bool reverseIsLocal)
+        {
+            ref object first = ref Unsafe.As<T, object>(ref MemoryMarshal.GetReference(values));
+            return reverseIsLocal ? ScatteredEitherDirection(ref first) : Scattered(ref first);
+        }
 
         /// <summary>
         /// Writes the array <paramref name="values"/> (<see cref="Long{TFormatter}"/>) as a whole payload at the end of
@@ -146,7 +153,7 @@ namespace Nino.Core.Internal
         public static bool Read<T, TFormatter>(ReadOnlySpan<byte> data, T[] values)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (!SameLength(data, values.Length) || !Takes<T, TFormatter>(values))
+            if (!SameLength(data, values.Length) || !Takes<T, TFormatter>(values, Of<TFormatter>.ReverseReadIsLocal))
                 return false;
             var reader = new Reader(data);
             // The length (checked against the bytes left, as the formatter does): the array is kept.
@@ -164,7 +171,8 @@ namespace Nino.Core.Internal
         public static bool Read<T, TFormatter>(ReadOnlySpan<byte> data, List<T> values)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (!SameLength(data, values.Count) || !Takes<T, TFormatter>(ListAccess.AsSpan<T>(values)))
+            if (!SameLength(data, values.Count) ||
+                !Takes<T, TFormatter>(ListAccess.AsSpan<T>(values), Of<TFormatter>.ReverseReadIsLocal))
                 return false;
             var reader = new Reader(data);
             reader.TryReadLength(NinoElements.MinWireSize<T, TFormatter>(), out int length);
@@ -260,7 +268,13 @@ namespace Nino.Core.Internal
         /// improbable. A null among them (a new array being read) is not prefetched either.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static bool Scattered(ref object first)
+        internal static bool Scattered(ref object first) => Scattered(ref first, reverseIsLocal: false);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool ScatteredEitherDirection(ref object first) => Scattered(ref first, reverseIsLocal: true);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool Scattered(ref object first, bool reverseIsLocal)
         {
             nint previous = Address(first);
             if (previous == 0)
@@ -271,7 +285,10 @@ namespace Nino.Core.Internal
                 nint next = Address(Unsafe.Add(ref first, i));
                 if (next == 0)
                     return false;
-                if (next - previous > 0 && next - previous <= OrderedStride)
+                nint distance = next - previous;
+                if (reverseIsLocal
+                        ? unchecked((nuint)(distance + OrderedStride)) <= 2 * OrderedStride
+                        : distance > 0 && distance <= OrderedStride)
                     ordered++;
                 previous = next;
             }
@@ -314,6 +331,14 @@ namespace Nino.Core.Internal
         /// </summary>
         public static class Of<TFormatter> where TFormatter : struct
         {
+#if NET8_0_OR_GREATER
+            // On Arm64, loading ahead of a reverse walk helped writes but cost reuse reads of small objects.
+            public static readonly bool ReverseReadIsLocal = AdvSimd.Arm64.IsSupported &&
+                default(TFormatter) is INinoObjectPrefetchFormatter { PrefetchBytes: <= 32 };
+#else
+            public const bool ReverseReadIsLocal = false;
+#endif
+
             public static readonly int Threshold = !Supported ? int.MaxValue : default(TFormatter) switch
             {
                 INinoPrefetchFormatter formatter => ForBytes(formatter.PrefetchBytes),
