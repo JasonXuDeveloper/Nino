@@ -596,6 +596,16 @@ of bytes in a block.
   at the end of a guarded page to catch a load past either end of the input.
 - Continue Latin-1 narrowing at the prefix written by `Ascii.FromUtf16`, overlapping the final vector if needed.
   When the first unwritten character exceeds Latin-1, take the UTF-16 path immediately.
+  For 32–63 chars, call an outlined 256-bit writer directly without the ASCII setup. Check the first
+  and last 32-char windows and write the header only after both succeed. Inlining the wide work grew the
+  x64 narrow entry from 208 to 363 B and regressed the 17–31-char controls. Moving only the gate to the
+  narrow entry also regressed the small Arm64 controls despite an unchanged FullOpts code size. Dispatch
+  from the caller and keep the narrow entry intact. After the range check, AVX2 saturating pack needs no
+  input masks. It reduced the new x64 helper from 167 to 142 B and the long writer from 563 to 546 B.
+  Four local x64 guest A/B pairs favored the wide path for most 32–63-char inputs. The 47-char ASCII case
+  at offset one regressed in the guest. Arm64 controls showed no stable regression and the two 64 KiB
+  cases were noisy. Wire bytes matched with AVX2 on and off, and all timed loops allocated 0 B. Do not
+  extrapolate guest timings to native x64 (`2202f782`).
 - Use the counted byte length to place long UTF-8 payloads at their final offset. When strict transcoding stops at an
   unpaired surrogate, continue the replacement encoder at the consumed char and written byte offsets, which differ
   after a non-ASCII prefix. Keep the replacement work out of line.
