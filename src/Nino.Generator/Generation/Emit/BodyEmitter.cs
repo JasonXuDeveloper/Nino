@@ -679,14 +679,25 @@ internal sealed class BodyEmitter
 
             string l = "__l" + lengths++;
             var block = new RawBlock(run, headers: true);
-            string reserve = $"writer.BeginRegionAfter({block.Plus(NinoWire.KeySize)}, out int {l})";
+            // Direct string writes cannot defer bodies into the enclosing region.
+            bool patchOnly = (first.Traits & (FormatterTraits.String | FormatterTraits.Utf8String)) != 0;
+            string reserve;
+            if (patchOnly)
+            {
+                _w.Line($"int {l} = writer.Position + {block.Plus(NinoWire.KeySize)};");
+                reserve = $"writer.Reserve({block.Plus(NinoWire.KeySize + NinoWire.LengthSize)})";
+            }
+            else
+            {
+                reserve = $"writer.BeginRegionAfter({block.Plus(NinoWire.KeySize)}, out int {l})";
+            }
             string p = run.Count != 0 ? EmitRawBlock(run, block, reserve) : "__p" + _blocks++;
             if (run.Count == 0)
                 _w.Line($"ref byte {p} = ref {reserve};");
             _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.Total}, {first.Key});");
             run = default;
             EmitFormatterWrite(first);
-            _w.Line($"writer.EndRegion({l});");
+            _w.Line($"writer.{(patchOnly ? "PatchLength" : "EndRegion")}({l});");
         }
 
         if (run.Count != 0)
