@@ -302,6 +302,15 @@ namespace Nino.Core
                 return;
             }
 
+#if NET8_0_OR_GREATER
+            if (count == 1 && dictionary.Count <= 16 &&
+                !NinoRecycler<TKey>.MayRecycle && !NinoRecycler<TValue>.MayRecycle)
+            {
+                RemoveExcept(dictionary, keys[0]);
+                return;
+            }
+#endif
+
             // A key read twice is one key (the last value won).
 #if NETSTANDARD2_1 || NET8_0_OR_GREATER
             // Every distinct key read is now in the dictionary, and there can be at most one per pair.
@@ -317,6 +326,17 @@ namespace Nino.Core
 
             RemoveUnread(dictionary, read);
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RemoveExcept(Dictionary<TKey, TValue> dictionary, TKey keep)
+        {
+            var comparer = dictionary.Comparer;
+            foreach (var pair in dictionary)
+                if (!comparer.Equals(keep, pair.Key))
+                    dictionary.Remove(pair.Key);
+        }
+#endif
 
         private static void RemoveUnread(Dictionary<TKey, TValue> dictionary, HashSet<TKey> read)
         {

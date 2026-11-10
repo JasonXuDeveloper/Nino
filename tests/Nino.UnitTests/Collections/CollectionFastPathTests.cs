@@ -962,6 +962,25 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void StringDictionaryRefillKeepsTheSingleKeyUsingItsComparer()
+    {
+        var target = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["old"] = "stale",
+            ["KEEP"] = "previous",
+            ["other"] = "stale",
+        };
+        var original = target;
+        var input = new Dictionary<string, string> { ["keep"] = "updated" };
+
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(input), ref target);
+
+        Assert.AreSame(original, target);
+        Assert.AreEqual("KEEP", target.Keys.Single());
+        Assert.AreEqual("updated", target["keep"]);
+    }
+
+    [TestMethod]
     public void LinkedListsAreWalkedNodeByNode()
     {
         foreach (int n in new[] { 0, 1, 2, 17, 31, 32, 33, 1000 })
