@@ -150,6 +150,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   and 5 more IL bytes. Four local 1,000-item ASCII writes went from about
   5.10 to 4.75–4.77 µs at zero steady allocation. The 54 byte and round-trip
   checks included a UTF-8-only body with no raw prefix.
+  Apply the same outer patch to version-tolerant bodies with only raw members
+  and direct strings. On the version-tolerant fixture, source grew by 20 bytes
+  and IL by 5, while Arm64 Tier 1 shrank from 868 to 728 bytes and offline x64
+  from 703 to 613. Four 16-item ASCII rounds improved against the paired
+  baseline. The 1,000-item results overlapped A/A after longer warmup, at zero
+  steady allocation. All 54 wire and round-trip checks passed, including a
+  UTF-8-only body.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
