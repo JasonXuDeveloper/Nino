@@ -264,11 +264,18 @@ namespace Nino.Core
             ref byte block = ref writer.Reserve(NinoWire.LengthSize + size);
             NinoUnsafe.Write(ref block, count);
             ref byte payload = ref Unsafe.Add(ref block, NinoWire.LengthSize);
-            if (size <= 1)
+            if (size <= 2)
             {
-                // A full byte shifts by zero. A partial byte keeps only its low bits.
-                if (size != 0)
-                    payload = (byte)(MemoryMarshal.GetReference(source) & (byte.MaxValue >> (-count & 7)));
+                // A complete last byte shifts by zero. A partial one keeps only its low bits.
+                int shift = -count & 7;
+                if (size == 2)
+                {
+                    ushort word = NinoUnsafe.Read<ushort>(ref MemoryMarshal.GetReference(source));
+                    NinoUnsafe.Write(ref payload, (ushort)(word & (ushort.MaxValue >> shift)));
+                }
+                else if (size != 0)
+                    payload = (byte)(MemoryMarshal.GetReference(source) & (byte.MaxValue >> shift));
+
                 return;
             }
 

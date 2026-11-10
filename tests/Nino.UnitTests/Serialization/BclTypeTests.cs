@@ -165,9 +165,11 @@ public class BclTypeTests
     }
 
     [TestMethod]
-    public void BitArrayWritesIntoAnExistingBufferAtItsCurrentPosition()
+    [DataRow(2)]
+    [DataRow(24 * 1024)]
+    public void BitArrayWritesIntoAnExistingBufferAtItsCurrentPosition(int length)
     {
-        var payload = new byte[24 * 1024];
+        var payload = new byte[length];
         new Random(123).NextBytes(payload);
         var bits = new BitArray(payload) { Length = payload.Length * 8 - 3 };
         payload[payload.Length - 1] &= 31;
