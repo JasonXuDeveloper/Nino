@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
@@ -93,10 +94,17 @@ namespace Nino.Core.Internal
 
             var right = second.Span;
             int rest = NinoWire.LengthSize - first.Length;
-            Span<byte> header = stackalloc byte[NinoWire.LengthSize];
-            first.Span.CopyTo(header);
-            right.Slice(0, rest).CopyTo(header.Slice(first.Length));
-            int count = NinoUnsafe.Read<int>(ref MemoryMarshal.GetReference(header));
+            var left = first.Span;
+            // The two spans were checked to contain the full header.
+            int count = first.Length switch
+            {
+                0 => BinaryPrimitives.ReadInt32LittleEndian(right),
+                1 => left[0] | BinaryPrimitives.ReadUInt16LittleEndian(right) << 8 | right[2] << 24,
+                2 => BinaryPrimitives.ReadUInt16LittleEndian(left) | BinaryPrimitives.ReadUInt16LittleEndian(right) << 16,
+                _ => BinaryPrimitives.ReadUInt16LittleEndian(left) | left[2] << 16 | right[0] << 24,
+            };
+            if (!BitConverter.IsLittleEndian)
+                count = BinaryPrimitives.ReverseEndianness(count);
             if (count <= 0 || (long)count + NinoWire.LengthSize != length || NinoLimits.TooLong(count))
                 return false;
 
