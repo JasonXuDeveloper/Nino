@@ -390,6 +390,10 @@ The isolated emitter saved about 519 KB in both load orders with similar median
 time. The eight method-body edit samples allocated 514–536 KB less. All 577 files
 matched, tracked model reuse and collection checks passed, and 68 targeted tests
 passed on each of .NET 8 and 10 (`82b7bbb3`).
+Use the interceptor lookup directly when the emitter needs both group count and iteration.
+The 1,210-group replay saved about 9.7 KB in both load orders. Whole-project timing and
+allocation varied. Both Roslyn builds emitted the same 582 files, edit tracking and
+closed-project collection matched, and 54 targeted tests passed per runtime (`909cdf51`).
 Preserve formatter reference identity through unchanged twin substitutions. Allocate
 a replacement argument array only after the first changed child. This avoided about
 676 KB and reduced median emitter time by 7–11% in both isolated load orders. The eight
