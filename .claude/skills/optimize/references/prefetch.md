@@ -43,6 +43,15 @@ prefetch again anywhere.
   cross-JIT bytes. Wire hashes and steady allocations matched. Buffer offsets zero and one
   are separate controls, not evidence of the object's alignment. The measured machine reports
   a 128-byte cache line, independent of the 64 KiB L1D working-set estimate.
+  Restrict the bidirectional sample to Arm64 reuse reads of object-only formatters estimated at
+  32 bytes or less. The 28- and 32-byte reverse probes improved in 15 of 16 paired measurements
+  and tied in the other. The shuffled controls varied in both directions, including identical
+  baseline-binary repetitions. Across 48 case/round comparisons, including the off control,
+  the wire hashes matched and steady allocation was zero. Keep the shared sampler inlined into
+  separate out-of-line entries so each direction rule is constant. The forward sampler's FullOpts
+  moved from 132 to 128 B on Arm64 and 120 to 109 B on x64 cross-JIT. The reverse entry took 124 B
+  on Arm64; the shared sampler and entries took 112 + 8 + 8 IL bytes against 76 B before.
+  Arm64 array read helper sizes matched at 764 and 756 B for the two shapes (`a07f1ce0`).
 
 - Prefetch member references only through fields or bodyless auto-property getters that cannot dispatch to an
   override. A backing field alone also describes a custom getter using `field`; executing either getter during
