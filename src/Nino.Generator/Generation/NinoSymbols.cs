@@ -192,11 +192,17 @@ internal sealed class NinoSymbols
             ? a[0].Values.Select(v => v.Value as string ?? "").ToList()
             : null;
 
-    /// <summary>The properties <paramref name="member"/> overrides, nearest first; none for any other member.</summary>
-    public static IEnumerable<IPropertySymbol> OverriddenProperties(ISymbol member)
+    /// <summary>Whether <paramref name="member"/> overrides <paramref name="target"/> at any depth.</summary>
+    public static bool Overrides(ISymbol member, ISymbol target)
     {
-        for (var p = (member as IPropertySymbol)?.OverriddenProperty; p != null; p = p.OverriddenProperty)
-            yield return p;
+        for (var property = (member as IPropertySymbol)?.OverriddenProperty; property != null;
+             property = property.OverriddenProperty)
+        {
+            if (SymbolEqualityComparer.Default.Equals(property, target))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

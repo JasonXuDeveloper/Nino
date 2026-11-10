@@ -615,7 +615,7 @@ internal static class ModelBuilder
         {
             access = viaInterface
                 ? type.IsValueType ? MemberAccess.Interface : MemberAccess.Cast
-                : renamed != 0 || IsHidden(type, symbol, facts.Visibility.IsVisible)
+                : renamed != 0 || IsHidden(type, symbol, facts.Visibility)
                     ? MemberAccess.Cast
                     : MemberAccess.Direct;
         }
@@ -623,7 +623,7 @@ internal static class ModelBuilder
         {
             access = MemberAccess.UnsafeAccessor;
         }
-        else if (renamed != 0 || IsHidden(type, symbol, _ => true))
+        else if (renamed != 0 || IsHidden(type, symbol, null))
         {
             // The accessor class inside the type would name the hiding member, and cannot reach a protected base
             // member through a cast to the base.
@@ -911,9 +911,9 @@ internal static class ModelBuilder
     /// <summary>
     /// Whether <c>value.Name</c> on <paramref name="type"/> names another member than <paramref name="member"/>, a
     /// member of a base class: a class in between declares a member of the same name that
-    /// <paramref name="visible"/> lets generated code see, and that is not an override of it.
+    /// <paramref name="visibility"/> lets generated code see (all members when null), and that is not an override of it.
     /// </summary>
-    private static bool IsHidden(INamedTypeSymbol type, ISymbol member, System.Func<ISymbol, bool> visible)
+    private static bool IsHidden(INamedTypeSymbol type, ISymbol member, Visibility? visibility)
     {
         var declaring = member.ContainingType;
         if (declaring.TypeKind != TypeKind.Class)
@@ -922,8 +922,7 @@ internal static class ModelBuilder
         {
             foreach (var other in t.GetMembers(member.Name))
             {
-                if (visible(other) &&
-                    !NinoSymbols.OverriddenProperties(other).Any(p => SymbolEqualityComparer.Default.Equals(p, member)))
+                if ((visibility == null || visibility.IsVisible(other)) && !NinoSymbols.Overrides(other, member))
                     return true;
             }
         }
