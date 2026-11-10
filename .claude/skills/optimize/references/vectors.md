@@ -540,6 +540,13 @@ of bytes in a block.
   and the 1,420-element 24-byte probe 44–55% less in four rounds. Default SIMD timings
   varied. Dirty-padding checks matched, and both targeted suites, scalar tests and
   netstandard builds passed (`7a3cf2c6`).
+  Keep indexed addressing for the three-word period. Bumping both byrefs preserved
+  `ldp` and `stp` but left two address increments, grew IL from 383 to 399 bytes
+  and Arm64 scalar Tier 1 from 432 to 440, and left the x64 cross listing at 380.
+  Moving the paired operations last did not fold the increments and made the 2,821-item
+  scalar case 63–140% slower across four rounds. The ordinary cursor variant had no
+  repeatable large-input gain. Keep both patches as probes. Wire and dirty-padding
+  checks matched, and targeted and scalar tests and netstandard builds passed.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
