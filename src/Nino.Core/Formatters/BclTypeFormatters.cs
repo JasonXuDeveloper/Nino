@@ -263,7 +263,16 @@ namespace Nino.Core
             int size = source.Length;
             ref byte block = ref writer.Reserve(NinoWire.LengthSize + size);
             NinoUnsafe.Write(ref block, count);
-            var target = MemoryMarshal.CreateSpan(ref Unsafe.Add(ref block, NinoWire.LengthSize), size);
+            ref byte payload = ref Unsafe.Add(ref block, NinoWire.LengthSize);
+            if (size <= 1)
+            {
+                // A full byte shifts by zero. A partial byte keeps only its low bits.
+                if (size != 0)
+                    payload = (byte)(MemoryMarshal.GetReference(source) & (byte.MaxValue >> (-count & 7)));
+                return;
+            }
+
+            var target = MemoryMarshal.CreateSpan(ref payload, size);
             source.CopyTo(target);
             MaskTail(target, count);
 #else

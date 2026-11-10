@@ -189,21 +189,29 @@ public class BclTypeTests
 
 #if NET10_0_OR_GREATER
     [TestMethod]
-    public void BitArrayPaddingStaysOffTheWireAndOutOfTheDecodedArray()
+    [DataRow(1)]
+    [DataRow(7)]
+    [DataRow(8)]
+    [DataRow(9)]
+    public void BitArrayPaddingStaysOffTheWireAndOutOfTheDecodedArray(int count)
     {
-        var bits = new BitArray(9);
+        var bits = new BitArray(count);
         var storage = System.Runtime.InteropServices.CollectionsMarshal.AsBytes(bits);
-        storage[1] = 0xFF;
+        storage[^1] = 0xFF;
 
         var data = NinoSerializer.Serialize(bits);
-        CollectionAssert.AreEqual(new byte[] { 9, 0, 0, 0, 0, 1 }, data);
-        Assert.AreEqual((byte)0xFF, storage[1]);
+        var expected = new byte[4 + storage.Length];
+        expected[0] = (byte)count;
+        int lastBits = (count - 1) % 8 + 1;
+        expected[^1] = (byte)((1 << lastBits) - 1);
+        CollectionAssert.AreEqual(expected, data);
+        Assert.AreEqual((byte)0xFF, storage[^1]);
 
         data[^1] = 0xFF;
         var decoded = NinoDeserializer.Deserialize<BitArray>(data);
-        Assert.AreEqual(9, decoded.Length);
-        Assert.IsTrue(decoded[8]);
-        Assert.AreEqual((byte)1, System.Runtime.InteropServices.CollectionsMarshal.AsBytes(decoded)[1]);
+        Assert.AreEqual(count, decoded.Length);
+        Assert.IsTrue(decoded[count - 1]);
+        Assert.AreEqual(expected[^1], System.Runtime.InteropServices.CollectionsMarshal.AsBytes(decoded)[^1]);
     }
 
 #if !NINO_CORE_NETSTANDARD
