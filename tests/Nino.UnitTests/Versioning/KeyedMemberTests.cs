@@ -135,12 +135,23 @@ public class KeyedMemberTests
     }
 
     [TestMethod]
-    public void InOrderStringRejectsBytesLeftInItsEntry()
+    [DataRow(false)]
+    [DataRow(true)]
+    public void StringRejectsBytesLeftInItsEntry(bool reorder)
     {
         var bytes = NinoSerializer.Serialize(new KeyedStruct { A = 1, B = 2, C = "nino" });
+        const int firstEntry = sizeof(int);
+        const int intEntrySize = 3 * sizeof(int);
+        const int longEntrySize = 2 * sizeof(int) + sizeof(long);
+        if (reorder)
+        {
+            var first = bytes.AsSpan(firstEntry, intEntrySize).ToArray();
+            bytes.AsSpan(firstEntry + intEntrySize, longEntrySize).CopyTo(bytes.AsSpan(firstEntry));
+            first.CopyTo(bytes.AsSpan(firstEntry + longEntrySize));
+        }
         Array.Resize(ref bytes, bytes.Length + 1);
         // Skip the body length, the int and long entries, and the string key.
-        const int stringLengthOffset = sizeof(int) + 3 * sizeof(int) + 2 * sizeof(int) + sizeof(long) + sizeof(int);
+        const int stringLengthOffset = firstEntry + intEntrySize + longEntrySize + sizeof(int);
         BitConverter.GetBytes(BitConverter.ToInt32(bytes, 0) + 1).CopyTo(bytes, 0);
         BitConverter.GetBytes(BitConverter.ToInt32(bytes, stringLengthOffset) + 1).CopyTo(bytes, stringLengthOffset);
 

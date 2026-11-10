@@ -956,8 +956,7 @@ internal sealed class BodyEmitter
         {
             // These members do not register references or queue deferred bodies.
             // ReadRegion still validates a section written by a newer version whose members we do not read.
-            if (!_m.IsCollection && _m.Members.All(static m => m.Raw != null ||
-                (m.Traits & FormatterTraits.PreservesReadContext) != 0))
+            if (!_m.IsCollection && _m.Members.All(PreservesReadContext))
             {
                 _w.Line(EndLabel + ":;");
                 return;
@@ -1167,6 +1166,9 @@ internal sealed class BodyEmitter
 
     // ----- keyed ---------------------------------------------------------------------------------------------
 
+    private static bool PreservesReadContext(MemberModel member) =>
+        member.Raw != null || (member.Traits & FormatterTraits.PreservesReadContext) != 0;
+
     /// <summary>
     /// (key, length) as the int64 a reader sees, for raw members of constant size, as an argument; else null.
     /// </summary>
@@ -1210,9 +1212,7 @@ internal sealed class BodyEmitter
             _w.Line($"var __m = {r}.ReadRegion();");
             EmitMemberRead(member, "__m", inPlace);
             // A context-preserving member only needs the exact-length check.
-            string end = member.Raw != null || (member.Traits & FormatterTraits.PreservesReadContext) != 0
-                ? "if (!__m.Eof) "
-                : "";
+            string end = PreservesReadContext(member) ? "if (!__m.Eof) " : "";
             _w.Line($"{end}{r}.EndMember(in __m);");
             _w.Close();
         }
@@ -1227,9 +1227,11 @@ internal sealed class BodyEmitter
         {
             // A member's value fills its entry exactly; an unknown member is skipped with its entry.
             _w.Open("switch (__key)");
+            bool preservesContext = true;
             for (int i = 0; i < members.Count; i++)
             {
                 var member = members[i];
+                preservesContext &= PreservesReadContext(member);
                 _w.Line($"case {member.Key}:");
                 // Data written before a [NinoFormerName] rename; writes always use the current name.
                 foreach (int formerKey in member.FormerKeys)
@@ -1244,7 +1246,8 @@ internal sealed class BodyEmitter
             _w.Line("default:");
             _w.IndentedLine("continue;");
             _w.Close();
-            _w.Line($"{r}.EndMember(in __m);");
+            string end = preservesContext ? "if (!__m.Eof) " : "";
+            _w.Line($"{end}{r}.EndMember(in __m);");
         }
 
         _w.Close();
