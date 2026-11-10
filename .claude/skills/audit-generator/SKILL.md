@@ -602,6 +602,12 @@ and 291–328 KB across four cold project replays. Whole-project timings varied.
 `AddStatements` and its new helper together fell from 454 to 420 IL bytes,
 976 to 888 Arm64 FullOpts bytes, and 837 to 788 x64 cross-JIT bytes. Both Roslyn
 builds matched all 577 outputs, incremental reuse, and collection.
+Emit the call to the same-namespace usages registry without a generated namespace
+prefix. Otherwise that single prefix makes alias processing copy the whole registry
+body. The isolated replay saved 244,288 B in both load orders and four cold project
+runs saved 215–255 KB. Timings varied. `EmitRegistry` kept its 970 IL, 2,928 Arm64
+FullOpts, and 1,880 x64 cross-JIT bytes. Both Roslyn builds matched all 577 files and
+preserved incremental reuse and collection.
 
 Use the known leaf layout for portability and raw descriptions before allocating
 measurement lists or a builder. Leave types that the canonical view handles
