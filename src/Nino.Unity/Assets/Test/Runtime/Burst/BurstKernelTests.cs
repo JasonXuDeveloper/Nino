@@ -297,7 +297,7 @@ namespace Test.Runtime.Burst
         [Test]
         public void InterleaveWritesRawPairsAndLeavesTheTailToCore()
         {
-            foreach (int count in Lengths)
+            foreach (int count in new[] { 3, 4, 7, 8, 9, 12 }.Concat(Lengths))
             {
                 var keys = Enumerable.Range(0, count).ToArray();
                 var values = keys.Select(i => -13 * i - 1).ToArray();

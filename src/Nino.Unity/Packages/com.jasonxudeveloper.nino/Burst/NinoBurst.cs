@@ -132,7 +132,7 @@ namespace Nino.Burst
                     var widen = BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Value;
                     var narrowAscii = BurstCompiler.CompileFunctionPointer<NarrowFunction>(NarrowAscii).Value;
                     var widenAscii = BurstCompiler.CompileFunctionPointer<WidenAsciiFunction>(WidenAscii).Value;
-                    NinoKernels Make(IntPtr p) => new NinoKernels
+                    NinoKernels Make(IntPtr permuteKernel, IntPtr interleaveKernel) => new NinoKernels
                     {
                         // The thresholds from a sweep in unity.yml run 40735278928 (IL2CPP players, Linux x64, 2022.3
                         // and 6000.3): blocks of tuples were faster through the kernels from 2 values (1.09-1.30x;
@@ -140,16 +140,17 @@ namespace Nino.Burst
                         // costs the same few percent at any length.
                         MinBlocks = 2,
                         MinChars = 16,
-                        Permute = (delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void>)p,
-                        Interleave32 = (delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void>)interleave,
+                        Permute = (delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void>)permuteKernel,
+                        Interleave32 = (delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void>)interleaveKernel,
                         Narrow = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrow,
                         Widen = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, void>)widen,
                         NarrowAscii = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrowAscii,
                         WidenAscii = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, int>)widenAscii,
                     };
-                    _kernels = Make(permute);
+                    _kernels = Make(permute, interleave);
                     _kernels16 = _best == Avx2
-                        ? Make(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Value)
+                        ? Make(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Value,
+                            BurstCompiler.CompileFunctionPointer<Interleave32Function>(Interleave32Narrow).Value)
                         : _kernels;
                 }
                 catch (Exception e)
@@ -515,28 +516,59 @@ namespace Nino.Burst
         [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(Interleave32Function))]
         public static void Interleave32(int* first, int* second, byte* target, int count)
+            => Interleave32All(first, second, target, count, true);
+
+        [BurstCompile(CompileSynchronously = true)]
+        [MonoPInvokeCallback(typeof(Interleave32Function))]
+        private static void Interleave32Narrow(int* first, int* second, byte* target, int count)
+            => Interleave32All(first, second, target, count, false);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Interleave32All(int* first, int* second, byte* target, int count, bool wide)
         {
-            if (Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported)
+            int i = 0;
+            if (wide && X86.Avx2.IsAvx2Supported)
             {
-                for (int i = 0; i < count; i += 4, target += 32)
+                for (; i <= count - 8; i += 8, target += 64)
                 {
-                    v128 a = Load((byte*)(first + i)), b = Load((byte*)(second + i));
-                    if (Arm.Neon.IsNeonSupported)
-                    {
-                        Store(target, Arm.Neon.vzip1q_u32(a, b));
-                        Store(target + 16, Arm.Neon.vzip2q_u32(a, b));
-                    }
-                    else if (X86.Sse2.IsSse2Supported)
-                    {
-                        Store(target, X86.Sse2.unpacklo_epi32(a, b));
-                        Store(target + 16, X86.Sse2.unpackhi_epi32(a, b));
-                    }
+                    var a = X86.Avx.mm256_loadu_si256(first + i);
+                    var b = X86.Avx.mm256_loadu_si256(second + i);
+                    var low = X86.Avx2.mm256_unpacklo_epi32(a, b);
+                    var high = X86.Avx2.mm256_unpackhi_epi32(a, b);
+                    // Unpack works within each 128-bit lane. Join the matching lanes in pair order.
+                    X86.Avx.mm256_storeu_si256(target, X86.Avx2.mm256_permute2x128_si256(low, high, 0x20));
+                    X86.Avx.mm256_storeu_si256(target + 32, X86.Avx2.mm256_permute2x128_si256(low, high, 0x31));
+                }
+            }
+
+            // Keep the guards separate so Burst can drop the other architecture's intrinsics before lowering.
+            if (Arm.Neon.IsNeonSupported)
+            {
+                for (; i < count; i += 4, target += 32)
+                {
+                    var a = Arm.Neon.vld1q_u8((byte*)(first + i));
+                    var b = Arm.Neon.vld1q_u8((byte*)(second + i));
+                    Arm.Neon.vst1q_u8(target, Arm.Neon.vzip1q_u32(a, b));
+                    Arm.Neon.vst1q_u8(target + 16, Arm.Neon.vzip2q_u32(a, b));
                 }
 
                 return;
             }
 
-            for (int i = 0; i < count; i++, target += 8)
+            if (X86.Sse2.IsSse2Supported)
+            {
+                for (; i < count; i += 4, target += 32)
+                {
+                    var a = X86.Sse2.loadu_si128(first + i);
+                    var b = X86.Sse2.loadu_si128(second + i);
+                    X86.Sse2.storeu_si128(target, X86.Sse2.unpacklo_epi32(a, b));
+                    X86.Sse2.storeu_si128(target + 16, X86.Sse2.unpackhi_epi32(a, b));
+                }
+
+                return;
+            }
+
+            for (; i < count; i++, target += 8)
                 for (int b = 0; b < 4; b++)
                 {
                     target[b] = (byte)((uint)first[i] >> (b * 8));
