@@ -29,6 +29,21 @@ prefetch again anywhere.
   from the smaller helper listing. Keep this workload separate from short collections that never
   pass the gate.
 
+- Sweep the distance separately from the 16-element batch. On M4, one or four batches ahead and one
+  load per four objects at the current distance did not beat the existing path across both
+  28- and 64-byte object estimates and both operations. Use the off control for each operation.
+  The matched generated formatters, wire bytes and steady allocations stayed equal. `Ahead` kept
+  104 Arm64 and 68 cross-JIT x64 FullOpts bytes across all distances. Its shared IL was 123 B
+  at baseline, 140 B for the distance candidates and 150 B for sparse reads.
+- Treat short address deltas as a locality signal, and validate the policy separately for reading
+  and writing. An Arm64 absolute-delta gate rejected reverse allocation order in all four M4
+  rounds and still accepted all shuffled samples. It sped scalar reuse reads by 11–35% at both
+  offsets but slowed scalar and wide writes in every round. The shared rule was withdrawn.
+  The sampler moved from 76 to 116 IL bytes, 132 to 128 Arm64 FullOpts bytes and 120 to 113 x64
+  cross-JIT bytes. Wire hashes and steady allocations matched. Buffer offsets zero and one
+  are separate controls, not evidence of the object's alignment. The measured machine reports
+  a 128-byte cache line, independent of the 64 KiB L1D working-set estimate.
+
 - Prefetch member references only through fields or bodyless auto-property getters that cannot dispatch to an
   override. A backing field alone also describes a custom getter using `field`; executing either getter during
   prefetch would add a user-visible access before the formatter reads the member.
