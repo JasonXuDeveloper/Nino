@@ -252,7 +252,7 @@ public class CollectionFastPathTests
     public void SortedListReadsRawPairsInOrderAndOutOfOrder()
     {
         var expected = new SortedList<int, int>();
-        for (int i = 0; i < 19; i++)
+        for (int i = 0; i < 35; i++)
             expected.Add(i * 3 - 5, -i * 13 - 1);
 
         using var buffer = new NinoArrayBufferWriter();
@@ -260,7 +260,7 @@ public class CollectionFastPathTests
         buffer.Advance(1);
         NinoSerializer.Serialize(expected, buffer);
         byte[] bytes = buffer.WrittenSpan.Slice(1).ToArray();
-        var list = new SortedList<int, int>(32) { [123] = 456 };
+        var list = new SortedList<int, int>(48) { [123] = 456 };
         NinoDeserializer.Deserialize(buffer.WrittenSpan.Slice(1), ref list);
         CollectionAssert.AreEqual(expected.ToList(), list.ToList());
 
@@ -273,8 +273,13 @@ public class CollectionFastPathTests
         Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<SortedList<int, int>>(bytes.AsSpan(0, bytes.Length - 1)));
 
-        Buffer.BlockCopy(bytes, 4, bytes, 12, 4);
-        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SortedList<int, int>>(bytes));
+        foreach (int index in new[] { 1, 5, 33 })
+        {
+            // Duplicates at the start, between vector groups and in the scalar tail.
+            var duplicate = (byte[])bytes.Clone();
+            Buffer.BlockCopy(bytes, 4 + (index - 1) * 8, duplicate, 4 + index * 8, 4);
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SortedList<int, int>>(duplicate));
+        }
     }
 
     [TestMethod]

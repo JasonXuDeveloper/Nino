@@ -356,23 +356,16 @@ namespace Nino.Core
         private static void ReadSortedInt32Pairs(SortedList<int, int> list, ref byte source, int length)
         {
             // Validate order before changing the arrays. The same checked wire block feeds the comparer fallback.
-            int previous = NinoUnsafe.Read<int>(ref source);
-            for (int i = 1; i < length; i++)
+            if (!NinoBlockCollections.AreStrictlyIncreasingInt32(ref source, length))
             {
-                int key = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, i * 8));
-                if (key <= previous)
+                for (int j = 0; j < length; j++)
                 {
-                    for (int j = 0; j < length; j++)
-                    {
-                        ref byte pair = ref Unsafe.Add(ref source, j * 8);
-                        NinoCollections.AddUnique(list, NinoUnsafe.Read<int>(ref pair),
-                            NinoUnsafe.Read<int>(ref Unsafe.Add(ref pair, 4)), j);
-                    }
-
-                    return;
+                    ref byte pair = ref Unsafe.Add(ref source, j * 8);
+                    NinoCollections.AddUnique(list, NinoUnsafe.Read<int>(ref pair),
+                        NinoUnsafe.Read<int>(ref Unsafe.Add(ref pair, 4)), j);
                 }
 
-                previous = key;
+                return;
             }
 
             int[] keys = CollectionFields.Keys(list), values = CollectionFields.Values(list);

@@ -108,6 +108,61 @@ namespace Nino.Core.Internal
                 AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
         }
 
+        // The caller has checked the full block of pairs.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool AreStrictlyIncreasingInt32(ref byte source, int count)
+        {
+            if (count >= 32 && (AdvSimd.Arm64.IsSupported || Ssse3.IsSupported))
+                return AreStrictlyIncreasingInt32Vector(ref source, count);
+
+            return IncreasingInt32Tail(ref Unsafe.Add(ref source, 8), count - 1, NinoUnsafe.Read<int>(ref source));
+        }
+
+        // Compare four adjacent keys at a time, carrying the previous group across the boundary.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool AreStrictlyIncreasingInt32Vector(ref byte source, int count)
+        {
+            var previous = Vector128.Create(NinoUnsafe.Read<int>(ref source));
+            source = ref Unsafe.Add(ref source, 8);
+            count--;
+            while (count >= 4)
+            {
+                var a = Vector128.LoadUnsafe(ref source).AsInt32();
+                var b = Vector128.LoadUnsafe(ref source, 16).AsInt32();
+                var keys = EvenInt32(a, b);
+                var preceding = AdvSimd.Arm64.IsSupported
+                    ? AdvSimd.ExtractVector128(previous, keys, 3)
+                    : Ssse3.AlignRight(keys.AsByte(), previous.AsByte(), 12).AsInt32();
+                if (!Vector128.GreaterThanAll(keys, preceding))
+                    return false;
+
+                previous = keys;
+                source = ref Unsafe.Add(ref source, 32);
+                count -= 4;
+            }
+
+            return IncreasingInt32Tail(ref source, count, previous.GetElement(3));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool IncreasingInt32Tail(ref byte source, int count, int previous)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                int key = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, i * 8));
+                if (key <= previous)
+                    return false;
+                previous = key;
+            }
+
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<int> EvenInt32(Vector128<int> a, Vector128<int> b) =>
+            AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.UnzipEven(a, b)
+                : Sse.Shuffle(a.AsSingle(), b.AsSingle(), 0x88).AsInt32();
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static void DeinterleaveInt32(ref byte source, ref int first, ref int second, int count)
         {
@@ -117,8 +172,7 @@ namespace Nino.Core.Internal
                 {
                     var a = Vector128.LoadUnsafe(ref source).AsInt32();
                     var b = Vector128.LoadUnsafe(ref source, 16).AsInt32();
-                    var keys = AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.UnzipEven(a, b)
-                        : Sse.Shuffle(a.AsSingle(), b.AsSingle(), 0x88).AsInt32();
+                    var keys = EvenInt32(a, b);
                     var values = OddInt32(a, b);
                     keys.StoreUnsafe(ref first);
                     values.StoreUnsafe(ref second);
