@@ -402,6 +402,16 @@ of bytes in a block.
   around a 64 KiB input/output footprint. The cursor version grew the shared
   loop from 44 to 81 IL bytes and kept 92 Arm64 FullOpts bytes; emulated x64
   remained on the 998-byte fallback. All ten wire cases matched at 0 B.
+  Keep the shared loop for four to seven slots. A dedicated one-or-two-group
+  helper removed the loop and shrank Arm64 FullOpts from 92 to 76 bytes, but the
+  default JIT used 112-byte Tier 0 code and medians slowed by 10–22% in four
+  M4 pairs. Requesting optimization from the first call brought the medians
+  within 1%. Requesting inlining still slowed the short cases by 11–24% and
+  grew the Arm64 FullOpts entry from 1,512 to 1,544 bytes. The short helper
+  added 33 IL bytes beside the shared 44-byte loop. The x64 fallback stayed
+  at 1,091 bytes in all three variants. At offsets zero and one, all 26 wire
+  cases matched for each variant and steady allocation was 0 B. Timing around
+  the 64 KiB input/output footprint varied. Retain the shared optimized loop.
   Write one to three bool slots with a single little-endian word store per
   element. Use typed nullable access and zero the entire slot when absent.
   Four M4 default-JIT pairs improved the present singleton by a 36% median and
