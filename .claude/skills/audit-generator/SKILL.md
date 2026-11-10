@@ -479,6 +479,12 @@ Bounding the byte-span search to each alias slice kept output and allocations ef
 identical. Isolated emitter time improved in one load order and regressed in the other.
 Four cold and edit replays had no repeatable change. Keep the existing whole-name matcher
 until a larger or more alias-dense workload shows a benefit.
+Skip empty alias ranges before searching or appending. The Arm64 listing of `Append`
+and its separately emitted helper shrank from 2,268 to 1,332 bytes after the inline
+decisions changed. Isolated replays of both projects showed no reliable time or
+allocation gain, and other local builds disturbed the cold samples. Both Roslyn
+builds emitted identical files, tracking and collection matched, and 38 targeted
+tests passed per runtime in an isolated worktree (`bffe98b6`).
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
