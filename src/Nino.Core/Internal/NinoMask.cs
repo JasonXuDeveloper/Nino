@@ -129,6 +129,22 @@ namespace Nino.Core.Internal
             int words = _words.Length;
             int maskWord = 0;
             ref ulong word = ref NinoUnsafe.GetArrayDataReference(_words);
+            if (words == 3 && total >= 24)
+            {
+                ulong mask0 = word, mask1 = Unsafe.Add(ref word, 1), mask2 = Unsafe.Add(ref word, 2);
+                for (; i <= total - 24; i += 24)
+                {
+                    ref byte src = ref Unsafe.Add(ref source, i);
+                    ref byte dst = ref Unsafe.Add(ref destination, i);
+                    ulong a = Unsafe.ReadUnaligned<ulong>(ref src);
+                    ulong b = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref src, 8));
+                    ulong c = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref src, 16));
+                    Unsafe.WriteUnaligned(ref dst, a & mask0);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 8), b & mask1);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 16), c & mask2);
+                }
+            }
+
             for (; i <= total - 8; i += 8)
             {
                 Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
