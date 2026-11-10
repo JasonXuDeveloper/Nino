@@ -42,8 +42,29 @@ internal static class Callbacks
     }
 
     /// <summary>Whether a method of <paramref name="type"/> is marked as a callback (a cheap test for the type's rules).</summary>
-    public static bool Declares(INamedTypeSymbol type, NinoSymbols symbols) =>
-        type.GetMembers().OfType<IMethodSymbol>().Any(m => Marks(m, symbols).Any());
+    private static bool Declares(INamedTypeSymbol type, NinoSymbols symbols)
+    {
+        foreach (var member in type.GetMembers())
+        {
+            if (member is not IMethodSymbol method || method.GetAttributes().IsEmpty)
+                continue;
+            foreach (var callback in symbols.Callbacks)
+                if (NinoSymbols.Get(method, callback) != null)
+                    return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether the type or one of its serializable base classes declares a callback.</summary>
+    public static bool HasInHierarchy(INamedTypeSymbol type, NinoSymbols symbols)
+    {
+        for (var level = type; level != null; level = level.BaseType is { } parent && parent.IsNinoType() ? parent : null)
+            if (Declares(level, symbols))
+                return true;
+
+        return false;
+    }
 
     /// <summary>
     /// Why <paramref name="method"/>, marked as a <paramref name="kind"/> callback, is never called whatever type calls
