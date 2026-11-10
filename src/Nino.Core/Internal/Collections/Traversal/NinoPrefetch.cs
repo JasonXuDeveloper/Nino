@@ -146,7 +146,7 @@ namespace Nino.Core.Internal
         public static bool Read<T, TFormatter>(ReadOnlySpan<byte> data, T[] values)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (!Takes<T, TFormatter>(values) || !SameLength(data, values.Length))
+            if (!SameLength(data, values.Length) || !Takes<T, TFormatter>(values))
                 return false;
             var reader = new Reader(data);
             // The length (checked against the bytes left, as the formatter does): the array is kept.
@@ -164,7 +164,7 @@ namespace Nino.Core.Internal
         public static bool Read<T, TFormatter>(ReadOnlySpan<byte> data, List<T> values)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (!Takes<T, TFormatter>(ListAccess.AsSpan<T>(values)) || !SameLength(data, values.Count))
+            if (!SameLength(data, values.Count) || !Takes<T, TFormatter>(ListAccess.AsSpan<T>(values)))
                 return false;
             var reader = new Reader(data);
             reader.TryReadLength(NinoElements.MinWireSize<T, TFormatter>(), out int length);
