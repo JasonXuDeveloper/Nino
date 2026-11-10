@@ -145,6 +145,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   set lazily alone went from 912 to 850 B per type. Delaying the scan reduced it to 786 B and kept
   member order identical. It saved 114–177 KB per cold project replay. Cold, cached, edit and reopen
   timings varied, so keep the allocation result separate from whole-project latency.
+- Walk overridden properties directly during member deduplication. The former LINQ predicate bound
+  a delegate and created an iterator even when the member had no overridden property. On .NET 8
+  the 548-type probe went from 1,122 to 789 B per type and from 399–412 to 352–359 ns. The
+  .NET 10 default-tiering probe already allocated the same 786 B on both builds. The two
+  allocation calls were still present in the baseline Arm64 FullOpts listing, so check the
+  runtime and tier before predicting the allocation cost from IL. Real-project generated files
+  and incremental reuse matched.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
