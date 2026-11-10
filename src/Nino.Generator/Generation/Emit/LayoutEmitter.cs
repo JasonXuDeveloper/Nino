@@ -14,11 +14,23 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal static class LayoutEmitter
 {
-    public static string Emit(TypeModel m) =>
-        $"[assembly: {Core}NinoTypeLayout(typeof({m.OpenTypeName}), {Core}NinoFormat.{m.Format}, " +
-        $"{Core}NinoHeader.{LayoutEntry.HeaderNames[Header(m)]}, {Bool(m.TrackReferences)}, {Bool(m.RawStruct)}, " +
-        $"{m.TypeId.ToString(CultureInfo.InvariantCulture)}, \"{EscapeString(Members(m))}\"" +
-        (m.PublishesDeferrable ? $", Deferrable = {Bool(m.Depth.Deferrable)}" : "") + ")]\n\n";
+    public static string Emit(TypeModel m)
+    {
+        string members = EscapeString(Members(m));
+        var sb = GeneratedCode.RentScratch(256);
+        sb.Append("[assembly: " + Core + "NinoTypeLayout(typeof(").Append(m.OpenTypeName)
+            .Append("), " + Core + "NinoFormat.").Append(m.Format.ToString())
+            .Append(", " + Core + "NinoHeader.").Append(LayoutEntry.HeaderNames[Header(m)])
+            .Append(", ").Append(Bool(m.TrackReferences)).Append(", ").Append(Bool(m.RawStruct))
+            .Append(", ").Append(m.TypeId.ToString(CultureInfo.InvariantCulture))
+            .Append(", \"").Append(members).Append('"');
+        if (m.PublishesDeferrable)
+            sb.Append(", Deferrable = ").Append(Bool(m.Depth.Deferrable));
+        sb.Append(")]\n\n");
+        string text = sb.ToString();
+        GeneratedCode.ReturnScratch(sb);
+        return text;
+    }
 
     /// <summary>
     /// The layout <see cref="Emit"/> publishes, as a layout baseline holds it (the analyzer compares it with the
