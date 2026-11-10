@@ -83,6 +83,14 @@ and when `asm.py compare` lists methods the change did not touch.
   with no x64 timing. An Arm64-only guard was retained by the offline compiler
   and grew that listing further, to 758 bytes. Seven wire comparisons and
   577 generated files matched.
+  Leave the size split in the copy kernel. Calling its existing large helper
+  explicitly while retaining the kernel for small writes kept the Arm64
+  Tier 1 caller at 1,220 bytes and took x64 cross-JIT from 694 to 698 bytes.
+  Using the span move for payloads up to 64 bytes instead shrank those
+  listings to 972 and 507 bytes but slowed the 17-bit and 512-bit writes in
+  all four local rounds. Formatter IL was 161 bytes at baseline, 177 with
+  the explicit split and 181 with the span move. Both variants matched
+  all seven wire comparisons and stayed at zero steady allocation.
 
 - Build the raw span from `ReadBlock` on the byref reader targets. This gives the span and
   block reads one bounds check and cursor advance in the source. The standalone IL fell from
