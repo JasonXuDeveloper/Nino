@@ -1080,6 +1080,15 @@ of bytes in a block.
   elements, with no repeatable slowdown on the 16-byte or SIMD probes. `Copy` grew
   from 500 to 508 IL bytes, from 500 to 516 Arm64 scalar Tier 1 bytes and from 444 to
   460 in the x64 cross listing. Dirty-padding checks and targeted tests passed (`4c8a1e11`).
+  Handle one to two native vectors in the masked copy with the head and, when distinct, the
+  tail. The tail starts within the first mask period, so it can load the mask at that
+  offset directly. On M4, four default-JIT pairs and a repeated series with an identical-binary
+  control improved the 16- and 24-byte writes of padded 8-byte items by about 3–5% by median.
+  The 128-item and near-64 KiB input/output controls varied. The generic method grew from
+  687 to 758 IL bytes, 424 to 456 Arm64 FullOpts bytes, and 292 to 324 emulated x64 AVX2
+  bytes. Dirty-padding output matched in 39 M4 cases and five emulated x64 cases, with
+  zero steady-state allocation. The 512-bit specialization passed 57 software checks for
+  dirty padding and destination bounds. Native AVX-512 throughput was unmeasured.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
