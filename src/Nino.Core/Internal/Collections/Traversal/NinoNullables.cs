@@ -159,6 +159,8 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
                 if (count < Vector128<ushort>.Count)
                 {
+                    if (count >= Vector64<ushort>.Count && TryReadShortBoolSlots(ref src, ref booleans, count, bytes))
+                        return;
                     ReadBoolValues(ref src, ref booleans, count);
                     return;
                 }
@@ -194,6 +196,45 @@ namespace Nino.Core
         }
 
 #if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryReadShortBoolSlots(ref byte source, ref bool? destination, int count, int bytes)
+        {
+            if (!NinoSimd.HasArm64 || !BitConverter.IsLittleEndian ||
+                NullableLayout<T>.HasValueOffset != 0 || NullableLayout<T>.ValueOffset != 1 ||
+                Stride != 2 || Offset != 1)
+                return false;
+
+            ref byte target = ref Unsafe.As<bool?, byte>(ref destination);
+            nint distance = Unsafe.ByteOffset(ref source, ref target);
+            if (distance > -bytes && distance < bytes)
+                return false;
+
+            ReadShortBoolSlots(ref Unsafe.As<byte, ushort>(ref source), ref Unsafe.As<byte, ushort>(ref target), count);
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static void ReadShortBoolSlots(ref ushort source, ref ushort target, int count)
+        {
+            ReadShortBoolGroup(ref source, ref target, 0);
+            if (count > Vector64<ushort>.Count)
+                ReadShortBoolGroup(ref source, ref target, (uint)(count - Vector64<ushort>.Count));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadShortBoolGroup(ref ushort source, ref ushort target, nuint offset)
+        {
+            var pairs = BoolSlots64.Normalize(Vector64.LoadUnsafe(ref source, offset));
+            if ((pairs & Vector64.Create((ushort)0xFE00)) != Vector64<ushort>.Zero)
+            {
+                ReadBoolValues(ref Unsafe.As<ushort, byte>(ref Unsafe.Add(ref source, offset)),
+                    ref Unsafe.As<ushort, bool?>(ref Unsafe.Add(ref target, offset)), Vector64<ushort>.Count);
+                return;
+            }
+
+            pairs.StoreUnsafe(ref target, offset);
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static void ReadBoolSlots(ref ushort source, ref ushort target, int count)
         {

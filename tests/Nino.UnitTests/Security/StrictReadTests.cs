@@ -213,6 +213,7 @@ public class StrictReadTests
     }
 
     [TestMethod]
+    [DataRow(5)]
     [DataRow(9)]
     [DataRow(1031)]
     public void NullableBoolBlocksKeepNullAndInvalidValueSemantics(int count)
