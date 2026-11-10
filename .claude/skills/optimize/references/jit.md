@@ -17,6 +17,16 @@ and when `asm.py compare` lists methods the change did not touch.
   variant improved both ordered array sizes straddling 64 KiB in all four
   local rounds at zero steady allocation. The ordered 16-item timing
   overlapped A/A. Wire and generated files matched.
+- Keep `Writer.PatchLength` relative to the writer's buffer start. Measuring the
+  distance from the length slot or payload start instead split the Arm64 pair
+  load of the start and cursor into two separate loads. Both variants kept the
+  keyed caller at 804 Arm64 Tier 1 bytes, while x64 cross-JIT fell from 541 to
+  529 and 533 bytes, respectively. The helper grew from 18 to 28 and 36 IL
+  bytes. Both variants slowed the paired 16- and 700-item ASCII writes in four
+  local rounds, with some 700-item A/A noise. The 1,100-item payload-relative
+  variant was also slower than both controls in each round. The same generated
+  consumer matched wire bytes at offsets 0, 1 and 7 and stayed at zero steady
+  allocation. Inspect the pair load before retrying this arithmetic rewrite.
 - Use the length of the public `BitArray` byte view when reserving its wire payload.
   The view is already sized for the bits, so slicing it again adds an unnecessary check.
   Keep the final-byte mask and verify dirty padding on unaligned output. The formatter
