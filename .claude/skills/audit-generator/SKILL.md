@@ -354,6 +354,11 @@ This avoids grouping, sorting bucket keys, and creating per-bucket delegates. Is
 registry emission saved about 17.6 KB in both load orders. Cold timings stayed within 1%,
 the 577 generated files matched, incremental reuse and collection checks passed, and
 73 targeted tests passed (`5071d778`).
+Count cases before filling each bucket to allocate its backing array at the final size.
+On the real project, the 64-bucket registry replay saved about 16 KB in both load orders,
+and four cold runs saved 11–43 KB without a repeatable timing change. All 582 files matched,
+registry entries stayed cached on body edits, old project objects collected, and 69 targeted
+tests passed on each of .NET 8 and .NET 10 (`ed1ac897`).
 Keep the registry preamble writer separate unless its size is known cheaply. The real
 project preamble was about 10 KB and a lease with a 256-character request grew beyond
 the 8,192-character cap, allocating 288 bytes more per isolated emission. Counting the
