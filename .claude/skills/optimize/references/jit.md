@@ -279,6 +279,13 @@ and when `asm.py compare` lists methods the change did not touch.
   and 312 to 369 offline x64 bytes. The probe helper added 169 IL, 1,184 Arm64 and 1,052
   offline x64 bytes. All six wire cases matched at an unaligned output offset with no
   steady allocation. Keep the patch for experiments.
+  Skip copying and slicing for an empty span, after obtaining the span from the
+  segment. Keep the last-segment test and final remaining-length validation.
+  Two 32-byte segments interleaved with empty segments wrote in about 28 ns
+  instead of 31 ns in the local default-JIT probe. Ordinary inputs and the
+  shared read path overlapped A/A. The helper grew from 76 to 85 IL bytes,
+  728 to 732 Arm64 Tier 1 bytes, and 641 to 649 offline x64 bytes.
+  All six wire cases matched at an unaligned output offset, at zero allocation.
   Raising the stack cutoff from 512 to 1,024 bytes avoided the pool round-trip for 516-, 804- and 1,024-byte
   messages in the local probe. Measure both sides of the cutoff and keep the fixed buffer out of inline callers.
   Read a complete built-in byte array directly from two segments after validating the header and actual length.
