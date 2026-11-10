@@ -215,6 +215,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   Both experiments matched all 27 wire and round-trip probes at zero steady allocation.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
+- Keep generic formatter registrations on individual assembly attribute lines. Grouping the
+  83 formatter attributes removed 568 source bytes while keeping assembly attributes,
+  compiled IL and wire output identical. The indented list allocated about 11 KB more
+  per isolated Roslyn parse in both load orders. Smaller indented groups still allocated
+  more, and the unindented probes saved at most 3.8 KB per parse. The emitter grew from
+  915 to 952 IL bytes, 2,776 to 2,892 Arm64 FullOpts bytes, and 1,751 to 1,850 x64
+  cross-JIT bytes. Whole-project timing showed no repeatable change. Both Roslyn
+  builds matched all other outputs and preserved incremental reuse and collection.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
   and type references, where one alias serves the whole file. Leave location attributes and registry literals
   alone. Compare consumer DLL metadata as well as method IL: typed aliases and factoring opaque location strings
