@@ -378,6 +378,17 @@ of bytes in a block.
   wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
   four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
   to 1,404 bytes.
+- Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
+  buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
+  to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
+  Re-encoding to a byte buffer helped unchanged CJK but slowed emoji. Restricting that to exactly
+  three bytes per UTF-16 unit and checking the first and last bytes removed the emoji regression,
+  but changed ASCII or same-width CJK still regressed even after reusing the checked short header
+  on a miss. Unchanged eight- to 42-character CJK reads went from 40–112 B allocated to zero.
+  The final reader grew from 178 to 316 IL bytes plus a 58 B helper, and from 324 to 552 Arm64
+  bytes plus a 408 B helper. The x64 cross JIT only emitted the helper at 470 B in MinOpts.
+  Wire bytes and strict decoding tests matched, with 31 targeted tests passing on both .NET 8
+  and 10. The candidates were withdrawn.
 - Keep the existing short Latin-1 comparison loop until a wider dispatch preserves the neighbouring cases.
   Reusing the long comparison kernels inline improved 31–63-character M4 reuse, but the offset-zero
   64-character control slowed in four pairs. Outlining a 32–63-character helper with 512-, 256- and
