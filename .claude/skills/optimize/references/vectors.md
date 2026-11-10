@@ -1131,6 +1131,14 @@ of bytes in a block.
   340 and 347 IL bytes versus 340, and the constructor and emitted helpers went
   from 1,276 to 948 and 832 Arm64 bytes and from 820 to 651 and 613 emulated x64
   bytes. All 192 mask sizes and 21 wire outputs matched. The candidates were withdrawn.
+  Keep the modulo loop for the table period. A lowest-set-bit formula and a doubling
+  loop both sped up repeated 12-byte masks but slowed the 65-byte mask at a 64-byte
+  width by 5–25% across four M4 pairs per variant. Keeping the additions and replacing
+  modulo with a bit test still slowed that case by 13–16%, versus 1–6% for the
+  identical-binary control. IL was 104 bytes at baseline and 110, 104 and 106 in
+  the trials. Arm64 FullOpts fell from 396 to 344, 356 and 352 bytes, and emulated
+  x64 went from 200 to 201, 193 and 192. Allocations, 4,096 repeated tables and 21
+  padded wire outputs matched. First-write timings varied. The candidates were withdrawn.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
