@@ -383,18 +383,21 @@ internal sealed class BodyEmitter
     }
 
     /// <summary>
-    /// The members of a type of fixed size (<see cref="TypeModel.FixedSize"/>), each with its offset in the bytes of
-    /// <c>Serialize</c> (after a sealed class's flag), and the size of those bytes: expressions, constant sizes summed.
+    /// The size of a fixed-size value and, when requested, its member offsets in serialization order.
+    /// A sealed class's flag comes first. Constant sizes are summed into each expression.
     /// </summary>
-    private (List<(MemberModel Member, string Offset)> Members, string Size) FixedLayout()
+    private (string[] Offsets, string Size) FixedLayout(bool emitOffsets)
     {
         int constant = _m.Kind == FormatterKind.SealedClass ? 1 : 0;
         string symbolic = "";
 
-        var members = new List<(MemberModel, string)>();
-        foreach (var member in _m.Members)
+        var members = _m.Members;
+        var offsets = emitOffsets ? new string[members.Length] : Array.Empty<string>();
+        for (int i = 0; i < members.Length; i++)
         {
-            members.Add((member, RawBlock.Offset(constant, symbolic)));
+            var member = members[i];
+            if (emitOffsets)
+                offsets[i] = RawBlock.Offset(constant, symbolic);
             if (member.Raw is { IsConstant: true } raw)
             {
                 constant += raw.Bytes;
@@ -407,7 +410,7 @@ internal sealed class BodyEmitter
             symbolic = RawBlock.AppendSymbolic(symbolic, size);
         }
 
-        return (members, RawBlock.Offset(constant, symbolic));
+        return (offsets, RawBlock.Offset(constant, symbolic));
     }
 
     /// <summary>
@@ -419,12 +422,14 @@ internal sealed class BodyEmitter
         member.Raw == null && (member.Traits & FormatterTraits.Generated) == 0;
 
     /// <summary>The statements writing the members of a value of fixed size at <c>destination</c> (<see cref="FixedLayout"/>).</summary>
-    private void EmitFixedWrites(List<(MemberModel Member, string Offset)> members)
+    private void EmitFixedWrites(string[] offsets)
     {
         if (_m.Kind == FormatterKind.SealedClass)
             _w.Line($"destination = {NinoWire.NotNull};");
-        foreach (var (member, offset) in members)
+        for (int i = 0; i < offsets.Length; i++)
         {
+            var member = _m.Members[i];
+            string offset = offsets[i];
             if (member.Raw != null)
             {
                 _w.Line(RawWrite(member, "destination", offset));
@@ -446,12 +451,13 @@ internal sealed class BodyEmitter
     /// </summary>
     public void EmitFixed()
     {
-        var (members, size) = FixedLayout();
+        bool rawBody = _m.RawBody;
+        var (offsets, size) = FixedLayout(emitOffsets: !rawBody);
         _w.Line($"public int FixedSize => {size};");
         _w.Line();
         _w.Line(_names.Inline);
         string signature = $"public void WriteFixed(in {T} value, ref byte destination)";
-        if (_m.RawBody)
+        if (rawBody)
         {
             _w.Open(signature);
             // Storing through the destination must not change which instance the body writes.
@@ -475,12 +481,12 @@ internal sealed class BodyEmitter
         }
 
         _w.Open(signature);
-        EmitFixedWrites(members);
+        EmitFixedWrites(offsets);
         _w.Close();
         if (_m.Block)
         {
             _w.Line();
-            EmitBlock(members);
+            EmitBlock(offsets);
         }
     }
 
@@ -491,15 +497,16 @@ internal sealed class BodyEmitter
     /// reference, an auto-property where a marked value stored through it lands), which lets collections of it move
     /// several values at a time by vector shuffles.
     /// </summary>
-    private void EmitBlock(List<(MemberModel Member, string Offset)> members)
+    private void EmitBlock(string[] offsets)
     {
         string iface = $"{CoreCompilerServices}INinoBlockFormatter<{T}>";
         _w.Open($"{CoreCompilerServices}NinoBlockMap {iface}.BlockMap()");
         _w.Line($"var __v = default({T});");
         _w.Line($"return new {CoreCompilerServices}NinoBlockMap()");
-        for (int i = 0; i < members.Count; i++)
+        for (int i = 0; i < offsets.Length; i++)
         {
-            var (member, offset) = members[i];
+            var member = _m.Members[i];
+            string offset = offsets[i];
             string memory = member.IsProperty
                 ? $"{CoreCompilerServices}NinoBlocks.Find<{T}>({CoreCompilerServices}NinoUnsafe.SizeOf<{member.TypeName}>(), () => " +
                   $$"""{ var __m = default({{T}}); {{Set(_m, member, "__m", $"{CoreCompilerServices}NinoBlocks.Marked<{member.TypeName}>()")}} return __m; })"""
@@ -507,14 +514,16 @@ internal sealed class BodyEmitter
             string item = member.Raw != null
                 ? $"Raw<{member.TypeName}>"
                 : $"Block<{member.TypeName}, {Formatter(member)}>";
-            _w.Line($"    .{item}({memory}, {offset}){(i == members.Count - 1 ? ";" : "")}");
+            _w.Line($"    .{item}({memory}, {offset}){(i == offsets.Length - 1 ? ";" : "")}");
         }
         _w.Close();
         _w.Line();
         _w.Line(_names.Inline);
         _w.Open($"void {iface}.ReadBlock(ref {T} value, ref byte source)");
-        foreach (var (member, offset) in members)
+        for (int i = 0; i < offsets.Length; i++)
         {
+            var member = _m.Members[i];
+            string offset = offsets[i];
             // As ReadBody: a bool through its own read, which rejects a byte other than 0 or 1.
             if (member.Raw != null)
             {
