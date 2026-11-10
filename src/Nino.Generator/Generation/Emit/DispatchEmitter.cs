@@ -177,9 +177,19 @@ internal static class DispatchEmitter
         // method per subtype, as on read, was measured: it writes 4.5% fewer instructions for an array of 20
         // subtypes, but more where the bodies would have been inlined, and one more method per subtype costs about
         // 2.5% more compile time on a workload of hierarchies.
-        Method(w, WriteSubtype(t), (subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>()).Select(s =>
-                $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }"""),
-            WriteOther(t, services));
+        if (subtypes.Count is > 0 and <= MaxWriteChain)
+        {
+            w.Open(WriteSubtype(t));
+            foreach (var s in subtypes)
+                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
+            w.Line(WriteOther(t, services) + ";");
+            w.Close();
+        }
+        else
+        {
+            w.Line($"{WriteSubtype(t)} => {WriteOther(t, services)};");
+        }
+
         if (subtypes.Count == 0)
         {
             w.Line($"{ReadSubtype(t)} => {ReadOther(t, services)};");
@@ -187,11 +197,10 @@ internal static class DispatchEmitter
         }
 
         w.Line();
-        w.Block(ReadSubtype(t), () =>
-        {
-            EmitReadSwitch(w, subtypes);
-            w.Line(ReadOther(t, services) + ";");
-        });
+        w.Open(ReadSubtype(t));
+        EmitReadSwitch(w, subtypes);
+        w.Line(ReadOther(t, services) + ";");
+        w.Close();
 
         // Each subtype's instance check and body, out of line in a method of this non-generic struct, where
         // NinoObject.ReadExact is not shared code (see there). Inlined into the switch, every subtype's body would be
