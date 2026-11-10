@@ -388,6 +388,15 @@ of bytes in a block.
   Array deserialize IL grew from 102 to 133 B and its Arm64 caller from 564 to 608 B.
   The x64 cross caller stayed 195 B and shared copy listings stayed 580/1,096 B on Arm64/x64.
   Both .NET suites, the no-intrinsics case and the netstandard builds passed (`894d6936`).
+  Reuse the same short kernel for one-byte raw lists. Keep the array helper and guard
+  unchanged. Loading both blocks before the stores or sharing an inline guard changed the
+  array control. For a list with overlapping backing storage, use span copy in the outlined
+  list entry. The final M4 byte-list probe improved reuse by 24–32% and fresh reads by
+  12–18%, with matched bytes and allocations at offsets zero and one. Int32 timing varied
+  even in A/A and its Arm64 caller kept 564 B. List deserialize IL moved from 162 to 205 B.
+  The byte-list caller moved from 948 to 992 B on Arm64 and stayed 205 B on x64 cross-JIT
+  MinOpts. The list helper was 92 Arm64 bytes. Boundary, overlapping-buffer and no-intrinsics
+  cases passed (`9ce599ed`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
