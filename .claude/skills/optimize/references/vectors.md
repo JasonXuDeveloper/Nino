@@ -340,6 +340,13 @@ of bytes in a block.
   620 to 572 Arm64 FullOpts bytes and 552 to 499 offline x64 bytes. The cold helper adds
   65 IL, 132 Arm64 and 63 x64 bytes. Wire bytes matched at offsets 0, 1 and 7, and a
   valid empty array with a dimension near the runtime limit passed the exact check.
+- Multiply only the dimensions present in the wire header. Check each real prefix
+  before the next multiplication, even for trailing-zero shapes. The former shared
+  helper multiplied by the implicit dimensions of length one and checked each product.
+  Four default-JIT rounds of 3D single-element reuse went from 3.97 to 3.73 ns with
+  zero allocations. The 2D single-element case held at 3.25 ns and larger cases overlapped
+  A/A. The helper grew from 286 to 313 IL bytes, 572 to 600 Arm64 FullOpts bytes, and
+  499 to 535 offline x64 bytes. All 45 wire and reuse probes passed at offsets 0, 1 and 7.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
