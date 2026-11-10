@@ -53,7 +53,17 @@ namespace Nino.Core.Internal
             if (count >= 128 && TryValidateStrided(ref first, count * stride, stride))
                 return;
 #endif
-            int any = Strided(ref first, count, stride);
+            int any;
+            if (count is 2 or 3)
+            {
+                any = first | Unsafe.Add(ref first, stride);
+                if (count == 3)
+                    any |= Unsafe.Add(ref first, 2 * stride);
+            }
+            else
+            {
+                any = Strided(ref first, count, stride);
+            }
             if ((any & 0xFE) != 0)
                 NinoThrow.InvalidPresence(any);
         }

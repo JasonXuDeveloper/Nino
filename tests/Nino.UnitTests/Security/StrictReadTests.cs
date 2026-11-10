@@ -222,6 +222,8 @@ public class StrictReadTests
     }
 
     [TestMethod]
+    [DataRow(2)]
+    [DataRow(3)]
     [DataRow(5)]
     [DataRow(9)]
     [DataRow(1031)]
@@ -240,6 +242,12 @@ public class StrictReadTests
         NinoDeserializer.Deserialize(input.AsSpan(1), ref result);
         Assert.AreSame(original, result);
         CollectionAssert.AreEqual(values, result);
+
+        Array.Fill(result, (bool?)true);
+        input[1 + sizeof(int) + 2 * last] = 2;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(input.AsSpan(1), ref result));
+        Assert.IsTrue(result.All(static item => item == true));
+        input[1 + sizeof(int) + 2 * last] = 1;
 
         Array.Fill(result, (bool?)true);
         input[1 + sizeof(int) + 2 * last + 1] = 2;
