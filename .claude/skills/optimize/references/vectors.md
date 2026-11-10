@@ -339,10 +339,27 @@ of bytes in a block.
   emitted XMM, YMM, and ZMM variants of 296, 277, and 271 bytes, respectively.
   Native x64 timings are still needed. A direct probe validated all widths
   for the four strides, including unaligned loads and invalid flags in tails.
+  Spell out the 512-to-256-to-128 selection. The hardware gates fold and the
+  remaining x64 v4 policy branch changes direction without growing the entry.
+  Arm64 measured on par, at 152 FullOpts bytes, and x64 cross-JIT entries stayed
+  at 84/84/112 bytes for v2/v3/v4. Use one 128-bit pattern for the repeated
+  mask. Passing two scalar words instead grew the Arm64 scan from 336 to 368
+  bytes and lost to the faster baseline in all four 4,095-item reads.
   Keep the bulk clear for converted nullable writes. Per-slot clearing
   wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
   four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
   to 1,404 bytes.
+- Share long Latin-1 equality's tail-first loop across the three native SIMD
+  widths, and compile the entry with `AggressiveOptimization`. Without it,
+  the generic loop slowed 65- and 256-character reuse in all four rounds.
+  With the same optimization setting, the old and shared loops measured
+  similarly. Against default JIT baselines, 65-character reuse fell from
+  about 76 to 48–51 ns, and two cases straddling 64 KiB fell from roughly
+  9–10.5 to 0.8–1.2 µs at 0 B per reuse. First read rose from 0.75 to
+  0.98 ms at the median. Arm64 FullOpts fell from 184 to 180 bytes.
+  x64 cross-JIT compare loops measured 129/135/175 bytes and emitted
+  XMM/YMM/ZMM instructions. The direct probe checked equal inputs and
+  every mismatch position at all three widths, including non-Latin-1 chars.
   Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
   In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
   and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
