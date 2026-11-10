@@ -171,6 +171,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   to 351 IL bytes, 10,980 to 10,616 Arm64 Tier 1 bytes, and 1,003 to 1,011 x64 cross-JIT
   bytes. Both Roslyn builds kept all 577 files, 572 model hits, and collection checks;
   both runtimes passed 69 focused tests.
+  Keep the compact array for now. Looking up elements on demand and building the array
+  only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
+  varied around baseline. The lookup repeated the scan for pair encodings and grew the
+  combined IL from 2,533 to 2,673 bytes and the Arm64 Tier 1 methods from 16,988 to 22,148.
+  The x64 cross-JIT listing for binding and formatting, excluding the shared array builder,
+  moved from 4,076 to 4,330 bytes. Both Roslyn builds matched all 577 files, reused the
+  models on edits and passed the collection checks.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
   without that cache.
