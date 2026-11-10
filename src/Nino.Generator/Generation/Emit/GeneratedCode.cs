@@ -133,16 +133,18 @@ internal static class GeneratedCode
     private static (string Name, string Alias, string Declaration) CoreAlias(string name, string alias) =>
         (name, alias, $"using {alias.TrimEnd('.')} = {name.TrimEnd('.')};");
 
+    private const string CoreNamespaceAlias = "__NC";
+    private const string CoreNamespacePrefix = CoreNamespaceAlias + ".";
+    private const string CoreNamespaceDeclaration = "using " + CoreNamespaceAlias + " = global::Nino.Core;";
+
     /// <summary>Shortens dense type references without rewriting literals or scanning the whole emitted file.</summary>
     internal struct NamespaceAliases
     {
         private const string Collections = "global::System.Collections.Generic.";
-        private const string CoreAlias = "__NinoCore.";
         private const string CollectionsAlias = "__NinoCollections.";
-        private const string CoreDeclaration = "using __NinoCore = global::Nino.Core;";
         private const string CollectionsDeclaration = "using __NinoCollections = global::System.Collections.Generic;";
         private static readonly int CoreThreshold =
-            (CoreDeclaration.Length + 5) / (TypeNames.Core.Length - CoreAlias.Length) + 1;
+            (CoreNamespaceDeclaration.Length + 5) / (TypeNames.Core.Length - CoreNamespacePrefix.Length) + 1;
         private static readonly int CollectionsThreshold =
             (CollectionsDeclaration.Length + 5) / (Collections.Length - CollectionsAlias.Length) + 1;
         public bool OmitGeneratedNamespace;
@@ -163,7 +165,7 @@ internal static class GeneratedCode
         public readonly void Declare(List<string> declarations)
         {
             if (UseCore)
-                declarations.Add(CoreDeclaration);
+                declarations.Add(CoreNamespaceDeclaration);
             if (UseCollections)
                 declarations.Add(CollectionsDeclaration);
         }
@@ -182,7 +184,7 @@ internal static class GeneratedCode
                 if (core >= 0 && (collections < 0 || core < collections))
                 {
                     AppendRange(builder, code, copied, core);
-                    builder.Append(CoreAlias);
+                    builder.Append(CoreNamespacePrefix);
                     copied = core + TypeNames.Core.Length;
                     core = code.IndexOf(TypeNames.Core, copied, end - copied, StringComparison.Ordinal);
                 }
@@ -289,8 +291,8 @@ internal static class GeneratedCode
                 "using __NinoCS = global::Nino.Core.CompilerServices;");
         bool compilerAlias = declarations.Count != declarationsBefore;
         declarationsBefore = declarations.Count;
-        if (body.IndexOf("__NC", StringComparison.Ordinal) < 0)
-            body = WithAlias(body, TypeNames.Core, "__NC.", declarations, ref scratch, "using __NC = global::Nino.Core;");
+        if (body.IndexOf(CoreNamespaceAlias, StringComparison.Ordinal) < 0)
+            body = WithAlias(body, TypeNames.Core, CoreNamespacePrefix, declarations, ref scratch, CoreNamespaceDeclaration);
         bool coreAlias = declarations.Count != declarationsBefore;
         foreach (var (name, alias, declaration) in CoreAliases)
             if ((!coreAlias || !name.StartsWith(TypeNames.Core, StringComparison.Ordinal)) &&
