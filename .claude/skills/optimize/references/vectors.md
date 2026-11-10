@@ -1121,6 +1121,16 @@ of bytes in a block.
   `Repeat` grew from 57 to 104 IL bytes, 244 to 396 Arm64 FullOpts bytes, and 129 to 200
   emulated x64 bytes. Checks matched all 1,536 repeated tables across 8-, 16-, 32- and
   64-byte widths and all 21 padded wire outputs at offsets zero, one and seven.
+  Keep the temporary byte table for scalar words for now. Filling the final `ulong[]`
+  through its byte view saved 32–48 B for 8–24-byte masks and 544 B for a 65-byte mask,
+  but four longer M4 pairs without intrinsics slowed 12-byte construction by 23–27%.
+  Inlining the shared span filler did not remove that regression. Replacing the span
+  copies with disjoint block copies made the 8-, 12- and 24-byte scalar cases slower
+  in all four pairs despite faster SIMD construction in several cases. The first
+  public write saved 48 B and had mixed timing. The span and block variants used
+  340 and 347 IL bytes versus 340, and the constructor and emitted helpers went
+  from 1,276 to 948 and 832 Arm64 bytes and from 820 to 651 and 613 emulated x64
+  bytes. All 192 mask sizes and 21 wire outputs matched. The candidates were withdrawn.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
