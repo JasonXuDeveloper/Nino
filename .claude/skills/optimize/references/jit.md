@@ -680,6 +680,13 @@ and when `asm.py compare` lists methods the change did not touch.
   versus 2,484, and 2,243 plus 1,370 emulated x64 bytes versus 2,056.
   Both variants matched all 48 wire cases and passed targeted tests.
   Keep the existing refill until the prefix loop can improve both tiers.
+  Keep the comparer-based SameKeys loop. A separate ordinal string loop behind
+  an exact default-comparer check did not improve refill timing repeatably. The
+  isolated 1,024-key comparison improved by less than 1% across four M4 pairs,
+  and the 512-key timings tracked the identical-binary control. IL grew from
+  98 to 151 plus 74 B. Arm64 FullOpts grew from 780 to 924 plus 428 B, and
+  emulated x64 from 662 to 792 plus 374 B. Refill itself kept its code size.
+  Allocation and all 36 wire comparisons matched. The candidate was withdrawn.
 - Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
   the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
   widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
