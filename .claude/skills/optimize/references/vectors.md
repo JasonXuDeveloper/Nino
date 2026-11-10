@@ -832,6 +832,12 @@ of bytes in a block.
 - Refill a matching-length `BitArray` through its public byte span after validating the payload (cb6e950e).
   Setting its length to the same value clears the unused bits and invalidates existing enumerators. A single
   copy body for fresh and reused instances avoided duplicating the Arm64 copy code.
+  Reuse the fixed Arm64 head and tail for a disjoint 65–128-byte refill, behind the existing
+  overlap check. Four default-JIT M4 pairs gave 15–26% lower medians at the tested sizes and
+  offsets. The fresh and 64 KiB controls had no stable change. Fresh allocation matched and
+  reuse allocated 0 B. All ten wire comparisons matched; the overlapping-buffer tests covered
+  both endpoints. ReadBits grew from 189 to 234 IL bytes and 616 to 660 Arm64 FullOpts bytes.
+  Linux x64 offline ReadyToRun stayed at 440 B; it was not timed (`6defca8c`).
 - Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
   (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations,
   at the cost of a larger native helper.
