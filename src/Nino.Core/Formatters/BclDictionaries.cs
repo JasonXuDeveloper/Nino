@@ -201,12 +201,21 @@ namespace Nino.Core
             ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
             ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
 #if NET8_0_OR_GREATER
-            if (typeof(TKey) == typeof(int) && typeof(TValue) == typeof(int) &&
-                NinoBlockCollections.CanInterleave<int>(count))
+            if (NinoBlockCollections.IsPackedLane32<TKey>() && NinoBlockCollections.IsPackedLane32<TValue>())
             {
-                NinoBlockCollections.Interleave<int, NinoBlockCollections.Zip32>(ref Unsafe.As<TKey, int>(ref key),
-                    ref Unsafe.As<TValue, int>(ref value), ref target, count);
-                return;
+                if (count == 1)
+                {
+                    Unsafe.WriteUnaligned(ref target, Unsafe.As<TKey, int>(ref key));
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 4), Unsafe.As<TValue, int>(ref value));
+                    return;
+                }
+
+                if (NinoBlockCollections.CanInterleave<int>(count))
+                {
+                    NinoBlockCollections.Interleave<int, NinoBlockCollections.Zip32>(ref Unsafe.As<TKey, int>(ref key),
+                        ref Unsafe.As<TValue, int>(ref value), ref target, count);
+                    return;
+                }
             }
 #else
             int pairs = NinoBlockCollections.TryInterleave32(ref key, ref value, ref target, count);
@@ -218,6 +227,17 @@ namespace Nino.Core
                 count -= pairs;
             }
 #endif
+            WriteSortedListScalar(ref key, ref value, count, ref target, keySize, pairSize);
+        }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+#else
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+        private static void WriteSortedListScalar(ref TKey key, ref TValue value, int count, ref byte target,
+            int keySize, int pairSize)
+        {
             for (int i = 0; i < count; i++)
             {
                 NinoUnsafe.WriteValueIn(ref target, 0, in key);

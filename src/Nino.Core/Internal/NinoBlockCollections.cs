@@ -153,10 +153,15 @@ namespace Nino.Core.Internal
                 ref Unsafe.As<TValue, int>(ref values), ref target, count);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool IsPackedLane32<T>() =>
-            Unsafe.SizeOf<T>() == 4 && (typeof(T).IsPrimitive || !NinoLayout<T>.HasPadding);
 #endif
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool IsPackedLane32<T>() => Unsafe.SizeOf<T>() == 4 && PackedLane32<T>.Value;
+
+        private static class PackedLane32<T>
+        {
+            internal static readonly bool Value = typeof(T).IsPrimitive || !NinoLayout<T>.HasPadding;
+        }
         /// <summary>
         /// The <see cref="INinoFixedSizeFormatter{T}.FixedSize"/> of the block formatter
         /// <typeparamref name="TFormatter"/>, -1 when it does not implement it. A JIT-time constant; -1 without a

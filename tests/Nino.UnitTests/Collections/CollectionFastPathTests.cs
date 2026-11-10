@@ -226,6 +226,7 @@ public class CollectionFastPathTests
     public void SortedListWritesRawPairsAtAnUnalignedOffset()
     {
         Check<int>(i => i, i => -13 * i - 1);
+        Check<uint>(i => (uint)i, i => unchecked((uint)(-13 * i - 1)));
         Check<short>(i => (short)i, i => (short)(-13 * i - 1));
         Check<long>(i => (long)i << 34, i => -13L * i - 1);
 
