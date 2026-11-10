@@ -1,4 +1,3 @@
-using System.Linq;
 using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
 using Nino.Generator.Common;
@@ -18,7 +17,7 @@ internal static class AccessorEmitter
     /// </summary>
     public static void EmitGenericUnsafeAccessors(CodeWriter w, TypeModel m)
     {
-        if (!m.IsGeneric || !m.Members.Any(x => x.Access == MemberAccess.UnsafeAccessor))
+        if (!m.IsGeneric || !HasAccess(m, MemberAccess.UnsafeAccessor))
             return;
         w.Line();
         w.Line(HiddenAttribute);
@@ -32,8 +31,11 @@ internal static class AccessorEmitter
     {
         const string attr = CompilerServices + "UnsafeAccessor";
         const string kind = CompilerServices + "UnsafeAccessorKind";
-        foreach (var member in m.Members.Where(x => x.Access == MemberAccess.UnsafeAccessor))
+        foreach (var member in m.Members)
         {
+            if (member.Access != MemberAccess.UnsafeAccessor)
+                continue;
+
             string self = (member.DeclaringTypeIsValueType ? "ref " : "") + member.DeclaringType + " @this";
             w.Line();
             if (member.IsProperty)
@@ -62,8 +64,11 @@ internal static class AccessorEmitter
     /// </summary>
     public static void EmitInterfaceAccessors(CodeWriter w, TypeModel m)
     {
-        foreach (var member in m.Members.Where(x => x.Access == MemberAccess.Interface))
+        foreach (var member in m.Members)
         {
+            if (member.Access != MemberAccess.Interface)
+                continue;
+
             string constraint = $"where __TI : {member.DeclaringType}";
             string name = Identifier(member.SourceName);
             w.Line();
@@ -96,7 +101,7 @@ internal static class AccessorEmitter
             w.Open(self && m.Pooled ? declarations[i] + $" : {Core}INinoPooled" : declarations[i]);
         }
 
-        if (m.Members.Any(x => x.Access == MemberAccess.Partial))
+        if (HasAccess(m, MemberAccess.Partial))
             EmitAccessorClass(w, m);
         if (m.Pooled)
             EmitPoolHooks(w, m);
@@ -108,12 +113,24 @@ internal static class AccessorEmitter
         return w.Finish();
     }
 
+    private static bool HasAccess(TypeModel m, MemberAccess access)
+    {
+        foreach (var member in m.Members)
+            if (member.Access == access)
+                return true;
+
+        return false;
+    }
+
     private static void EmitAccessorClass(CodeWriter w, TypeModel m)
     {
         w.Line(HiddenAttribute);
         w.Open($"internal static class {AccessorClass(m)}");
-        foreach (var member in m.Members.Where(x => x.Access == MemberAccess.Partial))
+        foreach (var member in m.Members)
         {
+            if (member.Access != MemberAccess.Partial)
+                continue;
+
             string o = (member.DeclaringTypeIsValueType ? "ref " : "") + m.TypeName + " o";
             string name = Identifier(member.SourceName);
             w.Line(InlineAttribute);
