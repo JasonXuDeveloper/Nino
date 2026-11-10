@@ -243,6 +243,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 ## Measure
 
+Defer rendering a formatter sort key until two type names compare equal. The unit test replay
+had one tie among 517 registrations. Stage allocation fell from 273,920 to 72,904 bytes in
+four local rounds, and all 577 generated files matched. Keep stable ordering for equal keys
+and check tie-heavy inputs before generalizing this comparison. Stage and cold replay times
+varied, including after the scheduling control. The selection stage stayed cached on edits.
+
 Project an optional usage registration directly and discard nulls before merging. The
 singleton arrays in `FormatterRegistrations` cost 73,200 bytes in the local unit test replay.
 The measured stage went from 347,120 to 273,920 bytes in four cold rounds with the same 517
