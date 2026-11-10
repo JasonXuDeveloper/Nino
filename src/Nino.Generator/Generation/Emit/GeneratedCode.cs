@@ -428,7 +428,7 @@ internal static class GeneratedCode
     public const string MethodFlags = "__NinoIL";
 
     /// <summary>The alias of <c>MethodImplAttribute</c> used by the generated methods.</summary>
-    public const string MethodImplAlias = "__NinoMI";
+    public const string MethodImplAlias = "__MI";
 
     /// <summary>Declarations needed by the generated inlining attributes.</summary>
     public static readonly string[] InlineAliases =

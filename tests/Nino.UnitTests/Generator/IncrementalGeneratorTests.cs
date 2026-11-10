@@ -551,7 +551,7 @@ public class Outer<T>
 [NinoType] public class Shape { public int Id; }
 [NinoType] public sealed class Circle : Shape { public float R; }
 [NinoType] public class Box<__NinoIL> { public __NinoIL Value; }
-[NinoType] public class AliasBox<__NinoMI> { public __NinoMI Value; }
+[NinoType] public class AliasBox<__MI> { public __MI Value; }
 [NinoType] public class DispatchAlias<__CS> { public __CS Value; }
 [NinoType] public sealed class DispatchAliasLeaf : DispatchAlias<int> { public short Tail; }
 [NinoType(includeNonPublicMembers: true)] public partial class Hidden { private int _secret; public int Get() => _secret; }
