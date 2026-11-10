@@ -291,6 +291,14 @@ of bytes in a block.
   a branch and argument to the shared growing helper. Its Arm64 helper pair grew from
   1,108 to 1,152 bytes without a repeatable gain. Passing only the shape by reference saved
   24 Arm64 bytes across the caller and helper, compared with 48 for passing only the reader.
+  Pass the validated shape by readonly reference as well. It already lives in a stack slot
+  for the shape reader. Arm64 FullOpts drops the 20-byte copy before the heavy helper and
+  shrinks the 2D caller plus helper by another 24 bytes in both fixtures. Offline x64 drops
+  21 bytes for the reference fixture and 12 for the sparse fixture. Arm64 Tier 0 combined
+  size stayed at 976 bytes. Combined IL grew by 1 byte and three-rank generated source by
+  18 bytes. Four local default-JIT rounds showed faster 5,000-element reference reads in
+  several rounds, but the magnitudes varied and the short cases overlapped A/A. Allocations
+  matched, and wire comparisons and round trips passed at offsets 0, 1 and 7.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
