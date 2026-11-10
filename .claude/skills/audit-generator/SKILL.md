@@ -755,6 +755,13 @@ namespace names and outermost-first argument order. The local nested-name probe 
 render, and the unit test project's 628 generated files remained byte-identical.
 Append formatter name stems directly, doubling literal underscores while appending each namespace or type name.
 The local mixed-name probe went from about 619 to 403 bytes per render with unchanged hint names and source.
+Share the existing bounded text scratch slot with fully qualified type-name rendering and return it in a
+finally block. Keep only the final name string. Four real project cold replays saved 3.0–3.2 MB,
+reopens saved 2.6–2.7 MB, and method-body edits saved 103–115 KB. Isolated rendering of actual project
+symbols saved about 119 B per call with unchanged timing. All 582 files matched byte for byte across
+cold, cached and edited runs, 577 models were reused, and the closed-project and previous-tree
+collection probes passed. The render method grew from 78 to 93 IL bytes, 328 to 376 Arm64 bytes and
+258 to 285 cross-JIT x64 bytes. The Roslyn 4.8 and 4.12 targeted suites passed (`461354bb`).
 Build prefetch member lists only for eligible formatter models, after confirming a property is reference-typed.
 Skip the prefetch metadata in analyzer models and allocate the small member list only on the first match.
 Recognize shared immutable arrays before walking their elements. The local 128-string equality probe went
