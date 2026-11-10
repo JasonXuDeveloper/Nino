@@ -394,6 +394,10 @@ Use the interceptor lookup directly when the emitter needs both group count and 
 The 1,210-group replay saved about 9.7 KB in both load orders. Whole-project timing and
 allocation varied. Both Roslyn builds emitted the same 582 files, edit tracking and
 closed-project collection matched, and 54 targeted tests passed per runtime (`909cdf51`).
+Use compile-time preambles for the fixed interceptor attribute. The 307–323-character
+preamble no longer needs a writer, saving about 9.2 KB per replay in both load orders.
+Both Roslyn builds emitted the same 582 files, incremental and collection checks passed,
+and 38 targeted tests passed on each runtime (`fc0b5481`).
 Preserve formatter reference identity through unchanged twin substitutions. Allocate
 a replacement argument array only after the first changed child. This avoided about
 676 KB and reduced median emitter time by 7–11% in both isolated load orders. The eight
