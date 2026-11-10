@@ -162,15 +162,16 @@ namespace Nino.Core
         private static void CopyText(StringBuilder value, int length, ref byte body)
         {
 #if NET8_0_OR_GREATER
+            if (length == 1)
+            {
+                NinoUnsafe.Write(ref body, value[0]);
+                return;
+            }
+
             // Small copies already have an efficient chunk loop; larger builders may allocate a chunk index.
             if (length <= 64)
             {
-                foreach (var chunk in value.GetChunks())
-                {
-                    var bytes = MemoryMarshal.AsBytes(chunk.Span);
-                    NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
-                    body = ref Unsafe.Add(ref body, bytes.Length);
-                }
+                CopyChunks(value, ref body);
                 return;
             }
 #endif
@@ -187,6 +188,19 @@ namespace Nino.Core
             NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(chars), (uint)chars.Length);
 #endif
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CopyChunks(StringBuilder value, ref byte body)
+        {
+            foreach (var chunk in value.GetChunks())
+            {
+                var bytes = MemoryMarshal.AsBytes(chunk.Span);
+                NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+                body = ref Unsafe.Add(ref body, bytes.Length);
+            }
+        }
+#endif
 
 #if NETSTANDARD2_0
         [MethodImpl(MethodImplOptions.NoInlining)]
