@@ -139,6 +139,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   3–11% longer than baseline over four M4 pairs, against -0.2% to +7% for an identical-binary
   control. The multi-tree group improved against the first baseline but varied against the control.
   Isolated allocations, 582 generated files, model reuse and collection matched. The candidate was withdrawn.
+  Keep the work stack for the symbol traversal. A local for one pending symbol, backed by a stack on
+  branches, saved 17,576 B per isolated 910-declaration pass. The dependency order matched, but three
+  of four warmed default-JIT M4 pairs took 3–23% longer, and project reopen allocation and timing
+  varied. The traversal moved from 602 to 632 IL bytes, 2,716 to 2,708 Arm64 FullOpts bytes, and
+  2,346 to 2,678 emulated x64 FullOpts bytes. The 582 generated files, incremental model reuse,
+  and collection checks matched. The candidate was withdrawn.
   The local feature lookup went from 280 B per call to zero, with identical real-project output.
 - Skip binding explicit type arguments that name a method's own lexical type parameter from inside its body.
   Keep qualified names, contextual keywords and inferred calls on Roslyn's binding path. The real unit test
