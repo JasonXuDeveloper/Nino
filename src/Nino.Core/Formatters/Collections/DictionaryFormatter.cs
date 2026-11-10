@@ -70,10 +70,9 @@ namespace Nino.Core
             value ??= NinoActivator<TDictionary>.Create();
             // Through a copy: the reader's own address must not reach a call that is not inlined (see
             // NinoObject.ReadBody), or none of its fields stay in registers in the caller.
-            Reader copy = default;
-            reader.CopyTo(ref copy);
+            Reader copy = reader;
             NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref copy);
-            copy.CopyTo(ref reader);
+            reader = copy;
         }
     }
 }
