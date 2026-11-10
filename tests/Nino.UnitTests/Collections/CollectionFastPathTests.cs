@@ -232,7 +232,7 @@ public class CollectionFastPathTests
 
         static void Check<T>(Func<int, T> key, Func<int, T> value)
         {
-            for (int count = 0; count <= 17; count++)
+            for (int count = 0; count <= 65; count++)
             {
                 var list = new SortedList<T, T>();
                 for (int i = 0; i < count; i++)

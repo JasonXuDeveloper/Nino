@@ -212,7 +212,7 @@ namespace Nino.Core
 
                 if (NinoBlockCollections.CanInterleave<int>(count))
                 {
-                    NinoBlockCollections.Interleave<int, NinoBlockCollections.Zip32>(ref Unsafe.As<TKey, int>(ref key),
+                    NinoBlockCollections.InterleaveBest<int, NinoBlockCollections.Zip32>(ref Unsafe.As<TKey, int>(ref key),
                         ref Unsafe.As<TValue, int>(ref value), ref target, count);
                     return;
                 }

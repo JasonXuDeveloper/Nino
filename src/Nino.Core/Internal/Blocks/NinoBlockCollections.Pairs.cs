@@ -23,14 +23,24 @@ namespace Nino.Core.Internal
                 !CanInterleave<T>(count))
                 return false;
 
-            Interleave<T, TZip>(ref Unsafe.As<TKey, T>(ref NinoUnsafe.GetArrayDataReference(first)),
+            InterleaveBest<T, TZip>(ref Unsafe.As<TKey, T>(ref NinoUnsafe.GetArrayDataReference(first)),
                 ref Unsafe.As<TValue, T>(ref NinoUnsafe.GetArrayDataReference(second)), ref target, count);
             return true;
         }
 
         /// <summary>Interleaves two checked raw arrays into one little-endian block of pairs.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void InterleaveBest<T, TZip>(ref T first, ref T second, ref byte target, int count)
+            where T : unmanaged where TZip : struct, IZip<T>
+        {
+            if (Avx2.IsSupported && count >= Vector256<T>.Count * 2)
+                InterleaveWide<T, TZip>(ref first, ref second, ref target, count);
+            else
+                Interleave<T, TZip>(ref first, ref second, ref target, count);
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static void Interleave<T, TZip>(ref T first, ref T second, ref byte target, int count)
+        private static void Interleave<T, TZip>(ref T first, ref T second, ref byte target, int count)
             where T : unmanaged where TZip : struct, IZip<T>
         {
             int lanes = Vector128<T>.Count;
@@ -55,10 +65,72 @@ namespace Nino.Core.Internal
             }
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void InterleaveWide<T, TZip>(ref T first, ref T second, ref byte target, int count)
+            where T : unmanaged where TZip : struct, IZip<T>
+        {
+            int pairs;
+            if (Avx512F.IsSupported && (typeof(T) != typeof(short) || Avx512BW.IsSupported) &&
+                count >= Vector512<T>.Count * 2 && NinoSimd.Prefer512)
+            {
+                pairs = count & -Vector512<T>.Count;
+                Interleave512<T, TZip>(ref first, ref second, ref target, pairs);
+            }
+            else
+            {
+                pairs = count & -Vector256<T>.Count;
+                Interleave256<T, TZip>(ref first, ref second, ref target, pairs);
+            }
+
+            if (pairs != count)
+                Interleave<T, TZip>(ref Unsafe.Add(ref first, pairs), ref Unsafe.Add(ref second, pairs),
+                    ref Unsafe.Add(ref target, pairs * (2 * Unsafe.SizeOf<T>())), count - pairs);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Interleave512<T, TZip>(ref T first, ref T second, ref byte target, int count)
+            where T : unmanaged where TZip : struct, IZip<T>
+        {
+            int lanes = Vector512<T>.Count;
+            var lower = TZip.PairIndices;
+            var upper = lower + Vector512.Create(TZip.HalfLanes);
+            for (int i = 0; i < count; i += lanes)
+            {
+                var a = Vector512.LoadUnsafe(ref first, (nuint)i);
+                var b = Vector512.LoadUnsafe(ref second, (nuint)i);
+                TZip.Permute(a, lower, b).AsByte().StoreUnsafe(ref target);
+                TZip.Permute(a, upper, b).AsByte().StoreUnsafe(ref target, 64);
+                target = ref Unsafe.Add(ref target, 128);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void Interleave256<T, TZip>(ref T first, ref T second, ref byte target, int count)
+            where T : unmanaged where TZip : struct, IZip<T>
+        {
+            int lanes = Vector256<T>.Count;
+            for (int i = 0; i < count; i += lanes)
+            {
+                var a = Vector256.LoadUnsafe(ref first, (nuint)i);
+                var b = Vector256.LoadUnsafe(ref second, (nuint)i);
+                var low = TZip.Low(a, b).AsByte();
+                var high = TZip.High(a, b).AsByte();
+                // Unpack interleaves within each 128-bit lane. Join the lanes in pair order.
+                Avx2.Permute2x128(low, high, 0x20).StoreUnsafe(ref target);
+                Avx2.Permute2x128(low, high, 0x31).StoreUnsafe(ref target, 32);
+                target = ref Unsafe.Add(ref target, 64);
+            }
+        }
+
         internal interface IZip<T> where T : unmanaged
         {
             static abstract Vector128<T> Low(Vector128<T> a, Vector128<T> b);
             static abstract Vector128<T> High(Vector128<T> a, Vector128<T> b);
+            static abstract Vector256<T> Low(Vector256<T> a, Vector256<T> b);
+            static abstract Vector256<T> High(Vector256<T> a, Vector256<T> b);
+            static abstract Vector512<T> PairIndices { get; }
+            static abstract T HalfLanes { get; }
+            static abstract Vector512<T> Permute(Vector512<T> a, Vector512<T> indices, Vector512<T> b);
         }
 
         internal readonly struct Zip16 : IZip<short>
@@ -70,6 +142,25 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector128<short> High(Vector128<short> a, Vector128<short> b) =>
                 AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<short> Low(Vector256<short> a, Vector256<short> b) => Avx2.UnpackLow(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<short> High(Vector256<short> a, Vector256<short> b) => Avx2.UnpackHigh(a, b);
+
+            public static Vector512<short> PairIndices
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => Vector512.Create((short)0, 32, 1, 33, 2, 34, 3, 35, 4, 36, 5, 37, 6, 38, 7, 39,
+                    8, 40, 9, 41, 10, 42, 11, 43, 12, 44, 13, 45, 14, 46, 15, 47);
+            }
+
+            public static short HalfLanes => 16;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector512<short> Permute(Vector512<short> a, Vector512<short> indices, Vector512<short> b) =>
+                Avx512BW.PermuteVar32x16x2(a, indices, b);
         }
 
         internal readonly struct Zip32 : IZip<int>
@@ -81,6 +172,24 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector128<int> High(Vector128<int> a, Vector128<int> b) =>
                 AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<int> Low(Vector256<int> a, Vector256<int> b) => Avx2.UnpackLow(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<int> High(Vector256<int> a, Vector256<int> b) => Avx2.UnpackHigh(a, b);
+
+            public static Vector512<int> PairIndices
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => Vector512.Create(0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23);
+            }
+
+            public static int HalfLanes => 8;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector512<int> Permute(Vector512<int> a, Vector512<int> indices, Vector512<int> b) =>
+                Avx512F.PermuteVar16x32x2(a, indices, b);
         }
 
         internal readonly struct Zip64 : IZip<long>
@@ -92,6 +201,24 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector128<long> High(Vector128<long> a, Vector128<long> b) =>
                 AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipHigh(a, b) : Sse2.UnpackHigh(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<long> Low(Vector256<long> a, Vector256<long> b) => Avx2.UnpackLow(a, b);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<long> High(Vector256<long> a, Vector256<long> b) => Avx2.UnpackHigh(a, b);
+
+            public static Vector512<long> PairIndices
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => Vector512.Create(0L, 8, 1, 9, 2, 10, 3, 11);
+            }
+
+            public static long HalfLanes => 4;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector512<long> Permute(Vector512<long> a, Vector512<long> indices, Vector512<long> b) =>
+                Avx512F.PermuteVar8x64x2(a, indices, b);
         }
 
         // The caller has checked the full block of pairs.
