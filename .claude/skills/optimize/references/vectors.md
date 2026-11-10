@@ -287,6 +287,14 @@ of bytes in a block.
   4,095- and 4,096-item reuse cases in all four local default-JIT rounds against
   both baselines, at 0 B allocated. Short inputs varied. The vector helper adds
   320 IL bytes, 272 Arm64 FullOpts bytes, and 204 x64 cross-JIT bytes.
+  Process 128 bytes per full iteration with two groups of four vector loads.
+  Compared with the 64-byte loop, all four unaligned `int?[]` reuse rounds
+  improved against both baselines on each side of the 64 KiB working set.
+  Time fell by 19–47% at 4,095 items and 20–39% at 4,096 items versus
+  the faster baseline in each round. Shorter
+  samples varied and allocation stayed at 0 B. The helper grew from 320 to
+  493 IL bytes, 272 to 336 Arm64 FullOpts bytes, and 204 to 295 x64 cross-JIT
+  bytes. The wire samples and scalar fallback matched.
   Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
   In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
   and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
