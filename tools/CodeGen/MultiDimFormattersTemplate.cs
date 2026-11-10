@@ -55,7 +55,7 @@ namespace Nino.CodeGen
             sb.Append("            if (writer.TryWriteNullLength(value))\n");
             sb.Append("                return;\n");
             sb.Append("\n");
-            sb.Append("            MultiDim.WriteLengths(value, ref writer);\n");
+            sb.Append($"            MultiDim.WriteLengths(value, {rank}, ref writer);\n");
             sb.Append("            if (value.Length != 0)\n");
             sb.Append($"                NinoElements.Write<T, TFormatter>(ref value[{first}], value.Length, ref writer);\n");
             sb.Append("        }\n");

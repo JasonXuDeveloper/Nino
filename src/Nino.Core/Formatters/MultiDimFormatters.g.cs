@@ -16,7 +16,7 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            MultiDim.WriteLengths(value, ref writer);
+            MultiDim.WriteLengths(value, 2, ref writer);
             if (value.Length != 0)
                 NinoElements.Write<T, TFormatter>(ref value[0, 0], value.Length, ref writer);
         }
@@ -71,7 +71,7 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            MultiDim.WriteLengths(value, ref writer);
+            MultiDim.WriteLengths(value, 3, ref writer);
             if (value.Length != 0)
                 NinoElements.Write<T, TFormatter>(ref value[0, 0, 0], value.Length, ref writer);
         }
@@ -126,7 +126,7 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            MultiDim.WriteLengths(value, ref writer);
+            MultiDim.WriteLengths(value, 4, ref writer);
             if (value.Length != 0)
                 NinoElements.Write<T, TFormatter>(ref value[0, 0, 0, 0], value.Length, ref writer);
         }

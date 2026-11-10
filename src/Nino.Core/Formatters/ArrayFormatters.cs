@@ -369,12 +369,16 @@ namespace Nino.Core
     internal static class MultiDim
     {
         /// <summary>Writes the length of each dimension of <paramref name="value"/> (not null).</summary>
-        public static void WriteLengths(Array value, ref Writer writer)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteLengths(Array value, int rank, ref Writer writer)
         {
-            int rank = value.Rank;
             ref byte p = ref writer.Reserve(rank * NinoWire.LengthSize);
-            for (int i = 0; i < rank; i++)
-                NinoUnsafe.Write(ref p, i * NinoWire.LengthSize, value.GetLength(i));
+            NinoUnsafe.Write(ref p, 0, value.GetLength(0));
+            NinoUnsafe.Write(ref p, NinoWire.LengthSize, value.GetLength(1));
+            if (rank > 2)
+                NinoUnsafe.Write(ref p, 2 * NinoWire.LengthSize, value.GetLength(2));
+            if (rank > 3)
+                NinoUnsafe.Write(ref p, 3 * NinoWire.LengthSize, value.GetLength(3));
         }
 
         /// <summary>
