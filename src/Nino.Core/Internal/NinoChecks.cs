@@ -50,20 +50,8 @@ namespace Nino.Core.Internal
         public static void Flags(ref byte first, int count, int stride)
         {
 #if NET8_0_OR_GREATER
-            if (count >= 128)
-            {
-                bool valid;
-                if (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512)
-                    valid = ValidFlagBlocks<Vector512<byte>, FlagVectors512>(ref first, count, stride);
-                else if (Vector256.IsHardwareAccelerated)
-                    valid = ValidFlagBlocks<Vector256<byte>, FlagVectors256>(ref first, count, stride);
-                else
-                    valid = Vector128.IsHardwareAccelerated &&
-                            ValidFlagBlocks<Vector128<byte>, FlagVectors128>(ref first, count, stride);
-
-                if (valid)
-                    return;
-            }
+            if (count >= 128 && TryValidateStrided(ref first, count * stride, stride))
+                return;
 #endif
             int any = Strided(ref first, count, stride);
             if ((any & 0xFE) != 0)
@@ -71,10 +59,20 @@ namespace Nino.Core.Internal
         }
 
 #if NET8_0_OR_GREATER
-        // Nullable payloads have a full stride after the last flag, so the vector loads stay within the block.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryValidateStrided(ref byte first, int bytes, int stride)
+        {
+            if (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512)
+                return ValidFlagBlocks<Vector512<byte>, FlagVectors512>(ref first, bytes, stride);
+            if (Vector256.IsHardwareAccelerated)
+                return ValidFlagBlocks<Vector256<byte>, FlagVectors256>(ref first, bytes, stride);
+            return Vector128.IsHardwareAccelerated &&
+                   ValidFlagBlocks<Vector128<byte>, FlagVectors128>(ref first, bytes, stride);
+        }
+
         // Tier 0 leaves calls inside the scan, so compile this validator with its helpers inlined from the start.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static bool ValidFlagBlocks<TVector, TOps>(ref byte first, int count, int stride)
+        private static bool ValidFlagBlocks<TVector, TOps>(ref byte first, int bytes, int stride)
             where TVector : struct
             where TOps : struct, IFlagVectors<TVector>
         {
@@ -88,7 +86,6 @@ namespace Nino.Core.Internal
                 default: return false;
             }
 
-            int bytes = count * stride;
             int width = Unsafe.SizeOf<TVector>();
             int end = bytes & -width;
             TVector bits = default;
@@ -206,6 +203,11 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void Bools(ref byte first, int count, int stride)
         {
+#if NET8_0_OR_GREATER
+            // The first bool can be inside a block. End at the last flag, not at the end of its stride.
+            if (count >= 128 && TryValidateStrided(ref first, (count - 1) * stride + 1, stride))
+                return;
+#endif
             int any = Strided(ref first, count, stride);
             if ((any & 0xFE) != 0)
                 NinoThrow.InvalidBool(any);

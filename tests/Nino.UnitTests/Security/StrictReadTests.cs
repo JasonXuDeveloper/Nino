@@ -153,6 +153,18 @@ public class StrictReadTests
     }
 
     [TestMethod]
+    public void StridedBoolReadsRejectInvalidFlagsAtThePayloadEnd()
+    {
+        const int count = 129;
+        var values = Enumerable.Repeat((byte.MaxValue, true), count).ToList();
+        var bytes = NinoSerializer.Serialize(values);
+        Assert.AreEqual(sizeof(int) + count * 2, bytes.Length);
+        CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<List<(byte, bool)>>(bytes));
+        Invalid<List<(byte, bool)>>(WithByte(bytes, sizeof(int) + 1, 2));
+        Invalid<List<(byte, bool)>>(WithByte(bytes, bytes.Length - 1, 2));
+    }
+
+    [TestMethod]
     public void BoolsOtherThanZeroOrOneAreErrors()
     {
         Assert.IsTrue(NinoDeserializer.Deserialize<bool>(new byte[] { 1 }));
