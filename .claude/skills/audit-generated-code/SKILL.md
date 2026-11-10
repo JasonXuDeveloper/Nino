@@ -162,6 +162,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   1,013 emulated x64 bytes. Short and unaligned timing varied after longer
   warmup. The larger batch was within 1% at both offsets. All 18 wire comparisons
   matched, and reuse allocated 0 B.
+  Keep the existing dictionary trait for now. Extending context preservation to
+  all context-preserving key and value formatters changed five real-project files.
+  A string-to-string fixture's read body fell from 47 to 39 IL bytes, 864 to 668
+  Arm64 FullOpts bytes, and 698 to 524 emulated x64 bytes. Short cases varied,
+  but four longer M4 pairs of 512 dictionaries with 16 pairs each at offset one
+  slowed by 5–12%, against −2% to +4% for the identical-binary control. The
+  allocations and all 18 wire comparisons matched. The candidate was withdrawn.
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
