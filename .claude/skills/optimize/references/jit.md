@@ -27,6 +27,12 @@ and when `asm.py compare` lists methods the change did not touch.
   variant was also slower than both controls in each round. The same generated
   consumer matched wire bytes at offsets 0, 1 and 7 and stayed at zero steady
   allocation. Inspect the pair load before retrying this arithmetic rewrite.
+- Keep the existing custom-formatter `ReadSlice` cursor update. Folding header and payload
+  advancement into one update grew the method from 43 to 122 IL bytes while standalone x64
+  cross-JIT shrank from 120 to 114 bytes. A 64-byte slice through a byref parent reduced its
+  Arm64 Tier 1 caller from 184 to 156 bytes and improved local timing. Empty-slice runs often
+  stayed in Tier 0 for the candidate, with repeated regressions even after longer warmup.
+  Four slice checks matched and measured reads stayed at zero allocation.
 - Use the length of the public `BitArray` byte view when reserving its wire payload.
   The view is already sized for the bits, so slicing it again adds an unnecessary check.
   Keep the final-byte mask and verify dirty padding on unaligned output. The formatter
