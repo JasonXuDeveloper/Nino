@@ -298,6 +298,13 @@ four cold project replays saved 255–418 KB. Cold, cached and method-body edit 
 repeatable gain. `LayoutEmitter.Emit` went from 255 to 286 IL bytes, 1,500 to 1,436 Arm64
 Tier 0 bytes, and 601 to 668 x64 cross-JIT bytes. Both Roslyn builds matched all 577 generated
 files, reused all 572 models on edits, and released the closed-project objects.
+Append the members to the same builder and escape only their range. Share the member writer
+with the analyzer's unescaped baseline representation. This saved another 184 KB per
+572-model replay in both load orders and 82–301 KB across four cold replays. Whole-project
+timings varied. `Emit` moved from 286 to 333 IL bytes and the member writer from 354 to
+313. Their combined Arm64 Tier 0 listings were 3,376 and 3,308 bytes, and x64 cross-JIT
+listings were 1,455 and 1,470. Both Roslyn builds matched all 577 outputs, reused all models
+on edits, released the old project objects and passed 83 focused tests on each runtime.
 Delay formatting an alias declaration until the occurrence count pays for it. Compute its length
 from the alias and original name first. Four cold replays allocated 45–58 KB less, wall time
 stayed within 0.3%, and all 577 outputs matched (`abc295cc`).
