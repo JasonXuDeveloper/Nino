@@ -183,11 +183,29 @@ internal static class DispatchEmitter
         // 2.5% more compile time on a workload of hierarchies.
         if (subtypes is { Count: > 0 and <= MaxWriteChain })
         {
+            // Leave small writes inline. Nested writes repeat the depth handling in a wider dispatch.
+            bool outlineNestedWrites = subtypes.Count >= 4;
             w.Open(WriteSubtype(t));
-            foreach (var s in subtypes)
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
+            for (int i = 0; i < subtypes.Count; i++)
+            {
+                var s = subtypes[i];
+                string call = outlineNestedWrites && s.Nests && !s.RawBody
+                    ? $"__WriteExact{i}"
+                    : $"{services}NinoObject.{(s.RawBody ? "WriteExactRaw" : "WriteExact")}<{s.TypeName}, {s.FormatterName}>";
+                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{call}}(value, ref writer); return; }""");
+            }
             w.Line(WriteOther(t, services) + ";");
             w.Close();
+
+            if (outlineNestedWrites)
+            {
+                for (int i = 0; i < subtypes.Count; i++)
+                {
+                    var s = subtypes[i];
+                    if (s.Nests && !s.RawBody)
+                        w.Line($"{GeneratedCode.NoInline} static void __WriteExact{i}(object value, ref {Core}Writer writer) => {services}NinoObject.WriteExact<{s.TypeName}, {s.FormatterName}>(value, ref writer);");
+                }
+            }
         }
         else
         {

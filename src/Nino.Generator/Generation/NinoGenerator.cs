@@ -322,7 +322,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
     {
         var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName,
                 m.TypeParameterList, m.TypeId, m.IsDispatchRoot, m.IsDispatchTarget, m.Inheritance.NinoBaseClasses,
-                m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors, m.RawBody))
+                m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors, m.RawBody, m.Depth.Nests))
             .Select(static (x, _) => new EquatableArray<DispatchEntry>(x.Where(static e => e.IsBase || e.IsTarget)
                 .Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
             .WithTrackingName("Dispatch");
