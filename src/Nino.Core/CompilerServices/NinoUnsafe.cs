@@ -425,15 +425,15 @@ namespace Nino.Core.CompilerServices
                 Unsafe.WriteUnaligned(ref destination, head);
                 Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 4), tail);
             }
-            else if (size != 0)
+            else if (size >= 2)
             {
-                // 1 to 3 bytes: the first, the middle and the last (some the same).
-                byte first = source, middle = Unsafe.Add(ref source, (nint)(size >> 1)),
-                    last = Unsafe.Add(ref source, (nint)size - 1);
-                destination = first;
-                Unsafe.Add(ref destination, (nint)(size >> 1)) = middle;
-                Unsafe.Add(ref destination, (nint)size - 1) = last;
+                ushort head = Unsafe.ReadUnaligned<ushort>(ref source);
+                ushort tail = Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref source, (nint)size - 2));
+                Unsafe.WriteUnaligned(ref destination, head);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 2), tail);
             }
+            else if (size != 0)
+                destination = source;
         }
 
         /// <summary>
