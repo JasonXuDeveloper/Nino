@@ -41,8 +41,8 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   twins `__Top` / `__Shallow`. A text-based alias matches whole names at both ends: the struct's own declaration
   once became `struct __NinoF0` when a self-holding type's formatter was a candidate. Member formatters are numbered in member order and
   declared without `global::NinoGen.` (alias declarations are inside the namespace too). Share the inlining flags as
-  constants in the assembly's generated registry file: `[__MI(__NinoIL.Inline)]` and
-  `[__MI(__NinoIL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
+  constants in the assembly's generated registry file: `[__MI(__IL.Inline)]` and
+  `[__MI(__IL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
   if a formatter's type parameter shadows the flags type. The compiler folds the constants into the same method
   flags, with no helper calls.
   Shortening the attribute alias removed 29,864 source bytes from the unit test project (6d82f7a7),
@@ -53,6 +53,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   and 145 emulated x64 FullOpts bytes, the wire and 0 B allocation. Keep formatter aliases
   inside `NinoGen`. Moving the Core alias before assembly layout attributes saved 21,942
   bytes but failed with CS0576 when the consumer declared a same-named global type.
+  Shortening the shared flags type to `__IL` saved another 23,044 bytes across 580 files
+  and 302–384 KB per cold project replay. Retain the type-parameter fallback in C# 9 and
+  later. Consumer IL matched after normalizing the internal type names and relocated data
+  addresses. The sampled round trip kept 376 Arm64 and 329 emulated x64 FullOpts bytes,
+  identical wire bytes, and 0 B allocation. The only large timing swing also appeared in
+  the identical-binary control.
   Alias repeated non-generic named raw member types in symbolic sizes and loads (acc67d4b). Avoid aliases
   of constructed types that add TypeSpec metadata. Expanding the aliases recovered the same source;
   generated IL, Arm64 Tier 1 summaries and normalized x64 listings matched the baseline.
