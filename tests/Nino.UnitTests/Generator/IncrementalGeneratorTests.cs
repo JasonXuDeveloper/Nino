@@ -48,7 +48,7 @@ public class IncrementalGeneratorTests
         driver = driver.RunGenerators(compilation);
         var derived = Output(driver, "Derived");
         var holder = Output(driver, "Holder");
-        StringAssert.Contains(holder, "WriteValueIn<global::Inc.Inner>");
+        StringAssert.Contains(holder, "WriteValueIn(ref destination, offset, in value.I);");
 
         // Unrelated edit: same outputs.
         compilation = Edit(compilation, "Inner.cs", "}\n}", "}\n// comment\n}");
@@ -64,7 +64,9 @@ public class IncrementalGeneratorTests
         // A member type that stops being raw changes how the holder writes it.
         compilation = Edit(compilation, "Inner.cs", "public int A;", "public int A; public string S;");
         driver = driver.RunGenerators(compilation);
-        Assert.IsFalse(Output(driver, "Holder").Contains("WriteValue<global::Inc.Inner>"));
+        holder = Output(driver, "Holder");
+        Assert.IsFalse(holder.Contains("WriteValueIn("));
+        StringAssert.Contains(holder, ".Serialize(value.I, ref writer);");
     }
 
     [TestMethod]
