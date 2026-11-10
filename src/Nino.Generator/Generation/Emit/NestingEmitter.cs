@@ -22,19 +22,17 @@ internal static class NestingEmitter
             w.Line("/// <summary>A level of a type that holds itself: counted, then its formatter.</summary>");
             w.Line(HiddenAttribute);
             w.Open($"internal struct {f.Name} : {Core}INinoFormatter<{f.TypeName}>");
-            w.Block(Signature.Serialize(f.TypeName), () =>
-            {
-                w.Line($"writer.EnterStruct(typeof({f.TypeName}));");
-                w.Line($"default({f.Body}).Serialize(value, ref writer);");
-                w.Line("writer.ExitStruct();");
-            });
+            w.Open(Signature.Serialize(f.TypeName));
+            w.Line($"writer.EnterStruct(typeof({f.TypeName}));");
+            w.Line($"default({f.Body}).Serialize(value, ref writer);");
+            w.Line("writer.ExitStruct();");
+            w.Close();
             w.Line();
-            w.Block(Signature.Deserialize(f.TypeName), () =>
-            {
-                w.Line($"reader.EnterStruct(typeof({f.TypeName}));");
-                w.Line($"default({f.Body}).Deserialize(ref reader, ref value);");
-                w.Line("reader.ExitStruct();");
-            });
+            w.Open(Signature.Deserialize(f.TypeName));
+            w.Line($"reader.EnterStruct(typeof({f.TypeName}));");
+            w.Line($"default({f.Body}).Deserialize(ref reader, ref value);");
+            w.Line("reader.ExitStruct();");
+            w.Close();
             w.Close();
         }
 
