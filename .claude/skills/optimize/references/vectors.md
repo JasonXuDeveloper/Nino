@@ -402,6 +402,16 @@ of bytes in a block.
   around a 64 KiB input/output footprint. The cursor version grew the shared
   loop from 44 to 81 IL bytes and kept 92 Arm64 FullOpts bytes; emulated x64
   remained on the 998-byte fallback. All ten wire cases matched at 0 B.
+  Write one to three bool slots with a single little-endian word store per
+  element. Use typed nullable access and zero the entire slot when absent.
+  Four M4 default-JIT pairs improved the present singleton by a 36% median and
+  three present values by 23%. Mixed two- and three-item medians improved
+  by 8% and 7%. The null singleton and vector controls were broadly flat.
+  The emulated x64 singleton improved 23%; other guest timings were noisy.
+  Nine wire comparisons matched at 0 B. Write grew from 346 to 499 IL bytes,
+  from 1,424 to 1,512 Arm64 FullOpts bytes and from 998 to 1,091 emulated x64
+  FullOpts bytes. Dirty nulls, disabled intrinsics and portable builds passed
+  (`0e424b38`).
 - Keep the 81–128-byte Arm64 shortcut at the checked raw array reader. An inline branch and a
   separate helper in the shared copy dispatcher both slowed the 1 KiB direct control. Extracting
   the existing loop's vector group still affected that control, even after moving the branch.
