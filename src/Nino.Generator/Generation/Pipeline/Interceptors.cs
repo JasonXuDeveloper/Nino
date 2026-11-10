@@ -96,41 +96,65 @@ internal static class Interceptors
     {
         if (Location(ctx, invocation, ct) is not { } location)
             return null;
-        var signature = new StringBuilder();
-        var arguments = new StringBuilder();
-        signature.Append(method.ReturnsVoid ? "void" : TypeNames.Global(method.ReturnType))
-            .Append(' ').Append(method.Name).Append('(');
-        for (int i = 0; i < method.Parameters.Length; i++)
+        // Overloads given a reader or writer leave its fields in the caller's memory.
+        bool inlinable = target == method.Name;
+        string signature, arguments;
+        var parameters = method.Parameters;
+        var text = TextScratch.Rent(128);
+        try
         {
-            var parameter = method.Parameters[i];
-            string refKind = parameter.RefKind switch
+            if (method.ReturnsVoid)
+                text.Append("void");
+            else
+                TypeNames.AppendGlobal(text, method.ReturnType);
+            text.Append(' ').Append(method.Name).Append('(');
+
+            for (int i = 0; i < parameters.Length; i++)
             {
-                RefKind.Ref => "ref ",
-                RefKind.Out => "out ",
-                RefKind.In => "in ",
-                RefKind.None => "",
-                _ => null!,
-            };
-            if (refKind == null)
-                return null;
-            if (i != 0)
-            {
-                signature.Append(", ");
-                arguments.Append(", ");
+                var parameter = parameters[i];
+                string? refKind = RefPrefix(parameter.RefKind);
+                if (refKind == null)
+                    return null;
+                if (i != 0)
+                    text.Append(", ");
+                text.Append(refKind);
+                TypeNames.AppendGlobal(text, parameter.Type);
+                text.Append(" a").Append(i);
+                if (parameter.RefKind == RefKind.Ref && parameter.Type.Name is "Reader" or "Writer")
+                    inlinable = false;
             }
 
-            signature.Append(refKind).Append(TypeNames.Global(parameter.Type)).Append(" a").Append(i);
-            // an in argument needs no keyword, and the NinoDirect target may take it by value
-            arguments.Append(parameter.RefKind == RefKind.In ? "" : refKind).Append('a').Append(i);
+            signature = text.Append(')').ToString();
+            text.Clear();
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (i != 0)
+                    text.Append(", ");
+                // The NinoDirect target may take an in argument by value.
+                if (parameters[i].RefKind != RefKind.In)
+                    text.Append(RefPrefix(parameters[i].RefKind));
+                text.Append('a').Append(i);
+            }
+
+            arguments = text.ToString();
+        }
+        finally
+        {
+            TextScratch.Return(text);
         }
 
-        signature.Append(')');
-        // Overloads given a reader or writer leave its fields in the caller's memory: nothing to gain there.
-        bool inlinable = target == method.Name &&
-                         !method.Parameters.Any(p => p.RefKind == RefKind.Ref && p.Type.Name is "Reader" or "Writer");
-        return new InterceptedCall(signature.ToString(), target, TypeNames.Global(type), formatter,
-            arguments.ToString(), location.Attribute, inlinable, location.Where);
+        return new InterceptedCall(signature, target, TypeNames.Global(type), formatter,
+            arguments, location.Attribute, inlinable, location.Where);
     }
+
+    private static string? RefPrefix(RefKind kind) => kind switch
+    {
+        RefKind.Ref => "ref ",
+        RefKind.Out => "out ",
+        RefKind.In => "in ",
+        RefKind.None => "",
+        _ => null,
+    };
 
     /// <summary>Updates a reused call with the current tree's interceptor coordinates and checksum.</summary>
     public static InterceptedCall? AtLocation(GeneratorSyntaxContext ctx, InterceptedCall call, CancellationToken ct) =>

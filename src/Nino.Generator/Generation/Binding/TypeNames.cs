@@ -146,7 +146,7 @@ internal static class TypeNames
         sb.Append(escape ? Identifier(ns.Name) : ns.Name).Append('.');
     }
 
-    private static void AppendGlobal(StringBuilder sb, ITypeSymbol type)
+    internal static void AppendGlobal(StringBuilder sb, ITypeSymbol type)
     {
         switch (type)
         {
