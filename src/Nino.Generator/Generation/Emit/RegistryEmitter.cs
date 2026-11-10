@@ -268,22 +268,21 @@ internal static class RegistryEmitter
         }
     }
 
-    private static void EmitIdSwitch(CodeWriter w, IEnumerable<IdCase> cases, GeneratedCode.NamespaceAliases compact)
+    private static void EmitIdSwitch(CodeWriter w, List<IdCase> cases, GeneratedCode.NamespaceAliases compact)
     {
-        w.Block("switch (id)", () =>
+        w.Open("switch (id)");
+        foreach (var c in cases)
         {
-            foreach (var c in cases)
+            w.Line($"case {c.Id}:");
+            using (w.Indent())
             {
-                w.Line($"case {c.Id}:");
-                using (w.Indent())
-                {
-                    w.AliasedLine(c.First, compact);
-                    if (c.Rest != null)
-                        foreach (var statement in c.Rest)
-                            w.AliasedLine(statement, compact);
-                    w.Line("break;");
-                }
+                w.AliasedLine(c.First, compact);
+                if (c.Rest != null)
+                    foreach (var statement in c.Rest)
+                        w.AliasedLine(statement, compact);
+                w.Line("break;");
             }
-        });
+        }
+        w.Close();
     }
 }
