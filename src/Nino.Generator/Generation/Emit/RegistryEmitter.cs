@@ -32,9 +32,14 @@ internal static class RegistryEmitter
         preamble.Line($"[assembly: {CoreCompilerServices}NinoGenerated(typeof({Gen}{name}))]");
         // Generic [NinoType]s are closed at runtime: their formatter definitions are ordinary formatter
         // registrations (each implements INinoFormatter<Box<T>> in exactly the type's own parameters).
+        int caseCapacity = 0;
         foreach (var entry in entries)
+        {
             if (entry.Arity != 0)
                 preamble.Line($"[assembly: {Core}NinoFormatter(typeof({Gen}{entry.FormatterName}<{new string(',', entry.Arity - 1)}>))]");
+            else if (entry.Registration is { } registration)
+                caseCapacity += registration.NameId == registration.Id ? 1 : 2;
+        }
         preamble.Line();
         var w = new CodeWriter();
         w.Lines($$"""
@@ -62,7 +67,7 @@ internal static class RegistryEmitter
                 w.Line($"{Core}NinoRegistry.EnsureInitialized(typeof({formatter}).Assembly);");
         });
         w.Line();
-        var cases = new Dictionary<int, IdCase>();
+        var cases = new Dictionary<int, IdCase>(caseCapacity);
         foreach (var entry in entries)
             if (entry.Arity == 0 && entry.Registration is { } registration)
                 AddStatements(cases, registration);
