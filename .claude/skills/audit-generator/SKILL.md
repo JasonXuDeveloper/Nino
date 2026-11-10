@@ -205,6 +205,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Binder IL was 414 to 422 bytes, Arm64 Tier 1 was 7,488 to 7,380, and x64 cross-JIT
   was 1,094 to 960. Wire bytes and all 577 generated files matched, incremental reuse
   and collection passed, and both runtimes passed 101 focused tests.
+  Match parameterless formatter rules directly using shared empty outputs. Keeping
+  transactional unification cloned an empty array; direct matching cannot write a slot
+  and removed that last allocation. The runtime Uri rule went from 72 B on success
+  and 48 B on rejection to zero, and both cases beat both controls in four local rounds.
+  Generic array rule timings varied at the same allocations. Binder IL was 422 to 453
+  bytes, the generic Arm64 Tier 1 listing 7,484 to 7,944, and x64 cross-JIT 960 to 1,051.
+  Runtime wire bytes, 577 generated files, all 572 model hits and collection matched.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
