@@ -512,6 +512,12 @@ of bytes in a block.
   and SIMD timings had no repeatable gain. `NinoMask.Copy` grew from 259 to 318 IL bytes and
   by 56 bytes in the Arm64 scalar Tier 1 and x64 cross-JIT listings. Dirty-padding wire
   checks matched at offsets 0, 1 and 7, and targeted tests passed (`51e30efb`).
+  Share the full-word scalar loop across complete and partial periods. Advancing and wrapping
+  the mask word index reduced `Copy` from 318 to 226 IL bytes and by 88 bytes in the Arm64
+  scalar Tier 1 and x64 cross-JIT listings. For 12-byte elements with SIMD disabled, both
+  runs straddling 64 KiB of input, output and mask improved by 8–13%, with A/A within 5%.
+  Short and SIMD timings varied. Dirty-padding bytes matched at offsets 0, 1 and 7, and
+  targeted and scalar tests passed (`a7927d44`).
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
