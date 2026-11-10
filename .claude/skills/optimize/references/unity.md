@@ -1,5 +1,20 @@
 # Unity: Burst kernels and IL2CPP
 
+Keep ISA selection in the registered Burst kernels for wider implementations
+of `Narrow`, `Widen`, `Permute`, and `Interleave32`. These operations already
+have `NinoKernels` ABI slots. Bind restricted tables to restricted entry points
+so tests that cap the ISA exercise the intended path. An AVX2 interleave can
+take eight pairs at a time and leave the final four to the existing kernel.
+The locally inspected Burst 1.8.21 compiler lists AVX2, SSE2, and AArch64
+targets and no AVX-512 target. Check the package version in Unity CI before
+using a new intrinsic.
+
+Keep validation separate from the Burst permute hook. It receives only the
+validated block to move. If adding a strided flag validator, pass the exact
+readable byte count and stride and report success or fallback. Let managed code
+produce the existing diagnostic on fallback, and rebuild the Unity runtime DLL
+when the public hook table changes.
+
 Part of the `optimize` skill: what IL2CPP and Mono compile from Nino's generic code, how the Burst and WebGL
 kernels are called and when they pay. Read it before changing a generic formatter, a call that IL2CPP runs per
 value, a kernel hook or a kernel threshold. How to build and run Unity is `platforms` and `src/Nino.Unity/AGENTS.md`.
