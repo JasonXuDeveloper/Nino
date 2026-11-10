@@ -88,6 +88,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   stages, 578 models were reused after each edit and closed-project references collected. Build shrank
   from 856 to 832 IL bytes, 3,864 to 3,752 Arm64 FullOpts bytes and 2,565 to 2,493 offline x64 bytes.
   Both Roslyn builds passed 59 targeted tests (`57d3197e`).
+  Copy a singleton deserializing callback list directly into its equatable array. Five of the real
+  project's 15 callback models had one such call; bypassing both filters and concatenation saved
+  1,000 B per isolated pass over those 15 models in four M4 pairs. Isolated and whole-project
+  timings varied alongside A/A. Preserve static-before-instance ordering for multiple callbacks.
+  Build grew from 832 to 851 IL bytes, 3,836 to 3,856 Arm64 FullOpts bytes and 2,545 to 2,570
+  offline x64 bytes. All 583 files matched across four stages, 578 models were reused after
+  either edit, collection passed and both Roslyn builds passed 59 targeted tests (`3e226e45`).
 - Return the shared empty sequence before creating a callback-mark iterator for a method with no attributes.
   Keep attribute order in the nonempty iterator and retain no symbols in the shared result.
   Scanning 3,403 real-project methods saved 185,120 B per pass in four isolated M4 pairs.
