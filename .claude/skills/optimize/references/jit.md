@@ -91,6 +91,13 @@ and when `asm.py compare` lists methods the change did not touch.
   did not improve at either size against the identical-binary control. The 0–64
   byte and patterned export probes matched, and both targeted suites and netstandard
   builds passed. Keep the exact-width patch as a probe.
+  Copy exactly 16 bytes with the shared head move and run the tail only above that size.
+  An early return duplicated the head store and grew the dynamic Arm64 caller by 32
+  bytes. Sharing the store grew it by 12 bytes and `Copy16To32` by two IL bytes,
+  with unchanged x64 cross listings. The 16-byte public export took 4–7% less time
+  in four rounds, at the same 40 B allocation. Neighboring sizes and direct timings
+  varied. Alignment, export patterns, targeted tests and netstandard builds passed
+  (`57ca2ebb`).
 
 - Keep the shared span read in `MemoryFormatter.Deserialize`. Sending a fresh array directly
   to the reader instead of obtaining its span through `Memory<T>` did not change allocations.
