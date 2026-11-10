@@ -390,11 +390,11 @@ namespace Nino.Core
         /// </summary>
         public static bool TryReadShape(ref Reader reader, int rank, int minElementSize, out ArrayShape shape)
         {
-            shape = new ArrayShape { B = 1, C = 1, D = 1 };
+            int a;
             int headerSize = rank * NinoWire.LengthSize;
             ref byte tail = ref reader.Peek();
             if (!NinoLimits.LengthCapped && reader.Remaining >= headerSize &&
-                (shape.A = NinoUnsafe.Read<int>(ref tail)) >= 0)
+                (a = NinoUnsafe.Read<int>(ref tail)) >= 0)
             {
                 reader.UnsafeAdvance(headerSize);
                 tail = ref Unsafe.Add(ref tail, NinoWire.LengthSize);
@@ -402,17 +402,17 @@ namespace Nino.Core
             else
             {
                 // A null header ends at the first length. Preserve its checks before reading the tail.
-                if (!reader.TryReadLength(0, out shape.A))
+                if (!reader.TryReadLength(0, out a))
+                {
+                    shape = default;
                     return false;
+                }
                 tail = ref reader.ReadBlock(headerSize - NinoWire.LengthSize);
             }
 
-            shape.B = NinoUnsafe.Read<int>(ref tail);
-            if (rank > 2)
-                shape.C = NinoUnsafe.Read<int>(ref tail, NinoWire.LengthSize);
-            if (rank > 3)
-                shape.D = NinoUnsafe.Read<int>(ref tail, 2 * NinoWire.LengthSize);
-            int a = shape.A, b = shape.B, c = shape.C, d = shape.D;
+            int b = NinoUnsafe.Read<int>(ref tail);
+            int c = rank > 2 ? NinoUnsafe.Read<int>(ref tail, NinoWire.LengthSize) : 1;
+            int d = rank > 3 ? NinoUnsafe.Read<int>(ref tail, 2 * NinoWire.LengthSize) : 1;
             // Any sign bit or bit 30 requires an exact dimension check.
             if (((a | b | c | d) & unchecked((int)0xC0000000)) != 0)
                 CheckDimensions(a, b, c, d);
@@ -436,6 +436,10 @@ namespace Nino.Core
             if (total > uint.MaxValue || total * minElementSize > reader.Remaining ||
                 NinoLimits.LengthCapped && total > NinoLimits.MaxCollectionLength)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));
+            shape.A = a;
+            shape.B = b;
+            shape.C = c;
+            shape.D = d;
             shape.Total = (int)total;
             return true;
         }
