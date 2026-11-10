@@ -451,6 +451,12 @@ saved only 30–40 B per emitter replay, with no repeatable time or whole-projec
 gain. `Emit` grew by 6 IL bytes and 16 x64 cross-JIT bytes while shrinking by 120 Arm64
 FullOpts bytes. The 582 outputs, incremental tracking and collection matched on replay.
 Both targeted suites passed. Keep the merged loop as a probe.
+Reserve 312 characters per forwarder in the preindented interceptor body and retain 320
+for the legacy path. The unit-test body used 609,981 of the original 622,556 reserved
+characters. Both isolated load orders saved about 19.4 KB, while the benchmark project
+hit the existing location cap and allocated the same. The initial cold slowdown did not
+repeat with a byte-identical control. Outputs, incremental tracking, collection and both
+targeted suites matched (`0646f4ab`).
 Write the modern interceptor body at its final namespace indentation and concatenate it
 with the small prefix. Keep the line-by-line path for legacy and multiline locations.
 This removed about 1.06 MB per isolated emission and per method-body edit. Isolated timing
