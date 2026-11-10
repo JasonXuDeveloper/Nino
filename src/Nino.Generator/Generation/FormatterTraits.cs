@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Common;
 
@@ -8,7 +6,7 @@ namespace Nino.Generator.Generation;
 
 /// <summary>
 /// What generated code knows about a formatter beyond its name: which of Nino.Core's formatters it is, and how it
-/// reads and writes. Decided once, from the symbols (<see cref="Of(string, IReadOnlyList{FormatterTraits})"/>), so
+/// reads and writes. Decided once, from the symbols (<see cref="FormatterTraitsOf"/>), so
 /// emitters test flags instead of formatter names.
 /// </summary>
 [Flags]
@@ -51,11 +49,10 @@ internal enum FormatterTraits
 internal static class FormatterTraitsOf
 {
     /// <summary>
-    /// The traits of the Nino.Core formatter named <paramref name="name"/> (its metadata name without arity), whose
-    /// type arguments have the traits <paramref name="arguments"/> (<see cref="FormatterTraits.None"/> for those that
-    /// are no formatters).
+    /// The traits of a Nino.Core formatter. Only the final two argument traits affect this classification.
     /// </summary>
-    public static FormatterTraits Of(string name, IReadOnlyList<FormatterTraits>? arguments = null) =>
+    public static FormatterTraits Of(string name, int count = 0, FormatterTraits last = FormatterTraits.None,
+        FormatterTraits previous = FormatterTraits.None) =>
         FormatterTraits.Core | name switch
         {
             "StringFormatter" => FormatterTraits.String | FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
@@ -64,24 +61,30 @@ internal static class FormatterTraitsOf
             "ObjectFormatter" => FormatterTraits.Object,
             "CachedFormatter" => FormatterTraits.Cached,
             "UnmanagedArrayFormatter" or "UnmanagedListFormatter" => FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
-            "MemoryFormatter" or "ReadOnlyMemoryFormatter" or "ArraySegmentFormatter" or "ReadOnlySequenceFormatter" when arguments is { Count: 2 } &&
-                                   (arguments[1] & FormatterTraits.Raw) != 0 =>
+            "MemoryFormatter" or "ReadOnlyMemoryFormatter" or "ArraySegmentFormatter" or "ReadOnlySequenceFormatter" when count == 2 &&
+                                   (last & FormatterTraits.Raw) != 0 =>
                 FormatterTraits.PreservesReadContext,
             // DictionaryFormatter<[TDictionary, ]TKey, TValue, TKeyFormatter, TValueFormatter>
-            "DictionaryFormatter" when arguments is { Count: >= 4 } &&
-                                       (arguments[arguments.Count - 2] & FormatterTraits.Raw) != 0 &&
-                                       (arguments[arguments.Count - 1] &
+            "DictionaryFormatter" when count >= 4 &&
+                                       (previous & FormatterTraits.Raw) != 0 &&
+                                       (last &
                                         (FormatterTraits.Raw | FormatterTraits.String)) != 0 =>
                 FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
             _ => FormatterTraits.None,
         };
 
     /// <summary>The traits of a formatter named by its symbol (a <c>[NinoMemberFormatter]</c>).</summary>
-    public static FormatterTraits Of(INamedTypeSymbol formatter) =>
-        IsCore(formatter)
-            ? Of(formatter.Name, formatter.TypeArguments
-                .Select(static a => a is INamedTypeSymbol named ? Of(named) : FormatterTraits.None).ToArray())
-            : FormatterTraits.None;
+    public static FormatterTraits Of(INamedTypeSymbol formatter)
+    {
+        if (!IsCore(formatter))
+            return FormatterTraits.None;
+
+        var args = formatter.TypeArguments;
+        int count = args.Length;
+        return Of(formatter.Name, count,
+            count > 0 && args[count - 1] is INamedTypeSymbol last ? Of(last) : FormatterTraits.None,
+            count > 1 && args[count - 2] is INamedTypeSymbol previous ? Of(previous) : FormatterTraits.None);
+    }
 
     /// <summary>Whether <paramref name="formatter"/> is declared by Nino.Core.</summary>
     public static bool IsCore(INamedTypeSymbol formatter) =>

@@ -272,8 +272,10 @@ internal sealed class FormatterResolver
         string encoding = WireEncoding.OfCore(rule.Formatter.Name, types,
             ElementEncodings(formatters, parameters.Encodings), _compilation) ??
                           WireEncoding.Formatter(code.ToString());
-        var traits = FormatterTraitsOf.Of(rule.Formatter.Name,
-            formatters.Select(f => f == null ? FormatterTraits.None : parameters.Traits[f]).ToArray());
+        int count = formatters.Length;
+        var traits = FormatterTraitsOf.Of(rule.Formatter.Name, count,
+            count > 0 && formatters[count - 1] is { } last ? parameters.Traits[last] : FormatterTraits.None,
+            count > 1 && formatters[count - 2] is { } previous ? parameters.Traits[previous] : FormatterTraits.None);
         return new ResolvedFormatter(code, true, encoding, factories, parameters.ElementsOpenBodies[0],
             Elements: parameters.ElementTypes.ToImmutableArray(), Traits: traits);
     }
