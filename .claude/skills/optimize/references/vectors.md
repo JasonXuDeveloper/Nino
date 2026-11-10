@@ -676,6 +676,18 @@ of bytes in a block.
   Pin both buffers to control their actual addresses around 64 KiB. Uncontrolled timings showed large
   outliers, while the fixed-alignment A/B medians stayed within 4%. Bytes matched with SIMD on and off,
   and the real project's 582 generated files were identical (`c0025a12`).
+  Finish a 16- or 32-bit remainder with the last whole 128-bit vector, overlapping a
+  prefix already written by the narrow or wide loop. End the vector at the last pair.
+  Write a 64-bit remainder directly because it contains only one pair. The scalar cursor
+  experiment was flat. Sharing a helper with the main loop left a Tier 0 call per vector
+  and slowed larger cases by 9–24%; keep the main loop in place. The final mixed-offset
+  M4 probe improved 15 short, 7 int and 3 long pairs by median 16%, 7% and 5%.
+  Input-plus-output cases around 64 KiB were broadly flat. Wire hashes matched; 155 of
+  156 final samples allocated 0 B and one large sample had a transient allocation.
+  The kernel moved from 193 to 190 IL bytes plus a 64 B helper. Arm64 FullOpts fell
+  from 128 to 112 B for 16/32-bit lanes and to 88 B for 64-bit lanes. x64 cross-JIT
+  MinOpts grew by 30 B per lane width; no native x64 timing was measured. Both .NET
+  suites, scalar fallback and the unaligned destination sentinels passed (`281f03fd`).
 - Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
   For full wide read batches, use AVX2 lane shuffles plus 64-bit reordering or AVX-512 two-source
   dword permutes. Keep the exact ISA test in the existing out-of-line entry so Arm64 Tier 0 drops it.
