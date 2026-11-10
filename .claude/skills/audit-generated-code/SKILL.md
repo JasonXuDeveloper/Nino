@@ -496,6 +496,16 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `CachedFormatter<T>` only for a method's type parameter or a `[NinoType]` generated in another assembly (a type
   that holds itself gets a generated nesting struct, `optimize`); read the IL2CPP C++ as well as the Tier1 listing (`optimize`, references/unity.md); look for `call [rax+0x..]`, `call [r11]` and `call rax` in the Tier1
   listing and explain each.
+- Emit the runtime compiler-services alias directly for two or more UnsafeAccessor annotations.
+  Keep the full qualifier when a generic parameter shadows the alias. The 582-file unit-test
+  replay shrank from 3,240,332 to 3,239,060 bytes across 12 formatter files. A body rewrite
+  saved another 274 bytes but consistently added about 100–232 KB of cold generator allocation.
+  Direct emission had no repeatable timing or allocation change across the four cold and edit
+  pairs. The compiled project matched all 14,374 method bodies and flags. The sampled formatter
+  matched in normalized Arm64 FullOpts and x64 offline ReadyToRun listings, and mixed A/B
+  reuse results were within the repeated-binary spread at 0 B allocation and identical wire
+  bytes. Both Roslyn builds passed 73 targeted tests (`14b075da`).
+
 - **Reach an interface member a struct implements explicitly through a generic accessor constrained to the
   interface** (`MemberAccess.Interface`: `__G_X<__TI>(ref __TI o) where __TI : IFoo => o.X` in the formatter), a
   class's through a cast (`MemberAccess.Cast`, `((IFoo)value).X`): a cast of a struct boxes a copy and loses a write.
