@@ -141,6 +141,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   bytes and 1,036 to 956 emulated x64 bytes. Four M4 pairs improved the unaligned
   512-item null case by 7–11% at 0 B per item. Non-null timings varied, including
   identical-binary controls, and retained 32 B per item. All 12 wire cases matched.
+  Apply the same trait to BitArray. Its reader copies the bit payload and updates
+  the collection without changing reader context. The generated read body went
+  from 47 to 39 IL bytes, 556 to 436 Arm64 FullOpts bytes and 428 to 295 emulated
+  x64 bytes. Four M4 replays with longer warmup and QoS gave mixed timings,
+  including the identical-binary control. Reuse allocated 0 B and all ten wire
+  comparisons matched, including payloads on both sides of 64 KiB.
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
