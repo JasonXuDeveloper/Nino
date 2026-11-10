@@ -384,6 +384,13 @@ of bytes in a block.
   improved on that result but still took 3.63–3.67 ns. All three forms kept the
   45 wire and reuse probes identical at offsets 0, 1 and 7. Keep their patches
   for JIT diagnosis.
+  Passing only the decoded first length to the cold helper avoided the cursor
+  spill and restored the 2D single-item read to 3.18 ns. Four default-JIT rounds
+  showed no repeatable latency gain. Arm64 Tier 1 shrank the shape reader and
+  its caller by 16 bytes each, while the cold helper added 68 Arm64 FullOpts bytes.
+  Offline x64 grew from 550 to 518 + 66 bytes, and IL from 313 to 317 + 26.
+  All 45 wire and 18 header probes matched. Keep the shared Reader length check
+  to avoid duplicating its rules for a size tradeoff without a speed gain.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
