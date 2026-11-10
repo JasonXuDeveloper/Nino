@@ -140,6 +140,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   rounds. Keep the lazy list for now and retain the direct traversal as an experiment. With the lazy list,
   cold, edit and reopen timings overlapped the identical-build controls. All 577 generated files matched on
   Roslyn 4.8 and 4.12, 572 models were reused after both edits, and the close and edit collection checks passed.
+- Delay scanning constructor and factory parameter names until member collection encounters a get-only
+  property. Allocate the case-insensitive set on the first name. In the 548-type probe, allocating the
+  set lazily alone went from 912 to 850 B per type. Delaying the scan reduced it to 786 B and kept
+  member order identical. It saved 114–177 KB per cold project replay. Cold, cached, edit and reopen
+  timings varied, so keep the allocation result separate from whole-project latency.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
