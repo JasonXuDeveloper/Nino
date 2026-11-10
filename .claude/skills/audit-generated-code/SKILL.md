@@ -159,11 +159,15 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   UTF-8-only body.
   A version-tolerant collection can patch its member region too when those members
   are raw or direct strings. Its elements are written before the region opens.
-  Keep keyed collections on the original path because their region includes the
-  elements. The `NamedList` fixture added three source bytes with unchanged 38-byte
+  Keyed collections include their elements, so also require the collection formatter
+  to have `OpensBodies == false`. The version-tolerant `NamedList` fixture added three source bytes with unchanged 38-byte
   IL. Arm64 Tier 1 fell from 1,672 to 1,532 bytes and offline x64 from 2,495 to 2,405.
   Four 1,000-item ASCII runs fell from 5.95–6.10 to 5.32–5.84 µs at zero steady
   allocation. All 27 wire and round-trip probes passed.
+  Switching the fixture to keyed and applying the element check saved 140
+  Arm64 Tier 1 bytes and 90 offline x64 bytes. Four 1,000-item writes fell
+  from 6.77–6.93 to 6.13–6.33 µs at zero steady allocation. A keyed list
+  containing a deep class chain still writes and reads its deferred elements.
   Keep `EndRegion` for version-tolerant collection reads. Omitting it when all
   members preserved context shrank the `NamedList` body from 1,228 to 1,148 Arm64
   Tier 1 bytes and from 1,744 to 1,643 offline x64 bytes, but 16 ASCII items
