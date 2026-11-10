@@ -15,13 +15,13 @@ internal static class FormatterEmitter
         var names = new FormatterNames(m, fileScoped);
         var scratch = TextScratch.Rent(2048);
         var w = new CodeWriter(scratch);
-        EmitFormatter(w, m, names);
-        AccessorEmitter.EmitGenericUnsafeAccessors(w, m);
+        var aliases = new List<string>(4);
+        EmitFormatter(w, m, names, aliases);
+        AccessorEmitter.EmitGenericUnsafeAccessors(w, m, aliases);
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
         // name has the formatter's type parameters.
         string unaliased = w.Finish();
         TextScratch.Return(scratch);
-        var aliases = new List<string>(4);
         names.AddInliningAliases(aliases);
         string body = GeneratedCode.WithAliases(unaliased, m.IsGeneric ? null : m.TypeName, aliases,
             names.Formatters, names.RawTypes);
@@ -39,7 +39,7 @@ internal static class FormatterEmitter
         return source;
     }
 
-    private static void EmitFormatter(CodeWriter w, TypeModel m, FormatterNames names)
+    private static void EmitFormatter(CodeWriter w, TypeModel m, FormatterNames names, List<string> aliases)
     {
         string t = m.TypeName;
         string self = m.Self;
@@ -165,7 +165,7 @@ internal static class FormatterEmitter
 
         EmitPrefetch(w, m, names);
         if (!m.IsGeneric)
-            AccessorEmitter.EmitUnsafeAccessors(w, m);
+            AccessorEmitter.EmitUnsafeAccessors(w, m, aliases);
         AccessorEmitter.EmitInterfaceAccessors(w, m);
 
         w.Close();

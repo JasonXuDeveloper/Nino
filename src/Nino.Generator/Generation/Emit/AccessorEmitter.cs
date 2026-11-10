@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
 using Nino.Generator.Common;
@@ -15,22 +17,45 @@ internal static class AccessorEmitter
     /// (<see cref="MemberCode.UnsafeAccessorClass"/>): the runtime requires the type parameters of the class declaring
     /// them to be exactly the target type's, and the formatter also takes their formatters.
     /// </summary>
-    public static void EmitGenericUnsafeAccessors(CodeWriter w, TypeModel m)
+    public static void EmitGenericUnsafeAccessors(CodeWriter w, TypeModel m, List<string> aliases)
     {
         if (!m.IsGeneric || !HasAccess(m, MemberAccess.UnsafeAccessor))
             return;
         w.Line();
         w.Line(HiddenAttribute);
         w.Open($"internal static class {UnsafeAccessorClass(m)}{m.TypeArgumentList}{m.Constraints}");
-        EmitUnsafeAccessors(w, m, "internal");
+        EmitUnsafeAccessors(w, m, aliases, "internal");
         w.Close();
     }
 
     /// <summary><c>[UnsafeAccessor]</c> declarations inside the formatter (a non-generic type's).</summary>
-    public static void EmitUnsafeAccessors(CodeWriter w, TypeModel m, string access = "private")
+    public static void EmitUnsafeAccessors(CodeWriter w, TypeModel m, List<string> aliases, string access = "private")
     {
-        const string attr = CompilerServices + "UnsafeAccessor";
-        const string kind = CompilerServices + "UnsafeAccessorKind";
+        const string alias = "__NinoRCS";
+        const string aliasPrefix = alias + ".";
+        const string aliasDeclaration = "using " + alias + " = global::System.Runtime.CompilerServices;";
+        string prefix = CompilerServices;
+        // Each annotation uses the qualifier twice. Two annotations pay for the alias declaration.
+        int annotations = 0;
+        foreach (var member in m.Members)
+        {
+            if (member.Access != MemberAccess.UnsafeAccessor)
+                continue;
+            annotations += member.IsProperty && !member.Unassignable ? 2 : 1;
+            if (annotations >= 2)
+                break;
+        }
+
+        if (annotations == 0)
+            return;
+        if (annotations >= 2 && (!m.IsGeneric || !m.TypeParameters.Contains(alias)))
+        {
+            aliases.Add(aliasDeclaration);
+            prefix = aliasPrefix;
+        }
+
+        string attr = prefix + "UnsafeAccessor";
+        string kind = prefix + "UnsafeAccessorKind";
         foreach (var member in m.Members)
         {
             if (member.Access != MemberAccess.UnsafeAccessor)
