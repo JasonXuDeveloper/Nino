@@ -334,7 +334,19 @@ internal static class TypeNames
     /// Name of the generated formatter for a type definition: namespace and containing types joined by '_'
     /// (literal underscores doubled, so names cannot collide), arity suffixes, then "Formatter".
     /// </summary>
-    public static string FormatterName(INamedTypeSymbol type) => Stem(type).Append("Formatter").ToString();
+    public static string FormatterName(INamedTypeSymbol type)
+    {
+        var sb = TextScratch.Rent(64);
+        try
+        {
+            AppendFormatterStem(sb, type);
+            return sb.Append("Formatter").ToString();
+        }
+        finally
+        {
+            TextScratch.Return(sb);
+        }
+    }
 
     /// <summary>
     /// Name of the nesting formatter generated for <paramref name="type"/> (a closed class that holds itself):
@@ -348,9 +360,14 @@ internal static class TypeNames
     private static StringBuilder Stem(INamedTypeSymbol type)
     {
         var sb = new StringBuilder();
+        AppendFormatterStem(sb, type);
+        return sb;
+    }
+
+    private static void AppendFormatterStem(StringBuilder sb, INamedTypeSymbol type)
+    {
         AppendNamespaceStem(sb, type.ContainingNamespace);
         AppendStem(sb, type);
-        return sb;
     }
 
     private static void AppendStem(StringBuilder sb, INamedTypeSymbol type)
@@ -392,9 +409,16 @@ internal static class TypeNames
     /// </summary>
     public static string RuntimeName(ITypeSymbol type)
     {
-        var sb = new StringBuilder();
-        AppendRuntimeName(sb, type);
-        return sb.ToString();
+        var sb = TextScratch.Rent(64);
+        try
+        {
+            AppendRuntimeName(sb, type);
+            return sb.ToString();
+        }
+        finally
+        {
+            TextScratch.Return(sb);
+        }
     }
 
     private static void AppendRuntimeName(StringBuilder sb, ITypeSymbol type)
