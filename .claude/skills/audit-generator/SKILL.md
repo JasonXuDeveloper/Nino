@@ -884,6 +884,15 @@ matched and 577 models were reused across both edits. The GC probes and both Ros
 The runtime name's IL grew from 18 to 33 B and the formatter name's from 22 to 43 B. Their Arm64
 listings grew from 136 to 184 B and 172 to 288 B, and their x64 cross-JIT listings from 106 to 120 B
 and 124 to 200 B, respectively (`8b6fd14d`).
+Render an open generic name into one bounded scratch buffer. Append each containing
+type and its arity directly, then retain only the final string. Over 119 generic
+declarations from the unit-test project, four warmed M4 pairs saved about 450 B
+per name and reduced isolated median time by 19–27%. Whole-project timings varied
+alongside identical-binary controls. The two body edits saved 29–53 KB per run.
+All 583 generated files matched across four stages, all 578 models were reused
+after either edit, and old compilation, syntax tree, symbol and output references
+collected. `OpenName` went from 129 to 58 IL bytes plus an 85-byte helper,
+508 to 336 + 644 Arm64 FullOpts bytes, and 315 to 149 + 205 offline x64 bytes.
 Build prefetch member lists only for eligible formatter models, after confirming a property is reference-typed.
 Skip the prefetch metadata in analyzer models and allocate the small member list only on the first match.
 Recognize shared immutable arrays before walking their elements. The local 128-string equality probe went
