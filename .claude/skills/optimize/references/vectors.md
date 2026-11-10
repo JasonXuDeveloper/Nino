@@ -419,6 +419,18 @@ of bytes in a block.
   Arm64 FullOpts went from 532 to 588 B and uses the existing 64 B helper. The public caller
   stayed at 660 B on Arm64, and x64 cross-JIT caller/formatter stayed at 501/419 B.
   The boundary wire checks and both frameworks passed (`7939e974`).
+- Keep the overlap-safe span copy for raw arrays written to a caller-owned buffer.
+  Adding the fixed Arm64 head and tail behind an overlap test slowed 65–128-byte writes
+  by 7–21%. Replacing the checked destination slice with a prefix check plus byref span
+  construction also slowed 64–1,024 bytes. Instead skip the Tier 0 ClearPadding call
+  when the layout has no padding. Outlining the remaining padded path slowed a single
+  padded item by about 4%, so keep that path inline. Four default-JIT M4 pairs with mixed
+  offsets showed a 3–7% drop at 64, 65 and 80 bytes and a 5% drop for 16 ints. A longer
+  cache-boundary retest varied in both directions, including repeated-binary controls.
+  Wire bytes matched at 0 B steady allocation. IL grew from 156 to 167 B, Arm64 Tier 0
+  grew from 696 to 732 B and stopped executing the 296 B padding helper on byte arrays,
+  Arm64 FullOpts stayed at 240 B, and x64 cross-JIT MinOpts grew from 706 to 748 B.
+  Both modern frameworks and both netstandard builds passed (`85c0f052`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
