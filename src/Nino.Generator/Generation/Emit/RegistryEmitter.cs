@@ -196,17 +196,23 @@ internal static class RegistryEmitter
         }
         else
         {
-            // A tracked class is neither of fixed size nor has a __Top twin (TypeFacts.IsFixedSize, TypeRules.HasTop).
-            string call = CoreCompilerServices + "NinoTypes." + (r.Tracked ? $"RegisterTracked<{r.TypeName}, {r.Formatter}>"
-                : r.Top ? $"RegisterTop<{r.TypeName}, {r.Formatter}, {r.Formatter}{Top}>"
-                : $"{(r.Fixed ? "RegisterFixed" : "Register")}<{r.TypeName}, {r.Formatter}>");
-            atId = call + "(id);";
-            atNameId = r.NameId == r.Id ? atId : call + "(" + r.Id + ");";
+            atId = ConcreteStatement(r, "id");
+            atNameId = r.NameId == r.Id ? atId : ConcreteStatement(r, r.Id.ToString());
         }
 
         AddCase(cases, r.Id, atId);
         if (r.NameId != r.Id)
             AddCase(cases, r.NameId, atNameId);
+    }
+
+    private static string ConcreteStatement(TypeRegistration r, string id)
+    {
+        // Tracked classes do not have a fixed body or a top-level twin.
+        if (!r.Tracked && r.Top)
+            return $"{CoreCompilerServices}NinoTypes.RegisterTop<{r.TypeName}, {r.Formatter}, {r.Formatter}{Top}>({id});";
+
+        string method = r.Tracked ? "RegisterTracked" : r.Fixed ? "RegisterFixed" : "Register";
+        return $"{CoreCompilerServices}NinoTypes.{method}<{r.TypeName}, {r.Formatter}>({id});";
     }
 
     private readonly record struct IdCase(int Id, string First, List<string>? Rest);
