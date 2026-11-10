@@ -243,6 +243,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 ## Measure
 
+Project an optional usage registration directly and discard nulls before merging. The
+singleton arrays in `FormatterRegistrations` cost 73,200 bytes in the local unit test replay.
+The measured stage went from 347,120 to 273,920 bytes in four cold rounds with the same 517
+results. The per-usage projection shrank from 27 to 7 IL bytes and from 172 to 52 Arm64 Tier 0
+bytes (x64 cross JIT, 135 to 43). The 577 generated files matched, method edits kept the stage
+cached and reopened projects released their previous compiler objects. Keep the sort keys and
+the position of distinct filtering.
+
 Pass the existing equatable arrays to the usage emitter. Enumerate their struct enumerators and
 reuse the layout names for both passes. On the real unit test input this removed about 2.4 KiB
 of allocation per emission in all four isolated local rounds. IL went from 713 to 634 bytes,
