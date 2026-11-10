@@ -171,10 +171,12 @@ public sealed class NinoGenerator : IIncrementalGenerator
         IncrementalValueProvider<ProjectFacts> project, IncrementalValueProvider<bool> enabled,
         IncrementalValueProvider<bool> fileScoped)
     {
-        var registrations = Merge(usages, CollectAll(models, static m => m.Registrations.Formatters),
-            static u => u.Formatter is { } f ? new[] { f } : Array.Empty<FormatterRegistration>(),
-            static all => all.OrderBy(u => u.TypeName, StringComparer.Ordinal)
-                .ThenBy(u => u.Formatter.ToString(), StringComparer.Ordinal))
+        var registrations = usages.Combine(CollectAll(models, static m => m.Registrations.Formatters))
+            .Select(static (x, _) => new EquatableArray<FormatterRegistration>(
+                x.Left.Select(static u => u.Formatter).OfType<FormatterRegistration>()
+                    .Concat(x.Right.SelectMany(static a => a)).Distinct()
+                    .OrderBy(u => u.TypeName, StringComparer.Ordinal)
+                    .ThenBy(u => u.Formatter.ToString(), StringComparer.Ordinal)))
             .WithTrackingName("FormatterRegistrations");
         var factories = Merge(usages, CollectAll(models, static m => m.Registrations.Factories), static u => u.Factories,
             static all => all.OrderBy(f => f.TypeName, StringComparer.Ordinal))
