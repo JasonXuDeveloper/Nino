@@ -58,7 +58,8 @@ internal static class FormatterTraitsOf
             "StringFormatter" => FormatterTraits.String | FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
             "Utf8StringFormatter" => FormatterTraits.Utf8String | FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
             "UnmanagedFormatter" => FormatterTraits.Raw,
-            "DateTimeOffsetFormatter" or "BigIntegerFormatter" or "UriFormatter" or "VersionFormatter" =>
+            "DateTimeOffsetFormatter" or "BigIntegerFormatter" or "UriFormatter" or "VersionFormatter" or
+                "StringBuilderFormatter" or "CultureInfoFormatter" or "TimeZoneInfoFormatter" =>
                 FormatterTraits.PreservesReadContext,
             "ObjectFormatter" => FormatterTraits.Object,
             "CachedFormatter" => FormatterTraits.Cached,

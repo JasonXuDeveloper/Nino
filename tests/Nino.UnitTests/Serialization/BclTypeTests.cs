@@ -44,6 +44,9 @@ public struct BclScalarRegion
     public BigInteger Big;
     public Version Version;
     public Uri Link;
+    public StringBuilder Text;
+    public CultureInfo Culture;
+    public TimeZoneInfo Zone;
 }
 
 /// <summary>The BCL types with formatters of their own: round trips, null and the bytes they share with other types.</summary>
@@ -58,17 +61,27 @@ public class BclTypeTests
             Big = new BigInteger(128),
             Version = new Version(1, 2, 3),
             Link = new Uri("../relative", UriKind.Relative),
+            Text = new StringBuilder("héllo"),
+            Culture = CultureInfo.InvariantCulture,
+            Zone = TimeZoneInfo.Utc,
         };
         var bytes = NinoSerializer.Serialize(value);
         var read = NinoDeserializer.Deserialize<BclScalarRegion>(bytes);
         Assert.AreEqual(value.Big, read.Big);
         Assert.AreEqual(value.Version, read.Version);
         Assert.AreEqual(value.Link, read.Link);
+        Assert.AreEqual(value.Text.ToString(), read.Text.ToString());
+        Assert.AreEqual(value.Culture, read.Culture);
+        Assert.AreEqual(value.Zone, read.Zone);
 
+        var builder = read.Text;
         NinoDeserializer.Deserialize(new byte[sizeof(int)], ref read);
         Assert.AreEqual(value.Big, read.Big);
         Assert.AreEqual(value.Version, read.Version);
         Assert.AreEqual(value.Link, read.Link);
+        Assert.AreSame(builder, read.Text);
+        Assert.AreEqual(value.Culture, read.Culture);
+        Assert.AreEqual(value.Zone, read.Zone);
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<BclScalarRegion>(bytes.AsSpan(0, bytes.Length - 1)));
     }
 
