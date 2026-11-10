@@ -306,6 +306,13 @@ and when `asm.py compare` lists methods the change did not touch.
   The helper grew from 193 to 277 IL bytes and 1,412 to 1,476 Arm64 Tier 1
   bytes, but offline x64 fell from 1,345 to 1,268. All seven unaligned
   wire and round-trip probes passed at zero steady allocation.
+  Keep the bounded loads in the split header reader. Byref halfword loads
+  reduced Arm64 Tier 1 from 1,476 to 1,400 bytes and offline x64 from
+  1,268 to 1,182, but the 2+2 case was slower against its paired baseline
+  in three of four rounds. Switching on the actual left span length kept
+  IL at 277 bytes and reduced native code to 1,464 Arm64 and 1,240 x64
+  bytes, but timings varied and the 1+3 case was slower. Both variants
+  passed five wire and round-trip probes, with zero steady allocation.
   Sharing both segment and count validation through inlined helpers still slowed split-header reuse
   across both loading orders. Keep those checks local and share payload copying and replacement.
   Keep the regular and direct sequence readers' stack and pool scopes around their own span calls.
