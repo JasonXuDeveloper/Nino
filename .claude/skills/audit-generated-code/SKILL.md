@@ -157,6 +157,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   baseline. The 1,000-item results overlapped A/A after longer warmup, at zero
   steady allocation. All 54 wire and round-trip checks passed, including a
   UTF-8-only body.
+  A version-tolerant collection can patch its member region too when those members
+  are raw or direct strings. Its elements are written before the region opens.
+  Keep keyed collections on the original path because their region includes the
+  elements. The `NamedList` fixture added three source bytes with unchanged 38-byte
+  IL. Arm64 Tier 1 fell from 1,672 to 1,532 bytes and offline x64 from 2,495 to 2,405.
+  Four 1,000-item ASCII runs fell from 5.95–6.10 to 5.32–5.84 µs at zero steady
+  allocation. All 27 wire and round-trip probes passed.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
