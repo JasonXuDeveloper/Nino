@@ -361,6 +361,13 @@ of bytes in a block.
   Four Arm64 rounds were flat for 2D and 3D single-item reuse and about 3% faster for 4D.
   Larger cases varied and x64 throughput was not measured. Retain the multiply-and-check
   baseline while the quotient variant remains an experiment.
+- Advance past a complete multidimensional header once when the first length is nonnegative
+  and collection lengths are uncapped. Use the original first-length check and tail read for
+  truncated, null and capped inputs. Four local default-JIT rounds of 4D one-element reuse
+  went from 5.89–5.95 to 5.63 ns and 2D from 3.23–3.25 to 3.18 ns. Allocation stayed at zero.
+  Larger results varied. The helper grew from 313 to 366 IL bytes, 600 to 612 Arm64 FullOpts
+  bytes and 535 to 549 offline x64 bytes. All 45 wire and reuse probes and 18 header probes
+  passed at offsets 0, 1 and 7.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
