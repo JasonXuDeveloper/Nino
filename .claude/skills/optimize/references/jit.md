@@ -27,6 +27,12 @@ and when `asm.py compare` lists methods the change did not touch.
   smaller path but did not produce a repeatable gain across 64 KiB and adjacent inputs.
   The threshold variant grew from 148 to 195 IL bytes and from 233 to 325 x64 ReadyToRun
   bytes. Prefix bytes and allocations matched.
+  Return the rented array from `Grow` to the reserve callers. This removes the direct reserve
+  wrapper and the writer's buffer reload while keeping the growth boundary out of line.
+  The static writer wrapper plus growth body went from 512 to 496 Arm64 Tier 1 bytes and
+  from 387 to 373 bytes in the x64 FullOpts cross listing. Alternating direct and writer probes
+  from 16 bytes through 33 KiB showed no repeatable timing gain with the identical-binary
+  control. Wire bytes, pool ownership checks, and allocations matched (`a76fff7c`).
 - Keep the existing empty handling in `NinoArrayBufferWriter.ToArray`. An early return
   accelerated the empty result but slowed the 65-byte export in all four local rounds.
   Checking for zero inside the short copy branch removed that pattern, but gave no stable
