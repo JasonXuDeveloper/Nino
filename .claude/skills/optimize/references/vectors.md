@@ -900,6 +900,15 @@ of bytes in a block.
 - Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
   complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
   at the end of a guarded page to catch a load past either end of the input.
+  On Arm64, batch two 16-character comparisons into one horizontal reduction for strings of at least
+  128 chars. Keep the tail-first comparison and reuse the existing widened difference operation.
+  The 21,823- and 21,847-char reuse cases, which straddle 64 KiB including wire and UTF-16 input,
+  took 14–18% less time in four M4 pairs at offsets zero and one, at zero steady allocation.
+  Shorter and mismatched controls varied with A/A. The first read was 2–6% slower against the paired
+  baseline and overlapped the range of identical-binary controls. The entry grew from 83 to 108 IL
+  bytes and 180 to 220 Arm64 FullOpts bytes, with a 93 IL/304 Arm64 byte helper. Emulated x64 kept
+  the 126 B and 139 B listings with AVX2 off and on. Wire bytes matched and the guarded test covers
+  every mismatch position from 127 through 161 chars (`a9ed6912`).
 - Continue Latin-1 narrowing at the prefix written by `Ascii.FromUtf16`, overlapping the final vector if needed.
   When the first unwritten character exceeds Latin-1, take the UTF-16 path immediately.
   For 32–63 chars, call an outlined 256-bit writer directly without the ASCII setup. Check the first
