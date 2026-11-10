@@ -1222,7 +1222,9 @@ internal sealed class BodyEmitter
             _w.Line("__keyed:");
         _w.Open($"while (!{r}.Eof)");
         _w.Line($"int __key = {r}.UnsafeRead<int>();");
-        _w.Line($"var __m = {r}.ReadRegion();");
+        // Keep large switches from duplicating the region read at every case.
+        bool splitRegion = members.Count is > 0 and <= 3;
+        _w.Line(splitRegion ? "global::Nino.Core.Reader __m;" : $"var __m = {r}.ReadRegion();");
         if (members.Count != 0)
         {
             // A member's value fills its entry exactly; an unknown member is skipped with its entry.
@@ -1238,13 +1240,20 @@ internal sealed class BodyEmitter
                     _w.Line($"case {formerKey}:");
                 using (_w.Indent())
                 {
+                    if (splitRegion)
+                        _w.Line($"__m = {r}.ReadRegion();");
                     EmitMemberRead(member, "__m", inPlace);
                     _w.Line("break;");
                 }
             }
 
             _w.Line("default:");
-            _w.IndentedLine("continue;");
+            using (_w.Indent())
+            {
+                if (splitRegion)
+                    _w.Line($"{r}.ReadRegion();");
+                _w.Line("continue;");
+            }
             _w.Close();
             string end = preservesContext ? "if (!__m.Eof) " : "";
             _w.Line($"{end}{r}.EndMember(in __m);");

@@ -160,6 +160,22 @@ public class KeyedMemberTests
     }
 
     [TestMethod]
+    public void UnknownEntryInSmallKeyedModelIsSkippedAndValidated()
+    {
+        var bytes = NinoSerializer.Serialize(new KeyedStruct { A = 1, B = 2, C = "nino" });
+        BitConverter.GetBytes(42).CopyTo(bytes, sizeof(int));
+        var value = new KeyedStruct { A = 9 };
+
+        NinoDeserializer.Deserialize(bytes, ref value);
+        Assert.AreEqual(9, value.A);
+        Assert.AreEqual(2L, value.B);
+        Assert.AreEqual("nino", value.C);
+
+        BitConverter.GetBytes(bytes.Length).CopyTo(bytes, 2 * sizeof(int));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<KeyedStruct>(bytes));
+    }
+
+    [TestMethod]
     public void ReadsReorderedRemovedAndInsertedMembers()
     {
         var bytes = NinoSerializer.Serialize(new KeyedV1
