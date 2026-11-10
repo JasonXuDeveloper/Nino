@@ -319,17 +319,22 @@ namespace Nino.Core.Internal
         /// each.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteBlock<T, TFormatter>(ref byte destination, ReadOnlySpan<T> values)
+            where TFormatter : struct, INinoFormatter<T> =>
+            WriteBlock<T, TFormatter>(ref destination, ref MemoryMarshal.GetReference(values), values.Length);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void WriteBlock<T, TFormatter>(ref byte destination, ref T first, int count)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (RawFormatter.Is<T, TFormatter>())
                 NinoLayout<T>.CopyToWire(ref destination,
-                    ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), values.Length);
+                    ref Unsafe.As<T, byte>(ref first), count);
             else if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
                 DateTimeOffsetFormatter.WriteAll(ref destination,
-                    ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
+                    ref Unsafe.As<T, DateTimeOffset>(ref first), count);
             else
-                NinoBlockCollections.WriteAll<T, TFormatter>(ref destination, ref MemoryMarshal.GetReference(values),
-                    values.Length, NinoBlockCollections.FixedSize<T, TFormatter>());
+                NinoBlockCollections.WriteAll<T, TFormatter>(ref destination, ref first,
+                    count, NinoBlockCollections.FixedSize<T, TFormatter>());
         }
 
         /// <summary>

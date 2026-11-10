@@ -290,11 +290,13 @@ namespace Nino.Core
                 {
                     // The prefix and both parts of a wrapped ring fit in the same reservation.
                     ref byte target = ref writer.ReserveCounted(count, block);
+                    // The ring bounds both runs: head to the end of the array, then the remaining elements at zero.
+                    ref T start = ref NinoUnsafe.GetArrayDataReference(ring);
                     if (first != 0)
-                        NinoElements.WriteBlock<T, TFormatter>(ref target, new ReadOnlySpan<T>(ring, head, first));
+                        NinoElements.WriteBlock<T, TFormatter>(ref target, ref Unsafe.Add(ref start, head), first);
                     if (first != count)
                         NinoElements.WriteBlock<T, TFormatter>(ref Unsafe.Add(ref target, first * block),
-                            new ReadOnlySpan<T>(ring, 0, count - first));
+                            ref start, count - first);
                     return;
                 }
 
