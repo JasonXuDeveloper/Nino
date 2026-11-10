@@ -190,6 +190,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   to 1,409 x64 cross-JIT bytes. Both Roslyn builds matched all 577 files and retained
   incremental reuse and collection. Keep the list until a more direct representation
   removes the allocation without adding two collection states.
+  Delay the shared binder's formatter and resolution arrays until the pattern unifies.
+  The runtime array rule's rank mismatch allocated 80 B instead of 152 B per call;
+  successful matches allocated the same. The 850-type generator replay saved 7.8 KB in
+  both orders. Whole-project and runtime timings varied. Binder IL was 406 to 414 bytes;
+  the runtime specialization was 7,388 to 7,376 Arm64 Tier 1 bytes and 1,044 to 1,094 x64
+  cross-JIT bytes. Both Roslyn builds matched 577 files, model reuse and collection.
+  Runtime wire output matched, each runtime passed 93 focused tests, and both portable
+  builds passed.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
