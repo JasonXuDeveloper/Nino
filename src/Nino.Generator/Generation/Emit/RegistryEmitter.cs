@@ -72,7 +72,7 @@ internal static class RegistryEmitter
             if (entry.Arity == 0 && entry.Registration is { } registration)
                 AddStatements(cases, registration);
         var ordered = OrderCases(cases, out int mask);
-        EmitIdDispatch(w, "public", $"{Gen}{UsagesClass}.Register(id);", ordered, mask);
+        EmitIdDispatch(w, "public", $"{UsagesClass}.Register(id);", ordered, mask);
         w.Line();
         w.Line("/// <summary>Runs the registration (once).</summary>");
         w.Block("public static void Init()", () => { });
