@@ -216,10 +216,10 @@ internal static class RegistryEmitter
     }
 
     /// <summary>The statements by id, in the order of the ids, statements in insertion order.</summary>
-    private static List<IdCase> OrderCases(Dictionary<int, IdCase> cases)
+    private static IdCase[] OrderCases(Dictionary<int, IdCase> cases)
     {
-        var ordered = cases.Values.ToList();
-        ordered.Sort(static (a, b) => a.Id.CompareTo(b.Id));
+        var ordered = cases.Values.ToArray();
+        Array.Sort(ordered, static (a, b) => a.Id.CompareTo(b.Id));
         return ordered;
     }
 
@@ -228,11 +228,11 @@ internal static class RegistryEmitter
     /// it compiles, so one switch over every type would load every formatter on the first lookup. With buckets of
     /// about <see cref="IdsPerBucket"/> ids, a lookup only loads the types of its bucket.
     /// </summary>
-    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, List<IdCase> cases,
+    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, IdCase[] cases,
         GeneratedCode.NamespaceAliases compact = default)
     {
         int buckets = 1;
-        while (buckets < MaxBuckets && buckets * IdsPerBucket < cases.Count)
+        while (buckets < MaxBuckets && buckets * IdsPerBucket < cases.Length)
             buckets *= 2;
 
         w.Open($"{modifiers} void Register(int id)");
@@ -240,42 +240,48 @@ internal static class RegistryEmitter
             w.Line(prelude);
         if (buckets == 1)
         {
-            if (cases.Count != 0)
+            if (cases.Length != 0)
                 EmitIdSwitch(w, cases, compact);
             w.Close();
             return;
         }
 
         int mask = buckets - 1;
-        var counts = new int[buckets];
+        var ends = new int[buckets + 1];
         foreach (var entry in cases)
-            counts[entry.Id & mask]++;
+            ends[(entry.Id & mask) + 1]++;
 
-        var byBucket = new List<IdCase>?[buckets];
-        foreach (var entry in cases)
+        // Turn the counts into bucket starts, then advance them to the ends as each sorted case is copied.
+        int next = 0;
+        for (int i = 1; i < ends.Length; i++)
         {
-            int bucket = entry.Id & mask;
-            (byBucket[bucket] ??= new List<IdCase>(counts[bucket])).Add(entry);
+            int count = ends[i];
+            ends[i] = next;
+            next += count;
         }
+        var grouped = new IdCase[cases.Length];
+        foreach (var entry in cases)
+            grouped[ends[(entry.Id & mask) + 1]++] = entry;
 
         w.Open($"switch (id & {mask})");
         for (int i = 0; i < buckets; i++)
-            if (byBucket[i] != null)
+            if (ends[i + 1] != ends[i])
                 w.Line($"case {i}: __Bucket{i}(id); break;");
         w.Close();
         w.Close();
         for (int i = 0; i < buckets; i++)
         {
-            if (byBucket[i] is not { } bucket)
+            int start = ends[i], end = ends[i + 1];
+            if (end == start)
                 continue;
             w.Line();
             w.Open($"private static void __Bucket{i}(int id)");
-            EmitIdSwitch(w, bucket, compact);
+            EmitIdSwitch(w, grouped.AsSpan(start, end - start), compact);
             w.Close();
         }
     }
 
-    private static void EmitIdSwitch(CodeWriter w, List<IdCase> cases, GeneratedCode.NamespaceAliases compact)
+    private static void EmitIdSwitch(CodeWriter w, ReadOnlySpan<IdCase> cases, GeneratedCode.NamespaceAliases compact)
     {
         w.Open("switch (id)");
         foreach (var c in cases)
