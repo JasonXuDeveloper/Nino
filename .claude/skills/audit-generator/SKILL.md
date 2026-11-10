@@ -576,6 +576,13 @@ replay saved another 4 KB by removing the per-bucket objects and array headers. 
 and switch emitters together shrank by 60 Arm64 FullOpts bytes and 375 x64 cross-JIT bytes.
 Whole-project timing and allocation varied. Both Roslyn builds emitted identical files,
 incremental and collection checks passed, and both targeted suites passed (`91612f39`).
+Sort the cases once by masked bucket and then by signed ID. Walk the contiguous groups
+directly to avoid the second case array and offset table. Alias counts saturate, so their
+result is independent of the scan order. Isolated registry replay saved 12,032 B in both
+load orders and four cold project runs saved about 20–50 KB. Timings varied. The ordering
+and dispatch methods plus comparer went from 515 to 499 IL bytes, 2,956 to 2,320 Arm64
+FullOpts bytes, and 1,279 to 900 x64 cross-JIT bytes. Both Roslyn builds matched all
+577 generated files, kept registry entries cached, and released old project objects.
 Keep the registry preamble writer separate unless its size is known cheaply. The real
 project preamble was about 10 KB and a lease with a 256-character request grew beyond
 the 8,192-character cap, allocating 288 bytes more per isolated emission. Counting the
