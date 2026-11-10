@@ -295,6 +295,15 @@ of bytes in a block.
   samples varied and allocation stayed at 0 B. The helper grew from 320 to
   493 IL bytes, 272 to 336 Arm64 FullOpts bytes, and 204 to 295 x64 cross-JIT
   bytes. The wire samples and scalar fallback matched.
+  Keep the 128-byte loop as the common path. A 256-byte loop improved
+  16,384-item reads but varied near 64 KiB. Gating that loop at 64 KiB of
+  input still slowed 128-, 4,095-, and 4,096-item reads against both baselines
+  in all four rounds, despite those cases taking the 128-byte loop. The gated
+  helper and its inline group reader went from 493 to 566 IL bytes, 336 to 464
+  Arm64 FullOpts bytes, and 295 to 483 x64 cross-JIT bytes. A separate four-round
+  comparison reproduced the 128-byte loop's gain over the 64-byte loop for
+  4,096 and 16,384 items. If revisiting the wider loop, isolate its machine-code
+  layout from the common path and measure both again.
   Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
   In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
   and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
