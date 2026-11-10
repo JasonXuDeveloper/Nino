@@ -300,6 +300,12 @@ and when `asm.py compare` lists methods the change did not touch.
   an array with an element or array recycler registered. Recyclers can mutate the source before it is copied.
   Keep split headers in a separate cold method that joins only the four header bytes. Joining them inside
   the ordinary two-segment reader regressed complete-header inputs in the local A/B.
+  Assemble the split length directly from the two spans. The 2+2 split of a
+  64-byte payload read in 21.31–23.71 ns across four warmed rounds, from
+  23.26–27.28 ns. Complete headers and near-L1 payloads overlapped A/A.
+  The helper grew from 193 to 277 IL bytes and 1,412 to 1,476 Arm64 Tier 1
+  bytes, but offline x64 fell from 1,345 to 1,268. All seven unaligned
+  wire and round-trip probes passed at zero steady allocation.
   Sharing both segment and count validation through inlined helpers still slowed split-header reuse
   across both loading orders. Keep those checks local and share payload copying and replacement.
   Keep the regular and direct sequence readers' stack and pool scopes around their own span calls.
