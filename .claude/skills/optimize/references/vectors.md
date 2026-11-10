@@ -532,6 +532,14 @@ of bytes in a block.
   versus 284 at baseline. Neither variant improved short or 64 KiB boundary workloads
   repeatably, and the countdown was slower in all four default-SIMD 17-element rounds.
   Keep the indexed loop. Wire and dirty-padding checks and targeted tests passed.
+  Unroll the three-word scalar mask period and load all three words before storing.
+  Arm64 paired the first two loads and stores as `ldp` and `stp`, using eight fewer
+  bytes than the interleaved variant. Compared with the shared loop, IL grew from 226 to
+  383 bytes, Arm64 scalar Tier 1 from 344 to 432, and the x64 cross listing from 284 to 380.
+  With SIMD disabled, the 2,665- and 2,821-element 12-byte probes took 38–56% less time
+  and the 1,420-element 24-byte probe 44–55% less in four rounds. Default SIMD timings
+  varied. Dirty-padding checks matched, and both targeted suites, scalar tests and
+  netstandard builds passed (`7a3cf2c6`).
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
