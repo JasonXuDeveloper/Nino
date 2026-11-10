@@ -192,7 +192,12 @@ internal static class DispatchEmitter
                 string call = outlineNestedWrites && s.Nests && !s.RawBody
                     ? $"__WriteExact{i}"
                     : $"{services}NinoObject.{(s.RawBody ? "WriteExactRaw" : "WriteExact")}<{s.TypeName}, {s.FormatterName}>";
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{call}}(value, ref writer); return; }""");
+                // The first exact check establishes non-nullness. A later sealed check can then use is
+                // without adding a null branch to the dispatch.
+                string check = i != 0 && s.IsSealed
+                    ? $"value is {s.TypeName}"
+                    : $"value.GetType() == typeof({s.TypeName})";
+                w.Line($$"""if ({{check}}) { {{call}}(value, ref writer); return; }""");
             }
             w.Line(WriteOther(t, services) + ";");
             w.Close();

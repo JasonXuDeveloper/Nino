@@ -327,7 +327,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 return isBase || isTarget
                     ? new DispatchEntry(m.TypeName, m.FormatterName, m.TypeParameterList, m.TypeId, isBase, isTarget,
                         m.Inheritance.NinoBaseClasses, m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors,
-                        m.RawBody, m.Depth.Nests)
+                        m.RawBody, m.Depth.Nests, m.Kind == FormatterKind.SealedClass)
                     : null;
             })
             .Select(static (x, _) => new EquatableArray<DispatchEntry>(
