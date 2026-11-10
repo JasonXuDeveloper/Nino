@@ -107,10 +107,23 @@ namespace Nino.Core.Internal
                 ? Narrow16s(ref Unsafe.As<char, ushort>(ref chars), ref Unsafe.Add(ref destination, 1), (uint)length)
                 : Narrow(ref chars, ref Unsafe.Add(ref destination, 1), (uint)length);
             if (!narrowed)
+            {
+                if (!System.Runtime.Intrinsics.X86.Sse2.IsSupported &&
+                    System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && length > 32)
+                {
+                    int bytes = length * sizeof(char);
+                    destination = (byte)bytes;
+                    NinoUnsafe.CopyArm64Short(ref Unsafe.Add(ref destination, 1),
+                        ref Unsafe.As<char, byte>(ref chars), (uint)bytes);
+                    return bytes + 1;
+                }
+
+                return WriteUtf16(ref destination, ref chars, length);
+            }
 #else
             if (!Narrow(ref chars, ref Unsafe.Add(ref destination, 1), (uint)length))
-#endif
                 return WriteUtf16(ref destination, ref chars, length);
+#endif
             destination = (byte)(length * 2 + 1);
             return 1 + length;
         }
