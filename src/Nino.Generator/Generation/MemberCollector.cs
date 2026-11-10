@@ -79,26 +79,31 @@ internal static class MemberCollector
         bool autoCollect = attr.AutoCollect;
         bool containNonPublic = attr.IncludeNonPublicMembers;
 
-        var levels = new List<INamedTypeSymbol>();
-        var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+        List<INamedTypeSymbol>? levels = null;
+        HashSet<INamedTypeSymbol>? visited = null;
 
-        void AddLevel(INamedTypeSymbol t)
+        void AddAncestor(INamedTypeSymbol ancestor)
         {
-            if (!visited.Add(t))
+            visited ??= new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default) { type };
+            if (!visited.Add(ancestor))
                 return;
-            // Base types first (root to leaf), so members appended to a derived type never shift base members.
-            if (t.BaseType != null && t.BaseType.IsNinoType())
-                AddLevel(t.BaseType);
-            foreach (var i in t.AllInterfaces)
-            {
-                if (i.IsNinoType())
-                    AddLevel(i);
-            }
-
-            levels.Add(t);
+            // Visit base types before their derived types to preserve their wire positions.
+            AddAncestors(ancestor);
+            (levels ??= new()).Add(ancestor);
         }
 
-        AddLevel(type);
+        void AddAncestors(INamedTypeSymbol current)
+        {
+            if (current.BaseType is { } parent && parent.IsNinoType())
+                AddAncestor(parent);
+            foreach (var i in current.AllInterfaces)
+            {
+                if (i.IsNinoType())
+                    AddAncestor(i);
+            }
+        }
+
+        AddAncestors(type);
 
         // Get-only auto-properties can only be restored through a constructor: they are members when one takes them.
         var constructorNames = ConstructorParameterNames(type, known);
@@ -110,7 +115,15 @@ internal static class MemberCollector
         var inserted = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         var names = new HashSet<string>();
         var result = new MemberList();
-        foreach (var level in levels)
+        if (levels != null)
+        {
+            foreach (var level in levels)
+                CollectLevel(level);
+        }
+        CollectLevel(type);
+        return result;
+
+        void CollectLevel(INamedTypeSymbol level)
         {
             // Findings cover every member the type declares, serialized or not.
             bool inspect = findings != null && SymbolEqualityComparer.Default.Equals(level, type);
@@ -176,8 +189,6 @@ internal static class MemberCollector
                     AddCandidate(candidate.Symbol, fromInterface);
             }
         }
-
-        return result;
 
         void AddCandidate(ISymbol member, bool fromInterface)
         {
