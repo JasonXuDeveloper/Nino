@@ -52,8 +52,7 @@ namespace Nino.Core
 
             var target = MemoryMarshal.CreateSpan(ref payload, size);
             ref byte first = ref MemoryMarshal.GetReference(source);
-            if (!System.Runtime.Intrinsics.X86.Sse2.IsSupported &&
-                System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && size > 64)
+            if (NinoSimd.HasArm64 && size > 64)
             {
                 if (size <= 128)
                     NinoUnsafe.CopyArm64Short(ref payload, ref first, (uint)size);
@@ -100,8 +99,7 @@ namespace Nino.Core
                     ref byte destination = ref MemoryMarshal.GetReference(target);
                     ref byte source = ref MemoryMarshal.GetReference(bytes);
                     uint size = (uint)bytes.Length;
-                    if (!System.Runtime.Intrinsics.X86.Sse2.IsSupported &&
-                        System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && size <= 128)
+                    if (NinoSimd.HasArm64 && size <= 128)
                         NinoUnsafe.CopyArm64Short(ref destination, ref source, size);
                     else
                         NinoUnsafe.CopyOver64(ref destination, ref source, size);

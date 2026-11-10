@@ -2,12 +2,20 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
+using System.Runtime.Intrinsics.Arm;
 
 namespace Nino.Core.Internal
 {
     /// <summary>Hardware capabilities and CPU policy shared by managed SIMD kernels.</summary>
     internal static partial class NinoSimd
     {
+        // ReadyToRun can fold the x64 baseline even when it leaves the foreign ISA check as a call.
+        internal static bool HasArm64
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !Sse2.IsSupported && AdvSimd.Arm64.IsSupported;
+        }
+
         internal static bool Has512
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
