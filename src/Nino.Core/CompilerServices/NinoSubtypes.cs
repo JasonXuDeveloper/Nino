@@ -68,9 +68,8 @@ namespace Nino.Core.CompilerServices
 
                 if (!_tracked)
                 {
-                    // A lambda rather than a method group: older compilers (Unity's) allocate a delegate per use. The
-                    // hook goes with TBase's assembly.
-                    NinoUnload.OnRemove(assembly => Remove(assembly), typeof(TBase));
+                    // Register once under the lock and release the hook with TBase's assembly.
+                    NinoUnload.OnRemove(Remove, typeof(TBase));
                     _tracked = true;
                 }
 

@@ -13,8 +13,10 @@ namespace Nino.Core
         private static readonly ConcurrentDictionary<Type, BoxedFormatter> Cache =
             NinoUnload.Cache<BoxedFormatter>(formatter => formatter.GetType());
 
-        // A lambda rather than a method group: older compilers (Unity's) allocate a delegate per method group use.
-        public static BoxedFormatter Get(Type type) => Cache.GetOrAdd(type, t => Create(t));
+        // Cache the factory explicitly for older compilers, which allocate a delegate at each method-group use.
+        private static readonly Func<Type, BoxedFormatter> Factory = Create;
+
+        public static BoxedFormatter Get(Type type) => Cache.GetOrAdd(type, Factory);
 
         private static BoxedFormatter Create(Type type)
         {
