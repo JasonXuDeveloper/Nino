@@ -148,8 +148,10 @@ internal static class GeneratedCode
             (CoreNamespaceDeclaration.Length + 5) / (TypeNames.Core.Length - CoreNamespacePrefix.Length) + 1;
         private static readonly int CollectionsThreshold =
             (CollectionsDeclaration.Length + 5) / (Collections.Length - CollectionsAlias.Length) + 1;
+#if ROSLYN4_8
         public bool OmitGeneratedNamespace;
         public bool UseBytesAlias;
+#endif
         private int _coreUses;
         private int _collectionUses;
 
@@ -201,6 +203,7 @@ internal static class GeneratedCode
             AppendRange(builder, code, copied, end);
         }
 
+#if ROSLYN4_8
         private readonly void AppendRange(StringBuilder builder, string code, int start, int end)
         {
             if (start == end)
@@ -238,6 +241,10 @@ internal static class GeneratedCode
 
             builder.Append(code, start, end - start);
         }
+#else
+        private static void AppendRange(StringBuilder builder, string code, int start, int end) =>
+            builder.Append(code, start, end - start);
+#endif
 
         private static int CountUntil(string text, string prefix, int count, int threshold)
         {

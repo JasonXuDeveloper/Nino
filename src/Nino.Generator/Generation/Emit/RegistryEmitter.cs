@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Nino.Generator.Common;
 using static Nino.Generator.Generation.TypeNames;
@@ -197,7 +198,7 @@ internal static class RegistryEmitter
         else
         {
             atId = ConcreteStatement(r, "id");
-            atNameId = r.NameId == r.Id ? atId : ConcreteStatement(r, r.Id.ToString());
+            atNameId = r.NameId == r.Id ? atId : ConcreteStatement(r, r.Id.ToString(CultureInfo.InvariantCulture));
         }
 
         AddCase(cases, r.Id, atId);
