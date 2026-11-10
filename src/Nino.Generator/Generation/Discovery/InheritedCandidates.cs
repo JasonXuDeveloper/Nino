@@ -111,7 +111,42 @@ internal static class InheritedCandidates
     {
         if (candidates.Length == 0)
             yield break;
-        // File paths are normally unique, but in-memory trees may share one; the name check picks the right one.
+        var index = new Dictionary<string, SyntaxTree>();
+        foreach (var tree in compilation.SyntaxTrees)
+        {
+            if (index.ContainsKey(tree.FilePath))
+            {
+                foreach (var match in ResolveSharedPaths(candidates, compilation, ct))
+                    yield return match;
+                yield break;
+            }
+
+            index.Add(tree.FilePath, tree);
+        }
+
+        // Find sorts candidates by path, so only the current tree needs a semantic model.
+        string? path = null;
+        SyntaxTree? current = null;
+        SemanticModel? model = null;
+        foreach (var candidate in candidates)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (candidate.FilePath != path)
+            {
+                path = candidate.FilePath;
+                index.TryGetValue(path, out current);
+                model = null;
+            }
+
+            if (current != null && Match(current, candidate, ct) is { } syntax)
+                yield return (syntax, model ??= compilation.GetSemanticModel(current));
+        }
+    }
+
+    private static IEnumerable<(TypeDeclarationSyntax Syntax, SemanticModel Model)> ResolveSharedPaths(
+        EquatableArray<InheritedCandidate> candidates, Compilation compilation, CancellationToken ct)
+    {
+        // In-memory trees may share a file path. Check them in compilation order.
         var trees = compilation.SyntaxTrees.ToLookup(t => t.FilePath);
         var models = new Dictionary<SyntaxTree, SemanticModel>();
         foreach (var candidate in candidates)
@@ -119,11 +154,7 @@ internal static class InheritedCandidates
             ct.ThrowIfCancellationRequested();
             foreach (var tree in trees[candidate.FilePath])
             {
-                if (candidate.Position >= tree.Length)
-                    continue;
-                var token = tree.GetRoot(ct).FindToken(candidate.Position);
-                if (token.Parent is not TypeDeclarationSyntax syntax || syntax.Identifier != token ||
-                    token.ValueText != candidate.Name)
+                if (Match(tree, candidate, ct) is not { } syntax)
                     continue;
                 if (!models.TryGetValue(tree, out var model))
                     models[tree] = model = compilation.GetSemanticModel(tree);
@@ -131,6 +162,15 @@ internal static class InheritedCandidates
                 break;
             }
         }
+    }
+
+    private static TypeDeclarationSyntax? Match(SyntaxTree tree, InheritedCandidate candidate, CancellationToken ct)
+    {
+        if (candidate.Position >= tree.Length)
+            return null;
+        var token = tree.GetRoot(ct).FindToken(candidate.Position);
+        return token.Parent is TypeDeclarationSyntax syntax && syntax.Identifier == token &&
+               token.ValueText == candidate.Name ? syntax : null;
     }
 
     /// <summary>What a referenced assembly contributes; computed once per assembly symbol.</summary>

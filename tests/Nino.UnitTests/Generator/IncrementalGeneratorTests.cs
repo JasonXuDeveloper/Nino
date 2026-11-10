@@ -37,6 +37,19 @@ public class IncrementalGeneratorTests
             .Single(s => s.HintName == $"NinoGen.Inc_{type}Formatter.g.cs").SourceText.ToString();
 
     [TestMethod]
+    public void InheritedTypesBindInTreesWithTheSamePath()
+    {
+        var compilation = Create(
+            ("Base.cs", Usings + "[NinoType] public class Base { public int X; }\n}"),
+            ("Shared.cs", Usings + "public class Alpha : Base { public int A; }\n}"),
+            ("Shared.cs", Usings + "public class Bravo : Base { public int B; }\n}"));
+        var driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator()).RunGenerators(compilation);
+
+        StringAssert.Contains(Output(driver, "Alpha"), "value.A");
+        StringAssert.Contains(Output(driver, "Bravo"), "value.B");
+    }
+
+    [TestMethod]
     public void DependentModelsAreRebuiltOnEdit()
     {
         var compilation = Create(
