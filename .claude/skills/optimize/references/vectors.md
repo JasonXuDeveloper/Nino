@@ -471,6 +471,9 @@ of bytes in a block.
   local rounds. Allocation size stayed at 12,400 bytes per read. The cross listing showed calls
   to the uninitialized allocation worker instead of the usual new-array helper. Larger samples
   varied. Compare a zeroed control with the same publication order and call shape.
+  The zeroed control removed the threshold slowdown. At 24,576 and 32,768 pairs, the uninitialized
+  worker also lost in all four paired local rounds, with unchanged output bytes and allocation size.
+  Keep zeroed arrays for this path.
 - Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
   complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
   at the end of a guarded page to catch a load past either end of the input.
