@@ -652,7 +652,7 @@ namespace Conformance
             return names.Select(n => valid.Single(c => c.Name == n)).ToList();
         }
 
-        public static JsonObject DescribeTruncations(List<ValidCase> cases, List<ValidCase> all, string validDir)
+        public static JsonObject DescribeTruncations(List<ValidCase> cases, string validDir)
         {
             var list = new JsonArray();
             long prefixes = 0;

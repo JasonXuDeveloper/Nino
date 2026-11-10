@@ -305,7 +305,7 @@ namespace Nino.UnitTests
 
                 public override bool Equals([NotNullWhen(true)] object obj)
                 {
-                    return obj is Point && Equals((Point)obj);
+                    return obj is Point point && Equals(point);
                 }
 
                 public bool Equals(Point other) => this == other;
@@ -889,8 +889,7 @@ namespace Nino.UnitTests
                 pools.Add(DicePoolType.STR, new DicePool());
                 pools.Add(DicePoolType.CONS, new DicePool());
                 var bytes = NinoSerializer.Serialize(pools);
-                Dictionary<DicePoolType, DicePool> pools2 =
-                    NinoDeserializer.Deserialize<Dictionary<DicePoolType, DicePool>>(bytes);
+                _ = NinoDeserializer.Deserialize<Dictionary<DicePoolType, DicePool>>(bytes);
             }
         }
 

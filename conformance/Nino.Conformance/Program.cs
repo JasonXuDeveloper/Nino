@@ -125,7 +125,7 @@ namespace Conformance
             }
 
             var truncations = MaliciousCases.Truncations(cases);
-            var truncationJson = MaliciousCases.DescribeTruncations(truncations, cases, valid);
+            var truncationJson = MaliciousCases.DescribeTruncations(truncations, valid);
             WriteJson(Path.Combine(malicious, "truncations.json"), truncationJson);
 
             WriteJson(Path.Combine(dir, "index.json"), new JsonObject

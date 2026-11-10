@@ -77,13 +77,13 @@ namespace Nino.Codegen.Targets
             var rawStructs = _rawStructs.Select(s => new RustRawStruct(this, s)).ToList();
 
             var refs = types.Where(t => t.Header == HeaderKind.TypeId && !t.Raw && !t.IsGenericDefinition)
-                .Select(t => new RustRef(Name(t) + "Ref", t.FullName, Variants(Allowed(t), t.ClosedAssignable, t.TrackReferences))
+                .Select(t => new RustRef(Name(t) + "Ref", t.FullName, Variants(Allowed(t), t.ClosedAssignable))
                     { Tracked = t.TrackReferences })
                 .ToList();
             refs.AddRange(_slotNames.Select(p => new RustRef(p.Value, p.Key.RuntimeName,
-                Variants(p.Key.Assignable.Where(_supported.Contains), p.Key.ClosedAssignable, false))));
+                Variants(p.Key.Assignable.Where(_supported.Contains), p.Key.ClosedAssignable))));
             if (_usesObject)
-                refs.Add(new RustRef("AnyObject", "object", Variants(ObjectTypes(), _closed.Keys, false)));
+                refs.Add(new RustRef("AnyObject", "object", Variants(ObjectTypes(), _closed.Keys)));
 
             var renderer = new TemplateRenderer("rust");
             renderer.Set("source", source);
@@ -133,10 +133,9 @@ namespace Nino.Codegen.Targets
 
         /// <summary>
         /// The variants of a slot: its types with layouts, then its closed generic types, by name. A tracked class is
-        /// a <c>nino::Shared</c>; <paramref name="tracked"/>: the slot's declared type tracks (the reference header
-        /// comes before the type id), else a tracked class has its header after its id.
+        /// a <c>nino::Shared</c>.
         /// </summary>
-        private List<RustVariant> Variants(IEnumerable<TypeModel> types, IEnumerable<ClosedTypeModel> closed, bool tracked)
+        private List<RustVariant> Variants(IEnumerable<TypeModel> types, IEnumerable<ClosedTypeModel> closed)
         {
             var variants = types.OrderBy(Name, StringComparer.Ordinal)
                 .Select(t => new RustVariant(Name(t), t, null, Name(t) + "::NINO_TYPE_ID", t.IsValueType)

@@ -237,7 +237,7 @@ internal sealed class LayoutCheck
     /// </summary>
     public Location LocationOf(int line, CancellationToken ct)
     {
-        var whole = BaselineLocation(ct);
+        var whole = BaselineLocation();
         if (Literal(ct) is not { } literal || line < 1)
             return whole;
         var token = literal.Token;
@@ -261,7 +261,7 @@ internal sealed class LayoutCheck
     }
 
     /// <summary>The <c>[NinoLayouts]</c> attribute in source: where the code fixes find the baseline to rewrite.</summary>
-    public Location BaselineLocation(CancellationToken ct) =>
+    public Location BaselineLocation() =>
         Attribute.ApplicationSyntaxReference is { } syntax
             ? Location.Create(syntax.SyntaxTree, syntax.Span)
             : Location.None;

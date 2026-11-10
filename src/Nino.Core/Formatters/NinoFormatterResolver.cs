@@ -81,8 +81,8 @@ namespace Nino.Core
         internal static Type GetFormatterType(Type type, bool topLevel = false)
         {
             if (!topLevel)
-                return Cache.GetOrAdd(type, t => Build(t, false));
-            return Build(type, true);
+                return Cache.GetOrAdd(type, Build);
+            return Build(type);
         }
 
         [RequiresDynamicCode(DynamicCodeMessage)]
@@ -107,20 +107,20 @@ namespace Nino.Core
         [ThreadStatic] private static HashSet<Type> t_building;
 
         [RequiresDynamicCode(DynamicCodeMessage)]
-        private static Type Build(Type type, bool topLevel)
+        private static Type Build(Type type)
         {
             NinoReflection.RefuseHostSizedVector(type);
             var building = t_building ??= new HashSet<Type>();
             bool added = building.Add(type);
             try
             {
-                var result = TryBuild(type, topLevel);
+                var result = TryBuild(type);
                 if (result != null)
                     return result;
                 // The registration may live in an assembly that has not been looked at yet.
                 var before = _rules;
                 NinoRegistry.EnsureAllInitialized();
-                return ReferenceEquals(before, _rules) ? null : TryBuild(type, topLevel);
+                return ReferenceEquals(before, _rules) ? null : TryBuild(type);
             }
             finally
             {
@@ -133,7 +133,7 @@ namespace Nino.Core
         // IL2071; IL2070 from the .NET 8 analyzer, which reports the same thing on MakeGenericType itself.
         [UnconditionalSuppressMessage("Trimming", "IL2071", Justification = ValueTypeConstraintJustification)]
         [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = ValueTypeConstraintJustification)]
-        private static Type TryBuild(Type type, bool topLevel)
+        private static Type TryBuild(Type type)
         {
             if (type == typeof(string))
                 return typeof(StringFormatter);

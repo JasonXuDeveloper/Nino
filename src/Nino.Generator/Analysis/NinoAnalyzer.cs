@@ -332,7 +332,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (findings.Count == 0)
             return;
         string section = LayoutBaseline.Section(now);
-        var baseline = new[] { layouts.BaselineLocation(ct) };
+        var baseline = new[] { layouts.BaselineLocation() };
         var members = findings.Any(f => f.Member != null) ? facts.Members.Of(type, type.GetNinoTypeOptions()!) : null;
         foreach (var finding in findings)
         {
@@ -392,7 +392,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var baseline = new[] { layouts.BaselineLocation(ct) };
+        var baseline = new[] { layouts.BaselineLocation() };
         foreach (var old in layouts.Removed(ct))
         {
             var finding = LayoutRules.Removed(old);

@@ -148,7 +148,7 @@ internal static class FormatterEmitter
         if (m.HasTop)
         {
             w.Line();
-            EmitTop(w, m, names, body);
+            EmitTop(w, m, names);
         }
 
         if (m.Depth.Shallow)
@@ -214,7 +214,7 @@ internal static class FormatterEmitter
     /// The formatter the intercepted top-level calls use (see <see cref="TypeModel.HasTop"/>): the same bytes, with
     /// no depth check, and the body inlined into the caller (<see cref="TypeModel.TopInline"/>) or called directly.
     /// </summary>
-    private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names, BodyEmitter body)
+    private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names)
     {
         string t = m.TypeName;
         string top = TopTwinName;

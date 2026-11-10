@@ -304,10 +304,9 @@ namespace Nino.Core.Internal
             if (!NinoLayoutCore.Measure(new RuntimeView { Canonical = true }, type, NinoLayoutModel.Canonical, 0, wire,
                     out int wireSize, out int wireAlign))
                 return new Info { Size = runtimeSize };
-            int memorySize = -1;
             // Auto-layout structs are not modeled for this runtime (AutoPointerSize 0): their offsets are measured.
             if (measured ||
-                !NinoLayoutCore.Measure<Type, RuntimeView>(default, type, memoryModel, 0, memory, out memorySize,
+                !NinoLayoutCore.Measure<Type, RuntimeView>(default, type, memoryModel, 0, memory, out int memorySize,
                     out _) ||
                 (runtimeSize >= 0 && memorySize != runtimeSize))
             {

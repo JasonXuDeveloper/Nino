@@ -57,12 +57,12 @@ namespace Nino.CodeGen
         private static string AllRaw(int arity) => string.Join(" && ", Items(arity).Select(i => $"RawFormatter.Is<T{i}, TF{i}>()"));
 
         /// <summary>The wire size of the first <paramref name="count"/> items (the tuple's, for all of them).</summary>
-        private static string Sum(int arity, int count) =>
+        private static string Sum(int count) =>
             string.Join(" + ", Items(count).Select(i => $"NinoLayout<T{i}>.Size"));
 
         /// <summary>The position of item <paramref name="item"/> inside a block of raw items starting at <paramref name="block"/>.</summary>
         private static string At(string block, int item) =>
-            item == 1 ? block : $"Unsafe.Add(ref {block}, {Sum(item - 1, item - 1)})";
+            item == 1 ? block : $"Unsafe.Add(ref {block}, {Sum(item - 1)})";
 
         private static void AppendConstraints(StringBuilder sb, int arity)
         {
@@ -85,7 +85,7 @@ namespace Nino.CodeGen
                 sb.Append("            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.\n");
                 sb.Append($"            if ({AllRaw(arity)})\n");
                 sb.Append("            {\n");
-                sb.Append($"                ref byte dst = ref writer.Reserve({Sum(arity, arity)});\n");
+                sb.Append($"                ref byte dst = ref writer.Reserve({Sum(arity)});\n");
                 foreach (int i in Items(arity))
                     sb.Append($"                NinoLayout<T{i}>.Write(ref {At("dst", i)}, in value.Item{i});\n");
                 sb.Append("                return;\n");
@@ -104,7 +104,7 @@ namespace Nino.CodeGen
             {
                 sb.Append($"            if ({AllRaw(arity)})\n");
                 sb.Append("            {\n");
-                sb.Append($"                ref byte src = ref reader.ReadBlock({Sum(arity, arity)});\n");
+                sb.Append($"                ref byte src = ref reader.ReadBlock({Sum(arity)});\n");
                 foreach (int i in Items(arity))
                     sb.Append($"                value.Item{i} = NinoLayout<T{i}>.Read(ref {At("src", i)});\n");
                 sb.Append("                return;\n");
@@ -120,7 +120,7 @@ namespace Nino.CodeGen
             sb.Append($"        int INinoFixedSizeFormatter<{type}>.FixedSize\n");
             sb.Append("        {\n");
             sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"            get => {allRaw} ? {Sum(arity, arity)} : -1;\n");
+            sb.Append($"            get => {allRaw} ? {Sum(arity)} : -1;\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append($"        NinoBlockMap INinoBlockFormatter<{type}>.BlockMap()\n");
@@ -130,7 +130,7 @@ namespace Nino.CodeGen
             sb.Append($"            var value = default({type});\n");
             sb.Append("            return new NinoBlockMap()");
             foreach (int i in Items(arity))
-                sb.Append($"\n                .Raw<T{i}>(NinoBlocks.Offset(ref value, ref value.Item{i}), {(i == 1 ? "0" : Sum(i - 1, i - 1))})");
+                sb.Append($"\n                .Raw<T{i}>(NinoBlocks.Offset(ref value, ref value.Item{i}), {(i == 1 ? "0" : Sum(i - 1))})");
             sb.Append(";\n");
             sb.Append("        }\n");
             sb.Append("\n");
