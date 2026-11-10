@@ -226,6 +226,11 @@ public class StrictReadTests
     [DataRow(3)]
     [DataRow(5)]
     [DataRow(9)]
+    [DataRow(16)]
+    [DataRow(17)]
+    [DataRow(31)]
+    [DataRow(32)]
+    [DataRow(33)]
     [DataRow(1031)]
     public void NullableBoolBlocksKeepNullAndInvalidValueSemantics(int count)
     {

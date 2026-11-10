@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Collections;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
 #endif
@@ -99,7 +100,7 @@ namespace RawWire
         }
 
 #if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
-        private delegate void WriteSlots(ref ushort source, ref ushort target, int count);
+        private delegate void BoolSlotsKernel(ref ushort source, ref ushort target, int count);
 
         [TestMethod]
         [DataRow(64)]
@@ -120,7 +121,9 @@ namespace RawWire
             if (slots.ContainsGenericParameters)
                 slots = slots.MakeGenericType(typeof(bool));
             var write = owner.GetMethod("WriteBoolSlots", BindingFlags.Static | BindingFlags.NonPublic)
-                .MakeGenericMethod(vector, slots).CreateDelegate<WriteSlots>();
+                .MakeGenericMethod(vector, slots).CreateDelegate<BoolSlotsKernel>();
+            var read = owner.GetMethod("ReadBoolSlots", BindingFlags.Static | BindingFlags.NonPublic)
+                .MakeGenericMethod(vector, slots).CreateDelegate<BoolSlotsKernel>();
             int lanes = width / 16;
             for (int count = lanes; count <= lanes * 3 + 1; count++)
             foreach (int offset in new[] { 0, 1, 7 })
@@ -132,18 +135,83 @@ namespace RawWire
                     source[i] = (i % 3) switch { 0 => 0x7F00, 1 => 0x0101, _ => 0x0001 };
                     expected[i] = i % 3 == 0 ? (ushort)0 : source[i];
                 }
-                var target = new byte[offset + count * 2 + 16];
-                Array.Fill(target, (byte)0xA5);
-                write(ref source[0], ref Unsafe.As<byte, ushort>(ref target[offset]), count);
-                for (int i = 0; i < count; i++)
-                    Assert.AreEqual(expected[i], Unsafe.ReadUnaligned<ushort>(ref target[offset + i * 2]));
-                for (int i = 0; i < offset; i++)
-                    Assert.AreEqual((byte)0xA5, target[i]);
-                for (int i = offset + count * 2; i < target.Length; i++)
-                    Assert.AreEqual((byte)0xA5, target[i]);
+                foreach (var kernel in new[] { write, read })
+                {
+                    var target = new byte[offset + count * 2 + 16];
+                    Array.Fill(target, (byte)0xA5);
+                    kernel(ref source[0], ref Unsafe.As<byte, ushort>(ref target[offset]), count);
+                    for (int i = 0; i < count; i++)
+                        Assert.AreEqual(expected[i], Unsafe.ReadUnaligned<ushort>(ref target[offset + i * 2]));
+                    for (int i = 0; i < offset; i++)
+                        Assert.AreEqual((byte)0xA5, target[i]);
+                    for (int i = offset + count * 2; i < target.Length; i++)
+                        Assert.AreEqual((byte)0xA5, target[i]);
+                }
+
+                if (!BitConverter.IsLittleEndian || NullableLayout<bool>.HasValueOffset != 0 ||
+                    NullableLayout<bool>.ValueOffset != 1 || Unsafe.SizeOf<bool?>() != 2 ||
+                    count != lanes + 1 && count != lanes * 2 + 1)
+                    continue;
+                for (int invalid = 0; invalid < count; invalid++)
+                {
+                    var target = new byte[offset + count * 2 + 16];
+                    Array.Fill(target, (byte)0xA5);
+                    for (int i = 0; i < count; i++)
+                        Unsafe.WriteUnaligned(ref target[offset + i * 2], (ushort)0x0101);
+                    ushort old = source[invalid];
+                    source[invalid] = 0x0201;
+                    try
+                    {
+                        Assert.ThrowsExactly<NinoDataException>(() =>
+                            read(ref source[0], ref Unsafe.As<byte, ushort>(ref target[offset]), count));
+                        for (int i = 0; i < count; i++)
+                            Assert.AreEqual(i < invalid ? expected[i] : (ushort)0x0101,
+                                Unsafe.ReadUnaligned<ushort>(ref target[offset + i * 2]));
+                    }
+                    finally
+                    {
+                        source[invalid] = old;
+                    }
+                }
             }
         }
 #endif
+
+        [TestMethod]
+        [DataRow(4, false)]
+        [DataRow(7, false)]
+        [DataRow(8, false)]
+        [DataRow(16, false)]
+        [DataRow(32, false)]
+        [DataRow(33, false)]
+        [DataRow(4, true)]
+        [DataRow(7, true)]
+        [DataRow(8, true)]
+        [DataRow(16, true)]
+        [DataRow(32, true)]
+        [DataRow(33, true)]
+        public void NullableBoolOverlappingReadsKeepScalarOrder(int count, bool destinationAfterSource)
+        {
+            if (!BitConverter.IsLittleEndian || NullableLayout<bool>.HasValueOffset != 0 ||
+                NullableLayout<bool>.ValueOffset != 1 || Unsafe.SizeOf<bool?>() != 2)
+                Assert.Inconclusive("The nullable bool memory layout differs from the wire layout.");
+            var storage = new bool?[count + 1];
+            for (int i = 0; i < storage.Length; i++)
+                storage[i] = i % 3 == 0 ? true : i % 3 == 1 ? false : null;
+            int source = destinationAfterSource ? 0 : 1;
+            int target = destinationAfterSource ? 1 : 0;
+            var expected = new bool?[count];
+            if (destinationAfterSource)
+                Array.Fill(expected, storage[source]);
+            else
+                storage.AsSpan(source, count).CopyTo(expected);
+
+            var data = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<bool?, byte>(ref storage[source]), count * 2);
+            var reader = new Reader(data);
+            NinoNullables<bool>.ReadPrechecked(storage.AsSpan(target, count), ref reader);
+            CollectionAssert.AreEqual(expected, storage.AsSpan(target, count).ToArray());
+            Assert.AreEqual(0, reader.Remaining);
+        }
 
         [TestMethod]
         public void GeneratedAndRuntimeFormattersWriteTheSameBytes()
