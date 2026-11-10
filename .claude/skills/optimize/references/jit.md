@@ -640,6 +640,12 @@ and when `asm.py compare` lists methods the change did not touch.
   main's time on every CPU (.NET A/B run 41576130603, 12 rounds a job) and 0.96-1.00 of rc.7's on x64, 1.04 on
   Neoverse-N2, where neither the string compare below nor `CopyPairs` out of line moved it (1.005, 1.007 against a
   1.000 floor, run 41593418245; `CopyPairs` out of line made `NinoNodePooled` 1.033).
+- Copy the dictionary refill's Reader with struct assignments. The Arm64 JIT emitted redundant zero stores
+  for a default local followed by field-wise CopyTo. Assignments reduced Deserialize IL from 181 to 171 B
+  and the Arm64 caller from 1,100 to 1,088 B for string keys and 536 to 520 B for integer keys.
+  Emulated x64 callers shrank from 947 to 935 and 397 to 383 B. Passing and returning Reader by
+  value instead grew both callers and both refill listings. Four warmed M4 pairs did not reproduce the
+  first run's large integer-key swings. Allocations and 30 wire comparisons matched.
 - Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
   the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
   widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
