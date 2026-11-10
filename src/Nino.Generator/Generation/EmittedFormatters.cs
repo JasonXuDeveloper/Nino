@@ -30,13 +30,32 @@ internal static class EmittedFormatters
 
     private sealed class Index
     {
-        private readonly Dictionary<int, List<WeakReference<Emission>>> _buckets = new();
+        // Most hashes have one entry. Allocate a list only when live models share a hash.
+        private readonly Dictionary<int, object> _buckets = new();
         public int Count { get; private set; }
 
         public WeakReference<Emission>? Find(int hash, TypeModel model, bool fileScoped, out SourceText? text)
         {
-            if (_buckets.TryGetValue(hash, out var bucket))
+            if (_buckets.TryGetValue(hash, out var slot))
             {
+                if (slot is WeakReference<Emission> single)
+                {
+                    if (!single.TryGetTarget(out var entry))
+                    {
+                        _buckets.Remove(hash);
+                        Count--;
+                    }
+                    else if (entry.FileScoped == fileScoped && entry.Model.Equals(model))
+                    {
+                        text = entry.Text;
+                        return single;
+                    }
+
+                    text = null;
+                    return null;
+                }
+
+                var bucket = (List<WeakReference<Emission>>)slot;
                 for (int i = bucket.Count - 1; i >= 0; i--)
                 {
                     var weak = bucket[i];
@@ -62,9 +81,12 @@ internal static class EmittedFormatters
 
         public void Add(int hash, WeakReference<Emission> emission)
         {
-            if (!_buckets.TryGetValue(hash, out var bucket))
-                _buckets.Add(hash, bucket = new List<WeakReference<Emission>>());
-            bucket.Add(emission);
+            if (!_buckets.TryGetValue(hash, out var slot))
+                _buckets.Add(hash, emission);
+            else if (slot is WeakReference<Emission> single)
+                _buckets[hash] = new List<WeakReference<Emission>> { single, emission };
+            else
+                ((List<WeakReference<Emission>>)slot).Add(emission);
             Count++;
         }
     }
