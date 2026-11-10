@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -275,8 +276,23 @@ internal static class TypeNames
         _ => false,
     };
 
+    private const string GlobalQualifier = "global::";
+
     /// <summary>A type or formatter as C# source without <c>global::</c>, as published layouts show it.</summary>
-    public static string Plain(string name) => name.Replace("global::", "");
+    public static string Plain(string name) => name.Replace(GlobalQualifier, "");
+
+    /// <summary>Appends the plain type name without creating a replacement string.</summary>
+    public static void AppendPlain(StringBuilder builder, string name)
+    {
+        int start = 0;
+        int at;
+        while ((at = name.IndexOf(GlobalQualifier, start, StringComparison.Ordinal)) >= 0)
+        {
+            builder.Append(name, start, at - start);
+            start = at + GlobalQualifier.Length;
+        }
+        builder.Append(name, start, name.Length - start);
+    }
 
     /// <summary>The contents of a C# string literal for <paramref name="s"/>.</summary>
     public static string EscapeString(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");

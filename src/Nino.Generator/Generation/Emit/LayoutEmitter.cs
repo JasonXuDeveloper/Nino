@@ -114,8 +114,9 @@ internal static class LayoutEmitter
         {
             if (sb.Length != start)
                 sb.Append(';');
-            sb.Append(member.SourceName).Append(':').Append(Plain(member.TypeName)).Append(':')
-                .Append(member.Encoding);
+            sb.Append(member.SourceName).Append(':');
+            AppendPlain(sb, member.TypeName);
+            sb.Append(':').Append(member.Encoding);
             if (m.Keyed)
                 sb.Append(":key=").Append(LayoutBaseline.Hex(member.Key));
             if (m.Keyed && member.FormerKeys.Length != 0)
