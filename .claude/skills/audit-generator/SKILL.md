@@ -291,6 +291,13 @@ Keep oversized rewrites out of the slot. Growing a leased buffer beyond the cap 
 makes the next small rewrite allocate again. Bypassing the lease saved another 0.60–0.71 MB
 per cold replay across four rounds, with cold wall time within 0.6% and all outputs identical
 (`0febf582`).
+Append the layout attribute to the existing bounded scratch buffer after materializing its
+member text. This avoids interpolated header fragments while preserving escaping, invariant
+ids and declaration order. The 572-model formatter replay saved 273 KB in both load orders;
+four cold project replays saved 255–418 KB. Cold, cached and method-body edit timings had no
+repeatable gain. `LayoutEmitter.Emit` went from 255 to 286 IL bytes, 1,500 to 1,436 Arm64
+Tier 0 bytes, and 601 to 668 x64 cross-JIT bytes. Both Roslyn builds matched all 577 generated
+files, reused all 572 models on edits, and released the closed-project objects.
 Delay formatting an alias declaration until the occurrence count pays for it. Compute its length
 from the alias and original name first. Four cold replays allocated 45–58 KB less, wall time
 stayed within 0.3%, and all 577 outputs matched (`abc295cc`).
