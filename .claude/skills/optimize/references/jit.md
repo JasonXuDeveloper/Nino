@@ -486,6 +486,20 @@ and when `asm.py compare` lists methods the change did not touch.
   bytes, from 972 to 1,056 Arm64 FullOpts bytes and from 810 to 898 emulated x64
   bytes. The new two-key helper used 96 IL, 724 Arm64 and 671 x64 bytes. All 54
   wire cases matched, including offsets 0, 1 and 7 (`55550c16`).
+  For three or four read keys and at most four dictionary entries, share four local cached hashes
+  between uniqueness and membership checks. Hash collisions must still call the dictionary's comparer.
+  Equality-only scans regressed four-key reordering, and a default-comparer branch worsened the
+  three-key integer case. Separate uniqueness hashing helped reordering but repeated hash work for
+  removals. Sharing the cache removed those repetitions. Integers saved 168 B on three-key removal
+  and 232 B on four-key reordering; strings saved 176 and 256 B, respectively. Keep recycling on the
+  established fallback. A stackalloc cache forced Tier0-FullOpts and raised first string-key reads
+  from 2.1–2.7 to 3.1–3.3 ms. A local four-int inline array restored ordinary tiering and first reads
+  to 2.25–2.46 ms, while leaving timing sensitive to promotion and warmup. Record allocation as the
+  repeatable gain. RemoveStale grew from 158 to 205 IL bytes and the new helper used 320 B.
+  For int keys the Arm64 FullOpts entry grew from 816 to 1,076 B plus a 776 B helper; emulated
+  x64 grew from 619 to 841 + 764 B. Duplicate keys, custom comparers, all-colliding hashes,
+  wire bytes, recycling and both netstandard builds passed; .NET 10/8 passed 133/121 targeted
+  tests (`77bfb0ea`).
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,

@@ -182,7 +182,9 @@ reusing is written down before the task ends, in the same series of commits as t
   under `flock -o /tmp/nino-heavy.lock` when agents share the machine; scratch files stay out of the repository.
   After each measured iteration, remove its disposable worktree and temporary directory, including builds and
   generated files. Move inputs still used by other runs to the shared probe directory first, and remove stale
-  path markers. Do cleanup after timing, then verify the paths are gone. In
+  path markers. Inventory older task directories as well as the current scratch directory. Retain uncommitted
+  source changes and live processes, and consolidate reusable inputs before deleting old experiments.
+  Do cleanup after timing, then verify the paths are gone. In
   cloud sessions `env` on the PATH is uv's `~/.local/bin/env` script, which runs nothing and prints nothing: write
   `VAR=0 cmd` or `/usr/bin/env VAR=0 cmd`.
 - **Secrets** go only into GitHub secrets, never into chat, files or logs.

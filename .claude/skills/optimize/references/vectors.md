@@ -288,6 +288,13 @@ of bytes in a block.
   bytes, and x64 cross-JIT from 405/283 to 389/261. Local reuse stayed at 0 B with no
   repeatable timing change against the duplicate baseline, including the 64 KiB boundary.
   Wire, truncation and invalid-flag checks matched at aligned and unaligned offsets.
+  Check the nullable slot layout before adding type-specific SIMD. The shared Raw path already
+  bulk-copies matching unmanaged values and uses the shared padding mask. On M4, byte/sbyte,
+  short/ushort/char, int/uint/float, long/ulong/double, four enum widths and four custom index
+  structs all took Raw with strides 2/4/8/16. A packed five-byte value also took Raw, with
+  stride 6. These 21 nullable cases, including bool, round-tripped from offset one and reused
+  their destinations with 0 B measured allocation. Equal value widths alone do not prove equal
+  nullable slot offsets or padding. Presence checks and value conversion have separate SIMD gates.
   Batch raw nullable presence checks in 64-byte vector groups for large payloads with
   strides of 2, 4, 8 or 16. Unlike strided pair fields, each nullable flag is followed
   by a full slot, so whole-vector loads stay within the validated payload. Use the
