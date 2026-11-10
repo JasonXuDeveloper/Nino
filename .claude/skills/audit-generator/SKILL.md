@@ -110,6 +110,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   In the real unit test project, cold call binding took roughly half a second and model construction another
   130 ms. Skipping identity and dependency work for calls without output reduced allocations but lost on
   default-JIT reopening. Scan interceptor feature names and metadata-name arity directly without split arrays.
+- Enumerate constructor and named attribute arguments directly in the model dependency scan. Preserve
+  argument order and keep the same per-compilation ownership. Avoiding the LINQ projection and concatenation
+  saved 42,832 B per pass over 910 declarations in four default-JIT M4 pairs, with isolated medians down
+  11–25%. Whole-project latency and allocations varied, including reopening with an identical-binary control.
+  The scan grew from 163 to 188 IL bytes but shrank from 704 to 612 Arm64 FullOpts bytes and 574 to 553
+  emulated x64 FullOpts bytes. All 582 files (3,241,440 bytes) matched across the cold, cached and edited runs,
+  all 577 models were reused after either edit, and the closed project inputs and generated text collected.
   The local feature lookup went from 280 B per call to zero, with identical real-project output.
 - Skip binding explicit type arguments that name a method's own lexical type parameter from inside its body.
   Keep qualified names, contextual keywords and inferred calls on Roslyn's binding path. The real unit test
