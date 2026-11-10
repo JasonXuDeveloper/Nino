@@ -599,9 +599,14 @@ of bytes in a block.
   vector. With `AggressiveOptimization`, the sampled Arm64 loops were 224–236 B and the x64 v3
   fallback remained 401 B (`6f64a961`, `bae2d41b`).
   Keep custom unmanaged keys in their typed comparer. A four-byte `ReverseIndex` sorted in reverse
-  integer order with the default comparer and matched the baseline bytes in 1,376 round trips. A
-  future raw split can vectorize byte movement after typed validation when both layouts pass
-  `CopiesAsIs`. It still needs the actual pair stride for mixed widths.
+  integer order with the default comparer and matched the baseline bytes in 1,376 round trips. Split
+  the staged array after typed validation, since comparison can run user code and the input is no
+  longer the snapshot. Reuse `DeinterleaveInt32` when the shared block plan proves identity layout
+  for two four-byte fields. An unrestricted dispatch slowed the 4,097-pair aligned probe. Limit it
+  to 64–2,048 pairs, where the wire, pool bucket and exact-size destination are at most 48 KiB
+  plus the header. The 64-, 65- and 2,048-pair reuse probes improved in all four M4 rounds at both
+  offsets with no steady allocation and identical bytes. The caller grew from 189 to 260 IL bytes
+  and from 456 to 488 Arm64 Tier 1 bytes. x64 cross-JIT grew from 549 to 649 B (`2d173116`).
   Keep the two-pass check when the arrays need to grow. A speculative fused growth candidate cut ordered
   M4 reads by 26–51% at the same allocations and preserved wire bytes and capacity. Checking the two
   edges avoided extra allocations for descending inputs and a swap at the end, but a middle swap still
