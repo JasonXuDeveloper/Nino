@@ -145,20 +145,19 @@ internal static class Callbacks
         for (var t = type; t != null; t = t.BaseType is { } b && b.IsNinoType() ? b : null)
             levels.Insert(0, t);
 
-        var calls = new List<CallbackCall>[AttributeNames.Length];
-        for (int k = 0; k < calls.Length; k++)
-            calls[k] = new List<CallbackCall>();
+        var calls = new List<CallbackCall>?[AttributeNames.Length];
         var called = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
         foreach (var level in levels)
         {
-            var taken = new bool[AttributeNames.Length];
+            int taken = 0;
             foreach (var method in level.GetMembers().OfType<IMethodSymbol>())
             {
                 foreach (var (callback, _) in Marks(method, facts.Symbols))
                 {
-                    if (taken[(int)callback] || Problem(method, callback, facts) != null)
+                    int bit = 1 << (int)callback;
+                    if ((taken & bit) != 0 || Problem(method, callback, facts) != null)
                         continue;
-                    taken[(int)callback] = true;
+                    taken |= bit;
                     if (Overrides(method, called))
                         continue;
                     if (!facts.Visibility.IsVisible(method))
@@ -180,17 +179,19 @@ internal static class Callbacks
                     }
 
                     called.Add(method);
-                    calls[(int)callback].Add(new CallbackCall(method.Name, TypeNames.Global(level), method.IsStatic,
+                    (calls[(int)callback] ??= new List<CallbackCall>()).Add(new CallbackCall(
+                        method.Name, TypeNames.Global(level), method.IsStatic,
                         !method.IsStatic && IsHidden(type, level, method.Name)));
                 }
             }
         }
 
-        if (calls.All(static c => c.Count == 0))
+        if (called.Count == 0)
             return null;
         // Static [NinoOnDeserializing]s run before the instance exists, so before every instance one.
-        var deserializing = calls[(int)CallbackKind.Deserializing].Where(static c => c.Static)
-            .Concat(calls[(int)CallbackKind.Deserializing].Where(static c => !c.Static));
+        var beforeRead = calls[(int)CallbackKind.Deserializing];
+        var deserializing = beforeRead?.Where(static c => c.Static)
+            .Concat(beforeRead.Where(static c => !c.Static));
         return new CallbackModel(new EquatableArray<CallbackCall>(calls[(int)CallbackKind.Serializing]),
             new EquatableArray<CallbackCall>(calls[(int)CallbackKind.Serialized]),
             new EquatableArray<CallbackCall>(deserializing),
