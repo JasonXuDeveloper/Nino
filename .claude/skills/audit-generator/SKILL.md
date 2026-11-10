@@ -120,6 +120,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - Pass the current syntax context and cancellation token to static callbacks in the call cache, and build a model
   directly on a miss. Capturing callbacks allocate before the lookup, even when the lookup hits. Keep the sweep's
   temporary key list lazy as well, so saving a call does not allocate a closure for a sweep that may never run.
+- Use a short-circuiting symbol scan when the model only needs to know whether a serialization callback exists.
+  Keep the ordered callback iterator for building calls and diagnostics. On 548 types from the unit test project,
+  the per-type probe went from 402 to 64 B and found the same callbacks. Roslyn 4.8 and 4.12 each matched all
+  577 files byte for byte on cold and edited runs. Both edits reused all 572 models on Roslyn 4.12, and the
+  closed compilation, tree, symbol and generated text collected. Cold and reopen timings varied, and the first
+  generic fixture edit slowdown did not reproduce in a four-round follow-up with an identical-build control.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
