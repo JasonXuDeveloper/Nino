@@ -629,6 +629,14 @@ of bytes in a block.
   tuple widening call with explicit lower and upper operations removed seven helper IL bytes
   but left the Arm64 Tier 1 and both x64 listing sizes unchanged. It slowed the 256-character
   local probe in all four rounds, so keep the tuple form.
+  For AVX-512BW, widen two 32-byte loads directly with the ISA's conversion and align the middle stores.
+  A 64-byte load and tuple widening emitted a vector copy and half extraction. The direct conversion folds
+  both loads into `vpmovzxbw` and reduced the v4 helper from 177 to 158 B. Gate the outlined call with the
+  exact ISA intrinsic, then apply shared CPU preference inside. An inlinable wrapper around the hardware
+  test still grew Arm64 instrumented Tier 0 from 692 to 824 B, while Tier 1 did not grow. The exact ISA
+  test restored Tier 0 size and 31–127-char timings. The M4 and AVX2 guest verify the fallback and portable
+  kernel's bytes, including non-aligned inputs and tails. Native AVX-512 throughput remains unmeasured
+  (`663b1861`).
 - Apply the same full-vector and overlapping-tail loop to 128-bit Latin-1 narrowing, checking each
   vector before writing it so UTF-16 fallback still works. The unaligned Arm64 writer probe improved
   at 64, 4,096 and 32,768 Latin-1 characters in all four rounds, with identical wire bytes and
