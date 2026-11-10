@@ -485,6 +485,12 @@ decisions changed. Isolated replays of both projects showed no reliable time or
 allocation gain, and other local builds disturbed the cold samples. Both Roslyn
 builds emitted identical files, tracking and collection matched, and 38 targeted
 tests passed per runtime in an isolated worktree (`bffe98b6`).
+Keep both empty-range guards. Removing the inner guard cut six IL bytes and 16
+Arm64 FullOpts bytes from the alias helper path, but let the generated-range body
+inline into the x64 `AppendRange` listing, growing it from 219 to 466 bytes.
+Neither project's emitter replay gained reliably against the identical-binary
+control. Both Roslyn builds still emitted the same 582 files, tracked results
+and collection matched, and 38 targeted tests passed on each runtime.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
