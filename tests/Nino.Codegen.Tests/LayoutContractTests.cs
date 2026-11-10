@@ -32,7 +32,7 @@ namespace Nino.Codegen.Tests
             var constructors = typeof(NinoTypeLayoutAttribute).GetConstructors();
             Assert.AreEqual(1, constructors.Length, "LayoutReader reads the arguments of one constructor");
             var parameters = constructors[0].GetParameters().Select(p => (p.ParameterType, p.Name)).ToArray();
-            CollectionAssert.AreEqual(expected, parameters);
+            Assert.AreSequenceEqual(expected, parameters);
         }
 
         [TestMethod]
@@ -48,21 +48,21 @@ namespace Nino.Codegen.Tests
         [TestMethod]
         public void FormatValuesMatch() =>
             // Every value, by name: a new NinoFormat needs TypeLayout and the emitter to handle it.
-            CollectionAssert.AreEquivalent(
+            Assert.AreSequenceEqual(
                 new[]
                 {
                     ("Positional", TypeLayout.Positional), ("VersionTolerant", TypeLayout.VersionTolerant),
                     ("Keyed", TypeLayout.Keyed),
                 },
-                Enum.GetValues<NinoFormat>().Select(v => (v.ToString(), (int)v)).ToArray());
+                Enum.GetValues<NinoFormat>().Select(v => (v.ToString(), (int)v)).ToArray(), SequenceOrder.InAnyOrder);
 
         [TestMethod]
         public void HeaderValuesMatch() =>
-            CollectionAssert.AreEquivalent(
+            Assert.AreSequenceEqual(
                 new[]
                 {
                     ("None", TypeLayout.NoHeader), ("Presence", TypeLayout.PresenceHeader), ("TypeId", TypeLayout.TypeIdHeader),
                 },
-                Enum.GetValues<NinoHeader>().Select(v => (v.ToString(), (int)v)).ToArray());
+                Enum.GetValues<NinoHeader>().Select(v => (v.ToString(), (int)v)).ToArray(), SequenceOrder.InAnyOrder);
     }
 }

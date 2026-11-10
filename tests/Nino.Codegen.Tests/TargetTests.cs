@@ -293,8 +293,8 @@ namespace Nino.Codegen.Tests
                 File.WriteAllText(Path.Combine(dir, ".nino-ts"), "Old.ts\nnino.ts\n");
                 string[] args = { "--assembly", GeneratedFilesTests.Shapes, "--lang", "ts", "--out", dir };
                 Assert.AreEqual(0, Program.Run(args, new StringWriter()));
-                CollectionAssert.AreEquivalent(new[] { ".nino-gen", "Mine.ts", "Nino.Codegen.Tests.ts", "nino.ts" },
-                    Array.ConvertAll(Directory.GetFiles(dir), Path.GetFileName));
+                Assert.AreSequenceEqual(new[] { ".nino-gen", "Mine.ts", "Nino.Codegen.Tests.ts", "nino.ts" },
+                    Array.ConvertAll(Directory.GetFiles(dir), Path.GetFileName), SequenceOrder.InAnyOrder);
                 Assert.AreEqual("Nino.Codegen.Tests.ts\nnino.ts\n", File.ReadAllText(Path.Combine(dir, ".nino-gen")));
 
                 Assert.AreEqual(0, Program.Run(new[]
@@ -302,8 +302,8 @@ namespace Nino.Codegen.Tests
                     "--assembly", GeneratedFilesTests.Shapes, "--lang", "ts", "--out", dir, "--name", "shapes.ts",
                     "--runtime", "nino-serialization",
                 }, new StringWriter()));
-                CollectionAssert.AreEquivalent(new[] { ".nino-gen", "Mine.ts", "shapes.ts" },
-                    Array.ConvertAll(Directory.GetFiles(dir), Path.GetFileName));
+                Assert.AreSequenceEqual(new[] { ".nino-gen", "Mine.ts", "shapes.ts" },
+                    Array.ConvertAll(Directory.GetFiles(dir), Path.GetFileName), SequenceOrder.InAnyOrder);
             }
             finally
             {

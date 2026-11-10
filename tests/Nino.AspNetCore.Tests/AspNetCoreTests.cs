@@ -116,7 +116,7 @@ namespace Nino.AspNetCore.Tests
         {
             Assert.AreEqual(expected.Id, actual.Id);
             Assert.AreEqual(expected.Customer, actual.Customer);
-            CollectionAssert.AreEqual(expected.Items, actual.Items);
+            Assert.AreSequenceEqual(expected.Items, actual.Items);
         }
 
         [TestMethod]

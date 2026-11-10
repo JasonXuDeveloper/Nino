@@ -52,7 +52,7 @@ namespace Nino.Codegen.Tests
             StringAssert.Contains(text, "[assembly: Nino.Core.NinoLayouts(@\"\n");
             // The keyed and version-tolerant types and what they hold, by runtime-form name; not the positional
             // types nothing stored holds (Shapes.Left.Item...).
-            CollectionAssert.AreEqual(new[]
+            Assert.AreSequenceEqual(new[]
             {
                 "['InspectSamples.KeyedCustom']", "['Shapes.Generic.Bag<T>']", "['Shapes.Generic.Box<T>']",
                 "['Shapes.Generic.Node<T>']",

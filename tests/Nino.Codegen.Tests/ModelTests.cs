@@ -41,7 +41,7 @@ namespace Nino.Codegen.Tests
             using var model = Load(GeneratedFilesTests.Conformance);
             var hp = Type(model, "Conformance.KeyedV2").Members.Single(m => m.Name == "Hp");
             Assert.AreEqual(NinoHash.Compute("Hp"), hp.Key);
-            CollectionAssert.AreEqual(new[] { NinoHash.Compute("Health") }, hp.FormerKeys);
+            Assert.AreSequenceEqual(new[] { NinoHash.Compute("Health") }, hp.FormerKeys);
         }
 
         [TestMethod]
@@ -50,7 +50,7 @@ namespace Nino.Codegen.Tests
             using var model = Load(GeneratedFilesTests.Conformance);
             var allowed = Type(model, "Conformance.Animal").Assignable.Select(t => t.FullName).ToList();
             CollectionAssert.IsSubsetOf(new[] { "Conformance.Cat", "Conformance.Dog", "Conformance.Puppy" }, allowed);
-            CollectionAssert.DoesNotContain(allowed, "Conformance.Animal");
+            Assert.DoesNotContain("Conformance.Animal", allowed);
             Assert.AreEqual(BodyFormat.Positional, Type(model, "Conformance.Puppy").BaseType!.Format);
             Assert.AreEqual("Conformance.Dog", Type(model, "Conformance.Puppy").BaseType!.FullName);
         }
@@ -62,7 +62,7 @@ namespace Nino.Codegen.Tests
             var gappy = Type(model, "Shapes.Gappy").RawValue!.Struct!;
             Assert.AreEqual(8, gappy.Size);
             Assert.IsFalse(gappy.Packed);
-            CollectionAssert.AreEqual(new[] { 0, 4 }, gappy.Fields.Select(f => f.Offset).ToList());
+            Assert.AreSequenceEqual(new[] { 0, 4 }, gappy.Fields.Select(f => f.Offset).ToList());
         }
 
         [TestMethod]
@@ -174,8 +174,8 @@ namespace Nino.Codegen.Tests
         {
             using var model = Load(GeneratedFilesTests.Shapes);
             var bag = Type(model, "Shapes.Generic.Bag`1");
-            CollectionAssert.AreEqual(new[] { "T" }, bag.TypeParameters.ToList());
-            CollectionAssert.AreEqual(new[] { "TKey", "TValue" },
+            Assert.AreSequenceEqual(new[] { "T" }, bag.TypeParameters.ToList());
+            Assert.AreSequenceEqual(new[] { "TKey", "TValue" },
                 Type(model, "Shapes.Generic.Pair`2").TypeParameters.ToList());
             ValueModel BagMember(string name) => bag.Members.Single(m => m.Name == name).Value;
             Assert.AreEqual(ValueKind.Parameter, BagMember("Items").Element!.Kind);
@@ -225,8 +225,8 @@ namespace Nino.Codegen.Tests
                 "Shapes.Generic.MoreOpen<System.Int32>",
             }, names);
             var slot = model.Slots.Single(s => s.RuntimeName == "Shapes.Generic.Open<System.Int64>");
-            CollectionAssert.AreEquivalent(new[] { "Shapes.Generic.MoreOpen<System.Int64>", "Shapes.Generic.Open<System.Int64>" },
-                slot.ClosedAssignable.Select(c => c.RuntimeName).ToList());
+            Assert.AreSequenceEqual(new[] { "Shapes.Generic.MoreOpen<System.Int64>", "Shapes.Generic.Open<System.Int64>" },
+                slot.ClosedAssignable.Select(c => c.RuntimeName).ToList(), SequenceOrder.InAnyOrder);
             // OpenHolder<T>'s codec is given the slot of Open<T>; OpenHolder<long> gives it Open<long>'s.
             var holder = Type(model, "Shapes.Generic.OpenHolder`1");
             Assert.AreEqual("Shapes.Generic.Open`1[!0]", holder.SlotParameters.Single().TypeKey);
@@ -234,8 +234,8 @@ namespace Nino.Codegen.Tests
             Assert.AreEqual("Shapes.Generic.Open<System.Int64>", use.SlotArguments.Single().Slot!.RuntimeName);
             // MoreOpen<T> sits in the slots of itself and of Open<T>, with its own parameter.
             var more = Type(model, "Shapes.Generic.MoreOpen`1");
-            CollectionAssert.AreEquivalent(new[] { "Shapes.Generic.MoreOpen`1[!0]", "Shapes.Generic.Open`1[!0]" },
-                more.SlotBases.Select(b => b.TypeKey).ToList());
+            Assert.AreSequenceEqual(new[] { "Shapes.Generic.MoreOpen`1[!0]", "Shapes.Generic.Open`1[!0]" },
+                more.SlotBases.Select(b => b.TypeKey).ToList(), SequenceOrder.InAnyOrder);
         }
 
         [TestMethod]
@@ -250,12 +250,12 @@ namespace Nino.Codegen.Tests
                 "Conformance.Box<System.Collections.Generic.List<Conformance.Point>>",
             }, names);
             // A closed type no code names is not one (the corpus's malicious case generic-not-in-use).
-            CollectionAssert.DoesNotContain(names, "Conformance.Box<System.Guid>");
+            Assert.DoesNotContain("Conformance.Box<System.Guid>", names);
             var box = model.ClosedTypes.Single(c => c.RuntimeName == "Conformance.Box<System.Int32>");
             Assert.AreEqual(NinoHash.Compute("Conformance.Box<System.Int32>"), box.TypeId);
             Assert.AreEqual("Conformance.Box`1", box.Definition.FullName);
-            CollectionAssert.Contains(Type(model, "Conformance.Animal").ClosedAssignable, box);
-            CollectionAssert.DoesNotContain(Type(model, "Conformance.IShape").ClosedAssignable, box);
+            Assert.Contains(box, Type(model, "Conformance.Animal").ClosedAssignable);
+            Assert.DoesNotContain(box, Type(model, "Conformance.IShape").ClosedAssignable);
         }
 
         [TestMethod]
