@@ -244,9 +244,10 @@ public class BclTypeTests
     }
 
     [TestMethod]
-    public void BitArrayReuseAcceptsInputOverlappingItsStorage()
+    [DataRow(517)]
+    [DataRow(1021)]
+    public void BitArrayReuseAcceptsInputOverlappingItsStorage(int count)
     {
-        const int count = 1021;
         var value = new BitArray(count);
         for (int i = 0; i < count; i++)
             value[i] = i % 3 == 1;

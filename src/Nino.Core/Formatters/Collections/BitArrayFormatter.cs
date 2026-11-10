@@ -86,8 +86,16 @@ namespace Nino.Core
             if (bytes.Length > 2)
             {
                 if (bytes.Length > 64 && reuse && !bytes.Overlaps(target))
-                    NinoUnsafe.CopyOver64(ref MemoryMarshal.GetReference(target), ref MemoryMarshal.GetReference(bytes),
-                        (uint)bytes.Length);
+                {
+                    ref byte destination = ref MemoryMarshal.GetReference(target);
+                    ref byte source = ref MemoryMarshal.GetReference(bytes);
+                    uint size = (uint)bytes.Length;
+                    if (!System.Runtime.Intrinsics.X86.Sse2.IsSupported &&
+                        System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && size <= 128)
+                        NinoUnsafe.CopyArm64Short(ref destination, ref source, size);
+                    else
+                        NinoUnsafe.CopyOver64(ref destination, ref source, size);
+                }
                 else
                     bytes.CopyTo(target);
             }
