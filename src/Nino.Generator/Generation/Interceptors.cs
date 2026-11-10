@@ -246,7 +246,9 @@ internal static class Interceptors
         var shallow = GeneratedNames(shallowTwins);
         var prefetch = GeneratedNames(prefetchers);
         string scope = fileLocal ? "file" : "internal";
-        var callText = new Dictionary<(string Method, string Type, FormatterRef? Formatter, string Arguments, bool Inlinable), string>();
+        // Bound the initial reserve since many locations can share the same rendered call.
+        var callText = new Dictionary<(string Method, string Type, FormatterRef? Formatter, string Arguments, bool Inlinable), string>(
+            System.Math.Min(calls.Length, 256));
         string RenderCall(InterceptedCall call)
         {
             var key = (call.Method, call.TypeName, call.Formatter, call.Arguments, call.Inlinable);
