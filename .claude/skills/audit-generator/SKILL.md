@@ -497,6 +497,13 @@ Check the singleton against the base ID before reusing its list. This saved abou
 dispatch replay in both load orders. Whole-project timings and allocations varied. All 582
 files matched on both Roslyn builds, dispatch stayed cached on body edits, project objects
 collected, and 70 targeted tests passed on each of .NET 8 and .NET 10 (`167d32ce`).
+Reuse the original bucket for two to four candidates when their IDs are distinct from
+each other and from the base ID. The unit project had 27 such small emitted dispatches.
+An isolated replay saved about 7.4 KB in both load orders, with no repeatable timing gain.
+The filter and helper together grew from 213 to 300 IL bytes, 684 to 892 Arm64 FullOpts
+bytes, and 493 to 686 x64 cross-JIT bytes. Ordered buckets through five candidates
+matched the collision rules, and both Roslyn builds matched all 577 generated files
+and kept dispatch cached and old project objects collectible.
 Write local reader and writer copy prologues and write-back lines directly around the body.
 Constant lines and removal of the nested closures saved 214–317 KB in four cold replays.
 All 577 outputs matched, the 572 models were reused on tracked edits, and the collection
