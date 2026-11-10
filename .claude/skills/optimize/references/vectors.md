@@ -593,6 +593,11 @@ of bytes in a block.
   and allocations. The fused OSR loop was 240 B versus 200 plus 136 B for the two original loops.
   The caller grew from 154 to 204 IL bytes and the x64 v3 cross listing moved from 402 to 401 B.
   Wire, scalar fallback and all 582 generated files matched (`86e4efb7`).
+  Keep the two-pass check when the arrays need to grow. A speculative fused growth candidate cut ordered
+  M4 reads by 26–51% at the same allocations and preserved wire bytes and capacity. Checking the two
+  edges avoided extra allocations for descending inputs and a swap at the end, but a middle swap still
+  cost about 2.1 KB at 257 pairs or 32.8 KB at 4,097 pairs and slowed in all four rounds. Untrusted mode
+  retained its original allocations. The candidate was withdrawn.
   Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
   method's IL. The local Arm64 2,047- and 8,193-pair reuse probes cut elapsed time by roughly 35–45%.
   Validate four signed keys at a time for 32 or more pairs. Share the even-lane extraction with
