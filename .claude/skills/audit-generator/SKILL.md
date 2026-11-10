@@ -240,6 +240,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Timings varied without the repeatable miss regression of the argument-reading
   version. IL was 323 to 325 bytes, Arm64 Tier 1 5,192 to 3,752 and x64 cross-JIT
   782 to 836. Runtime bytes, 577 generated files, reuse and collection matched.
+  Keep the definition prefilter separate from the recursive matcher. Passing a
+  flag to skip the already proven top-level checks kept the argument reads and
+  did not save runtime allocations or consistently improve timings. The four
+  default-JIT replays kept all 577 files byte-identical, and both Roslyn builds
+  kept model reuse and collection. For `UnifyWithSupertype` and `Match` together,
+  IL grew from 612 to 630 bytes, Arm64 Tier 1 from 5,596 to 6,516 bytes, and x64
+  cross-JIT from 1,483 to 1,948 bytes. Try avoiding the actual argument read or
+  moving the specialized match out of the shared recursion before retrying.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
