@@ -198,6 +198,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   cross-JIT bytes. Both Roslyn builds matched 577 files, model reuse and collection.
   Runtime wire output matched, each runtime passed 93 focused tests, and both portable
   builds passed.
+  Use the non-null formatter slot as the resolved flag. Both adapters produce reference
+  types and only succeed with a non-null result. This removed 32 B per successful
+  runtime array binding and saved 74 KB per 850-type generator replay in both load
+  orders. Runtime misses were unchanged. Timings and whole-project allocation varied.
+  Binder IL was 414 to 422 bytes, Arm64 Tier 1 was 7,488 to 7,380, and x64 cross-JIT
+  was 1,094 to 960. Wire bytes and all 577 generated files matched, incremental reuse
+  and collection passed, and both runtimes passed 101 focused tests.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
