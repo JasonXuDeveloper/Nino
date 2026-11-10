@@ -414,6 +414,18 @@ of bytes in a block.
   and the raw int entry stayed 1,288 B. The AVX2 guest entry grew from 1,093 to 1,205 B plus
   a 79 B kernel. Four M4 A/B rounds were noisy with 0 B allocation. .NET 8/10 passed 45 tests
   each, scalar passed 36 and both netstandard variants passed 32 each (c2c7f291).
+  Use the same slot policies for 512/256/128-bit reads and share the checked group with the short
+  64-bit path. Check all presence flags before writing and fall back to scalar order inside an
+  invalid-value group. Keep the existing overlap gate. Portable tests covered every invalid-value
+  position around two group boundaries and all four widths, including ignored null payloads and
+  partial destination updates. Overlap tests covered both copy directions; the x64 guest checked
+  invalid presence and values under AVX2, 128-bit and scalar execution. .NET 8/10 passed 62 tests
+  each, scalar passed 53 and both netstandard variants passed 49 each. Arm64 entry/kernel stayed
+  492/252 B. ReadPrechecked IL grew from 424 to 496 B; the shared loop/group grew from 36/85
+  to 44/99 B and replaced the separate 85 B short group. Offline x64 128/256/512 kernels were
+  180/181/207 B, with AggressiveOptimization omitted only in the audit copy. The AVX2 guest entry
+  grew from 220 to 334 B plus its 181 B kernel. Four M4 A/B rounds and first-use reads varied
+  alongside A/A at 0 B steady allocation. Native AVX-512 throughput remains unmeasured (786c2172).
   The M4 default-JIT 128-item mixed median went from 1.78 us to 38 ns; 16,896
   mixed items went from 25.9 to 0.59 us. The baseline was still instrumented
   Tier 0 at 128 items. Offsets zero and one, dirty null slots, and wire output
