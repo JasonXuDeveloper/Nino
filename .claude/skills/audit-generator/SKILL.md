@@ -278,6 +278,11 @@ the 572 models were reused on tracked edits, and the collection probes passed (`
 Emit common write and inherited member blocks directly where the delegate only wraps a synchronous
 call. Four cold replays saved 48–72 KB. The generated files were byte-identical, incremental reuse
 and collection probes passed, and cold timing showed no repeatable change (`68aa8513`).
+Use the same direct block emission for recursive collection formatters. The isolated nesting
+emitter saved 184 B with one formatter and 1,304 B with eight. All 582 files matched on both
+Roslyn versions across fresh, body-edit and model-edit replays. Nesting stayed cached on edits,
+closed-project objects collected, and 63 targeted tests passed on each of .NET 8 and .NET 10.
+Whole-project timings showed no repeatable improvement (`37c6743b`).
 Write local reader and writer copy prologues and write-back lines directly around the body.
 Constant lines and removal of the nested closures saved 214–317 KB in four cold replays.
 All 577 outputs matched, the 572 models were reused on tracked edits, and the collection
