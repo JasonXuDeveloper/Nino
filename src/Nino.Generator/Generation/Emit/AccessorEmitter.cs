@@ -87,9 +87,8 @@ internal static class AccessorEmitter
     /// visible, with getters, setters and field references for the formatter to call; and the pool hooks of a
     /// <c>[NinoPooled]</c> class.
     /// </summary>
-    public static string EmitPartial(TypeModel m)
+    public static void EmitPartial(CodeWriter w, TypeModel m)
     {
-        var w = new CodeWriter(1024);
         w.Line();
         bool hasNamespace = m.Partial.Namespace.Length != 0;
         if (hasNamespace)
@@ -110,7 +109,6 @@ internal static class AccessorEmitter
             w.Close();
         if (hasNamespace)
             w.Close();
-        return w.Finish();
     }
 
     private static bool HasAccess(TypeModel m, MemberAccess access)

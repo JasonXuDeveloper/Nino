@@ -31,10 +31,10 @@ internal static class GeneratedCode
     /// one per line, then a blank line) and <paramref name="body"/> (written at no indentation, as a
     /// <see cref="CodeWriter"/> writes it). <paramref name="fileScoped"/>: the namespace is declared for the rest of
     /// the file (<c>namespace NinoGen;</c>, C# 10), where nothing follows the body and the preamble declares no
-    /// namespace; otherwise it is a block, whose lines are indented one level, followed by any suffix.
+    /// namespace; otherwise it is a block, whose lines are indented one level.
     /// </summary>
     public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped,
-        int? indentation = null, string? suffix = null)
+        int? indentation = null)
     {
         if (fileScoped)
         {
@@ -55,8 +55,18 @@ internal static class GeneratedCode
             return string.Concat(Header, preamble, text, body);
         }
 
+        var sb = BuildBlockFile(preamble, aliases, body, indentation);
+        string file = sb.ToString();
+        ReturnScratch(sb);
+        return file;
+    }
+
+    /// <summary>Writes the closed namespace into a scratch buffer that the caller returns after use.</summary>
+    internal static StringBuilder BuildBlockFile(string preamble, IEnumerable<string> aliases, string body,
+        int? indentation = null, int tailCapacity = 1024)
+    {
         // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
-        var sb = RentScratch(body.Length + (indentation ?? body.Length / 4) + preamble.Length + Math.Max(1024, suffix?.Length ?? 0));
+        var sb = RentScratch(body.Length + (indentation ?? body.Length / 4) + preamble.Length + tailCapacity);
         sb.Append(Header).Append(preamble);
         AppendBlockPrefix(sb, aliases);
         // The body's lines one level in (blank lines stay empty).
@@ -71,10 +81,7 @@ internal static class GeneratedCode
             start = end;
         }
 
-        sb.Append("}\n").Append(suffix);
-        string file = sb.ToString();
-        ReturnScratch(sb);
-        return file;
+        return sb.Append("}\n");
     }
 
     private const string BlockIndent = "    ";
