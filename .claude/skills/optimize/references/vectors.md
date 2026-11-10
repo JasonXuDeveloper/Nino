@@ -505,6 +505,13 @@ of bytes in a block.
   loop into locals. Scalar tails too: `NinoBlockCollections.WriteEach`'s per-value loop with an index scaled twice per
   value wrote 1,000 dictionary entries in 658 ns without hardware intrinsics, with cursors 393 (main's per-entry
   loop: 399).
+  Copy whole words in the final partial period of the scalar mask loop, leaving fewer than
+  eight bytes for its byte tail. For a padded 12-byte element with SIMD disabled, longer
+  alternating batches improved the 3-element case by 11–23% and the 17-element case by
+  11–12%. The byte-identical controls varied by at most 9% for those cases. Two elements
+  and SIMD timings had no repeatable gain. `NinoMask.Copy` grew from 259 to 318 IL bytes and
+  by 56 bytes in the Arm64 scalar Tier 1 and x64 cross-JIT listings. Dirty-padding wire
+  checks matched at offsets 0, 1 and 7, and targeted tests passed (`51e30efb`).
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
