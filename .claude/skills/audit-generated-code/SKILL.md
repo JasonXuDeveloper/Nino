@@ -93,6 +93,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   medians for 16, 512 and 1,024 objects at offsets zero and one, with a mixed single-object
   control. All 84 samples allocated 0 B. Wire bytes matched exactly, and the legacy empty
   region, truncation and deferred-body tests passed (`1dc38168`).
+  Apply the same trait to the scalar DateTimeOffset formatter, which reads a checked
+  fixed-width block and never changes reader context. The 582-file replay removed 38 bytes
+  from OffsetBox only. The inline read body went from 62 to 54 IL bytes; its caller
+  went from 484 to 376 Arm64 FullOpts bytes and 196 to 182 offline x64 bytes. Four
+  same-Core M4 pairs at each size and offset had mixed timing, so retain this for
+  code size. All 84 samples allocated 0 B and four serialized arrays matched byte
+  for byte. The two Roslyn builds and .NET 8 passed 54 targeted tests each (`47dda0cb`).
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
