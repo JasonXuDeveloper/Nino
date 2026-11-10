@@ -975,6 +975,18 @@ of bytes in a block.
   at 64, 4,096 and 32,768 Latin-1 characters in all four rounds, with identical wire bytes and
   zero allocations. The x64 composite listing left the vector helper out of line, so include its
   body when comparing offline size and do not infer x64 throughput.
+  Keep the ASCII prefix conversion in the small entry and outline its remainder. For a narrow
+  remainder of at least 128 chars, validate and write the first block before checking the last
+  character, then continue from the second block. A tail-first vector trial hurt short writes,
+  a scalar tail precheck hurt early non-Latin-1 input, and changing the shared narrow loop
+  hurt the 65-char ASCII control. With the split entry, four M4 pairs improved that ASCII
+  control by 2–11% and 257-char late-UTF-16 fallback by 43–46%. Near 64 KiB of UTF-16 input
+  plus output, late fallback improved 66–70% in most pairs; A/A had large outliers. Pure
+  Latin-1 and early fallback controls varied by small amounts, and first-use timing was on par.
+  Wire matched at offsets zero and one with 0 B timed allocation. Narrowing IL grew from 218
+  to 100 + 191 B. The Arm64 long writer went from 476 to 344 + 268 B; emulated x64 went
+  from 395 to 255 + 249 B without AVX2 and 546 to 255 + 396 B with it. Both .NET suites
+  passed 44 tests, plus 14 scalar tests (`5dc7c91e`).
   A direct unsigned vector comparison emitted `cmhi` on Arm64 and slowed the 64-character
   probe. An Arm64-only maximum reduction emitted `umaxv` and shrank the hot writer from 836
   to 824 bytes, but the ASCII control was slower in all four reversed-order rounds. Its x64
