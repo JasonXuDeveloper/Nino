@@ -34,6 +34,13 @@ and when `asm.py compare` lists methods the change did not touch.
   rose from 33 to 90 bytes; the Arm64 Tier 1 caller shrank from 964 to 932 bytes and the
   concrete x64 cross-JIT write entry from 2,279 to 2,180. Six wire checks and all 577 generated
   files matched, the covariant array still threw, and steady-state write allocation was zero.
+  Keep the existing byte copy dispatch for one-element segments. A separate reservation
+  grew the formatter from 90 to 146 IL bytes and the Arm64 Tier 1 caller from 948 to
+  1,088 bytes. Specializing after the shared reservation raised `WriteSpan` from 63 to
+  115 IL bytes and kept the caller near baseline at 956 bytes. The x64 cross-JIT entry
+  was 2,180 bytes at baseline, 2,177 with the separate path and 2,122 with the shared
+  path. Neither consistently beat the identical-binary control for one byte. Seven wire
+  checks matched for both versions and steady-state allocation stayed at zero.
 - Keep the existing custom-formatter `ReadSlice` cursor update. Folding header and payload
   advancement into one update grew the method from 43 to 122 IL bytes while standalone x64
   cross-JIT shrank from 120 to 114 bytes. A 64-byte slice through a byref parent reduced its
