@@ -624,6 +624,12 @@ the 8,192-character cap, allocating 288 bytes more per isolated emission. Counti
 exact length first saved about 12.5 KB, but repeated the attribute format in sizing code,
 and emitter timings changed direction with the load order. Both emitted the same registry
 bytes. Keep the size estimates in the probe.
+Start the separate preamble writer at 256 characters. Isolated replays with zero
+or one generic registration saved 7,680 B and eight saved 6,000 B in both load
+orders. The full unit project added 288 B to isolated emission. Neither its
+four cold replays nor the isolated timing controls showed a repeatable change.
+The emitter kept 970 IL and 1,880 x64 cross-JIT bytes, and Arm64 FullOpts went
+from 2,928 to 2,920. Both Roslyn builds matched all 577 files, reuse, and collection.
 Append the final requested blank line to `CodeWriter` before materializing its text.
 This saves a second full string copy without predicting output size. The isolated registry
 saved 20.1 KB and four cold project replays saved 461–660 KB. Cold and edit timing varied.
