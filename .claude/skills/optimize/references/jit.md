@@ -29,6 +29,13 @@ and when `asm.py compare` lists methods the change did not touch.
   in all four local rounds at 0 B per read, with no repeatable longer-input timing change.
   Read IL grew from 63 to 98 bytes, Arm64 Tier 1 from 728 to 752 bytes and x64 offline from
   211 to 272 bytes. The round trips, dirty tails and generated files matched.
+  Use one unaligned load and store for the validated two-byte read too. The
+  15-bit case at offset 7 beat both baseline and identical-binary control in
+  four local rounds for fresh and reused values. Neighboring 7- and 17-bit
+  reads and working sets around 64 KiB were noisier. Read IL grew from 98 to
+  132 bytes, Arm64 Tier 1 from 752 to 776 bytes and x64 cross-JIT from 272 to
+  320 bytes. Allocation stayed at 0 bytes on reuse and 64 bytes for fresh
+  reads. Keep the shared tail cleanup and enumerator invalidation.
   Share the short-payload gate when adding a two-byte case. On .NET 10 a
   single unaligned masked store consistently improved 15-bit writes in four
   local A/B rounds. A separate gate was less convincing at 66 KiB, while the
