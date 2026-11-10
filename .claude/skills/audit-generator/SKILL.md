@@ -243,6 +243,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 ## Measure
 
+Measure the state-table cost before adding a filter step to a projection. A separate Roslyn
+`Where` before creating dispatch entries allocated more on all four local cold runs against their
+paired baselines, even though it projected fewer entries. The identical-binary controls also varied.
+All 577 outputs were byte-identical and closing and editing the project still released old objects.
+Compare skipping the allocation inside the existing projection before keeping the extra step.
+
 Measure name rendering allocations before keeping a reusable builder. Keep `FormatterRef`'s bounded thread-local
 character buffer and hand immutable strings to models. Extending the buffer to general type naming saved
 allocations but slowed the local default-JIT hot rebuild samples. Delay constraint builders and registration
