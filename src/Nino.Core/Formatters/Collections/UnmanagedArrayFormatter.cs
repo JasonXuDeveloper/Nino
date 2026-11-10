@@ -41,7 +41,9 @@ namespace Nino.Core
                     ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), payloadSize);
 #endif
                 // A caller-provided span may alias the source. Publish the header after the payload copy.
-                if (!NinoLayout<T>.HasPadding || length == 1 || source.Overlaps(body))
+                if (!NinoLayout<T>.HasPadding)
+                    source.CopyTo(body);
+                else if (length == 1 || source.Overlaps(body))
                 {
                     source.CopyTo(body);
                     NinoLayout<T>.ClearPadding(ref MemoryMarshal.GetReference(body), length);
