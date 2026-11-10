@@ -171,6 +171,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   to 351 IL bytes, 10,980 to 10,616 Arm64 Tier 1 bytes, and 1,003 to 1,011 x64 cross-JIT
   bytes. Both Roslyn builds kept all 577 files, 572 model hits, and collection checks;
   both runtimes passed 69 focused tests.
+  Keep the parameter adapter a struct and share its mutable body flag with a lazy factory
+  list. Making the adapter itself a class added 23 KB per 850-type replay. The small shared
+  state saved 75 KB in both load orders and 316–343 KB in four cold project rounds. The two
+  measured methods went from 503 to 541 IL bytes, 17,524 to 17,952 Arm64 Tier 1 bytes and
+  1,356 to 1,283 x64 cross-JIT bytes. Resolver results, all 577 generated files, 572 model
+  hits and collection checks matched. Both runtimes passed 81 focused tests.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
