@@ -368,6 +368,15 @@ of bytes in a block.
   wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
   four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
   to 1,404 bytes.
+- Keep the existing short Latin-1 comparison loop until a wider dispatch preserves the neighbouring cases.
+  Reusing the long comparison kernels inline improved 31–63-character M4 reuse, but the offset-zero
+  64-character control slowed in four pairs. Outlining a 32–63-character helper with 512-, 256- and
+  128-bit dispatch retained a 1–66% gain at 63 characters across both offsets, but 31 characters and
+  the offset-zero 64-character control still slowed in all four pairs. The short comparator grew from
+  277 to 292 IL bytes plus a 48 B helper. Arm64 Tier 1 `ReadStringOver` grew from 1,224 to 1,276 B.
+  The new helper was 148 B on Arm64 and 254 B on cross-JIT x64, where the public Tier 1 entry stayed
+  at 159 B. All wire bytes, mismatch probes and steady allocations matched, and the eight targeted
+  .NET 10 tests passed. Both candidates were withdrawn.
 - Share long Latin-1 equality's tail-first loop across the three native SIMD
   widths, and compile the entry with `AggressiveOptimization`. Without it,
   the generic loop slowed 65- and 256-character reuse in all four rounds.
