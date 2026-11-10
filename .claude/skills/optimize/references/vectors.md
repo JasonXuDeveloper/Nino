@@ -299,6 +299,13 @@ of bytes in a block.
   18 bytes. Four local default-JIT rounds showed faster 5,000-element reference reads in
   several rounds, but the magnitudes varied and the short cases overlapped A/A. Allocations
   matched, and wire comparisons and round trips passed at offsets 0, 1 and 7.
+- Pass the generated rank to the shared multidimensional header writer. Reserve the header once
+  and write each length at its fixed offset. The old Arm64 listing called `Array.GetLength` from
+  the runtime-rank loop. Four local default-JIT rounds on one-element integer arrays improved
+  for ranks two through four, with zero allocations. The 64-element and near-64-KiB input-plus-output
+  cases overlapped A/A after a longer warmup. All 45 wire cases matched at offsets 0, 1 and 7.
+  The Arm64 2D Tier 1 write entry shrank from 1,356 to 1,164 bytes. In offline x64 the 2D formatter
+  grew from 1,295 to 1,384 bytes while inlining away its call to the 199-byte shared helper.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
