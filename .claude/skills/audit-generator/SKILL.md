@@ -183,6 +183,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   The binder, element resolver and accessor grew from 548 to 591 IL bytes, 17,760 to 18,884
   Arm64 Tier 1 bytes and 1,288 to 1,323 x64 cross-JIT bytes. Both Roslyn builds kept all 577
   generated files, 572 model hits and collection checks. Each runtime passed 81 focused tests.
+  A separate first-element slot also avoided lists on successful singleton bindings. It
+  saved 56 KB per 850-type replay in both clean load orders and 94–168 KB in the four
+  cold runs. Timing reversed with load order and varied under load. The three affected
+  methods grew from 548 to 655 IL bytes, 18,528 to 19,572 Arm64 Tier 1 bytes and 1,288
+  to 1,409 x64 cross-JIT bytes. Both Roslyn builds matched all 577 files and retained
+  incremental reuse and collection. Keep the list until a more direct representation
+  removes the allocation without adding two collection states.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
