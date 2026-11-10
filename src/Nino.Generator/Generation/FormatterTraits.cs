@@ -64,7 +64,7 @@ internal static class FormatterTraitsOf
             "ObjectFormatter" => FormatterTraits.Object,
             "CachedFormatter" => FormatterTraits.Cached,
             "UnmanagedArrayFormatter" or "UnmanagedListFormatter" => FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
-            "MemoryFormatter" when arguments is { Count: 2 } &&
+            "MemoryFormatter" or "ReadOnlyMemoryFormatter" when arguments is { Count: 2 } &&
                                    (arguments[1] & FormatterTraits.Raw) != 0 =>
                 FormatterTraits.PreservesReadContext,
             // DictionaryFormatter<[TDictionary, ]TKey, TValue, TKeyFormatter, TValueFormatter>

@@ -51,6 +51,12 @@ public struct KeyedMemory
 }
 
 [NinoType(format: NinoFormat.Keyed)]
+public struct KeyedReadOnlyMemory
+{
+    public ReadOnlyMemory<int> Values;
+}
+
+[NinoType(format: NinoFormat.Keyed)]
 public sealed record KeyedRecord(int Id, string Name);
 
 [NinoType(format: NinoFormat.Keyed)]
@@ -196,6 +202,18 @@ public class KeyedMemberTests
         BitConverter.GetBytes(BitConverter.ToInt32(bytes, 0) + 1).CopyTo(bytes, 0);
         BitConverter.GetBytes(BitConverter.ToInt32(bytes, memberLength) + 1).CopyTo(bytes, memberLength);
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<KeyedMemory>(bytes));
+    }
+
+    [TestMethod]
+    public void ReadOnlyMemoryEntryLeavesPreviousStorageUntouched()
+    {
+        var bytes = NinoSerializer.Serialize(new KeyedReadOnlyMemory { Values = new[] { 1, 2 } });
+        var previous = new[] { 3, 4 };
+        var value = new KeyedReadOnlyMemory { Values = previous };
+        NinoDeserializer.Deserialize(bytes, ref value);
+
+        CollectionAssert.AreEqual(new[] { 1, 2 }, value.Values.ToArray());
+        CollectionAssert.AreEqual(new[] { 3, 4 }, previous);
     }
 
     [TestMethod]
