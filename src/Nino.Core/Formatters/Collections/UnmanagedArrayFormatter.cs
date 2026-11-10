@@ -61,8 +61,20 @@ namespace Nino.Core
             int length = values.Length;
             // Every byte is written below.
             var bytes = NinoUnsafe.AllocateUninitializedArray<byte>(WireSize(length));
-            NinoLayout<T>.WriteLengthPrefixed(ref NinoUnsafe.GetArrayDataReference(bytes),
-                ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), length);
+            ref byte destination = ref NinoUnsafe.GetArrayDataReference(bytes);
+            ref byte source = ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values));
+#if NET8_0_OR_GREATER
+            if (Unsafe.SizeOf<T>() == 1 && !System.Runtime.Intrinsics.X86.Sse2.IsSupported &&
+                System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && (uint)(length - 65) <= 63 &&
+                !NinoLayout<T>.HasPadding)
+            {
+                NinoUnsafe.Write(ref destination, length);
+                NinoUnsafe.CopyArm64Short(ref Unsafe.Add(ref destination, NinoWire.LengthSize), ref source,
+                    (uint)length);
+            }
+            else
+#endif
+                NinoLayout<T>.WriteLengthPrefixed(ref destination, ref source, length);
             return bytes;
         }
 

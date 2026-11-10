@@ -649,7 +649,7 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         private const uint MaxArm64VectorCopy = 64 * 1024;
 
-        // Two overlapping fixed-size copies for an 81- to 128-byte array payload.
+        // Two overlapping 64-byte chunks for a 65- to 128-byte payload in distinct storage.
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static void CopyArm64Short(ref byte destination, ref byte source, uint size)
         {

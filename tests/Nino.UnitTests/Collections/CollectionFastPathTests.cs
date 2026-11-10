@@ -103,7 +103,7 @@ public class CollectionFastPathTests
     [TestMethod]
     public void ShortRawArrayReuseKeepsTheFollowingValue()
     {
-        foreach (int length in new[] { 80, 81, 127, 128, 129 })
+        foreach (int length in new[] { 64, 65, 80, 81, 127, 128, 129 })
         {
             var items = Enumerable.Range(0, length).Select(i => (byte)(i * 7)).ToArray();
             using var buffer = new NinoArrayBufferWriter();
@@ -114,6 +114,9 @@ public class CollectionFastPathTests
             formatter.Serialize(items, ref writer);
             writer.Write(123456);
             writer.Flush();
+
+            CollectionAssert.AreEqual(buffer.WrittenSpan.Slice(1, sizeof(int) + length).ToArray(),
+                NinoSerializer.Serialize(items));
 
             var reader = new Reader(buffer.WrittenSpan.Slice(1));
             var destination = new byte[length];
