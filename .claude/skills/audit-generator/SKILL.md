@@ -305,6 +305,12 @@ timings varied. `Emit` moved from 286 to 333 IL bytes and the member writer from
 313. Their combined Arm64 Tier 0 listings were 3,376 and 3,308 bytes, and x64 cross-JIT
 listings were 1,455 and 1,470. Both Roslyn builds matched all 577 outputs, reused all models
 on edits, released the old project objects and passed 83 focused tests on each runtime.
+Append ranges between `global::` qualifiers instead of allocating plain type names for the
+member writer. This saved 55 KB per 572-model replay in both load orders. Whole-project
+timing and allocation varied. `AppendMembers` moved from 313 to 311 IL bytes plus the
+65-byte helper, from 1,720 to 1,676 instrumented Arm64 Tier 0 bytes plus 296, and from
+707 to 659 x64 cross-JIT bytes plus 146. All 577 outputs matched on both Roslyn builds,
+all 572 models were reused on edits, and the collection checks passed.
 Delay formatting an alias declaration until the occurrence count pays for it. Compute its length
 from the alias and original name first. Four cold replays allocated 45–58 KB less, wall time
 stayed within 0.3%, and all 577 outputs matched (`abc295cc`).
