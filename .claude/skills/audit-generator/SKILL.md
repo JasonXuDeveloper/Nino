@@ -80,6 +80,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - No display strings for comparisons (`SymbolEqualityComparer`, metadata names), no `ToFullString()` /
   `NormalizeWhitespace()` in transforms; one `StringBuilder` per output, one file per model, deterministic and
   culture-invariant output, unique hint names.
+- Allocate a callback list only after accepting the first callback of its kind. Track the four kinds
+  accepted at each hierarchy level in a local mask and keep static before instance deserializing callbacks.
+  Over 15 callback-bearing declarations from the real unit test project, the isolated build saved
+  about 218 B per model in all four M4 pairs and took less time in three. Whole-project timing and
+  allocation varied, including a second four-round reopen replay. All 583 files matched across four
+  stages, 578 models were reused after each edit and closed-project references collected. Build shrank
+  from 856 to 832 IL bytes, 3,864 to 3,752 Arm64 FullOpts bytes and 2,565 to 2,493 offline x64 bytes.
+  Both Roslyn builds passed 59 targeted tests (`57d3197e`).
 - Bind as few nodes as syntax allows. A syntax provider's semantic transform reruns for every match on every
   compilation change, and `GetSymbolInfo` of a call binds its statement: binding the top-level calls was most of the
   generator's time on tests/Nino.UnitTests (about 2,400 calls; local trace, round 128), more than building the models.
