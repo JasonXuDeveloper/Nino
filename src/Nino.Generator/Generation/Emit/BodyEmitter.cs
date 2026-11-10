@@ -299,12 +299,13 @@ internal sealed class BodyEmitter
         }
     }
 
-    private static bool WritesStringDirectly(MemberModel member) =>
+    private static bool CanPatchMember(MemberModel member) =>
+        member.Raw != null || !member.OpensBodies ||
         (member.Traits & (FormatterTraits.String | FormatterTraits.Utf8String)) != 0;
 
     // Version-tolerant collection elements are written before the member region opens.
     private bool CanPatchBody =>
-        (Tolerant || _m.Collection is not { OpensBodies: true }) && _m.Members.All(static m => m.Raw != null || !m.OpensBodies || WritesStringDirectly(m));
+        (Tolerant || _m.Collection is not { OpensBodies: true }) && _m.Members.All(CanPatchMember);
 
     private void EmitWrites()
     {
@@ -690,8 +691,8 @@ internal sealed class BodyEmitter
 
             string l = "__l" + lengths++;
             var block = new RawBlock(run, headers: true);
-            // Direct string writes cannot defer bodies into the enclosing region.
-            bool patchOnly = WritesStringDirectly(first);
+            // A member that cannot defer only needs its length patched.
+            bool patchOnly = CanPatchMember(first);
             string reserve;
             if (patchOnly)
             {
