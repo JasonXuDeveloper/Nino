@@ -393,11 +393,18 @@ namespace Nino.Core
             shape = new ArrayShape { B = 1, C = 1, D = 1 };
             if (!reader.TryReadLength(0, out shape.A))
                 return false;
-            shape.B = reader.UnsafeRead<int>();
             if (rank > 2)
-                shape.C = reader.UnsafeRead<int>();
-            if (rank > 3)
-                shape.D = reader.UnsafeRead<int>();
+            {
+                ref byte tail = ref reader.ReadBlock((rank - 1) * NinoWire.LengthSize);
+                shape.B = NinoUnsafe.Read<int>(ref tail);
+                shape.C = NinoUnsafe.Read<int>(ref tail, NinoWire.LengthSize);
+                if (rank > 3)
+                    shape.D = NinoUnsafe.Read<int>(ref tail, 2 * NinoWire.LengthSize);
+            }
+            else
+            {
+                shape.B = reader.UnsafeRead<int>();
+            }
             int a = shape.A, b = shape.B, c = shape.C, d = shape.D;
             if (b < 0 || c < 0 || d < 0)
                 NinoThrow.InvalidLength(Math.Min(b, Math.Min(c, d)));
