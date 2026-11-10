@@ -165,6 +165,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Arm64 Tier 1 from 17,792 to 17,440 bytes, and x64 cross-JIT from 4,343 to 4,330.
   Both Roslyn builds matched all 577 files, reused all 572 models on edits and passed the
   collection checks. Each runtime passed 88 focused tests.
+  Pass the argument count and trailing traits instead of building a traits array.
+  The same 850-type replay saved 285 KB in both load orders, with identical resolution.
+  Four cold replays saved 579–831 KB and their timings varied. `Bind` moved from 339
+  to 351 IL bytes, 10,980 to 10,616 Arm64 Tier 1 bytes, and 1,003 to 1,011 x64 cross-JIT
+  bytes. Both Roslyn builds kept all 577 files, 572 model hits, and collection checks;
+  both runtimes passed 69 focused tests.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
   without that cache.
