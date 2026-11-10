@@ -862,6 +862,10 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static unsafe void WidenVector(ref byte source, ref ushort destination, nuint n)
         {
+            // Test the exact ISA here so even Tier 0 can eliminate the wide dispatch on other CPUs.
+            if (Avx512BW.IsSupported && n >= 128 && TryWiden512(ref source, ref destination, n))
+                return;
+
             nuint i = 0;
             if (NinoSimd.Has256 && n >= 32)
             {
@@ -883,6 +887,41 @@ namespace Nino.Core.Internal
             for (; i < last; i += 16)
                 Widen16(ref source, ref destination, i);
             Widen16(ref source, ref destination, last);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryWiden512(ref byte source, ref ushort destination, nuint n)
+        {
+            if (!NinoSimd.Prefer512)
+                return false;
+            Widen512(ref source, ref destination, n);
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe void Widen512(ref byte source, ref ushort destination, nuint n)
+        {
+            nuint i = 0;
+            while (true)
+            {
+                Widen32To512(ref source, ref destination, i);
+                Widen32To512(ref source, ref destination, i + 32);
+                if (i + 64 == n)
+                    return;
+                // Align both middle stores to a 64-byte boundary. A UTF-16 destination has an even address.
+                nuint next = i == 0 ? (64 - ((nuint)Unsafe.AsPointer(ref destination) & 63)) / 2 : i + 64;
+                i = next + 64 <= n ? next : n - 64;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Widen32To512(ref byte source, ref ushort destination, nuint offset)
+        {
+            var bytes = Vector256.LoadUnsafe(ref source, offset);
+            var chars = Avx512BW.IsSupported
+                ? Avx512BW.ConvertToVector512UInt16(bytes)
+                : Vector512.WidenLower(bytes.ToVector512Unsafe()); // Only the initialized lower half is read.
+            chars.StoreUnsafe(ref destination, offset);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
