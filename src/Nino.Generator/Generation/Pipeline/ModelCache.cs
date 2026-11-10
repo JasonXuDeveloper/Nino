@@ -577,7 +577,8 @@ internal static class ModelCache
     private static SyntaxTree[] Dependencies(ITypeSymbol root, Compilation compilation)
     {
         var nodes = Nodes.GetValue(compilation, static _ => new Dictionary<ISymbol, Node>(SymbolEqualityComparer.Default));
-        var trees = new HashSet<SyntaxTree>();
+        SyntaxTree? firstTree = null;
+        HashSet<SyntaxTree>? trees = null;
         var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
         var pending = new Stack<ITypeSymbol>();
         visited.Add(root);
@@ -628,12 +629,22 @@ internal static class ModelCache
                     nodes[definition] = node;
             }
 
-            trees.UnionWith(node.Trees);
+            foreach (var tree in node.Trees)
+            {
+                if (trees != null)
+                    trees.Add(tree);
+                else if (firstTree == null)
+                    firstTree = tree;
+                else if (!EqualityComparer<SyntaxTree>.Default.Equals(firstTree, tree))
+                    trees = new HashSet<SyntaxTree> { firstTree, tree };
+            }
             foreach (var t in node.Types)
                 Add(t);
         }
 
-        return trees.ToArray();
+        if (trees != null)
+            return trees.ToArray();
+        return firstTree == null ? System.Array.Empty<SyntaxTree>() : new[] { firstTree };
     }
 
     private static Node Direct(INamedTypeSymbol definition)
