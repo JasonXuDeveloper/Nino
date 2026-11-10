@@ -212,6 +212,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   Generic array rule timings varied at the same allocations. Binder IL was 422 to 453
   bytes, the generic Arm64 Tier 1 listing 7,484 to 7,944, and x64 cross-JIT 960 to 1,051.
   Runtime wire bytes, 577 generated files, all 572 model hits and collection matched.
+  Match the first generic pattern into its fresh type slots as well. The caller discards
+  them on rejection. Keep transactional unification for constraint inference on existing
+  slots. The 850-type generator replay saved 113 KB in both load orders, and four cold
+  runs saved 207–284 KB. The runtime array rule saved 40 B on success and rejection;
+  rejected rules beat both controls in all four rounds, while success timing varied.
+  IL and x64 cross-JIT stayed at 453 and 1,051 bytes; Arm64 Tier 1 fell from 7,936 to
+  7,108. Wire bytes, 577 outputs, model reuse and collection matched.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
