@@ -535,6 +535,17 @@ change. `WithAliases` grew from 496 to 550 IL bytes, 2,356 to 2,608 instrumented
 bytes and 1,105 to 1,240 x64 cross-JIT bytes. Both Roslyn builds matched all 577 files, reused
 all 572 models on edits, and released closed-project objects. Keep the current declaration
 list instead of adding a remove-and-reinsert step for one alias.
+Deferring the declaration list until the first profitable formatter alias avoids the
+empty list without reordering any declarations. Keep the current implementation.
+Across 577 real models, 173 emitted formatter aliases and the trial saved 27,920 bytes
+per emission pass. Four cold runs saved 25–177 KB and reopens saved 12–27 KB, but
+whole-project and isolated timing varied. WithAliases fell from 496 to 486 IL bytes,
+while the alias write/rewrite helpers grew from 333 to 453 IL bytes, excluding the
+multi-alias path. Arm64 FullOpts grew from 1,572 to 2,144 bytes at the entry and
+872 to 1,396 bytes across those helpers; offline x64 grew from 1,105 to 1,205 bytes
+and 591 to 968 bytes, respectively. All 582 generated files, tracked reuse and
+collection matched, and both Roslyn builds passed 81 tests. The allocation savings
+did not warrant the additional code.
 Pass registry entries and pointer fields as their existing equatable arrays. The registry emitter
 can enumerate twice without copying the entries into a list. Replaying the real project registry
 saved 16.7–16.9 KB per emission in both load orders. Cold and edit timing varied. All 577 outputs
