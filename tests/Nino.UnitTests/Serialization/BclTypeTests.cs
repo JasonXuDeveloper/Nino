@@ -290,6 +290,15 @@ public class BclTypeTests
         var bytes = NinoSerializer.Serialize(sequence);
         CollectionAssert.AreEqual(NinoSerializer.Serialize(new byte[] { 1, 2, 3, 4, 5 }), bytes);
         CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4, 5 }, NinoDeserializer.Deserialize<ReadOnlySequence<byte>>(bytes).ToArray());
+
+        last = first.Append(Array.Empty<byte>()).Append(new byte[] { 4, 5 }).Append(Array.Empty<byte>());
+        var withEmptySegments = new ReadOnlySequence<byte>(first, 0, last, 0);
+        CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(withEmptySegments));
+
+        var wireHead = new Segment<byte>(bytes[..2]);
+        var wireEnd = wireHead.Append(Array.Empty<byte>()).Append(bytes[2..]).Append(Array.Empty<byte>());
+        var segmentedWire = new ReadOnlySequence<byte>(wireHead, 0, wireEnd, 0);
+        CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4, 5 }, NinoDeserializer.Deserialize<byte[]>(segmentedWire));
     }
 
     [TestMethod]

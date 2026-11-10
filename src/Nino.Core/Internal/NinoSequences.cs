@@ -135,8 +135,11 @@ namespace Nino.Core.Internal
             while (data.TryGet(ref position, out var segment))
             {
                 var span = segment.Span;
-                span.CopyTo(destination);
-                destination = destination.Slice(span.Length);
+                if (!span.IsEmpty)
+                {
+                    span.CopyTo(destination);
+                    destination = destination.Slice(span.Length);
+                }
                 if (position.GetObject() == null)
                     break;
             }
