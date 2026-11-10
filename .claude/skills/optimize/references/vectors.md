@@ -474,6 +474,11 @@ of bytes in a block.
   The zeroed control removed the threshold slowdown. At 24,576 and 32,768 pairs, the uninitialized
   worker also lost in all four paired local rounds, with unchanged output bytes and allocation size.
   Keep zeroed arrays for this path.
+  Keep the paired vector loads and unzips for the split on Apple Arm64. The gated and compact
+  `.NET 10` `ld2` probes both took longer at 4,223 pairs in four isolated local rounds. The
+  existing Tier 1 loop already uses `ldp`, `uzp1` and `uzp2`. The compact replacement grew
+  the entry from 120 to 152 Arm64 bytes and from 169 to 288 IL bytes. Compare the kernel alone
+  as well as the public path, whose order check and allocation can hide the split cost.
 - Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
   complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
   at the end of a guarded page to catch a load past either end of the input.
