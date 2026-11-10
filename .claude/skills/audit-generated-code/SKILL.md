@@ -402,6 +402,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   smaller file. Normalize aliases in assertions about registration content, and assert the
   spelling only in the compaction test. Benchmark IL, wire bytes and registration allocations
   matched, with no repeatable timing change.
+  Use `__CS` for the shared compiler-services alias. Avoid a spelling that starts with `__NC`: the
+  Core guard sees the substring and falls back to longer Reader and Writer aliases. The overlapping
+  candidate grew the benchmark output by 2,208 B. The final spelling saved 6,024 B across 104 benchmark
+  files and 23,409 B across 582 unit-test files. Expanding aliases restored the original sources.
+  All 3,340 benchmark method signatures and bodies matched after normalizing file-local type names.
+  The sampled Arm64 and x64 cross-JIT dispatch sizes, three wire outputs and runtime allocations matched.
+  Timings varied against A/A. Both Roslyn targeted suites and the versioning, tracking and depth tests
+  passed (`7053428a`).
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
   `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
