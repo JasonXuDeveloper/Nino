@@ -41,6 +41,12 @@ and when `asm.py compare` lists methods the change did not touch.
   bytes and the x64 FullOpts cross listing from 296 to 240. Four local rounds and a
   byte-identical control showed no repeatable timing gain. Wire bytes matched, writes
   allocated 0 B, and targeted tests and both netstandard builds passed (`6590c2a2`).
+  Use the same span move and padding clear for one padded element. This skips both the
+  overlap check and the general mask loop. A separate value-write branch grew Arm64 Tier 1
+  by about 60 bytes. Reusing the existing branch grew it from 564 to 572, and the x64 cross
+  listing from 424 to 432. The 24-byte padded struct probe improved by 10–20% for one element
+  in four local rounds, with identical-binary controls within 9%. Multi-element timings
+  varied. Dirty padding still serialized as zero at offsets 0, 1 and 7 (`23574bb0`).
 
 - Keep the span copy in `NinoArrayBufferWriter.Grow`. Switching to `CopyToNew` regressed
   the 1 KiB growth case in four local rounds. Applying it only from 64 KiB preserved the
