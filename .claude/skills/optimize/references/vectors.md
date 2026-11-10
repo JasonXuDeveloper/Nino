@@ -431,6 +431,17 @@ of bytes in a block.
   grew from 696 to 732 B and stopped executing the 296 B padding helper on byte arrays,
   Arm64 FullOpts stayed at 240 B, and x64 cross-JIT MinOpts grew from 706 to 748 B.
   Both modern frameworks and both netstandard builds passed (`85c0f052`).
+- Keep the current raw list writer dispatch. Reusing the overlap-aware Arm64 short
+  copy improved 65–128-byte byte-list writes, but the first inline dispatch slowed
+  the 32- and 64-byte controls by about 22%. Moving the long path out of line,
+  reserving once, and sharing the existing small-copy split still slowed 32 bytes.
+  The last writer variant also slowed 16 Int32 items by about 7%.
+  Trying only the allocating sized path improved 80–128 bytes by about 12–14%,
+  but the 32- and 64-byte controls slowed by 19% and 16%. Sized writer IL grew from
+  55 to 128 bytes, Arm64 FullOpts SerializeSized from 764 to 812, and emulated x64
+  from 592 to 590. Output and allocation matched in all probes. Do not move the
+  short array copy into the list writer without a dispatch that preserves the
+  small-list controls.
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
