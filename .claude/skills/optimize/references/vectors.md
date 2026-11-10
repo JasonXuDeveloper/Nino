@@ -364,6 +364,16 @@ of bytes in a block.
   at 0 B allocated. Nullable timings varied. The strided bool entry grew
   from 68 to 160 Arm64 FullOpts bytes and 25 to 91 x64 cross-JIT bytes.
   All three vector widths passed direct last-flag and full-slot probes.
+  Keep the scalar tail for the shared validator. An overlapping load ending on a whole stride
+  preserved mask phase, and a strided field ending at its last flag still needed one scalar check.
+  Folding the tail vector into the accumulator, then trying a separate tail check with an exact-end
+  fast return, both lost in public zero-offset `long?[]` reuse at 4,096 items. The separate tail
+  check improved the direct 128-item stride-two bool check in all four M4 rounds at both offsets.
+  It increased the validator from 217 to 256 IL bytes and the Arm64 128-bit instance from 328 to
+  380 B. The 256- and 512-bit x64 cross listings grew from 410 to 512 B and 437 to 543 B in MinOpts.
+  The x64 128-bit listings used different optimization tiers. All 6,144 width/stride/offset cases
+  and their invalid-tail mutations passed, with matching wire hashes and zero steady allocation.
+  Both candidates were withdrawn.
   Keep the bulk clear for converted nullable writes. Per-slot clearing
   wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
   four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
