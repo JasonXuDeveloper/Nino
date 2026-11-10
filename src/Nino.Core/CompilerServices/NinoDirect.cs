@@ -155,10 +155,11 @@ namespace Nino.Core.CompilerServices
         public static void SerializePrefetched<T, TFormatter>(in T[] value, IBufferWriter<byte> bufferWriter)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (value != null && NinoPrefetch.Long<TFormatter>(value.Length) && bufferWriter is NinoArrayBufferWriter nino)
-                default(PrefetchArrayWriter<T, TFormatter>).Write(value, nino);
-            else
-                Serialize<T[], ArrayFormatter<T, TFormatter>>(value, bufferWriter);
+            if (value != null && NinoPrefetch.Long<TFormatter>(value.Length) &&
+                bufferWriter is NinoArrayBufferWriter nino && NinoPrefetch.Write<T, TFormatter>(value, nino))
+                return;
+
+            Serialize<T[], ArrayFormatter<T, TFormatter>>(value, bufferWriter);
         }
 
         /// <summary>
@@ -168,10 +169,11 @@ namespace Nino.Core.CompilerServices
         public static void SerializePrefetched<T, TFormatter>(in List<T> value, IBufferWriter<byte> bufferWriter)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (value != null && NinoPrefetch.Long<TFormatter>(value.Count) && bufferWriter is NinoArrayBufferWriter nino)
-                default(PrefetchListWriter<T, TFormatter>).Write(value, nino);
-            else
-                Serialize<List<T>, ListFormatter<List<T>, T, TFormatter>>(value, bufferWriter);
+            if (value != null && NinoPrefetch.Long<TFormatter>(value.Count) &&
+                bufferWriter is NinoArrayBufferWriter nino && NinoPrefetch.Write<T, TFormatter>(value, nino))
+                return;
+
+            Serialize<List<T>, ListFormatter<List<T>, T, TFormatter>>(value, bufferWriter);
         }
 
         /// <summary>Writes a long array prefetched, or as the plain call does when its objects are in order.</summary>
