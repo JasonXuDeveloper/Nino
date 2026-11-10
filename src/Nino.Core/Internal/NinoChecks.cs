@@ -50,7 +50,12 @@ namespace Nino.Core.Internal
         public static void Flags(ref byte first, int count, int stride)
         {
 #if NET8_0_OR_GREATER
-            if (Vector128.IsHardwareAccelerated && count >= 128 && ValidFlagBlocks(ref first, count, stride))
+            if (Vector128.IsHardwareAccelerated && count >= 128 &&
+                (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512
+                    ? ValidFlagBlocks<Vector512<byte>, FlagVectors512>(ref first, count, stride)
+                    : Vector256.IsHardwareAccelerated
+                        ? ValidFlagBlocks<Vector256<byte>, FlagVectors256>(ref first, count, stride)
+                        : ValidFlagBlocks<Vector128<byte>, FlagVectors128>(ref first, count, stride)))
                 return;
 #endif
             int any = Strided(ref first, count, stride);
@@ -62,7 +67,9 @@ namespace Nino.Core.Internal
         // Nullable payloads have a full stride after the last flag, so the vector loads stay within the block.
         // Tier 0 leaves calls inside the scan, so compile this validator with its helpers inlined from the start.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static bool ValidFlagBlocks(ref byte first, int count, int stride)
+        private static bool ValidFlagBlocks<TVector, TOps>(ref byte first, int count, int stride)
+            where TVector : struct
+            where TOps : struct, IFlagVectors<TVector>
         {
             Vector128<ulong> mask;
             switch (stride)
@@ -75,15 +82,16 @@ namespace Nino.Core.Internal
             }
 
             int bytes = count * stride;
-            int end = bytes & -16;
-            var bits = Vector128<byte>.Zero;
+            int width = Unsafe.SizeOf<TVector>();
+            int end = bytes & -width;
+            TVector bits = default;
             int remaining = end;
-            ref byte at = ref ScanFlagGroups(ref first, ref remaining, ref bits, 128);
-            at = ref ScanFlagGroups(ref at, ref remaining, ref bits, 64);
-            ScanFlagGroups(ref at, ref remaining, ref bits, 16);
-            var any = bits.AsUInt64();
+            ref byte at = ref ScanFlagGroups<TVector, TOps>(ref first, ref remaining, ref bits, 128);
+            at = ref ScanFlagGroups<TVector, TOps>(ref at, ref remaining, ref bits, 64);
+            if (width < 64)
+                ScanFlagGroups<TVector, TOps>(ref at, ref remaining, ref bits, width);
 
-            if ((any & mask) != Vector128<ulong>.Zero)
+            if (TOps.HasMaskedBits(bits, mask))
                 return false;
             for (int offset = end; offset < bytes; offset += stride)
             {
@@ -95,24 +103,93 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ref byte ScanFlagGroups(ref byte at, scoped ref int remaining,
-            scoped ref Vector128<byte> any, int width)
+        private static ref byte ScanFlagGroups<TVector, TOps>(ref byte at, scoped ref int remaining,
+            scoped ref TVector any, int groupBytes)
+            where TVector : struct
+            where TOps : struct, IFlagVectors<TVector>
         {
-            for (; remaining >= width; remaining -= width, at = ref Unsafe.Add(ref at, width))
+            int width = Unsafe.SizeOf<TVector>();
+            for (; remaining >= groupBytes; remaining -= groupBytes, at = ref Unsafe.Add(ref at, groupBytes))
             {
-                var bits = width >= 64 ? ReadFlagGroup(ref at, 0) : Vector128.LoadUnsafe(ref at);
-                if (width >= 128)
-                    bits |= ReadFlagGroup(ref at, 64);
-                any |= bits;
+                var bits = ReadFlagGroup<TVector, TOps>(ref at, 0, Math.Min(groupBytes, 64) / width);
+                if (groupBytes == 128)
+                    bits = TOps.Or(bits, ReadFlagGroup<TVector, TOps>(ref at, 64, 64 / width));
+                any = TOps.Or(any, bits);
             }
 
             return ref at;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector128<byte> ReadFlagGroup(ref byte at, nuint offset) =>
-            (Vector128.LoadUnsafe(ref at, offset) | Vector128.LoadUnsafe(ref at, offset + 16))
-            | (Vector128.LoadUnsafe(ref at, offset + 32) | Vector128.LoadUnsafe(ref at, offset + 48));
+        private static TVector ReadFlagGroup<TVector, TOps>(ref byte at, int offset, int vectors)
+            where TVector : struct
+            where TOps : struct, IFlagVectors<TVector>
+        {
+            int width = Unsafe.SizeOf<TVector>();
+            var first = TOps.Load(ref at, (nuint)offset);
+            if (vectors == 1)
+                return first;
+            var second = TOps.Load(ref at, (nuint)(offset + width));
+            var low = TOps.Or(first, second);
+            if (vectors == 2)
+                return low;
+            var third = TOps.Load(ref at, (nuint)(offset + 2 * width));
+            var fourth = TOps.Load(ref at, (nuint)(offset + 3 * width));
+            var high = TOps.Or(third, fourth);
+            return TOps.Or(low, high);
+        }
+
+        private interface IFlagVectors<TVector> where TVector : struct
+        {
+            static abstract TVector Load(ref byte at, nuint offset);
+            static abstract TVector Or(TVector left, TVector right);
+            static abstract bool HasMaskedBits(TVector bits, Vector128<ulong> mask);
+        }
+
+        private readonly struct FlagVectors128 : IFlagVectors<Vector128<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<byte> Load(ref byte at, nuint offset) =>
+                Vector128.LoadUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<byte> Or(Vector128<byte> left, Vector128<byte> right) => left | right;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool HasMaskedBits(Vector128<byte> bits, Vector128<ulong> mask) =>
+                (bits.AsUInt64() & mask) != Vector128<ulong>.Zero;
+        }
+
+        private readonly struct FlagVectors256 : IFlagVectors<Vector256<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<byte> Load(ref byte at, nuint offset) =>
+                Vector256.LoadUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<byte> Or(Vector256<byte> left, Vector256<byte> right) => left | right;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool HasMaskedBits(Vector256<byte> bits, Vector128<ulong> mask) =>
+                (bits.AsUInt64() & Vector256.Create(mask, mask)) != Vector256<ulong>.Zero;
+        }
+
+        private readonly struct FlagVectors512 : IFlagVectors<Vector512<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector512<byte> Load(ref byte at, nuint offset) =>
+                Vector512.LoadUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector512<byte> Or(Vector512<byte> left, Vector512<byte> right) => left | right;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool HasMaskedBits(Vector512<byte> bits, Vector128<ulong> mask)
+            {
+                var half = Vector256.Create(mask, mask);
+                return (bits.AsUInt64() & Vector512.Create(half, half)) != Vector512<ulong>.Zero;
+            }
+        }
 #endif
 
         /// <summary>
