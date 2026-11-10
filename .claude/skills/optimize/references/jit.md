@@ -47,6 +47,12 @@ and when `asm.py compare` lists methods the change did not touch.
   listing from 424 to 432. The 24-byte padded struct probe improved by 10–20% for one element
   in four local rounds, with identical-binary controls within 9%. Multi-element timings
   varied. Dirty padding still serialized as zero at offsets 0, 1 and 7 (`23574bb0`).
+  Passing the already checked payload size into `NinoMask.Copy` removed its checked
+  multiplication but moved that calculation into other callers. The sampled padded array
+  writer and mask body together went from 1,260 to 1,252 Arm64 Tier 1 bytes and from 748 to
+  724 x64 cross-JIT bytes. Neither caller-provided buffers nor `NinoArrayBufferWriter`
+  showed a repeatable timing gain with identical-binary controls. Keep the original mask
+  entry. The probe matched wire bytes and dirty-padding output at offsets 0, 1 and 7.
 
 - Keep the span copy in `NinoArrayBufferWriter.Grow`. Switching to `CopyToNew` regressed
   the 1 KiB growth case in four local rounds. Applying it only from 64 KiB preserved the
