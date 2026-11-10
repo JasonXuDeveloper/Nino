@@ -152,28 +152,37 @@ namespace Nino.Core
                 return;
             }
 
-            // Long bool reads benefit from the original conversion loop after OSR.
-            if (typeof(T) == typeof(bool) && destination.Length <= 1024)
+            if (typeof(T) == typeof(bool))
             {
-                ReadBoolValues(ref src, ref Unsafe.As<T?, bool?>(ref item), destination.Length);
-                return;
-            }
-
+                int count = destination.Length;
+                ref bool? booleans = ref Unsafe.As<T?, bool?>(ref item);
 #if NET8_0_OR_GREATER
-            if (typeof(T) == typeof(bool) && NinoSimd.HasArm64 && BitConverter.IsLittleEndian &&
-                NullableLayout<T>.HasValueOffset == 0 && NullableLayout<T>.ValueOffset == 1 &&
-                Stride == 2 && Offset == 1)
-            {
-                ref byte target = ref Unsafe.As<T?, byte>(ref item);
-                nint distance = Unsafe.ByteOffset(ref src, ref target);
-                if (distance <= -bytes || distance >= bytes)
+                if (count < Vector128<ushort>.Count)
                 {
-                    ReadBoolSlots(ref Unsafe.As<byte, ushort>(ref src), ref Unsafe.As<byte, ushort>(ref target),
-                        destination.Length);
+                    ReadBoolValues(ref src, ref booleans, count);
+                    return;
+                }
+
+                if (NinoSimd.HasArm64 && BitConverter.IsLittleEndian &&
+                    NullableLayout<T>.HasValueOffset == 0 && NullableLayout<T>.ValueOffset == 1 &&
+                    Stride == 2 && Offset == 1)
+                {
+                    ref byte target = ref Unsafe.As<bool?, byte>(ref booleans);
+                    nint distance = Unsafe.ByteOffset(ref src, ref target);
+                    if (distance <= -bytes || distance >= bytes)
+                    {
+                        ReadBoolSlots(ref Unsafe.As<byte, ushort>(ref src), ref Unsafe.As<byte, ushort>(ref target), count);
+                        return;
+                    }
+                }
+#endif
+                // Keep the original conversion loop for long reads outside the vector path.
+                if (count <= 1024)
+                {
+                    ReadBoolValues(ref src, ref booleans, count);
                     return;
                 }
             }
-#endif
 
             for (int i = 0; i < destination.Length; i++)
             {

@@ -213,10 +213,11 @@ public class StrictReadTests
     }
 
     [TestMethod]
-    public void LongNullableBoolBlocksKeepNullAndInvalidValueSemantics()
+    [DataRow(9)]
+    [DataRow(1031)]
+    public void NullableBoolBlocksKeepNullAndInvalidValueSemantics(int count)
     {
-        const int count = 1031;
-        const int last = count - 1;
+        int last = count - 1;
         var values = Enumerable.Repeat<bool?>(false, count).ToArray();
         values[last - 1] = null;
         var wire = NinoSerializer.Serialize(values);
