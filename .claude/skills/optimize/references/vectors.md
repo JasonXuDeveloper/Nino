@@ -391,6 +391,13 @@ of bytes in a block.
   Offline x64 grew from 550 to 518 + 66 bytes, and IL from 313 to 317 + 26.
   All 45 wire and 18 header probes matched. Keep the shared Reader length check
   to avoid duplicating its rules for a size tradeoff without a speed gain.
+- Keep the two scalar loads for the first two multidimensional lengths. Reading
+  them with one unaligned 64-bit load requires splitting the words and preserving
+  native word order on big-endian targets. Four local Arm64 rounds had unchanged
+  2D short reads, a 1–2% difference on 3D, and variable 64-item results at zero
+  allocations. The portable candidate grew from 313 to 345 IL bytes, 592 to 612
+  Arm64 FullOpts bytes and 550 to 569 offline x64 bytes. The 45 wire and reuse
+  probes passed at offsets 0, 1 and 7. Keep the packed-load patch as an experiment.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
