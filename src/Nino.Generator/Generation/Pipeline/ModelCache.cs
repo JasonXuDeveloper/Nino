@@ -689,9 +689,12 @@ internal static class ModelCache
             }
         }
 
+        var declarations = definition.DeclaringSyntaxReferences;
         return new Node
         {
-            Trees = definition.DeclaringSyntaxReferences.Select(r => r.SyntaxTree).Distinct().ToArray(),
+            Trees = declarations.Length == 1
+                ? new[] { declarations[0].SyntaxTree }
+                : declarations.Select(static r => r.SyntaxTree).Distinct().ToArray(),
             Types = types,
         };
     }
