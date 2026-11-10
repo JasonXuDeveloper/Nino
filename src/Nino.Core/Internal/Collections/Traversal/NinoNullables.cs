@@ -2,6 +2,9 @@ using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics;
+#endif
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
@@ -55,6 +58,23 @@ namespace Nino.Core
                 return;
             }
 
+#if NET8_0_OR_GREATER
+            if (typeof(T) == typeof(bool) && values.Length >= 4 && NinoSimd.HasArm64 &&
+                BitConverter.IsLittleEndian && NullableLayout<T>.HasValueOffset == 0 &&
+                NullableLayout<T>.ValueOffset == 1 && Stride == 2 && Offset == 1)
+            {
+                ref ushort source = ref Unsafe.As<T?, ushort>(ref item);
+                ref ushort target = ref Unsafe.As<byte, ushort>(ref dst);
+                if (values.Length >= Vector128<ushort>.Count)
+                    WriteBoolSlots<Vector128<ushort>, BoolSlots128>(ref source, ref target, values.Length);
+                else
+                    WriteBoolSlots<Vector64<ushort>, BoolSlots64>(ref source, ref target, values.Length);
+
+                return;
+            }
+
+#endif
+
             Unsafe.InitBlockUnaligned(ref dst, 0, (uint)(values.Length * Stride));
             for (int i = 0; i < values.Length; i++)
             {
@@ -66,6 +86,54 @@ namespace Nino.Core
                 NinoLayout<T>.Write(ref Unsafe.Add(ref slot, Offset), element.GetValueOrDefault());
             }
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static void WriteBoolSlots<TVector, TSlots>(ref ushort source, ref ushort target, int count)
+            where TVector : struct where TSlots : struct, IBoolSlots<TVector>
+        {
+            nuint lanes = (uint)(Unsafe.SizeOf<TVector>() / sizeof(ushort));
+            nuint last = (uint)count - lanes;
+            for (nuint i = 0; i < last; i += lanes)
+                WriteBoolGroup<TVector, TSlots>(ref source, ref target, i);
+            // End the final vector at the last slot, overlapping only bytes already written.
+            WriteBoolGroup<TVector, TSlots>(ref source, ref target, last);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteBoolGroup<TVector, TSlots>(ref ushort source, ref ushort target, nuint offset)
+            where TVector : struct where TSlots : struct, IBoolSlots<TVector>
+        {
+            TVector pairs = Unsafe.ReadUnaligned<TVector>(ref Unsafe.As<ushort, byte>(ref Unsafe.Add(ref source, offset)));
+            Unsafe.WriteUnaligned(ref Unsafe.As<ushort, byte>(ref Unsafe.Add(ref target, offset)), TSlots.Normalize(pairs));
+        }
+
+        // The low byte is the managed 0/1 presence flag. Extend it to mask each entire slot.
+        private interface IBoolSlots<TVector> where TVector : struct
+        {
+            static abstract TVector Normalize(TVector pairs);
+        }
+
+        private readonly struct BoolSlots64 : IBoolSlots<Vector64<ushort>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector64<ushort> Normalize(Vector64<ushort> pairs)
+            {
+                var active = (pairs << 15).AsInt16() >> 15;
+                return pairs & active.AsUInt16();
+            }
+        }
+
+        private readonly struct BoolSlots128 : IBoolSlots<Vector128<ushort>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<ushort> Normalize(Vector128<ushort> pairs)
+            {
+                var active = (pairs << 15).AsInt16() >> 15;
+                return pairs & active.AsUInt16();
+            }
+        }
+#endif
 
         /// <summary>Reads the elements after the count check has bounded the full fixed-stride payload.</summary>
         public static void ReadPrechecked(Span<T?> destination, ref Reader reader)
