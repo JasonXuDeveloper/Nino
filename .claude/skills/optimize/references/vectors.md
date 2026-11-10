@@ -258,6 +258,15 @@ of bytes in a block.
   to 926 offline x64 bytes. Four A/B and A/A rounds varied, all writes matched at
   offsets 0, 1 and 7, and reads allocated 0 B. The 87 targeted tests passed on each
   of .NET 8 and 10 with intrinsics on and off (`1c1e62df`).
+  For a staged multidimensional array of reference-containing elements, use span copy
+  to batch write barriers. Keep the unmanaged loop. Applying span copy to both cases
+  repeatedly slowed the 5,000-item unmanaged fixture. The reference-only variant
+  emitted `BulkMoveWithWriteBarrierInternal`, shrank its Arm64 FullOpts `Fill` from
+  204 to 184 bytes, and grew offline x64 from 71 to 116. Shared IL grew from 34 to
+  65 bytes. The unmanaged machine-code sizes matched. Large reference timings improved
+  in three of four follow-up rounds, but A/A varied too. Allocations and wire bytes
+  matched, and 75 targeted tests passed on each of .NET 8 and 10 with intrinsics on
+  and off (`c144df2a`).
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
