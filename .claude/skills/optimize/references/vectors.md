@@ -314,6 +314,14 @@ of bytes in a block.
   generated source grew by 550 bytes. Four local rounds overlapped A/A with identical allocations
   and wire bytes at offsets 0, 1 and 7. The write path's two length uses were already one
   load in Arm64 Tier 1.
+- Pass the generated rank into the multidimensional shape match on reuse. The baseline
+  loaded the runtime rank in its shared helper. The Arm64 Tier 1 2D formatter shrank
+  from 832 to 696 bytes and its public read entry from 816 to 680 bytes. The offline x64
+  2D formatter went from 676 to 682 bytes while inlining away the call to a 190-byte
+  helper. The shared helper shrank from 85 to 78 IL bytes, and each generated reader gained
+  one IL byte. Four local rounds from empty to near 64 KiB of input plus output overlapped
+  A/A with zero allocations. All 45 wire and same-shape reuse checks matched at offsets
+  0, 1 and 7. The last-dimension mismatch replaced the array at each rank.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
