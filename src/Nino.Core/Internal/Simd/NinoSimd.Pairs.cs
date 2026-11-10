@@ -231,6 +231,48 @@ namespace Nino.Core.Internal
             return IncreasingInt32Tail(ref Unsafe.Add(ref source, 8), count - 1, NinoUnsafe.Read<int>(ref source));
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool CanSplitOrderedInt32(int count) => AdvSimd.Arm64.IsSupported && count >= 32;
+
+        // The destination arrays belong to an empty list. Publish its count only after the whole split succeeds.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static bool SplitOrderedInt32(ref byte source, ref int first, ref int second, int count)
+        {
+            int previous = NinoUnsafe.Read<int>(ref source);
+            first = previous;
+            second = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, 4));
+            var precedingGroup = Vector128.Create(previous);
+            int i = 1;
+            for (; i <= count - 4; i += 4)
+            {
+                nuint offset = (nuint)i * 8;
+                var a = Vector128.LoadUnsafe(ref source, offset).AsInt32();
+                var b = Vector128.LoadUnsafe(ref source, offset + 16).AsInt32();
+                var keys = AdvSimd.Arm64.UnzipEven(a, b);
+                var preceding = AdvSimd.ExtractVector128(precedingGroup, keys, 3);
+                if (!Vector128.GreaterThanAll(keys, preceding))
+                    return false;
+
+                keys.StoreUnsafe(ref first, (nuint)i);
+                AdvSimd.Arm64.UnzipOdd(a, b).StoreUnsafe(ref second, (nuint)i);
+                precedingGroup = keys;
+            }
+
+            previous = precedingGroup.GetElement(3);
+            for (; i < count; i++)
+            {
+                ref byte pair = ref Unsafe.Add(ref source, i * 8);
+                int key = NinoUnsafe.Read<int>(ref pair);
+                if (key <= previous)
+                    return false;
+
+                Unsafe.Add(ref first, i) = previous = key;
+                Unsafe.Add(ref second, i) = NinoUnsafe.Read<int>(ref Unsafe.Add(ref pair, 4));
+            }
+
+            return true;
+        }
+
         // Compare four adjacent keys at a time, carrying the previous group across the boundary.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool AreStrictlyIncreasingInt32Vector(ref byte source, int count)

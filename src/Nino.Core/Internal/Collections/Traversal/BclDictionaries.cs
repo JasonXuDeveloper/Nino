@@ -355,28 +355,41 @@ namespace Nino.Core
 
         private static void ReadSortedInt32Pairs(SortedList<int, int> list, ref byte source, int length)
         {
-            // Validate order before changing the arrays. The same checked wire block feeds the comparer fallback.
-            if (!NinoSimd.AreStrictlyIncreasingInt32(ref source, length))
+            int[] keys = CollectionFields.Keys(list), values = CollectionFields.Values(list);
+            bool ordered;
+            if (NinoSimd.CanSplitOrderedInt32(length) && keys.Length >= length && values.Length >= length)
             {
-                for (int j = 0; j < length; j++)
+                ordered = NinoSimd.SplitOrderedInt32(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
+                    ref NinoUnsafe.GetArrayDataReference(values), length);
+            }
+            else
+            {
+                ordered = NinoSimd.AreStrictlyIncreasingInt32(ref source, length);
+                if (ordered)
                 {
-                    ref byte pair = ref Unsafe.Add(ref source, j * 8);
-                    NinoCollections.AddUnique(list, NinoUnsafe.Read<int>(ref pair),
-                        NinoUnsafe.Read<int>(ref Unsafe.Add(ref pair, 4)), j);
+                    if (keys.Length < length)
+                        CollectionFields.Keys(list) = keys = new int[length];
+                    if (values.Length < length)
+                        CollectionFields.Values(list) = values = new int[length];
+                    NinoSimd.DeinterleaveInt32(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
+                        ref NinoUnsafe.GetArrayDataReference(values), length);
                 }
+            }
 
+            if (ordered)
+            {
+                CollectionFields.Size(list) = length;
+                CollectionFields.Version(list)++;
                 return;
             }
 
-            int[] keys = CollectionFields.Keys(list), values = CollectionFields.Values(list);
-            if (keys.Length < length)
-                CollectionFields.Keys(list) = keys = new int[length];
-            if (values.Length < length)
-                CollectionFields.Values(list) = values = new int[length];
-            NinoSimd.DeinterleaveInt32(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
-                ref NinoUnsafe.GetArrayDataReference(values), length);
-            CollectionFields.Size(list) = length;
-            CollectionFields.Version(list)++;
+            // The list is still empty. The comparer fallback reads only its published entries.
+            for (int j = 0; j < length; j++)
+            {
+                ref byte pair = ref Unsafe.Add(ref source, j * 8);
+                NinoCollections.AddUnique(list, NinoUnsafe.Read<int>(ref pair),
+                    NinoUnsafe.Read<int>(ref Unsafe.Add(ref pair, 4)), j);
+            }
         }
 #endif
 

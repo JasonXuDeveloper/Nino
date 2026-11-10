@@ -285,6 +285,12 @@ public class CollectionFastPathTests
             var duplicate = (byte[])bytes.Clone();
             Buffer.BlockCopy(bytes, 4 + (index - 1) * 8, duplicate, 4 + index * 8, 4);
             Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SortedList<int, int>>(duplicate));
+            var reused = new SortedList<int, int>(48) { [123] = 456 };
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(duplicate, ref reused));
+            var prefix = expected.Take(index).ToList();
+            // The indexer overwrites the repeated key before AddUnique reports it.
+            prefix[index - 1] = new KeyValuePair<int, int>(expected.Keys[index - 1], expected.Values[index]);
+            CollectionAssert.AreEqual(prefix, reused.ToList());
         }
     }
 
