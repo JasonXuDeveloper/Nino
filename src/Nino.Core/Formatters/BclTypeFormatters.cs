@@ -280,7 +280,7 @@ namespace Nino.Core
             }
 
             var target = MemoryMarshal.CreateSpan(ref payload, size);
-            source.CopyTo(target);
+            NinoUnsafe.Copy(ref payload, ref MemoryMarshal.GetReference(source), (uint)size);
             MaskTail(target, count);
 #else
             int size = (int)(((uint)count + 7) / 8);
