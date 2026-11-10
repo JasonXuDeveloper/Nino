@@ -413,6 +413,16 @@ and when `asm.py compare` lists methods the change did not touch.
   timings varied. The lookup entry grew from 75 to 99 IL bytes. For int elements it grew from 1,896
   to 2,168 B on Arm64 Tier 1 and from 1,417 to 1,670 B on x64 cross-JIT. The x64 listing does not
   establish throughput (`45570cc1`).
+- Keep the existing count reservation in the shared enumerable loop until a broader win is measured.
+  Writing a known count before enumeration avoids carrying its patch position, but does not remove a
+  store: ReserveInt32 itself writes no value. Four default-JIT M4 pairs favored small offset-one
+  integer collections, while larger, unknown-count and reference-element cases were mixed. Restricting
+  eager counts to the existing local-writer type rule did not broaden the win. Allocation stayed at
+  32 B for the counted wrapper and 48 B for the iterator. Wire and round trips matched at offsets zero
+  and one; the first candidate passed 124/123 targeted .NET 10/8 tests including a wrong-count probe.
+  Shared loop IL grew from 93 to 109 B, or 125 B with the type gate. The integer helper grew from
+  1,116 to 1,220/1,240 Arm64 FullOpts bytes and 890 to 1,074/1,057 emulated x64 bytes.
+  Both candidates were withdrawn.
 - Write packed sorted-set nodes in order into the reserved output for sets of 32 or more items.
   Keep the existing layout probe and bound the span by the count. Retain the array traversal for
   references and other layouts. Sharing the span traversal with reference sets or adding the gate
