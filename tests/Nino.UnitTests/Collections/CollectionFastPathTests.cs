@@ -158,15 +158,19 @@ public class CollectionFastPathTests
     [TestMethod]
     public void PriorityQueueWritesRawPairsInHeapOrder()
     {
-        Check(i => i * 7, Comparer<int>.Create((a, b) => b.CompareTo(a)));
+        Check(i => i * 7, i => -13 * i, Comparer<int>.Create((a, b) => b.CompareTo(a)));
         Check(i => new Subset.Corner.RawPadded { A = (byte)i, B = -i, C = (short)i, D = 7L * i },
-            Comparer<int>.Default);
+            i => -13 * i, Comparer<int>.Default);
+        Check(i => new ReverseIndex(i), i => (ushort)(13 * i),
+            Comparer<ushort>.Create((a, b) => b.CompareTo(a)));
+        Check(i => (Int8Key)i, i => new ReverseIndex(i * 13), Comparer<ReverseIndex>.Default);
 
-        static void Check<T>(Func<int, T> create, IComparer<int> comparer)
+        static void Check<T, TPriority>(Func<int, T> create, Func<int, TPriority> priorityOf,
+            IComparer<TPriority> comparer)
         {
-            var queue = new PriorityQueue<T, int>(32, comparer);
+            var queue = new PriorityQueue<T, TPriority>(32, comparer);
             for (int i = 0; i < 19; i++)
-                queue.Enqueue(create(i), -13 * i);
+                queue.Enqueue(create(i), priorityOf(i));
 
             using var expected = new NinoArrayBufferWriter();
             NinoSerializer.Serialize(queue.Count, expected);

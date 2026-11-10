@@ -13,19 +13,34 @@ namespace Nino.Core.Internal
         internal static readonly bool Usable = ObjectTypes.Passes(Check);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static bool TryWrite(PriorityQueue<int, int> queue, int count, ref Writer writer)
+        internal static bool TryWrite<TElement, TPriority, TFormatter>(PriorityQueue<TElement, TPriority> queue,
+            int count, ref Writer writer) where TFormatter : struct, INinoBlockFormatter<(TElement, TPriority)>
         {
             if (!Usable)
                 return false;
 
-            int version = Fields<int, int>.Version(queue);
-            var nodes = Fields<int, int>.Nodes(queue);
-            if (nodes.Length < count || Fields<int, int>.Size(queue) != count)
+            int version = Fields<TElement, TPriority>.Version(queue);
+            var nodes = Fields<TElement, TPriority>.Nodes(queue);
+            if (nodes.Length < count || Fields<TElement, TPriority>.Size(queue) != count)
                 NinoThrow.ModifiedDuringWrite();
-            ref byte target = ref writer.ReserveCounted(count, 8);
-            ref byte source = ref Unsafe.As<(int, int), byte>(ref NinoUnsafe.GetArrayDataReference(nodes));
-            NinoUnsafe.CopyToNew(ref target, ref source, (uint)(count * 8));
-            if (Fields<int, int>.Version(queue) != version)
+            // The startup probe already established the layout of the common int pair.
+            bool intPair = typeof(TElement) == typeof(int) && typeof(TPriority) == typeof(int);
+            int size = intPair ? 8 : NinoBlockPlan<(TElement, TPriority), TFormatter>.Size;
+            ref byte target = ref writer.ReserveCounted(count, size);
+            ref var source = ref NinoUnsafe.GetArrayDataReference(nodes);
+            if (intPair || NinoBlockPlan<(TElement, TPriority), TFormatter>.IsMemory)
+                NinoUnsafe.CopyToNew(ref target, ref Unsafe.As<(TElement, TPriority), byte>(ref source),
+                    (uint)(count * size));
+            else
+            {
+                // A constrained call keeps padded tuples allocation-free even before tier promotion.
+                for (int i = 0; i < count; i++)
+                {
+                    default(TFormatter).WriteFixed(in Unsafe.Add(ref source, i), ref target);
+                    target = ref Unsafe.Add(ref target, size);
+                }
+            }
+            if (Fields<TElement, TPriority>.Version(queue) != version)
                 NinoThrow.ModifiedDuringWrite();
             return true;
         }
