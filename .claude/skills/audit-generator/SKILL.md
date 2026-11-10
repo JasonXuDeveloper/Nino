@@ -589,6 +589,16 @@ This saved 52,240 B per isolated registry emission and 11–84 KB in four cold r
 Timing gains varied with load order. `EmitRegistry` grew from 924 to 970 IL bytes,
 2,924 to 2,928 Arm64 FullOpts bytes, and 1,791 to 1,880 x64 cross-JIT bytes.
 Both Roslyn builds kept all 577 outputs, incremental reuse, and collection.
+
+Use the known leaf layout for portability and raw descriptions before allocating
+measurement lists or a builder. Leave types that the canonical view handles
+differently, such as `Int128`, on the existing description path. The ten-leaf
+probe reduced allocation from 648 to 40 B per type and was about five times
+faster in both load orders. Four cold project runs with duplicate baselines
+saved about 0.54–0.68 MB against the paired baseline. Whole-project timings
+varied. The two entry methods grew from 200 to 304 IL bytes, 1,316 to 1,672
+Arm64 Tier 0 bytes, and 552 to 723 x64 cross-JIT bytes. Both Roslyn builds
+matched all 577 files, incremental reuse, and collection.
 Keep the registry preamble writer separate unless its size is known cheaply. The real
 project preamble was about 10 KB and a lease with a 256-character request grew beyond
 the 8,192-character cap, allocating 288 bytes more per isolated emission. Counting the
