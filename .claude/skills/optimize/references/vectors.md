@@ -355,6 +355,12 @@ of bytes in a block.
   and 532 offline x64 bytes. That form repeatedly slowed the single-item 2D read from around
   3.25 to 3.72 ns. Both candidates matched the baseline's 45 wire and reuse probes at offsets
   0, 1 and 7. Keep the alternatives as separate experiments for subsequent JIT diagnosis.
+  Dividing the remaining byte count by the minimum wire size also passed all 45 probes.
+  It used 306 IL, 596 Arm64 FullOpts and 530 offline x64 bytes, saving 7, 4 and 5 bytes
+  respectively. The dynamic divisor still emitted `udiv` on Arm64 and `div` on x64.
+  Four Arm64 rounds were flat for 2D and 3D single-item reuse and about 3% faster for 4D.
+  Larger cases varied and x64 throughput was not measured. Retain the multiply-and-check
+  baseline while the quotient variant remains an experiment.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
