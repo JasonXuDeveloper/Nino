@@ -457,6 +457,14 @@ of bytes in a block.
   Keep the order check before publishing the arrays and use the same wire block for out-of-order insertion.
   Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
   method's IL. The local Arm64 2,047- and 8,193-pair reuse probes cut elapsed time by roughly 35–45%.
+  Validate four signed keys at a time for 32 or more pairs. Share the even-lane extraction with
+  deinterleave, align the previous last key with the next three, and check the scalar tail. Keep
+  the scalar check inlined for short inputs and unsupported instruction sets. Vectorizing every
+  eligible read made the 17-pair unordered case slower. With the gate, that case stayed within
+  control variation and the 3,967-, 4,223- and 8,193-pair reuse probes took less time across all
+  four local rounds at zero allocation. Check duplicate keys at vector boundaries and in the tail.
+  The 16-pair probe occasionally stayed slow during short warmup. With a longer warmup, timings
+  varied within the controls with SIMD on and off. The generated source and wire samples matched.
 - Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
   complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
   at the end of a guarded page to catch a load past either end of the input.
