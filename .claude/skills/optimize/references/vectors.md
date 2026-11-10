@@ -554,6 +554,12 @@ of bytes in a block.
   the x64 cross listing from 380 to 424 bytes. The apparent 2,665-element SIMD gain
   did not repeat with an identical-binary control. Keep both patches as probes.
   Wire and dirty-padding checks matched, and the scalar outline passed targeted tests.
+  Use the same paired shape for the two-word period. With SIMD disabled, the padded
+  16-byte probe took 23–29% less time at 17 elements and 37–67% less across the two
+  sizes straddling 64 KiB. Default-SIMD and existing three-word timings varied on
+  replay. `Copy` grew from 383 to 500 IL bytes, 432 to 492 Arm64 scalar Tier 1 bytes,
+  and 380 to 444 in the x64 cross listing. Dirty-padding bytes matched, and targeted
+  and scalar tests and both netstandard builds passed (`f3d6bd81`).
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
