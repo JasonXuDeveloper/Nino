@@ -154,6 +154,12 @@ namespace Nino.Core
             ref byte src = ref reader.UnsafeAdvance(bytes);
             if (destination.IsEmpty)
                 return;
+            if (typeof(T) == typeof(bool) && destination.Length == 1)
+            {
+                ReadSingleBool(ref src, ref Unsafe.As<T?, bool?>(ref MemoryMarshal.GetReference(destination)));
+                return;
+            }
+
             // Presence bytes other than 0 or 1 are invalid data (copied as they are, they would make HasValue true
             // and the value unequal to any other).
             NinoChecks.Flags(ref src, destination.Length, Stride);
@@ -272,6 +278,18 @@ namespace Nino.Core
             pairs.StoreUnsafe(ref target, offset);
         }
 #endif
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadSingleBool(ref byte source, ref bool? destination)
+        {
+            byte flag = source;
+            if (flag > 1)
+                NinoThrow.InvalidPresence(flag);
+
+            destination = flag != NinoWire.Null
+                ? NinoUnsafe.CheckedBool(Unsafe.Add(ref source, Offset))
+                : default(bool?);
+        }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadBoolValues(ref byte source, ref bool? item, int count)

@@ -213,6 +213,15 @@ public class StrictReadTests
     }
 
     [TestMethod]
+    public void NullableBoolSingletonChecksTheFlagBeforeTheValue()
+    {
+        CollectionAssert.AreEqual(new bool?[] { null },
+            NinoDeserializer.Deserialize<bool?[]>(Concat(Ints(1), new byte[] { 0, 0xFF })));
+        Invalid<bool?[]>(Concat(Ints(1), new byte[] { 2, 1 }));
+        Invalid<bool?[]>(Concat(Ints(1), new byte[] { 1, 2 }));
+    }
+
+    [TestMethod]
     [DataRow(5)]
     [DataRow(9)]
     [DataRow(1031)]
