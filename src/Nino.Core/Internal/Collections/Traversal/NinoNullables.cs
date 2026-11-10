@@ -159,6 +159,22 @@ namespace Nino.Core
                 return;
             }
 
+#if NET8_0_OR_GREATER
+            if (typeof(T) == typeof(bool) && NinoSimd.HasArm64 && BitConverter.IsLittleEndian &&
+                NullableLayout<T>.HasValueOffset == 0 && NullableLayout<T>.ValueOffset == 1 &&
+                Stride == 2 && Offset == 1)
+            {
+                ref byte target = ref Unsafe.As<T?, byte>(ref item);
+                nint distance = Unsafe.ByteOffset(ref src, ref target);
+                if (distance <= -bytes || distance >= bytes)
+                {
+                    ReadBoolSlots(ref Unsafe.As<byte, ushort>(ref src), ref Unsafe.As<byte, ushort>(ref target),
+                        destination.Length);
+                    return;
+                }
+            }
+#endif
+
             for (int i = 0; i < destination.Length; i++)
             {
                 ref byte slot = ref Unsafe.Add(ref src, i * Stride);
@@ -167,6 +183,33 @@ namespace Nino.Core
                     : default(T?);
             }
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static void ReadBoolSlots(ref ushort source, ref ushort target, int count)
+        {
+            const int lanes = 8;
+            nuint last = (uint)(count - lanes);
+            for (nuint i = 0; i < last; i += lanes)
+                ReadBoolGroup(ref source, ref target, i);
+            ReadBoolGroup(ref source, ref target, last);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadBoolGroup(ref ushort source, ref ushort target, nuint offset)
+        {
+            var pairs = BoolSlots128.Normalize(Vector128.LoadUnsafe(ref source, offset));
+            if ((pairs & Vector128.Create((ushort)0xFE00)) != Vector128<ushort>.Zero)
+            {
+                // Use the scalar order for the first invalid value and any preceding stores.
+                ReadBoolValues(ref Unsafe.As<ushort, byte>(ref Unsafe.Add(ref source, offset)),
+                    ref Unsafe.As<ushort, bool?>(ref Unsafe.Add(ref target, offset)), Vector128<ushort>.Count);
+                return;
+            }
+
+            pairs.StoreUnsafe(ref target, offset);
+        }
+#endif
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadBoolValues(ref byte source, ref bool? item, int count)

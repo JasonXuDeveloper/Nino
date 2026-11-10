@@ -213,6 +213,31 @@ public class StrictReadTests
     }
 
     [TestMethod]
+    public void LongNullableBoolBlocksKeepNullAndInvalidValueSemantics()
+    {
+        const int count = 1031;
+        const int last = count - 1;
+        var values = Enumerable.Repeat<bool?>(false, count).ToArray();
+        values[last - 1] = null;
+        var wire = NinoSerializer.Serialize(values);
+        var input = new byte[wire.Length + 1];
+        wire.CopyTo(input, 1);
+        input[1 + sizeof(int) + 2 * (last - 1) + 1] = 0xFF;
+
+        var result = Enumerable.Repeat<bool?>(true, count).ToArray();
+        var original = result;
+        NinoDeserializer.Deserialize(input.AsSpan(1), ref result);
+        Assert.AreSame(original, result);
+        CollectionAssert.AreEqual(values, result);
+
+        Array.Fill(result, (bool?)true);
+        input[1 + sizeof(int) + 2 * last + 1] = 2;
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(input.AsSpan(1), ref result));
+        Assert.IsNull(result[last - 1]);
+        Assert.AreEqual((bool?)true, result[last]);
+    }
+
+    [TestMethod]
     public void PresenceBytesOtherThanZeroOrOneAreErrors()
     {
         Assert.AreEqual(7, NinoDeserializer.Deserialize<int?>(Concat(new byte[] { 1 }, Ints(7))));
