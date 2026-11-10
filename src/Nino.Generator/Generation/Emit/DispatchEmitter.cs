@@ -21,8 +21,7 @@ internal static class DispatchEmitter
     /// <summary>Above this many subtypes, writes go through the registry rather than a chain of type checks.</summary>
     private const int MaxWriteChain = 64;
 
-    private const string ServicesAlias = "__NinoCS";
-    private const string CompactServices = ServicesAlias + ".";
+    private const string CompactServices = GeneratedCode.CompilerServicesPrefix;
 
     public static string Emit(EquatableArray<DispatchEntry> entries, bool fileScoped)
     {
@@ -47,7 +46,7 @@ internal static class DispatchEmitter
 
         string services = UseCompactServices(entries, closedOf) ? CompactServices : CoreCompilerServices;
         // Alias qualification bypasses a generic parameter with the same name.
-        string genericServices = services == CompactServices ? ServicesAlias + "::" : services;
+        string genericServices = services == CompactServices ? GeneratedCode.CompilerServicesAlias + "::" : services;
         var w = new CodeWriter(4096);
         int closedCount = 0;
         foreach (var e in entries)
@@ -94,7 +93,7 @@ internal static class DispatchEmitter
         // This file has a few lines per (base, subtype) pair, each repeating the same names.
         var aliases = new List<string>();
         if (services == CompactServices)
-            aliases.Add($"using {ServicesAlias} = {CoreCompilerServices.TrimEnd('.')};");
+            aliases.Add(GeneratedCode.CompilerServicesDeclaration);
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(aliases), body, fileScoped);
     }
