@@ -668,6 +668,18 @@ and when `asm.py compare` lists methods the change did not touch.
   from 298 to 469 IL bytes, 2,484 to 2,916 Arm64 FullOpts bytes and 2,056 to
   2,649 emulated x64 bytes. The inline variant matched all 36 wire cases, and
   both variants passed the changed-key and reference-comparer regressions.
+  An outlined ordered prefix can stop before the first different key, then
+  leave the ordinary merge to read that key. This kept 16- and 512-entry
+  same-order refills at zero allocation, with 512 entries 35–44% faster in
+  four M4 pairs. The 1,024-entry result reversed with warmup: shorter runs at
+  offset one slowed in every pair, while longer runs at both offsets sped up
+  by 40–68%. The default JIT produced distinct OSR bodies (2,168 and 1,112 B).
+  Optimizing from the first call preserved the 1,024-entry gain but slowed
+  16-entry same-order reads at both offsets. Refill and its helper used
+  406 plus 125 IL bytes versus 298, 2,636 plus 1,508 Arm64 FullOpts bytes
+  versus 2,484, and 2,243 plus 1,370 emulated x64 bytes versus 2,056.
+  Both variants matched all 48 wire cases and passed targeted tests.
+  Keep the existing refill until the prefix loop can improve both tiers.
 - Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
   the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
   widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
