@@ -439,6 +439,10 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 
 ## The machine code
 
+- Omit the empty member hook for object-only prefetch formatters when Core exposes the object-only interface.
+  Retain the existing generated contract against older Core versions. This removed 15,136 source bytes across
+  148 of the unit test project's 582 files. The wire output and the activation threshold matched in both
+  compatibility directions. See `optimize`'s prefetch reference for the eliminated loop and timing controls.
 - Emit twin traits from the same model as the main formatter and return `default` directly when a
   twin cannot defer construction. Forward actual construction so pooling and factories stay in one
   body. This saved 8,693 source bytes across 140 files in the real test project. The probe twin's

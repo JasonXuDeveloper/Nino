@@ -5,6 +5,16 @@ per platform), and every attempt measured in .NET, Go and Rust with why it did o
 touching a collection loop's prefetch, `NinoPrefetchLargeCollections`, `PREFETCH_BYTES`, or before trying
 prefetch again anywhere.
 
+- Skip the near run when the formatter prefetches only objects. Even after folding a generated
+  `PrefetchMembers` that returns zero, Arm64 still loaded up to 16 references in that loop.
+  Distinguish object-only formatters at generation time and keep the old interface for legacy
+  output and for actual member prefetch. On the M4 scalar probe, `Ahead` took 7.23–9.08 ns
+  versus 11.59–12.50 ns across four paired runs after tier promotion, at zero steady allocation.
+  Shared IL grew from 103 to 123 B, while object-only FullOpts fell from 216 to 152 B on Arm64
+  and 114 to 68 B on x64 cross-JIT. Whole-array timings varied in both directions across
+  repeated series, and short arrays below the threshold never took this loop. Keep the entrance
+  gate placebo as a separate control (`44302f34`).
+
 - Prefetch member references only through fields or bodyless auto-property getters that cannot dispatch to an
   override. A backing field alone also describes a custom getter using `field`; executing either getter during
   prefetch would add a user-visible access before the formatter reads the member.
