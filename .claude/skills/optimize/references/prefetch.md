@@ -15,6 +15,20 @@ prefetch again anywhere.
   repeated series, and short arrays below the threshold never took this loop. Keep the entrance
   gate placebo as a separate control (`44302f34`).
 
+- Check the wire count before sampling the destination of a prefetched read. Keep the length test on
+  the actual span since the top-level call receives the array by reference. On a long M4 destination
+  with a mismatched count, the helper took 2.55–6.35 ns versus 9.09–21.57 ns at offsets zero and one
+  across four pairs. Array and list IL stayed at 71 and 90 B. The array's Arm64 Tier 1 listing shrank
+  from 720 to 704 B. The x64 cross-JIT printed the unchanged 163 B caller but did not list the helper.
+  Matching round trips and the steady allocation measurements were unchanged (`cc1fc233`).
+- Keep an off control even for long, scattered objects with no member prefetch. After removing the
+  empty near run, M4's default-JIT probe still took longer with prefetch enabled in all four rounds
+  on the offset-zero 299,630-object shuffled graph, for both writes and reuse reads. The sampler
+  accepted the shuffled inputs and rejected the ordered ones. Wire bytes and allocation matched.
+  Arm64 uses demand loads here, so the cost of prefetching cannot be inferred from x64's hint or
+  from the smaller helper listing. Keep this workload separate from short collections that never
+  pass the gate.
+
 - Prefetch member references only through fields or bodyless auto-property getters that cannot dispatch to an
   override. A backing field alone also describes a custom getter using `field`; executing either getter during
   prefetch would add a user-visible access before the formatter reads the member.
