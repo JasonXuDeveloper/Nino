@@ -121,6 +121,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   against about 7.49 µs with separate reads. All three used the same Core DLL,
   stayed at zero steady allocation, and matched all 30 wire comparisons per
   candidate. Keep the per-case reads for small switches.
+  Sharing a no-inline region reader while preserving the key switch also lost.
+  It needed a scoped parent reference to return the child. The Arm64 Tier 1
+  body fell from 1,684 to 1,556 bytes but the helper added 236 bytes. Offline
+  x64 fell from 1,525 to 1,127 + 161 bytes. Generated source grew by 156 bytes
+  and IL by 7 bytes. With the same Core DLL and zero steady allocation,
+  1,000 known reordered entries took 16.95–17.13 µs against 8.77–8.79 µs,
+  and 16 ordered entries slowed even though they bypassed the helper.
+  All 30 wire comparisons passed. Keep the patch as a code-generation experiment.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
