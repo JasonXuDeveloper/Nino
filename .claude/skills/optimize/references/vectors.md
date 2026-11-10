@@ -102,6 +102,17 @@ of bytes in a block.
   and measure the tail separately before attributing a throughput gain. Wire bytes matched at
   offsets 0, 1 and 7, reads allocated 0 B, and the block, versioning, reference, and deferred-body
   checks passed on the tested .NET targets.
+  Keep the original index as the pretested loop condition while advancing both byrefs. This
+  removes the remaining-count subtraction from the SIMD tail entry and still avoids first-iteration
+  cloning on Arm64 scalar Tier 1. Against the indexed-address baseline, IL was 459 versus 484 bytes,
+  Arm64 Tier 1 was 164 versus 136 bytes without SIMD and 232 versus 244 with SIMD, and the x64
+  FullOpts cross listings were 135 versus 106 and 180 versus 191. The 7-element case stayed below
+  the SIMD entry threshold. At 65 and 1,700 elements, extending each timed batch and alternating
+  with a byte-identical control reduced the worst A/A spread from about 42% in the short 65-element
+  batches to 12.2% at 65 and 6.4% at 1,700. The candidate did not show a repeatable throughput
+  gain. Keep the patch for code-generation comparisons. Both sides allocated 0 B per read and
+  produced identical wire bytes at offsets 0, 1 and 7. The candidate passed 22 targeted tests
+  on each of .NET 8 and .NET 10.
 - Count zeroing stores as well as bytes before specializing a padded scalar read. The `BlockWaypoint`
   15-byte wire / 24-byte memory probe used the validated map to narrow its two zero stores from 24
   bytes to 10, including the bool byte overwritten by the formatter. `ReadOne` grew from 37 to 77 IL
