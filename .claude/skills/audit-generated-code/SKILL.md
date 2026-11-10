@@ -439,6 +439,15 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 
 ## The machine code
 
+- Emit the standalone out-of-line read body as the instance method when no inline twin or
+  top-level reader calls its static body. Keep the no-inline boundary. The unit test project
+  saved 50,736 source bytes across 328 of 582 files, with no changes outside the merged
+  forwarders. The string reuse fixture kept its 65-byte body and removed an 8-byte IL
+  forwarder. Arm64 FullOpts kept the body at 2,556 B and moved the caller from 612 to 628 B.
+  In the x64 cross-JIT MinOpts listing the body grew from 233 to 256 B and the caller stayed
+  at 163 B. Unaligned 64-character reuse improved in four paired runs and the A/A/B replay.
+  Adjacent lengths varied. Wire bytes, allocations, 577-model reuse and collection matched.
+  Both Roslyn target suites passed (`709af0ae`).
 - Omit the empty member hook for object-only prefetch formatters when Core exposes the object-only interface.
   Retain the existing generated contract against older Core versions. This removed 15,136 source bytes across
   148 of the unit test project's 582 files. The wire output and the activation threshold matched in both
