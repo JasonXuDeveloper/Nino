@@ -431,6 +431,11 @@ the earlier sort saved only 2–19 KB across the eight method-body edit samples,
 variable whole-project timing. In the tracked replay the sort stage took 2.43 to
 5.00 ms cold and 1.47 to 2.05 ms on the body edit. The 577 files, model reuse and
 collection results matched. Count the structural hash cost before caching sort keys.
+Bound the call-text dictionary's initial reserve to 256 entries. The unit-test project
+had 1,205 keys across 1,965 locations. Isolated emission saved about 83 KB in both load
+orders and the eight body edits saved 77–91 KB, with variable timing. Both Roslyn
+builds emitted identical files, incremental and collection checks passed, and each
+runtime passed 47 targeted tests (`6ed42ab4`).
 Use the existing location and forwarder counts to estimate indentation in the
 large interceptor namespace. This needs no extra scan and saved about 265 KB in both
 isolated load orders. Eight method-body edits saved 256–277 KB with variable timing.
