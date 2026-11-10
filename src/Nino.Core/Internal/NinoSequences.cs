@@ -132,7 +132,7 @@ namespace Nino.Core.Internal
         public static void CopySegments(in ReadOnlySequence<byte> data, Span<byte> destination)
         {
             var position = data.Start;
-            while (data.TryGet(ref position, out var segment))
+            while (position.GetObject() != null && data.TryGet(ref position, out var segment))
             {
                 var span = segment.Span;
                 if (!span.IsEmpty)
@@ -140,8 +140,6 @@ namespace Nino.Core.Internal
                     span.CopyTo(destination);
                     destination = destination.Slice(span.Length);
                 }
-                if (position.GetObject() == null)
-                    break;
             }
 
             // A custom segment's RunningIndex can report more bytes than its links supply.
