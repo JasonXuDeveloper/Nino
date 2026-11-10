@@ -601,11 +601,11 @@ internal sealed class BodyEmitter
                 string keyOffset = block.HeaderOffsets[2 * i];
                 // Writer only accepts little-endian hosts, so the key occupies the low word.
                 if (member.Raw is { IsConstant: true } raw)
-                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<long>(ref {p}, {keyOffset}, {PackKeyHeader(member.Key, raw.Bytes)}L);");
+                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write(ref {p}, {keyOffset}, {PackKeyHeader(member.Key, raw.Bytes)}L);");
                 else
                 {
-                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {keyOffset}, {member.Key});");
-                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {member.Raw!.Expression});");
+                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write(ref {p}, {keyOffset}, {member.Key});");
+                    _w.Line($"{CoreCompilerServices}NinoUnsafe.Write(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {member.Raw!.Expression});");
                 }
             }
 
@@ -656,8 +656,8 @@ internal sealed class BodyEmitter
     {
         string method = RawBlock.IsStruct(member) ? "WriteValue" : "Write";
         return WriteFrom(member) is { } field
-            ? $"{CoreCompilerServices}NinoUnsafe.{method}In<{member.TypeName}>(ref {p}, {offset}, in {field});"
-            : $"{CoreCompilerServices}NinoUnsafe.{method}<{member.TypeName}>(ref {p}, {offset}, {Get(_m, member, "value")});";
+            ? $"{CoreCompilerServices}NinoUnsafe.{method}In(ref {p}, {offset}, in {field});"
+            : $"{CoreCompilerServices}NinoUnsafe.{method}(ref {p}, {offset}, {Get(_m, member, "value")});";
     }
 
     /// <summary>
@@ -706,7 +706,7 @@ internal sealed class BodyEmitter
             string p = run.Count != 0 ? EmitRawBlock(run, block, reserve) : "__p" + _blocks++;
             if (run.Count == 0)
                 _w.Line($"ref byte {p} = ref {reserve};");
-            _w.Line($"{CoreCompilerServices}NinoUnsafe.Write<int>(ref {p}, {block.Total}, {first.Key});");
+            _w.Line($"{CoreCompilerServices}NinoUnsafe.Write(ref {p}, {block.Total}, {first.Key});");
             run = default;
             EmitFormatterWrite(first);
             _w.Line($"writer.{(patchOnly ? "PatchLength" : "EndRegion")}({l});");
