@@ -51,9 +51,11 @@ says which CPUs and cases moved.
 
 - **The JIT** ([references/jit.md](references/jit.md)): keep rare or large paths out of line (`NoInlining`), platform
   branches in the out-of-line part, and decide options at generation time, never as a run-time branch on the default
-  path (the root's budget is sized from its IL); never pass `ref reader` / `ref writer` (or call an out-of-line
-  `Reader`/`Writer` instance method) where it is not inlined; mark every small helper `AggressiveInlining`; add nothing
-  to a method whose inlinee sits at the edge of the budget; write a platform test as `A || B` of branch-free operands at
+  path (the root's budget is sized from its IL); avoid passing `ref reader` / `ref writer` to an out-of-line helper
+  when it would force a register-resident cursor to spill. Check the caller and helper when the cursor is already
+  held by reference, as in the multidimensional heavy read ([vectors.md](references/vectors.md)). Mark every small
+  helper `AggressiveInlining`; add nothing to a method whose inlinee sits at the edge of the budget; write a platform
+  test as `A || B` of branch-free operands at
   each site; fold JIT-time checks into one `static readonly`; keep locals few; a smaller listing is not a faster one;
   fast modulo on x64 only; keep a hot field off other threads' cache lines with a padded struct field; code run once
   per type at startup calls nothing generic over the formatter.

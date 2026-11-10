@@ -279,6 +279,18 @@ of bytes in a block.
   and its timing spread overlapped the A/A spread. Both fixtures matched wire bytes and round
   tripped at offsets 0, 1 and 7. The truncated heavy payload test verifies that the old array
   stays published.
+  When the caller already holds a Reader by reference, keep it by reference across the
+  multidimensional heavy helper boundary. This removed the helper call's copy and write-back.
+  For the reference fixture, 2D caller plus helper went from 936 to 888 Arm64 FullOpts bytes
+  and 830 to 736 offline x64 bytes. Arm64 Tier 0 fell from 1,040 to 976 bytes. The sparse
+  fixture went from 980 to 932 and 1,552 to
+  1,446 respectively. Combined IL fell from 246 to 241 bytes and the three-rank source from
+  7,531 to 7,420 bytes. Allocations and wire bytes matched at offsets 0, 1 and 7, and four
+  default-JIT rounds per case showed timing differences within the A/A spread.
+  Precomputing the sparse initial capacity skipped a second budget calculation but added
+  a branch and argument to the shared growing helper. Its Arm64 helper pair grew from
+  1,108 to 1,152 bytes without a repeatable gain. Passing only the shape by reference saved
+  24 Arm64 bytes across the caller and helper, compared with 48 for passing only the reader.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
