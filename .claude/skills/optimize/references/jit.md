@@ -272,6 +272,13 @@ and when `asm.py compare` lists methods the change did not touch.
   Keep the explicit `TryGet` loop and stop at the last segment. Replacing it with `foreach` made two
   32-byte segments slower on both reads and writes in two local rounds, even though Arm64 machine code shrank
   from 708 to 684 bytes. The JIT already shared the `CopyTo` and `Slice` bounds check.
+  Do not probe array identity and offsets to coalesce two adjacent byte segments on every write.
+  Two 32-byte adjacent segments went from about 24 ns to 27–35 ns in four local rounds.
+  Disjoint short inputs also slowed, and inputs plus output around 64 KiB varied across A/B
+  and A/A. `WriteSegments` grew from 118 to 138 IL bytes, 352 to 432 Arm64 FullOpts bytes
+  and 312 to 369 offline x64 bytes. The probe helper added 169 IL, 1,184 Arm64 and 1,052
+  offline x64 bytes. All six wire cases matched at an unaligned output offset with no
+  steady allocation. Keep the patch for experiments.
   Raising the stack cutoff from 512 to 1,024 bytes avoided the pool round-trip for 516-, 804- and 1,024-byte
   messages in the local probe. Measure both sides of the cutoff and keep the fixed buffer out of inline callers.
   Read a complete built-in byte array directly from two segments after validating the header and actual length.
