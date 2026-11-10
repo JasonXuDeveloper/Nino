@@ -57,6 +57,12 @@ public struct KeyedReadOnlyMemory
 }
 
 [NinoType(format: NinoFormat.Keyed)]
+public struct KeyedArraySegment
+{
+    public ArraySegment<int> Values;
+}
+
+[NinoType(format: NinoFormat.Keyed)]
 public sealed record KeyedRecord(int Id, string Name);
 
 [NinoType(format: NinoFormat.Keyed)]
@@ -214,6 +220,17 @@ public class KeyedMemberTests
 
         CollectionAssert.AreEqual(new[] { 1, 2 }, value.Values.ToArray());
         CollectionAssert.AreEqual(new[] { 3, 4 }, previous);
+    }
+
+    [TestMethod]
+    public void ArraySegmentEntryReadsOnlyItsSlice()
+    {
+        var value = new KeyedArraySegment { Values = new ArraySegment<int>(new[] { 0, 1, 2, 3 }, 1, 2) };
+        var decoded = NinoDeserializer.Deserialize<KeyedArraySegment>(NinoSerializer.Serialize(value));
+        CollectionAssert.AreEqual(new[] { 1, 2 }, decoded.Values.AsSpan().ToArray());
+
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(default(KeyedArraySegment)), ref decoded);
+        Assert.IsNull(decoded.Values.Array);
     }
 
     [TestMethod]
