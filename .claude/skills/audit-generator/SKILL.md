@@ -145,6 +145,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   varied. The traversal moved from 602 to 632 IL bytes, 2,716 to 2,708 Arm64 FullOpts bytes, and
   2,346 to 2,678 emulated x64 FullOpts bytes. The 582 generated files, incremental model reuse,
   and collection checks matched. The candidate was withdrawn.
+  Keep the current original-definition check. Reading `OriginalDefinition` once and adding a
+  reference-equality shortcut moved the traversal from 602 to 607 IL bytes, 2,716 to 2,660 Arm64
+  FullOpts bytes and 2,346 to 2,338 emulated x64 FullOpts bytes. Four isolated M4 pairs split
+  between faster and slower, with equal allocations. Reading once without the shortcut shrank
+  the same listings to 601, 2,652 and 2,329 bytes, but three of four isolated pairs and three
+  of four cold project pairs took longer. Both variants kept the dependency order, all 582 files,
+  all 577 reused models, and the collection checks. Both candidates were withdrawn.
   The local feature lookup went from 280 B per call to zero, with identical real-project output.
 - Skip binding explicit type arguments that name a method's own lexical type parameter from inside its body.
   Keep qualified names, contextual keywords and inferred calls on Roslyn's binding path. The real unit test
