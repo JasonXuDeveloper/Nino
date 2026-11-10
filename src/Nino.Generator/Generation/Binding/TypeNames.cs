@@ -247,10 +247,20 @@ internal static class TypeNames
     public static IReadOnlyList<ITypeSymbol> AllTypeArguments(INamedTypeSymbol type)
     {
         if (type.ContainingType == null)
-            return type.TypeArguments;
-        var result = new List<ITypeSymbol>(AllTypeArguments(type.ContainingType));
-        result.AddRange(type.TypeArguments);
+            return type.Arity == 0 ? Array.Empty<ITypeSymbol>() : type.TypeArguments;
+        var result = new List<ITypeSymbol>();
+        AppendTypeArguments(type, result);
         return result;
+    }
+
+    private static void AppendTypeArguments(INamedTypeSymbol type, List<ITypeSymbol> result)
+    {
+        if (type.ContainingType is { } containing)
+            AppendTypeArguments(containing, result);
+        if (type.Arity == 0)
+            return;
+        foreach (var argument in type.TypeArguments)
+            result.Add(argument);
     }
 
     /// <summary>
@@ -276,13 +286,24 @@ internal static class TypeNames
     }
 
     /// <summary>Whether <paramref name="type"/> is or contains the type parameter <paramref name="p"/>.</summary>
-    public static bool Mentions(ITypeSymbol type, ITypeParameterSymbol p) => type switch
+    public static bool Mentions(ITypeSymbol type, ITypeParameterSymbol p)
     {
-        ITypeParameterSymbol t => SymbolEqualityComparer.Default.Equals(t, p),
-        IArrayTypeSymbol a => Mentions(a.ElementType, p),
-        INamedTypeSymbol n => AllTypeArguments(n).Any(a => Mentions(a, p)),
-        _ => false,
-    };
+        while (type is IArrayTypeSymbol array)
+            type = array.ElementType;
+        if (type is ITypeParameterSymbol parameter)
+            return SymbolEqualityComparer.Default.Equals(parameter, p);
+
+        for (var named = type as INamedTypeSymbol; named != null; named = named.ContainingType)
+        {
+            if (named.Arity == 0)
+                continue;
+            foreach (var argument in named.TypeArguments)
+                if (Mentions(argument, p))
+                    return true;
+        }
+
+        return false;
+    }
 
     private const string GlobalQualifier = "global::";
 
