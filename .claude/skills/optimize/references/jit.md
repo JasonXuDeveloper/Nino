@@ -460,6 +460,15 @@ and when `asm.py compare` lists methods the change did not touch.
   cases allocated 32 instead of 208 B. RemoveStale and its helper used 126
   plus 80 IL bytes versus 84, 972 plus 672 Arm64 FullOpts bytes versus 692,
   and 810 plus 605 emulated x64 bytes versus 560. All 54 wire cases matched.
+  Extend the direct scan to two incoming keys only when the dictionary has at
+  most four entries. Share the eligibility checks with the one-key path, and
+  use the dictionary's comparer for both keys, including equivalent duplicates.
+  A broader scan regressed 16-entry refills. The bounded scan allocated 64
+  instead of 240 B and took less time in 15 of 16 M4 pairs. Single-key timings
+  varied alongside same-binary controls. The stale pass grew from 126 to 158 IL
+  bytes, from 972 to 1,056 Arm64 FullOpts bytes and from 810 to 898 emulated x64
+  bytes. The new two-key helper used 96 IL, 724 Arm64 and 671 x64 bytes. All 54
+  wire cases matched, including offsets 0, 1 and 7 (`55550c16`).
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
