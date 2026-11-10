@@ -156,6 +156,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   After longer warmup, 1,000 reordered items fell from 9.80–10.04 to
   9.35–9.49 µs over four rounds. Ordered results overlapped A/A and allocation
   stayed at 40 B per item. All 30 wire and round-trip probes passed.
+  `ReadOnlySequenceFormatter` over raw elements uses the same array read.
+  The keyed sequence fixture stayed at 40 B per item and added 28 source and
+  21 IL bytes. Arm64 Tier 1 fell from 2,348 to 2,092 bytes and offline x64
+  from 4,012 to 3,557. Four 1,000-item ordered reads went from 8.93–8.98
+  to 8.29–8.74 µs, and reordered reads also improved. All 30 wire and
+  round-trip probes passed.
 - Patch a keyed string member's length without opening a nested writer region.
   The direct UTF-16 and UTF-8 writes cannot defer bodies. Reserve the preceding raw
   members, key and length together as before. The `KeyedStruct` writer gained 19
