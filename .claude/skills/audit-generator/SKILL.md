@@ -583,6 +583,12 @@ load orders and four cold project runs saved about 20–50 KB. Timings varied. T
 and dispatch methods plus comparer went from 515 to 499 IL bytes, 2,956 to 2,320 Arm64
 FullOpts bytes, and 1,279 to 900 x64 cross-JIT bytes. Both Roslyn builds matched all
 577 generated files, kept registry entries cached, and released old project objects.
+Size the local case dictionary during the existing generic-registration preamble
+scan. Count both IDs when a type has a distinct wire name and skip open generics.
+This saved 52,240 B per isolated registry emission and 11–84 KB in four cold runs.
+Timing gains varied with load order. `EmitRegistry` grew from 924 to 970 IL bytes,
+2,924 to 2,928 Arm64 FullOpts bytes, and 1,791 to 1,880 x64 cross-JIT bytes.
+Both Roslyn builds kept all 577 outputs, incremental reuse, and collection.
 Keep the registry preamble writer separate unless its size is known cheaply. The real
 project preamble was about 10 KB and a lease with a 256-character request grew beyond
 the 8,192-character cap, allocating 288 bytes more per isolated emission. Counting the
