@@ -164,7 +164,7 @@ public class RecycleOwnershipTests
     {
         var items = Items(3);
         var target = new List<RcItem>(items);
-        Read(ref target, new List<RcItem> { new RcItem { Id = 9 } });
+        Read(ref target, new List<RcItem> { new() { Id = 9 } });
         Assert.AreSame(items[0], target[0]);
         AssertRecycled(As(items[1]), As(items[2]));
 
@@ -181,7 +181,7 @@ public class RecycleOwnershipTests
         var items = Items(2);
         var target = new HashSet<RcItem>(items);
         var set = target;
-        Read(ref target, new HashSet<RcItem> { new RcItem() });
+        Read(ref target, new HashSet<RcItem> { new() });
         Assert.AreSame(set, target);
         AssertRecycled(As(items[0]), As(items[1]));
 
@@ -274,7 +274,7 @@ public class RecycleOwnershipTests
         var items = Items(3);
         IList<RcItem> target = new List<RcItem>(items);
         var list = target;
-        Read(ref target, new List<RcItem> { new RcItem() });
+        Read(ref target, new List<RcItem> { new() });
         Assert.AreSame(list, target, "a List<T> is reused");
         Assert.AreSame(items[0], target[0]);
         AssertRecycled(As(items[1]), As(items[2]));
@@ -289,7 +289,7 @@ public class RecycleOwnershipTests
     {
         var items = Items(2);
         IList<RcItem> target = items;
-        Read(ref target, new List<RcItem> { new RcItem() });
+        Read(ref target, new List<RcItem> { new() });
         Assert.IsInstanceOfType(target, typeof(List<RcItem>));
         // The array is dropped as a whole (with its elements), as the interface.
         AssertRecycled(As<IList<RcItem>>(items));
@@ -396,7 +396,7 @@ public class RecycleOwnershipTests
 
         Read(ref holder, new RcHolder
         {
-            List = new List<RcItem> { new RcItem { Id = 7 } },
+            List = new List<RcItem> { new() { Id = 7 } },
             Set = new HashSet<RcItem>(),
             Map = null,
             Item = new RcItem(),

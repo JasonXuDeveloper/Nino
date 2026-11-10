@@ -10,7 +10,7 @@ namespace Nino.UnitTests
 {
     internal sealed class RefComparer : IEqualityComparer<object>
     {
-        public static readonly RefComparer Instance = new RefComparer();
+        public static readonly RefComparer Instance = new();
         public new bool Equals(object x, object y) => ReferenceEquals(x, y);
         public int GetHashCode(object obj) => RuntimeHelpers.GetHashCode(obj);
     }
@@ -18,8 +18,8 @@ namespace Nino.UnitTests
     /// <summary>A user-side object pool (like ET's ObjectPool) that detects double returns and use after return.</summary>
     internal static class UserPool
     {
-        private static readonly Dictionary<Type, Stack<object>> Free = new Dictionary<Type, Stack<object>>();
-        private static readonly HashSet<object> InPool = new HashSet<object>(RefComparer.Instance);
+        private static readonly Dictionary<Type, Stack<object>> Free = new();
+        private static readonly HashSet<object> InPool = new(RefComparer.Instance);
         public static int Returns;
 
         public static T Rent<T>() where T : class, new()
@@ -178,7 +178,8 @@ namespace Nino.UnitTests
         }
 
         private static PComp Comp(int hp, params int[] tags) =>
-            new PComp { Hp = hp, Tags = tags == null ? null : new List<int>(tags) };
+            new()
+            { Hp = hp, Tags = tags == null ? null : new List<int>(tags) };
 
         [TestMethod]
         public void NullDataReturnsFactoryRentedListsOnceInNestedGraph()

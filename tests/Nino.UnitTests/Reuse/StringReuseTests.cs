@@ -46,7 +46,7 @@ namespace Nino.UnitTests
     [TestClass]
     public class StringReuseTests
     {
-        private static StringReuseHolder Make(string suffix) => new StringReuseHolder
+        private static StringReuseHolder Make(string suffix) => new()
         {
             Field = "field" + suffix,
             Property = "property" + suffix,
@@ -146,7 +146,7 @@ namespace Nino.UnitTests
                     var chars = new char[length];
                     for (int i = 0; i < length; i++)
                         chars[i] = (char)(ascii || i % 2 == 0 ? 'a' + i % 26 : 0xE0 + i % 32);
-                    string text = new string(chars);
+                    string text = new(chars);
                     var bytes = NinoSerializer.Serialize(new StringReuseKeyed { Name = text });
                     var target = new StringReuseKeyed { Name = new string(chars) };
                     var kept = target.Name;

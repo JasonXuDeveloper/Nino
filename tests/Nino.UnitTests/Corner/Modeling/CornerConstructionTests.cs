@@ -77,7 +77,7 @@ namespace Nino.UnitTests
     [NinoType(format: NinoFormat.VersionTolerant)]
     public class EtStyle
     {
-        public static readonly Stack<EtStyle> Pool = new Stack<EtStyle>();
+        public static readonly Stack<EtStyle> Pool = new();
         public static int Created;
 
         public bool IsFromPool;
@@ -118,7 +118,7 @@ namespace Nino.UnitTests
         public int A;
 
         [NinoFactory]
-        public static FactoryBase Create() => new FactoryBase { A = -1 };
+        public static FactoryBase Create() => new() { A = -1 };
     }
 
     [NinoType(format: NinoFormat.VersionTolerant)]
@@ -168,7 +168,7 @@ namespace Nino.UnitTests
             return new FactoryOnly { Items = new List<int>() };
         }
 
-        public static FactoryOnly Of(int x, params int[] items) => new FactoryOnly { X = x, Items = new List<int>(items) };
+        public static FactoryOnly Of(int x, params int[] items) => new() { X = x, Items = new List<int>(items) };
     }
 
     [NinoType(format: NinoFormat.VersionTolerant)]
@@ -272,7 +272,7 @@ namespace Nino.UnitTests
             Assert.AreEqual("dn", poly.Note);
             Assert.AreEqual("dt", poly.Tag);
 
-            RecordWithBody slot = new RecordWithBody(1);
+            RecordWithBody slot = new(1);
             Rt.Into<RecordWithBody>(derived, ref slot);
             Assert.IsInstanceOfType(slot, typeof(DerivedRecord));
             Assert.AreEqual("m", ((DerivedRecord)slot).More);

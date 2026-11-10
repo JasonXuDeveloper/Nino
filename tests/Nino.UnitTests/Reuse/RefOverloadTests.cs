@@ -14,11 +14,11 @@ public class RefOverloadTests
     [TestMethod]
     public void TestRefOverload()
     {
-        List<int> list = new List<int> { 1, 2, 3, 4, 5 };
+        List<int> list = new() { 1, 2, 3, 4, 5 };
         byte[] bytes = NinoSerializer.Serialize(list);
         Assert.IsNotNull(bytes);
 
-        List<int> temp = new List<int> { 0, 0 };
+        List<int> temp = new() { 0, 0 };
         NinoDeserializer.Deserialize(bytes, ref temp);
         Assert.AreEqual(5, temp.Count);
         Assert.AreEqual(1, temp[0]);
@@ -27,23 +27,23 @@ public class RefOverloadTests
         Assert.AreEqual(4, temp[3]);
         Assert.AreEqual(5, temp[4]);
 
-        List<string> strs = new List<string> { "Hello", "World" };
+        List<string> strs = new() { "Hello", "World" };
         bytes = NinoSerializer.Serialize(strs);
         Assert.IsNotNull(bytes);
 
-        List<string> tempStrs = new List<string> { "Test", "Test2", "Test3" };
+        List<string> tempStrs = new() { "Test", "Test2", "Test3" };
         NinoDeserializer.Deserialize(bytes, ref tempStrs);
         Assert.AreEqual(2, tempStrs.Count);
         Assert.AreEqual("Hello", tempStrs[0]);
         Assert.AreEqual("World", tempStrs[1]);
 
-        HierarchicalSub2 sub2 = new HierarchicalSub2
+        HierarchicalSub2 sub2 = new()
         {
             F = new List<int>() { 1, 2, 3 }
         };
         bytes = NinoSerializer.Serialize(sub2);
         Assert.IsNotNull(bytes);
-        HierarchicalSub2 tempSub2 = new HierarchicalSub2();
+        HierarchicalSub2 tempSub2 = new();
         NinoDeserializer.Deserialize(bytes, ref tempSub2);
         Assert.IsNotNull(tempSub2.F);
         Assert.AreEqual(3, tempSub2.F.Count);
@@ -51,7 +51,7 @@ public class RefOverloadTests
         Assert.AreEqual(2, tempSub2.F[1]);
         Assert.AreEqual(3, tempSub2.F[2]);
 
-        TestClass3 testClass3 = new TestClass3
+        TestClass3 testClass3 = new()
         {
             A = 1,
             B = "Test",
@@ -64,7 +64,7 @@ public class RefOverloadTests
         Assert.IsNotNull(bytes);
         Console.WriteLine(string.Join(", ", bytes));
 
-        TestClass3 tempTestClass3 = new TestClass3();
+        TestClass3 tempTestClass3 = new();
         NinoDeserializer.Deserialize(bytes, ref tempTestClass3);
         Assert.AreEqual(testClass3.A, tempTestClass3.A);
         Assert.AreEqual(testClass3.B, tempTestClass3.B);
@@ -115,9 +115,9 @@ public class RefOverloadTests
         // Test Array ref overload preserves object identity
         var originalArray = new TestClass[]
         {
-            new TestClass { A = 1, B = "first" },
-            new TestClass { A = 2, B = "second" },
-            new TestClass { A = 3, B = "third" }
+            new() { A = 1, B = "first" },
+            new() { A = 2, B = "second" },
+            new() { A = 3, B = "third" }
         };
 
         // Store references to verify identity preservation
@@ -173,11 +173,11 @@ public class RefOverloadTests
         // Test Array ref overload preserves object identity when shrinking array
         var originalArray = new TestClass[]
         {
-            new TestClass { A = 1, B = "first" },
-            new TestClass { A = 2, B = "second" },
-            new TestClass { A = 3, B = "third" },
-            new TestClass { A = 4, B = "fourth" },
-            new TestClass { A = 5, B = "fifth" }
+            new() { A = 1, B = "first" },
+            new() { A = 2, B = "second" },
+            new() { A = 3, B = "third" },
+            new() { A = 4, B = "fourth" },
+            new() { A = 5, B = "fifth" }
         };
 
         // Store references to the first 3 elements (which will remain after shrinking)
@@ -191,9 +191,9 @@ public class RefOverloadTests
         // Create a smaller array to serialize (only first 3 elements)
         var smallerArray = new TestClass[]
         {
-            new TestClass { A = 10, B = "updated_first" },
-            new TestClass { A = 20, B = "updated_second" },
-            new TestClass { A = 30, B = "updated_third" }
+            new() { A = 10, B = "updated_first" },
+            new() { A = 20, B = "updated_second" },
+            new() { A = 30, B = "updated_third" }
         };
 
         // Serialize the smaller array
@@ -305,10 +305,10 @@ public class RefOverloadTests
     public void TestNewCollectionTypesRefOverload()
     {
         // Test ref overload for SortedSet
-        SortedSet<int> sortedSet = new SortedSet<int> { 1, 2, 3 };
+        SortedSet<int> sortedSet = new() { 1, 2, 3 };
         byte[] bytes = NinoSerializer.Serialize(sortedSet);
 
-        SortedSet<int> existingSortedSet = new SortedSet<int> { 10, 20 };
+        SortedSet<int> existingSortedSet = new() { 10, 20 };
         NinoDeserializer.Deserialize(bytes, ref existingSortedSet);
         Assert.AreEqual(3, existingSortedSet.Count);
         Assert.IsTrue(existingSortedSet.Contains(1));
@@ -316,12 +316,12 @@ public class RefOverloadTests
 
 #if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
         // Test ref overload for PriorityQueue
-        PriorityQueue<string, int> priorityQueue = new PriorityQueue<string, int>();
+        PriorityQueue<string, int> priorityQueue = new();
         priorityQueue.Enqueue("first", 1);
         priorityQueue.Enqueue("second", 2);
         bytes = NinoSerializer.Serialize(priorityQueue);
 
-        PriorityQueue<string, int> existingPriorityQueue = new PriorityQueue<string, int>();
+        PriorityQueue<string, int> existingPriorityQueue = new();
         existingPriorityQueue.Enqueue("old", 99);
         NinoDeserializer.Deserialize(bytes, ref existingPriorityQueue);
         Assert.AreEqual(2, existingPriorityQueue.Count);
@@ -329,14 +329,14 @@ public class RefOverloadTests
 #endif
 
         // Test ref overload for SortedDictionary
-        SortedDictionary<int, string> sortedDict = new SortedDictionary<int, string>
+        SortedDictionary<int, string> sortedDict = new()
         {
             { 1, "one" },
             { 2, "two" }
         };
         bytes = NinoSerializer.Serialize(sortedDict);
 
-        SortedDictionary<int, string> existingSortedDict = new SortedDictionary<int, string>
+        SortedDictionary<int, string> existingSortedDict = new()
         {
             { 99, "old" }
         };
@@ -368,13 +368,13 @@ public class RefOverloadTests
         Assert.AreEqual("a", existingImmutableList[0]);
 
         // Test ref overload for ReadOnlyDictionary (should create new)
-        Dictionary<string, int> innerDict = new Dictionary<string, int> { { "one", 1 } };
+        Dictionary<string, int> innerDict = new() { { "one", 1 } };
         System.Collections.ObjectModel.ReadOnlyDictionary<string, int> readOnlyDict =
-            new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(innerDict);
+            new(innerDict);
         bytes = NinoSerializer.Serialize(readOnlyDict);
 
         System.Collections.ObjectModel.ReadOnlyDictionary<string, int> existingReadOnlyDict =
-            new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(new Dictionary<string, int>
+            new(new Dictionary<string, int>
                 { { "old", 99 } });
         NinoDeserializer.Deserialize(bytes, ref existingReadOnlyDict);
         Assert.AreEqual(1, existingReadOnlyDict.Count);
@@ -389,9 +389,9 @@ public class RefOverloadTests
         // Test that List<T> ref overload preserves object identity (optimized path)
         var originalList = new List<TestClass>
         {
-            new TestClass { A = 1, B = "first" },
-            new TestClass { A = 2, B = "second" },
-            new TestClass { A = 3, B = "third" }
+            new() { A = 1, B = "first" },
+            new() { A = 2, B = "second" },
+            new() { A = 3, B = "third" }
         };
 
         // Store references to verify identity preservation
@@ -437,11 +437,11 @@ public class RefOverloadTests
         // Test the three-phase optimization: shrink then grow
         var originalList = new List<TestClass>
         {
-            new TestClass { A = 1, B = "first" },
-            new TestClass { A = 2, B = "second" },
-            new TestClass { A = 3, B = "third" },
-            new TestClass { A = 4, B = "fourth" },
-            new TestClass { A = 5, B = "fifth" }
+            new() { A = 1, B = "first" },
+            new() { A = 2, B = "second" },
+            new() { A = 3, B = "third" },
+            new() { A = 4, B = "fourth" },
+            new() { A = 5, B = "fifth" }
         };
 
         // Store references to first 3 elements
@@ -452,9 +452,9 @@ public class RefOverloadTests
         // Phase 1: Shrink to 3 elements
         var smallerList = new List<TestClass>
         {
-            new TestClass { A = 10, B = "updated_first" },
-            new TestClass { A = 20, B = "updated_second" },
-            new TestClass { A = 30, B = "updated_third" }
+            new() { A = 10, B = "updated_first" },
+            new() { A = 20, B = "updated_second" },
+            new() { A = 30, B = "updated_third" }
         };
 
         var bytes = NinoSerializer.Serialize(smallerList);
@@ -472,12 +472,12 @@ public class RefOverloadTests
         // Phase 2: Grow to 6 elements
         var largerList = new List<TestClass>
         {
-            new TestClass { A = 100, B = "grow_first" },
-            new TestClass { A = 200, B = "grow_second" },
-            new TestClass { A = 300, B = "grow_third" },
-            new TestClass { A = 400, B = "grow_fourth" },
-            new TestClass { A = 500, B = "grow_fifth" },
-            new TestClass { A = 600, B = "grow_sixth" }
+            new() { A = 100, B = "grow_first" },
+            new() { A = 200, B = "grow_second" },
+            new() { A = 300, B = "grow_third" },
+            new() { A = 400, B = "grow_fourth" },
+            new() { A = 500, B = "grow_fifth" },
+            new() { A = 600, B = "grow_sixth" }
         };
 
         bytes = NinoSerializer.Serialize(largerList);

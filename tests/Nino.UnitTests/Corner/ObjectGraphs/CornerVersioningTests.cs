@@ -164,11 +164,11 @@ namespace Nino.UnitTests
         private static TTo Convert<TFrom, TTo>(TFrom value) =>
             NinoDeserializer.Deserialize<TTo>(NinoSerializer.Serialize(value));
 
-        private static VerOuterV1 OuterV1() => new VerOuterV1
+        private static VerOuterV1 OuterV1() => new()
         {
             A = 1,
             Mid = new VerMidV1 { M = 2, Leaf = new VerLeafV1 { L = "leaf" } },
-            Mids = new List<VerMidV1> { new VerMidV1 { M = 3 }, null, new VerMidV1 { M = 4, Leaf = new VerLeafV1 { L = "x" } } },
+            Mids = new List<VerMidV1> { new() { M = 3 }, null, new() { M = 4, Leaf = new VerLeafV1 { L = "x" } } },
             Tail = "tail",
         };
 
@@ -217,7 +217,7 @@ namespace Nino.UnitTests
             {
                 A = 1,
                 Mid = new VerMidV2 { M = 2, AddedMid = 5, Leaf = new VerLeafV2 { L = "l", AddedLeaf = 1.5, AddedArray = new[] { 1, 2 } } },
-                Mids = new List<VerMidV2> { new VerMidV2 { M = 3, AddedMid = 9 } },
+                Mids = new List<VerMidV2> { new() { M = 3, AddedMid = 9 } },
                 Tail = "tail", AddedOuter = "new", AddedOuterList = new List<int> { 1, 2, 3 },
             };
             var v1 = Convert<VerOuterV2, VerOuterV1>(v2);
@@ -320,7 +320,7 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(weak, tolerant);
 
             // A non-tolerant type of another assembly nested in a tolerant one of this one.
-            var holder = Rt.RoundTrip(new List<PlainSealed> { new PlainSealed { A = 3, B = null } });
+            var holder = Rt.RoundTrip(new List<PlainSealed> { new() { A = 3, B = null } });
             Assert.AreEqual(3, holder[0].A);
             Assert.IsNull(holder[0].B);
         }

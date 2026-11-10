@@ -295,13 +295,13 @@ namespace Nino.UnitTests
                 public static bool operator !=(Point left, Point right) => !(left == right);
 
                 public static Point Add(Point pt, System.Drawing.Size sz) =>
-                    new Point(unchecked(pt.X + sz.Width), unchecked(pt.Y + sz.Height));
+                    new(unchecked(pt.X + sz.Width), unchecked(pt.Y + sz.Height));
 
                 /// <summary>
                 /// Translates a <see cref='Shared.Data.Point'/> by the negative of a given <see cref='Shared.Data.Size'/> .
                 /// </summary>
                 public static Point Subtract(Point pt, System.Drawing.Size sz) =>
-                    new Point(unchecked(pt.X - sz.Width), unchecked(pt.Y - sz.Height));
+                    new(unchecked(pt.X - sz.Width), unchecked(pt.Y - sz.Height));
 
                 public override bool Equals([NotNullWhen(true)] object obj)
                 {
@@ -368,7 +368,7 @@ namespace Nino.UnitTests
 
                 /// <summary>
                 /// </summary>
-                public static readonly Point Empty = new Point(0, 0);
+                public static readonly Point Empty = new(0, 0);
             }
 
 
@@ -480,7 +480,7 @@ namespace Nino.UnitTests
             [Timeout(10000)]
             public void Issue145_GenericSubtypeBuiltByConstructor()
             {
-                TestB<float> testB = new TestB<float>(123.4f);
+                TestB<float> testB = new(123.4f);
                 var bytes = NinoSerializer.Serialize(testB);
                 TestB<float> testB2 = NinoDeserializer.Deserialize<TestB<float>>(bytes);
                 Assert.AreEqual(testB.GetType(), testB2.GetType());
@@ -496,7 +496,7 @@ namespace Nino.UnitTests
             [NinoType(format: NinoFormat.VersionTolerant)]
             public class MyTest
             {
-                public List<int> List = new List<int>();
+                public List<int> List = new();
             }
 
             [TestMethod]
@@ -707,7 +707,7 @@ namespace Nino.UnitTests
             [NinoType(format: NinoFormat.VersionTolerant)]
             public class TestClass<T>
             {
-                public Dictionary<TestEnum, T> Dict = new Dictionary<TestEnum, T>();
+                public Dictionary<TestEnum, T> Dict = new();
             }
 
             public enum TestEnum
@@ -786,7 +786,7 @@ namespace Nino.UnitTests
             [Timeout(10000)]
             public void Issue137_SortedDictionarySubclassOfLists()
             {
-                MultiMap<long, long> TimeId = new MultiMap<long, long>();
+                MultiMap<long, long> TimeId = new();
                 TimeId[1].Add(1);
                 TimeId[1].Add(2);
                 TimeId[2].Add(3);
@@ -802,7 +802,7 @@ namespace Nino.UnitTests
                 Assert.AreEqual(TimeId[1][1], TimeId2[1][1]);
                 Assert.AreEqual(TimeId[2][0], TimeId2[2][0]);
 
-                MultiMap<long, string> dict = new MultiMap<long, string>();
+                MultiMap<long, string> dict = new();
                 dict[1].Add("1");
                 dict[1].Add("2");
                 dict[2].Add("3");
@@ -917,7 +917,7 @@ namespace Nino.UnitTests
                 Impl impl2 = NinoDeserializer.Deserialize<Impl>(bytes);
                 Assert.AreEqual(impl.A, impl2.A);
 
-                Dictionary<string, IBase> dict = new Dictionary<string, IBase>
+                Dictionary<string, IBase> dict = new()
                 {
                     { "A", new Impl { A = 10 } }
                 };
@@ -962,7 +962,7 @@ namespace Nino.UnitTests
             [Timeout(10000)]
             public void NinoTypesDerivedFromAPlainClass()
             {
-                MyPackPerson person = new MyPackPerson
+                MyPackPerson person = new()
                 {
                     P1 = 1,
                     P2 = "Hello",
@@ -1009,12 +1009,16 @@ namespace Nino.UnitTests
             [Timeout(10000)]
             public void UnmarkedMemberSkippedWithoutAutoCollect()
             {
-                Data data = new Data();
-                data.A = 10;
-                data.B = 20;
-                data.CompA = new CompA();
-                data.CompA.Aa = 30;
-                data.CompA.Ba = 40;
+                Data data = new()
+                {
+                    A = 10,
+                    B = 20,
+                    CompA = new CompA
+                    {
+                        Aa = 30,
+                        Ba = 40
+                    }
+                };
 
                 var bufForData = NinoSerializer.Serialize(data);
                 Data data2 = NinoDeserializer.Deserialize<Data>(bufForData);
@@ -1162,7 +1166,7 @@ namespace Nino.UnitTests
             [Timeout(10000)]
             public void Issue32_ByteEnumAndFloatMembers()
             {
-                MessagePackage package = new MessagePackage
+                MessagePackage package = new()
                 {
                     agreement = AgreementType.Move,
                     move = new Move(1, 2, 3, 4, 5, 6, 7)

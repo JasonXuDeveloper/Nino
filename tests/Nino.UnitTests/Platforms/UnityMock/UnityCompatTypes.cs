@@ -21,7 +21,7 @@ namespace Nino.UnitTests.UnityMock
             this.z = z;
         }
         
-        public static Vector3 one => new Vector3(1, 1, 1);
+        public static Vector3 one => new(1, 1, 1);
         
         public override string ToString() => $"({x:F2}, {y:F2}, {z:F2})";
     }
@@ -55,7 +55,7 @@ namespace Nino.UnitTests.UnityMock
         public float m20, m21, m22, m23;
         public float m30, m31, m32, m33;
         
-        public static Matrix4x4 identity => new Matrix4x4
+        public static Matrix4x4 identity => new()
         {
             m00 = 1, m01 = 0, m02 = 0, m03 = 0,
             m10 = 0, m11 = 1, m12 = 0, m13 = 0,

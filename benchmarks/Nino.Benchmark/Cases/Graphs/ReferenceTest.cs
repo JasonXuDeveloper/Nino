@@ -46,8 +46,12 @@ public sealed partial class RefGraph
     public static RefGraph Create(int count)
     {
         var r = new Random(3);
-        var graph = new RefGraph { Version = 1, Nodes = new List<RefNode>(count) };
-        graph.Tags = Enumerable.Range(0, 16).Select(i => new RefTag { Id = i, Name = "tag" + i }).ToList();
+        var graph = new RefGraph
+        {
+            Version = 1,
+            Nodes = new List<RefNode>(count),
+            Tags = Enumerable.Range(0, 16).Select(i => new RefTag { Id = i, Name = "tag" + i }).ToList()
+        };
         for (int i = 0; i < count; i++)
         {
             graph.Nodes.Add(new RefNode

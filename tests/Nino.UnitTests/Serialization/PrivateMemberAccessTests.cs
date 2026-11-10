@@ -40,7 +40,7 @@ public class PrivateMemberAccessTests
     [TestMethod]
     public void TestPrivateAccess()
     {
-        ProtectedShouldInclude protectedShouldInclude = new ProtectedShouldInclude()
+        ProtectedShouldInclude protectedShouldInclude = new()
         {
             Id = 991122
         };
@@ -49,7 +49,7 @@ public class PrivateMemberAccessTests
             NinoDeserializer.Deserialize<ProtectedShouldInclude>(bytes);
         Assert.AreEqual(protectedShouldInclude.Id, protectedShouldInclude2.Id);
 
-        ShouldIgnorePrivate data = new ShouldIgnorePrivate
+        ShouldIgnorePrivate data = new()
         {
             Id = 1,
             Name = "Test",
@@ -61,15 +61,17 @@ public class PrivateMemberAccessTests
         Assert.AreEqual(data.Name, shouldIgnorePrivate.Name);
         Assert.AreEqual(data.CreateTime, shouldIgnorePrivate.CreateTime);
 
-        TestPrivateMemberClass pcls = new TestPrivateMemberClass();
-        pcls.A = 1;
+        TestPrivateMemberClass pcls = new()
+        {
+            A = 1
+        };
 
         bytes = NinoSerializer.Serialize(pcls);
         TestPrivateMemberClass pcls2 = NinoDeserializer.Deserialize<TestPrivateMemberClass>(bytes);
         Assert.AreEqual(pcls.A, pcls2.A);
         Assert.AreEqual(pcls.ReadonlyId, pcls2.ReadonlyId);
 
-        RecordWithPrivateMember record = new RecordWithPrivateMember("Test");
+        RecordWithPrivateMember record = new("Test");
         Assert.IsNotNull(record.Name);
         Assert.AreEqual("Test", record.Name);
 
@@ -78,7 +80,7 @@ public class PrivateMemberAccessTests
         Assert.AreEqual(record.Name, r1.Name);
         Assert.AreEqual(record.ReadonlyId, r1.ReadonlyId);
 
-        RecordWithPrivateMember2 record2 = new RecordWithPrivateMember2("Test");
+        RecordWithPrivateMember2 record2 = new("Test");
         Assert.IsNotNull(record2.Name);
         Assert.AreEqual("Test", record2.Name);
 
@@ -87,7 +89,7 @@ public class PrivateMemberAccessTests
         Assert.AreEqual(record2.Name, r2.Name);
         Assert.AreEqual(record2.ReadonlyId, r2.ReadonlyId);
 
-        StructWithPrivateMember s = new StructWithPrivateMember
+        StructWithPrivateMember s = new()
         {
             Id = 1,
         };
@@ -99,13 +101,15 @@ public class PrivateMemberAccessTests
         Assert.AreEqual(s.Id, s2.Id);
         Assert.AreEqual(s.GetName(), s2.GetName());
 
-        ClassWithPrivateMember<float> cls = new ClassWithPrivateMember<float>();
-        cls.Flag = true;
-        cls.List = new List<float>
+        ClassWithPrivateMember<float> cls = new()
         {
-            1.1f,
-            2.2f,
-            3.3f
+            Flag = true,
+            List = new List<float>
+            {
+                1.1f,
+                2.2f,
+                3.3f
+            }
         };
         Assert.IsNotNull(cls.Name);
 
@@ -123,13 +127,15 @@ public class PrivateMemberAccessTests
             Assert.AreEqual(cls.List[i], result.List[i]);
         }
 
-        ClassWithPrivateMember<int> cls2 = new ClassWithPrivateMember<int>();
-        cls2.Flag = false;
-        cls2.List = new List<int>
+        ClassWithPrivateMember<int> cls2 = new()
         {
-            3,
-            2,
-            1
+            Flag = false,
+            List = new List<int>
+            {
+                3,
+                2,
+                1
+            }
         };
         Assert.IsNotNull(cls2.Name);
 
@@ -144,7 +150,7 @@ public class PrivateMemberAccessTests
             Assert.AreEqual(cls2.List[i], result2.List[i]);
         }
 
-        Bindable<int> bindable = new Bindable<int>(1);
+        Bindable<int> bindable = new(1);
         bytes = NinoSerializer.Serialize(bindable);
         Bindable<int> bindable2 = NinoDeserializer.Deserialize<Bindable<int>>(bytes);
         Assert.AreEqual(bindable.Value, bindable2.Value);

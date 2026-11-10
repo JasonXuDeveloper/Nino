@@ -64,7 +64,7 @@ namespace Nino.Codegen.Tests
         [TestMethod]
         public void LongKeysAreComparedBeyondTheirDisplayPrefix()
         {
-            string prefix = new string('x', 300);
+            string prefix = new('x', 300);
             string first = prefix + "a", second = prefix + "b";
             const string setType = "System.Collections.Generic.HashSet<System.String>";
             const string mapType = "System.Collections.Generic.Dictionary<System.String,System.Int32>";

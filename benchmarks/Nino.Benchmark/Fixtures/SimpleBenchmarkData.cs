@@ -17,10 +17,10 @@ namespace Nino.Benchmark;
 /// </summary>
 internal static class BenchmarkRandom
 {
-    public static readonly Random Shared = new Random(20240607);
+    public static readonly Random Shared = new(20240607);
 
     // Local, as BenchmarkRandom.Now was: MessagePack converts local times to UTC when it writes them.
-    public static readonly DateTime Now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Local);
+    public static readonly DateTime Now = new(2025, 1, 1, 12, 0, 0, DateTimeKind.Local);
 
     public static Guid NewGuid()
     {

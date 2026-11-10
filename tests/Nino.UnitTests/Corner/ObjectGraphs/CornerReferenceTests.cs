@@ -236,7 +236,7 @@ namespace Nino.UnitTests
             var bytes = NinoSerializer.Serialize(source);
 
             var existingOther = new RefNode();
-            var existingChildren = new List<RefNode> { new RefNode(), new RefNode(), new RefNode() };
+            var existingChildren = new List<RefNode> { new(), new(), new() };
             var target = new RefNode { Other = existingOther, Children = existingChildren };
             var before = target;
             NinoDeserializer.Deserialize(bytes, ref target);

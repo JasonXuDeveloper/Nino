@@ -14,14 +14,14 @@ namespace Nino.UnitTests;
 [TestClass]
 public class FixedSizeTests
 {
-    private static FixedIgnored Ignored() => new FixedIgnored { A = -5, Skipped = 99, B = 0x0102030405060708, C = true };
+    private static FixedIgnored Ignored() => new() { A = -5, Skipped = 99, B = 0x0102030405060708, C = true };
 
-    private static FixedNested Nested() => new FixedNested
+    private static FixedNested Nested() => new()
     {
         Tag = 7, G = new Guid("0f8fad5b-d9cb-469f-a165-70867728950e"), S = -2, Inner = Ignored()
     };
 
-    private static FixedSealed Sealed() => new FixedSealed
+    private static FixedSealed Sealed() => new()
     {
         Id = 42, Nested = Nested(), D = 1.25, T = new DateTime(2024, 5, 6, 7, 8, 9, DateTimeKind.Utc)
     };

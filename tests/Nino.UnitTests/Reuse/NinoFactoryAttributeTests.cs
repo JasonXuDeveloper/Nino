@@ -203,7 +203,7 @@ public class NinoFactoryAttributeTests
         byte[] bytes = NinoSerializer.Serialize(original);
 
         // Create an existing instance (not from pool)
-        PooledClass result = new PooledClass { WasPooled = false };
+        PooledClass result = new() { WasPooled = false };
 
         // Act
         NinoDeserializer.Deserialize(bytes, ref result);
@@ -327,7 +327,7 @@ public class NinoFactoryAttributeTests
         Assert.IsTrue(refResult.FromPool, "Factory method should have been called for null ref");
 
         // Test reuse deserialization with existing instance
-        GenericPooledClass<string> existingResult = new GenericPooledClass<string> { FromPool = false };
+        GenericPooledClass<string> existingResult = new() { FromPool = false };
         NinoDeserializer.Deserialize(bytes, ref existingResult);
 
         Assert.IsNotNull(existingResult);
@@ -519,8 +519,7 @@ public class NinoFactoryAttributeTests
         {
             PolymorphicArray = new BasePooledClass[]
             {
-                new BasePooledClass
-                {
+                new() {
                     BaseValue = 10,
                     BaseName = "Base1",
                     BaseIntArray = new[] { 1, 2 },
@@ -609,8 +608,7 @@ public class NinoFactoryAttributeTests
         {
             PolymorphicList = new List<BasePooledClass>
             {
-                new BasePooledClass
-                {
+                new() {
                     BaseValue = 15,
                     BaseName = "Base2",
                     BaseIntArray = new[] { 13, 14 },
@@ -726,7 +724,7 @@ public class NinoFactoryAttributeTests
         byte[] bytes = NinoSerializer.Serialize(original);
 
         // Create existing instance (not from pool)
-        DerivedPooledClass result = new DerivedPooledClass
+        DerivedPooledClass result = new()
         {
             FromBasePool = false,
             FromDerivedPool = false

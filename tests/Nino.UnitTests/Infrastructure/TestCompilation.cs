@@ -18,14 +18,14 @@ namespace Nino.UnitTests;
 /// </summary>
 internal static class TestCompilation
 {
-    public static readonly CSharpParseOptions Parse = new CSharpParseOptions(LanguageVersion.Latest);
+    public static readonly CSharpParseOptions Parse = new(LanguageVersion.Latest);
 
     /// <summary><see cref="Parse"/> with <paramref name="preprocessorSymbols"/> defined (none: <see cref="Parse"/>).</summary>
     public static CSharpParseOptions ParseWith(IEnumerable<string> preprocessorSymbols) =>
         preprocessorSymbols == null ? Parse : Parse.WithPreprocessorSymbols(preprocessorSymbols);
 
     // Created once: a MetadataReference is immutable, and reading every platform assembly per test is slow.
-    private static readonly Lazy<MetadataReference[]> Platform = new Lazy<MetadataReference[]>(() =>
+    private static readonly Lazy<MetadataReference[]> Platform = new(() =>
         ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
         .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p))
         .Append(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location))

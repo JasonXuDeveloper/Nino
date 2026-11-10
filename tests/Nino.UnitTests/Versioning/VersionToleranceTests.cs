@@ -12,7 +12,7 @@ public class VersionToleranceTests
     [TestMethod]
     public void TestDeserializeOldData()
     {
-        SaveData data = new SaveData
+        SaveData data = new()
         {
             Id = 1,
             Name = "Test",
@@ -50,7 +50,7 @@ public class VersionToleranceTests
     public void TestModifyListMemberDataStructure2()
     {
         // same data as above
-        List<IListElementClass> list = new List<IListElementClass>
+        List<IListElementClass> list = new()
         {
             new ListElementClass
             {

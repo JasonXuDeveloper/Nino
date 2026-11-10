@@ -73,7 +73,7 @@ namespace Nino.Fuzz
             SelfTest.All.Concat(All).FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase))
             ?? throw new ArgumentException($"unknown target '{name}'; targets: {string.Join(", ", All.Select(t => t.Name))}");
 
-        static Target Make<T>(string name, string covers, params Func<T>[] samples) where T : class => new Target
+        static Target Make<T>(string name, string covers, params Func<T>[] samples) where T : class => new()
         {
             Name = name,
             Covers = covers,
@@ -111,7 +111,7 @@ namespace Nino.Fuzz
             return target;
         }
 
-        static Target Golden() => new Target
+        static Target Golden() => new()
         {
             Name = "Golden",
             Covers = "the pinned bytes of the unit tests' GoldenBytesTests (version-tolerant types)",

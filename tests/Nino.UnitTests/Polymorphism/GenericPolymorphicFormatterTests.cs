@@ -338,12 +338,12 @@ namespace Nino.UnitTests.GenericPolymorphism
             Assert.AreEqual(14, ((OpenArgBChild)openArgs[2]).C);
             Assert.AreEqual(13, ((OpenArgB)openArgs[2]).B);
 
-            var nodes = RoundTrip(new List<Node<int>> { new Node<int> { Value = 1 }, new IntNode { Value = 2, N = 3 }, null });
+            var nodes = RoundTrip(new List<Node<int>> { new() { Value = 1 }, new IntNode { Value = 2, N = 3 }, null });
             Assert.AreEqual(1, nodes[0].Value);
             Assert.AreEqual(3, ((IntNode)nodes[1]).N);
             var openNodes = RoundTrip(new List<Node<OpenArg>>
             {
-                new Node<OpenArg> { Value = new OpenArgChild { C = 4 } }, new OpenArgNode { N = 5 }
+                new() { Value = new OpenArgChild { C = 4 } }, new OpenArgNode { N = 5 }
             });
             Assert.AreEqual(4, ((OpenArgChild)openNodes[0].Value).C);
             Assert.AreEqual(5, ((OpenArgNode)openNodes[1]).N);
@@ -375,7 +375,7 @@ namespace Nino.UnitTests.GenericPolymorphism
             Assert.AreEqual(17, ((OpenTupleArgChild)openTuple[1]).C);
 
             // Closed instances with no subtypes here go through the registry.
-            RoundTrip(new List<Node<string>> { new Node<string> { Value = "s" }, null });
+            RoundTrip(new List<Node<string>> { new() { Value = "s" }, null });
             RoundTrip(new List<ArgBox<long>> { null });
         }
 

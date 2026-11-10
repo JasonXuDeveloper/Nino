@@ -16,7 +16,7 @@ public static class BclFixtures
         return bytes;
     }
 
-    public static readonly Dictionary<string, string> Bytes = new Dictionary<string, string>
+    public static readonly Dictionary<string, string> Bytes = new()
     {
         ["Around<(int,long)>[]"] = "0200000001000000000000000000000000000080FFFFFFFF00000000FFFFFFFF00000000FE0000000000000008070605040302010200000000000000FFFFFF7F00000000",
         ["Around<(int,long)>"] = "01000000000000000000000000000080FFFFFFFF00000000FFFFFFFF00000000",

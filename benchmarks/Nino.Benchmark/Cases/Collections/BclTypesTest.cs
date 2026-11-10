@@ -49,16 +49,16 @@ public class BclTypesTest
         .WithResolver(CompositeResolver.Create(ImmutableCollectionResolver.Instance, StandardResolver.Instance));
 
     private static readonly BigInteger BigIntegerValue = BigInteger.Pow(3, 1000);
-    private static readonly Uri UriValue = new Uri("https://example.com/api/v1/items?id=42&sort=name#top");
-    private static readonly Version VersionValue = new Version(4, 0, 1, 7);
-    private static readonly StringBuilder StringBuilderValue = new StringBuilder(string.Concat(Enumerable.Range(0, N).Select(i => (char)('a' + i % 26))));
-    private static readonly BitArray BitArrayValue = new BitArray(Enumerable.Range(0, N).Select(i => i % 3 == 0).ToArray());
+    private static readonly Uri UriValue = new("https://example.com/api/v1/items?id=42&sort=name#top");
+    private static readonly Version VersionValue = new(4, 0, 1, 7);
+    private static readonly StringBuilder StringBuilderValue = new(string.Concat(Enumerable.Range(0, N).Select(i => (char)('a' + i % 26))));
+    private static readonly BitArray BitArrayValue = new(Enumerable.Range(0, N).Select(i => i % 3 == 0).ToArray());
     private static readonly CultureInfo CultureInfoValue = CultureInfo.GetCultureInfo("en-US");
     private static readonly TimeZoneInfo TimeZoneInfoValue = TimeZoneInfo.Utc;
-    private static readonly Lazy<string> LazyValue = new Lazy<string>(() => "a lazily created value");
-    private static readonly Memory<int> MemoryValue = new Memory<int>(Enumerable.Range(0, N).ToArray());
-    private static readonly ReadOnlySequence<int> ReadOnlySequenceValue = new ReadOnlySequence<int>(Enumerable.Range(0, N).ToArray());
-    private static readonly ReadOnlyCollection<int> ReadOnlyCollectionValue = new ReadOnlyCollection<int>(Enumerable.Range(0, N).ToList());
+    private static readonly Lazy<string> LazyValue = new(() => "a lazily created value");
+    private static readonly Memory<int> MemoryValue = new(Enumerable.Range(0, N).ToArray());
+    private static readonly ReadOnlySequence<int> ReadOnlySequenceValue = new(Enumerable.Range(0, N).ToArray());
+    private static readonly ReadOnlyCollection<int> ReadOnlyCollectionValue = new(Enumerable.Range(0, N).ToList());
     private static readonly ILookup<int, int> LookupValue = Enumerable.Range(0, N).ToLookup(i => i % 10);
     private static readonly BlockingCollection<int> BlockingCollectionValue = MakeBlockingCollection();
     private static readonly ImmutableHashSet<int> ImmutableHashSetValue = ImmutableHashSet.CreateRange(Enumerable.Range(0, N));

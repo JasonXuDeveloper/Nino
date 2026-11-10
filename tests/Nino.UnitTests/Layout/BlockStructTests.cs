@@ -19,23 +19,27 @@ public class BlockStructTests
 {
     private static readonly int[] Lengths = { 0, 1, 2, 3, 7, 16, 17, 33, 64, 100, 257 };
 
-    private static BlockTuple Tuple(int i) => new BlockTuple { A = i * 3 - 7, T = (i, (long)i << 40 | (uint)i), B = i % 3 == 0 };
+    private static BlockTuple Tuple(int i) => new() { A = i * 3 - 7, T = (i, (long)i << 40 | (uint)i), B = i % 3 == 0 };
 
     private static BlockAuto Auto(int i) =>
-        new BlockAuto { Tag = (byte)i, L = -((long)i << 33) - i, S = (short)(i * 7), On = i % 2 == 1 };
+        new()
+        { Tag = (byte)i, L = -((long)i << 33) - i, S = (short)(i * 7), On = i % 2 == 1 };
 
     private static BlockPair Pair(int i) =>
-        new BlockPair { K = new KeyValuePair<int, short>(i * 11, (short)-i), F = i / 4f };
+        new()
+        { K = new KeyValuePair<int, short>(i * 11, (short)-i), F = i / 4f };
 
-    private static BlockProps Props(int i) => new BlockProps { X = i ^ 0x5A5A, Flag = i % 5 == 0, P = ((short)(i * 3), i % 2 == 0) };
+    private static BlockProps Props(int i) => new() { X = i ^ 0x5A5A, Flag = i % 5 == 0, P = ((short)(i * 3), i % 2 == 0) };
 
     private static BlockWaypoint Waypoint(int i) =>
-        new BlockWaypoint { X = i * 1.5f, Y = -i, Stamp = (i * 7, (short)(i % 300)), Visited = i % 3 == 1 };
+        new()
+        { X = i * 1.5f, Y = -i, Stamp = (i * 7, (short)(i % 300)), Visited = i % 3 == 1 };
 
-    private static BlockNested Nested(int i) => new BlockNested { Inner = Tuple(i), Tag = (byte)(255 - i) };
+    private static BlockNested Nested(int i) => new() { Inner = Tuple(i), Tag = (byte)(255 - i) };
 
     private static BlockDated Dated(int i) =>
-        new BlockDated { Id = i, When = new DateTime(2026, 1, 1).AddMinutes(i), Flags = ((short)i, i % 2 == 0) };
+        new()
+        { Id = i, When = new DateTime(2026, 1, 1).AddMinutes(i), Flags = ((short)i, i % 2 == 0) };
 
     /// <summary>The bytes of a collection of <paramref name="values"/> written one value at a time.</summary>
     private static byte[] OneByOne<T>(T[] values) =>

@@ -13,7 +13,7 @@ namespace Nino.Fuzz
         public int Seed = 1;
         public long Iterations = long.MaxValue;
         public long StartIteration;
-        public List<string> Targets = new List<string>();
+        public List<string> Targets = new();
         public string FindingsDir = DefaultFindings();
 
         /// <summary>tests/Nino.Fuzz/findings when run from the project's bin folder (git ignores it), ./findings otherwise.</summary>
@@ -27,7 +27,7 @@ namespace Nino.Fuzz
         public double MinimizeSeconds = 20;
         public bool StrictKnown;
         public bool Probes = true;
-        public Limits Limits = new Limits();
+        public Limits Limits = new();
     }
 
     /// <summary>

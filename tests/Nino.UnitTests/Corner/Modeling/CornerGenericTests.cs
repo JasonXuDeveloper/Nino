@@ -124,7 +124,7 @@ namespace Nino.UnitTests
             var nested = new Box<Box<Box<string>>> { Item = new Box<Box<string>> { Item = new Box<string> { Item = "deep" } } };
             Assert.AreEqual("deep", Rt.RoundTrip(nested).Item.Item.Item);
 
-            var listOfGen = new Box<List<Box<int>>> { Item = new List<Box<int>> { new Box<int> { Item = 1 }, null } };
+            var listOfGen = new Box<List<Box<int>>> { Item = new List<Box<int>> { new() { Item = 1 }, null } };
             var back = Rt.RoundTrip(listOfGen);
             Assert.AreEqual(1, back.Item[0].Item);
             Assert.IsNull(back.Item[1]);
@@ -224,7 +224,7 @@ namespace Nino.UnitTests
                 Child = new Expanding<List<int>>
                 {
                     Value = new List<int> { 2, 3 },
-                    Child = new Expanding<List<List<int>>> { Value = new List<List<int>> { new List<int> { 4 } } },
+                    Child = new Expanding<List<List<int>>> { Value = new List<List<int>> { new() { 4 } } },
                 },
             });
             Assert.AreEqual(1, read.Value);

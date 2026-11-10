@@ -100,7 +100,7 @@ public class ReferenceTrackingTests
     public void SharedReferencesStayShared()
     {
         var leaf = new TrackedLeaf { Name = "x" };
-        var list = RoundTrip(new List<TrackedLeaf> { leaf, null, leaf, new TrackedLeaf { Name = "y" } });
+        var list = RoundTrip(new List<TrackedLeaf> { leaf, null, leaf, new() { Name = "y" } });
         Assert.AreSame(list[0], list[2]);
         Assert.IsNull(list[1]);
         Assert.AreEqual("x", list[0].Name);

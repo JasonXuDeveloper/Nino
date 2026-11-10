@@ -179,8 +179,8 @@ namespace Nino.Fuzz
         sealed class BoundedText
         {
             readonly int _head, _tail;
-            readonly StringBuilder _first = new StringBuilder();
-            readonly Queue<string> _last = new Queue<string>();
+            readonly StringBuilder _first = new();
+            readonly Queue<string> _last = new();
             int _lastLength;
             long _dropped;
 

@@ -23,7 +23,8 @@ namespace Nino.UnitTests;
 public class StreamTests
 {
     private static SimpleClass Sample(int id, int length = 9) =>
-        new SimpleClass { Id = id, Name = new string((char)('a' + id % 26), length), CreateTime = new DateTime(2026, 11, 8) };
+        new()
+        { Id = id, Name = new string((char)('a' + id % 26), length), CreateTime = new DateTime(2026, 11, 8) };
 
     private static void AssertSame(SimpleClass expected, SimpleClass actual)
     {
@@ -590,7 +591,7 @@ public class StreamTests
     /// <summary>A stream whose asynchronous write reads the memory it was given only when <see cref="Complete"/> is called.</summary>
     private sealed class PendingWriteStream : Stream
     {
-        private readonly TaskCompletionSource<bool> _done = new TaskCompletionSource<bool>();
+        private readonly TaskCompletionSource<bool> _done = new();
         private ReadOnlyMemory<byte> _pending;
 
         public byte[] Written { get; private set; }

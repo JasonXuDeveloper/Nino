@@ -35,15 +35,15 @@ public class CollectionsTest
     private const int N = 1000;
     private static readonly List<(int, long)> TupleList = Enumerable.Range(0, N).Select(i => (i, (long)i * 31)).ToList();
     private static readonly KeyValuePair<int, int>[] KeyValuePairs = Enumerable.Range(0, N).Select(i => new KeyValuePair<int, int>(i, i * 7)).ToArray();
-    private static readonly HashSet<int> HashSet = new HashSet<int>(Enumerable.Range(0, N).Select(i => i * 3));
+    private static readonly HashSet<int> HashSet = new(Enumerable.Range(0, N).Select(i => i * 3));
     private static readonly Dictionary<int, int> IntDictionary = Enumerable.Range(0, N).ToDictionary(i => i * 3, i => i * 7);
-    private static readonly Queue<int> Queue = new Queue<int>(Enumerable.Range(0, N));
-    private static readonly LinkedList<int> LinkedList = new LinkedList<int>(Enumerable.Range(0, N));
-    private static readonly SortedSet<int> SortedSet = new SortedSet<int>(Enumerable.Range(0, N).Select(i => i * 7));
+    private static readonly Queue<int> Queue = new(Enumerable.Range(0, N));
+    private static readonly LinkedList<int> LinkedList = new(Enumerable.Range(0, N));
+    private static readonly SortedSet<int> SortedSet = new(Enumerable.Range(0, N).Select(i => i * 7));
     private static readonly SortedDictionary<int, int> SortedDictionary =
-        new SortedDictionary<int, int>(Enumerable.Range(0, N).ToDictionary(i => i * 7, i => i));
-    private static readonly SortedList<int, int> SortedList = new SortedList<int, int>(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
-    private static readonly ConcurrentDictionary<int, int> ConcurrentDictionary = new ConcurrentDictionary<int, int>(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
+        new(Enumerable.Range(0, N).ToDictionary(i => i * 7, i => i));
+    private static readonly SortedList<int, int> SortedList = new(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
+    private static readonly ConcurrentDictionary<int, int> ConcurrentDictionary = new(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
 
     private static readonly SelfTree SelfTree = SelfTree.Create(6, 4);
 

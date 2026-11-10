@@ -75,7 +75,7 @@ namespace Nino.UnitTests
             {
                 Nino = new SubsetPadded { A = 1, B = 2 }, Plain = new PaddedPlain { A = 3, B = 4 }, Tail = 5,
                 Array = new[] { new SubsetPadded { A = 7, B = 8 }, new SubsetPadded { A = 9, B = 10 } },
-                List = new List<PaddedPlain> { new PaddedPlain { A = 11, B = 12 } },
+                List = new List<PaddedPlain> { new() { A = 11, B = 12 } },
                 Map = new Dictionary<int, SubsetPadded> { { 13, new SubsetPadded { A = 14, B = 15 } } },
             };
             var dirtyHolder = new PaddedHolder

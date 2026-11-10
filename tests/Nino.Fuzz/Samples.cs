@@ -12,7 +12,7 @@ namespace Nino.Fuzz
     /// </summary>
     public static class Samples
     {
-        public static Prims Prims() => new Prims
+        public static Prims Prims() => new()
         {
             B = true, C = Color.Blue, Bg = Big.B, Dec = 12.345m, Dt = new DateTime(2024, 5, 6, 7, 8, 9, DateTimeKind.Utc),
             Dto = DateTimeOffset.UnixEpoch.AddHours(3), G = new Guid("0f8fad5b-d9cb-469f-a165-70867728950e"),
@@ -25,9 +25,9 @@ namespace Nino.Fuzz
             TO = new TimeOnly(10, 11), Ru = new Rune('A'),
         };
 
-        public static Prims PrimsSparse() => new Prims { Str = "", NI = null, Dec = decimal.MinValue, Ver = new Version(0, 1) };
+        public static Prims PrimsSparse() => new() { Str = "", NI = null, Dec = decimal.MinValue, Ver = new Version(0, 1) };
 
-        public static Strings Strings() => new Strings
+        public static Strings Strings() => new()
         {
             Ascii = "Nino fuzz", Latin1 = "Café crème", Utf16 = "中文字符串", Utf8 = "ニノ😀 ünï",
             Many = new[] { "a", null, "", "日本", "ÿĀ", new string('x', 70) },
@@ -35,7 +35,7 @@ namespace Nino.Fuzz
             Chars = "chars".ToCharArray(), CharList = new() { 'a', '\uD800', 'z' }, Empty = "", Null = null,
         };
 
-        public static RawRoot RawRoot() => new RawRoot
+        public static RawRoot RawRoot() => new()
         {
             One = new RawS { A = 7, B = true, C = Color.Blue, D = -1 },
             Many = Enumerable.Range(0, 9).Select(i => new RawS { A = i, D = i * 1000L }).ToArray(),
@@ -53,7 +53,7 @@ namespace Nino.Fuzz
         };
 
         /// <summary>A <see cref="RawBcl"/> whose every field depends on <paramref name="i"/>.</summary>
-        public static RawBcl Bcl(int i) => new RawBcl
+        public static RawBcl Bcl(int i) => new()
         {
             A = (byte)i, T = (i, -(long)i << 40), S = ((byte)(i + 1), (short)-i), P = new KeyValuePair<int, long>(-i, i),
             O = new DateTimeOffset(2020, 1, 1 + (i & 15), 0, 0, 0, TimeSpan.FromMinutes(i % 2 == 0 ? 330 : -840)),
@@ -66,13 +66,13 @@ namespace Nino.Fuzz
         };
 
         /// <summary>A <see cref="RawFlags"/> of <paramref name="i"/>, its nullables null for odd ones.</summary>
-        public static RawFlags Flags(int i) => new RawFlags
+        public static RawFlags Flags(int i) => new()
         {
             A = (byte)i, L = i % 2 == 0 ? -i : null, T = i % 2 == 0 ? (i, i) : null,
             O = i % 2 == 0 ? DateTimeOffset.UnixEpoch.AddDays(i).ToOffset(TimeSpan.FromHours(-i % 14)) : null, B = i % 3 == 0,
         };
 
-        public static RawUntrusted RawUntrusted() => new RawUntrusted
+        public static RawUntrusted RawUntrusted() => new()
         {
             One = Flags(2), Many = Enumerable.Range(0, 7).Select(Flags).ToArray(), List = new() { Flags(4), Flags(5) },
             ById = Enumerable.Range(0, 4).ToDictionary(i => i, Flags),
@@ -81,14 +81,14 @@ namespace Nino.Fuzz
             Dates = Enumerable.Range(0, 9).ToDictionary(i => (long)i, i => new DateTime(2026, 11, 7).AddDays(i)),
         };
 
-        public static Keyed Keyed() => new Keyed
+        public static Keyed Keyed() => new()
         {
             Name = "keyed", Id = 42, Tags = new() { ["a"] = 1, ["b"] = 2 },
             Parts = Enumerable.Range(0, 6).Select(i => new KeyedPart { At = i, Note = i % 2 == 0 ? "n" + i : null }).ToList(),
             Inline = new KeyedStruct { X = 1.25, Ys = new[] { 1, 2, 3 } },
         };
 
-        public static Colls Colls() => new Colls
+        public static Colls Colls() => new()
         {
             LI = Enumerable.Range(0, 20).ToList(), LS = new() { "a", "bb", "ccc", null, "ünï", "日本" }, AI = Enumerable.Range(0, 40).ToArray(),
             AS = new[] { "x", "y" }, LBI = Enumerable.Range(0, 70).Select(i => ((byte)i, i * 3)).ToList(),
@@ -109,7 +109,7 @@ namespace Nino.Fuzz
             IRD = new Dictionary<int, int> { [5] = 6 }, Mem = new[] { 1, 2, 3 }, Seg = new ArraySegment<int>(new[] { 4, 5 }),
         };
 
-        public static Colls CollsLarge() => new Colls
+        public static Colls CollsLarge() => new()
         {
             LI = Enumerable.Range(0, 300).ToList(), HI = Enumerable.Range(0, 200).ToHashSet(),
             DII = Enumerable.Range(0, 150).ToDictionary(i => i, i => -i), SSI = new(Enumerable.Range(0, 120).Select(i => i * 3)),
@@ -117,7 +117,7 @@ namespace Nino.Fuzz
             SLS = new(Enumerable.Range(0, 40).ToDictionary(i => "k" + i, i => i)), HS = Enumerable.Range(0, 50).Select(i => "s" + i).ToHashSet(),
         };
 
-        public static Imm Imm() => new Imm
+        public static Imm Imm() => new()
         {
             IA = ImmutableArray.Create(1, 2, 3), IL = ImmutableList.Create("a", "b"), IHI = ImmutableHashSet.Create(1, 2, 3, 4, 5),
             IHS = ImmutableHashSet.Create("x", "y"),
@@ -130,7 +130,7 @@ namespace Nino.Fuzz
             IDShape = ImmutableDictionary.CreateRange(new[] { new KeyValuePair<long, Shape>(1, new Circle { Id = 1 }), new KeyValuePair<long, Shape>(2, null) }),
         };
 
-        public static Imm ImmLarge() => new Imm
+        public static Imm ImmLarge() => new()
         {
             IHI = ImmutableHashSet.CreateRange(Enumerable.Range(0, 300)),
             IDI = ImmutableDictionary.CreateRange(Enumerable.Range(0, 200).Select(i => new KeyValuePair<int, string>(i * 31, null))),
@@ -193,7 +193,7 @@ namespace Nino.Fuzz
 
         public static VBase VTree()
         {
-            VBase h = new VBase { A = -1 };
+            VBase h = new() { A = -1 };
             for (int i = 0; i < 200; i++)
                 h = i % 3 == 0
                     ? new VDerived { A = i, Child = h, B = "b", Kids = i % 30 == 0 ? new() { new VBase { A = 5 } } : null }
@@ -227,7 +227,7 @@ namespace Nino.Fuzz
         /// which clears memory 8 KB ahead (lists of 8 KB were never found stale in 120 s; of 16 KB, once in 800
         /// rejected inputs).
         /// </summary>
-        public static Stale Stale(int n) => new Stale
+        public static Stale Stale(int n) => new()
         {
             Pairs = Enumerable.Range(0, n).Select(i => (i, i % 3 == 0)).ToArray(),
             PairList = Enumerable.Range(0, n).Select(i => (-i, i % 2 == 0)).ToList(),
@@ -248,7 +248,7 @@ namespace Nino.Fuzz
         /// The value Stale data is read into: an array of one element each (a new array is needed), lists null (a new
         /// list), a small dictionary and set.
         /// </summary>
-        public static Stale StaleExisting() => new Stale
+        public static Stale StaleExisting() => new()
         {
             Pairs = new[] { (1, true) }, PairMemory = new[] { (2, false) }, Nullables = new int?[] { 3 }, Bools = new[] { true },
             Raws = new[] { new RawS { A = 4, B = true } }, Decimals = new[] { 5m },

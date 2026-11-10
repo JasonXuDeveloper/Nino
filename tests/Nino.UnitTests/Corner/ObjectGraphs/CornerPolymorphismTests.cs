@@ -480,7 +480,7 @@ namespace Nino.UnitTests
             var ex = Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize<NoInheritance>(unmarked));
             StringAssert.Contains(ex.Message, nameof(UnmarkedSubOfNoInheritance));
             Assert.ThrowsExactly<InvalidOperationException>(() =>
-                NinoSerializer.Serialize(new List<NoInheritance> { new NoInheritance(), unmarked }));
+                NinoSerializer.Serialize(new List<NoInheritance> { new(), unmarked }));
 
             Assert.AreEqual(5, Rt.RoundTrip(new NoInheritance { A = 5 }).A);
         }

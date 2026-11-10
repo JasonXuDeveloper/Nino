@@ -8,7 +8,7 @@ namespace Nino.UnitTests;
 [NinoType(format: NinoFormat.VersionTolerant)]
 public class PooledHolder
 {
-    public static readonly Stack<List<int>> ListPool = new Stack<List<int>>();
+    public static readonly Stack<List<int>> ListPool = new();
     public static int Created;
 
     public List<int> Items { get; set; }
@@ -148,7 +148,7 @@ public class ReuseDeserializationRecycleTests
         var b = new InitOnlyHolder { Id = 2 };
         var c = new InitOnlyHolder { Id = 3 };
         var target = new List<InitOnlyHolder> { a, b, c };
-        var bytes = NinoSerializer.Serialize(new List<InitOnlyHolder> { new InitOnlyHolder { Id = 7 } });
+        var bytes = NinoSerializer.Serialize(new List<InitOnlyHolder> { new() { Id = 7 } });
 
         NinoDeserializer.Deserialize(bytes, ref target);
         Assert.AreEqual(1, target.Count);

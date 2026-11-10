@@ -135,7 +135,7 @@ public class BclTypeTests
 
         foreach (int count in new[] { 17, 256, 257 })
         {
-            string latin1 = new string('é', count);
+            string latin1 = new('é', count);
             NinoDeserializer.Deserialize(NinoSerializer.Serialize(latin1), ref existing);
             Assert.AreSame(same, existing);
             Assert.AreEqual(latin1, existing.ToString());

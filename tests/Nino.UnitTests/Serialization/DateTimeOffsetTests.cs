@@ -18,11 +18,11 @@ public class DateTimeOffsetTests
     {
         DateTimeOffset.MinValue,
         DateTimeOffset.MaxValue,
-        new DateTimeOffset(1, 1, 1, 14, 0, 0, TimeSpan.FromHours(14)),
-        new DateTimeOffset(9999, 12, 31, 9, 59, 59, TimeSpan.FromHours(-14)),
-        new DateTimeOffset(2024, 5, 6, 7, 8, 9, TimeSpan.FromMinutes(-150)),
-        new DateTimeOffset(2024, 5, 6, 7, 8, 9, TimeSpan.FromMinutes(345)),
-        new DateTimeOffset(2024, 5, 6, 7, 8, 9, TimeSpan.Zero),
+        new(1, 1, 1, 14, 0, 0, TimeSpan.FromHours(14)),
+        new(9999, 12, 31, 9, 59, 59, TimeSpan.FromHours(-14)),
+        new(2024, 5, 6, 7, 8, 9, TimeSpan.FromMinutes(-150)),
+        new(2024, 5, 6, 7, 8, 9, TimeSpan.FromMinutes(345)),
+        new(2024, 5, 6, 7, 8, 9, TimeSpan.Zero),
     };
 
     [TestMethod]

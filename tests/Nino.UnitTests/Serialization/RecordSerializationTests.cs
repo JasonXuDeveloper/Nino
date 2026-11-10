@@ -11,7 +11,7 @@ public class RecordSerializationTests
     [TestMethod]
     public void TestRecords()
     {
-        SimpleRecord record = new SimpleRecord
+        SimpleRecord record = new()
         {
             Id = 1,
             Name = "Test",
@@ -24,14 +24,14 @@ public class RecordSerializationTests
         SimpleRecord result = NinoDeserializer.Deserialize<SimpleRecord>(bytes);
         Assert.AreEqual(record, result);
 
-        SimpleRecord2 record2 = new SimpleRecord2(1, "Test", DateTime.Today);
+        SimpleRecord2 record2 = new(1, "Test", DateTime.Today);
         bytes = NinoSerializer.Serialize(record2);
         Assert.IsNotNull(bytes);
 
         SimpleRecord2 result2 = NinoDeserializer.Deserialize<SimpleRecord2>(bytes);
         Assert.AreEqual(record2, result2);
 
-        SimpleRecord3 record3 = new SimpleRecord3(1, "Test", DateTime.Today)
+        SimpleRecord3 record3 = new(1, "Test", DateTime.Today)
         {
             Flag = true,
             Ignored = 999
@@ -44,7 +44,7 @@ public class RecordSerializationTests
         result3.Ignored = 999;
         Assert.AreEqual(record3, result3);
 
-        SimpleRecord4 record4 = new SimpleRecord4(1, "Test", DateTime.Today)
+        SimpleRecord4 record4 = new(1, "Test", DateTime.Today)
         {
             Flag = true,
             ShouldNotIgnore = 1234
@@ -58,7 +58,7 @@ public class RecordSerializationTests
         result4.Flag = true;
         Assert.AreEqual(record4, result4);
 
-        SimpleRecord5 record5 = new SimpleRecord5(1, "Test", DateTime.Today)
+        SimpleRecord5 record5 = new(1, "Test", DateTime.Today)
         {
             Flag = true,
             ShouldNotIgnore = 1234
@@ -70,7 +70,7 @@ public class RecordSerializationTests
         SimpleRecord5 result5 = NinoDeserializer.Deserialize<SimpleRecord5>(bytes);
         Assert.AreEqual(record5.ShouldNotIgnore, result5.ShouldNotIgnore);
 
-        SimpleRecord6<int> record6 = new SimpleRecord6<int>(1, 1234);
+        SimpleRecord6<int> record6 = new(1, 1234);
         bytes = NinoSerializer.Serialize(record6);
         Assert.IsNotNull(bytes);
 
@@ -81,7 +81,7 @@ public class RecordSerializationTests
     [TestMethod]
     public void TestRecordStruct()
     {
-        SimpleRecordStruct record = new SimpleRecordStruct
+        SimpleRecordStruct record = new()
         {
             Id = 1,
             Name = "Test",
@@ -94,20 +94,20 @@ public class RecordSerializationTests
         SimpleRecordStruct result = NinoDeserializer.Deserialize<SimpleRecordStruct>(bytes);
         Assert.AreEqual(record, result);
 
-        SimpleRecordStruct2 record2 = new SimpleRecordStruct2(1, DateTime.Today);
+        SimpleRecordStruct2 record2 = new(1, DateTime.Today);
         bytes = NinoSerializer.Serialize(record2);
 
         SimpleRecordStruct2 result2 = NinoDeserializer.Deserialize<SimpleRecordStruct2>(bytes);
         Assert.AreEqual(record2, result2);
 
-        SimpleRecordStruct2<int> record3 = new SimpleRecordStruct2<int>(1, 1234);
+        SimpleRecordStruct2<int> record3 = new(1, 1234);
         bytes = NinoSerializer.Serialize(record3);
         Assert.IsNotNull(bytes);
 
         SimpleRecordStruct2<int> result3 = NinoDeserializer.Deserialize<SimpleRecordStruct2<int>>(bytes);
         Assert.AreEqual(record3, result3);
 
-        SimpleRecordStruct2<string> record4 = new SimpleRecordStruct2<string>(1, "Test");
+        SimpleRecordStruct2<string> record4 = new(1, "Test");
         bytes = NinoSerializer.Serialize(record4);
 
         SimpleRecordStruct2<string> result4 = NinoDeserializer.Deserialize<SimpleRecordStruct2<string>>(bytes);

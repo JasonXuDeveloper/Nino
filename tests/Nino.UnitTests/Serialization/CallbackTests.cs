@@ -267,7 +267,7 @@ public class CallbackTests
         var holder = new CallbackHolder
         {
             Item = new CallbackDerived { A = 1, B = "x" },
-            Items = new List<CallbackBase> { new CallbackBase { A = 2 }, new CallbackDerived { A = 3, B = "y" }, null },
+            Items = new List<CallbackBase> { new() { A = 2 }, new CallbackDerived { A = 3, B = "y" }, null },
         };
         var bytes = NinoSerializer.Serialize(holder);
         CollectionAssert.AreEqual(new[]

@@ -42,7 +42,8 @@ public sealed class UnmanagedBoxHolder
 public class UnmanagedConstraintTests
 {
     private static UnmanagedBox<T> Box<T>(T a, T b) where T : unmanaged =>
-        new UnmanagedBox<T> { Value = a, Values = new[] { a, b }, List = new List<T> { b } };
+        new()
+        { Value = a, Values = new[] { a, b }, List = new List<T> { b } };
 
     private static void AssertBox<T>(UnmanagedBox<T> expected, UnmanagedBox<T> actual) where T : unmanaged
     {

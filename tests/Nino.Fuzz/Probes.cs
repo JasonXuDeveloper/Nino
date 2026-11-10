@@ -28,25 +28,21 @@ namespace Nino.Fuzz
     {
         public static readonly IReadOnlyList<Probe> All = new List<Probe>
         {
-            new Probe
-            {
+            new() {
                 Name = "tree", What = "a class deriving from List of itself, 200,000 levels deep",
                 Run = () => ExpectRejectOrValue(() => NinoDeserializer.Deserialize<TreeHolder>(
                     Cat(new byte[] { 1 }, Rep(Ints(1), 200_000), Ints(0), Ints(-1)))),
             },
-            new Probe
-            {
+            new() {
                 Name = "dtree", What = "a class deriving from Dictionary<string, itself>, 200,000 levels deep",
                 Run = () => ExpectRejectOrValue(() => NinoDeserializer.Deserialize<TreeHolder>(
                     Cat(new byte[] { 1 }, Ints(-1), Rep(Ints(1, 0), 200_000), Ints(0)))),
             },
-            new Probe
-            {
+            new() {
                 Name = "hash", What = "a Dictionary<long, int> of 50,000 keys that all hash to 0, against 50,000 spread keys",
                 Run = () => Collisions(50_000, keys => new HashColl { D = keys.ToDictionary(k => k, _ => 0) }),
             },
-            new Probe
-            {
+            new() {
                 Name = "hash-set", What = "a HashSet<long> of 50,000 keys that all hash to 0, against 50,000 spread keys",
                 Run = () => Collisions(50_000, keys => new HashColl { H = keys.ToHashSet() }),
             },
@@ -99,7 +95,7 @@ namespace Nino.Fuzz
             return 1;
         }
 
-        static Probe Depth(string name, string what, Action<int> read) => new Probe
+        static Probe Depth(string name, string what, Action<int> read) => new()
         {
             Name = name, What = what + ", 100,000 levels on a 1 MB stack",
             Run = () =>

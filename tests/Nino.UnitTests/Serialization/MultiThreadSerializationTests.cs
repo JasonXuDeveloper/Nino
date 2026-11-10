@@ -11,14 +11,14 @@ namespace Nino.UnitTests
         [TestMethod]
         public void MultiThreadCodeGenSerialize()
         {
-            C c = new C()
+            C c = new()
             {
                 Name = "test",
                 As = new List<A>()
                 {
-                    new A() { Val = 1 },
-                    new A() { Val = 2 },
-                    new A() { Val = 3 }
+                    new() { Val = 1 },
+                    new() { Val = 2 },
+                    new() { Val = 3 }
                 }
             };
             int tests = 100;
@@ -43,14 +43,14 @@ namespace Nino.UnitTests
         [TestMethod]
         public void MultiThreadCodeGenDeserialize()
         {
-            C c = new C()
+            C c = new()
             {
                 Name = "test",
                 As = new List<A>()
                 {
-                    new A() { Val = 1 },
-                    new A() { Val = 2 },
-                    new A() { Val = 3 }
+                    new() { Val = 1 },
+                    new() { Val = 2 },
+                    new() { Val = 3 }
                 }
             };
             byte[] buf = NinoSerializer.Serialize(c);

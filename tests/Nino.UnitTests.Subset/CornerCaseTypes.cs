@@ -141,21 +141,23 @@ namespace Nino.UnitTests.Subset.Corner
     public static class CornerFactory
     {
         public static RequiredInitMembers RequiredInit(int id, string name, int settable) =>
-            new RequiredInitMembers { Id = id, Name = name, Settable = settable };
+            new()
+            { Id = id, Name = name, Settable = settable };
 
         public static RequiredSettableMembers RequiredSettable(int id, string name, int extra) =>
-            new RequiredSettableMembers { Id = id, Name = name, Extra = extra };
+            new()
+            { Id = id, Name = name, Extra = extra };
 
         public static RequiredWithSettingConstructor RequiredWithCtor(int id, string name) =>
-            new RequiredWithSettingConstructor(id) { Name = name };
+            new(id) { Name = name };
 
                 public static PrimaryCtorClass Primary(int id, string name, int extra) =>
-            new PrimaryCtorClass(id, name) { Extra = extra };
+            new(id, name) { Extra = extra };
 
-        public static PrimaryCtorStruct PrimaryStruct(int x, long y) => new PrimaryCtorStruct(x, y);
+        public static PrimaryCtorStruct PrimaryStruct(int x, long y) => new(x, y);
 
-        public static PrimaryCtorCaptured Captured(int seed, int value) => new PrimaryCtorCaptured(seed) { Value = value };
+        public static PrimaryCtorCaptured Captured(int seed, int value) => new(seed) { Value = value };
 
-        public static PrimaryCtorReordered PrimaryReordered(int id, string name) => new PrimaryCtorReordered(name, id);
+        public static PrimaryCtorReordered PrimaryReordered(int id, string name) => new(name, id);
     }
 }

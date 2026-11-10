@@ -274,7 +274,7 @@ public class EtCompatibilityTests
         var message = new EtMessage
         {
             Ids = new ListComponent<long> { 1, 2, 3 },
-            Units = new ListComponent<UnitInfo> { new UnitInfo { UnitId = 7, KV = { [1] = 2 } } },
+            Units = new ListComponent<UnitInfo> { new() { UnitId = 7, KV = { [1] = 2 } } },
             Tags = new HashSetComponent<int> { 4, 5 },
             Names = new DictionaryComponent<int, string> { [1] = "a" },
             ByType = new MultiMap<int, long>(4),
@@ -384,7 +384,7 @@ public class EtCompatibilityTests
         created = ListComponent<int>.Created;
         var list = NinoDeserializer.Deserialize<ListComponent<int>>(NinoSerializer.Serialize(new ListComponent<int> { 5 }));
         CollectionAssert.AreEqual(new[] { 5 }, list);
-        var synced = new SyncList<ListComponent<int>> { new ListComponent<int> { 1 }, new ListComponent<int> { 2, 3 } };
+        var synced = new SyncList<ListComponent<int>> { new() { 1 }, new() { 2, 3 } };
         var syncedBack = NinoDeserializer.Deserialize<SyncList<ListComponent<int>>>(NinoSerializer.Serialize(synced));
         Assert.AreEqual(2, syncedBack.Count);
         CollectionAssert.AreEqual(new[] { 2, 3 }, syncedBack[1]);

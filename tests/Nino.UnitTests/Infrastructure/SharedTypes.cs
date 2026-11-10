@@ -142,11 +142,11 @@ public sealed class PrivateNestedCollection
     public void Func()
     {
         //ensure no code is generated for this
-        List<MyStruct> list = new List<MyStruct>();
-        Dictionary<MyStruct, MyStruct> dict = new Dictionary<MyStruct, MyStruct>();
-        List<MyClass> list2 = new List<MyClass>();
-        Dictionary<MyClass, MyClass> dict2 = new Dictionary<MyClass, MyClass>();
-        Dictionary<MyStruct, MyClass> dict3 = new Dictionary<MyStruct, MyClass>();
+        List<MyStruct> list = new();
+        Dictionary<MyStruct, MyStruct> dict = new();
+        List<MyClass> list2 = new();
+        Dictionary<MyClass, MyClass> dict2 = new();
+        Dictionary<MyStruct, MyClass> dict3 = new();
     }
 }
 

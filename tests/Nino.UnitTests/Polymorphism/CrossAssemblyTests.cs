@@ -44,7 +44,7 @@ public class CrossAssemblyTests
     [TestMethod]
     public void TestSimpleCrossRef()
     {
-        SimpleCrossRefTest test = new SimpleCrossRefTest()
+        SimpleCrossRefTest test = new()
         {
             A = new SubsetClassWithPrivateField()
             {
@@ -63,7 +63,7 @@ public class CrossAssemblyTests
     [TestMethod]
     public void TestNotSoSimpleCrossRef()
     {
-        NotSoSimpleCrossRefTest test = new NotSoSimpleCrossRefTest()
+        NotSoSimpleCrossRefTest test = new()
         {
             Id = 1,
             Name = "Test",

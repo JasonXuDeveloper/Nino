@@ -136,7 +136,7 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestNonGenericNoCodeGen()
         {
-            Data dt = new Data()
+            Data dt = new()
             {
                 X = short.MaxValue,
                 Y = byte.MaxValue,
@@ -159,7 +159,7 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestNonGenericCodeGen()
         {
-            A dt = new A()
+            A dt = new()
             {
                 Val = 1
             };
@@ -219,8 +219,10 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestComplexData()
         {
-            ComplexData data = new ComplexData();
-            data.A = new int[3][];
+            ComplexData data = new()
+            {
+                A = new int[3][]
+            };
             data.A[0] = new[] { 1, 2 };
             data.A[1] = new[] { 10, 20 };
             data.A[2] = new[] { 100, 200 };
@@ -404,7 +406,7 @@ namespace Nino.UnitTests
             {
                 new List<Data>()
                 {
-                    new Data()
+                    new()
                     {
                         X = short.MaxValue,
                         Y = byte.MaxValue,
@@ -419,7 +421,7 @@ namespace Nino.UnitTests
                 },
                 new List<Data>()
                 {
-                    new Data()
+                    new()
                     {
                         X = short.MaxValue,
                         Y = byte.MaxValue,
@@ -450,7 +452,7 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestNewGenericAPIs()
         {
-            Data testData = new Data()
+            Data testData = new()
             {
                 X = 42,
                 Y = 123,
@@ -473,7 +475,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(testData.ToString(), result2.ToString());
 
             // Test with ReadOnlySpan<byte>
-            ReadOnlySpan<byte> span = new ReadOnlySpan<byte>(buf);
+            ReadOnlySpan<byte> span = new(buf);
             var result3 = NinoDeserializer.Deserialize<Data>(span);
             Assert.AreEqual(testData.ToString(), result3.ToString());
 
@@ -485,8 +487,10 @@ namespace Nino.UnitTests
         public void TestBoxingAPIs()
         {
             // Test boxing API with complex non-primitive types
-            ComplexData complexData = new ComplexData();
-            complexData.A = new int[2][];
+            ComplexData complexData = new()
+            {
+                A = new int[2][]
+            };
             complexData.A[0] = new[] { 1, 2, 3 };
             complexData.A[1] = new[] { 4, 5, 6 };
             complexData.B = new List<int[]>() { new[] { 7, 8, 9 } };
@@ -506,7 +510,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(complexData.ToString(), typedResult1.ToString());
 
             // Test with Data class
-            Data data = new Data()
+            Data data = new()
             {
                 X = 100,
                 Y = 200,
@@ -533,24 +537,24 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestCodeGen()
         {
-            C c = new C()
+            C c = new()
             {
                 Name = "test",
                 As = new List<A>()
                 {
-                    new A() { Val = 1 },
-                    new A() { Val = 2 },
-                    new A() { Val = 3 }
+                    new() { Val = 1 },
+                    new() { Val = 2 },
+                    new() { Val = 3 }
                 }
             };
-            D d = new D()
+            D d = new()
             {
                 Name = "test",
                 Bs = new List<B>()
                 {
-                    new B() { Val = 1 },
-                    new B() { Val = 2 },
-                    new B() { Val = 3 }
+                    new() { Val = 1 },
+                    new() { Val = 2 },
+                    new() { Val = 3 }
                 }
             };
 

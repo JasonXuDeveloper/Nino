@@ -115,8 +115,8 @@ namespace UnityEngine
 
     public class Gradient
     {
-        private GradientColorKey[] _colorKeys = { new GradientColorKey(new Color(1, 1, 1, 1), 0), new GradientColorKey(new Color(1, 1, 1, 1), 1) };
-        private GradientAlphaKey[] _alphaKeys = { new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) };
+        private GradientColorKey[] _colorKeys = { new(new Color(1, 1, 1, 1), 0), new(new Color(1, 1, 1, 1), 1) };
+        private GradientAlphaKey[] _alphaKeys = { new(1, 0), new(1, 1) };
 
         // Unity copies the keys in and out, and holds at most 8 of each kind.
         public GradientColorKey[] colorKeys

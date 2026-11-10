@@ -804,7 +804,7 @@ namespace C
             foreach (var bad in new object[]
                      {
                          1, "s", 1.5, true, Guid.Empty, new int[] { 1 }, new List<int> { 1 },
-                         new Dictionary<string, int>(), new SimpleNode[] { new SimpleNode() },
+                         new Dictionary<string, int>(), new SimpleNode[] { new() },
                      })
             {
                 Assert.ThrowsExactly<InvalidOperationException>(

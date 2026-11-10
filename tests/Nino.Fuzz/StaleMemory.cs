@@ -125,7 +125,7 @@ namespace Nino.Fuzz
     /// <summary>What <c>RuntimeHelpers.IsReferenceOrContainsReferences</c> and <c>Unsafe.SizeOf</c> say of a type known only at run time.</summary>
     public static class TypeLayout
     {
-        static readonly Dictionary<Type, (bool References, int Size)> Layouts = new Dictionary<Type, (bool, int)>();
+        static readonly Dictionary<Type, (bool References, int Size)> Layouts = new();
         static readonly MethodInfo Of = typeof(TypeLayout).GetMethod(nameof(Layout), BindingFlags.NonPublic | BindingFlags.Static);
 
         /// <summary>Whether a value of <paramref name="t"/> is or holds a reference (false: unmanaged, no collection inside).</summary>

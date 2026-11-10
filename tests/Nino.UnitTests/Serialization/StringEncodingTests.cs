@@ -180,7 +180,7 @@ public class StringEncodingTests
             if (data.IsEmpty)
                 Assert.Inconclusive("Guard pages are unavailable on this platform.");
 
-            string current = new string('é', length);
+            string current = new('é', length);
             string original = current;
             NinoDeserializer.Deserialize(data, ref current);
             Assert.AreSame(original, current);

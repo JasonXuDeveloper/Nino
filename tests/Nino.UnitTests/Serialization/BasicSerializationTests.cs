@@ -11,11 +11,11 @@ public class BasicSerializationTests
     [TestMethod]
     public void TestString()
     {
-        StringData data = new StringData
+        StringData data = new()
         {
             Str = "Hello, World!"
         };
-        StringData2 data2 = new StringData2
+        StringData2 data2 = new()
         {
             Str = "Hello, World!"
         };
@@ -40,7 +40,7 @@ public class BasicSerializationTests
     [TestMethod]
     public void TestStaticMethodConstructor()
     {
-        TestMethodCtor testMethodCtor = new TestMethodCtor()
+        TestMethodCtor testMethodCtor = new()
         {
             A = 999,
             B = "Test"
@@ -55,7 +55,7 @@ public class BasicSerializationTests
     [TestMethod]
     public void TestSomeNestedPrivateEnum()
     {
-        SomeNestedPrivateEnum data = new SomeNestedPrivateEnum()
+        SomeNestedPrivateEnum data = new()
         {
             Id = 1,
             EnumVal = 1

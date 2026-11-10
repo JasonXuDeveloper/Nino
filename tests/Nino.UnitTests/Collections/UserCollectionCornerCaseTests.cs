@@ -58,7 +58,7 @@ public class FactoryAndCtorList : List<int>
     public bool ViaFactory;
 
     [NinoFactory]
-    public static FactoryAndCtorList Create() => new FactoryAndCtorList { ViaFactory = true };
+    public static FactoryAndCtorList Create() => new() { ViaFactory = true };
 }
 
 /// <summary>A factory that needs an argument is not a creator (NINO017 reports it): the constructor is used.</summary>
@@ -68,7 +68,7 @@ public class ArgumentFactoryList : List<int>
 
 #pragma warning disable NINO017
     [NinoFactory]
-    public static ArgumentFactoryList Create(int capacity) => new ArgumentFactoryList { ViaFactory = true };
+    public static ArgumentFactoryList Create(int capacity) => new() { ViaFactory = true };
 #pragma warning restore NINO017
 }
 
@@ -93,31 +93,31 @@ public class DerivedFactoryList : BaseFactoryList
 public class DirtyList : List<string>
 {
     [NinoFactory]
-    public static DirtyList Create() => new DirtyList { "stale1", "stale2", "stale3", "stale4" };
+    public static DirtyList Create() => new() { "stale1", "stale2", "stale3", "stale4" };
 }
 
 public class DirtyRawList : List<int>
 {
     [NinoFactory]
-    public static DirtyRawList Create() => new DirtyRawList { 7, 7, 7, 7, 7 };
+    public static DirtyRawList Create() => new() { 7, 7, 7, 7, 7 };
 }
 
 public class DirtySet : HashSet<int>
 {
     [NinoFactory]
-    public static DirtySet Create() => new DirtySet { 99 };
+    public static DirtySet Create() => new() { 99 };
 }
 
 public class DirtyDictionary : Dictionary<int, string>
 {
     [NinoFactory]
-    public static DirtyDictionary Create() => new DirtyDictionary { [99] = "stale" };
+    public static DirtyDictionary Create() => new() { [99] = "stale" };
 }
 
 public class DirtySortedDictionary : SortedDictionary<int, string>
 {
     [NinoFactory]
-    public static DirtySortedDictionary Create() => new DirtySortedDictionary { [99] = "stale" };
+    public static DirtySortedDictionary Create() => new() { [99] = "stale" };
 }
 
 public class DirtyLinkedList : LinkedList<int>
@@ -145,7 +145,7 @@ public class DirtyQueue : Queue<int>
 public class DirtyConcurrentBag : ConcurrentBag<int>
 {
     [NinoFactory]
-    public static DirtyConcurrentBag Create() => new DirtyConcurrentBag { 99 };
+    public static DirtyConcurrentBag Create() => new() { 99 };
 }
 
 #endregion

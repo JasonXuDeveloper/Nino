@@ -140,7 +140,7 @@ namespace Unloadable
 
             public override bool Equals(object other) => ReferenceEquals(this, other);
             public override int GetHashCode() => RuntimeHelpers.GetHashCode(this);
-            public override AssemblyName GetName(bool copiedName) => new AssemblyName(nameof(FailingAttributeAssembly));
+            public override AssemblyName GetName(bool copiedName) => new(nameof(FailingAttributeAssembly));
         }
 
         /// <summary>

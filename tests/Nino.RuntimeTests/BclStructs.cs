@@ -157,7 +157,7 @@ public static class BclStructs
     private const bool _netOnly = false;
 #endif
 
-    private static readonly List<KeyValuePair<string, byte[]>> Written = new List<KeyValuePair<string, byte[]>>();
+    private static readonly List<KeyValuePair<string, byte[]>> Written = new();
 
     /// <summary>
     /// <c>Around&lt;T&gt;[]</c> of two values: checked against CoreCLR's bytes both ways (written here, and read from
@@ -405,7 +405,7 @@ public static class BclStructs
         sb.AppendLine("        return bytes;");
         sb.AppendLine("    }");
         sb.AppendLine();
-        sb.AppendLine("    public static readonly Dictionary<string, string> Bytes = new Dictionary<string, string>");
+        sb.AppendLine("    public static readonly Dictionary<string, string> Bytes = new()");
         sb.AppendLine("    {");
         foreach (var pair in Written)
         {

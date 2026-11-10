@@ -40,7 +40,7 @@ public class PolymorphismTests
     [TestMethod]
     public void TestInterfaceVariants()
     {
-        Struct1 a = new Struct1
+        Struct1 a = new()
         {
             A = 1,
             B = DateTime.Today,
@@ -64,7 +64,7 @@ public class PolymorphismTests
         var result = (Struct1)i1;
         Assert.AreEqual(a.A, result.A);
 
-        Class1 b = new Class1
+        Class1 b = new()
         {
             A = 1,
             B = DateTime.Today,
@@ -81,7 +81,7 @@ public class PolymorphismTests
         Assert.AreEqual(b.C, result2.C);
         Assert.AreEqual((Struct1)b.D, (Struct1)result2.D);
 
-        Struct2 c = new Struct2
+        Struct2 c = new()
         {
             A = 1,
             B = DateTime.Today,
@@ -106,7 +106,7 @@ public class PolymorphismTests
     [TestMethod]
     public void TestModifyListMemberDataStructure()
     {
-        List<IListElementClass> list = new List<IListElementClass>
+        List<IListElementClass> list = new()
         {
             new ListElementClass
             {

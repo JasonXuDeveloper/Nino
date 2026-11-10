@@ -27,7 +27,7 @@ namespace Nino.UnitTests.UnityMock
         [TestMethod]
         public void TestSimpleData()
         {
-            Data d = new Data { x = 5, y = 10, z = 15, f = 1.5f, d = 2.5m, db = 3.5, bo = true, en = TestEnum.A };
+            Data d = new() { x = 5, y = 10, z = 15, f = 1.5f, d = 2.5m, db = 3.5, bo = true, en = TestEnum.A };
             Console.WriteLine($"Serializing: {d}");
             
             var bs = NinoSerializer.Serialize(d);
@@ -43,7 +43,7 @@ namespace Nino.UnitTests.UnityMock
         {
             //custom type
             var fixedDateTime = new DateTime(2025, 7, 19, 10, 25, 2, DateTimeKind.Utc);
-            PrimitiveTypeTest c = new PrimitiveTypeTest()
+            PrimitiveTypeTest c = new()
             {
                 ni = null,
                 v3 = Vector3.one,
@@ -91,9 +91,9 @@ namespace Nino.UnitTests.UnityMock
         [TestMethod]
         public void TestTrivialClass()
         {
-            Stopwatch sw = new Stopwatch();
+            Stopwatch sw = new();
 
-            IncludeAllClassCodeGen codeGen = new IncludeAllClassCodeGen()
+            IncludeAllClassCodeGen codeGen = new()
             {
                 a = 100,
                 b = 199,
@@ -118,7 +118,7 @@ namespace Nino.UnitTests.UnityMock
             Console.WriteLine(
                 $"deserialized as codeGenR in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {codeGenR}");
 
-            NotIncludeAllClass d = new NotIncludeAllClass()
+            NotIncludeAllClass d = new()
             {
                 a = 100,
                 b = 199,

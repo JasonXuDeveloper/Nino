@@ -12,7 +12,7 @@ public class TupleAndKeyValuePairTests
     [TestMethod]
     public void TestTuple()
     {
-        Tuple<int, string> tuple = new Tuple<int, string>(1, "Test");
+        Tuple<int, string> tuple = new(1, "Test");
         byte[] bytes = NinoSerializer.Serialize(tuple);
         Assert.IsNotNull(bytes);
 
@@ -20,7 +20,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(tuple.Item1, result.Item1);
         Assert.AreEqual(tuple.Item2, result.Item2);
 
-        Tuple<int, int> tuple2 = new Tuple<int, int>(1, 2);
+        Tuple<int, int> tuple2 = new(1, 2);
         bytes = NinoSerializer.Serialize(tuple2);
         Assert.IsNotNull(bytes);
 
@@ -29,7 +29,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(tuple2.Item2, result2.Item2);
 
         Tuple<string, Tuple<int, string>> tuple3 =
-            new Tuple<string, Tuple<int, string>>("Test", new Tuple<int, string>(1, "Test"));
+            new("Test", new Tuple<int, string>(1, "Test"));
         bytes = NinoSerializer.Serialize(tuple3);
         Assert.IsNotNull(bytes);
 
@@ -39,7 +39,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(tuple3.Item2.Item1, result3.Item2.Item1);
         Assert.AreEqual(tuple3.Item2.Item2, result3.Item2.Item2);
 
-        Tuple<Data, Tuple<int, int>> tuple4 = new Tuple<Data, Tuple<int, int>>(new Data()
+        Tuple<Data, Tuple<int, int>> tuple4 = new(new Data()
         {
             En = TestEnum.A,
             Name = "Test",
@@ -57,7 +57,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(tuple4.Item2.Item1, result4.Item2.Item1);
         Assert.AreEqual(tuple4.Item2.Item2, result4.Item2.Item2);
 
-        List<(int a, int b)> lst1 = new List<(int a, int b)>
+        List<(int a, int b)> lst1 = new()
         {
             (1, 2),
             (3, 4)
@@ -76,7 +76,7 @@ public class TupleAndKeyValuePairTests
     [TestMethod]
     public void TestValueTuple()
     {
-        ValueTuple<int, string> tuple = new ValueTuple<int, string>(1, "Test");
+        ValueTuple<int, string> tuple = new(1, "Test");
         byte[] bytes = NinoSerializer.Serialize(tuple);
         Assert.IsNotNull(bytes);
 
@@ -84,7 +84,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(tuple.Item1, result.Item1);
         Assert.AreEqual(tuple.Item2, result.Item2);
 
-        ValueTuple<int, int> tuple2 = new ValueTuple<int, int>(1, 2);
+        ValueTuple<int, int> tuple2 = new(1, 2);
         bytes = NinoSerializer.Serialize(tuple2);
         Assert.IsNotNull(bytes);
 
@@ -93,7 +93,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(tuple2.Item2, result2.Item2);
 
         ValueTuple<string, ValueTuple<int, string>> tuple3 =
-            new ValueTuple<string, ValueTuple<int, string>>("Test", new ValueTuple<int, string>(1, "Test"));
+            new("Test", new ValueTuple<int, string>(1, "Test"));
         bytes = NinoSerializer.Serialize(tuple3);
         Assert.IsNotNull(bytes);
 
@@ -103,7 +103,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(tuple3.Item2.Item1, result3.Item2.Item1);
         Assert.AreEqual(tuple3.Item2.Item2, result3.Item2.Item2);
 
-        ValueTuple<Data, ValueTuple<int, int>> tuple4 = new ValueTuple<Data, ValueTuple<int, int>>(new Data()
+        ValueTuple<Data, ValueTuple<int, int>> tuple4 = new(new Data()
         {
             En = TestEnum.A,
             Name = "Test",
@@ -142,7 +142,7 @@ public class TupleAndKeyValuePairTests
     [TestMethod]
     public void TestKvp()
     {
-        KeyValuePair<int, long> kvp = new KeyValuePair<int, long>(1, 1234567890);
+        KeyValuePair<int, long> kvp = new(1, 1234567890);
         byte[] bytes = NinoSerializer.Serialize(kvp);
         Assert.IsNotNull(bytes);
         Console.WriteLine(string.Join(", ", bytes));
@@ -151,7 +151,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(kvp.Key, result.Key);
         Assert.AreEqual(kvp.Value, result.Value);
 
-        KeyValuePair<int, string> kvp2 = new KeyValuePair<int, string>(1, "Test");
+        KeyValuePair<int, string> kvp2 = new(1, "Test");
         bytes = NinoSerializer.Serialize(kvp2);
         Assert.IsNotNull(bytes);
 
@@ -160,7 +160,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(kvp2.Value, result2.Value);
 
         KeyValuePair<int, KeyValuePair<int, long>> kvp3 =
-            new KeyValuePair<int, KeyValuePair<int, long>>(1, new KeyValuePair<int, long>(2, 1234567890));
+            new(1, new KeyValuePair<int, long>(2, 1234567890));
         bytes = NinoSerializer.Serialize(kvp3);
         Assert.IsNotNull(bytes);
 
@@ -170,7 +170,7 @@ public class TupleAndKeyValuePairTests
         Assert.AreEqual(kvp3.Value.Key, result3.Value.Key);
 
         KeyValuePair<string, KeyValuePair<bool, string>> kvp4 =
-            new KeyValuePair<string, KeyValuePair<bool, string>>("Test111",
+            new("Test111",
                 new KeyValuePair<bool, string>(true, "Test"));
         bytes = NinoSerializer.Serialize(kvp4);
         Assert.IsNotNull(bytes);

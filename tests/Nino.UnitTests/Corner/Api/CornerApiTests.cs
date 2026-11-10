@@ -13,7 +13,7 @@ namespace Nino.UnitTests
     /// <summary>A buffer writer that hands out spans no larger than asked for, in separate chunks.</summary>
     internal sealed class StingyBufferWriter : IBufferWriter<byte>
     {
-        private readonly List<byte> _written = new List<byte>();
+        private readonly List<byte> _written = new();
         private byte[] _current = Array.Empty<byte>();
         public int GetSpanCalls;
 
@@ -47,16 +47,16 @@ namespace Nino.UnitTests
     [TestClass]
     public class CornerApiTests
     {
-        private static ApiPayload Payload() => new ApiPayload
+        private static ApiPayload Payload() => new()
         {
             Id = 42, Name = "payload",
-            Nodes = new List<SimpleNode> { new SimpleNode { Id = 1, Name = "n" }, null },
+            Nodes = new List<SimpleNode> { new() { Id = 1, Name = "n" }, null },
             Numbers = Enumerable.Range(0, 50).ToArray(),
             Shapes = new Dictionary<string, AbstractShape>
                 { ["sq"] = new SquareShape { Side = 1 }, ["c"] = new SealedCircle { Radius = 2 }, ["null"] = null },
             Raw = new RawPadded { A = 1, B = 2, C = 3, D = 4 },
             Raws = new[] { new RawPadded { D = 5 } },
-            Sealed = new VerOuterV1 { A = 7, Mids = new List<VerMidV1> { new VerMidV1 { M = 1 } } },
+            Sealed = new VerOuterV1 { A = 7, Mids = new List<VerMidV1> { new() { M = 1 } } },
         };
 
         private static void AssertPayload(ApiPayload p)
@@ -118,8 +118,8 @@ namespace Nino.UnitTests
         /// <summary>A pool that records what it hands out and gets back (issue #198).</summary>
         private sealed class CountingPool : ArrayPool<byte>
         {
-            public readonly List<byte[]> Rented = new List<byte[]>();
-            public readonly List<byte[]> Returned = new List<byte[]>();
+            public readonly List<byte[]> Rented = new();
+            public readonly List<byte[]> Returned = new();
 
             public override byte[] Rent(int minimumLength)
             {

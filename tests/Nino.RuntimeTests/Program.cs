@@ -313,7 +313,7 @@ public static class Program
             for (int length = 1; length <= 80; length++)
             {
                 bool ascii = length % 2 == 0;
-                string name = new string(Enumerable.Range(0, length)
+                string name = new(Enumerable.Range(0, length)
                     .Select(i => (char)(!ascii && i % 3 == 0 ? 0xE9 : 'a' + i % 26)).ToArray());
                 byte[] bytes = NinoSerializer.Serialize(new Item { Name = name });
                 for (int at = 0; at < length; at++)

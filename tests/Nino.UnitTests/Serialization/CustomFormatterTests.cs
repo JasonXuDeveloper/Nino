@@ -146,7 +146,7 @@ public class CustomFormatterTests
         Console.WriteLine("Testing new custom formatter system...");
 
         // Create test instance with custom formatter fields
-        ExampleWithCustomFormatters example = new ExampleWithCustomFormatters
+        ExampleWithCustomFormatters example = new()
         {
             NormalField = 42,
             CustomField = new SpecialValue { Value = 1337, Label = "TestSpecial" },

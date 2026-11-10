@@ -155,7 +155,7 @@ namespace Nino.UnitTests
                     Items = Enumerable.Range(0, 6).Select(i => new ColdPooled { Id = i, Values = new List<int> { t, i } }).ToList(),
                 });
                 var small = NinoSerializer.Serialize(new ColdPooledOwner
-                    { Items = new List<ColdPooled> { new ColdPooled { Id = 100 + t } } });
+                    { Items = new List<ColdPooled> { new() { Id = 100 + t } } });
                 barrier.SignalAndWait();
 
                 var owner = new ColdPooledOwner();

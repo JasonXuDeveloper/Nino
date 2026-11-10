@@ -37,7 +37,7 @@ namespace Nino.UnitTests
         /// Int128 and DateTime.
         /// </summary>
         private static NinoLayoutModel Model(int longAlign, int decimalAlign, int int128Align = 0, int dateTimeAlign = 0) =>
-            new NinoLayoutModel(longAlign, decimalAlign, System.IntPtr.Size,
+            new(longAlign, decimalAlign, System.IntPtr.Size,
                 int128Align > 0 ? int128Align : NinoLayout.Int128Align,
                 dateTimeAlign > 0 ? dateTimeAlign : NinoLayout.DateTimeAlign);
 

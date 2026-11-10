@@ -19,14 +19,12 @@ public class CollectionSerializationTests
     {
         IEnumerable<SimpleClass> collection = new List<SimpleClass>
         {
-            new SimpleClass
-            {
+            new() {
                 Id = 1,
                 Name = "Test",
                 CreateTime = DateTime.Today
             },
-            new SimpleClass
-            {
+            new() {
                 Id = 2,
                 Name = "Test2",
                 CreateTime = DateTime.Today
@@ -124,7 +122,7 @@ public class CollectionSerializationTests
     [TestMethod]
     public void TestNonTrivialCollection()
     {
-        Stack<int> stack = new Stack<int>();
+        Stack<int> stack = new();
         stack.Push(1);
         stack.Push(2);
 
@@ -136,7 +134,7 @@ public class CollectionSerializationTests
         Assert.AreEqual(stack.Pop(), result.Pop());
         Assert.AreEqual(stack.Pop(), result.Pop());
 
-        Queue<int> queue = new Queue<int>();
+        Queue<int> queue = new();
         queue.Enqueue(1);
         queue.Enqueue(2);
 
@@ -149,7 +147,7 @@ public class CollectionSerializationTests
         Assert.AreEqual(queue.Dequeue(), result2.Dequeue());
         Assert.AreEqual(queue.Dequeue(), result2.Dequeue());
 
-        Stack<TestClass> stack2 = new Stack<TestClass>();
+        Stack<TestClass> stack2 = new();
         stack2.Push(new TestClass
         {
             A = 1,
@@ -166,7 +164,7 @@ public class CollectionSerializationTests
         Assert.AreEqual(item.A, item2.A);
         Assert.AreEqual(item.B, item2.B);
 
-        Queue<TestClass> queue2 = new Queue<TestClass>();
+        Queue<TestClass> queue2 = new();
         queue2.Enqueue(new TestClass
         {
             A = 1,
@@ -183,8 +181,8 @@ public class CollectionSerializationTests
         Assert.AreEqual(item.A, item2.A);
         Assert.AreEqual(item.B, item2.B);
 
-        Stack<Queue<(TestClass, int)>> stack3 = new Stack<Queue<(TestClass, int)>>();
-        Queue<(TestClass, int)> queue3 = new Queue<(TestClass, int)>();
+        Stack<Queue<(TestClass, int)>> stack3 = new();
+        Queue<(TestClass, int)> queue3 = new();
         queue3.Enqueue((new TestClass
         {
             A = 1,
@@ -206,7 +204,7 @@ public class CollectionSerializationTests
         Assert.AreEqual(item3.Item1.A, item4.Item1.A);
         Assert.AreEqual(item3.Item1.B, item4.Item1.B);
 
-        LinkedList<TestClass> linkedList = new LinkedList<TestClass>();
+        LinkedList<TestClass> linkedList = new();
         linkedList.AddLast(new TestClass
         {
             A = 1,
@@ -223,7 +221,7 @@ public class CollectionSerializationTests
         Assert.AreEqual(node.Value.A, node2.Value.A);
         Assert.AreEqual(node.Value.B, node2.Value.B);
 
-        Queue<int> queue6 = new Queue<int>();
+        Queue<int> queue6 = new();
         queue6.Enqueue(1);
         queue6.Enqueue(2);
         queue6.Enqueue(3);
@@ -291,7 +289,7 @@ public class CollectionSerializationTests
     [TestMethod]
     public void TestCursedGeneric()
     {
-        CursedGeneric<int> cursedGeneric = new CursedGeneric<int>
+        CursedGeneric<int> cursedGeneric = new()
         {
             field = new ConcurrentDictionary<string, int[]>
             {
@@ -310,7 +308,7 @@ public class CollectionSerializationTests
             Assert.AreEqual(cursedGeneric.field["Test"][i], result.field["Test"][i]);
         }
 
-        CursedGeneric<string> cursedGeneric2 = new CursedGeneric<string>
+        CursedGeneric<string> cursedGeneric2 = new()
         {
             field = new ConcurrentDictionary<string, string[]>
             {
@@ -329,7 +327,7 @@ public class CollectionSerializationTests
             Assert.AreEqual(cursedGeneric2.field["Test"][i], result2.field["Test"][i]);
         }
 
-        CursedGeneric<TestClass> cursedGeneric3 = new CursedGeneric<TestClass>
+        CursedGeneric<TestClass> cursedGeneric3 = new()
         {
             field = new ConcurrentDictionary<string, TestClass[]>
             {
@@ -354,7 +352,7 @@ public class CollectionSerializationTests
     public void TestConcurrentCollections()
     {
         // Test ConcurrentQueue with primitives
-        ConcurrentQueue<int> concurrentQueue = new ConcurrentQueue<int>();
+        ConcurrentQueue<int> concurrentQueue = new();
         concurrentQueue.Enqueue(1);
         concurrentQueue.Enqueue(2);
         concurrentQueue.Enqueue(3);
@@ -369,7 +367,7 @@ public class CollectionSerializationTests
         Assert.IsTrue(resultQueue.TryDequeue(out int val3) && val3 == 3);
 
         // Test ConcurrentStack with primitives
-        ConcurrentStack<int> concurrentStack = new ConcurrentStack<int>();
+        ConcurrentStack<int> concurrentStack = new();
         concurrentStack.Push(1);
         concurrentStack.Push(2);
         concurrentStack.Push(3);
@@ -384,7 +382,7 @@ public class CollectionSerializationTests
         Assert.IsTrue(resultStack.TryPop(out int sval3) && sval3 == 1);
 
         // Test ConcurrentQueue with complex types
-        ConcurrentQueue<TestClass> concurrentQueue2 = new ConcurrentQueue<TestClass>();
+        ConcurrentQueue<TestClass> concurrentQueue2 = new();
         concurrentQueue2.Enqueue(new TestClass { A = 1, B = "Test1" });
         concurrentQueue2.Enqueue(new TestClass { A = 2, B = "Test2" });
 
@@ -401,7 +399,7 @@ public class CollectionSerializationTests
         Assert.AreEqual("Test2", item2.B);
 
         // Test ConcurrentStack with complex types
-        ConcurrentStack<TestClass> concurrentStack2 = new ConcurrentStack<TestClass>();
+        ConcurrentStack<TestClass> concurrentStack2 = new();
         concurrentStack2.Push(new TestClass { A = 1, B = "Test1" });
         concurrentStack2.Push(new TestClass { A = 2, B = "Test2" });
 
@@ -418,8 +416,8 @@ public class CollectionSerializationTests
         Assert.AreEqual("Test1", sitem2.B);
 
         // Test nested concurrent collections
-        ConcurrentQueue<ConcurrentStack<int>> nestedQueue = new ConcurrentQueue<ConcurrentStack<int>>();
-        ConcurrentStack<int> innerStack = new ConcurrentStack<int>();
+        ConcurrentQueue<ConcurrentStack<int>> nestedQueue = new();
+        ConcurrentStack<int> innerStack = new();
         innerStack.Push(1);
         innerStack.Push(2);
         nestedQueue.Enqueue(innerStack);
@@ -560,14 +558,14 @@ public class CollectionSerializationTests
     public void TestConcurrentCollectionsRefOverload()
     {
         // Test ConcurrentQueue ref overload
-        ConcurrentQueue<int> concurrentQueue = new ConcurrentQueue<int>();
+        ConcurrentQueue<int> concurrentQueue = new();
         concurrentQueue.Enqueue(1);
         concurrentQueue.Enqueue(2);
 
         byte[] bytes = NinoSerializer.Serialize(concurrentQueue);
         Assert.IsNotNull(bytes);
 
-        ConcurrentQueue<int> tempQueue = new ConcurrentQueue<int>();
+        ConcurrentQueue<int> tempQueue = new();
         tempQueue.Enqueue(99); // Should be cleared
         NinoDeserializer.Deserialize(bytes, ref tempQueue);
         Assert.AreEqual(2, tempQueue.Count);
@@ -578,14 +576,14 @@ public class CollectionSerializationTests
         var formatter = NinoFormatterResolver.GetFormatterType(typeof(ConcurrentStack<int>), topLevel: true);
         Assert.AreEqual(typeof(ConcurrentStackFormatter<,>), formatter.GetGenericTypeDefinition());
 
-        ConcurrentStack<int> concurrentStack = new ConcurrentStack<int>();
+        ConcurrentStack<int> concurrentStack = new();
         concurrentStack.Push(1);
         concurrentStack.Push(2);
 
         bytes = NinoSerializer.Serialize(concurrentStack);
         Assert.IsNotNull(bytes);
 
-        ConcurrentStack<int> tempStack = new ConcurrentStack<int>();
+        ConcurrentStack<int> tempStack = new();
         tempStack.Push(99); // Should be cleared
         NinoDeserializer.Deserialize(bytes, ref tempStack);
         Assert.AreEqual(2, tempStack.Count);
@@ -623,7 +621,7 @@ public class CollectionSerializationTests
     {
         // Test SortedSet<T>
         // 1. Primitive unmanaged
-        SortedSet<int> sortedSetInt = new SortedSet<int> { 5, 3, 1, 4, 2 };
+        SortedSet<int> sortedSetInt = new() { 5, 3, 1, 4, 2 };
         byte[] bytes = NinoSerializer.Serialize(sortedSetInt);
         Assert.IsNotNull(bytes);
         SortedSet<int> sortedSetIntResult = NinoDeserializer.Deserialize<SortedSet<int>>(bytes);
@@ -631,7 +629,7 @@ public class CollectionSerializationTests
         Assert.IsTrue(sortedSetIntResult.SetEquals(sortedSetInt));
 
         // 2. TestStruct3 (unmanaged struct)
-        SortedSet<TestStruct3> sortedSetStruct = new SortedSet<TestStruct3>()
+        SortedSet<TestStruct3> sortedSetStruct = new()
         {
             new TestStruct3 { A = 1, B = 1.5f },
             new TestStruct3 { A = 2, B = 2.5f }
@@ -642,7 +640,7 @@ public class CollectionSerializationTests
         Assert.AreEqual(2, sortedSetStructResult.Count);
 
         // 3. Managed reference type
-        SortedSet<string> sortedSetString = new SortedSet<string> { "delta", "alpha", "charlie", "bravo" };
+        SortedSet<string> sortedSetString = new() { "delta", "alpha", "charlie", "bravo" };
         bytes = NinoSerializer.Serialize(sortedSetString);
         Assert.IsNotNull(bytes);
         SortedSet<string> sortedSetStringResult = NinoDeserializer.Deserialize<SortedSet<string>>(bytes);
@@ -654,7 +652,7 @@ public class CollectionSerializationTests
 #if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
         // Test PriorityQueue<TElement, TPriority>
         // 1. Primitive unmanaged
-        PriorityQueue<int, int> priorityQueueInt = new PriorityQueue<int, int>();
+        PriorityQueue<int, int> priorityQueueInt = new();
         priorityQueueInt.Enqueue(10, 3);
         priorityQueueInt.Enqueue(20, 1);
         priorityQueueInt.Enqueue(30, 2);
@@ -667,7 +665,7 @@ public class CollectionSerializationTests
         Assert.AreEqual(10, priorityQueueIntResult.Dequeue()); // Priority 3
 
         // 2. String element with int priority (managed + unmanaged)
-        PriorityQueue<string, int> priorityQueueStr = new PriorityQueue<string, int>();
+        PriorityQueue<string, int> priorityQueueStr = new();
         priorityQueueStr.Enqueue("low", 10);
         priorityQueueStr.Enqueue("high", 1);
         priorityQueueStr.Enqueue("medium", 5);
@@ -679,7 +677,7 @@ public class CollectionSerializationTests
         Assert.AreEqual("high", priorityQueueStrResult.Dequeue());
 
         // 3. TestStruct3 with byte priority (both unmanaged)
-        PriorityQueue<TestStruct3, byte> priorityQueueStruct = new PriorityQueue<TestStruct3, byte>();
+        PriorityQueue<TestStruct3, byte> priorityQueueStruct = new();
         priorityQueueStruct.Enqueue(new TestStruct3 { A = 1, B = 1.5f }, 3);
         priorityQueueStruct.Enqueue(new TestStruct3 { A = 2, B = 2.5f }, 1);
         bytes = NinoSerializer.Serialize(priorityQueueStruct);
@@ -693,7 +691,7 @@ public class CollectionSerializationTests
 
         // Test SortedDictionary<TKey, TValue>
         // 1. Primitive unmanaged key and value
-        SortedDictionary<int, int> sortedDictInt = new SortedDictionary<int, int>
+        SortedDictionary<int, int> sortedDictInt = new()
         {
             { 3, 30 },
             { 1, 10 },
@@ -709,7 +707,7 @@ public class CollectionSerializationTests
         Assert.AreEqual(30, sortedDictIntResult[3]);
 
         // 2. String key, managed value type
-        SortedDictionary<string, TestStruct2> sortedDictMixed = new SortedDictionary<string, TestStruct2>
+        SortedDictionary<string, TestStruct2> sortedDictMixed = new()
         {
             { "first", new TestStruct2 { A = 1, B = true, C = new TestStruct3 { A = 1, B = 1.5f } } },
             { "second", new TestStruct2 { A = 2, B = false, C = new TestStruct3 { A = 2, B = 2.5f } } }
@@ -724,7 +722,7 @@ public class CollectionSerializationTests
         Console.WriteLine("SortedDictionary tests passed!");
 
         // Test SortedList<TKey, TValue>
-        SortedList<int, string> sortedList = new SortedList<int, string>
+        SortedList<int, string> sortedList = new()
         {
             { 3, "three" },
             { 1, "one" },
@@ -739,14 +737,14 @@ public class CollectionSerializationTests
         Console.WriteLine("SortedList tests passed!");
 
         // Test ReadOnlyDictionary<TKey, TValue>
-        Dictionary<string, int> innerDict = new Dictionary<string, int>
+        Dictionary<string, int> innerDict = new()
         {
             { "one", 1 },
             { "two", 2 },
             { "three", 3 }
         };
         System.Collections.ObjectModel.ReadOnlyDictionary<string, int> readOnlyDict =
-            new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(innerDict);
+            new(innerDict);
         bytes = NinoSerializer.Serialize(readOnlyDict);
         Assert.IsNotNull(bytes);
         System.Collections.ObjectModel.ReadOnlyDictionary<string, int> readOnlyDictResult =
@@ -822,7 +820,7 @@ public class CollectionSerializationTests
     {
         // Test nested generic types with new collections
         // 1. List of SortedSet
-        List<SortedSet<int>> listOfSortedSets = new List<SortedSet<int>>
+        List<SortedSet<int>> listOfSortedSets = new()
         {
             new SortedSet<int> { 3, 1, 2 },
             new SortedSet<int> { 6, 4, 5 }
@@ -835,7 +833,7 @@ public class CollectionSerializationTests
 
         // 2. Dictionary with ImmutableArray values
         Dictionary<string, ImmutableArray<int>> dictWithImmutableArrays =
-            new Dictionary<string, ImmutableArray<int>>
+            new()
             {
                 { "first", ImmutableArray.Create(1, 2, 3) },
                 { "second", ImmutableArray.Create(4, 5, 6) }
@@ -850,8 +848,8 @@ public class CollectionSerializationTests
         // 3. Jagged array with SortedDictionary
         SortedDictionary<int, string>[] jaggedSortedDict = new SortedDictionary<int, string>[]
         {
-            new SortedDictionary<int, string> { { 1, "one" }, { 2, "two" } },
-            new SortedDictionary<int, string> { { 3, "three" }, { 4, "four" } }
+            new() { { 1, "one" }, { 2, "two" } },
+            new() { { 3, "three" }, { 4, "four" } }
         };
         bytes = NinoSerializer.Serialize(jaggedSortedDict);
         Assert.IsNotNull(bytes);
@@ -876,7 +874,7 @@ public class CollectionSerializationTests
 
 #if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
         // 5. PriorityQueue with nested generic type parameters
-        PriorityQueue<List<string>, int> priorityQueueNested = new PriorityQueue<List<string>, int>();
+        PriorityQueue<List<string>, int> priorityQueueNested = new();
         priorityQueueNested.Enqueue(new List<string> { "a", "b" }, 2);
         priorityQueueNested.Enqueue(new List<string> { "c", "d" }, 1);
         bytes = NinoSerializer.Serialize(priorityQueueNested);
@@ -891,15 +889,14 @@ public class CollectionSerializationTests
 
         // 6. ReadOnlyDictionary with complex keys and values
         Dictionary<int, ImmutableArray<TestStruct3>> innerComplexDict =
-            new Dictionary<int, ImmutableArray<TestStruct3>>
+            new()
             {
                 { 1, ImmutableArray.Create(new TestStruct3 { A = 1, B = 1.5f }) },
                 { 2, ImmutableArray.Create(new TestStruct3 { A = 2, B = 2.5f }) }
             };
         System.Collections.ObjectModel.ReadOnlyDictionary<int, ImmutableArray<TestStruct3>>
             readOnlyComplexDict =
-                new System.Collections.ObjectModel.ReadOnlyDictionary<int,
-                    ImmutableArray<TestStruct3>>(innerComplexDict);
+                new(innerComplexDict);
         bytes = NinoSerializer.Serialize(readOnlyComplexDict);
         Assert.IsNotNull(bytes);
         System.Collections.ObjectModel.ReadOnlyDictionary<int, ImmutableArray<TestStruct3>>

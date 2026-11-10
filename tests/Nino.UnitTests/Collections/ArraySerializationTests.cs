@@ -22,7 +22,7 @@ public class ArraySerializationTests
     [TestMethod]
     public void ArraySegmentBytes()
     {
-        ArraySegment<byte> bytes = new ArraySegment<byte>(new byte[] { 1, 2, 3, 4, 5 });
+        ArraySegment<byte> bytes = new(new byte[] { 1, 2, 3, 4, 5 });
         byte[] serialized = NinoSerializer.Serialize(bytes);
         Assert.IsNotNull(serialized);
         ArraySegment<byte> deserialized = NinoDeserializer.Deserialize<ArraySegment<byte>>(serialized);
@@ -223,7 +223,7 @@ public class ArraySerializationTests
         Assert.AreEqual(8, jaggedWith2DResult[1][1, 1]);
 
         // Test 7: Multi-dimensional array as type parameter in generic
-        List<int[,]> listOf2DArrays = new List<int[,]>
+        List<int[,]> listOf2DArrays = new()
         {
             new int[,] { { 1, 2 }, { 3, 4 } },
             new int[,] { { 5, 6 }, { 7, 8 } }
@@ -239,7 +239,7 @@ public class ArraySerializationTests
         Assert.AreEqual(8, listOf2DArraysResult[1][1, 1]);
 
         // Test 8: Dictionary with multi-dimensional array values
-        Dictionary<string, int[,]> dictWith2DArrays = new Dictionary<string, int[,]>
+        Dictionary<string, int[,]> dictWith2DArrays = new()
         {
             { "first", new int[,] { { 1, 2 }, { 3, 4 } } },
             { "second", new int[,] { { 5, 6 }, { 7, 8 } } }
@@ -358,12 +358,12 @@ public class ArraySerializationTests
         {
             new TestStruct[]
             {
-                new TestStruct { A = 1, B = "First" },
-                new TestStruct { A = 2, B = "Second" }
+                new() { A = 1, B = "First" },
+                new() { A = 2, B = "Second" }
             },
             new TestStruct[]
             {
-                new TestStruct { A = 3, B = "Third" }
+                new() { A = 3, B = "Third" }
             }
         };
         bytes = NinoSerializer.Serialize(structJagged);
@@ -382,12 +382,12 @@ public class ArraySerializationTests
         {
             new TestClass[]
             {
-                new TestClass { A = 10, B = "A" },
-                new TestClass { A = 20, B = "B" }
+                new() { A = 10, B = "A" },
+                new() { A = 20, B = "B" }
             },
             new TestClass[]
             {
-                new TestClass { A = 30, B = "C" }
+                new() { A = 30, B = "C" }
             }
         };
         bytes = NinoSerializer.Serialize(classJagged);
@@ -452,7 +452,7 @@ public class ArraySerializationTests
         Assert.AreEqual(1, jaggedWithEmptyResult[1][0]);
 
         // Test 11: List of jagged arrays
-        List<int[][]> listOfJagged = new List<int[][]>
+        List<int[][]> listOfJagged = new()
         {
             new int[][] { new int[] { 1, 2 }, new int[] { 3 } },
             new int[][] { new int[] { 4, 5, 6 } }
@@ -468,7 +468,7 @@ public class ArraySerializationTests
         Assert.AreEqual(6, listOfJaggedResult[1][0][2]);
 
         // Test 12: Dictionary with jagged array values
-        Dictionary<string, byte[][]> dictWithJagged = new Dictionary<string, byte[][]>
+        Dictionary<string, byte[][]> dictWithJagged = new()
         {
             { "first", new byte[][] { new byte[] { 1, 2 }, new byte[] { 3 } } },
             { "second", new byte[][] { new byte[] { 4, 5, 6 } } }

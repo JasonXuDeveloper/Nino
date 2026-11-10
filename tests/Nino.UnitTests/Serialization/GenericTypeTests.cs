@@ -19,7 +19,7 @@ public class GenericTypeTests
         Generic<Task[]> placeholder2 = null;
 #pragma warning restore CS0219 // Variable is assigned but its value is never used
 
-        Generic<int> a = new Generic<int>()
+        Generic<int> a = new()
         {
             Val = 1
         };
@@ -28,7 +28,7 @@ public class GenericTypeTests
         var result = NinoDeserializer.Deserialize<Generic<int>>(bytes);
         Assert.AreEqual(a.Val, result.Val);
 
-        Generic<string> b = new Generic<string>()
+        Generic<string> b = new()
         {
             Val = "Test"
         };
@@ -41,7 +41,7 @@ public class GenericTypeTests
     [TestMethod]
     public void TestGenericStruct()
     {
-        GenericStruct<int> a = new GenericStruct<int>()
+        GenericStruct<int> a = new()
         {
             Val = 1
         };
@@ -50,7 +50,7 @@ public class GenericTypeTests
         GenericStruct<int> result = NinoDeserializer.Deserialize<GenericStruct<int>>(bytes);
         Assert.AreEqual(a.Val, result.Val);
 
-        GenericStruct<string> b = new GenericStruct<string>()
+        GenericStruct<string> b = new()
         {
             Val = "Test"
         };
@@ -63,7 +63,7 @@ public class GenericTypeTests
     [TestMethod]
     public void TestComplexGeneric()
     {
-        ComplexGeneric<List<int>> a = new ComplexGeneric<List<int>>()
+        ComplexGeneric<List<int>> a = new()
         {
             Val = new List<int>()
             {
@@ -82,7 +82,7 @@ public class GenericTypeTests
     [TestMethod]
     public void TestComplexGeneric2()
     {
-        ComplexGeneric2<Generic<SimpleClass>> a = new ComplexGeneric2<Generic<SimpleClass>>()
+        ComplexGeneric2<Generic<SimpleClass>> a = new()
         {
             Val = new Generic<Generic<SimpleClass>>()
             {
@@ -107,8 +107,8 @@ public class GenericTypeTests
     [TestMethod]
     public void TestComplexTypeGen()
     {
-        List<List<int[]>> a = new List<List<int[]>>();
-        Dictionary<TestStruct3, int> b = new Dictionary<TestStruct3, int>();
+        List<List<int[]>> a = new();
+        Dictionary<TestStruct3, int> b = new();
         Dictionary<TestStruct3, int>[] c =
         {
             b
@@ -117,10 +117,10 @@ public class GenericTypeTests
         IList<float> e = new List<float>();
         IDictionary<int, int> f = new ConcurrentDictionary<int, int>();
         IDictionary<int, TestClass3> g = new Dictionary<int, TestClass3>();
-        ArraySegment<bool[]> h = new ArraySegment<bool[]>();
-        ArraySegment<TestClass> i = new ArraySegment<TestClass>();
-        HashSet<TestStruct> j = new HashSet<TestStruct>();
-        HashSet<int> m = new HashSet<int>()
+        ArraySegment<bool[]> h = new();
+        ArraySegment<TestClass> i = new();
+        HashSet<TestStruct> j = new();
+        HashSet<int> m = new()
         {
             1, 2, 3
         };
@@ -163,7 +163,7 @@ public class GenericTypeTests
     public void TestGenericObject()
     {
         // Test Generic<object> serialization
-        Generic<object> genericObj = new Generic<object>
+        Generic<object> genericObj = new()
         {
             Val = new TestClass { A = 123, B = "Test" }
         };
@@ -194,7 +194,7 @@ public class GenericTypeTests
     public void TestListObject()
     {
         // Test List<object> serialization with [NinoType] objects only
-        List<object> listObj = new List<object>
+        List<object> listObj = new()
         {
             new TestClass { A = 111, B = "First" },
             new TestClass { A = 222, B = "Second" },
