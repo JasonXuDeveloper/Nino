@@ -24,7 +24,8 @@ namespace Nino.Core.Internal
                 ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
                 if (n >= 8)
                 {
-                    if (System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && n >= 24)
+                    // ReadyToRun folds the x64 baseline ISA even when it leaves the Arm64 test as a call.
+                    if (n >= 24 && !Sse2.IsSupported && System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported)
                         return SameMediumLatin1(ref source, ref chars, n);
 
                     var diff = Vector128<ushort>.Zero;
