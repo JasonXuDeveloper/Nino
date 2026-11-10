@@ -327,6 +327,13 @@ and when `asm.py compare` lists methods the change did not touch.
   `first != count` guard at the queue saved work for a one-string queue in three of four local rounds, but
   the 16-string case varied widely and the 1,024-string case stayed on par. The extra branch grew the Arm64
   caller by 16 bytes and the x64 queue formatter by 12 bytes. The raw block path keeps its existing guard.
+- Write the two fixed-stride queue runs with a reference and count. The validated ring already bounds both
+  runs, and their shared reservation covers both destinations. Four local default-JIT rounds with a duplicate
+  baseline showed a gain for one integer and for 64 contiguous or wrapped integers, with zero allocations.
+  Wrapped `DateTimeOffset` and the integer working sets immediately below and above 64 KiB were on par.
+  The queue formatter grew from 205 to 209 IL bytes. The integer caller fell from 3,024 to 3,004 bytes on
+  Arm64 FullOpts and from 2,535 to 2,445 bytes on x64 cross-JIT. The `DateTimeOffset` caller grew on Arm64
+  (2,236 to 2,284) and shrank on x64 (1,969 to 1,934). The wire and 577 generated files matched.
 - Keep the portable stack's reverse-then-write path. Walking the rented snapshot backwards for variable-size
   reference elements saved about a fifth of the time for 512 and 2,048 strings in the forced fallback, but
   grew the raw Tier 0 helper from 356 to 408 Arm64 bytes. The 64-integer case slowed by 2–4% across four
