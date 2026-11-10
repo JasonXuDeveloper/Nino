@@ -54,6 +54,10 @@ namespace Nino.Core
                     if (typeof(TKey) == typeof(int) && typeof(TValue) == typeof(int) && length >= 16 &&
                         TryReadSortedInt32Pairs(list, length, ref reader))
                         return true;
+                    if (typeof(TKey) == typeof(TValue) &&
+                        (typeof(TKey) == typeof(uint) || typeof(TKey) == typeof(long) || typeof(TKey) == typeof(ulong)) &&
+                        NinoSimd.CanSplitOrderedPairs(length) && TryReadMatchingOrderedPairs(list, length, ref reader))
+                        return true;
 #endif
                     ReadSortedList(list, length, ref reader);
                     return true;
@@ -340,12 +344,16 @@ namespace Nino.Core
         }
 
 #if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool CanReadRawSortedPairs(SortedList<TKey, TValue> list) =>
+            CollectionViews.SortedList && RawFormatter.Is<TKey, TKeyFormatter>() &&
+            RawFormatter.Is<TValue, TValueFormatter>() &&
+            ReferenceEquals(CollectionFields.Comparer(list), Comparer<TKey>.Default);
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool TryReadSortedInt32Pairs(SortedList<TKey, TValue> list, int length, ref Reader reader)
         {
-            if (!CollectionViews.SortedList || !RawFormatter.Is<TKey, TKeyFormatter>() ||
-                !RawFormatter.Is<TValue, TValueFormatter>() ||
-                !ReferenceEquals(CollectionFields.Comparer(list), Comparer<TKey>.Default))
+            if (!CanReadRawSortedPairs(list))
                 return false;
 
             ref byte source = ref reader.ReadElements(length, 8);
@@ -353,13 +361,40 @@ namespace Nino.Core
             return true;
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryReadMatchingOrderedPairs(SortedList<TKey, TValue> list, int length, ref Reader reader)
+        {
+            if (!CanReadRawSortedPairs(list))
+                return false;
+
+            if (typeof(TKey) == typeof(uint))
+                return TrySplitOrderedPairs(Unsafe.As<SortedList<uint, uint>>(list), length, ref reader);
+            if (typeof(TKey) == typeof(long))
+                return TrySplitOrderedPairs(Unsafe.As<SortedList<long, long>>(list), length, ref reader);
+            return TrySplitOrderedPairs(Unsafe.As<SortedList<ulong, ulong>>(list), length, ref reader);
+        }
+
+        private static bool TrySplitOrderedPairs<T>(SortedList<T, T> list, int length, ref Reader reader)
+            where T : unmanaged, IComparable<T>
+        {
+            T[] keys = CollectionFields.Keys(list), values = CollectionFields.Values(list);
+            if (keys.Length < length || values.Length < length)
+                return false;
+
+            ref byte source = ref reader.ReadElements(length, 2 * Unsafe.SizeOf<T>());
+            bool ordered = NinoSimd.SplitOrderedPairs(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
+                ref NinoUnsafe.GetArrayDataReference(values), length);
+            FinishSortedPairs(list, ref source, length, ordered);
+            return true;
+        }
+
         private static void ReadSortedInt32Pairs(SortedList<int, int> list, ref byte source, int length)
         {
             int[] keys = CollectionFields.Keys(list), values = CollectionFields.Values(list);
             bool ordered;
-            if (NinoSimd.CanSplitOrderedInt32(length) && keys.Length >= length && values.Length >= length)
+            if (NinoSimd.CanSplitOrderedPairs(length) && keys.Length >= length && values.Length >= length)
             {
-                ordered = NinoSimd.SplitOrderedInt32(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
+                ordered = NinoSimd.SplitOrderedPairs(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
                     ref NinoUnsafe.GetArrayDataReference(values), length);
             }
             else
@@ -376,6 +411,12 @@ namespace Nino.Core
                 }
             }
 
+            FinishSortedPairs(list, ref source, length, ordered);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void FinishSortedPairs<T>(SortedList<T, T> list, ref byte source, int length, bool ordered)
+        {
             if (ordered)
             {
                 CollectionFields.Size(list) = length;
@@ -384,11 +425,12 @@ namespace Nino.Core
             }
 
             // The list is still empty. The comparer fallback reads only its published entries.
+            int size = Unsafe.SizeOf<T>();
             for (int j = 0; j < length; j++)
             {
-                ref byte pair = ref Unsafe.Add(ref source, j * 8);
-                NinoCollections.AddUnique(list, NinoUnsafe.Read<int>(ref pair),
-                    NinoUnsafe.Read<int>(ref Unsafe.Add(ref pair, 4)), j);
+                ref byte pair = ref Unsafe.Add(ref source, j * (2 * size));
+                NinoCollections.AddUnique(list, NinoUnsafe.Read<T>(ref pair),
+                    NinoUnsafe.Read<T>(ref Unsafe.Add(ref pair, size)), j);
             }
         }
 #endif

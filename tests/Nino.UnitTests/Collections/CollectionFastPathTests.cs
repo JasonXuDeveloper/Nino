@@ -295,6 +295,43 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void SortedListReusesSignedAndUnsignedIntegralPairs()
+    {
+        Check(i => 0x7FFF_FFE0u + (uint)i * 2, i => ~(uint)i);
+        Check(i => i == 0 ? long.MinValue : ((long)i - 18) << 40, i => -((long)i << 42) - 1);
+        Check(i => 0x7FFF_FFFF_FFFF_FFE0ul + (ulong)i * 2, i => ~(ulong)i);
+
+        static void Check<T>(Func<int, T> key, Func<int, T> value) where T : unmanaged, IComparable<T>
+        {
+            var expected = new SortedList<T, T>();
+            for (int i = 0; i < 35; i++)
+                expected.Add(key(i), value(i));
+
+            using var buffer = new NinoArrayBufferWriter();
+            buffer.GetSpan(1);
+            buffer.Advance(1);
+            NinoSerializer.Serialize(expected, buffer);
+            byte[] bytes = buffer.WrittenSpan.Slice(1).ToArray();
+            var reused = new SortedList<T, T>(48) { [key(0)] = value(1) };
+            var original = reused;
+            NinoDeserializer.Deserialize(buffer.WrittenSpan.Slice(1), ref reused);
+            Assert.AreSame(original, reused);
+            Assert.AreSequenceEqual(expected, reused);
+            Assert.AreEqual(48, reused.Capacity);
+
+            byte[] descending = NinoSerializer.Serialize(expected.Reverse().ToDictionary(p => p.Key, p => p.Value));
+            NinoDeserializer.Deserialize(descending, ref reused);
+            Assert.AreSequenceEqual(expected, reused);
+            var reverseComparer = new SortedList<T, T>(48, Comparer<T>.Create((a, b) => b.CompareTo(a)));
+            NinoDeserializer.Deserialize(bytes, ref reverseComparer);
+            Assert.AreSequenceEqual(expected.Reverse(), reverseComparer);
+
+            var truncated = bytes.AsSpan(0, bytes.Length - 1).ToArray();
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(truncated, ref reused));
+        }
+    }
+
+    [TestMethod]
     public void ExistingSortedAndConcurrentDictionariesAreRefilled()
     {
         var bytes = NinoSerializer.Serialize(new Dictionary<int, int> { [5] = 50, [1] = 10 });

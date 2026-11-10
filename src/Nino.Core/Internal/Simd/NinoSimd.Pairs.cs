@@ -232,42 +232,53 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool CanSplitOrderedInt32(int count) => AdvSimd.Arm64.IsSupported && count >= 32;
+        internal static bool CanSplitOrderedPairs(int count) => AdvSimd.Arm64.IsSupported && count >= 32;
 
         // The destination arrays belong to an empty list. Publish its count only after the whole split succeeds.
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static bool SplitOrderedInt32(ref byte source, ref int first, ref int second, int count)
+        // Optimize from the first call so the Arm64 loop keeps the preceding group out of the OSR spill slot.
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        internal static bool SplitOrderedPairs<T>(ref byte source, ref T first, ref T second, int count)
+            where T : unmanaged, System.IComparable<T>
         {
-            int previous = NinoUnsafe.Read<int>(ref source);
+            // The caller selects one of int, uint, long and ulong. The key comparison retains its signedness.
+            T previous = NinoUnsafe.Read<T>(ref source);
             first = previous;
-            second = NinoUnsafe.Read<int>(ref Unsafe.Add(ref source, 4));
+            second = NinoUnsafe.Read<T>(ref Unsafe.Add(ref source, Unsafe.SizeOf<T>()));
             var precedingGroup = Vector128.Create(previous);
             int i = 1;
-            for (; i <= count - 4; i += 4)
+            // Keep the size and lane count intrinsic in the loop. OSR otherwise imports them as live locals.
+            for (; i <= count - Vector128<T>.Count; i += Vector128<T>.Count)
             {
-                nuint offset = (nuint)i * 8;
-                var a = Vector128.LoadUnsafe(ref source, offset).AsInt32();
-                var b = Vector128.LoadUnsafe(ref source, offset + 16).AsInt32();
-                var keys = AdvSimd.Arm64.UnzipEven(a, b);
-                var preceding = AdvSimd.ExtractVector128(precedingGroup, keys, 3);
+                nuint offset = (nuint)i * (uint)(2 * Unsafe.SizeOf<T>());
+                var a = Vector128.LoadUnsafe(ref source, offset);
+                var b = Vector128.LoadUnsafe(ref source, offset + 16);
+                var keys = Unsafe.SizeOf<T>() == 4
+                    ? AdvSimd.Arm64.UnzipEven(a.AsInt32(), b.AsInt32()).As<int, T>()
+                    : AdvSimd.Arm64.UnzipEven(a.AsInt64(), b.AsInt64()).As<long, T>();
+                var preceding = Unsafe.SizeOf<T>() == 4
+                    ? AdvSimd.ExtractVector128(precedingGroup.AsByte(), keys.AsByte(), 12).As<byte, T>()
+                    : AdvSimd.ExtractVector128(precedingGroup.AsByte(), keys.AsByte(), 8).As<byte, T>();
                 if (!Vector128.GreaterThanAll(keys, preceding))
                     return false;
 
                 keys.StoreUnsafe(ref first, (nuint)i);
-                AdvSimd.Arm64.UnzipOdd(a, b).StoreUnsafe(ref second, (nuint)i);
+                var values = Unsafe.SizeOf<T>() == 4
+                    ? AdvSimd.Arm64.UnzipOdd(a.AsInt32(), b.AsInt32()).As<int, T>()
+                    : AdvSimd.Arm64.UnzipOdd(a.AsInt64(), b.AsInt64()).As<long, T>();
+                values.StoreUnsafe(ref second, (nuint)i);
                 precedingGroup = keys;
             }
 
-            previous = precedingGroup.GetElement(3);
+            previous = precedingGroup.GetElement(Vector128<T>.Count - 1);
             for (; i < count; i++)
             {
-                ref byte pair = ref Unsafe.Add(ref source, i * 8);
-                int key = NinoUnsafe.Read<int>(ref pair);
-                if (key <= previous)
+                ref byte pair = ref Unsafe.Add(ref source, i * (2 * Unsafe.SizeOf<T>()));
+                T key = NinoUnsafe.Read<T>(ref pair);
+                if (key.CompareTo(previous) <= 0)
                     return false;
 
                 Unsafe.Add(ref first, i) = previous = key;
-                Unsafe.Add(ref second, i) = NinoUnsafe.Read<int>(ref Unsafe.Add(ref pair, 4));
+                Unsafe.Add(ref second, i) = NinoUnsafe.Read<T>(ref Unsafe.Add(ref pair, Unsafe.SizeOf<T>()));
             }
 
             return true;
