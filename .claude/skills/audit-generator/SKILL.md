@@ -287,6 +287,11 @@ per real-project formatter replay in both load orders. Renting the existing scra
 only for the partial emitter added about 28 KB to the same replay, so keep the accessor writer
 separate. Whole-project timings and allocations varied. All 582 files matched on both Roslyn
 builds, tracked edits reused the models, and collection and targeted tests passed (`dcd6f0c6`).
+Emit the partial accessor directly into the block file buffer and leave room for the generated
+pool hooks. Direct emission with the ordinary reserve added about 20 KB per formatter replay.
+Allowing 3 KiB for pooled tails instead saved 50 KB in both load orders and 42–77 KB across
+four cold project replays. All 582 files matched on both Roslyn builds, tracked edits reused
+the models, and collection and targeted tests passed (`28e5b679`).
 Write a single indented line directly instead of allocating a closure for `CodeWriter.Indented`.
 Four cold replays allocated 111–184 KB less with wall time within 0.7%. All 577 files matched,
 the 572 models were reused on tracked edits, and the collection probes passed (`cb904042`).
