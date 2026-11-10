@@ -133,6 +133,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   saved 0.54–0.82 MB against the paired baseline across eight rounds. The initial reopen slowdown did not
   reproduce in the four rounds with an identical-build control. Both Roslyn builds matched all 577 files,
   the Roslyn 4.12 edits reused all 572 models, and the project-close and edit probes collected old objects.
+- Allocate the ancestor list and visited set only when member collection finds a serializable base or interface.
+  Collect the declaring type separately, after its ancestors. In the 548-type probe this reduced allocation
+  from 1,106 to 912 B per type with identical member order. Traversing and collecting in the same recursion
+  reduced it further to 888 B, but reopening the real project took longer than the paired baseline in four
+  rounds. Keep the lazy list for now and retain the direct traversal as an experiment. With the lazy list,
+  cold, edit and reopen timings overlapped the identical-build controls. All 577 generated files matched on
+  Roslyn 4.8 and 4.12, 572 models were reused after both edits, and the close and edit collection checks passed.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
