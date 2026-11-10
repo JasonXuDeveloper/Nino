@@ -24,6 +24,11 @@ prefetch again anywhere.
   allocation. The million ordered items were 11–33% slower than the gate-only variant across four local rounds.
   The sampler returned false for the ordered graph in every process. Compare the ordinary writer reached after
   sampling with the one used below the length threshold, since neither case runs the prefetch loop.
+  Share the ordinary buffer-writer path after the sampler declines. The two direct overloads each used
+  seven fewer IL bytes and the benchmark Tier 1 entry shrank from 508 to 352 bytes on Arm64 and from
+  474 to 301 bytes in the x64 cross JIT. Ordered writes used less thread CPU in four supplementary local
+  rounds, but identical-binary variation was large and the short and shuffled cases moved in both
+  directions. Treat throughput as unproven. The generated source and all four wire samples matched.
 
 - Confirm prefetch throughput in separate processes with one copy of the object graph per process. In the
   local 131,089- and 262,161-object probes, the apparent benefit of processing whole runs instead of
