@@ -857,6 +857,14 @@ of bytes in a block.
   varied. All 12 wire cases matched with 0 B allocation. Serialize grew from 161 to 210 IL
   bytes and 828 to 872 Arm64 FullOpts bytes; its caller stayed 196 B and offline x64 stayed
   694 B. Dirty-tail and unaligned writer tests passed (`054e6900`).
+  Share the ReadyToRun-friendly Arm64 gate between the two BitArray copy paths.
+  The getter adds 15 IL bytes and each caller saves 7. Arm64 FullOpts retained
+  872/660 bytes and offline x64 retained 694/440 bytes. Four M4 pairs showed
+  no slowdown in the 96- and 129-byte writes, with zero allocation and identical
+  wire bytes. Applying the gate to string and raw-array callers preserved sampled
+  FullOpts sizes but moved default-JIT controls: 23-character Latin-1 reuse slowed
+  until both string call sites were restored, and fresh 96-byte array writes
+  slowed by about 5%. Leave those gates local (`78f93168`).
 - Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
   (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations,
   at the cost of a larger native helper.
