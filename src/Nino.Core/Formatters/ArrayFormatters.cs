@@ -406,12 +406,9 @@ namespace Nino.Core
                 shape.B = reader.UnsafeRead<int>();
             }
             int a = shape.A, b = shape.B, c = shape.C, d = shape.D;
-            if (b < 0 || c < 0 || d < 0)
-                NinoThrow.InvalidLength(Math.Min(b, Math.Min(c, d)));
-            // Longest dimension the runtime can allocate, also when the array is empty.
-            const int max = NinoUnsafe.MaxArrayLength;
-            if (a > max || b > max || c > max || d > max)
-                NinoThrow.InvalidLength(Math.Max(Math.Max(a, b), Math.Max(c, d)));
+            // Any sign bit or bit 30 requires an exact dimension check.
+            if (((a | b | c | d) & unchecked((int)0xC0000000)) != 0)
+                CheckDimensions(a, b, c, d);
             // One dimension multiplied in at a time, each product checked: a * b * c * d overflows a long (three
             // dimensions of 2^29 wrap around to 0). An empty array too: the runtime rejects one whose leading
             // dimensions multiply past 2^32 (CoreCLR: OutOfMemoryException for 65536 x 65536 x 0).
@@ -423,6 +420,17 @@ namespace Nino.Core
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));
             shape.Total = (int)total;
             return true;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CheckDimensions(int a, int b, int c, int d)
+        {
+            if (b < 0 || c < 0 || d < 0)
+                NinoThrow.InvalidLength(Math.Min(b, Math.Min(c, d)));
+            // Large dimensions may still fit the runtime limit.
+            int longest = Math.Max(Math.Max(a, b), Math.Max(c, d));
+            if (longest > NinoUnsafe.MaxArrayLength)
+                NinoThrow.InvalidLength(longest);
         }
 
         /// <summary>
