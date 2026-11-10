@@ -277,8 +277,64 @@ namespace Nino.Core.Internal
                 : Sse.Shuffle(a.AsSingle(), b.AsSingle(), 0x88).AsInt32();
 
         [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void DeinterleaveInt32Wide(ref byte source, ref int first, ref int second, int count)
+        {
+            int pairs;
+            if (Avx512F.IsSupported && count >= 2 * Vector512<int>.Count && Prefer512)
+            {
+                pairs = count & -Vector512<int>.Count;
+                DeinterleaveInt32_512(ref source, ref first, ref second, pairs);
+            }
+            else
+            {
+                pairs = count & -Vector256<int>.Count;
+                DeinterleaveInt32_256(ref source, ref first, ref second, pairs);
+            }
+
+            // The remainder is below the wide dispatch threshold.
+            if (pairs != count)
+                DeinterleaveInt32(ref Unsafe.Add(ref source, pairs * 8), ref Unsafe.Add(ref first, pairs),
+                    ref Unsafe.Add(ref second, pairs), count - pairs);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void DeinterleaveInt32_512(ref byte source, ref int first, ref int second, int count)
+        {
+            var even = Vector512.Create(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30);
+            var odd = even + Vector512.Create(1);
+            for (int i = 0; i < count; i += Vector512<int>.Count)
+            {
+                var a = Vector512.LoadUnsafe(ref source, (nuint)i * 8).AsInt32();
+                var b = Vector512.LoadUnsafe(ref source, (nuint)i * 8 + 64).AsInt32();
+                Avx512F.PermuteVar16x32x2(a, even, b).StoreUnsafe(ref first, (nuint)i);
+                Avx512F.PermuteVar16x32x2(a, odd, b).StoreUnsafe(ref second, (nuint)i);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void DeinterleaveInt32_256(ref byte source, ref int first, ref int second, int count)
+        {
+            for (int i = 0; i < count; i += Vector256<int>.Count)
+            {
+                var a = Vector256.LoadUnsafe(ref source, (nuint)i * 8).AsSingle();
+                var b = Vector256.LoadUnsafe(ref source, (nuint)i * 8 + 32).AsSingle();
+                // Shuffle selects alternating values per 128-bit lane. Reorder the resulting 64-bit groups.
+                var keys = Avx.Shuffle(a, b, 0x88).AsInt64();
+                var values = Avx.Shuffle(a, b, 0xDD).AsInt64();
+                Avx2.Permute4x64(keys, 0xD8).AsInt32().StoreUnsafe(ref first, (nuint)i);
+                Avx2.Permute4x64(values, 0xD8).AsInt32().StoreUnsafe(ref second, (nuint)i);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         internal static void DeinterleaveInt32(ref byte source, ref int first, ref int second, int count)
         {
+            if (Avx2.IsSupported && count >= 2 * Vector256<int>.Count)
+            {
+                DeinterleaveInt32Wide(ref source, ref first, ref second, count);
+                return;
+            }
+
             if (AdvSimd.Arm64.IsSupported || Sse2.IsSupported)
             {
                 while (count >= Vector128<int>.Count)

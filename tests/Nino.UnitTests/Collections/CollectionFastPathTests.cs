@@ -249,10 +249,16 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
-    public void SortedListReadsRawPairsInOrderAndOutOfOrder()
+    [DataRow(15)]
+    [DataRow(16)]
+    [DataRow(17)]
+    [DataRow(31)]
+    [DataRow(32)]
+    [DataRow(35)]
+    public void SortedListReadsRawPairsInOrderAndOutOfOrder(int count)
     {
         var expected = new SortedList<int, int>();
-        for (int i = 0; i < 35; i++)
+        for (int i = 0; i < count; i++)
             expected.Add(i * 3 - 5, -i * 13 - 1);
 
         using var buffer = new NinoArrayBufferWriter();
@@ -273,7 +279,7 @@ public class CollectionFastPathTests
         Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<SortedList<int, int>>(bytes.AsSpan(0, bytes.Length - 1)));
 
-        foreach (int index in new[] { 1, 5, 33 })
+        foreach (int index in new[] { 1, 5, count - 2 })
         {
             // Duplicates at the start, between vector groups and in the scalar tail.
             var duplicate = (byte[])bytes.Clone();
