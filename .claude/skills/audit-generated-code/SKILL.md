@@ -105,6 +105,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   in four rounds). The 1,000-item reordered case also slowed slightly. Removing
   the call saved 39 source bytes, 8 IL bytes, 92 Arm64 Tier 1 bytes and 167 offline
   x64 bytes. All 30 wire comparisons passed. Keep the omission as an experiment.
+- On keyed fallback switches with at most three members, open the member reader in
+  each known case and discard the validated region on the unknown path. This lets
+  the JIT omit the unused child Reader. Keep one shared region read for larger
+  switches to bound code growth. On `KeyedStruct` with one unknown key per value,
+  1,000 reused items went from 8.43–8.49 to 7.35–7.56 µs in four local rounds, at
+  zero steady allocation. Known reordered keys also improved, while the in-order
+  array cases overlapped A/A. The file gained 174 source bytes and the body gained
+  33 IL bytes, 324 Arm64 Tier 1 bytes and 384 offline x64 bytes.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
