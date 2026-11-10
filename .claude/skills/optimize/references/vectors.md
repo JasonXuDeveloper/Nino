@@ -557,6 +557,14 @@ of bytes in a block.
   its IL from 440 to 193 bytes and kept the 32-bit Arm64 and Windows x64 FullOpts sizes at 128 and 109 bytes.
   The local seven-pair 32-bit case still took 3–6% longer; 8,193 short pairs and 2,049 long pairs improved
   by roughly 79–81% and 29–34%, respectively.
+  Dispatch wider batches at the caller boundary and leave the narrow loop out of line. Putting the AVX2
+  dispatch and cursor updates in the narrow method grew the x64 int listing from 109 to 216 B. Moving
+  the dispatch back to the caller kept the narrow method at 109 B and the Arm64 caller and loop at
+  236 B and 128 B. Require two full vectors before entering the wide path. On AVX2, unpack per lane then
+  merge the 128-bit lanes. With AVX-512, use two-source permutations and the shared 512-bit CPU policy.
+  The x64 guest verified AVX2 and its fallback, including unaligned writes, while the AVX-512 listing
+  showed `vpermt2w/d/q`. The guest lacks AVX-512 and no native x64 throughput was measured. Four M4 A/B
+  pairs gave mixed results with zero allocations and identical output around 64 KiB (`3c871bab`).
 - Split a checked, ordered raw `SortedList<int, int>` input directly into its two arrays on .NET 8+.
   Keep the order check before publishing the arrays and use the same wire block for out-of-order insertion.
   Put the layout and comparer checks in an out-of-line helper so short reads keep the original rented-pair
