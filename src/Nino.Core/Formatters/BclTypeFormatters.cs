@@ -312,8 +312,11 @@ namespace Nino.Core
             bool reuse = current != null && current.Length == count;
             var bits = reuse ? current : new BitArray(count);
             var target = CollectionsMarshal.AsBytes(bits);
-            if (bytes.Length > 1)
+            if (bytes.Length > 2)
                 bytes.CopyTo(target);
+            else if (bytes.Length == 2)
+                NinoUnsafe.Write(ref MemoryMarshal.GetReference(target),
+                    NinoUnsafe.Read<ushort>(ref MemoryMarshal.GetReference(bytes)));
             else if (!bytes.IsEmpty)
                 MemoryMarshal.GetReference(target) = MemoryMarshal.GetReference(bytes);
 
