@@ -85,6 +85,12 @@ and when `asm.py compare` lists methods the change did not touch.
   to 512. Four public export rounds improved by 6–9% at 1–3 bytes with unchanged
   allocation. Direct-copy samples varied. All 80 export patterns and the 0–64 byte
   offset checks matched, and both targeted suites and netstandard builds passed (`15a5281d`).
+  Keep the shared overlapping short-word path. Using one word for exactly two bytes
+  and a word plus a byte for exactly three bytes grew `CopyUpTo15` by one IL byte
+  and the dynamic Arm64 and x64 callers by 12 bytes each. Four public export rounds
+  did not improve at either size against the identical-binary control. The 0–64
+  byte and patterned export probes matched, and both targeted suites and netstandard
+  builds passed. Keep the exact-width patch as a probe.
 
 - Keep the shared span read in `MemoryFormatter.Deserialize`. Sending a fresh array directly
   to the reader instead of obtaining its span through `Memory<T>` did not change allocations.
