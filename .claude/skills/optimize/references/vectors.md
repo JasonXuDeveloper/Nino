@@ -614,6 +614,11 @@ of bytes in a block.
   Verify the portable kernel directly across offsets and tails. The AVX2 guest and M4 exercise the fallbacks;
   neither executes native AVX-512. Their timed loops allocated 0 B, and unstable guest timings around the
   threshold do not establish native throughput (`f9ce316e`).
+  Use the exact AVX-512BW support check at the write entry too. Arm64 instrumented Tier 0
+  `NarrowVector` fell from 928 to 776 B and Tier 1 from 748 to 712 B, with the same 218 B IL.
+  The x64 cross-JIT MinOpts listing fell from 644 to 637 B. Four local timed pairs overlapped the
+  controls at zero allocations, and the byte comparison passed with SIMD enabled and disabled
+  (`a74d9910`).
 - Use the counted byte length to place long UTF-8 payloads at their final offset. When strict transcoding stops at an
   unpaired surrogate, continue the replacement encoder at the consumed char and written byte offsets, which differ
   after a non-ASCII prefix. Keep the replacement work out of line.
