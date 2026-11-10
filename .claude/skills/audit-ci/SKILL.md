@@ -34,6 +34,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   pipefail` by default). Flaky is not a root cause: find it. A step that downloads has a bound: Ubuntu packages go
   through `.github/actions/apt-install` (a time limit per try, three tries, the .deb files cached), never a bare
   `apt-get`.
+- **Automatic NuGet dependency submission** is GitHub-managed. If restore succeeds but
+  `component-detection` fails immediately with a shell syntax error, inspect the pinned action
+  and rerun just that job before changing repository workflows. The action downloads the latest
+  scanner and writes the HTTP response as an executable without checking its status. Run
+  42566229349 failed to launch the scanner and passed on attempt 2 at the same commit.
 - **Scripts only a release runs are checked on push.** `benchmarks/*.py` and `.github/scripts/*.py` run in
   `report.yml` and `release.yml`, so a broken one showed only at a release: agents.yml's job (path filter on
   `benchmarks/**` and `.github/scripts/**`) runs `python3 -m py_compile` over both folders and
