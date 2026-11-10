@@ -23,7 +23,7 @@ NinoSettings.cs              every process-wide setting (MaxDepth, MaxCollection
 NinoDataException.cs         the exception every check of the data throws (an InvalidOperationException)
 NinoKernels.cs               NinoKernels: the function pointers of native Permute / Narrow / Widen / NarrowAscii /
                              WidenAscii kernels the netstandard builds call when registered (Unity's Burst and WebGL
-                             kernels), with their scalar forms; NinoKernelHook holds them in static fields
+                             kernels), with their scalar forms
 Properties.cs                [module: SkipLocalsInit]
 ```
 
@@ -226,6 +226,13 @@ ObjectFields.cs              an object's fields at byte offsets
 ObjectTypes.cs               mirror-class instances retyped to the runtime's class (also compiled into Nino.Immutable)
 ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset: UTC ticks, minutes and their
                              width, found through its public API)
+```
+
+### Internal/Simd/
+
+```
+NinoSimd.cs                  managed SIMD capabilities and CPU policy, with inlinable 512/256/128 checks
+NinoKernelHook.cs            registered native function pointers and call thresholds for Burst and WebGL
 ```
 
 ### Internal/Validation/

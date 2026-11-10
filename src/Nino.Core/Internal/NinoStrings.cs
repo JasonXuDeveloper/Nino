@@ -72,7 +72,7 @@ namespace Nino.Core.Internal
             nuint n = (uint)length;
             ref byte body = ref Unsafe.Add(ref destination, 1);
 #if NET8_0_OR_GREATER
-            if (Vector128.IsHardwareAccelerated && n >= 8)
+            if (NinoSimd.Has128 && n >= 8)
             {
                 if (n > 16)
                     return WriteLong(ref destination, ref chars, length);
@@ -103,7 +103,7 @@ namespace Nino.Core.Internal
 #if NET8_0_OR_GREATER
             // 17 to 63 chars: at most four 128-bit steps, faster than Ascii.FromUtf16's setup (a URL of 53 chars took
             // 10% longer through it, as the header was moved to its odd offset).
-            bool narrowed = Vector128.IsHardwareAccelerated
+            bool narrowed = NinoSimd.Has128
                 ? Narrow16s(ref Unsafe.As<char, ushort>(ref chars), ref Unsafe.Add(ref destination, 1), (uint)length)
                 : Narrow(ref chars, ref Unsafe.Add(ref destination, 1), (uint)length);
             if (!narrowed)
@@ -310,7 +310,7 @@ namespace Nino.Core.Internal
         {
 #if NET8_0_OR_GREATER
             // Widened as little-endian words: big-endian machines compare through SameLatin1.
-            if (Vector128.IsHardwareAccelerated && BitConverter.IsLittleEndian)
+            if (NinoSimd.Has128 && BitConverter.IsLittleEndian)
             {
                 nuint n = (uint)value.Length;
                 ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
@@ -442,7 +442,7 @@ namespace Nino.Core.Internal
         private static bool Narrow(ref char source, ref byte destination, nuint n)
         {
 #if NET8_0_OR_GREATER
-            if (Vector128.IsHardwareAccelerated)
+            if (NinoSimd.Has128)
                 return NarrowVector(ref Unsafe.As<char, ushort>(ref source), ref destination, n);
 #endif
             return NarrowWords(ref source, ref destination, n); // without vectors
@@ -554,7 +554,7 @@ namespace Nino.Core.Internal
                 destination = ref Unsafe.Add(ref destination, (nint)start);
                 n -= start;
             }
-            if (Vector256.IsHardwareAccelerated && n >= 32)
+            if (NinoSimd.Has256 && n >= 32)
             {
                 var high = Vector256.Create((ushort)0xFF00);
                 nuint i = 0;
@@ -748,7 +748,7 @@ namespace Nino.Core.Internal
         private static void Widen(ref byte source, ref ushort destination, nuint n)
         {
 #if NET8_0_OR_GREATER
-            if (Vector128.IsHardwareAccelerated && n >= 8)
+            if (NinoSimd.Has128 && n >= 8)
             {
                 if (n >= 16)
                 {
@@ -792,7 +792,7 @@ namespace Nino.Core.Internal
         private static unsafe void WidenVector(ref byte source, ref ushort destination, nuint n)
         {
             nuint i = 0;
-            if (Vector256.IsHardwareAccelerated && n >= 32)
+            if (NinoSimd.Has256 && n >= 32)
             {
                 while (true)
                 {
@@ -926,11 +926,11 @@ namespace Nino.Core.Internal
             // Compare the tail first: a same-length edit at the end need not scan the whole prefix.
             nuint n = (uint)value.Length;
             ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
-            if (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512)
+            if (NinoSimd.Prefer512)
                 return SameLatin1Blocks<CompareLatin1_512>(ref source, ref chars, n);
-            if (Vector256.IsHardwareAccelerated)
+            if (NinoSimd.Has256)
                 return SameLatin1Blocks<CompareLatin1_256>(ref source, ref chars, n);
-            if (Vector128.IsHardwareAccelerated)
+            if (NinoSimd.Has128)
                 return SameLatin1Blocks<CompareLatin1_128>(ref source, ref chars, n);
             return SameBytes(ref source, value, 0);
         }

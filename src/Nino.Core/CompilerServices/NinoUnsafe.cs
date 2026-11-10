@@ -378,7 +378,7 @@ namespace Nino.Core.CompilerServices
         private static void Copy33To64(ref byte destination, ref byte source, uint size)
         {
 #if NET8_0_OR_GREATER
-            if (Vector256.IsHardwareAccelerated)
+            if (NinoSimd.Has256)
             {
                 var head = Vector256.LoadUnsafe(ref source);
                 var tail = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, (nint)size - 32));
@@ -449,7 +449,7 @@ namespace Nino.Core.CompilerServices
         /// 12-byte structs serialized in up to 1.27 times rc.7's time.
         /// </summary>
         // Not AggressiveOptimization: fully optimized code does not fold the static readonly fields below (it tests
-        // NinoUnsafe's class init and loads AmdCopy and IceLakeMemmove) and saved four registers in the prolog of the
+        // NinoUnsafe's class init and loads NinoSimd.Amd and IceLakeMemmove) and saved four registers in the prolog of the
         // 65 to 128 byte copies, the ones most callers make.
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static void CopyOver64(ref byte destination, ref byte source, uint size) =>
@@ -474,7 +474,7 @@ namespace Nino.Core.CompilerServices
             }
 
 #if NET8_0_OR_GREATER
-            if (Vector256.IsHardwareAccelerated)
+            if (NinoSimd.Has256)
             {
                 if (size <= 128)
                 {
@@ -492,8 +492,8 @@ namespace Nino.Core.CompilerServices
                         return;
                     }
                 }
-                else if ((Vector512.IsHardwareAccelerated
-                              ? size <= (AmdCopy ? MaxVectorCopy : MaxVector256Copy)
+                else if ((NinoSimd.Has512
+                              ? size <= (NinoSimd.Amd ? MaxVectorCopy : MaxVector256Copy)
                               : size - 256 <= MaxVector256Copy - 256) &&
                          !(IceLakeMemmove && size - MinIceLakeMemmove <= MaxVectorCopy - MinIceLakeMemmove))
                 {
@@ -502,7 +502,7 @@ namespace Nino.Core.CompilerServices
                     // Xeon Platinum 8370C, 160,000 bytes into a new zeroed array: 3.18 µs instead of 3.51); on AMD's
                     // Zen 5 Memmove beats it into such an array (EPYC 9V45: 1.81 µs against 1.67). CopyToNew is the
                     // other way round.
-                    if (Vector512.IsHardwareAccelerated && size <= MaxVectorCopy)
+                    if (NinoSimd.Has512 && size <= MaxVectorCopy)
                         CopyVectors<Vector512<byte>>(ref destination, ref source, size);
                     else
                         CopyVectors<Vector256<byte>>(ref destination, ref source, size);
@@ -534,39 +534,6 @@ namespace Nino.Core.CompilerServices
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// An AMD x64 CPU, whose rep movsb (Memmove's copy of a large block) is slower than vector stores also into a
-        /// new array, where Intel's writes whole lines without reading them first. Measured on GitHub's EPYC 7763
-        /// (.NET 10), a new uninitialized array filled from offset 4 of a buffer, vector stores against Memmove: 8,000
-        /// bytes in 279 to 288 ns instead of 341 to 350, 16,000 in 556 to 567 instead of 658 to 677, 64,000 in 1,989 to
-        /// 2,018 instead of 2,680 to 2,750; on an AVX-512 Xeon, Memmove 1.3 to 2 times as fast; on Arm64 (Neoverse
-        /// N2) Memmove as fast or faster. One CPUID at startup.
-        /// </summary>
-        private static readonly bool AmdCopy = X86Base.IsSupported && IsAmd();
-
-        private static bool IsAmd()
-        {
-            // "AuthenticAMD", in EBX, EDX and ECX.
-            var (_, ebx, ecx, edx) = X86Base.CpuId(0, 0);
-            return ebx == 0x68747541 && edx == 0x69746E65 && ecx == 0x444D4163;
-        }
-
-        /// <summary>
-        /// An x64 CPU whose 64-byte vector work beats 32-byte vectors where the two disagree: AMD's (Zen 4 and later)
-        /// and Intel's other than the Sunny Cove generation (<see cref="IsIceLake"/>), where both kernels below lost.
-        /// Not by AVX512-FP16 (Sapphire Rapids and later): Azure's Xeon Platinum 8573C (Emerald Rapids) does not report
-        /// it, and with 32-byte masks there it wrote 1,000 8-byte structs with a padding byte in 92 ns instead of 60
-        /// (.NET A/B run 41020623184). Two CPUIDs at startup.
-        /// </summary>
-        internal static readonly bool Wide512 = X86Base.IsSupported && (IsAmd() || !IsIceLake());
-
-        /// <summary>
-        /// An Intel CPU of the Sunny Cove generation (<see cref="IsIceLake"/>): on GitHub's Xeon Platinum 8370C a
-        /// 64-byte load across two cache lines costs about twice an aligned one, so its block writes load memory
-        /// vectors from 64-byte boundaries (<see cref="NinoBlockCollections"/>.WriteAligned).
-        /// </summary>
-        internal static readonly bool IceLake = X86Base.IsSupported && !IsAmd() && IsIceLake();
-
-        /// <summary>
         /// Ice Lake on Linux: <see cref="CopyOver64"/> leaves blocks from <see cref="MinIceLakeMemmove"/> to
         /// <see cref="MaxVectorCopy"/> to Memmove, which glibc runs there as one rep movsb from a 64-byte aligned
         /// destination (FSRM; rep_movsb_threshold 2,112). Nino's vector loop stores aligned but loads wherever the
@@ -574,32 +541,10 @@ namespace Nino.Core.CompilerServices
         /// one (16,000 bytes: 190 ns from a line, 377 from 8 bytes past one; rep movsb 117 to 247). Linux only: other C
         /// runtimes' memmove was not measured there.
         /// </summary>
-        private static readonly bool IceLakeMemmove = IceLake && OperatingSystem.IsLinux();
+        private static readonly bool IceLakeMemmove = NinoSimd.IceLake && OperatingSystem.IsLinux();
 
         /// <summary>The smallest block <see cref="IceLakeMemmove"/> hands to Memmove: glibc's rep movsb threshold with FSRM.</summary>
         private const uint MinIceLakeMemmove = 2112;
-
-        /// <summary>
-        /// An Intel CPU of the Sunny Cove generation and its client relatives (Ice Lake server and client, Tiger Lake,
-        /// Rocket Lake), by family 6 and model: the first cores with AVX-512 VBMI, whose 64-byte permutes and masked
-        /// copies ran slower than 32-byte ones on GitHub's Xeon Platinum 8370C.
-        /// </summary>
-        private static bool IsIceLake()
-        {
-            int eax = X86Base.CpuId(1, 0).Eax;
-            int family = (eax >> 8) & 0xF, model = ((eax >> 4) & 0xF) | ((eax >> 12) & 0xF0);
-            return family == 6 && model is 0x6A or 0x6C or 0x7D or 0x7E or 0x9D or 0x8C or 0x8D or 0xA7;
-        }
-
-        /// <summary>
-        /// An x64 CPU with AVX-512 VBMI whose two-source 64-byte byte permute (vpermt2b) writes values of more than 16
-        /// bytes faster than lane groups of 32-byte vectors (<see cref="NinoBlockCollections"/>.WritePairs),
-        /// <see cref="Wide512"/>. Measured on GitHub's runners, 1,000 values of 24 bytes as 15-byte blocks (.NET 10):
-        /// Xeon Platinum 8573C 0.65 and EPYC 9V45 0.76 times the time of lane groups, Xeon Platinum 8370C (Ice Lake)
-        /// 1.44 times.
-        /// </summary>
-        internal static readonly bool PairPermutes = Avx512Vbmi.IsSupported && Wide512;
-
 #endif
         /// <summary>
         /// <see cref="Copy"/> into memory that may have just been allocated (a read into a new array): Memmove from
@@ -616,7 +561,7 @@ namespace Nino.Core.CompilerServices
         public static void CopyToNew(ref byte destination, ref byte source, uint size)
         {
 #if NET8_0_OR_GREATER
-            if (size >= MinUninitializedArrayBytes && !AmdCopy)
+            if (size >= MinUninitializedArrayBytes && !NinoSimd.Amd)
             {
                 Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
                 return;
@@ -625,7 +570,7 @@ namespace Nino.Core.CompilerServices
             // On AMD with 64-byte vectors, 32-byte ones beyond 32 KB too, where Copy calls Memmove: into a new
             // uninitialized array they beat it (GitHub's EPYC 9V45 and 9V74, 160,000 bytes: 0.92 to 0.96 times the
             // time).
-            if (AmdCopy && Vector512.IsHardwareAccelerated &&
+            if (NinoSimd.Amd && NinoSimd.Has512 &&
                 size - (MaxVectorCopy + 1) <= MaxVector256Copy - (MaxVectorCopy + 1))
             {
                 CopyVectors<Vector256<byte>>(ref destination, ref source, size);

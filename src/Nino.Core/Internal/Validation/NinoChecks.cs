@@ -62,11 +62,11 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool TryValidateStrided(ref byte first, int bytes, int stride)
         {
-            if (Vector512.IsHardwareAccelerated && NinoUnsafe.Wide512)
+            if (NinoSimd.Prefer512)
                 return ValidFlagBlocks<Vector512<byte>, FlagVectors512>(ref first, bytes, stride);
-            if (Vector256.IsHardwareAccelerated)
+            if (NinoSimd.Has256)
                 return ValidFlagBlocks<Vector256<byte>, FlagVectors256>(ref first, bytes, stride);
-            return Vector128.IsHardwareAccelerated &&
+            return NinoSimd.Has128 &&
                    ValidFlagBlocks<Vector128<byte>, FlagVectors128>(ref first, bytes, stride);
         }
 

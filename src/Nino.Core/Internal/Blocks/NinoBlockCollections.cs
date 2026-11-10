@@ -200,7 +200,7 @@ namespace Nino.Core.Internal
             }
 
             // Ice Lake: the groups whose memory lies inside the values loaded from 64-byte boundaries.
-            if (NinoUnsafe.IceLake && NinoBlockPlan<T, TFormatter>.GroupWords)
+            if (NinoSimd.IceLake && NinoBlockPlan<T, TFormatter>.GroupWords)
                 i = WriteAligned<T, TFormatter>(ref source, ref destination, i, count);
 
             if (i <= last)
