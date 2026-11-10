@@ -320,10 +320,12 @@ public class CollectionFastPathTests
 
                 byte[] expected = NinoSerializer.Serialize(new Dictionary<T, T>(list));
                 using var buffer = new NinoArrayBufferWriter();
-                buffer.GetSpan(1);
+                buffer.GetSpan(expected.Length + 2).Fill(0xA5);
                 buffer.Advance(1);
                 NinoSerializer.Serialize(list, buffer);
                 CollectionAssert.AreEqual(expected, buffer.WrittenSpan.Slice(1).ToArray(), $"{typeof(T)} count={count}");
+                Assert.AreEqual((byte)0xA5, buffer.WrittenSpan[0]);
+                Assert.AreEqual((byte)0xA5, buffer.GetSpan(1)[0]);
             }
         }
     }
