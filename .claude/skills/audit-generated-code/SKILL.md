@@ -455,6 +455,14 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   and the caller stayed at 272 and 214 B. Four local rounds showed no meaningful write
   timing change, with identical wire bytes and zero steady allocation. All 577 models were
   reused on edits and both Roslyn suites passed (`8ca095f4`).
+  Keep by-reference static write bodies for structs. A by-value instance body removed
+  6,375 source bytes across 41 files and saved the 9-byte forwarder, but grew the Arm64
+  FullOpts bodies from 356 to 688 B for `NamedItem` and from 508 to 840 B for `WideItem`.
+  The x64 cross JIT printed the unchanged 160 B caller, but omitted the candidate bodies
+  with GC-tracked struct arguments. At 127 `NamedItem` elements the M4 writer slowed
+  about 5–13% across four rounds at both offsets. Wide timings were closer. Wire bytes,
+  allocation, model reuse and collection matched. The prototype passed 86 and 87 targeted
+  tests on .NET 8 and 10, respectively, and was withdrawn.
 - Omit the empty member hook for object-only prefetch formatters when Core exposes the object-only interface.
   Retain the existing generated contract against older Core versions. This removed 15,136 source bytes across
   148 of the unit test project's 582 files. The wire output and the activation threshold matched in both
