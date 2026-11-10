@@ -174,6 +174,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   bytes but saved 140 Arm64 Tier 1 and 99 offline x64 bytes. Four 1,000-item
   writes went from 4.79–5.13 to 4.57–4.61 µs at zero steady allocation.
   The 54 wire and round-trip probes covered both keyed and version-tolerant bodies.
+  Apply that same member predicate to individual keyed entries. With a built-in
+  `List<int>` member, 1,000 ASCII writes fell from 7.06–7.10 to 6.04–6.16 µs
+  across four same-Core rounds at zero allocation. The generated file gained
+  19 bytes and the body gained 7 IL bytes, while Arm64 Tier 1 fell from 1,940 to
+  1,800 bytes and offline x64 from 2,785 to 2,688. All 27 wire and round-trip
+  probes passed, including null and wide strings at unaligned offsets.
   Keep `EndRegion` for version-tolerant collection reads. Omitting it when all
   members preserved context shrank the `NamedList` body from 1,228 to 1,148 Arm64
   Tier 1 bytes and from 1,744 to 1,643 offline x64 bytes, but 16 ASCII items
