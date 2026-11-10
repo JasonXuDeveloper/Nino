@@ -659,6 +659,15 @@ and when `asm.py compare` lists methods the change did not touch.
   moved from 960 to 952 and 628 to 616 bytes, and emulated x64 from 820 to 807
   and 448 to 436. Four M4 default-JIT pairs varied alongside the identical-binary
   controls. Allocations and 30 wire cases matched at offsets zero, one and seven.
+  Keep ordered string-key probing out of the shared refill loop for now. Passing
+  each existing key into StringFormatter until the first mismatch cut same-order
+  allocation from 512 and 19,680 B to zero for 16 and 512 entries. Warmed M4 pairs
+  improved those cases, but the 16-entry unaligned reversed case regressed even
+  after accounting for an identical-binary control. Outlining the probe improved
+  that control but slowed the custom-comparer case by 35–92%. Inline Refill grew
+  from 298 to 469 IL bytes, 2,484 to 2,916 Arm64 FullOpts bytes and 2,056 to
+  2,649 emulated x64 bytes. The inline variant matched all 36 wire cases, and
+  both variants passed the changed-key and reference-comparer regressions.
 - Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
   the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
   widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
