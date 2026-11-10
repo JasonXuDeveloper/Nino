@@ -31,7 +31,7 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 
 - **Short names through one alias block**: a type named more than once goes through a file-level `using` alias, not
   `global::System...` in every line; never a plain `using` a user type could shadow. Every file is framed by
-  `GeneratedCode.File`, and `GeneratedCode.WithAliases` rewrites a body's repeated names (the type's own as `__NinoT`,
+  `GeneratedCode.File`, and `GeneratedCode.WithAliases` rewrites a body's repeated names (the type's own as `__T`,
   `Writer`, `Reader`, `NinoObject`, `NinoUnsafe`, ...) where the alias makes the file shorter: write full names in
   emitters and add a name to its table, never a second alias mechanism. It rewrites string literals too, so a
   message names a type without `global::` ("cannot construct __NinoT" shipped that way). The generic member
@@ -59,6 +59,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   addresses. The sampled round trip kept 376 Arm64 and 329 emulated x64 FullOpts bytes,
   identical wire bytes, and 0 B allocation. The only large timing swing also appeared in
   the identical-binary control.
+  Shortening the self alias to `__T` saved 29,008 bytes across 494 files. Cold project
+  allocation fell by 131–247 KB in four pairs, with mixed timings before a counterbalanced
+  cold-only replay. Normalized consumer IL and the sampled wire matched. Wait for Tier 1
+  before comparing the round trip: the initial samples sometimes mixed tiers. With
+  longer warmup, the Arm64 Tier 1 body remained 376 bytes, emulated x64 FullOpts stayed
+  at 329 bytes, and timing stayed close to the identical-binary control at 0 B allocation.
   Alias repeated non-generic named raw member types in symbolic sizes and loads (acc67d4b). Avoid aliases
   of constructed types that add TypeSpec metadata. Expanding the aliases recovered the same source;
   generated IL, Arm64 Tier 1 summaries and normalized x64 listings matched the baseline.
