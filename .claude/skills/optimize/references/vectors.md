@@ -331,6 +331,15 @@ of bytes in a block.
   ranks made the listing smaller, but the first 2D timing series favored the split for
   short inputs. Wire comparisons matched at offsets 0, 1 and 7. Every cut in the header
   threw before replacing the target, and the four-byte null sentinel decoded at every rank.
+- Test the sign and bit 30 of the OR of multidimensional lengths before the exact
+  per-dimension bounds check. Arm64 uses an immediate `tst` on the common path. Keep
+  the exact checks and error messages in a cold helper for negative or large dimensions.
+  Comparing the OR directly to the runtime maximum slowed the one-item 2D fixture by
+  about 7% in four rounds. The bit-test variant instead reduced time from 3.48–3.49 to
+  3.22–3.25 ns with no allocation change. The hot method went from 348 to 286 IL bytes,
+  620 to 572 Arm64 FullOpts bytes and 552 to 499 offline x64 bytes. The cold helper adds
+  65 IL, 132 Arm64 and 63 x64 bytes. Wire bytes matched at offsets 0, 1 and 7, and a
+  valid empty array with a dimension near the runtime limit passed the exact check.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
