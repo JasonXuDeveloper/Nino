@@ -252,7 +252,7 @@ internal static class Interceptors
             return text;
         }
 
-        var groups = calls.GroupBy(c => (c.Signature, Call: RenderCall(c))).ToList();
+        var groups = calls.ToLookup(c => (c.Signature, Call: RenderCall(c)));
         // One location attribute per call site, but only one method per group.
         int capacity = System.Math.Min(calls.Length * 384, calls.Length * 128 + groups.Count * 320);
         // A class header and braces, one line per location, and two per forwarder.
