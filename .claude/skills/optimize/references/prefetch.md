@@ -11,6 +11,15 @@ prefetch again anywhere.
   Classify bodyless source getters from their accessor syntax after excluding abstract, extern, partial and
   overridable members. Avoid rescanning the containing type for an associated field on every property.
 
+- Compare a default-on policy with both the unchanged default and a length gate that no input can pass.
+  In the local benchmark project, enabling every eligible type changed 66 files and added 14,704 generated
+  bytes. The gate alone grew the Arm64 Tier 1 non-generic and polymorphic array benchmark callers from
+  2,664 to 3,412 bytes and from 1,184 to 1,716 bytes. The x64 cross-JIT listings also grew with the gate.
+  Actual prefetch consistently improved the million scattered items versus the gate, while ordered shapes
+  sometimes took longer. All six outputs matched byte for byte, and timed writes allocated nothing.
+  Keep this broad policy out of the default and evaluate eligibility with short, ordered and shuffled
+  inputs of the same type. Compare native code as well as IL, since the benchmark callers had the same IL size.
+
 - Confirm prefetch throughput in separate processes with one copy of the object graph per process. In the
   local 131,089- and 262,161-object probes, the apparent benefit of processing whole runs instead of
   checking each element flipped with assembly load order. The isolated ABBA rerun showed about 1–2%
