@@ -216,6 +216,14 @@ internal static class Interceptors
          formatter.Name == TypeNames.Core + "ListFormatter" && formatter.Args.Length == 3 &&
          formatter.Args[0].ToString() == "global::System.Collections.Generic.List<" + formatter.Args[1] + ">");
 
+    private static HashSet<string> GeneratedNames(EquatableArray<string> names)
+    {
+        var generated = new HashSet<string>();
+        foreach (var name in names)
+            generated.Add(TypeNames.Gen + name);
+        return generated;
+    }
+
     private const string AttributePrefix = "namespace System.Runtime.CompilerServices\n{\n" +
         "    [global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]\n    ";
 
@@ -234,9 +242,9 @@ internal static class Interceptors
     public static string Emit(EquatableArray<InterceptedCall> calls, bool fileLocal, EquatableArray<string> top,
         EquatableArray<string> shallowTwins, EquatableArray<string> prefetchers)
     {
-        var tops = new HashSet<string>(top.Select(n => TypeNames.Gen + n));
-        var shallow = new HashSet<string>(shallowTwins.Select(n => TypeNames.Gen + n));
-        var prefetch = new HashSet<string>(prefetchers.Select(n => TypeNames.Gen + n));
+        var tops = GeneratedNames(top);
+        var shallow = GeneratedNames(shallowTwins);
+        var prefetch = GeneratedNames(prefetchers);
         string scope = fileLocal ? "file" : "internal";
         var callText = new Dictionary<(string Method, string Type, FormatterRef? Formatter, string Arguments, bool Inlinable), string>();
         string RenderCall(InterceptedCall call)
