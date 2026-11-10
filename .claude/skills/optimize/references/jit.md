@@ -408,6 +408,15 @@ and when `asm.py compare` lists methods the change did not touch.
   48 to 81 IL bytes and the packed helper added 67 B of IL. The Arm64 packed helper and recursive
   copy were 408 and 268 B; the x64 cross JIT emitted a 221 B MinOpts helper and no span recursion
   listing. The measured caller stayed at 208 B on Arm64 and 170 B on cross-JIT x64 (`04894a90`).
+  Route compact sorted dictionary pairs from their own dispatch into the same tree writer.
+  Require an identity block map and a pair of at most eight bytes. Larger pairs and short
+  fallbacks were sensitive to the count gate. For a single packed pair, write the root item
+  directly instead of entering the recursive traversal. The final M4 probe improved
+  `SortedDictionary<int,int>` writes at all sampled sizes from 1 to 8,193 and at both offsets
+  in all four rounds. Larger, padded and reference pair controls varied. Wire bytes and zero
+  steady allocation matched. The dictionary dispatch grew from 76 to 114 IL bytes and the
+  new helper took 42 IL bytes, 380 Arm64 FullOpts bytes and 298 x64 cross-JIT bytes.
+  The outer measured caller stayed at 208 and 170 B, respectively (`cccbcc28`).
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
