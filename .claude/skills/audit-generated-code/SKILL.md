@@ -87,6 +87,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
+- For a context-preserving member on the keyed in-order path, call `EndMember` only
+  when its reader is not at EOF. This retains the exact-length error and skips copying
+  the read context on success. Keep the shared end check in the switch fallback.
+  The `KeyedStruct` fixture gained 14 source bytes and 12 IL bytes but shrank from
+  1,444 to 1,372 Arm64 Tier 1 bytes and from 1,338 to 1,251 offline x64 bytes.
+  Four local timings overlapped the A/A spread. All 15 wire comparisons matched.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
