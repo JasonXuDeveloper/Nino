@@ -330,6 +330,12 @@ the 572 models were reused on tracked edits, and the collection probes passed (`
 Emit common write and inherited member blocks directly where the delegate only wraps a synchronous
 call. Four cold replays saved 48–72 KB. The generated files were byte-identical, incremental reuse
 and collection probes passed, and cold timing showed no repeatable change (`68aa8513`).
+Apply the same rule to raw body, fixed-size and block formatter emission. A replay of the three
+affected models from the unit test project allocated a median 728 B less per group in both load
+orders. The full-project cold, cached and body-edit timings showed no repeatable gain.
+`EmitFixed` grew from 389 to 443 IL bytes, 1,444 to 1,532 Arm64 Tier 0 bytes and
+673 to 718 x64 cross-JIT bytes. Both Roslyn builds matched all 577 files, reused 572 models
+on edits, and released the old compilation, tree, symbol and generated text after close.
 Use the same direct block emission for recursive collection formatters. The isolated nesting
 emitter saved 184 B with one formatter and 1,304 B with eight. All 582 files matched on both
 Roslyn versions across fresh, body-edit and model-edit replays. Nesting stayed cached on edits,
