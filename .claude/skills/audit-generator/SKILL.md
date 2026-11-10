@@ -219,6 +219,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   rejected rules beat both controls in all four rounds, while success timing varied.
   IL and x64 cross-JIT stayed at 453 and 1,051 bytes; Arm64 Tier 1 fell from 7,936 to
   7,108. Wire bytes, 577 outputs, model reuse and collection matched.
+  Filter interface definitions before cloning the constraint trial slots, then match into
+  the disposable clone. Keep ambiguity detection and commit only the sole binding. The
+  850-type replay saved 118 KB in both orders and four cold runs saved 87–153 KB.
+  Runtime match, rejection and ambiguity probes all allocated less. Timings were noisy
+  and some runtime samples overlapped scratch cleanup. IL stayed at 323 bytes, Arm64
+  Tier 1 was 6,144 to 6,108 bytes and x64 cross-JIT 819 to 782. Wire bytes and all 577
+  outputs matched, incremental reuse and collection passed, as did focused tests.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
