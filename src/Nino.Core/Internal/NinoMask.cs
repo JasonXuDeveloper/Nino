@@ -138,10 +138,14 @@ namespace Nino.Core.Internal
                         Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref s, j * 8)) & Unsafe.Add(ref word, j));
             }
 
-            // The rest is shorter than a period, which starts with the first element: its mask is the words' first
-            // bytes, with no division and no bounds checks.
+            // The rest starts with the first element of a period. Copy its full words before the byte tail.
+            int tailWords = 0;
+            for (; i <= total - 8; i += 8, tailWords++)
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
+                    Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, i)) & Unsafe.Add(ref word, tailWords));
+
             ref byte mask = ref Unsafe.As<ulong, byte>(ref word);
-            for (int k = 0; i < total; i++, k++)
+            for (int k = tailWords * 8; i < total; i++, k++)
                 Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & Unsafe.Add(ref mask, k));
         }
 
