@@ -15,6 +15,13 @@ and when `asm.py compare` lists methods the change did not touch.
   The standalone mask was 38 x64 bytes with the guard, 44 at baseline, and 62 with a guarded byref.
   Both guarded forms had the same 712-byte Arm64 Tier 1 caller versus 716 at baseline. Neither
   consistently improved the local timings. Keep the existing mask and its bounds check.
+  Handle empty and one-byte writes together. Store the single byte with its mask applied, and let
+  the existing span copy handle larger payloads. A one-byte-only gate moved the empty timings in
+  the wrong direction in the initial probe. The combined gate beat the identical-binary control
+  on empty and seven-bit values in four local rounds at 0 B per write. The 62 and 66 KiB working
+  sets showed no repeatable timing change. Formatter IL grew from 77 to 114 bytes and the Arm64
+  Tier 1 caller from 868 to 896 bytes. The x64 cross-JIT caller stayed at 224 bytes, while the
+  standalone Tier 0 formatter grew from 274 to 372 bytes. Generated files and wire bytes matched.
 
 - Build the raw span from `ReadBlock` on the byref reader targets. This gives the span and
   block reads one bounds check and cursor advance in the source. The standalone IL fell from
