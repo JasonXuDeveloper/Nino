@@ -306,6 +306,14 @@ of bytes in a block.
   cases overlapped A/A after a longer warmup. All 45 wire cases matched at offsets 0, 1 and 7.
   The Arm64 2D Tier 1 write entry shrank from 1,356 to 1,164 bytes. In offline x64 the 2D formatter
   grew from 1,295 to 1,384 bytes while inlining away its call to the 199-byte shared helper.
+- Take the first element of a freshly allocated, non-empty heavy multidimensional array
+  through the array data reference on modern .NET. The allocation fixes the element type
+  and lower bounds, so there is no multidimensional index to validate. Keep typed indexing
+  on the older targets. The 2D helper shrank from 117 to 115 IL bytes, 396 to 380 Arm64
+  FullOpts bytes and 376 to 347 offline x64 bytes for the reference fixture. The three-rank
+  generated source grew by 550 bytes. Four local rounds overlapped A/A with identical allocations
+  and wire bytes at offsets 0, 1 and 7. The write path's two length uses were already one
+  load in Arm64 Tier 1.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
