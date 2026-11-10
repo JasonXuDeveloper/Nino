@@ -84,12 +84,31 @@ namespace Nino.Core
                 return;
             }
 
+            // Long bool reads benefit from the original conversion loop after OSR.
+            if (typeof(T) == typeof(bool) && destination.Length <= 1024)
+            {
+                ReadBoolValues(ref src, ref Unsafe.As<T?, bool?>(ref item), destination.Length);
+                return;
+            }
+
             for (int i = 0; i < destination.Length; i++)
             {
                 ref byte slot = ref Unsafe.Add(ref src, i * Stride);
                 Unsafe.Add(ref item, i) = slot != NinoWire.Null
                     ? NinoLayout<T>.Read(ref Unsafe.Add(ref slot, Offset))
                     : default(T?);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadBoolValues(ref byte source, ref bool? item, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                ref byte slot = ref Unsafe.Add(ref source, i * Stride);
+                Unsafe.Add(ref item, i) = slot != NinoWire.Null
+                    ? NinoUnsafe.CheckedBool(Unsafe.Add(ref slot, Offset))
+                    : default(bool?);
             }
         }
     }
