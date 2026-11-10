@@ -419,7 +419,7 @@ of bytes in a block.
   bytes plus a 408 B helper. The x64 cross JIT only emitted the helper at 470 B in MinOpts.
   Wire bytes and strict decoding tests matched, with 31 targeted tests passing on both .NET 8
   and 10. The candidates were withdrawn.
-- Keep the existing short Latin-1 comparison loop until a wider dispatch preserves the neighbouring cases.
+- Measure the short Latin-1 dispatcher and neighbouring sizes when widening the batch.
   Reusing the long comparison kernels inline improved 31–63-character M4 reuse, but the offset-zero
   64-character control slowed in four pairs. Outlining a 32–63-character helper with 512-, 256- and
   128-bit dispatch retained a 1–66% gain at 63 characters across both offsets, but 31 characters and
@@ -428,6 +428,18 @@ of bytes in a block.
   The new helper was 148 B on Arm64 and 254 B on cross-JIT x64, where the public Tier 1 entry stayed
   at 159 B. All wire bytes, mismatch probes and steady allocations matched, and the eight targeted
   .NET 10 tests passed. Both candidates were withdrawn.
+  For Arm64, keep the 24–63-character 16-byte widening batch in a fully optimized out-of-line
+  helper. Reuse the long 128-bit kernel's difference operation, accumulating until the final
+  test. In the M4 default-JIT probe that alternated offsets 0 and 7 inside the timed loop,
+  24, 32 and 47 characters improved by 13–26% across four pairs, and 63 characters by
+  20–53% with noisier repeated-binary controls. Separate offset-7 processes also improved
+  those sizes. A probe timing offsets successively in one process gave conflicting results
+  at the last offset. Keep 15, 23, 64 and 65 as controls. Wire bytes matched, all mismatch
+  positions were detected, and unchanged reads allocated 0 B. The short comparator grew
+  from 277 to 299 IL bytes plus a 57 B helper. Arm64 FullOpts reader grew from 1,208 to
+  1,240 B plus a 148 B helper. Offline x64 ReadyToRun grew from 978 to 1,038 B and retained
+  the hardware test as a call. It does not measure the optimized x64 JIT or throughput
+  (`573a443f`).
 - Share long Latin-1 equality's tail-first loop across the three native SIMD
   widths, and compile the entry with `AggressiveOptimization`. Without it,
   the generic loop slowed 65- and 256-character reuse in all four rounds.
