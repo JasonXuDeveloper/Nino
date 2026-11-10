@@ -519,6 +519,15 @@ of bytes in a block.
   252-byte long loop and 185-byte emulated x64 fallback were unchanged in
   size. Check the invalid tail in a five-element overlapping-vector group
   (`9bc09098`).
+  Check one bool slot with a single scalar helper after the length proof.
+  Validate presence before an active value and ignore dirty null value bytes.
+  Inlining the singleton check into the entry slowed the 128-element vector
+  control by 6%; outlining it brought the follow-up 4- and 128-element
+  differences to about 2%. Four M4 pairs reduced absent and present singleton
+  medians by 28% and 32%. Eight wire cases matched at 0 B. Entry IL grew from
+  369 to 424 bytes plus a 56-byte helper. The singleton probe's Arm64 FullOpts
+  entry grew from 600 to 656 bytes plus 128; emulated x64 from 185 to 220
+  plus 70 bytes. Both runtime suites and scalar validation passed (`4ee7e0c8`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
