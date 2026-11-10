@@ -1,4 +1,3 @@
-using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Generation;
@@ -22,12 +21,12 @@ internal static class WireEncoding
 
     /// <summary>
     /// The encoding of a Nino.Core formatter bound to <paramref name="types"/> (bound type arguments) and
-    /// <paramref name="elements"/> (the encodings of its element formatters, null for type arguments), or null if it
-    /// has none of its own.
+    /// <paramref name="elements"/> (the encodings of its element formatters, in argument order), or null if the formatter
+    /// has no built-in encoding.
     /// </summary>
-    public static string? OfCore(string formatter, ITypeSymbol[] types, string?[] elements, Compilation compilation)
+    public static string? OfCore(string formatter, ITypeSymbol[] types, string[] elements, Compilation compilation)
     {
-        var e = elements.Where(static x => x != null).ToArray();
+        var e = elements;
         return formatter switch
         {
             "ArrayFormatter" or "ArraySegmentFormatter" or "MemoryFormatter" or "ReadOnlyMemoryFormatter"
@@ -65,12 +64,12 @@ internal static class WireEncoding
     /// The items of a value tuple of eight or more: the seven, then those of its rest (a value tuple), as one tuple of
     /// every item, which is how they are written.
     /// </summary>
-    private static string?[] Flat(string?[] items)
+    private static string[] Flat(string[] items)
     {
         string? rest = items[7];
         if (rest == null || !rest.StartsWith("tuple(", System.StringComparison.Ordinal))
             return items;
-        var flat = (string?[])items.Clone();
+        var flat = (string[])items.Clone();
         flat[7] = rest.Substring(6, rest.Length - 7);
         return flat;
     }

@@ -270,12 +270,29 @@ internal sealed class FormatterResolver
         if (!FormatterTraitsOf.IsCore(rule.Formatter))
             return new ResolvedFormatter(code, true, WireEncoding.Formatter(code.ToString()), factories);
         string encoding = WireEncoding.OfCore(rule.Formatter.Name, types,
-            formatters.Select(f => f == null ? null : parameters.Encodings[f]).ToArray(), _compilation) ??
+            ElementEncodings(formatters, parameters.Encodings), _compilation) ??
                           WireEncoding.Formatter(code.ToString());
         var traits = FormatterTraitsOf.Of(rule.Formatter.Name,
             formatters.Select(f => f == null ? FormatterTraits.None : parameters.Traits[f]).ToArray());
         return new ResolvedFormatter(code, true, encoding, factories, parameters.ElementsOpenBodies[0],
             Elements: parameters.ElementTypes.ToImmutableArray(), Traits: traits);
+    }
+
+    private static string[] ElementEncodings(FormatterRef[] formatters, Dictionary<FormatterRef, string> encodings)
+    {
+        int count = 0;
+        foreach (var formatter in formatters)
+            if (formatter != null)
+                count++;
+        if (count == 0)
+            return System.Array.Empty<string>();
+
+        var elements = new string[count];
+        int index = 0;
+        foreach (var formatter in formatters)
+            if (formatter != null)
+                elements[index++] = encodings[formatter];
+        return elements;
     }
 
     /// <summary>The bound formatter as C# source; adds the creators of its <c>[NinoCreated]</c> types.</summary>
