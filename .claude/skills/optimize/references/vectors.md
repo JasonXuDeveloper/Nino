@@ -10,6 +10,10 @@ of bytes in a block.
   JIT can discard unsupported widths. Keep each kernel’s length, alignment, exact ISA requirements and tail beside
   its loop. Unity and WebGL register function pointers through `NinoKernels`; `Internal/Simd/NinoKernelHook.cs`
   owns their dispatch. Generated formatters call Core entry points and leave ISA selection to the runtime.
+  Keep the complete text SIMD entry and loop in `NinoSimd.Text.cs` or `NinoSimd.Text.Legacy.cs`,
+  so the exact ISA guard can fold in Tier 0. Leave string headers, scalar handling and the legacy native
+  hook ordering in `NinoStrings`. Moving the guarded methods preserved the sampled Arm64 code sizes
+  and the aligned fallback timings (`2a596daf`).
 
 ## Bounds checks
 
@@ -642,6 +646,11 @@ of bytes in a block.
   test restored Tier 0 size and 31–127-char timings. The M4 and AVX2 guest verify the fallback and portable
   kernel's bytes, including non-aligned inputs and tails. Native AVX-512 throughput remains unmeasured
   (`663b1861`).
+  Reuse the folded 32-byte widen load in the 512-bit reuse comparison. Crossgen2 v4 lowered both loads
+  to memory-operand `vpmovzxbw`, reducing the compare block from 75 to 57 B and its IL from 73 to 64 B.
+  The widening helper retained folded loads and fell from 158 to 156 B. Portable block tests covered
+  every mismatch lane and the public wire bytes matched with SIMD on and off. M4 fallback timings
+  varied with process profile, and native AVX-512 timing was unavailable (`4d10592c`).
 - Apply the same full-vector and overlapping-tail loop to 128-bit Latin-1 narrowing, checking each
   vector before writing it so UTF-16 fallback still works. The unaligned Arm64 writer probe improved
   at 64, 4,096 and 32,768 Latin-1 characters in all four rounds, with identical wire bytes and
