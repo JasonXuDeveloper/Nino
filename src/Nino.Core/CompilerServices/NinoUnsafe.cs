@@ -659,7 +659,7 @@ namespace Nino.Core.CompilerServices
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static void CopyArm64ShortList(ref byte destination, ref byte source, uint size)
+        internal static void CopyArm64ShortMayOverlap(ref byte destination, ref byte source, uint size)
         {
             nint offset = Unsafe.ByteOffset(ref source, ref destination);
             if (offset > -(nint)size && offset < (nint)size)

@@ -50,7 +50,7 @@ namespace Nino.Core
 
                 value = NinoUnsafe.NewArray<T>(length, NinoElements.CopiedWhole<T, TFormatter>());
             }
-            NinoElements.Read<T, TFormatter>(value.Span, ref reader, prechecked: true);
+            NinoElements.Read<T, TFormatter>(value.Span, ref reader, prechecked: true, shortArm64Copy: true);
         }
     }
 

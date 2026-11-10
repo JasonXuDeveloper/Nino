@@ -367,8 +367,10 @@ namespace Nino.Core.Internal
 
         /// <summary>Reads into the elements of a span, reusing the existing values.</summary>
         /// <param name="prechecked">The collection length already proved its entire fixed-stride payload fits.</param>
+        /// <param name="shortArm64Copy">Use the short raw copy tuned for byte-sized memory elements.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(Span<T> values, ref Reader reader, bool prechecked = false)
+        public static void Read<T, TFormatter>(Span<T> values, ref Reader reader, bool prechecked = false,
+            bool shortArm64Copy = false)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (typeof(TFormatter) == typeof(StringFormatter))
@@ -382,9 +384,16 @@ namespace Nino.Core.Internal
             // NinoLayout<T>.CopiesAsIs).
             if (RawFormatter.Is<T, TFormatter>() && NinoLayout<T>.CopiesAsIs)
             {
-                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
-                    ref TakeElements(ref reader, values.Length, Unsafe.SizeOf<T>(), prechecked),
-                    (uint)values.Length * (uint)Unsafe.SizeOf<T>());
+                ref byte destination = ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values));
+                ref byte source = ref TakeElements(ref reader, values.Length, Unsafe.SizeOf<T>(), prechecked);
+                uint bytes = (uint)values.Length * (uint)Unsafe.SizeOf<T>();
+#if NET8_0_OR_GREATER
+                if (shortArm64Copy && Unsafe.SizeOf<T>() == 1 &&
+                    System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && bytes - 81 <= 47)
+                    NinoUnsafe.CopyArm64ShortMayOverlap(ref destination, ref source, bytes);
+                else
+#endif
+                    NinoUnsafe.CopyToNew(ref destination, ref source, bytes);
                 return;
             }
 

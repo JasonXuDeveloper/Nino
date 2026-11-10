@@ -129,7 +129,7 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             else if (Unsafe.SizeOf<T>() == 1 && System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported &&
                      bytes - 81 <= 47)
-                NinoUnsafe.CopyArm64ShortList(ref Unsafe.As<T, byte>(ref first), ref reader.UnsafeAdvance((int)bytes), bytes);
+                NinoUnsafe.CopyArm64ShortMayOverlap(ref Unsafe.As<T, byte>(ref first), ref reader.UnsafeAdvance((int)bytes), bytes);
 #endif
             else
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first), ref reader.UnsafeAdvance((int)bytes), bytes);

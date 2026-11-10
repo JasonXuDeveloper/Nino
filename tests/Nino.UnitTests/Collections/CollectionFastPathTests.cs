@@ -146,6 +146,34 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void ShortRawMemoryReusePreservesOverlapAndFollowingValue()
+    {
+        foreach (int length in new[] { 81, 128 })
+        {
+            var items = Enumerable.Range(0, length).Select(i => (byte)(i * 7)).ToArray();
+            using var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            var formatter = default(MemoryFormatter<byte, UnmanagedFormatter<byte>>);
+            formatter.Serialize(items.AsMemory(), ref writer);
+            writer.Write(123456);
+            writer.Flush();
+
+            foreach (bool overlap in new[] { false, true })
+            {
+                var data = buffer.WrittenSpan.ToArray();
+                var backing = overlap ? data : new byte[length + 1];
+                var original = backing.AsMemory(1, length);
+                var destination = original;
+                var reader = new Reader(data);
+                formatter.Deserialize(ref reader, ref destination);
+                Assert.AreEqual(original, destination);
+                CollectionAssert.AreEqual(items, destination.ToArray());
+                Assert.AreEqual(123456, reader.Read<int>());
+            }
+        }
+    }
+
+    [TestMethod]
     public void StructElementsKeepTheirBytesAfterTopLevelUse()
     {
         var items = Enumerable.Range(0, 100).Select(i => new PaddedItem
