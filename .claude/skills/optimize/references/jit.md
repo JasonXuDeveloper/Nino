@@ -398,6 +398,16 @@ and when `asm.py compare` lists methods the change did not touch.
   timings varied. The lookup entry grew from 75 to 99 IL bytes. For int elements it grew from 1,896
   to 2,168 B on Arm64 Tier 1 and from 1,417 to 1,670 B on x64 cross-JIT. The x64 listing does not
   establish throughput (`45570cc1`).
+- Write packed sorted-set nodes in order into the reserved output for sets of 32 or more items.
+  Keep the existing layout probe and bound the span by the count. Retain the array traversal for
+  references and other layouts. Sharing the span traversal with reference sets or adding the gate
+  to the shared copied-pair writer hurt the controls. Warm both sides of the count threshold
+  before measuring short fallbacks. Four M4 rounds on `SortedSet<int>` at offsets zero and one
+  improved the 32–8,193 item writes by 10–30% at zero steady allocation, with matching bytes.
+  Reference set results varied and the dictionary candidate was withdrawn. The dispatch grew from
+  48 to 81 IL bytes and the packed helper added 67 B of IL. The Arm64 packed helper and recursive
+  copy were 408 and 268 B; the x64 cross JIT emitted a 221 B MinOpts helper and no span recursion
+  listing. The measured caller stayed at 208 B on Arm64 and 170 B on cross-JIT x64 (`04894a90`).
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
