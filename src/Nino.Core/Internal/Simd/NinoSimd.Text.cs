@@ -24,6 +24,9 @@ namespace Nino.Core.Internal
                 ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
                 if (n >= 8)
                 {
+                    if (System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && n >= 24)
+                        return SameMediumLatin1(ref source, ref chars, n);
+
                     var diff = Vector128<ushort>.Zero;
                     for (nuint i = 0; i < n - 8; i += 8)
                         diff |= WidenEight(ref Unsafe.Add(ref source, (nint)i)) ^ Vector128.LoadUnsafe(ref chars, i);
@@ -44,6 +47,16 @@ namespace Nino.Core.Internal
                 return true;
             }
             return NinoStrings.SameLatin1(ref source, value);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static bool SameMediumLatin1(ref byte source, ref ushort chars, nuint count)
+        {
+            nuint last = count - 16;
+            var diff = CompareLatin1_128.Difference(ref source, ref chars, last);
+            for (nuint offset = 0; offset < last; offset += 16)
+                diff |= CompareLatin1_128.Difference(ref source, ref chars, offset);
+            return diff == Vector128<ushort>.Zero;
         }
 
         /// <summary>The eight bytes at <paramref name="source"/> as the eight chars they are in Latin-1.</summary>
@@ -325,12 +338,16 @@ namespace Nino.Core.Internal
             public static nuint Width => 16;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public static bool Same(ref byte source, ref ushort chars, nuint offset)
+            public static bool Same(ref byte source, ref ushort chars, nuint offset) =>
+                Difference(ref source, ref chars, offset) == Vector128<ushort>.Zero;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<ushort> Difference(ref byte source, ref ushort chars, nuint offset)
             {
                 var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, offset));
                 var first = lower ^ Vector128.LoadUnsafe(ref chars, offset);
                 var second = upper ^ Vector128.LoadUnsafe(ref chars, offset + 8);
-                return (first | second) == Vector128<ushort>.Zero;
+                return first | second;
             }
         }
 
