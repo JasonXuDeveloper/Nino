@@ -158,6 +158,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   check with identical decisions. The .NET 10 project reopened with 0.17–0.32 MB less allocation
   across four rounds. Whole-project latency varied within the identical-build spread.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
+- Build a compact element encoding array directly from the bound formatter arguments. Keep
+  order and duplicates. Replaying 850 real project types saved 144–159 KB per pass in both
+  load orders and matched all resolver results. Timing varied with load order; three of four
+  cold runs allocated less and one slightly more. Combined IL moved from 2,459 to 2,521 bytes,
+  Arm64 Tier 1 from 17,792 to 17,440 bytes, and x64 cross-JIT from 4,343 to 4,330.
+  Both Roslyn builds matched all 577 files, reused all 572 models on edits and passed the
+  collection checks. Each runtime passed 88 focused tests.
 - Share top-level usage registrations by bound type within `TypeFacts`. Keep binding and interceptor locations per
   call. Repeated calls in the unit test project rebuild the same closed-generic, layout and nesting registrations
   without that cache.
