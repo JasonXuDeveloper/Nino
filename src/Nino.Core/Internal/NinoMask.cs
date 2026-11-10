@@ -127,25 +127,18 @@ namespace Nino.Core.Internal
 
             int i = 0;
             int words = _words.Length;
-            int period = words * 8;
+            int maskWord = 0;
             ref ulong word = ref NinoUnsafe.GetArrayDataReference(_words);
-            for (; i + period <= total; i += period)
+            for (; i <= total - 8; i += 8)
             {
-                ref byte d = ref Unsafe.Add(ref destination, i);
-                ref byte s = ref Unsafe.Add(ref source, i);
-                for (int j = 0; j < words; j++)
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, j * 8),
-                        Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref s, j * 8)) & Unsafe.Add(ref word, j));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
+                    Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, i)) & Unsafe.Add(ref word, maskWord));
+                if (++maskWord == words)
+                    maskWord = 0;
             }
 
-            // The rest starts with the first element of a period. Copy its full words before the byte tail.
-            int tailWords = 0;
-            for (; i <= total - 8; i += 8, tailWords++)
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
-                    Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, i)) & Unsafe.Add(ref word, tailWords));
-
             ref byte mask = ref Unsafe.As<ulong, byte>(ref word);
-            for (int k = tailWords * 8; i < total; i++, k++)
+            for (int k = maskWord * 8; i < total; i++, k++)
                 Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & Unsafe.Add(ref mask, k));
         }
 
