@@ -877,6 +877,19 @@ of bytes in a block.
   1,108 bytes; emulated x64 FullOpts from 2,855 to 1,397 plus 1,041 bytes. All eight
   wire comparisons matched at zero steady allocation. Do not trade the mature
   PGO loop for this general reservation split.
+  Keep the per-segment Writer local for variable-width value formatters as well.
+  Inlining their element loops into the sequence writer helped tiny Int32 nullable
+  segments, but the all-length version slowed 4,096 items in eight segments by
+  about 43%. Sharing the element loop also moved the string control. Limiting the
+  byref loop to up to four items and selecting it in an outlined method recovered
+  the long cases, and four pairs improved 2 and 16 short segments by medians of
+  11% and 27%. Four eight-item segments still varied, with a 33% slower median
+  and wide same-binary controls. On that path instrumented Arm64 Tier 0 grew from
+  392 to 664 bytes. For 16 segments, Tier 1 moved from 1,512 to 1,000 plus 1,132
+  bytes; the emulated x64 FullOpts path grew from 5,852 to 2,919 plus 5,576,
+  excluding the unchanged per-segment callee. Shared IL grew from 118 to 160
+  plus 122 bytes. All 11 wire comparisons matched at 0 B. Keep this experiment
+  out of the general path until it avoids perturbing the fallback.
 - Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
   (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations,
   at the cost of a larger native helper.
