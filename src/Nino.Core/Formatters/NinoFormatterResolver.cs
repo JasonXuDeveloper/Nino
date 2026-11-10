@@ -470,6 +470,8 @@ namespace Nino.Core
                 return true;
             }
 
+            public Type Definition(Type type) => type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+
             public bool IsInterface(Type type) => type.IsInterface;
 
             public bool IsPointerLike(Type type) => type.IsPointer || type.IsByRef;

@@ -56,6 +56,15 @@ internal readonly struct SymbolTypeSystem : INinoTypeSystem<ITypeSymbol>
         return false;
     }
 
+    public ITypeSymbol Definition(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol { IsGenericType: true, IsUnboundGenericType: false } named)
+            return type;
+        if (named.IsTupleType && named.TupleUnderlyingType is { } underlying)
+            named = underlying;
+        return named.OriginalDefinition;
+    }
+
     public bool IsInterface(ITypeSymbol type) => type.TypeKind == TypeKind.Interface;
 
     public bool IsPointerLike(ITypeSymbol type) => type is IPointerTypeSymbol or IFunctionPointerTypeSymbol;

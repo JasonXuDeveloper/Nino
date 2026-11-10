@@ -24,6 +24,9 @@ namespace Nino.Core.Internal
         /// <summary>Whether the type is a constructed generic type (tuples as their <c>ValueTuple</c>).</summary>
         bool IsConstructed(TType type, out TType definition, out IReadOnlyList<TType> arguments);
 
+        /// <summary>The definition of a generic type without retrieving its arguments, or the type itself.</summary>
+        TType Definition(TType type);
+
         bool IsInterface(TType type);
 
         /// <summary>Pointers and other types that can never bind a type parameter.</summary>
@@ -168,12 +171,13 @@ namespace Nino.Core.Internal
             TType[] types)
             where TType : class where TSystem : INinoTypeSystem<TType>
         {
-            if (Unify(system, pattern, actual, types))
-                return true;
             if (system.IsTypeParameter(pattern, out _) || system.IsArray(pattern, out _, out _) ||
                 system.IsTypeParameter(actual, out _))
-                return false;
-            var definition = system.IsConstructed(pattern, out var d, out _) ? d : pattern;
+                return Unify(system, pattern, actual, types);
+
+            var definition = system.Definition(pattern);
+            if (SameDefinition(system, actual, definition) && Unify(system, pattern, actual, types))
+                return true;
             if (system.IsInterface(pattern))
             {
                 TType[] found = null;
@@ -280,7 +284,7 @@ namespace Nino.Core.Internal
 
         private static bool SameDefinition<TType, TSystem>(TSystem system, TType type, TType definition)
             where TType : class where TSystem : INinoTypeSystem<TType> =>
-            system.Same(system.IsConstructed(type, out var d, out _) ? d : type, definition);
+            system.Same(system.Definition(type), definition);
 
         private static bool SameBindings<TType, TSystem>(TSystem system, TType[] a, TType[] b)
             where TType : class where TSystem : INinoTypeSystem<TType>
