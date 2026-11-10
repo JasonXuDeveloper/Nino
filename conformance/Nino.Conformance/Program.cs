@@ -300,7 +300,7 @@ namespace Conformance
         private static string Short(object node)
         {
             string text = node is JsonNode n ? n.ToJsonString() : node?.ToString() ?? "null";
-            return text.Length > 300 ? text.Substring(0, 300) + "..." : text;
+            return text.Length > 300 ? string.Concat(text.AsSpan(0, 300), "...") : text;
         }
     }
 

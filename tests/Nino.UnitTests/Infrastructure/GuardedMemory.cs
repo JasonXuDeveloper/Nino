@@ -9,7 +9,7 @@ namespace Nino.UnitTests;
 /// Windows; none elsewhere), as the fuzzer places inputs (tests/Nino.Fuzz/Guard.cs): a read past the bytes placed
 /// against it crashes the test host instead of reading the next object on the heap.
 /// </summary>
-internal static unsafe class GuardedMemory
+internal static unsafe partial class GuardedMemory
 {
     private const int Window = 1 << 16;
     private static readonly byte* Base = Create();
@@ -50,9 +50,11 @@ internal static unsafe class GuardedMemory
         return null;
     }
 
-    [DllImport("libc")] private static extern IntPtr mmap(IntPtr addr, nuint length, int prot, int flags, int fd, nint offset);
-    [DllImport("libc")] private static extern int mprotect(IntPtr addr, nuint length, int prot);
-    [DllImport("kernel32")] private static extern IntPtr VirtualAlloc(IntPtr addr, nuint size, uint type, uint protect);
-    [DllImport("kernel32")] private static extern bool VirtualProtect(IntPtr addr, nuint size, uint protect, out uint old);
+    [LibraryImport("libc")] private static partial IntPtr mmap(IntPtr addr, nuint length, int prot, int flags, int fd, nint offset);
+    [LibraryImport("libc")] private static partial int mprotect(IntPtr addr, nuint length, int prot);
+    [LibraryImport("kernel32")] private static partial IntPtr VirtualAlloc(IntPtr addr, nuint size, uint type, uint protect);
+    [LibraryImport("kernel32")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool VirtualProtect(IntPtr addr, nuint size, uint protect, out uint old);
 }
 #endif

@@ -149,7 +149,9 @@ public sealed partial class Packet
     public List<int> Values;
 
     private static partial IEnumerable<Packet> OnNinoPoolWarmup() => null;
+    #pragma warning disable CA1822 // The generator declares this pool callback as an instance method.
     private partial void OnNinoPoolReturn() { }
+    #pragma warning restore CA1822
 }
 
 [NinoType(trackReferences: true)]
@@ -418,7 +420,7 @@ public static class Program
         }
         catch (InvalidOperationException e) when (!RuntimeFeature.IsDynamicCodeSupported)
         {
-            Check(e.Message.Contains("cannot build formatters at run time"), "runtime-built formatters refused without dynamic code: " + e.Message.Substring(0, 60));
+            Check(e.Message.Contains("cannot build formatters at run time"), string.Concat("runtime-built formatters refused without dynamic code: ", e.Message.AsSpan(0, 60)));
         }
 
         Console.WriteLine(_failures == 0 ? "ALL PASSED" : $"{_failures} FAILED");

@@ -36,8 +36,7 @@ namespace Game { [Nino.Core.NinoType] public class Item { public int Id; } }";
 
         [TestMethod]
         public void InternalPolyfillIsNotUsed() =>
-            StringAssert.DoesNotMatch(CompileWith("internal").GeneratedCode,
-                new System.Text.RegularExpressions.Regex("RuntimeInitializeOnLoadMethod"));
+            Assert.DoesNotContain("RuntimeInitializeOnLoadMethod", CompileWith("internal").GeneratedCode);
 
         [TestMethod]
         public void PublicAttributeIsUsed() =>

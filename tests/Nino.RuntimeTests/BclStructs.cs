@@ -26,7 +26,7 @@ public enum Tag : byte
 /// </summary>
 public static class BclStructs
 {
-    public static int Failed;
+    public static int Failed { get; private set; }
 
     public static void Run(bool writeFixtures)
     {
@@ -364,7 +364,7 @@ public static class BclStructs
         } while ((size - 1) >> ++bit != 0);
 
         return $"size {size}, " + string.Join(", ", fields.Select((f, i) =>
-            $"{(f.Name.StartsWith("<", StringComparison.Ordinal) ? f.Name.Substring(1, f.Name.IndexOf('>') - 1) : f.Name)}@{offsets[i]}"));
+            $"{(f.Name.Length != 0 && f.Name[0] == '<' ? f.Name.Substring(1, f.Name.IndexOf('>') - 1) : f.Name)}@{offsets[i]}"));
     }
 
     private static int SizeOf(Type type) =>
@@ -408,7 +408,14 @@ public static class BclStructs
         sb.AppendLine("    public static readonly Dictionary<string, string> Bytes = new Dictionary<string, string>");
         sb.AppendLine("    {");
         foreach (var pair in Written)
-            sb.AppendLine($"        [\"{pair.Key}\"] = \"{BitConverter.ToString(pair.Value).Replace("-", "")}\",");
+        {
+#if NET8_0_OR_GREATER
+            string hex = Convert.ToHexString(pair.Value);
+#else
+            string hex = BitConverter.ToString(pair.Value).Replace("-", "");
+#endif
+            sb.AppendLine($"        [\"{pair.Key}\"] = \"{hex}\",");
+        }
         sb.AppendLine("    };");
         sb.AppendLine("}");
         Console.Error.Write(sb.ToString());

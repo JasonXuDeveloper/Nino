@@ -20,7 +20,7 @@ namespace Nino.Fuzz
     /// it crashes the process with an access violation instead of reading the neighbouring heap; the supervisor
     /// (Supervisor.cs) records the input. On any other platform, or when the calls fail, inputs stay in arrays.
     /// </summary>
-    public static unsafe class Guard
+    public static unsafe partial class Guard
     {
         public const int Window = 8 << 20;
         static readonly byte* Base;
@@ -92,9 +92,11 @@ namespace Nino.Fuzz
             }
         }
 
-        [DllImport("libc", SetLastError = true)] static extern IntPtr mmap(IntPtr addr, nuint length, int prot, int flags, int fd, nint offset);
-        [DllImport("libc", SetLastError = true)] static extern int mprotect(IntPtr addr, nuint length, int prot);
-        [DllImport("kernel32", SetLastError = true)] static extern IntPtr VirtualAlloc(IntPtr addr, nuint size, uint type, uint protect);
-        [DllImport("kernel32", SetLastError = true)] static extern bool VirtualProtect(IntPtr addr, nuint size, uint protect, out uint old);
+        [LibraryImport("libc", SetLastError = true)] private static partial IntPtr mmap(IntPtr addr, nuint length, int prot, int flags, int fd, nint offset);
+        [LibraryImport("libc", SetLastError = true)] private static partial int mprotect(IntPtr addr, nuint length, int prot);
+        [LibraryImport("kernel32", SetLastError = true)] private static partial IntPtr VirtualAlloc(IntPtr addr, nuint size, uint type, uint protect);
+        [LibraryImport("kernel32", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool VirtualProtect(IntPtr addr, nuint size, uint protect, out uint old);
     }
 }

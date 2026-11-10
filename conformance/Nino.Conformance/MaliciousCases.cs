@@ -597,7 +597,7 @@ namespace Conformance
                 if (entry.StartsWith(member + ":", StringComparison.Ordinal))
                 {
                     int at = entry.IndexOf(":key=0x", StringComparison.Ordinal) + 7;
-                    return (int)uint.Parse(entry.Substring(at, 8), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                    return (int)uint.Parse(entry.AsSpan(at, 8), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                 }
 
             throw new InvalidOperationException($"{type} has no keyed member {member}");

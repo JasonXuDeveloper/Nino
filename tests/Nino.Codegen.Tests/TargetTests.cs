@@ -1,13 +1,28 @@
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[assembly: DoNotParallelize]
 
 namespace Nino.Codegen.Tests
 {
     /// <summary>What each target decides for the shapes the corpus lacks, and the command line.</summary>
     [TestClass]
-    public class TargetTests
+    public partial class TargetTests
     {
+        [GeneratedRegex(@"typeV\d+ +\*boxCodec")]
+        private static partial Regex GoClosedBoxCodec();
+
+        [GeneratedRegex(@"\n\tTags +\[\]\*string ")]
+        private static partial Regex GoStringTags();
+
+        [GeneratedRegex(@"\n\tUtf8Tags +\[\]\*string ")]
+        private static partial Regex GoUtf8StringTags();
+
+        [GeneratedRegex(@"\n\tByName +\[\]nino\.Entry\[string, T\] ")]
+        private static partial Regex GoStringMapEntries();
+
         private static (string Text, string Output) Run(string lang, string file, params string[] extra)
         {
             var args = new System.Collections.Generic.List<string>
@@ -29,7 +44,7 @@ namespace Nino.Codegen.Tests
             Assert.IsFalse(go.Contains("newBoxCodec", StringComparison.Ordinal));
             // The closed types slots do hold (MoreOpen<int> in OpenUse's slot of Open<int>) have codecs; Box<int> none.
             StringAssert.Contains(go, "typeV0 = newMoreOpenCodec(");
-            Assert.IsFalse(System.Text.RegularExpressions.Regex.IsMatch(go, @"typeV\d+ +\*boxCodec"));
+            Assert.IsFalse(GoClosedBoxCodec().IsMatch(go));
             var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
             StringAssert.Contains(ts, "interface Box$Codecs<T> {\n  p0: NinoCodec<T>;\n  self: NinoCodec<Box<T> | null>;\n}");
             Assert.IsFalse(ts.Contains("= Box$codecs<", StringComparison.Ordinal));
@@ -154,9 +169,9 @@ namespace Nino.Codegen.Tests
             StringAssert.Contains(std, "pub tags: Option<std::collections::HashSet<Option<String>>>,");
             StringAssert.Contains(rust, "pub by_name: Option<indexmap::IndexMap<String, T>>,");
             var (go, _) = Run("go", "nino_types.go");
-            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tTags +\[\]\*string "));
-            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tUtf8Tags +\[\]\*string "));
-            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tByName +\[\]nino\.Entry\[string, T\] "));
+            Assert.IsTrue(GoStringTags().IsMatch(go));
+            Assert.IsTrue(GoUtf8StringTags().IsMatch(go));
+            Assert.IsTrue(GoStringMapEntries().IsMatch(go));
             var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
             StringAssert.Contains(ts, "tags: Set<string | null> | null");
             StringAssert.Contains(ts, "utf8Tags: Set<string | null> | null");

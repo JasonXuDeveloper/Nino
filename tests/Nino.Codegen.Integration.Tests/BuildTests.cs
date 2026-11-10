@@ -10,6 +10,8 @@ using Nino.Codegen;
 using Nino.Core;
 using Nino.Tests;
 
+[assembly: DoNotParallelize]
+
 namespace Nino.Codegen.Integration.Tests
 {
     /// <summary>
@@ -18,7 +20,7 @@ namespace Nino.Codegen.Integration.Tests
     /// nino-gen built here. The files must be what nino-gen writes for the same options.
     /// </summary>
     [TestClass]
-    public class BuildTests
+    public partial class BuildTests
     {
         private const string Model = @"using System.Collections.Generic;
 using Nino.Core;
@@ -115,7 +117,10 @@ namespace Scratch
             return output;
         }
 
-        private static int Runs(string output) => Regex.Matches(output, @"^\s*nino-gen: ", RegexOptions.Multiline).Count;
+        [GeneratedRegex(@"^\s*nino-gen: ", RegexOptions.Multiline)]
+        private static partial Regex BuildInvocation();
+
+        private static int Runs(string output) => BuildInvocation().Count(output);
 
         /// <summary>What nino-gen writes for the scratch assembly with these options.</summary>
         private static Dictionary<string, string> Expected(string dir, params string[] args)
@@ -261,12 +266,15 @@ namespace Scratch
             }
         }
 
+        [GeneratedRegex(@"Condition=""'%\(_NinoCodegenItem\.(\w+)\)' != ''"" NinoArgs=""%\(_NinoCodegenItem\.NinoArgs\) --([\w-]+) ")]
+        private static partial Regex CodegenOptionMapping();
+
         /// <summary>The targets pass every option an item can set, by its metadata, and nothing else.</summary>
         [TestMethod]
         public void TargetsMapEveryOption()
         {
             string targets = File.ReadAllText(Targets);
-            var mapped = Regex.Matches(targets, @"Condition=""'%\(_NinoCodegenItem\.(\w+)\)' != ''"" NinoArgs=""%\(_NinoCodegenItem\.NinoArgs\) --([\w-]+) ")
+            var mapped = CodegenOptionMapping().Matches(targets)
                 .Select(m => (m.Groups[1].Value, m.Groups[2].Value)).ToList();
             mapped.Add(("Out", "out"));
             var options = CodegenOptions.All.Where(o => o.Metadata != null).Select(o => (o.Metadata, o.Name)).ToList();

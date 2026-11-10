@@ -42,8 +42,14 @@ namespace Nino.Fuzz
     }
 
     /// <summary>Runs one input against a target and classifies what happened.</summary>
-    public static class Executor
+    public static partial class Executor
     {
+        [GeneratedRegex(@"-?\d+")]
+        private static partial Regex NumberPattern();
+
+        [GeneratedRegex(@"`\d+(\[.*\])?")]
+        private static partial Regex GenericArityPattern();
+
         /// <param name="prime">For a reuse read: the input whose value is read into (null: the target's fresh value).</param>
         public static Outcome Run(Target target, byte[] data, Placement placement, bool reuse, byte[] prime, Limits limits)
         {
@@ -109,7 +115,7 @@ namespace Nino.Fuzz
             }
             catch (InvariantException e)
             {
-                return Finding("INVARIANT " + Regex.Replace(e.Message, @"-?\d+", "#"), e);
+                return Finding("INVARIANT " + NumberPattern().Replace(e.Message, "#"), e);
             }
             catch (Exception e)
             {
@@ -174,7 +180,7 @@ namespace Nino.Fuzz
             return stale == null ? Outcome.Rejected : new Outcome
             {
                 Kind = OutcomeKind.Finding,
-                Signature = "STALE " + Regex.Replace(stale.Substring(0, stale.IndexOf(" (", StringComparison.Ordinal)), @"-?\d+", "#"),
+                Signature = "STALE " + NumberPattern().Replace(stale.Substring(0, stale.IndexOf(" (", StringComparison.Ordinal)), "#"),
                 Details = "the data was rejected after a new array took its slot in the existing value, which now holds freed memory: " + stale,
             };
         }
@@ -210,7 +216,7 @@ namespace Nino.Fuzz
                 if (type.StartsWith("System.ThrowHelper", StringComparison.Ordinal) ||
                     type.StartsWith("System.Runtime.CompilerServices", StringComparison.Ordinal) ||
                     type.Contains("NinoThrow")) continue;
-                return Regex.Replace(type, @"`\d+(\[.*\])?", "") + "." + m.Name;
+                return GenericArityPattern().Replace(type, "") + "." + m.Name;
             }
             return "?";
         }

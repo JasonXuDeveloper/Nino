@@ -71,7 +71,7 @@ namespace Nino.Fuzz
             public long[] Planted = { 1 };
         }
 
-        static object ReadInto(ReadOnlySpan<byte> data, object existing)
+        static Node ReadInto(ReadOnlySpan<byte> data, object existing)
         {
             // The value of another input (a node) when the fuzzer reads into one.
             var into = existing as Existing ?? new Existing { Node = existing as Node };
@@ -88,7 +88,7 @@ namespace Nino.Fuzz
         static object Recurse(int n) => n == int.MinValue ? null : Recurse(n + 1) ?? new object();
 
         /// <summary>Reads the byte after the input: faults against the trailing guard page.</summary>
-        static object OnePastTheEnd(ReadOnlySpan<byte> data)
+        static Node OnePastTheEnd(ReadOnlySpan<byte> data)
         {
             byte b = Unsafe.Add(ref MemoryMarshal.GetReference(data), data.Length);
             return b == 0x5A ? null : NinoDeserializer.Deserialize<Node>(data);

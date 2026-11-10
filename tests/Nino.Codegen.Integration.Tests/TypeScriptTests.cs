@@ -278,7 +278,7 @@ namespace Nino.Codegen.Integration.Tests
         public void RoundTripsGenericTypes()
         {
             var cases = GenericSamples.Cases(ordered: true)
-                .Select(c => (c.Type.Substring("Samples.".Length) + "Codec", c.Bytes)).ToList();
+                .Select(c => (string.Concat(c.Type.AsSpan("Samples.".Length), "Codec"), c.Bytes)).ToList();
             var results = RunNode(cases);
             for (int i = 0; i < cases.Count; i++)
                 Assert.AreEqual(GenericSamples.Hex(cases[i].Bytes), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Error}");

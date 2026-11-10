@@ -15,6 +15,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
+[assembly: DoNotParallelize]
+
 namespace Nino.AspNetCore.Tests
 {
     public class Plain
@@ -26,21 +28,25 @@ namespace Nino.AspNetCore.Tests
     [Route("mvc")]
     public class OrdersController : ControllerBase
     {
+        #pragma warning disable CA1822 // MVC action discovery requires instance methods.
         [HttpPost("echo")]
         public Order Echo([FromBody] Order order) => order;
 
         [HttpGet("shape")]
         public ActionResult<Shape> GetShape() => new Circle { Name = "c", Radius = 2.5 };
 
+        #pragma warning disable ASP0018 // FormatFilter consumes the format route parameter.
         [HttpGet("order/{id}.{format?}")]
         [FormatFilter]
         public Order Get(int id) => Sample();
+        #pragma warning restore ASP0018
 
         [HttpPost("broken")]
         public Broken Broken([FromBody] Broken broken) => broken;
 
         [HttpGet("plain")]
         public Plain Unsupported() => new Plain { X = 1 };
+        #pragma warning restore CA1822
 
         internal static Order Sample() =>
             new Order { Id = 42, Customer = "Ada", Items = new List<int> { 1, 2, 3 } };
