@@ -304,6 +304,12 @@ of bytes in a block.
   comparison reproduced the 128-byte loop's gain over the 64-byte loop for
   4,096 and 16,384 items. If revisiting the wider loop, isolate its machine-code
   layout from the common path and measure both again.
+  The out-of-line 256-byte variant kept the Arm64 FullOpts instructions of
+  the 128-byte helper identical and kept its x64 cross-JIT size at 295 bytes.
+  It still slowed 4,095-item reads against both baselines in all four local
+  rounds, and the 16,384-item timing changed direction. The flag entry and
+  new wide path added 174 IL bytes including shared helpers, 356 Arm64
+  FullOpts bytes, and 303 x64 cross-JIT bytes. Keep the existing dispatch.
   Apply the same rule to `Memory<T>` after the exact-length check and the growing fallback.
   In the aligned reused-memory probe the Arm64 Tier 1 entry went from 828 to 812 bytes
   and the formatter from 768 to 756. Offline x64 formatter code went from 1,015 to 975,
