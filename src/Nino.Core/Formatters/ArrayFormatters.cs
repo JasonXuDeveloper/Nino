@@ -73,7 +73,7 @@ namespace Nino.Core
             if (!source.IsEmpty)
             {
                 // A caller-provided span may alias the source. Publish the header after the payload copy.
-                if (source.Overlaps(body))
+                if (!NinoLayout<T>.HasPadding || source.Overlaps(body))
                 {
                     source.CopyTo(body);
                     NinoLayout<T>.ClearPadding(ref MemoryMarshal.GetReference(body), values.Length);
