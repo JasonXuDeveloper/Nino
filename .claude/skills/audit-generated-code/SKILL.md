@@ -353,6 +353,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   from 256 to 223 bytes. Arm64 Tier 1 already loaded the method table once in the original chain.
   The shared local materialized a runtime type object and grew the dispatch from 604 to 672
   machine bytes. The non-generic 1,000-item case was slower in all four local rounds.
+  A shared generic comparison helper saved only 136 source bytes and grew the non-generic
+  dispatch from 2,984 to 3,064 Arm64 Tier 1 bytes and from 1,148 to 2,281 x64 cross-JIT bytes.
+  Using `is` for every sealed target saved 936 source bytes and kept the method-table comparison,
+  but added an explicit null branch before the chain. The non-generic case was slower than its
+  paired baseline in four local rounds. The wire bytes matched and both probes allocated 0 B.
   A separate post-emission alias for `System.Runtime.CompilerServices` paid off in only 22 of 577
   replayed files. It removed 2,444 source bytes with identical normalized unit test assembly IL, but
   added about 740 KB of cold generator allocations and enlarged the alias helper from 473 to 512 IL
