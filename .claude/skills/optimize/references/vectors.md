@@ -397,6 +397,17 @@ of bytes in a block.
   The byte-list caller moved from 948 to 992 B on Arm64 and stayed 205 B on x64 cross-JIT
   MinOpts. The list helper was 92 Arm64 bytes. Boundary, overlapping-buffer and no-intrinsics
   cases passed (`9ce599ed`).
+
+- Select the short Arm64 copy inside the existing raw span branch for byte-sized `Memory<T>`.
+  Checking it in the formatter duplicated raw dispatch and moved even the `int` control.
+  The final M4 default-JIT probe reduced 81–128 byte reuse medians by 23–27% across the tested
+  sizes and buffer offsets. A separate per-size A/B with repeated same-binary controls put the
+  129-byte overhead below 5%; near a 64 KiB input-plus-output footprint, the controls were noisy.
+  Reuse allocated 0 B, fresh allocations and wire hashes matched, and an overlapping slice kept the
+  next field readable. The formatter and shared span reader moved from 119/255 to 120/296 IL bytes.
+  Arm64 FullOpts moved from 1,296 to 1,340 bytes for `byte` and stayed at 1,256 bytes for `int`.
+  x64 cross-JIT printed MinOpts, where the byte formatter moved from 475 to 480 bytes and emitted
+  no short-copy call. Keep that listing separate from x64 throughput (`7f4103cf`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
