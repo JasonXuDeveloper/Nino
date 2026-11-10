@@ -378,6 +378,16 @@ of bytes in a block.
   wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
   four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
   to 1,404 bytes.
+- Keep the 81–128-byte Arm64 shortcut at the checked raw array reader. An inline branch and a
+  separate helper in the shared copy dispatcher both slowed the 1 KiB direct control. Extracting
+  the existing loop's vector group still affected that control, even after moving the branch.
+  Leave the shared loop intact and express the short head and tail as two constant 64-byte
+  `CopyBlockUnaligned` calls. The Arm64 JIT emitted paired 128-bit loads and stores in 64 B.
+  Four M4 rounds reduced reuse time by 39–45% and fresh reads by 27–41% at the covered sizes.
+  Both offsets, surrounding sizes, wire bytes, sentinels and allocations were checked.
+  Array deserialize IL grew from 102 to 133 B and its Arm64 caller from 564 to 608 B.
+  The x64 cross caller stayed 195 B and shared copy listings stayed 580/1,096 B on Arm64/x64.
+  Both .NET suites, the no-intrinsics case and the netstandard builds passed (`894d6936`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
