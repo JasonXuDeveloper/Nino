@@ -79,6 +79,13 @@ and when `asm.py compare` lists methods the change did not touch.
   The early return grew from 63 to 72 IL bytes and from 548 to 556 Arm64 Tier 1 bytes.
   The short-branch form used 66 IL bytes and the same Arm64 and x64 sizes as the baseline.
 
+- Use one byte move for a one-byte copy and two overlapping short-word moves for two
+  or three bytes. `CopyUpTo15` shrank from 172 to 171 IL bytes, and the dynamic Arm64
+  caller grew from 380 to 384 bytes. The x64 cross listing for `ToArray` grew from 508
+  to 512. Four public export rounds improved by 6–9% at 1–3 bytes with unchanged
+  allocation. Direct-copy samples varied. All 80 export patterns and the 0–64 byte
+  offset checks matched, and both targeted suites and netstandard builds passed (`15a5281d`).
+
 - Keep the shared span read in `MemoryFormatter.Deserialize`. Sending a fresh array directly
   to the reader instead of obtaining its span through `Memory<T>` did not change allocations.
   The inline variant grew the Arm64 Tier 1 caller from 524 to 556 bytes. Moving the fresh path
