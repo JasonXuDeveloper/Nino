@@ -345,6 +345,15 @@ of bytes in a block.
   at 84/84/112 bytes for v2/v3/v4. Use one 128-bit pattern for the repeated
   mask. Passing two scalar words instead grew the Arm64 scan from 336 to 368
   bytes and lost to the faster baseline in all four 4,095-item reads.
+  Share the three-width validator with strided bools. Pass a byte bound
+  that ends at the last flag for a field inside a record; only nullable
+  payloads guarantee the entire final stride is readable. Preserve the
+  scalar diagnostic and unsupported-stride fallback. In four local
+  Arm64 rounds, reused `List<(byte, bool)>` took 30–35% less time at 128
+  items and 90–95% less at 16,384 against the faster duplicate baseline,
+  at 0 B allocated. Nullable timings varied. The strided bool entry grew
+  from 68 to 160 Arm64 FullOpts bytes and 25 to 91 x64 cross-JIT bytes.
+  All three vector widths passed direct last-flag and full-slot probes.
   Keep the bulk clear for converted nullable writes. Per-slot clearing
   wrote each slot once but slowed 64 mixed and 16,384 all-null booleans in
   four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256
