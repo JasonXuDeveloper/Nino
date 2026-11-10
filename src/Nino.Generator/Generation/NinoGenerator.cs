@@ -320,11 +320,18 @@ public sealed class NinoGenerator : IIncrementalGenerator
         IncrementalValuesProvider<TypeModel>[] models, IncrementalValueProvider<bool> enabled,
         IncrementalValueProvider<bool> fileScoped)
     {
-        var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName,
-                m.TypeParameterList, m.TypeId, m.IsDispatchRoot, m.IsDispatchTarget, m.Inheritance.NinoBaseClasses,
-                m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors, m.RawBody, m.Depth.Nests))
-            .Select(static (x, _) => new EquatableArray<DispatchEntry>(x.Where(static e => e.IsBase || e.IsTarget)
-                .Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
+        var dispatch = CollectAll(models, static m =>
+            {
+                bool isBase = m.IsDispatchRoot;
+                bool isTarget = m.IsDispatchTarget;
+                return isBase || isTarget
+                    ? new DispatchEntry(m.TypeName, m.FormatterName, m.TypeParameterList, m.TypeId, isBase, isTarget,
+                        m.Inheritance.NinoBaseClasses, m.Inheritance.NinoInterfaces, m.Inheritance.NinoGenericAncestors,
+                        m.RawBody, m.Depth.Nests)
+                    : null;
+            })
+            .Select(static (x, _) => new EquatableArray<DispatchEntry>(
+                x.OfType<DispatchEntry>().Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)))
             .WithTrackingName("Dispatch");
         context.RegisterImplementationSourceOutput(dispatch.Combine(enabled).Combine(fileScoped), static (spc, x) =>
         {
