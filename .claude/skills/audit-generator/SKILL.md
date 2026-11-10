@@ -491,6 +491,11 @@ inline into the x64 `AppendRange` listing, growing it from 219 to 466 bytes.
 Neither project's emitter replay gained reliably against the identical-binary
 control. Both Roslyn builds still emitted the same 582 files, tracked results
 and collection matched, and 38 targeted tests passed on each runtime.
+Keep the current byte-alias match loop. Checking the remaining slice before searching
+saved eight IL bytes but grew Arm64 `AppendRange` from 616 to 628 bytes. The x64 cross
+listing shrank from 219 to 218 bytes. Neither project replay showed a repeatable
+gain against A/A, and allocation matched. Both Roslyn outputs, tracking, collection
+and targeted suites matched. Keep the short-range patch as a probe.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
