@@ -21,8 +21,8 @@ internal static class WireEncoding
 
     /// <summary>
     /// The encoding of a Nino.Core formatter bound to <paramref name="types"/> (bound type arguments) and
-    /// <paramref name="elements"/> (the encodings of its element formatters, in argument order), or null if the formatter
-    /// has no built-in encoding.
+    /// <paramref name="elements"/> (an owned array of element encodings in argument order), or null if the
+    /// formatter has no built-in encoding. The value-tuple case may flatten the final element in place.
     /// </summary>
     public static string? OfCore(string formatter, ITypeSymbol[] types, string[] elements, Compilation compilation)
     {
@@ -69,8 +69,7 @@ internal static class WireEncoding
         string? rest = items[7];
         if (rest == null || !rest.StartsWith("tuple(", System.StringComparison.Ordinal))
             return items;
-        var flat = (string[])items.Clone();
-        flat[7] = rest.Substring(6, rest.Length - 7);
-        return flat;
+        items[7] = rest.Substring(6, rest.Length - 7);
+        return items;
     }
 }
