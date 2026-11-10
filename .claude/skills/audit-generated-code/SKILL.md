@@ -377,6 +377,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   the alias restored the original text. All 1,850 normalized generated benchmark methods
   matched, as did the Arm64 and x64 cross-JIT registration entry sizes. Warm registration
   allocated 0 B and timings varied within the controls.
+  Use the shorter `__SCG` alias for repeated generic collection names. The unit test replay
+  emitted 18,060 fewer bytes and the benchmark emitted 2,376 fewer bytes, with the original
+  text restored by alias expansion. The shorter threshold can introduce the alias into a
+  smaller file. Normalize aliases in assertions about registration content, and assert the
+  spelling only in the compaction test. Benchmark IL, wire bytes and registration allocations
+  matched, with no repeatable timing change.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
   `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
