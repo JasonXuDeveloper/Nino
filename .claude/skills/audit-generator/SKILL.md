@@ -446,6 +446,11 @@ The isolated emitter saved about 67.6 KB in both load orders and the eight body 
 saved 62–81 KB. Timings varied. Both Roslyn builds emitted the same 582 files, tracked
 call sites and closed-project collection matched, and 38 targeted tests passed per
 runtime (`908bda02`).
+Keep the short namespace and byte-alias profitability scans separate. Combining them
+saved only 30–40 B per emitter replay, with no repeatable time or whole-project allocation
+gain. `Emit` grew by 6 IL bytes and 16 x64 cross-JIT bytes while shrinking by 120 Arm64
+FullOpts bytes. The 582 outputs, incremental tracking and collection matched on replay.
+Both targeted suites passed. Keep the merged loop as a probe.
 Write the modern interceptor body at its final namespace indentation and concatenate it
 with the small prefix. Keep the line-by-line path for legacy and multiline locations.
 This removed about 1.06 MB per isolated emission and per method-body edit. Isolated timing
