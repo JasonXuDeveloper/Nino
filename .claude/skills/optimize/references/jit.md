@@ -246,6 +246,12 @@ and when `asm.py compare` lists methods the change did not touch.
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
   element by element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline.
+  Check that the outlined path is cold for each common input size. In the packed 32-bit
+  `SortedList<uint, uint>` write probe, outlining the generic scalar fallback shrank the Arm64 Tier 1
+  SIMD entry from 1,268 to 100 bytes, but moved singleton writes across a call boundary and slowed them
+  in all four local runs. Keeping the two unaligned singleton stores in the entry took 128 bytes.
+  Compare the caller and helper on Arm64 and x64, and measure singleton, short and vector-sized inputs
+  separately. A smaller hot entry does not show that the outlined call is cheap.
   This holds for a test that folds away too: callers' budgets count an inlinee's whole IL, so a branch for one platform
   goes in the out-of-line part, never in the inline one. Evidence: `Is64Bit || IsX86 || UnalignedWide32` written in
   `NinoUnsafe.Copy` changed the x64 code of an ImmutableSortedDictionary write (`NinoBlockCollections.WriteAll` inlined,
