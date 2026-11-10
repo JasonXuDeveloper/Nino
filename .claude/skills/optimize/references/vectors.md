@@ -465,6 +465,12 @@ of bytes in a block.
   four local rounds at zero allocation. Check duplicate keys at vector boundaries and in the tail.
   The 16-pair probe occasionally stayed slow during short warmup. With a longer warmup, timings
   varied within the controls with SIMD on and off. The generated source and wire samples matched.
+  Measure allocation thresholds separately before using uninitialized arrays for this split.
+  The two-array growth candidate passed the order and byte checks, but 1,536 pairs crossed the
+  6 KiB per-array threshold and took over five times as long as the paired baseline in all four
+  local rounds. Allocation size stayed at 12,400 bytes per read. The cross listing showed calls
+  to the uninitialized allocation worker instead of the usual new-array helper. Larger samples
+  varied. Compare a zeroed control with the same publication order and call shape.
 - Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
   complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
   at the end of a guarded page to catch a load past either end of the input.
