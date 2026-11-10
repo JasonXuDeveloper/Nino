@@ -71,13 +71,18 @@ namespace Nino.Core
             }
 
 #if NET8_0_OR_GREATER
-            if (typeof(T) == typeof(bool) && values.Length >= 4 && NinoSimd.HasArm64 &&
+            if (typeof(T) == typeof(bool) && values.Length >= 4 &&
+                (values.Length >= 8 ? NinoSimd.Has128 : NinoSimd.HasArm64) &&
                 BitConverter.IsLittleEndian && NullableLayout<T>.HasValueOffset == 0 &&
                 NullableLayout<T>.ValueOffset == 1 && Stride == 2 && Offset == 1)
             {
                 ref ushort source = ref Unsafe.As<T?, ushort>(ref item);
                 ref ushort target = ref Unsafe.As<byte, ushort>(ref dst);
-                if (values.Length >= Vector128<ushort>.Count)
+                if (NinoSimd.Prefer512Int16 && values.Length >= Vector512<ushort>.Count)
+                    WriteBoolSlots<Vector512<ushort>, BoolSlots512>(ref source, ref target, values.Length);
+                else if (NinoSimd.Has256 && values.Length >= Vector256<ushort>.Count)
+                    WriteBoolSlots<Vector256<ushort>, BoolSlots256>(ref source, ref target, values.Length);
+                else if (values.Length >= Vector128<ushort>.Count)
                     WriteBoolSlots<Vector128<ushort>, BoolSlots128>(ref source, ref target, values.Length);
                 else
                     WriteBoolSlots<Vector64<ushort>, BoolSlots64>(ref source, ref target, values.Length);
@@ -140,6 +145,26 @@ namespace Nino.Core
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector128<ushort> Normalize(Vector128<ushort> pairs)
+            {
+                var active = (pairs << 15).AsInt16() >> 15;
+                return pairs & active.AsUInt16();
+            }
+        }
+
+        private readonly struct BoolSlots256 : IBoolSlots<Vector256<ushort>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<ushort> Normalize(Vector256<ushort> pairs)
+            {
+                var active = (pairs << 15).AsInt16() >> 15;
+                return pairs & active.AsUInt16();
+            }
+        }
+
+        private readonly struct BoolSlots512 : IBoolSlots<Vector512<ushort>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector512<ushort> Normalize(Vector512<ushort> pairs)
             {
                 var active = (pairs << 15).AsInt16() >> 15;
                 return pairs & active.AsUInt16();

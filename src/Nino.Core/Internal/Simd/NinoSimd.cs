@@ -71,6 +71,13 @@ namespace Nino.Core.Internal
             get => Has512 && X86Base.IsSupported && !IceLake;
         }
 
+        /// <summary>512-bit operations on 16-bit lanes require AVX-512BW as well as the shared CPU preference.</summary>
+        internal static bool Prefer512Int16
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => Avx512BW.IsSupported && Prefer512;
+        }
+
         /// <summary>
         /// An Intel CPU of the Sunny Cove generation and its client relatives (Ice Lake server and client, Tiger Lake,
         /// Rocket Lake), by family 6 and model: the first cores with AVX-512 VBMI, whose 64-byte permutes and masked

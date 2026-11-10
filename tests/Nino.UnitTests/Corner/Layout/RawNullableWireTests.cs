@@ -1,7 +1,11 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections;
+using System.Reflection;
 using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics;
+#endif
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
@@ -58,10 +62,16 @@ namespace RawWire
         [DataRow(7)]
         [DataRow(8)]
         [DataRow(9)]
+        [DataRow(15)]
         [DataRow(16)]
+        [DataRow(17)]
         [DataRow(31)]
         [DataRow(32)]
         [DataRow(33)]
+        [DataRow(63)]
+        [DataRow(64)]
+        [DataRow(65)]
+        [DataRow(129)]
         public void NullableBoolWritesZeroForNullSlots(int count)
         {
             var values = new bool?[count];
@@ -87,6 +97,53 @@ namespace RawWire
             Assert.AreEqual((byte)0xA5, buffer.WrittenSpan[0]);
             CollectionAssert.AreEqual(expected, buffer.WrittenSpan.Slice(1).ToArray());
         }
+
+#if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
+        private delegate void WriteSlots(ref ushort source, ref ushort target, int count);
+
+        [TestMethod]
+        [DataRow(64)]
+        [DataRow(128)]
+        [DataRow(256)]
+        [DataRow(512)]
+        public void NullableBoolVectorWidthsPreserveUnalignedTails(int width)
+        {
+            var vector = width switch
+            {
+                64 => typeof(Vector64<ushort>),
+                128 => typeof(Vector128<ushort>),
+                256 => typeof(Vector256<ushort>),
+                _ => typeof(Vector512<ushort>),
+            };
+            var owner = typeof(NinoNullables<bool>);
+            var slots = owner.GetNestedType("BoolSlots" + width, BindingFlags.NonPublic);
+            if (slots.ContainsGenericParameters)
+                slots = slots.MakeGenericType(typeof(bool));
+            var write = owner.GetMethod("WriteBoolSlots", BindingFlags.Static | BindingFlags.NonPublic)
+                .MakeGenericMethod(vector, slots).CreateDelegate<WriteSlots>();
+            int lanes = width / 16;
+            for (int count = lanes; count <= lanes * 3 + 1; count++)
+            foreach (int offset in new[] { 0, 1, 7 })
+            {
+                var source = new ushort[count];
+                var expected = new ushort[count];
+                for (int i = 0; i < count; i++)
+                {
+                    source[i] = (i % 3) switch { 0 => 0x7F00, 1 => 0x0101, _ => 0x0001 };
+                    expected[i] = i % 3 == 0 ? (ushort)0 : source[i];
+                }
+                var target = new byte[offset + count * 2 + 16];
+                Array.Fill(target, (byte)0xA5);
+                write(ref source[0], ref Unsafe.As<byte, ushort>(ref target[offset]), count);
+                for (int i = 0; i < count; i++)
+                    Assert.AreEqual(expected[i], Unsafe.ReadUnaligned<ushort>(ref target[offset + i * 2]));
+                for (int i = 0; i < offset; i++)
+                    Assert.AreEqual((byte)0xA5, target[i]);
+                for (int i = offset + count * 2; i < target.Length; i++)
+                    Assert.AreEqual((byte)0xA5, target[i]);
+            }
+        }
+#endif
 
         [TestMethod]
         public void GeneratedAndRuntimeFormattersWriteTheSameBytes()
