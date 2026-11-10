@@ -8,7 +8,7 @@ using System.Runtime.Intrinsics.X86;
 
 namespace Nino.Core.Internal
 {
-    internal static partial class NinoBlockCollections
+    internal static partial class NinoSimd
     {
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -71,7 +71,7 @@ namespace Nino.Core.Internal
         {
             int pairs;
             if (Avx512F.IsSupported && (typeof(T) != typeof(short) || Avx512BW.IsSupported) &&
-                count >= Vector512<T>.Count * 2 && NinoSimd.Prefer512)
+                count >= Vector512<T>.Count * 2 && Prefer512)
             {
                 pairs = count & -Vector512<T>.Count;
                 Interleave512<T, TZip>(ref first, ref second, ref target, pairs);

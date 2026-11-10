@@ -169,8 +169,8 @@ namespace Nino.Core
                 ref byte target = ref writer.ReserveCounted(count, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
 #if NET8_0_OR_GREATER
                 if ((Unsafe.SizeOf<TKey>() == 2 || Unsafe.SizeOf<TKey>() == 8) &&
-                    (NinoBlockCollections.TryInterleave<short, NinoBlockCollections.Zip16, TKey, TValue>(keys, values, ref target, count) ||
-                     NinoBlockCollections.TryInterleave<long, NinoBlockCollections.Zip64, TKey, TValue>(keys, values, ref target, count)))
+                    (NinoSimd.TryInterleave<short, NinoSimd.Zip16, TKey, TValue>(keys, values, ref target, count) ||
+                     NinoSimd.TryInterleave<long, NinoSimd.Zip64, TKey, TValue>(keys, values, ref target, count)))
                     return;
 #endif
                 if (count != 0)
@@ -201,7 +201,7 @@ namespace Nino.Core
             ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
             ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
 #if NET8_0_OR_GREATER
-            if (NinoBlockCollections.IsPackedLane32<TKey>() && NinoBlockCollections.IsPackedLane32<TValue>())
+            if (NinoSimd.IsPackedLane32<TKey>() && NinoSimd.IsPackedLane32<TValue>())
             {
                 if (count == 1)
                 {
@@ -210,15 +210,15 @@ namespace Nino.Core
                     return;
                 }
 
-                if (NinoBlockCollections.CanInterleave<int>(count))
+                if (NinoSimd.CanInterleave<int>(count))
                 {
-                    NinoBlockCollections.InterleaveBest<int, NinoBlockCollections.Zip32>(ref Unsafe.As<TKey, int>(ref key),
+                    NinoSimd.InterleaveBest<int, NinoSimd.Zip32>(ref Unsafe.As<TKey, int>(ref key),
                         ref Unsafe.As<TValue, int>(ref value), ref target, count);
                     return;
                 }
             }
 #else
-            int pairs = NinoBlockCollections.TryInterleave32(ref key, ref value, ref target, count);
+            int pairs = NinoSimd.TryInterleave32(ref key, ref value, ref target, count);
             if (pairs != 0)
             {
                 key = ref Unsafe.Add(ref key, pairs);
@@ -356,7 +356,7 @@ namespace Nino.Core
         private static void ReadSortedInt32Pairs(SortedList<int, int> list, ref byte source, int length)
         {
             // Validate order before changing the arrays. The same checked wire block feeds the comparer fallback.
-            if (!NinoBlockCollections.AreStrictlyIncreasingInt32(ref source, length))
+            if (!NinoSimd.AreStrictlyIncreasingInt32(ref source, length))
             {
                 for (int j = 0; j < length; j++)
                 {
@@ -373,7 +373,7 @@ namespace Nino.Core
                 CollectionFields.Keys(list) = keys = new int[length];
             if (values.Length < length)
                 CollectionFields.Values(list) = values = new int[length];
-            NinoBlockCollections.DeinterleaveInt32(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
+            NinoSimd.DeinterleaveInt32(ref source, ref NinoUnsafe.GetArrayDataReference(keys),
                 ref NinoUnsafe.GetArrayDataReference(values), length);
             CollectionFields.Size(list) = length;
             CollectionFields.Version(list)++;

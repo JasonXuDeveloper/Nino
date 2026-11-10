@@ -55,7 +55,7 @@ namespace Nino.Core.Internal
                     var a = Vector128.LoadUnsafe(ref children).AsInt32();
                     var b = Vector128.LoadUnsafe(ref children, 16).AsInt32();
                     int parent = NinoUnsafe.Read<int>(ref parentPriority);
-                    if (Vector128.GreaterThanAny(Vector128.Create(parent), NinoBlockCollections.OddInt32(a, b)))
+                    if (Vector128.GreaterThanAny(Vector128.Create(parent), NinoSimd.OddInt32(a, b)))
                         return false;
                     a.AsByte().StoreUnsafe(ref destination);
                     b.AsByte().StoreUnsafe(ref destination, 16);

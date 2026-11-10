@@ -208,7 +208,6 @@ BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries
 ```
 NinoBlockBytes.cs            a value's bytes matched to its block's, built once per type for the plans
 NinoBlockCollections.cs      collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
-NinoBlockCollections.Pairs.cs packed pair interleave, deinterleave and ordering checks, including the Burst hook
 NinoBlockPlan.cs             NinoBlockPlan<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)
 NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte lanes (SSSE3, AVX2, Arm64, Wasm)
 ```
@@ -234,6 +233,7 @@ ValueViews.cs                where value types' fields are on this runtime (Date
 NinoSimd.cs                  managed SIMD capabilities and CPU policy, with inlinable 512/256/128 checks
 NinoSimd.Text.cs             managed Latin-1 narrowing, widening, and comparison kernels
 NinoSimd.Text.Legacy.cs      netstandard numeric-vector text kernels
+NinoSimd.Pairs.cs            packed pair interleave, deinterleave and ordering checks, including the Burst hook
 NinoKernelHook.cs            registered native function pointers and call thresholds for Burst and WebGL
 ```
 
