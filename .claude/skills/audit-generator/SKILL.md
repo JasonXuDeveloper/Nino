@@ -345,6 +345,11 @@ Emit the registry switches directly from their bucket lists. This removes the ca
 callback and boxed enumerator per switch. The 64-switch registry replay saved about 11 KB
 in both load orders. All 582 files matched on both Roslyn builds, body edits reused the
 registry entries, old project objects collected, and both targeted suites passed (`cdf0e8b2`).
+Append numeric case labels directly to the code writer buffer. The registry replay saved
+about 40 KB per emission in both load orders and four cold project replays saved 78–131 KB,
+with no repeatable timing change. Both Roslyn builds emitted the same 582 files, registry
+entries stayed cached on body edits, project objects collected, and both targeted suites
+passed (`3687fb79`).
 Insert registration statements directly into their ID cases in the existing order. This removes
 the per-registration tuple arrays and the iterator chains in both registry emitters. The
 isolated registry replay allocated about 35 KB less in both load orders. The 577 outputs matched,
