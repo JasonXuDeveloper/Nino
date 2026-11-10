@@ -468,6 +468,20 @@ namespace Nino.Core
             ref var pair = ref NinoUnsafe.GetArrayDataReference(pairs);
             ref TKey key = ref NinoUnsafe.GetArrayDataReference(keys);
             ref TValue value = ref NinoUnsafe.GetArrayDataReference(values);
+#if NET8_0_OR_GREATER
+            // Compare the staged keys first. User comparers can run arbitrary code, so the input
+            // buffer is no longer a source for the split.
+            // At 2,048 pairs, the wire, rented pairs and destination arrays occupy 48 KiB.
+            if (Unsafe.SizeOf<TKey>() == 4 && Unsafe.SizeOf<TValue>() == 4 && length is >= 64 and <= 2048 &&
+                NinoSimd.CanInterleave<int>(length) &&
+                NinoBlockPlan<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>.IsMemory)
+            {
+                NinoSimd.DeinterleaveInt32(ref Unsafe.As<KeyValuePair<TKey, TValue>, byte>(ref pair),
+                    ref Unsafe.As<TKey, int>(ref key), ref Unsafe.As<TValue, int>(ref value), length);
+            }
+            else
+#endif
             for (int n = length; n > 0; n--)
             {
                 key = pair.Key;

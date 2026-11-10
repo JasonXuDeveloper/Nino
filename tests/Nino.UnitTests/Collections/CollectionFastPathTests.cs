@@ -345,6 +345,37 @@ public class CollectionFastPathTests
         }
     }
 
+    private readonly record struct ReverseIndex(int Value) : IComparable<ReverseIndex>
+    {
+        public int CompareTo(ReverseIndex other) => other.Value.CompareTo(Value);
+    }
+
+    [TestMethod]
+    public void SortedListSplitsRawPairsUsingTheIndexComparer()
+    {
+        var expected = new SortedList<ReverseIndex, uint>();
+        for (int i = 0; i < 65; i++)
+            expected.Add(new ReverseIndex(i), (uint)(i * 13));
+
+        using var buffer = new NinoArrayBufferWriter();
+        buffer.GetSpan(1);
+        buffer.Advance(1);
+        NinoSerializer.Serialize(expected, buffer);
+        var bytes = buffer.WrittenSpan.Slice(1).ToArray();
+        var reused = new SortedList<ReverseIndex, uint>(80);
+        var original = reused;
+        NinoDeserializer.Deserialize(buffer.WrittenSpan.Slice(1), ref reused);
+        Assert.AreSame(original, reused);
+        Assert.AreEqual(80, reused.Capacity);
+        Assert.AreSequenceEqual(expected, reused);
+        CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(reused));
+
+        var unordered = expected.Reverse().ToDictionary(pair => pair.Key, pair => pair.Value);
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(unordered), ref reused);
+        Assert.AreSequenceEqual(expected, reused);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes.AsSpan(0, bytes.Length - 1), ref reused));
+    }
+
     [TestMethod]
     public void ExistingSortedAndConcurrentDictionariesAreRefilled()
     {
