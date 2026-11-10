@@ -518,6 +518,13 @@ of bytes in a block.
   runs straddling 64 KiB of input, output and mask improved by 8–13%, with A/A within 5%.
   Short and SIMD timings varied. Dirty-padding bytes matched at offsets 0, 1 and 7, and
   targeted and scalar tests passed (`a7927d44`).
+  Keep the predictable scalar mask wrap branch. Expressing the wrap as a ternary still
+  emitted a branch and did not improve timing. A sign-mask expression removed the branch
+  and cut the scalar body from 344 to 336 Arm64 Tier 1 bytes and from 284 to 280 in the x64
+  cross listing, but serialized 2,665 and 2,821 padded 12-byte elements in about three
+  times the baseline time with SIMD disabled. Its loop carried an extra arithmetic
+  dependency into the next mask load. Four A/A rounds stayed within 6% for those cases.
+  Wire and dirty-padding checks matched, and targeted tests passed. Keep both as probes.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
