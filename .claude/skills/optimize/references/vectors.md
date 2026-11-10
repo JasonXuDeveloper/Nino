@@ -987,6 +987,16 @@ of bytes in a block.
   to 100 + 191 B. The Arm64 long writer went from 476 to 344 + 268 B; emulated x64 went
   from 395 to 255 + 249 B without AVX2 and 546 to 255 + 396 B with it. Both .NET suites
   passed 44 tests, plus 14 scalar tests (`5dc7c91e`).
+  Eagerly optimize only the long 128-bit remainder loop. Applying AggressiveOptimization to the
+  whole dispatcher increased first-use serialization from about 13 to 17 ms and regressed
+  fully warmed 65-char controls. Leaving dispatcher tiering intact and outlining the long loop
+  improved the early 257-char Latin-1 workload by 66–71% and near-64-KiB Latin-1 writes by
+  53–56% in four M4 pairs. After allowing background Tier 1 compilation, timings were mixed
+  alongside noisy A/A controls; do not call these steady-state gains. With the registry warm,
+  the first Latin-1 write took about 0.61 instead of 0.42 ms, versus 4.1 ms for the whole-method
+  trial. Wire matched and timed allocation stayed 0 B. IL grew from 191 to 142 + 58 B and
+  Arm64 FullOpts from 268 to 208 + 252 B. Emulated x64 was 249 to 175 + 202 B without AVX2
+  and 396 to 329 B with it. Both .NET suites passed 44 tests and scalar passed 14 (`c7c82e56`).
   A direct unsigned vector comparison emitted `cmhi` on Arm64 and slowed the 64-character
   probe. An Arm64-only maximum reduction emitted `umaxv` and shrank the hot writer from 836
   to 824 bytes, but the ASCII control was slower in all four reversed-order rounds. Its x64
