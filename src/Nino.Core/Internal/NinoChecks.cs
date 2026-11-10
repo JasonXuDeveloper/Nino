@@ -78,6 +78,14 @@ namespace Nino.Core.Internal
             var any = Vector128<ulong>.Zero;
             ref byte at = ref first;
             int remaining = end;
+            for (; remaining >= 128; remaining -= 128, at = ref Unsafe.Add(ref at, 128))
+            {
+                var low = (Vector128.LoadUnsafe(ref at) | Vector128.LoadUnsafe(ref at, 16))
+                    | (Vector128.LoadUnsafe(ref at, 32) | Vector128.LoadUnsafe(ref at, 48));
+                var high = (Vector128.LoadUnsafe(ref at, 64) | Vector128.LoadUnsafe(ref at, 80))
+                    | (Vector128.LoadUnsafe(ref at, 96) | Vector128.LoadUnsafe(ref at, 112));
+                any |= (low | high).AsUInt64();
+            }
             for (; remaining >= 64; remaining -= 64, at = ref Unsafe.Add(ref at, 64))
             {
                 var a = Vector128.LoadUnsafe(ref at);
