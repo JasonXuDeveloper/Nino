@@ -169,6 +169,11 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   interfaces for LINQ and preserve the array's value equality and ownership. The 577-file project replay
   saved about 18 KB of cold allocations with identical output. `LayoutEmitter.Members` fell from
   320 to 310 IL bytes, from 1,472 to 1,364 Arm64 bytes, and from 735 to 695 x64 ReadyToRun bytes.
+  Filter accessor members in the loop to avoid boxing the array and allocating a LINQ iterator.
+  Replaying 577 formatters saved 112–113 KB per pass in both load orders, and cold project replays
+  saved 43–130 KB. Timing varied with load order. All 582 outputs matched on both Roslyn builds,
+  tracked body edits reused all 577 models, and closed-project objects collected. The .NET 8
+  and .NET 10 targeted suites passed (`0ccae04c`).
 - Count eligible models before changing fixed-layout emission for allocation savings. An exact-length
   offset array saved 192 bytes per replay of the three fixed-size formatters in the unit-test project.
   The emitter timing changed direction when the load order was reversed and `FixedLayout` grew from
