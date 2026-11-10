@@ -126,6 +126,15 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   with mixed repeats and a flat single-object control. All 84 samples allocated 0 B
   and serialized arrays matched byte for byte. Three configurations passed 59
   targeted tests each (`49ba68fe`).
+  Classify the built-in BigInteger, Uri and Version formatters as preserving read
+  context. They read only scalar data and strings, and never queue or register
+  objects with the reader. The 583-file unit-test replay removed 38 source bytes
+  from the new BCL scalar fixture and kept the other files identical. Its ReadBody
+  fell from 109 to 101 IL bytes, 1,376 to 1,272 Arm64 FullOpts bytes, and 1,118
+  to 1,020 emulated x64 bytes. Four M4 pairs at 512 objects with absent URI and
+  version values reduced median time by 8–9% at offsets zero and one, at 0 B
+  allocation per object. Short and non-null controls varied; allocations and
+  all 12 wire comparisons matched. Cover an older empty region and truncation.
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
