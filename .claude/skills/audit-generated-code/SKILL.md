@@ -98,6 +98,13 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   the reordered body's Arm64 Tier 1 size from 1,440 to 1,356 bytes and offline
   x64 from 1,251 to 1,141. After a longer warmup, four local 1,000-item reordered
   reads took 9.24–9.39 µs against 9.46–9.47 µs, at zero steady allocation.
+  Retesting outer `EndRegion` omission after the member changes still favored
+  keeping it. Pin the same Core binary on both sides and warm 16-item reordered
+  reads until the array caller and element loop reach Tier 1. The apparent large
+  short-array regression then fell to about 1% (157.85–158.34 to 159.00–159.59 ns
+  in four rounds). The 1,000-item reordered case also slowed slightly. Removing
+  the call saved 39 source bytes, 8 IL bytes, 92 Arm64 Tier 1 bytes and 167 offline
+  x64 bytes. All 30 wire comparisons passed. Keep the omission as an experiment.
 - Use target-typed construction for an ordinary constructor when the generated return or assignment names the
   exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
 - Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
