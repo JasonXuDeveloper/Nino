@@ -106,7 +106,8 @@ internal static class MemberCollector
         AddAncestors(type);
 
         // Get-only auto-properties can only be restored through a constructor: they are members when one takes them.
-        var constructorNames = ConstructorParameterNames(type, known);
+        HashSet<string>? constructorNames = null;
+        bool scannedConstructors = false;
 
         // The indices of the members the type declares, to find duplicates.
         var indices = findings != null && !autoCollect ? new Dictionary<int, ISymbol>() : null;
@@ -131,6 +132,12 @@ internal static class MemberCollector
             bool fromInterface = level.TypeKind == TypeKind.Interface;
             foreach (var member in level.GetMembers())
             {
+                if (!scannedConstructors && member is IPropertySymbol { SetMethod: null })
+                {
+                    constructorNames = ConstructorParameterNames(type, known);
+                    scannedConstructors = true;
+                }
+
                 bool candidate = IsCandidate(member, containNonPublic, constructorNames);
                 if (!candidate && !inspect)
                     continue;
@@ -229,7 +236,7 @@ internal static class MemberCollector
 
     // The findings about one member the type declares, in the order the analyzer reports them.
     private static void Inspect(ISymbol member, NinoTypeOptions attr, NinoSymbols known, bool annotated, bool ignored,
-        int? index, AttributeData? customFormatter, HashSet<string> constructorNames, List<MemberFinding> findings,
+        int? index, AttributeData? customFormatter, HashSet<string>? constructorNames, List<MemberFinding> findings,
         Dictionary<int, ISymbol>? indices, ref HashSet<int>? duplicated)
     {
         // A member no option makes serializable: this is the only finding about its [NinoMember], whose other
@@ -276,7 +283,7 @@ internal static class MemberCollector
     /// Why a member the type declares is not collected, by the same tests as <see cref="Collect"/>; null when it is.
     /// </summary>
     private static string? NotCollected(ISymbol member, NinoTypeOptions attr, bool candidate, bool ignored, int? index,
-        HashSet<string> constructorNames)
+        HashSet<string>? constructorNames)
     {
         if (!candidate)
             return NotSerializable(member, constructorNames) ??
@@ -311,9 +318,9 @@ internal static class MemberCollector
     /// The parameter names (any case) of the constructors and <c>[NinoConstructor]</c> factories of
     /// <paramref name="type"/> that generated code may call, and the member names a <c>[NinoConstructor]</c> lists.
     /// </summary>
-    private static HashSet<string> ConstructorParameterNames(INamedTypeSymbol type, NinoSymbols known)
+    private static HashSet<string>? ConstructorParameterNames(INamedTypeSymbol type, NinoSymbols known)
     {
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        HashSet<string>? names = null;
         foreach (var member in type.GetMembers())
         {
             if (member is not IMethodSymbol method ||
@@ -324,19 +331,19 @@ internal static class MemberCollector
             if (method.IsStatic && marked == null)
                 continue;
             if (marked != null && NinoSymbols.ConstructorNames(marked) is { } listed)
-                names.UnionWith(listed);
+                (names ??= new(StringComparer.OrdinalIgnoreCase)).UnionWith(listed);
             else if (method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
                      or Accessibility.ProtectedOrInternal)
             {
                 foreach (var parameter in method.Parameters)
-                    names.Add(parameter.Name);
+                    (names ??= new(StringComparer.OrdinalIgnoreCase)).Add(parameter.Name);
             }
         }
 
         return names;
     }
 
-    private static bool IsCandidate(ISymbol member, bool containNonPublic, HashSet<string> constructorNames) =>
+    private static bool IsCandidate(ISymbol member, bool containNonPublic, HashSet<string>? constructorNames) =>
         member is IFieldSymbol or IPropertySymbol &&
         (containNonPublic || member.DeclaredAccessibility == Accessibility.Public) &&
         NotSerializable(member, constructorNames) == null;
@@ -345,7 +352,7 @@ internal static class MemberCollector
     /// Why a field or property is never serialized, whatever its accessibility and the type's options (the end of
     /// the sentence "[NinoMember] has no effect: ..."); null when it can be.
     /// </summary>
-    private static string? NotSerializable(ISymbol member, HashSet<string> constructorNames)
+    private static string? NotSerializable(ISymbol member, HashSet<string>? constructorNames)
     {
         if (member.IsStatic)
             return member is IFieldSymbol { IsConst: true } ? "it is a constant" : "it is static";
@@ -363,7 +370,7 @@ internal static class MemberCollector
             IPropertySymbol { ExplicitInterfaceImplementations.IsEmpty: false } =>
                 "it implements an interface member explicitly (a [NinoType] interface's member is written in its place, with the interface's attributes)",
             IPropertySymbol { SetMethod: null } property when
-                !(IsGetOnlyAutoProperty(property) && constructorNames.Contains(property.Name)) =>
+                !(constructorNames?.Contains(property.Name) == true && IsGetOnlyAutoProperty(property)) =>
                 "it has no setter, and no constructor takes it",
             _ => null,
         };
