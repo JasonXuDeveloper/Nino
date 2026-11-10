@@ -267,6 +267,18 @@ of bytes in a block.
   in three of four follow-up rounds, but A/A varied too. Allocations and wire bytes
   matched, and 75 targeted tests passed on each of .NET 8 and 10 with intrinsics on
   and off (`c144df2a`).
+  Skip staging for a new heavy multidimensional array when its full allocation fits the remaining
+  payload budget. Read directly into its zeroed storage and publish it only after decoding succeeds.
+  Keep the growing path for sparse payloads outside the budget. Moving both cases into a no-inline
+  helper kept the main 2D reader at 135 IL bytes plus a 111-byte helper, from 182 IL bytes in the
+  baseline and 238 in the inline candidate. For the reference fixture, Arm64 FullOpts was
+  656 to 504 + 432 bytes and offline x64 was 528 to 421 + 409. The checked-in generated C# grew
+  from 6,457 to 7,531 bytes across all three ranks. At 5,000 elements the reference fixture
+  allocated 5,266,744 to 2,666,720 B per read. Three of four default-JIT Arm64 rounds beat the
+  baseline and all four beat the identical-build control. The sparse fixture kept its allocation
+  and its timing spread overlapped the A/A spread. Both fixtures matched wire bytes and round
+  tripped at offsets 0, 1 and 7. The truncated heavy payload test verifies that the old array
+  stays published.
 - Keep empty fixed-stride writes on the shared counted reservation. The Arm64 caller already
   combines the element-byte multiplication and length addition in one `umaddl`. Emitting
   `WriteLength(0)` before the reservation grew `WriteSpan` from 63 to 69 IL bytes, the Arm64
