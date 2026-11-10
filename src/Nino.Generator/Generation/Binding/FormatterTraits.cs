@@ -69,7 +69,7 @@ internal static class FormatterTraitsOf
                 FormatterTraits.PreservesReadContext,
             "NullableArrayFormatter" or "NullableListFormatter" => FormatterTraits.PreservesReadContext,
             "MemoryFormatter" or "ReadOnlyMemoryFormatter" or "ArraySegmentFormatter" or "ReadOnlySequenceFormatter" when count == 2 &&
-                                   (last & FormatterTraits.Raw) != 0 =>
+                                   (last & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 =>
                 FormatterTraits.PreservesReadContext,
             // DictionaryFormatter<[TDictionary, ]TKey, TValue, TKeyFormatter, TValueFormatter>
             "DictionaryFormatter" when count >= 4 &&
