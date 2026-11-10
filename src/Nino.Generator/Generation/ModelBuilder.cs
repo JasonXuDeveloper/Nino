@@ -79,7 +79,7 @@ internal static class ModelBuilder
             TrackReferences: trackReferences,
             RawStruct: rawStruct,
             Collection: collection is { } sc
-                ? new CollectionModel(sc.Code, facts.ShallowFormatter(sc.Code, sc, false), sc.Encoding)
+                ? new CollectionModel(sc.Code, facts.ShallowFormatter(sc.Code, sc, false), sc.Encoding, sc.OpensBodies)
                 : null,
             Members: new EquatableArray<MemberModel>(members),
             Construction: construction,

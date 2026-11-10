@@ -304,7 +304,7 @@ internal sealed class BodyEmitter
 
     // Version-tolerant collection elements are written before the member region opens.
     private bool CanPatchBody =>
-        (!_m.IsCollection || Tolerant) && _m.Members.All(static m => m.Raw != null || WritesStringDirectly(m));
+        (Tolerant || _m.Collection is not { OpensBodies: true }) && _m.Members.All(static m => m.Raw != null || WritesStringDirectly(m));
 
     private void EmitWrites()
     {

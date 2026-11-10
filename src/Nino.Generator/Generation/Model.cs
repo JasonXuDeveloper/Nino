@@ -151,7 +151,7 @@ internal sealed record ConstructionModel(
 /// <param name="Formatter">The formatter of the collection's elements.</param>
 /// <param name="ShallowFormatter"><paramref name="Formatter"/> with its element formatters' shallow twins.</param>
 /// <param name="Encoding">How it writes them, for the published layout (WireEncoding).</param>
-internal sealed record CollectionModel(FormatterRef Formatter, FormatterRef ShallowFormatter, string Encoding);
+internal sealed record CollectionModel(FormatterRef Formatter, FormatterRef ShallowFormatter, string Encoding, bool OpensBodies);
 
 /// <summary>What a type shares with its base classes and the types of its hierarchy.</summary>
 internal sealed record InheritanceModel(

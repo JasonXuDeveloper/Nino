@@ -43,6 +43,12 @@ public sealed class DeepKeyed
     public DeepKeyed Next;
 }
 
+[NinoType(format: NinoFormat.Keyed)]
+public sealed class DeepKeyedList : List<DeepLink>
+{
+    public string Name;
+}
+
 [NinoType(trackReferences: true, format: NinoFormat.VersionTolerant)]
 public sealed class DeepTracked
 {
@@ -180,6 +186,19 @@ public class DeepNestingTests
         for (var node = head; node != null; node = node.Next, i++)
             Assert.AreEqual(seed + i, node.Value);
         Assert.AreEqual(length, i);
+    }
+
+    [TestMethod]
+    public void KeyedCollectionRegionIncludesDeferredElements()
+    {
+        const int depth = NinoDepthInline * 4;
+        var value = new DeepKeyedList { Name = "list" };
+        value.Add(Chain(depth));
+
+        var decoded = NinoDeserializer.Deserialize<DeepKeyedList>(NinoSerializer.Serialize(value));
+        Assert.AreEqual(value.Name, decoded.Name);
+        Assert.AreEqual(1, decoded.Count);
+        AssertChain(decoded[0], depth);
     }
 
     [TestMethod]
