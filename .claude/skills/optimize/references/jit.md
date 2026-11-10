@@ -22,6 +22,13 @@ and when `asm.py compare` lists methods the change did not touch.
   caller size. Keep the portable slice. Switching it to the byref form regressed the local
   1-byte and 32 KiB probes. Byte output, failure cursor and steady-state allocations matched.
 
+- Reuse the checked wide byte count in raw array reads. Arm64 Tier 1 no longer shifts the
+  element count again for the copy, reducing the sampled fresh and reuse callers from 1,056
+  to 1,044 bytes and 1,088 to 1,072. The x64 FullOpts cross listing grew by 4 bytes.
+  Four rounds with byte-identical controls showed no repeatable throughput gain. The
+  `int[]` probe crossed a 64 KiB input-plus-output budget and matched wire bytes at offsets
+  0, 1 and 7. Reuse allocated 0 B and fresh allocation was unchanged (`30cd066b`).
+
 - Keep the span copy in `NinoArrayBufferWriter.Grow`. Switching to `CopyToNew` regressed
   the 1 KiB growth case in four local rounds. Applying it only from 64 KiB preserved the
   smaller path but did not produce a repeatable gain across 64 KiB and adjacent inputs.
