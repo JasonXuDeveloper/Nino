@@ -143,6 +143,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   about 5.47 to 4.90–4.94 µs, and reordered reads also improved. Allocation
   stayed at zero. All 30 wire and round-trip comparisons passed. The keyed
   memory regression checks reuse and the exact-length error.
+  `ReadOnlyMemoryFormatter` over raw elements also preserves read context.
+  Keep allocating fresh backing storage. The keyed fixture stayed at 40 B
+  per item with 28 more source bytes and 21 more IL bytes. Arm64 Tier 1
+  fell from 2,260 to 2,008 bytes and offline x64 from 3,904 to 3,472.
+  Sixteen reordered items improved in four paired rounds, while the 1,000-item
+  results overlapped the A/A spread. All 30 wire and round-trip probes passed.
 - Patch a keyed string member's length without opening a nested writer region.
   The direct UTF-16 and UTF-8 writes cannot defer bodies. Reserve the preceding raw
   members, key and length together as before. The `KeyedStruct` writer gained 19
