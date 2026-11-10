@@ -324,6 +324,27 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Reader ReadRegion()
         {
+#if NET8_0_OR_GREATER
+            int remaining = _avail - sizeof(int);
+            if (remaining < 0)
+                NinoThrow.EndOfData();
+            ref byte data = ref Unsafe.Add(ref _cur, sizeof(int));
+            int length = NinoUnsafe.Read<int>(ref _cur);
+            int members = length;
+            if ((uint)length > (uint)remaining)
+            {
+                // Keep the consumed header visible if the section fails validation.
+                _cur = ref data;
+                _avail = remaining;
+                members = SectionedRegion(ref data, remaining, length, _regions);
+                length &= int.MaxValue;
+            }
+
+            var region = new Reader(ref _origin, ref data, members, Depth, _regions + 1, _context);
+            _cur = ref Unsafe.Add(ref data, (nuint)(uint)length);
+            _avail = remaining - length;
+            return region;
+#else
             int length = UnsafeRead<int>();
             int members = length;
             if ((uint)length > (uint)Avail)
@@ -337,6 +358,7 @@ namespace Nino.Core
             var region = Sub(members, _regions + 1);
             Skip(length);
             return region;
+#endif
         }
 
         /// <summary>
