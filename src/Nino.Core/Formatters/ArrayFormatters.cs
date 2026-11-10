@@ -354,8 +354,21 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ArraySegment<T> value, ref Writer writer)
         {
-            if (!writer.TryWriteNullLength(value.Array))
-                NinoCollections.WriteSpan<T, TFormatter>(value.AsSpan(), ref writer);
+            var array = value.Array;
+            if (writer.TryWriteNullLength(array))
+                return;
+
+#if NET8_0_OR_GREATER
+            // ArraySegment already validated the range. Reference types retain AsSpan's array type check.
+            if (typeof(T).IsValueType)
+            {
+                ref T start = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), value.Offset);
+                NinoCollections.WriteSpan<T, TFormatter>(MemoryMarshal.CreateReadOnlySpan(ref start, value.Count),
+                    ref writer);
+                return;
+            }
+#endif
+            NinoCollections.WriteSpan<T, TFormatter>(value.AsSpan(), ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref ArraySegment<T> value)
