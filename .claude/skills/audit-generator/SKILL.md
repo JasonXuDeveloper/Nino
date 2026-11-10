@@ -750,6 +750,14 @@ and targeted suites matched. Keep the short-range patch as a probe.
 Compare base-member prefixes by index and check for type parameters without collecting containing-type arguments.
 Share the type-parameter predicate with the rest of the generator. On the local mixed nested-base probe,
 `SharedInstance` went from 109 bytes per check to zero, with byte-identical formatter output on the unit test project.
+Check `Arity` at the current level while walking generic arguments. A membership query can stop at its first
+match without a list or closure. Materialize outermost-first arguments in one list only when the caller needs
+them. Repeated `IsGenericType` gates walked the containing types again and slowed all four isolated rounds.
+On 131 nested types and 421 queries from the unit test project, the retained version cut each 128-pass
+batch from 11,975,680 to 679,936 allocated bytes. Whole-project timings and allocations varied under machine
+load. All 582 files matched across cold, cached and edited runs, 577 models were reused and the close and
+edited-tree collection probes passed. `Mentions` moved from 120 to 116 IL bytes, 348 to 408 Arm64 FullOpts
+bytes and 300 to 405 cross-JIT x64 bytes. The 4.8 and 4.12 targeted suites passed (`15a4a3c1`).
 Append runtime namespaces and containing-type arguments directly to the type name's builder. Preserve unescaped
 namespace names and outermost-first argument order. The local nested-name probe went from 604 to 436 bytes per
 render, and the unit test project's 628 generated files remained byte-identical.
