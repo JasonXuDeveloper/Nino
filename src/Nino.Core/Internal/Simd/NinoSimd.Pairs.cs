@@ -44,26 +44,27 @@ namespace Nino.Core.Internal
             where T : unmanaged where TZip : struct, IZip<T>
         {
             int lanes = Vector128<T>.Count;
-            while (count >= lanes)
+            int pairSize = 2 * Unsafe.SizeOf<T>();
+            nuint offset = 0;
+            int complete = count & -lanes;
+            for (; offset < (uint)complete; offset += (uint)lanes)
             {
-                var a = Vector128.LoadUnsafe(ref first);
-                var b = Vector128.LoadUnsafe(ref second);
-                TZip.Low(a, b).AsByte().StoreUnsafe(ref target);
-                TZip.High(a, b).AsByte().StoreUnsafe(ref target, 16);
-                first = ref Unsafe.Add(ref first, lanes);
-                second = ref Unsafe.Add(ref second, lanes);
-                target = ref Unsafe.Add(ref target, 32);
-                count -= lanes;
+                var a = Vector128.LoadUnsafe(ref first, offset);
+                var b = Vector128.LoadUnsafe(ref second, offset);
+                nuint bytes = offset * (uint)pairSize;
+                TZip.Low(a, b).AsByte().StoreUnsafe(ref target, bytes);
+                TZip.High(a, b).AsByte().StoreUnsafe(ref target, bytes + 16);
             }
 
-            if (count == 0)
+            if (complete == count)
                 return;
 
             if (Unsafe.SizeOf<T>() == sizeof(long))
             {
                 // A 128-bit vector holds two 64-bit lanes, so at most one pair remains.
-                Unsafe.WriteUnaligned(ref target, first);
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, sizeof(long)), second);
+                ref byte tailTarget = ref Unsafe.Add(ref target, complete * pairSize);
+                Unsafe.WriteUnaligned(ref tailTarget, Unsafe.Add(ref first, complete));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref tailTarget, sizeof(long)), Unsafe.Add(ref second, complete));
                 return;
             }
 
@@ -71,7 +72,7 @@ namespace Nino.Core.Internal
             // Rewrite its overlapping suffix so the final stores end at the last pair.
             int tail = count - lanes;
             Zip128<T, TZip>(ref Unsafe.Add(ref first, tail), ref Unsafe.Add(ref second, tail),
-                ref Unsafe.Add(ref target, tail * (2 * Unsafe.SizeOf<T>())));
+                ref Unsafe.Add(ref target, tail * pairSize));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
