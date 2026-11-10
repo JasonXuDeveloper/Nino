@@ -294,14 +294,28 @@ public class CollectionFastPathTests
         }
     }
 
+    private enum Int8Key : sbyte { }
+    private enum UInt16Key : ushort { }
+    private enum Int32Key : int { }
+    private enum UInt64Key : ulong { }
+
     [TestMethod]
     public void SortedListReusesSignedAndUnsignedIntegralPairs()
     {
+        Check(i => (sbyte)(i - 18), i => (sbyte)(i * 7));
+        Check(i => (byte)(112 + i), i => (byte)~i);
+        Check(i => (short)((i - 18) * 1_000), i => (short)~i);
+        Check(i => (ushort)(0x7FF0 + i * 2), i => (ushort)~i);
         Check(i => 0x7FFF_FFE0u + (uint)i * 2, i => ~(uint)i);
         Check(i => i == 0 ? long.MinValue : ((long)i - 18) << 40, i => -((long)i << 42) - 1);
         Check(i => 0x7FFF_FFFF_FFFF_FFE0ul + (ulong)i * 2, i => ~(ulong)i);
 
-        static void Check<T>(Func<int, T> key, Func<int, T> value) where T : unmanaged, IComparable<T>
+        Check(i => (Int8Key)(i - 18), i => (Int8Key)(i * 7));
+        Check(i => (UInt16Key)(0x7FF0 + i * 2), i => (UInt16Key)(ushort)~i);
+        Check(i => (Int32Key)(i - 18), i => (Int32Key)~i);
+        Check(i => (UInt64Key)(0x7FFF_FFFF_FFFF_FFE0ul + (ulong)i * 2), i => (UInt64Key)~(ulong)i);
+
+        static void Check<T>(Func<int, T> key, Func<int, T> value) where T : unmanaged
         {
             var expected = new SortedList<T, T>();
             for (int i = 0; i < 35; i++)
@@ -322,7 +336,7 @@ public class CollectionFastPathTests
             byte[] descending = NinoSerializer.Serialize(expected.Reverse().ToDictionary(p => p.Key, p => p.Value));
             NinoDeserializer.Deserialize(descending, ref reused);
             Assert.AreSequenceEqual(expected, reused);
-            var reverseComparer = new SortedList<T, T>(48, Comparer<T>.Create((a, b) => b.CompareTo(a)));
+            var reverseComparer = new SortedList<T, T>(48, Comparer<T>.Create((a, b) => Comparer<T>.Default.Compare(b, a)));
             NinoDeserializer.Deserialize(bytes, ref reverseComparer);
             Assert.AreSequenceEqual(expected.Reverse(), reverseComparer);
 

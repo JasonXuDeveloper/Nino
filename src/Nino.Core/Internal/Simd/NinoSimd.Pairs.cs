@@ -240,7 +240,7 @@ namespace Nino.Core.Internal
         internal static bool SplitOrderedPairs<T>(ref byte source, ref T first, ref T second, int count)
             where T : unmanaged, System.IComparable<T>
         {
-            // The caller selects one of int, uint, long and ulong. The key comparison retains its signedness.
+            // The caller selects a signed or unsigned integer lane, including for an enum's underlying type.
             T previous = NinoUnsafe.Read<T>(ref source);
             first = previous;
             second = NinoUnsafe.Read<T>(ref Unsafe.Add(ref source, Unsafe.SizeOf<T>()));
@@ -252,19 +252,33 @@ namespace Nino.Core.Internal
                 nuint offset = (nuint)i * (uint)(2 * Unsafe.SizeOf<T>());
                 var a = Vector128.LoadUnsafe(ref source, offset);
                 var b = Vector128.LoadUnsafe(ref source, offset + 16);
-                var keys = Unsafe.SizeOf<T>() == 4
-                    ? AdvSimd.Arm64.UnzipEven(a.AsInt32(), b.AsInt32()).As<int, T>()
-                    : AdvSimd.Arm64.UnzipEven(a.AsInt64(), b.AsInt64()).As<long, T>();
-                var preceding = Unsafe.SizeOf<T>() == 4
-                    ? AdvSimd.ExtractVector128(precedingGroup.AsByte(), keys.AsByte(), 12).As<byte, T>()
-                    : AdvSimd.ExtractVector128(precedingGroup.AsByte(), keys.AsByte(), 8).As<byte, T>();
+                var keys = Unsafe.SizeOf<T>() switch
+                {
+                    1 => AdvSimd.Arm64.UnzipEven(a, b).As<byte, T>(),
+                    2 => AdvSimd.Arm64.UnzipEven(a.AsInt16(), b.AsInt16()).As<short, T>(),
+                    4 => AdvSimd.Arm64.UnzipEven(a.AsInt32(), b.AsInt32()).As<int, T>(),
+                    _ => AdvSimd.Arm64.UnzipEven(a.AsInt64(), b.AsInt64()).As<long, T>(),
+                };
+                var previousBytes = precedingGroup.AsByte();
+                var keyBytes = keys.AsByte();
+                var preceding = (Unsafe.SizeOf<T>() switch
+                {
+                    1 => AdvSimd.ExtractVector128(previousBytes, keyBytes, 15),
+                    2 => AdvSimd.ExtractVector128(previousBytes, keyBytes, 14),
+                    4 => AdvSimd.ExtractVector128(previousBytes, keyBytes, 12),
+                    _ => AdvSimd.ExtractVector128(previousBytes, keyBytes, 8),
+                }).As<byte, T>();
                 if (!Vector128.GreaterThanAll(keys, preceding))
                     return false;
 
                 keys.StoreUnsafe(ref first, (nuint)i);
-                var values = Unsafe.SizeOf<T>() == 4
-                    ? AdvSimd.Arm64.UnzipOdd(a.AsInt32(), b.AsInt32()).As<int, T>()
-                    : AdvSimd.Arm64.UnzipOdd(a.AsInt64(), b.AsInt64()).As<long, T>();
+                var values = Unsafe.SizeOf<T>() switch
+                {
+                    1 => AdvSimd.Arm64.UnzipOdd(a, b).As<byte, T>(),
+                    2 => AdvSimd.Arm64.UnzipOdd(a.AsInt16(), b.AsInt16()).As<short, T>(),
+                    4 => AdvSimd.Arm64.UnzipOdd(a.AsInt32(), b.AsInt32()).As<int, T>(),
+                    _ => AdvSimd.Arm64.UnzipOdd(a.AsInt64(), b.AsInt64()).As<long, T>(),
+                };
                 values.StoreUnsafe(ref second, (nuint)i);
                 precedingGroup = keys;
             }
