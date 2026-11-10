@@ -440,6 +440,13 @@ of bytes in a block.
   1,240 B plus a 148 B helper. Offline x64 ReadyToRun grew from 978 to 1,038 B and retained
   the hardware test as a call. It does not measure the optimized x64 JIT or throughput
   (`573a443f`).
+  Check the x64 baseline ISA before the Arm64-only path when ReadyToRun leaves the foreign
+  ISA check as a call. The SSE2 guard let .NET 10 Crossgen2 remove both calls on Linux x64
+  and return the reader from 1,038 to 978 bytes. Normalized Linux Arm64 ReadyToRun stayed
+  identical at 1,220 bytes, and M4 FullOpts reader/helper stayed at 1,240/148 bytes. Short
+  comparator IL grew from 299 to 309 bytes. Four mixed-offset M4 default-JIT pairs at each
+  of eight sizes had median differences within 3%, identical wire bytes, and 0 B steady
+  allocation. x64 throughput was not measured (`6ff3bdf2`).
 - Share long Latin-1 equality's tail-first loop across the three native SIMD
   widths, and compile the entry with `AggressiveOptimization`. Without it,
   the generic loop slowed 65- and 256-character reuse in all four rounds.
