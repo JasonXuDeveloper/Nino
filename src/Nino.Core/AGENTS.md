@@ -232,6 +232,8 @@ ValueViews.cs                where value types' fields are on this runtime (Date
 
 ```
 NinoSimd.cs                  managed SIMD capabilities and CPU policy, with inlinable 512/256/128 checks
+NinoSimd.Text.cs             managed Latin-1 narrowing, widening, and comparison kernels
+NinoSimd.Text.Legacy.cs      netstandard numeric-vector text kernels
 NinoKernelHook.cs            registered native function pointers and call thresholds for Burst and WebGL
 ```
 

@@ -6,7 +6,7 @@ using System.Runtime.Intrinsics.X86;
 namespace Nino.Core.Internal
 {
     /// <summary>Hardware capabilities and CPU policy shared by managed SIMD kernels.</summary>
-    internal static class NinoSimd
+    internal static partial class NinoSimd
     {
         internal static bool Has512
         {
