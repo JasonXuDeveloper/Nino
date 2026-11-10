@@ -886,16 +886,25 @@ public class CollectionFastPathTests
     [TestMethod]
     public void LinkedListsAreWalkedNodeByNode()
     {
-        foreach (int n in new[] { 0, 1, 2, 17, 1000 })
+        foreach (int n in new[] { 0, 1, 2, 17, 31, 32, 33, 1000 })
         {
             var ints = new LinkedList<int>(Enumerable.Range(0, n).Select(i => i * 31));
+            if (ints.Last is { } last)
+            {
+                ints.RemoveLast();
+                ints.AddFirst(last);
+            }
             var intBytes = NinoSerializer.Serialize(ints);
             CollectionAssert.AreEqual(NinoSerializer.Serialize(ints.ToList()), intBytes);
             CollectionAssert.AreEqual(ints.ToList(), NinoDeserializer.Deserialize<LinkedList<int>>(intBytes).ToList());
 
             var padded = new LinkedList<PaddedItem>(Enumerable.Range(0, n)
                 .Select(i => new PaddedItem { Id = i, Count = (short)i, Bound = i % 2 == 0 }));
-            CollectionAssert.AreEqual(NinoSerializer.Serialize(padded.ToArray()), NinoSerializer.Serialize(padded));
+            using var buffer = new NinoArrayBufferWriter();
+            buffer.GetSpan(1);
+            buffer.Advance(1);
+            NinoSerializer.Serialize(padded, buffer);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(padded.ToArray()), buffer.WrittenSpan.Slice(1).ToArray());
 
             var names = new NamedLinkedList();
             foreach (var i in Enumerable.Range(0, n))

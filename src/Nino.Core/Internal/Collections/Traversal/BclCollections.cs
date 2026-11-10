@@ -35,6 +35,13 @@ namespace Nino.Core
                     NinoCollections.WriteCopied<T, TFormatter>(sorted, root, ref writer);
                     return true;
                 case LinkedList<T> linked:
+#if NET8_0_OR_GREATER
+                    if (linked.Count >= 32 && CollectionViews.LinkedList && RawFormatter.Is<T, TFormatter>())
+                    {
+                        WriteLinkedRing(linked, ref writer);
+                        return true;
+                    }
+#endif
                     WriteLinked(linked, ref writer);
                     return true;
                 default:
@@ -102,6 +109,7 @@ namespace Nino.Core
         }
 
         /// <summary>Node by node, with the writer as a local; raw elements into one reserved block.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteLinked(LinkedList<T> linked, ref Writer writer)
         {
             int count = linked.Count;
@@ -134,6 +142,43 @@ namespace Nino.Core
                 default(TFormatter).Serialize(node.Value, ref local);
             local.CopyTo(ref writer);
         }
+
+#if NET8_0_OR_GREATER
+        // Inline the node helper from the first call.
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static void WriteLinkedRing(LinkedList<T> linked, ref Writer writer)
+        {
+            int version = CollectionFields.Version(linked);
+            int count = linked.Count;
+            int size = Unsafe.SizeOf<T>();
+            ref byte first = ref writer.ReserveCounted(count, size);
+            ref byte destination = ref first;
+            var head = linked.First;
+            var node = head;
+            int left = count;
+            for (; left >= 2; left -= 2)
+            {
+                node = WriteLinkedNode(node, ref destination);
+                node = WriteLinkedNode(node, ref Unsafe.Add(ref destination, size));
+                destination = ref Unsafe.Add(ref destination, 2 * size);
+            }
+            if (left != 0)
+                node = WriteLinkedNode(node, ref destination);
+
+            if (node != head || CollectionFields.Version(linked) != version)
+                NinoThrow.ModifiedDuringWrite();
+            NinoLayout<T>.ClearPadding(ref first, count);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static LinkedListNode<T> WriteLinkedNode(LinkedListNode<T> node, ref byte destination)
+        {
+            var fields = Unsafe.As<CollectionFields.LinkedNode<T>>(node);
+            var next = fields.next;
+            NinoUnsafe.WriteIn(ref destination, in fields.item);
+            return next;
+        }
+#endif
 
         /// <summary>
         /// Each node linked as it is read, and the list's fields set once at the end, where its layout was checked:
