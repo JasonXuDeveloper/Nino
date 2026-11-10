@@ -177,6 +177,25 @@ public class FormatterRegistrationTests
     }
 
     [TestMethod]
+    public void NullableListRegionReusesAndValidatesItsPayload()
+    {
+        var list = new List<int?> { 9, 9 };
+        var target = new NullableListBox { Value = list };
+        var bytes = NinoSerializer.Serialize(new NullableListBox { Value = new List<int?> { 1, null } });
+
+        NinoDeserializer.Deserialize(bytes, ref target);
+        Assert.AreSame(list, target.Value);
+        CollectionAssert.AreEqual(new int?[] { 1, null }, list);
+
+        // A non-null object from an older version with an empty member region.
+        NinoDeserializer.Deserialize(new byte[] { 1, 0, 0, 0, 0 }, ref target);
+        Assert.AreSame(list, target.Value);
+        CollectionAssert.AreEqual(new int?[] { 1, null }, list);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<NullableListBox>(
+            bytes.AsSpan(0, bytes.Length - 1)));
+    }
+
+    [TestMethod]
     public void GeneratedAndRuntimeFormattersAgree()
     {
         AssertSameBytes(new RingBox { Value = NewRing(1, 2) }, NewRing(1, 2));
