@@ -410,14 +410,13 @@ namespace Nino.Core
             // Out of line, through a copy of the reader (see AddRaw); an empty dictionary skips both.
             if (length == 0)
                 return;
-            Reader copy = default;
-            reader.CopyTo(ref copy);
+            Reader copy = reader;
             // Only a reference-type key can be null (a JIT-time constant).
             if (default(TKey) == null)
                 ReadPairsChecked(dictionary, length, ref copy);
             else
                 ReadPairs(dictionary, length, ref copy);
-            copy.CopyTo(ref reader);
+            reader = copy;
         }
 
         /// <summary>
