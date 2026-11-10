@@ -125,6 +125,13 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   1,512 to 1,632 Arm64 FullOpts bytes and 1,218 to 1,285 emulated x64 FullOpts bytes.
   All 582 generated files matched byte for byte, the edit probes reused all 577 models, and
   old project inputs and generated text collected.
+- Defer the traversal's tree set until it sees a second distinct tree. The dependency walk
+  still visits the same symbols and returns the same ordered trees. In the unit-test project,
+  894 of 910 declarations depended on a single tree. Four isolated M4 default-JIT pairs saved
+  207,520 B per pass and reduced median time by 6–44%. Cold project runs saved 646–842 KB and
+  reopening saved 441–476 KB, with mixed latency. `Dependencies` grew from 494 to 602 IL bytes,
+  2,272 to 2,716 Arm64 FullOpts bytes and 1,972 to 2,346 emulated x64 FullOpts bytes. All 582
+  generated files matched, both edit probes reused all 577 models, and closed-project collection passed.
   The local feature lookup went from 280 B per call to zero, with identical real-project output.
 - Skip binding explicit type arguments that name a method's own lexical type parameter from inside its body.
   Keep qualified names, contextual keywords and inferred calls on Roslyn's binding path. The real unit test
