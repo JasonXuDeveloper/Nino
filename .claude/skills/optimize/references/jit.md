@@ -417,6 +417,16 @@ and when `asm.py compare` lists methods the change did not touch.
   steady allocation matched. The dictionary dispatch grew from 76 to 114 IL bytes and the
   new helper took 42 IL bytes, 380 Arm64 FullOpts bytes and 298 x64 cross-JIT bytes.
   The outer measured caller stayed at 208 and 170 B, respectively (`cccbcc28`).
+- Walk a checked linked-list ring in pairs for raw writes at 32 or more items. Bound the writes by
+  the captured count, check the ring and version at the end, and keep padding clearing. Compile
+  the new helper with `AggressiveOptimization` and keep the original small-list writer inlined.
+  A one-node loop lost on large int lists. The two-node trial without early optimization also
+  lost, and merely moving the branch out of the old writer still hurt small lists. With both
+  inlining choices the M4 int probe improved 127-item writes by 5–31% across all pairs, while
+  the 31-item zero-offset control added under 1.1 ns in three rounds and 8.2 ns in one. Larger
+  results varied. Wire bytes, including an odd tail and padding, and zero steady allocations
+  matched. The original writer kept 195 IL bytes. The ring helper added 145 IL bytes and was
+  316 B on Arm64 and 240 B in the x64 cross listing for int (`b099fc74`).
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
