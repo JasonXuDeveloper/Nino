@@ -687,6 +687,13 @@ and when `asm.py compare` lists methods the change did not touch.
   98 to 151 plus 74 B. Arm64 FullOpts grew from 780 to 924 plus 428 B, and
   emulated x64 from 662 to 792 plus 374 B. Refill itself kept its code size.
   Allocation and all 36 wire comparisons matched. The candidate was withdrawn.
+  Keep the rented-key indexer in SameKeys. The caller proves the buffer length,
+  and a byref cursor removes its FullOpts range failure on both architectures.
+  It did not produce repeatable gains in isolated or end-to-end M4 comparisons.
+  IL grew from 98 to 111 B, Arm64 FullOpts fell from 780 to 760 B, and emulated
+  x64 grew from 662 to 677 B. Arm64 Tier 1 fell from 1,540 to 1,512 B and still
+  checked the dictionary enumerator's entries. All 45 wire cases and allocations
+  matched. The candidate was withdrawn.
 - Compare an unchanged short string read into an existing object inside the out-of-line `ReadStringOver`, never in
   the inlined `Reader.ReadString(current)` nor in a loop: `NinoStrings.Same` (one-byte Latin-1 header, length, the chars
   widened eight at a time and compared) before `NinoStrings.Read` saves `SameLatin1`'s call (`Ascii.Equals`); 1,000
