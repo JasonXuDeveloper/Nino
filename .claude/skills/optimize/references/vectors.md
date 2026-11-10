@@ -1097,6 +1097,15 @@ of bytes in a block.
   12-byte stride and the 64 KiB boundary had mixed timing. IL grew from 758 to 761 bytes,
   with Arm64 and emulated AVX2 FullOpts unchanged at 456 and 324 bytes. Wire bytes and
   destination sentinels matched across 128-bit, emulated AVX2 and software 512-bit probes.
+  Keep the inclusive loop when a mask spans several vectors. Making it exclusive took
+  27–33% less time for an aligned 192-byte kernel probe but increased the aligned 48-byte
+  time by 8% by median across four M4 pairs. Using the tail's absolute offset in the first
+  period did not fix the 48-byte result and increased the aligned 60-byte time by 15%.
+  Keeping the inclusive bound within the first period removed the repeatable 48-byte
+  penalty, but the 192-byte public writer and 64 KiB boundary gains did not repeat.
+  The three candidates used 761, 774 and 777 IL bytes against 761, with Arm64 FullOpts
+  at 456, 472 and 460 bytes against 456 and emulated AVX2 at 324, 334 and 333 against
+  324. All matched dirty-padding wire bytes and steady allocations. The candidates were withdrawn.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
