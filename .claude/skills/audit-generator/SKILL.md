@@ -804,6 +804,16 @@ symbols saved about 119 B per call with unchanged timing. All 582 files matched 
 cold, cached and edited runs, 577 models were reused, and the closed-project and previous-tree
 collection probes passed. The render method grew from 78 to 93 IL bytes, 328 to 376 Arm64 bytes and
 258 to 285 cross-JIT x64 bytes. The Roslyn 4.8 and 4.12 targeted suites passed (`461354bb`).
+Use the same bounded scratch for interceptor signatures and forwarded arguments. Append qualified
+types directly to the signature and return the buffer before rendering the target type name.
+The real 122-tree unit test project saved 1.44–1.51 MB on cold runs, 1.70–1.73 MB on reopens
+and 14–27 KB on collection method-body edits. Cached runs allocated the same, and the generic
+method-body edit allocated 17–44 KB more. Four M4 pairs showed no stable end-to-end timing change.
+All 582 files (3,240,332 bytes) matched across four stages, 577 models were reused, and the closed
+compilation, symbols, previous tree and generated text collected. The interceptor's IL went from
+465 to 507 bytes plus a 60-byte modifier helper. Arm64 FullOpts went from 2,012 to 2,188 plus
+120 bytes; x64 offline ReadyToRun went from 1,253 to 1,207 plus 89 bytes. Both Roslyn builds passed
+67 targeted tests (`7c60ecef`).
 Reuse the same slot for runtime names and ordinary formatter stems. Keep the nesting formatter's
 construction separate: the combined pooled method made the isolated nesting path slower in most rounds.
 On actual project symbols, runtime and formatter rendering saved about 263 and 338 B per call and
