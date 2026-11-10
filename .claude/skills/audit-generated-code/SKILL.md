@@ -168,6 +168,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   Arm64 Tier 1 bytes and 90 offline x64 bytes. Four 1,000-item writes fell
   from 6.77–6.93 to 6.13–6.33 µs at zero steady allocation. A keyed list
   containing a deep class chain still writes and reads its deferred elements.
+  Carry the same resolved `OpensBodies` fact for members. A body with a built-in
+  `List<int>` member can patch its outer length directly. Keep custom formatters
+  conservative. The version-tolerant fixture gained 20 source bytes and 5 IL
+  bytes but saved 140 Arm64 Tier 1 and 99 offline x64 bytes. Four 1,000-item
+  writes went from 4.79–5.13 to 4.57–4.61 µs at zero steady allocation.
+  The 54 wire and round-trip probes covered both keyed and version-tolerant bodies.
   Keep `EndRegion` for version-tolerant collection reads. Omitting it when all
   members preserved context shrank the `NamedList` body from 1,228 to 1,148 Arm64
   Tier 1 bytes and from 1,744 to 1,643 offline x64 bytes, but 16 ASCII items
