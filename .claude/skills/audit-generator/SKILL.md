@@ -226,14 +226,20 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   and some runtime samples overlapped scratch cleanup. IL stayed at 323 bytes, Arm64
   Tier 1 was 6,144 to 6,108 bytes and x64 cross-JIT 819 to 782. Wire bytes and all 577
   outputs matched, incremental reuse and collection passed, as did focused tests.
-  Keep direct constraint matching ahead of the definition prefilter for now. Moving
-  the prefilter before transactional matching saved 68 KB per 850-type replay and
+  Do not prefilter definitions through the argument-reading API. Moving that
+  prefilter before transactional matching saved 68 KB per 850-type replay and
   1.23–1.34 MB in cold project runs. The runtime base constraint miss allocated
   80 B less but was slower than both controls in all four rounds. IL rose from 323
   to 341 bytes, Arm64 Tier 1 from 5,192 to 5,688 and x64 cross-JIT from 782 to 872.
   The definition-only check still retrieves generic arguments via `IsConstructed`.
   Both Roslyn builds kept all 577 outputs, model reuse and collection. Runtime wire
   and binding checks matched, and the focused suites and portable builds passed.
+  Use a definition-only API for the prefilter and supertype scan. This saved
+  520–535 KB per 850-type replay and 1.78–1.91 MB in four cold project runs.
+  Runtime base-constraint rejection saved 112 B, and success saved about 288 B.
+  Timings varied without the repeatable miss regression of the argument-reading
+  version. IL was 323 to 325 bytes, Arm64 Tier 1 5,192 to 3,752 and x64 cross-JIT
+  782 to 836. Runtime bytes, 577 generated files, reuse and collection matched.
   Keep the compact array for now. Looking up elements on demand and building the array
   only for tuples saved 18 KB per 850-type pass in both load orders, but cold allocation
   varied around baseline. The lookup repeated the scan for pair encodings and grew the
