@@ -171,9 +171,11 @@ public class StringEncodingTests
 #if NET8_0_OR_GREATER
     [TestMethod]
     [DoNotParallelize]
-    public void LongLatin1ReuseComparesEveryCharWithoutReadingPastTheInput()
+    [DataRow(64, 96)]
+    [DataRow(127, 161)]
+    public void LongLatin1ReuseComparesEveryCharWithoutReadingPastTheInput(int first, int last)
     {
-        for (int length = 64; length <= 96; length++)
+        for (int length = first; length <= last; length++)
         {
             var value = new string('é', length);
             var data = GuardedMemory.AtEnd(NinoSerializer.Serialize(value));
