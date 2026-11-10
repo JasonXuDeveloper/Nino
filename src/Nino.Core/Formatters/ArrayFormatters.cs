@@ -391,20 +391,27 @@ namespace Nino.Core
         public static bool TryReadShape(ref Reader reader, int rank, int minElementSize, out ArrayShape shape)
         {
             shape = new ArrayShape { B = 1, C = 1, D = 1 };
-            if (!reader.TryReadLength(0, out shape.A))
-                return false;
-            if (rank > 2)
+            int headerSize = rank * NinoWire.LengthSize;
+            ref byte tail = ref reader.Peek();
+            if (!NinoLimits.LengthCapped && reader.Remaining >= headerSize &&
+                (shape.A = NinoUnsafe.Read<int>(ref tail)) >= 0)
             {
-                ref byte tail = ref reader.ReadBlock((rank - 1) * NinoWire.LengthSize);
-                shape.B = NinoUnsafe.Read<int>(ref tail);
-                shape.C = NinoUnsafe.Read<int>(ref tail, NinoWire.LengthSize);
-                if (rank > 3)
-                    shape.D = NinoUnsafe.Read<int>(ref tail, 2 * NinoWire.LengthSize);
+                reader.UnsafeAdvance(headerSize);
+                tail = ref Unsafe.Add(ref tail, NinoWire.LengthSize);
             }
             else
             {
-                shape.B = reader.UnsafeRead<int>();
+                // A null header ends at the first length. Preserve its checks before reading the tail.
+                if (!reader.TryReadLength(0, out shape.A))
+                    return false;
+                tail = ref reader.ReadBlock(headerSize - NinoWire.LengthSize);
             }
+
+            shape.B = NinoUnsafe.Read<int>(ref tail);
+            if (rank > 2)
+                shape.C = NinoUnsafe.Read<int>(ref tail, NinoWire.LengthSize);
+            if (rank > 3)
+                shape.D = NinoUnsafe.Read<int>(ref tail, 2 * NinoWire.LengthSize);
             int a = shape.A, b = shape.B, c = shape.C, d = shape.D;
             // Any sign bit or bit 30 requires an exact dimension check.
             if (((a | b | c | d) & unchecked((int)0xC0000000)) != 0)
