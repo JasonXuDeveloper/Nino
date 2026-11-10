@@ -372,6 +372,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   after the compiler-services pass. It removed 36,002 bytes across 577 replayed files and saved
   0.50 MB of cold allocations. The normalized unit test assembly IL matched, timings were flat,
   and the alias helper grew from 490 to 571 IL bytes.
+  Share that alias with the streaming namespace writer for usages and interceptors. The unit
+  test replay emitted 19,620 fewer bytes and the benchmark emitted 3,102 fewer bytes. Expanding
+  the alias restored the original text. All 1,850 normalized generated benchmark methods
+  matched, as did the Arm64 and x64 cross-JIT registration entry sizes. Warm registration
+  allocated 0 B and timings varied within the controls.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
   `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
