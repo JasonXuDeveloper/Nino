@@ -379,6 +379,16 @@ and when `asm.py compare` lists methods the change did not touch.
   order or comparer that does not match the checked heap (`runtime-internals`).
   Reuse that checked node array for writes, copying the live count in heap order. The local 8,193-pair
   integer case cut write time by about 90% against the counted enumerator path.
+  Use the shared tuple block plan to prove identity layout for arbitrary raw element and priority
+  types. For padded or reordered tuples, write directly from the typed heap with a constrained
+  `WriteFixed` call. A shared `WriteAll` trial was faster on large mixed pairs, but its interface
+  tail allocated up to 48 B per short write before tier promotion. The retained variant used 0 B
+  in the timed intervals and cut elapsed time in all four M4 rounds for 257 and 4,097 pairs of
+  custom index/uint, custom index/ushort and byte/long at both offsets. The int/int control at
+  4,097 pairs was effectively unchanged in the aligned runs. The heap helper grew from 92 to
+  228 IL bytes, while its int/int Arm64 Tier 1 instance moved from 296 to 292 B. The x64 cross
+  instance grew from 222 to 732 B and the corresponding raw caller shrank from 643 to 364 B.
+  x64 throughput remains unmeasured (`ef8e4195`).
 - Skip the seen-key set when the stale dictionary pass removes every entry. Preserve removal and recycling
   order. Keep the empty test in the stale pass rather than the refill loop. The latter placement regressed
   same-key reuse in the local A/B, while the stale-pass version saved 64 bytes per empty refill.
