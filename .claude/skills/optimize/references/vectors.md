@@ -560,6 +560,12 @@ of bytes in a block.
   replay. `Copy` grew from 383 to 500 IL bytes, 432 to 492 Arm64 scalar Tier 1 bytes,
   and 380 to 444 in the x64 cross listing. Dirty-padding bytes matched, and targeted
   and scalar tests and both netstandard builds passed (`f3d6bd81`).
+  Reuse the paired loop for one-word periods by applying its mask to both words.
+  A separate one-word loop saved 16–26% on the large scalar probes but added another
+  body. Reusing the pair saved 39–48% across the same two sizes and 11–18% at 17
+  elements, with no repeatable slowdown on the 16-byte or SIMD probes. `Copy` grew
+  from 500 to 508 IL bytes, from 500 to 516 Arm64 scalar Tier 1 bytes and from 444 to
+  460 in the x64 cross listing. Dirty-padding checks and targeted tests passed (`4c8a1e11`).
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
