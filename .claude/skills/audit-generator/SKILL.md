@@ -398,6 +398,11 @@ Use compile-time preambles for the fixed interceptor attribute. The 307–323-ch
 preamble no longer needs a writer, saving about 9.2 KB per replay in both load orders.
 Both Roslyn builds emitted the same 582 files, incremental and collection checks passed,
 and 38 targeted tests passed on each runtime (`fc0b5481`).
+Build the three interceptor name sets directly with the model array's value enumerator.
+The isolated allocation saving was about 0.3 KB, but the entry and shared helper together
+saved 284 Arm64 FullOpts bytes and 326 x64 cross-JIT bytes. All 582 files matched in both
+Roslyn builds, incremental and collection checks passed, and each runtime passed 47
+targeted tests (`5b2ed919`).
 Preserve formatter reference identity through unchanged twin substitutions. Allocate
 a replacement argument array only after the first changed child. This avoided about
 676 KB and reduced median emitter time by 7–11% in both isolated load orders. The eight
