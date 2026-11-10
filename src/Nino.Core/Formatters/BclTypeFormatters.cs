@@ -305,7 +305,11 @@ namespace Nino.Core
             bool reuse = current != null && current.Length == count;
             var bits = reuse ? current : new BitArray(count);
             var target = CollectionsMarshal.AsBytes(bits);
-            bytes.CopyTo(target);
+            if (bytes.Length > 1)
+                bytes.CopyTo(target);
+            else if (!bytes.IsEmpty)
+                MemoryMarshal.GetReference(target) = MemoryMarshal.GetReference(bytes);
+
             if (reuse)
                 bits.Length = count; // Also clears unused bits and invalidates existing enumerators.
             else

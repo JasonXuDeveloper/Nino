@@ -216,20 +216,28 @@ public class BclTypeTests
 
 #if !NINO_CORE_NETSTANDARD
     [TestMethod]
-    public void MatchingBitArrayIsRefilledAndInvalidatesEnumerators()
+    [DataRow(0)]
+    [DataRow(7)]
+    [DataRow(9)]
+    public void MatchingBitArrayIsRefilledAndInvalidatesEnumerators(int count)
     {
-        var target = new BitArray(9, true);
+        var target = new BitArray(count, true);
         var existing = target;
         var enumerator = target.GetEnumerator();
-        Assert.IsTrue(enumerator.MoveNext());
+        Assert.AreEqual(count != 0, enumerator.MoveNext());
 
-        var bytes = new byte[] { 9, 0, 0, 0, 0x02, 0xFF };
+        byte[] bytes = count switch
+        {
+            0 => new byte[] { 0, 0, 0, 0 },
+            7 => new byte[] { 7, 0, 0, 0, 0x82 },
+            _ => new byte[] { 9, 0, 0, 0, 0x02, 0xFF },
+        };
         NinoDeserializer.Deserialize(bytes, ref target);
         Assert.AreSame(existing, target);
-        Assert.IsFalse(target[0]);
-        Assert.IsTrue(target[1]);
-        Assert.IsTrue(target[8]);
-        Assert.AreEqual((byte)1, System.Runtime.InteropServices.CollectionsMarshal.AsBytes(target)[1]);
+        Assert.AreEqual(count, target.Length);
+        if (count != 0)
+            bytes[^1] &= (byte)((1 << (count & 7)) - 1);
+        Assert.IsTrue(System.Runtime.InteropServices.CollectionsMarshal.AsBytes(target).SequenceEqual(bytes.AsSpan(4)));
         Assert.ThrowsExactly<InvalidOperationException>(() => enumerator.MoveNext());
     }
 #endif
