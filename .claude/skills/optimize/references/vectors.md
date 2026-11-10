@@ -525,6 +525,13 @@ of bytes in a block.
   times the baseline time with SIMD disabled. Its loop carried an extra arithmetic
   dependency into the next mask load. Four A/A rounds stayed within 6% for those cases.
   Wire and dirty-padding checks matched, and targeted tests passed. Keep both as probes.
+  Check both address updates and the loop counter before replacing the scalar mask index
+  with two byref cursors. Arm64 used post-index loads and stores, but `Copy` grew from
+  226 to 250 IL bytes and 344 to 348 Arm64 Tier 1 bytes. Counting the remaining bytes
+  simplified the tail and used 245 IL bytes, 356 Arm64 bytes and 280 x64 cross-JIT bytes
+  versus 284 at baseline. Neither variant improved short or 64 KiB boundary workloads
+  repeatably, and the countdown was slower in all four default-SIMD 17-element rounds.
+  Keep the indexed loop. Wire and dirty-padding checks and targeted tests passed.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
