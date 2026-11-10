@@ -313,6 +313,11 @@ and when `asm.py compare` lists methods the change did not touch.
   IL at 277 bytes and reduced native code to 1,464 Arm64 and 1,240 x64
   bytes, but timings varied and the 1+3 case was slower. Both variants
   passed five wire and round-trip probes, with zero steady allocation.
+  Two reverse byte loops assembled the split word without a switch and
+  shrank IL from 277 to 223 bytes, Arm64 Tier 1 from 1,476 to 1,392 bytes,
+  and offline x64 from 1,268 to 1,170. The 3+1 split nevertheless slowed
+  in four paired rounds (24.0–25.0 ns for the candidate). Keep the switch
+  and retain the loop patch. All five wire probes matched at zero allocation.
   Sharing both segment and count validation through inlined helpers still slowed split-header reuse
   across both loading orders. Keep those checks local and share payload copying and replacement.
   Keep the regular and direct sequence readers' stack and pool scopes around their own span calls.
