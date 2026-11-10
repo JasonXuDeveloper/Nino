@@ -41,12 +41,18 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   twins `__Top` / `__Shallow`. A text-based alias matches whole names at both ends: the struct's own declaration
   once became `struct __NinoF0` when a self-holding type's formatter was a candidate. Member formatters are numbered in member order and
   declared without `global::NinoGen.` (alias declarations are inside the namespace too). Share the inlining flags as
-  constants in the assembly's generated registry file: `[__NinoMI(__NinoIL.Inline)]` and
-  `[__NinoMI(__NinoIL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
+  constants in the assembly's generated registry file: `[__MI(__NinoIL.Inline)]` and
+  `[__MI(__NinoIL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
   if a formatter's type parameter shadows the flags type. The compiler folds the constants into the same method
   flags, with no helper calls.
   Shortening the attribute alias removed 29,864 source bytes from the unit test project (6d82f7a7),
   with identical generated IL and controlled Arm64 Tier 1 listings.
+  Shortening it again to `__MI` saved 25,356 bytes across 579 files and 312–344 KB of
+  allocation per cold project replay. Full consumer IL matched after normalizing the
+  compiler's file-local interceptor type suffix. The sampled writer retained 172 Arm64
+  and 145 emulated x64 FullOpts bytes, the wire and 0 B allocation. Keep formatter aliases
+  inside `NinoGen`. Moving the Core alias before assembly layout attributes saved 21,942
+  bytes but failed with CS0576 when the consumer declared a same-named global type.
   Alias repeated non-generic named raw member types in symbolic sizes and loads (acc67d4b). Avoid aliases
   of constructed types that add TypeSpec metadata. Expanding the aliases recovered the same source;
   generated IL, Arm64 Tier 1 summaries and normalized x64 listings matched the baseline.
