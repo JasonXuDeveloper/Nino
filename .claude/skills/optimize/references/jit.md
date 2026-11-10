@@ -27,6 +27,13 @@ and when `asm.py compare` lists methods the change did not touch.
   variant was also slower than both controls in each round. The same generated
   consumer matched wire bytes at offsets 0, 1 and 7 and stayed at zero steady
   allocation. Inspect the pair load before retrying this arithmetic rewrite.
+- Reuse the constructor-validated `ArraySegment<T>` range when writing value types on .NET 8+.
+  Reference types still take `AsSpan` to preserve its covariance check. A one-byte slice at
+  offset one beat the paired baseline in all eight local rounds and the identical-binary
+  control in six. Long copies on either side of a 64 KiB working set varied. The formatter IL
+  rose from 33 to 90 bytes; the Arm64 Tier 1 caller shrank from 964 to 932 bytes and the
+  concrete x64 cross-JIT write entry from 2,279 to 2,180. Six wire checks and all 577 generated
+  files matched, the covariant array still threw, and steady-state write allocation was zero.
 - Keep the existing custom-formatter `ReadSlice` cursor update. Folding header and payload
   advancement into one update grew the method from 43 to 122 IL bytes while standalone x64
   cross-JIT shrank from 120 to 114 bytes. A 64-byte slice through a byref parent reduced its
