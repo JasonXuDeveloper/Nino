@@ -1106,6 +1106,14 @@ of bytes in a block.
   The three candidates used 761, 774 and 777 IL bytes against 761, with Arm64 FullOpts
   at 456, 472 and 460 bytes against 456 and emulated AVX2 at 324, 334 and 333 against
   324. All matched dirty-padding wire bytes and steady allocations. The candidates were withdrawn.
+  Keep the initial phase check on the multi-vector loop for now. Its condition cannot fire
+  because the initial offset is at most one vector and the period is strictly wider. Removing
+  it nevertheless changed Arm64 register choice and loop alignment. Four longer M4 default-JIT
+  pairs slowed the aligned 192-byte kernel by 31–68%, versus -12% to +24% for the identical-binary
+  control. The unaligned and near-64 KiB cases varied. The change removed 13 IL bytes and 7 bytes
+  from the emulated AVX2 FullOpts listing, with Arm64 still at 456 bytes. All 54 local wire cases
+  and three emulated AVX2 cases matched, including the software 512-bit path and destination
+  sentinels. Steady-state allocation was zero. The candidate was withdrawn.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
