@@ -299,6 +299,13 @@ the test project's default language version (five block namespace files), and 4.
 C# 9 generator parse options (577 block namespace files). Both output sets matched byte for byte
 and cold wall time had no repeatable change. The replay checks generated output. A separate
 C# 9 consumer compiled and round-tripped with matching wire bytes (`b066e8db`).
+Prepend the inlining aliases to the formatter's existing declaration list before rewriting its body.
+This removes the one-use concatenation iterator and keeps the same declaration order. The
+572-model emitter replay saved 40.7–41.1 KB in both load orders, and the four cold replays
+saved 25–140 KB. Cold, cached and body-edit timings showed no repeatable change. The emitter
+went from 227 to 224 IL bytes, 1,100 to 1,104 Arm64 Tier 0 bytes and 396 to 412 x64 cross-JIT
+bytes. All 577 files matched on both Roslyn builds, all 572 models were reused on edits,
+and closed-project objects collected.
 Write file-scoped aliases directly into the leased prefix builder before the final four-string
 concatenation. This avoids the separate joined declarations string and saved 364–376 KB per cold
 unit-test project replay, with wall time within 1% and all 577 files identical. Four follow-up
