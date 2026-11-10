@@ -412,6 +412,14 @@ and when `asm.py compare` lists methods the change did not touch.
 - Separate the small raw fallback's typed local from the large raw entry. A size check in the same method does not
   stop Tier 0 from reserving a stack slot for a large `T` on an untaken branch. Keep a single final load within each
   path and compare trusted packed and wide reads as well as untrusted allocations.
+  Check the frozen untrusted setting before the layout branch and return directly from the existing
+  validated reader in that mode. Combining both fallbacks into a typed return added a full stack slot
+  and a second copy to the trusted Arm64 caller. A result local with a single return kept both copies.
+  Testing the setting first restored the 156-byte trusted caller. Untrusted reads of 1 and 4 KiB
+  saved 1,048 and 4,120 allocated bytes at offsets 1 and 7 and beat the identical-binary control in
+  all four local rounds at each offset. The x64 offline entry retained both settings branches and
+  tail-jumped into the validated reader with no large stack slot. Keep the byref layout fallback
+  for trusted types that cannot be loaded directly.
 
 - Read a collection whose shape repeats into its existing instance with a loop of its own over the data, as the fresh
   read does: `Reader.RefillStringPairs` (raw keys and strings into an existing `Dictionary`, the position and the end in
