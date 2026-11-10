@@ -51,7 +51,9 @@ namespace Nino.Core.Internal
     /// What binding one registration needs to know about its formatter: the constraints of each type parameter, which
     /// parameters are element formatters, how to resolve those, and the checks that are specific to each side.
     /// </summary>
-    internal interface INinoFormatterParameters<TType, TFormatter> where TType : class
+    internal interface INinoFormatterParameters<TType, TFormatter>
+        where TType : class
+        where TFormatter : class
     {
         /// <summary>The formatter's type parameters.</summary>
         int Count { get; }
@@ -62,7 +64,7 @@ namespace Nino.Core.Internal
         /// <summary>For a parameter constrained to <c>INinoFormatter&lt;E&gt;</c>, <c>E</c>; else null.</summary>
         TType FormatterElement(int index);
 
-        /// <summary>The formatter of an element type, or false when there is none.</summary>
+        /// <summary>Resolves a non-null formatter for an element type, or returns false.</summary>
         bool ResolveElement(TType element, out TFormatter formatter);
 
         /// <summary>Whether a bound type satisfies the parameter's other constraints (class, struct, [NinoRaw]...).</summary>
@@ -83,6 +85,7 @@ namespace Nino.Core.Internal
         public static bool Bind<TType, TFormatter, TSystem, TParameters>(TSystem system, TParameters parameters,
             TType pattern, TType target, out TType[] types, out TFormatter[] formatters)
             where TType : class
+            where TFormatter : class
             where TSystem : INinoTypeSystem<TType>
             where TParameters : INinoFormatterParameters<TType, TFormatter>
         {
@@ -95,7 +98,6 @@ namespace Nino.Core.Internal
             }
 
             formatters = new TFormatter[count];
-            var resolved = new bool[count];
 
             bool progress = true;
             while (progress)
@@ -114,13 +116,12 @@ namespace Nino.Core.Internal
                             progress = true;
                         }
                     }
-                    else if (!resolved[i] && parameters.FormatterElement(i) is { } element &&
+                    else if (formatters[i] == null && parameters.FormatterElement(i) is { } element &&
                              IsBound(system, element, types))
                     {
                         var elementType = Substitute(system, element, types);
                         if (elementType == null || !parameters.ResolveElement(elementType, out formatters[i]))
                             return false;
-                        resolved[i] = true;
                         progress = true;
                     }
                 }
@@ -128,7 +129,7 @@ namespace Nino.Core.Internal
 
             for (int i = 0; i < count; i++)
             {
-                if (types[i] is { } bound ? !parameters.Satisfies(i, bound, types) : !resolved[i])
+                if (types[i] is { } bound ? !parameters.Satisfies(i, bound, types) : formatters[i] == null)
                     return false;
             }
 
