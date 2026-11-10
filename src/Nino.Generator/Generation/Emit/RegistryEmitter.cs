@@ -129,7 +129,7 @@ internal static class RegistryEmitter
 
         w.Line("""/// <summary>Registers the closed built-in formatters whose type has id <paramref name="id"/>.</summary>""");
         // Formatters first, then creators, then closed generic [NinoType]s, each in their own (sorted) order.
-        var registrations = new Dictionary<int, IdCase>();
+        var registrations = new Dictionary<int, IdCase>(usages.Length + factories.Length + generics.Length);
         foreach (var usage in usages)
             AddCase(registrations, usage.Id,
                 $"{Core}NinoFormatterCache<{usage.TypeName}>.TryRegister<{usage.Formatter}>();");
