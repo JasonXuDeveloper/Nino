@@ -29,11 +29,13 @@ internal static class Callbacks
 
     /// <summary>The callbacks <paramref name="method"/> is marked as.</summary>
     public static IEnumerable<(CallbackKind Kind, AttributeData Attribute)> Marks(IMethodSymbol method,
+        NinoSymbols symbols) => method.GetAttributes().IsEmpty
+        ? Enumerable.Empty<(CallbackKind, AttributeData)>()
+        : EnumerateMarks(method, symbols);
+
+    private static IEnumerable<(CallbackKind Kind, AttributeData Attribute)> EnumerateMarks(IMethodSymbol method,
         NinoSymbols symbols)
     {
-        var attributes = method.GetAttributes();
-        if (attributes.IsEmpty)
-            yield break;
         for (int k = 0; k < symbols.Callbacks.Length; k++)
         {
             if (NinoSymbols.Get(method, symbols.Callbacks[k]) is { } attribute)
