@@ -216,6 +216,17 @@ internal static class Interceptors
          formatter.Name == TypeNames.Core + "ListFormatter" && formatter.Args.Length == 3 &&
          formatter.Args[0].ToString() == "global::System.Collections.Generic.List<" + formatter.Args[1] + ">");
 
+    private const string AttributePrefix = "namespace System.Runtime.CompilerServices\n{\n" +
+        "    [global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]\n    ";
+
+    private const string AttributeSuffix = " sealed class InterceptsLocationAttribute : global::System.Attribute\n    {\n" +
+#if ROSLYN4_12
+        "        public InterceptsLocationAttribute(int version, string data) { }\n" +
+#else
+        "        public InterceptsLocationAttribute(string filePath, int line, int character) { }\n" +
+#endif
+        "    }\n}\n\n";
+
     /// <summary>
     /// <paramref name="fileLocal"/>: C# 11 or later, where the attribute and the interceptors are file-local, so
     /// they never clash with another generator's.
@@ -227,18 +238,6 @@ internal static class Interceptors
         var shallow = new HashSet<string>(shallowTwins.Select(n => TypeNames.Gen + n));
         var prefetch = new HashSet<string>(prefetchers.Select(n => TypeNames.Gen + n));
         string scope = fileLocal ? "file" : "internal";
-        var attribute = new CodeWriter();
-        attribute.Open("namespace System.Runtime.CompilerServices");
-        attribute.Line("[global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]");
-        attribute.Open($"{scope} sealed class InterceptsLocationAttribute : global::System.Attribute");
-#if ROSLYN4_12
-        attribute.Line("public InterceptsLocationAttribute(int version, string data) { }");
-#else
-        attribute.Line("public InterceptsLocationAttribute(string filePath, int line, int character) { }");
-#endif
-        attribute.Close();
-        attribute.Close();
-        attribute.Line();
         var callText = new Dictionary<(string Method, string Type, FormatterRef? Formatter, string Arguments, bool Inlinable), string>();
         string RenderCall(InterceptedCall call)
         {
@@ -311,7 +310,8 @@ internal static class Interceptors
         if (compact.UseBytesAlias && !aliases.Contains(GeneratedCode.BytesDeclaration))
             aliases.Add(GeneratedCode.BytesDeclaration);
         // A block namespace: the file declares the attribute in another namespace.
-        string preamble = attribute.Finish();
+        string preamble = fileLocal ? AttributePrefix + "file" + AttributeSuffix
+            : AttributePrefix + "internal" + AttributeSuffix;
         return preindent ? GeneratedCode.IndentedFile(preamble, aliases, body)
             : GeneratedCode.File(preamble, aliases, body, fileScoped: false, indentation);
     }
