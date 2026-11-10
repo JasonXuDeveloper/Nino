@@ -347,6 +347,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   with all 760 dispatch method bodies byte-identical in IL. The 1,000-element polymorphic array
   wrote the same bytes, with identical allocation and no repeatable timing change. The sampled
   Arm64 and x64 cross-JIT dispatch method sizes matched. Both targeted suites passed (`686fd8d1`).
+  Reuse that namespace alias in the generic selectors with `::`, so a user's same-named type
+  parameter cannot shadow it. The unit-test dispatch shrank by 2,112 bytes and the other 576
+  files matched on both Roslyn builds. The compiled IL listing and the sample wire matched.
+  For the closed tuple selector, Arm64 FullOpts write/read stayed at 948/296 bytes, x64 cross-JIT
+  at 208/169, and local reuse reads and writes at zero allocations. Timing varied between
+  identical baselines as well, so treat this as a source-size change.
   Outline exact writes in wider subtype dispatches when the subtype body nests. Keep flat and raw writes
   inline. Outlining every non-raw case made the 1,000-element unmanaged tuple workload consistently slower.
   The nesting gate left that dispatch unchanged and the open-class tuple workload improved in four local
