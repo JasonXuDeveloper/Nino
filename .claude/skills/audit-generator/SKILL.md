@@ -88,6 +88,15 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   stages, 578 models were reused after each edit and closed-project references collected. Build shrank
   from 856 to 832 IL bytes, 3,864 to 3,752 Arm64 FullOpts bytes and 2,565 to 2,493 offline x64 bytes.
   Both Roslyn builds passed 59 targeted tests (`57d3197e`).
+- Return the shared empty sequence before creating a callback-mark iterator for a method with no attributes.
+  Keep attribute order in the nonempty iterator and retain no symbols in the shared result.
+  Scanning 3,403 real-project methods saved 185,120 B per pass in four isolated M4 pairs.
+  Isolated medians improved against the paired baseline, but one identical-binary control was an
+  outlier. Cold, reopen and body-edit timings and allocations did not establish a whole-project gain.
+  All 583 generated files matched across four stages, 578 models were reused after either edit,
+  and the old compilation, tree, symbol and output collected. Factory plus MoveNext IL grew
+  from 183 to 192 B, Arm64 FullOpts from 344 to 472 B and offline x64 from 386 to 420 B.
+  Both Roslyn builds passed 59 targeted tests (`dca6dba7`).
 - Bind as few nodes as syntax allows. A syntax provider's semantic transform reruns for every match on every
   compilation change, and `GetSymbolInfo` of a call binds its statement: binding the top-level calls was most of the
   generator's time on tests/Nino.UnitTests (about 2,400 calls; local trace, round 128), more than building the models.
