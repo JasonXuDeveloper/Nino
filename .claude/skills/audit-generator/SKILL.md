@@ -282,6 +282,11 @@ immutable body string exists. This lets the alias pass borrow the same slot and 
 a fresh writer buffer for each file. Four cold replays allocated 4.72–4.82 MB less and wall
 time stayed within 0.6%. All 577 outputs matched, tracked edits reused all 572 models, and the
 collection probes and 71 targeted tests passed (`2616fc2c`).
+Append the partial accessor suffix before materializing the block file, saving about 45 KB
+per real-project formatter replay in both load orders. Renting the existing scratch buffer
+only for the partial emitter added about 28 KB to the same replay, so keep the accessor writer
+separate. Whole-project timings and allocations varied. All 582 files matched on both Roslyn
+builds, tracked edits reused the models, and collection and targeted tests passed (`dcd6f0c6`).
 Write a single indented line directly instead of allocating a closure for `CodeWriter.Indented`.
 Four cold replays allocated 111–184 KB less with wall time within 0.7%. All 577 files matched,
 the 572 models were reused on tracked edits, and the collection probes passed (`cb904042`).
