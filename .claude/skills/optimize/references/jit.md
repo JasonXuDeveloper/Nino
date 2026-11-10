@@ -174,6 +174,15 @@ and when `asm.py compare` lists methods the change did not touch.
   bytes, excluding the new helper. Four alternating runs with a byte-identical control
   showed no repeatable gain. Both candidates matched the written bytes and allocated 0 B
   without growth. Keep the split shape as a probe and the shared capacity check in production.
+- Keep the array-backed constructor for `NinoArrayBufferWriter.WrittenSpan`.
+  Creating the span from an array-data reference removed the bounds comparison
+  but left an implicit null-check load on Arm64. Using the full array span's
+  reference instead also regressed the direct 64-item view probe in all four
+  local default-JIT rounds against both baselines. The first form consistently
+  slowed the one-item serialize-and-consume loop; cache-sized inputs varied.
+  Getter IL was 19/23/28 bytes for the baseline and two candidates. The consumer
+  was 132/64/80 Arm64 FullOpts bytes and 66/35/51 x64 cross-JIT bytes.
+  Wire samples matched at both offsets and steady allocations were zero.
 - Keep the existing empty handling in `NinoArrayBufferWriter.ToArray`. An early return
   accelerated the empty result but slowed the 65-byte export in all four local rounds.
   Checking for zero inside the short copy branch removed that pattern, but gave no stable
