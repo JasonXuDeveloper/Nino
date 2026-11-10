@@ -32,16 +32,10 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, in shape))
             {
-                // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
-                // (grown as they are read), the array of this shape made once they are.
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    T[] items = null;
-                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
-                    array = new T[shape.A, shape.B];
-                    MultiDim.Fill(items, ref array[0, 0]);
-                    NinoRecycler.Replace(ref value, array);
+                    reader = ReadHeavy(ref value, shape, reader);
                     return;
                 }
 
@@ -51,6 +45,22 @@ namespace Nino.Core
 
             if (shape.Total != 0)
                 NinoElements.Read<T, TFormatter>(ref array[0, 0], shape.Total, ref reader, prechecked: true);
+        }
+
+        // Publish the new array only after the entire payload has been read.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadHeavy(scoped ref T[,] value, ArrayShape shape, Reader reader)
+        {
+            T[] items = null;
+            if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
+                reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
+            var array = new T[shape.A, shape.B];
+            if (items == null)
+                NinoElements.Read<T, TFormatter>(ref array[0, 0], shape.Total, ref reader, prechecked: true);
+            else
+                MultiDim.Fill(items, ref array[0, 0]);
+            NinoRecycler.Replace(ref value, array);
+            return reader;
         }
     }
 
@@ -78,16 +88,10 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, in shape))
             {
-                // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
-                // (grown as they are read), the array of this shape made once they are.
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    T[] items = null;
-                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
-                    array = new T[shape.A, shape.B, shape.C];
-                    MultiDim.Fill(items, ref array[0, 0, 0]);
-                    NinoRecycler.Replace(ref value, array);
+                    reader = ReadHeavy(ref value, shape, reader);
                     return;
                 }
 
@@ -97,6 +101,22 @@ namespace Nino.Core
 
             if (shape.Total != 0)
                 NinoElements.Read<T, TFormatter>(ref array[0, 0, 0], shape.Total, ref reader, prechecked: true);
+        }
+
+        // Publish the new array only after the entire payload has been read.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadHeavy(scoped ref T[,,] value, ArrayShape shape, Reader reader)
+        {
+            T[] items = null;
+            if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
+                reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
+            var array = new T[shape.A, shape.B, shape.C];
+            if (items == null)
+                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0], shape.Total, ref reader, prechecked: true);
+            else
+                MultiDim.Fill(items, ref array[0, 0, 0]);
+            NinoRecycler.Replace(ref value, array);
+            return reader;
         }
     }
 
@@ -124,16 +144,10 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, in shape))
             {
-                // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
-                // (grown as they are read), the array of this shape made once they are.
                 if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
                     shape.Total != 0)
                 {
-                    T[] items = null;
-                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
-                    array = new T[shape.A, shape.B, shape.C, shape.D];
-                    MultiDim.Fill(items, ref array[0, 0, 0, 0]);
-                    NinoRecycler.Replace(ref value, array);
+                    reader = ReadHeavy(ref value, shape, reader);
                     return;
                 }
 
@@ -143,6 +157,22 @@ namespace Nino.Core
 
             if (shape.Total != 0)
                 NinoElements.Read<T, TFormatter>(ref array[0, 0, 0, 0], shape.Total, ref reader, prechecked: true);
+        }
+
+        // Publish the new array only after the entire payload has been read.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadHeavy(scoped ref T[,,,] value, ArrayShape shape, Reader reader)
+        {
+            T[] items = null;
+            if (!NinoElements.Fits(shape.Total, Unsafe.SizeOf<T>(), reader.Remaining))
+                reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
+            var array = new T[shape.A, shape.B, shape.C, shape.D];
+            if (items == null)
+                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0, 0], shape.Total, ref reader, prechecked: true);
+            else
+                MultiDim.Fill(items, ref array[0, 0, 0, 0]);
+            NinoRecycler.Replace(ref value, array);
+            return reader;
         }
     }
 }

@@ -168,6 +168,24 @@ public class UntrustedInputTests
     }
 
     [TestMethod]
+    public void TruncatedHeavyMultidimensionalReadKeepsExistingArray()
+    {
+        var original = new UntrustedBigStruct[1, 1];
+        var value = original;
+        var source = new UntrustedBigStruct[1, 2];
+        source[0, 1].S = "last";
+        var data = NinoSerializer.Serialize(source);
+
+        // The allocation fits the payload budget. Reading the final element still has to succeed before publishing.
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(data.AsSpan(0, data.Length - 1), ref value));
+        Assert.AreSame(original, value);
+
+        NinoDeserializer.Deserialize(data, ref value);
+        Assert.AreEqual(2, value.GetLength(1));
+        Assert.AreEqual("last", value[0, 1].S);
+    }
+
+    [TestMethod]
     public void ARejectedReadKeepsNewArraysOutOfTheSlot()
     {
         // 8,000 elements (allocated uninitialized from 6 KB), the last one invalid: the read rejects the data after it
