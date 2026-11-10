@@ -68,7 +68,11 @@ internal static class FormatterTraitsOf
                                      (last & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 =>
                 FormatterTraits.PreservesReadContext,
             "NullableArrayFormatter" or "NullableListFormatter" => FormatterTraits.PreservesReadContext,
-            "MemoryFormatter" or "ReadOnlyMemoryFormatter" or "ArraySegmentFormatter" or "ReadOnlySequenceFormatter" when count == 2 &&
+            "ArrayFormatter" or "MemoryFormatter" or "ReadOnlyMemoryFormatter" or "ArraySegmentFormatter" or
+                "ReadOnlySequenceFormatter" when count == 2 &&
+                                   (last & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 =>
+                FormatterTraits.PreservesReadContext,
+            "ListFormatter" when count == 3 &&
                                    (last & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 =>
                 FormatterTraits.PreservesReadContext,
             // DictionaryFormatter<[TDictionary, ]TKey, TValue, TKeyFormatter, TValueFormatter>

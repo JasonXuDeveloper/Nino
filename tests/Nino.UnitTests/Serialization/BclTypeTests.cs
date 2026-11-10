@@ -43,6 +43,8 @@ public struct BclScalarRegion
 {
     public BitArray Bits;
     public Memory<string> Names;
+    public string[] Labels;
+    public List<string> Tags;
     public BigInteger Big;
     public Version Version;
     public Uri Link;
@@ -62,6 +64,8 @@ public class BclTypeTests
         {
             Bits = new BitArray(new[] { true, false, true }),
             Names = new[] { "alpha", null },
+            Labels = new[] { "label", null },
+            Tags = new List<string> { "tag", null },
             Big = new BigInteger(128),
             Version = new Version(1, 2, 3),
             Link = new Uri("../relative", UriKind.Relative),
@@ -73,6 +77,8 @@ public class BclTypeTests
         var read = NinoDeserializer.Deserialize<BclScalarRegion>(bytes);
         CollectionAssert.AreEqual(value.Bits, read.Bits);
         CollectionAssert.AreEqual(value.Names.ToArray(), read.Names.ToArray());
+        CollectionAssert.AreEqual(value.Labels, read.Labels);
+        CollectionAssert.AreEqual(value.Tags, read.Tags);
         Assert.AreEqual(value.Big, read.Big);
         Assert.AreEqual(value.Version, read.Version);
         Assert.AreEqual(value.Link, read.Link);
@@ -84,6 +90,8 @@ public class BclTypeTests
         NinoDeserializer.Deserialize(new byte[sizeof(int)], ref read);
         CollectionAssert.AreEqual(value.Bits, read.Bits);
         Assert.IsTrue(value.Names.Span.SequenceEqual(read.Names.Span));
+        CollectionAssert.AreEqual(value.Labels, read.Labels);
+        CollectionAssert.AreEqual(value.Tags, read.Tags);
         Assert.AreEqual(value.Big, read.Big);
         Assert.AreEqual(value.Version, read.Version);
         Assert.AreEqual(value.Link, read.Link);
