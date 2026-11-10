@@ -311,6 +311,11 @@ timing and allocation varied. `AppendMembers` moved from 313 to 311 IL bytes plu
 65-byte helper, from 1,720 to 1,676 instrumented Arm64 Tier 0 bytes plus 296, and from
 707 to 659 x64 cross-JIT bytes plus 146. All 577 outputs matched on both Roslyn builds,
 all 572 models were reused on edits, and the collection checks passed.
+Keep literal escaping on the completed member range. Escaping the original fragments instead
+removed the two builder scans but saved no allocations in the 572-model replay. Timing reversed
+with load order, and the whole-project rounds were noisy. The affected IL rose from 709 to
+792 bytes, Arm64 cold listings from 3,576 to 4,052 bytes and x64 cross-JIT from 1,568 to
+1,763 bytes. Both Roslyn builds matched all 577 outputs and retained model reuse and collection.
 Delay formatting an alias declaration until the occurrence count pays for it. Compute its length
 from the alias and original name first. Four cold replays allocated 45–58 KB less, wall time
 stayed within 0.3%, and all 577 outputs matched (`abc295cc`).
