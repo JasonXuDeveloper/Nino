@@ -29,6 +29,13 @@ and when `asm.py compare` lists methods the change did not touch.
   in all four local rounds at 0 B per read, with no repeatable longer-input timing change.
   Read IL grew from 63 to 98 bytes, Arm64 Tier 1 from 728 to 752 bytes and x64 offline from
   211 to 272 bytes. The round trips, dirty tails and generated files matched.
+  Share the short-payload gate when adding a two-byte case. On .NET 10 a
+  single unaligned masked store consistently improved 15-bit writes in four
+  local A/B rounds. A separate gate was less convincing at 66 KiB, while the
+  shared gate showed no repeatable change at 62 or 66 KiB. Formatter IL grew
+  from 114 to 157 bytes, the Arm64 Tier 1 caller from 896 to 928 bytes, and the
+  x64 cross-JIT caller stayed at 224 bytes. Wire bytes and steady-state
+  allocations matched.
 
 - Build the raw span from `ReadBlock` on the byref reader targets. This gives the span and
   block reads one bounds check and cursor advance in the source. The standalone IL fell from
