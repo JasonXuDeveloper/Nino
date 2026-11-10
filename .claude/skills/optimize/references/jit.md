@@ -451,6 +451,15 @@ and when `asm.py compare` lists methods the change did not touch.
   local rounds, including two with reversed loading order.
   Splitting the empty and partial removal loops grew the Arm64 helper from 620 to 924 bytes. The local
   partial-removal timing stayed within the noise band, so keep the shared loop.
+  Skip the set when one key survives in a dictionary of at most 16 entries on
+  modern .NET and neither element type needs recycling. Scan with the
+  dictionary's comparer and retain the existing path for larger dictionaries.
+  An unbounded scan slowed the 2,048-entry unaligned case by 25–45%. With the
+  bound and an outlined scan, the large control varied alongside A/A, and the
+  two-entry unaligned case improved by 12–61% across four M4 pairs. Eligible
+  cases allocated 32 instead of 208 B. RemoveStale and its helper used 126
+  plus 80 IL bytes versus 84, 972 plus 672 Arm64 FullOpts bytes versus 692,
+  and 810 plus 605 emulated x64 bytes versus 560. All 54 wire cases matched.
 
 - A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlockCollections.FixedSize`, ...) is compiled and
   inlined even for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops,
