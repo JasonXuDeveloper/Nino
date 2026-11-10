@@ -98,7 +98,8 @@ namespace Nino.Core.Internal
             }
 
             types = new TType[count];
-            if (!Unify(system, pattern, target, types))
+            // A rejected rule discards the fresh slots, so no rollback is needed here.
+            if (!Match(system, pattern, target, types))
             {
                 formatters = System.Array.Empty<TFormatter>();
                 return false;
