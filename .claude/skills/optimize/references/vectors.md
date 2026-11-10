@@ -505,6 +505,14 @@ of bytes in a block.
   loop into locals. Scalar tails too: `NinoBlockCollections.WriteEach`'s per-value loop with an index scaled twice per
   value wrote 1,000 dictionary entries in 658 ns without hardware intrinsics, with cursors 393 (main's per-entry
   loop: 399).
+  Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
+  a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
+  Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
+  200. The sampled x64 FullOpts cross listings went from 244 to 245 and stayed at 276 bytes
+  for the second compilation. Small and mixed timings showed no repeatable gain. A large SIMD
+  mix initially favored the candidate, but four replay rounds with a byte-identical control
+  did not reproduce it. Wire bytes matched at offsets 0, 1 and 7, writes allocated 0 B,
+  and 22 targeted tests passed on each of .NET 8 and .NET 10.
 - On Arm64 (and anywhere without AVX-512) `Vector512<T>` and `Vector256<T>` are structs of 16-byte vectors: passed
   into an inlined loop body they are copied through the stack every iteration. Take their `Vector128` parts out once,
   before the loop, and pass those.
