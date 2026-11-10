@@ -32,12 +32,8 @@ internal static class DispatchEmitter
         {
             if (!e.IsTarget)
                 continue;
-            foreach (var a in e.BaseClasses.Concat(e.Interfaces))
-            {
-                if (!subtypesOf.TryGetValue(a, out var list))
-                    subtypesOf[a] = list = new List<DispatchEntry>();
-                list.Add(e);
-            }
+            AddSubtype(subtypesOf, e.BaseClasses, e);
+            AddSubtype(subtypesOf, e.Interfaces, e);
 
             foreach (var ancestor in e.GenericAncestors)
             {
@@ -98,6 +94,17 @@ internal static class DispatchEmitter
             aliases.Add($"using __NinoCS = {CoreCompilerServices.TrimEnd('.')};");
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(aliases), body, fileScoped);
+    }
+
+    private static void AddSubtype(Dictionary<string, List<DispatchEntry>> subtypesOf,
+        EquatableArray<string> ancestors, DispatchEntry entry)
+    {
+        foreach (var ancestor in ancestors)
+        {
+            if (!subtypesOf.TryGetValue(ancestor, out var list))
+                subtypesOf[ancestor] = list = new List<DispatchEntry>();
+            list.Add(entry);
+        }
     }
 
     private static bool UseCompactServices(EquatableArray<DispatchEntry> entries,
