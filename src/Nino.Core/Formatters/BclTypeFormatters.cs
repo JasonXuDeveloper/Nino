@@ -171,7 +171,7 @@ namespace Nino.Core
             // Small copies already have an efficient chunk loop; larger builders may allocate a chunk index.
             if (length <= 64)
             {
-                CopyChunks(value, ref body);
+                CopyChunks(value, length, ref body);
                 return;
             }
 #endif
@@ -191,8 +191,14 @@ namespace Nino.Core
 
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CopyChunks(StringBuilder value, ref byte body)
+        private static void CopyChunks(StringBuilder value, int length, ref byte body)
         {
+            if (length == 2)
+            {
+                NinoUnsafe.Write(ref body, (uint)value[0] | (uint)value[1] << 16);
+                return;
+            }
+
             foreach (var chunk in value.GetChunks())
             {
                 var bytes = MemoryMarshal.AsBytes(chunk.Span);
