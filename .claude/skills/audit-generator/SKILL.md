@@ -288,6 +288,11 @@ emitter saved 184 B with one formatter and 1,304 B with eight. All 582 files mat
 Roslyn versions across fresh, body-edit and model-edit replays. Nesting stayed cached on edits,
 closed-project objects collected, and 63 targeted tests passed on each of .NET 8 and .NET 10.
 Whole-project timings showed no repeatable improvement (`37c6743b`).
+Write exact dispatch checks directly from the known subtype list. The dispatch replay saved a
+median 68 KB per emission in both load orders, and four cold project replays saved 39–122 KB.
+Timings varied. All 582 outputs matched on both Roslyn builds. Body edits reused the models and
+dispatch output, closed-project objects collected, and 70 targeted tests passed on each of
+.NET 8 and .NET 10 (`7fed214a`).
 Write local reader and writer copy prologues and write-back lines directly around the body.
 Constant lines and removal of the nested closures saved 214–317 KB in four cold replays.
 All 577 outputs matched, the 572 models were reused on tracked edits, and the collection
