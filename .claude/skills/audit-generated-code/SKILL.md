@@ -348,6 +348,11 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   Arm64 rounds. Its Tier 1 dispatch shrank from 2,476 to 604 bytes, with eight separate 332-byte helpers.
   Count those helpers and the caller separately. The benchmark emitted 2,160 more source bytes and all
   tested wire outputs matched, including short writes to unaligned offsets.
+  Keep exact runtime type comparisons adjacent when a subtype can be derived from. Hoisting
+  `value.GetType()` to a shared local saved 496 source bytes and shrank the sampled dispatch IL
+  from 256 to 223 bytes. Arm64 Tier 1 already loaded the method table once in the original chain.
+  The shared local materialized a runtime type object and grew the dispatch from 604 to 672
+  machine bytes. The non-generic 1,000-item case was slower in all four local rounds.
   A separate post-emission alias for `System.Runtime.CompilerServices` paid off in only 22 of 577
   replayed files. It removed 2,444 source bytes with identical normalized unit test assembly IL, but
   added about 740 KB of cold generator allocations and enlarged the alias helper from 473 to 512 IL
