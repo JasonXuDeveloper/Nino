@@ -1114,6 +1114,13 @@ of bytes in a block.
   from the emulated AVX2 FullOpts listing, with Arm64 still at 456 bytes. All 54 local wire cases
   and three emulated AVX2 cases matched, including the software 512-bit path and destination
   sentinels. Steady-state allocation was zero. The candidate was withdrawn.
+  Build repeated mask tables by doubling a filled prefix. The last copy can be partial,
+  and each earlier copy preserves the mask phase. Four M4 default-JIT pairs reduced warmed
+  `NinoMask.Create` medians by 36–51% for 8-, 12- and 24-byte masks, with equal allocations.
+  The one-byte repeat and first public write varied within their identical-binary controls.
+  `Repeat` grew from 57 to 104 IL bytes, 244 to 396 Arm64 FullOpts bytes, and 129 to 200
+  emulated x64 bytes. Checks matched all 1,536 repeated tables across 8-, 16-, 32- and
+  64-byte widths and all 21 padded wire outputs at offsets zero, one and seven.
   Keep the write countdown when Tier 1 already emits a single cursor loop. On `BlockWaypoint[]`,
   a pretested index with the same byrefs reduced `WriteEach` from 424 to 414 IL bytes and reduced
   Arm64 Tier 0 by 60 bytes. Scalar Tier 1 stayed at 92 bytes and SIMD Tier 1 grew from 196 to
