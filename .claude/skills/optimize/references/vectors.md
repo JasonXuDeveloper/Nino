@@ -498,6 +498,17 @@ of bytes in a block.
   the emulated x64 fallback from 180 to 185 bytes. The 252-byte vector loop
   was unchanged. Test dirty null and invalid tail slots at both 9 and 1,031
   elements (`c8950716`).
+  Handle four to seven elements in the existing short branch using the 64-bit
+  mask and one or two groups. Sharing the 128-bit loop through a generic
+  read kernel slowed 16,897 items by about 23%. Keep the 128-bit loop and
+  its dispatch separate. Four M4 pairs improved mixed 4-, 5- and 7-element
+  medians by 27%, 31% and 35%; one and three elements and the 64 KiB control
+  stayed broadly flat. The 128-element control had a 3% slower median.
+  Ten wire cases matched at 0 B. Entry IL grew from 348 to 369 bytes, and
+  Arm64 FullOpts from 364 to 440 bytes plus a 216-byte short helper. The
+  252-byte long loop and 185-byte emulated x64 fallback were unchanged in
+  size. Check the invalid tail in a five-element overlapping-vector group
+  (`9bc09098`).
 - Keep non-ASCII UTF-8 reuse separate from the short ASCII reader. Decoding to a bounded stack
   buffer removed allocations for unchanged CJK and emoji but penalized changed values that had
   to copy to a string. Restricting the trial to short headers avoided changing the fresh parser.
