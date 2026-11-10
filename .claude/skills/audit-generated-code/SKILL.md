@@ -135,6 +135,12 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   version values reduced median time by 8–9% at offsets zero and one, at 0 B
   allocation per object. Short and non-null controls varied; allocations and
   all 12 wire comparisons matched. Cover an older empty region and truncation.
+  Apply the same trait to StringBuilder, CultureInfo and TimeZoneInfo. Their reads
+  can allocate or reuse the value, but do not change reader context. The isolated
+  formatter's ReadBody fell from 109 to 101 IL bytes, 1,324 to 1,232 Arm64 FullOpts
+  bytes and 1,036 to 956 emulated x64 bytes. Four M4 pairs improved the unaligned
+  512-item null case by 7–11% at 0 B per item. Non-null timings varied, including
+  identical-binary controls, and retained 32 B per item. All 12 wire cases matched.
   Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
   saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
   1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
