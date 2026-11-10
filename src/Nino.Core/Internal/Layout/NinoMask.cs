@@ -215,9 +215,10 @@ namespace Nino.Core.Internal
                 var v = ops.Load(ref mask, m);
 #if NET8_0_OR_GREATER
                 if (AdvSimd.Arm64.IsSupported && Unsafe.SizeOf<TVector>() == 16)
-                    i = CopyPairs(ref destination, ref source, i, end, ops.Lower(v));
+                    i = CopyPairs(ref destination, ref source, i, end - 1, ops.Lower(v));
 #endif
-                for (; i + 3 * width <= end; i += 4 * width)
+                // The final store handles the vector at end, even when it is aligned.
+                for (; i + 3 * width < end; i += 4 * width)
                 {
                     var a = ops.And(ops.Load(ref source, i), v);
                     var b = ops.And(ops.Load(ref source, i + width), v);
@@ -229,7 +230,7 @@ namespace Nino.Core.Internal
                     ops.Store(e, ref destination, i + 3 * width);
                 }
 
-                for (; i <= end; i += width)
+                for (; i < end; i += width)
                     ops.Store(ops.And(ops.Load(ref source, i), v), ref destination, i);
             }
             else
