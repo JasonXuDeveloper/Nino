@@ -650,10 +650,16 @@ internal static class ModelCache
         {
             foreach (var attribute in symbol.GetAttributes())
             {
-                foreach (var arg in attribute.ConstructorArguments.Concat(attribute.NamedArguments.Select(n => n.Value)))
+                foreach (var arg in attribute.ConstructorArguments)
                 {
                     if (arg.Kind == TypedConstantKind.Type)
                         Add(arg.Value as ITypeSymbol);
+                }
+
+                foreach (var arg in attribute.NamedArguments)
+                {
+                    if (arg.Value.Kind == TypedConstantKind.Type)
+                        Add(arg.Value.Value as ITypeSymbol);
                 }
             }
         }
