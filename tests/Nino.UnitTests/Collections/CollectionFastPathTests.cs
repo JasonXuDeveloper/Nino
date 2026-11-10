@@ -101,6 +101,31 @@ public class CaseInsensitiveConcurrentDictionary : ConcurrentDictionary<string, 
 public class CollectionFastPathTests
 {
     [TestMethod]
+    public void ShortRawArrayReuseKeepsTheFollowingValue()
+    {
+        foreach (int length in new[] { 80, 81, 127, 128, 129 })
+        {
+            var items = Enumerable.Range(0, length).Select(i => (byte)(i * 7)).ToArray();
+            using var buffer = new NinoArrayBufferWriter();
+            buffer.GetSpan(1);
+            buffer.Advance(1);
+            var writer = new Writer(buffer);
+            var formatter = default(UnmanagedArrayFormatter<byte>);
+            formatter.Serialize(items, ref writer);
+            writer.Write(123456);
+            writer.Flush();
+
+            var reader = new Reader(buffer.WrittenSpan.Slice(1));
+            var destination = new byte[length];
+            var original = destination;
+            formatter.Deserialize(ref reader, ref destination);
+            Assert.AreSame(original, destination);
+            CollectionAssert.AreEqual(items, destination);
+            Assert.AreEqual(123456, reader.Read<int>());
+        }
+    }
+
+    [TestMethod]
     public void StructElementsKeepTheirBytesAfterTopLevelUse()
     {
         var items = Enumerable.Range(0, 100).Select(i => new PaddedItem

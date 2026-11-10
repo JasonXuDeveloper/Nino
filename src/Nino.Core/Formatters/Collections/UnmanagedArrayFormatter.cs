@@ -146,8 +146,14 @@ namespace Nino.Core
             }
 
             var array = NinoElements.EnsureLength(ref value, length, uninitialized: true);
-            NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
-                ref reader.UnsafeAdvance((int)bytes), (uint)bytes);
+            ref byte destination = ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array));
+            ref byte source = ref reader.UnsafeAdvance((int)bytes);
+#if NET8_0_OR_GREATER
+            if (System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && bytes - 81 <= 47)
+                NinoUnsafe.CopyArm64Short(ref destination, ref source, (uint)bytes);
+            else
+#endif
+                NinoUnsafe.CopyToNew(ref destination, ref source, (uint)bytes);
         }
 
         private static void DeserializeConverted(ref Reader reader, ref T[] value)

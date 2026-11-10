@@ -649,6 +649,15 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         private const uint MaxArm64VectorCopy = 64 * 1024;
 
+        // Two overlapping fixed-size copies for an 81- to 128-byte array payload.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void CopyArm64Short(ref byte destination, ref byte source, uint size)
+        {
+            Unsafe.CopyBlockUnaligned(ref destination, ref source, 64);
+            nint tail = (nint)size - 64;
+            Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref destination, tail), ref Unsafe.Add(ref source, tail), 64);
+        }
+
         /// <summary>
         /// Copies more than 64 bytes on Arm64 (Memmove above <see cref="MaxArm64VectorCopy"/>, or in a 32-bit process;
         /// out of line, so Copy inlined into every read and write gains only this call): the first 16 bytes, then from
