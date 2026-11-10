@@ -122,6 +122,26 @@ public class CollectionFastPathTests
             Assert.AreSame(original, destination);
             CollectionAssert.AreEqual(items, destination);
             Assert.AreEqual(123456, reader.Read<int>());
+
+            var list = new List<byte>(length);
+            var originalList = list;
+            reader = new Reader(buffer.WrittenSpan.Slice(1));
+            var listFormatter = default(UnmanagedListFormatter<List<byte>, byte>);
+            listFormatter.Deserialize(ref reader, ref list);
+            Assert.AreSame(originalList, list);
+            CollectionAssert.AreEqual(items, list);
+            Assert.AreEqual(123456, reader.Read<int>());
+
+#if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
+            if (length is >= 81 and <= 128 && System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported)
+            {
+                list = buffer.WrittenSpan.ToArray().ToList();
+                reader = new Reader(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(list).Slice(1));
+                listFormatter.Deserialize(ref reader, ref list);
+                CollectionAssert.AreEqual(items, list);
+                Assert.AreEqual(123456, reader.Read<int>());
+            }
+#endif
         }
     }
 

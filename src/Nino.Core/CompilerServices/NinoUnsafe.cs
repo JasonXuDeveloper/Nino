@@ -658,6 +658,17 @@ namespace Nino.Core.CompilerServices
             Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref destination, tail), ref Unsafe.Add(ref source, tail), 64);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void CopyArm64ShortList(ref byte destination, ref byte source, uint size)
+        {
+            nint offset = Unsafe.ByteOffset(ref source, ref destination);
+            if (offset > -(nint)size && offset < (nint)size)
+                MemoryMarshal.CreateReadOnlySpan(ref source, (int)size)
+                    .CopyTo(MemoryMarshal.CreateSpan(ref destination, (int)size));
+            else
+                CopyArm64Short(ref destination, ref source, size);
+        }
+
         /// <summary>
         /// Copies more than 64 bytes on Arm64 (Memmove above <see cref="MaxArm64VectorCopy"/>, or in a 32-bit process;
         /// out of line, so Copy inlined into every read and write gains only this call): the first 16 bytes, then from
