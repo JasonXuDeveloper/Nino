@@ -394,6 +394,14 @@ of bytes in a block.
   The 512-bit cross listing showed ZMM loads and stores but did not run on
   hardware. Both modern suites, the scalar fallback and netstandard builds
   passed (`cc716ba8`).
+  Keep the overlapping final vector. Replacing it with a 64-bit group and up to
+  three scalar slots slowed the 16,897-item control by a 12% median. Two-vector
+  unrolling had no repeatable gain and slowed 15,873 items by a 4% median.
+  Advancing two byrefs with a signed countdown generated post-index loads and
+  stores, but four default-JIT M4 pairs were broadly flat at short sizes and
+  around a 64 KiB input/output footprint. The cursor version grew the shared
+  loop from 44 to 81 IL bytes and kept 92 Arm64 FullOpts bytes; emulated x64
+  remained on the 998-byte fallback. All ten wire cases matched at 0 B.
 - Keep the 81–128-byte Arm64 shortcut at the checked raw array reader. An inline branch and a
   separate helper in the shared copy dispatcher both slowed the 1 KiB direct control. Extracting
   the existing loop's vector group still affected that control, even after moving the branch.
