@@ -266,9 +266,8 @@ namespace Nino.Core.Internal
             {
                 while (true)
                 {
-                    var (lower, upper) = Vector256.Widen(Vector256.LoadUnsafe(ref source, i));
-                    lower.StoreUnsafe(ref destination, i);
-                    upper.StoreUnsafe(ref destination, i + 16);
+                    LoadWiden16To256(ref source, i).StoreUnsafe(ref destination, i);
+                    LoadWiden16To256(ref source, i + 16).StoreUnsafe(ref destination, i + 16);
                     if (i + 32 == n)
                         return;
                     // After the first 32 chars, on to the next 32-byte boundary of the string's chars (an
@@ -337,6 +336,15 @@ namespace Nino.Core.Internal
                 nuint next = i == 0 ? (64 - ((nuint)Unsafe.AsPointer(ref destination) & 63)) / 2 : i + 64;
                 i = next + 64 <= n ? next : n - 64;
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<ushort> LoadWiden16To256(ref byte source, nuint offset)
+        {
+            var bytes = Vector128.LoadUnsafe(ref source, offset);
+            return Avx2.IsSupported
+                ? Avx2.ConvertToVector256Int16(bytes).AsUInt16()
+                : Vector256.WidenLower(bytes.ToVector256Unsafe()); // Only the initialized lower half is read.
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -432,14 +440,8 @@ namespace Nino.Core.Internal
             public static nuint Width => 16;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public static bool Same(ref byte source, ref ushort chars, nuint offset)
-            {
-                var bytes = Vector128.LoadUnsafe(ref source, offset);
-                var widened = Avx2.IsSupported
-                    ? Avx2.ConvertToVector256Int16(bytes).AsUInt16()
-                    : Vector256.WidenLower(bytes.ToVector256Unsafe());
-                return widened == Vector256.LoadUnsafe(ref chars, offset);
-            }
+            public static bool Same(ref byte source, ref ushort chars, nuint offset) =>
+                LoadWiden16To256(ref source, offset) == Vector256.LoadUnsafe(ref chars, offset);
         }
 
         private readonly struct CompareShortLatin1_512 : ICompareLatin1
@@ -476,9 +478,8 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static bool Same(ref byte source, ref ushort chars, nuint offset)
             {
-                var (lower, upper) = Vector256.Widen(Vector256.LoadUnsafe(ref source, offset));
-                var first = lower ^ Vector256.LoadUnsafe(ref chars, offset);
-                var second = upper ^ Vector256.LoadUnsafe(ref chars, offset + 16);
+                var first = LoadWiden16To256(ref source, offset) ^ Vector256.LoadUnsafe(ref chars, offset);
+                var second = LoadWiden16To256(ref source, offset + 16) ^ Vector256.LoadUnsafe(ref chars, offset + 16);
                 return (first | second) == Vector256<ushort>.Zero;
             }
         }
