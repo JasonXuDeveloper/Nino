@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Numerics;
+using Nino.Core.CompilerServices;
 #endif
 
 namespace Nino.Core.Internal
@@ -322,8 +323,8 @@ namespace Nino.Core.Internal
             private bool Valid<T, TRange>(ref byte first, int length, Pass pass) where T : unmanaged
             {
                 int width = Vector<byte>.Count;
-                ref byte masks = ref pass.Masks[0];
-                ref byte bounds = ref pass.Bounds[0];
+                ref byte masks = ref NinoUnsafe.GetArrayDataReference(pass.Masks);
+                ref byte bounds = ref NinoUnsafe.GetArrayDataReference(pass.Bounds);
                 var bad = Vector<T>.Zero;
                 int period = _period;
                 int phase = 0;
