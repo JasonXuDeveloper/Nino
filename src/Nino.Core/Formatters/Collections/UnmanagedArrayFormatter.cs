@@ -31,18 +31,21 @@ namespace Nino.Core
         void INinoRawArrayFormatter.WriteTo(IBufferWriter<byte> buffer, Array array)
         {
             var values = Unsafe.As<T[]>(array);
-            int length = values.Length;
-            int size = WireSize(length);
+            WriteRawTo(buffer, values, values.Length, WireSize(values.Length));
+        }
+
+        internal static void WriteRawTo(IBufferWriter<byte> buffer, ReadOnlySpan<T> values, int length, int size)
+        {
             int payloadSize = size - NinoWire.LengthSize;
             var destination = buffer.GetSpan(size);
             var body = destination.Slice(NinoWire.LengthSize, payloadSize);
-            if (length != 0)
+            if (!values.IsEmpty)
             {
 #if NETSTANDARD2_0
-                var source = MemoryMarshal.AsBytes(values.AsSpan());
+                var source = MemoryMarshal.AsBytes(values);
 #else
                 var source = MemoryMarshal.CreateReadOnlySpan(
-                    ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), payloadSize);
+                    ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), payloadSize);
 #endif
                 // A caller-provided span may alias the source. Publish the header after the payload copy.
                 if (!NinoLayout<T>.HasPadding)

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -67,18 +68,36 @@ namespace Nino.Core
 
     /// <summary>Unmanaged <c>List&lt;T&gt;</c>: count (-1 = null), then one block copy.</summary>
     public struct UnmanagedListFormatter<[NinoCreated] TList, [NinoRaw] T> : INinoFormatter<TList>,
-        INinoSizedFormatter<TList>
+        INinoSizedFormatter<TList>, INinoExternalFormatter<TList>
         where TList : List<T>
         where T : unmanaged
     {
         // The layout of Writer.Write(ReadOnlySpan<T>) where T's memory is its wire layout.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         int INinoSizedFormatter<TList>.Size(TList value) =>
-            !NinoLayout<T>.IsCanonical ? -1
-            : value == null ? NinoWire.LengthSize
-            : (long)value.Count * Unsafe.SizeOf<T>() + NinoWire.LengthSize is var size && size <= int.MaxValue
+            NinoLayout<T>.IsCanonical ? SizedBytes(value?.Count ?? 0) : -1;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int SizedBytes(int count) =>
+            (long)count * Unsafe.SizeOf<T>() + NinoWire.LengthSize is var size && size <= int.MaxValue
                 ? (int)size
                 : -1;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        bool INinoExternalFormatter<TList>.TryWriteExternal(TList value, IBufferWriter<byte> buffer)
+        {
+            if (!BitConverter.IsLittleEndian || !NinoLayout<T>.IsCanonical)
+                return false;
+
+            // GetSpan calls user code. Keep the span and its count together across that call.
+            var values = value == null ? default : ListAccess.AsSpan<T>(value);
+            int size = SizedBytes(values.Length);
+            if (size < 0)
+                return false;
+
+            UnmanagedArrayFormatter<T>.WriteRawTo(buffer, values, value == null ? NinoWire.NullLength : values.Length, size);
+            return true;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void INinoSizedFormatter<TList>.WriteSized(TList value, ref byte destination)

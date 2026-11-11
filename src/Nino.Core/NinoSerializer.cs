@@ -99,7 +99,8 @@ namespace Nino.Core
 
         /// <summary>
         /// Serializes <paramref name="value"/> into <paramref name="bufferWriter"/>. Writing into a
-        /// <see cref="NinoArrayBufferWriter"/> or writing a raw value, raw array or fixed-size value is done in place.
+        /// <see cref="NinoArrayBufferWriter"/> or writing a raw value, raw array, raw list or fixed-size value is done
+        /// in place.
         /// Other values are copied from a scratch buffer.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

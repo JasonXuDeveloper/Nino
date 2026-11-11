@@ -94,6 +94,9 @@ namespace Nino.UnitTests
             var output = new ArrayBufferWriter<byte>();
             NinoSerializer.Serialize(dirtyHolder.Array, output);
             CollectionAssert.AreEqual(NinoSerializer.Serialize(cleanHolder.Array), output.WrittenSpan.ToArray());
+            output = new ArrayBufferWriter<byte>();
+            NinoSerializer.Serialize(dirtyHolder.List, output);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(cleanHolder.List), output.WrittenSpan.ToArray());
             CollectionAssert.DoesNotContain(NinoSerializer.Serialize(dirtyHolder.List), (byte)0xAB);
             CollectionAssert.DoesNotContain(NinoSerializer.Serialize(new SortedList<int, SubsetPadded> { [2] = nino }),
                 (byte)0xAB);

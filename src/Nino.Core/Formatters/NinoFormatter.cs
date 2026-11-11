@@ -46,6 +46,12 @@ namespace Nino.Core
         void WriteSized(T value, ref byte destination);
     }
 
+    /// <summary>A formatter that can fill a caller-provided buffer without a scratch copy.</summary>
+    internal interface INinoExternalFormatter<T>
+    {
+        bool TryWriteExternal(T value, IBufferWriter<byte> buffer);
+    }
+
     /// <summary>Top-level serialization of a value whose size its formatter knows (<see cref="INinoSizedFormatter{T}"/>).</summary>
     internal static class NinoSized
     {
@@ -268,6 +274,26 @@ namespace Nino.Core
         internal override bool Sized => NinoSized.Is<T, TFormatter>();
 
         internal override byte[] SerializeSized(T value) => NinoSized.Serialize<T, TFormatter>(value);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal override void WriteExternal(T value, IBufferWriter<byte> buffer)
+        {
+#if NET8_0_OR_GREATER
+            if (default(TFormatter) is INinoExternalFormatter<T> external && external.TryWriteExternal(value, buffer))
+#else
+            if (External.Formatter is { } external && external.TryWriteExternal(value, buffer))
+#endif
+                return;
+            base.WriteExternal(value, buffer);
+        }
+
+#if !NET8_0_OR_GREATER
+        private static class External
+        {
+            // Keep the compatibility runtimes from boxing on each write.
+            internal static readonly INinoExternalFormatter<T> Formatter = default(TFormatter) as INinoExternalFormatter<T>;
+        }
+#endif
     }
 
     /// <summary>

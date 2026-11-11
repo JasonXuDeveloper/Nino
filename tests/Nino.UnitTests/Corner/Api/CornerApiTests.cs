@@ -16,6 +16,7 @@ namespace Nino.UnitTests
         private readonly List<byte> _written = new();
         private byte[] _current = Array.Empty<byte>();
         public int GetSpanCalls;
+        public Action OnGetSpan;
 
         public byte[] Written => _written.ToArray();
 
@@ -24,6 +25,7 @@ namespace Nino.UnitTests
         public Memory<byte> GetMemory(int sizeHint = 0)
         {
             GetSpanCalls++;
+            OnGetSpan?.Invoke();
             _current = new byte[Math.Max(sizeHint, 1)];
             return _current;
         }
@@ -113,6 +115,18 @@ namespace Nino.UnitTests
             NinoSerializer.SerializeBoxed(Payload(), boxedWriter, typeof(ApiPayload));
             CollectionAssert.AreEqual(expected, boxedWriter.Written);
             CollectionAssert.AreEqual(expected, NinoSerializer.SerializeBoxed(Payload(), typeof(ApiPayload)));
+        }
+
+        [TestMethod]
+        public void RawListKeepsItsLengthWhenTheDestinationGrowsIt()
+        {
+            var values = new List<int>(1) { 42 };
+            var buffer = new StingyBufferWriter { OnGetSpan = () => values.Add(99) };
+
+            NinoSerializer.Serialize(values, buffer);
+
+            Assert.AreEqual(1, buffer.GetSpanCalls);
+            CollectionAssert.AreEqual(new[] { 42 }, NinoDeserializer.Deserialize<int[]>(buffer.Written));
         }
 
         /// <summary>A pool that records what it hands out and gets back (issue #198).</summary>
