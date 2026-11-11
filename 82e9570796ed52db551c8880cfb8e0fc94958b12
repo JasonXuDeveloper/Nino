@@ -1,0 +1,1 @@
+Fixed: Prefetching no longer calls a property getter that has a body or can dispatch to an override, so a custom getter runs only when the member is serialized.
