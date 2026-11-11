@@ -61,6 +61,8 @@ build/          UseNinoGenerator.props: the generator from source for this repos
 .github/        workflows, composite actions (setup-dotnet, apt-install), release and CI scripts
 skills/         the public skill nino-serialization: how AI agents use Nino (`npx skills add JasonXuDeveloper/Nino`)
 .claude/skills/ the development skills (internal); .agents/skills links here
+.oss-scanner/   the build image, threat model and report/patch guidelines for Anthropic's OSS Scanner
+                (anthropics/oss-scanner, projects/nino); SECURITY.md is the security contact
 ```
 
 ## Workflows

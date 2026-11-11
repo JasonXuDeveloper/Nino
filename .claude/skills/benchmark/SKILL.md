@@ -157,10 +157,19 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 4. A loss or a wash is reverted, and its numbers go into the commit message or the report, so nobody tries it again
    blind.
 
+## Upgrading a competitor
+
+- When `Directory.Packages.props` moves MemoryPack, MessagePack, protobuf-net or Google.Protobuf to a new version
+  (or the benchmark's .NET, which is System.Text.Json's), update the version
+  the docs site names in the same series: `git grep <old version>` in Nino.Docs (the home page's
+  `src/components/home-sections.tsx`, the benchmark and `vs-*` pages in both languages, `scripts/csharp-check`). Why:
+  the site syncs the numbers from the release body but writes each library's version by hand, so new numbers would
+  sit next to the old version.
+
 ## Adding a case
 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
-  MessagePack, protobuf-net), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards): a report
+  MessagePack, protobuf-net; Google.Protobuf and System.Text.Json where the case is a workload), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards): a report
   shard picked by the minutes each shard's "Run benchmarks" step took in the last report, not by case counts
   (`audit-ci`, Fast and parallel). Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
   ci.yml runs `--verify` on x64 and on Arm64 (`audit-ci`, Scripts only a release runs).
@@ -169,6 +178,20 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   `[GlobalSetup]` when it is already frozen: BenchmarkDotNet times each case in a process of its own, but
   `--verify` and asm.py's jitwarm hook run every class's setup in one process (a throwing guard aborted
   `asm.py compare`).
+- A competitor that reads into types of its own (Google.Protobuf's generated messages) implements `IReadBack`
+  (Verify.cs), which turns its result into the baseline's type outside the timed region. Generate its schema rather
+  than writing it: `Workloads/workloads.proto` is protobuf-net's `GetSchema` of the models at
+  `CompatibilityLevel.Level300` (`--write-proto`; the setup fails on a stale file), Google.Protobuf's data is parsed
+  from protobuf-net's bytes, and its result reads back through protobuf-net, so no converter is written by hand. Number
+  a protobuf type's subtypes from 1 and its own members from 20: protobuf-net reads the subtype field before the
+  base's, and Google.Protobuf writes fields in number order, so base fields first made protobuf-net create the
+  abstract base and throw. Two versions of one model (a previous release's bytes read by this one) are sealed types:
+  Nino writes a type id for a class that is not sealed, and the two types' ids differ (`ProfileCache` threw "not a
+  registered subtype"). Write System.Text.Json through a reused `Utf8JsonWriter` with `SkipValidation`, as the
+  serializer's own writers do, its source generator with `IncludeFields` for field-only models.
+- In `WorkloadTest` a library that lacks a feature is measured through its usual workaround (copies of shared
+  objects, a new instance instead of reading into one; the owner's choice for workloads), said in the model's comment
+  and in benchmarks/README.md; the other classes keep "no method rather than other data".
 - Read a joined BenchmarkDotNet summary with `grep '\| Nino'`, not `'^\| *Nino'`: with several classes it starts each
   row with a Type column.
 - Go, Rust, TypeScript: the same data in each `bench` against that language's competitors. Every column ends with
@@ -193,5 +216,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 - Never publish a quick, local or A/B number. README.md, docs/v4-benchmarks.md, the chart, the release notes and the
   docs site take them only from `report.yml` (x64 and Arm64 shards, the runtimes and Unity sections, job id
   `ShortRun-.NET 10.0`), through `release_body.py` / `readme.py` and the site's sync.
+- The headline (README's ranges and chart, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
+  every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); the v3 comparison
+  stays on SimpleTest. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
+  and the site's `src/lib/benchmarks.ts` and sync in the same series. Prose and markers that name the workloads land
+  together with `readme.py`; until a release's report measured them, their markers read "—".
 - Within 5 % is on par and is written so; under the 1 ns floor (`bdn.py`, `FLOOR_NS`) a time is "too fast to
   measure"; the docs never call Nino slower; v3 means 3.3.13.

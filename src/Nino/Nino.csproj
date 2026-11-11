@@ -6,8 +6,8 @@
         <IncludeBuildOutput>true</IncludeBuildOutput>
         <IncludeContentInPack>true</IncludeContentInPack>
         <PackageId>Nino</PackageId>
-        <Description>The fastest binary serializer for C#. General-purpose, source-generated, zero-allocation and thread-safe: for services, RPC, messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.</Description>
-        <PackageTags>Nino;Serialization;Binary</PackageTags>
+        <Description>The fastest binary serializer for C#. Source-generated, zero-allocation, thread-safe and safe on untrusted input: .NET, Native AOT, Unity, Godot and HybridCLR, with Go, Rust and TypeScript writing and reading the same bytes.</Description>
+        <PackageTags>Nino;Serialization;Serializer;Binary;SourceGenerator;ZeroAllocation;HighPerformance;NativeAOT;Unity;Godot</PackageTags>
         <NoWarn>$(NoWarn);NU5128</NoWarn>
     </PropertyGroup>
 

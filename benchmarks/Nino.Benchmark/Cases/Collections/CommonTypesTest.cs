@@ -13,11 +13,10 @@ using ProtoBuf;
 namespace Nino.Benchmark;
 
 /// <summary>
-/// Data shaped like that of common applications (CommonTypes.cs), each serialized to a reused buffer writer and
-/// deserialized into new instances: 100 players, 100 orders, 1,000 shapes through their abstract base, a tree of
-/// 1,365 nodes, 1,000 padded structs, 1,000 structs of fixed size that are not raw and a dictionary of 1,000 string
-/// pairs. Against MemoryPack, MessagePack and protobuf-net (no tree: protobuf cannot tell the leaves' empty child lists
-/// from none).
+/// Common type shapes (CommonTypes.cs), each serialized to a reused buffer writer and deserialized into new
+/// instances: a tree of 1,365 nodes, 1,000 padded structs, 1,000 structs of fixed size that are not raw and a
+/// dictionary of 1,000 string pairs. Against MemoryPack, MessagePack and protobuf-net (no tree: protobuf cannot tell
+/// the leaves' empty child lists from none). Payloads shaped like whole workloads are WorkloadTest's.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -29,13 +28,6 @@ namespace Nino.Benchmark;
 [MarkdownExporterAttribute.GitHub]
 public class CommonTypesTest
 {
-    // First, so that the data below is serialized with it (Vector3, DateTimeOffset).
-    private static readonly bool ProtobufReady = ProtobufModel.Ready;
-    private static readonly List<Player> Players = Enumerable.Range(0, 100).Select(Player.Create).ToList();
-    private static readonly List<Order> Orders = Enumerable.Range(0, 100).Select(i => Order.Create(i, new Random(i))).ToList();
-    private static readonly List<Shape> Shapes = Enumerable.Range(0, 1000)
-        .Select(i => i % 2 == 0 ? (Shape)new Circle { Color = i, Radius = i } : new Rect { Color = i, Width = i, Height = 2 })
-        .ToList();
     private static readonly TreeNode Tree = TreeNode.Create(new Random(7), 5);
     private static readonly InventoryItem[] Inventory = Enumerable.Range(0, 1000)
         .Select(i => new InventoryItem { ItemId = i, Count = (short)(i % 100), Bound = i % 3 == 0 }).ToArray();
@@ -44,18 +36,6 @@ public class CommonTypesTest
     private static readonly Dictionary<string, string> Strings = Enumerable.Range(0, 1000)
         .ToDictionary(i => "key" + i, i => "value" + i * 7);
 
-    private static readonly byte[] NinoPlayers = NinoSerializer.Serialize(Players);
-    private static readonly byte[] MessagePackPlayers = MessagePackSerializer.Serialize(Players);
-    private static readonly byte[] ProtobufPlayers = ProtobufModel.Serialize(Players);
-    private static readonly byte[] MemoryPackPlayers = MemoryPackSerializer.Serialize(Players);
-    private static readonly byte[] NinoOrders = NinoSerializer.Serialize(Orders);
-    private static readonly byte[] MessagePackOrders = MessagePackSerializer.Serialize(Orders);
-    private static readonly byte[] ProtobufOrders = ProtobufModel.Serialize(Orders);
-    private static readonly byte[] MemoryPackOrders = MemoryPackSerializer.Serialize(Orders);
-    private static readonly byte[] NinoShapes = NinoSerializer.Serialize(Shapes);
-    private static readonly byte[] MessagePackShapes = MessagePackSerializer.Serialize(Shapes);
-    private static readonly byte[] ProtobufShapes = ProtobufModel.Serialize(Shapes);
-    private static readonly byte[] MemoryPackShapes = MemoryPackSerializer.Serialize(Shapes);
     private static readonly byte[] NinoTree = NinoSerializer.Serialize(Tree);
     private static readonly byte[] MessagePackTree = MessagePackSerializer.Serialize(Tree);
     private static readonly byte[] MemoryPackTree = MemoryPackSerializer.Serialize(Tree);
@@ -77,12 +57,6 @@ public class CommonTypesTest
 
     static CommonTypesTest()
     {
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePlayers), NinoPlayers.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePlayers), MemoryPackPlayers.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeOrders), NinoOrders.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeOrders), MemoryPackOrders.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeShapes), NinoShapes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeShapes), MemoryPackShapes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTree), NinoTree.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTree), MemoryPackTree.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeInventory), NinoInventory.Length);
@@ -91,12 +65,6 @@ public class CommonTypesTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeWaypoints), MemoryPackWaypoints.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringDictionary), NinoStrings.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringDictionary), MemoryPackStrings.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePlayers), MessagePackPlayers.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePlayers), ProtobufPlayers.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeOrders), MessagePackOrders.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeOrders), ProtobufOrders.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeShapes), MessagePackShapes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeShapes), ProtobufShapes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeTree), MessagePackTree.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeInventory), MessagePackInventory.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeInventory), ProtobufInventory.Length);
@@ -116,53 +84,11 @@ public class CommonTypesTest
         _memoryPackBuffer = new ArrayBufferWriter<byte>(1 << 20);
     }
 
-    [Benchmark(Baseline = true), BenchmarkCategory("PlayersSerialize")]
-    public int NinoSerializePlayers()
-    {
-        _ninoBuffer.ResetWrittenCount();
-        NinoSerializer.Serialize(Players, _ninoBuffer);
-        return _ninoBuffer.WrittenCount;
-    }
 
-    [Benchmark, BenchmarkCategory("PlayersSerialize")]
-    public int MemoryPackSerializePlayers()
-    {
-        _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, Players);
-        return _memoryPackBuffer.WrittenCount;
-    }
 
-    [Benchmark(Baseline = true), BenchmarkCategory("OrdersSerialize")]
-    public int NinoSerializeOrders()
-    {
-        _ninoBuffer.ResetWrittenCount();
-        NinoSerializer.Serialize(Orders, _ninoBuffer);
-        return _ninoBuffer.WrittenCount;
-    }
 
-    [Benchmark, BenchmarkCategory("OrdersSerialize")]
-    public int MemoryPackSerializeOrders()
-    {
-        _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, Orders);
-        return _memoryPackBuffer.WrittenCount;
-    }
 
-    [Benchmark(Baseline = true), BenchmarkCategory("ShapesSerialize")]
-    public int NinoSerializeShapes()
-    {
-        _ninoBuffer.ResetWrittenCount();
-        NinoSerializer.Serialize(Shapes, _ninoBuffer);
-        return _ninoBuffer.WrittenCount;
-    }
 
-    [Benchmark, BenchmarkCategory("ShapesSerialize")]
-    public int MemoryPackSerializeShapes()
-    {
-        _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, Shapes);
-        return _memoryPackBuffer.WrittenCount;
-    }
 
     [Benchmark(Baseline = true), BenchmarkCategory("TreeSerialize")]
     public int NinoSerializeTree()
@@ -228,24 +154,11 @@ public class CommonTypesTest
         return _memoryPackBuffer.WrittenCount;
     }
 
-    [Benchmark(Baseline = true), BenchmarkCategory("PlayersDeserialize")]
-    public List<Player> NinoDeserializePlayers() => NinoDeserializer.Deserialize<List<Player>>(NinoPlayers);
 
-    [Benchmark, BenchmarkCategory("PlayersDeserialize")]
-    public List<Player> MemoryPackDeserializePlayers() =>
-        MemoryPackSerializer.Deserialize<List<Player>>(MemoryPackPlayers);
 
-    [Benchmark(Baseline = true), BenchmarkCategory("OrdersDeserialize")]
-    public List<Order> NinoDeserializeOrders() => NinoDeserializer.Deserialize<List<Order>>(NinoOrders);
 
-    [Benchmark, BenchmarkCategory("OrdersDeserialize")]
-    public List<Order> MemoryPackDeserializeOrders() => MemoryPackSerializer.Deserialize<List<Order>>(MemoryPackOrders);
 
-    [Benchmark(Baseline = true), BenchmarkCategory("ShapesDeserialize")]
-    public List<Shape> NinoDeserializeShapes() => NinoDeserializer.Deserialize<List<Shape>>(NinoShapes);
 
-    [Benchmark, BenchmarkCategory("ShapesDeserialize")]
-    public List<Shape> MemoryPackDeserializeShapes() => MemoryPackSerializer.Deserialize<List<Shape>>(MemoryPackShapes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("TreeDeserialize")]
     public TreeNode NinoDeserializeTree() => NinoDeserializer.Deserialize<TreeNode>(NinoTree);
@@ -276,53 +189,11 @@ public class CommonTypesTest
         MemoryPackSerializer.Deserialize<Dictionary<string, string>>(MemoryPackStrings);
 
     // MessagePack and protobuf-net.
-    [Benchmark, BenchmarkCategory("PlayersSerialize")]
-    public int MessagePackSerializePlayers()
-    {
-        _messagePackBuffer.ResetWrittenCount();
-        MessagePackSerializer.Serialize(_messagePackBuffer, Players);
-        return _messagePackBuffer.WrittenCount;
-    }
 
-    [Benchmark, BenchmarkCategory("PlayersSerialize")]
-    public int ProtobufSerializePlayers()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, Players);
-        return (int)_protobufStream.Length;
-    }
 
-    [Benchmark, BenchmarkCategory("OrdersSerialize")]
-    public int MessagePackSerializeOrders()
-    {
-        _messagePackBuffer.ResetWrittenCount();
-        MessagePackSerializer.Serialize(_messagePackBuffer, Orders);
-        return _messagePackBuffer.WrittenCount;
-    }
 
-    [Benchmark, BenchmarkCategory("OrdersSerialize")]
-    public int ProtobufSerializeOrders()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, Orders);
-        return (int)_protobufStream.Length;
-    }
 
-    [Benchmark, BenchmarkCategory("ShapesSerialize")]
-    public int MessagePackSerializeShapes()
-    {
-        _messagePackBuffer.ResetWrittenCount();
-        MessagePackSerializer.Serialize(_messagePackBuffer, Shapes);
-        return _messagePackBuffer.WrittenCount;
-    }
 
-    [Benchmark, BenchmarkCategory("ShapesSerialize")]
-    public int ProtobufSerializeShapes()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, Shapes);
-        return (int)_protobufStream.Length;
-    }
 
     [Benchmark, BenchmarkCategory("TreeSerialize")]
     public int MessagePackSerializeTree()
@@ -380,29 +251,11 @@ public class CommonTypesTest
         return (int)_protobufStream.Length;
     }
 
-    [Benchmark, BenchmarkCategory("PlayersDeserialize")]
-    public List<Player> MessagePackDeserializePlayers() =>
-        MessagePackSerializer.Deserialize<List<Player>>(MessagePackPlayers);
 
-    [Benchmark, BenchmarkCategory("PlayersDeserialize")]
-    public List<Player> ProtobufDeserializePlayers() =>
-        Serializer.Deserialize<List<Player>>(new ReadOnlySpan<byte>(ProtobufPlayers));
 
-    [Benchmark, BenchmarkCategory("OrdersDeserialize")]
-    public List<Order> MessagePackDeserializeOrders() =>
-        MessagePackSerializer.Deserialize<List<Order>>(MessagePackOrders);
 
-    [Benchmark, BenchmarkCategory("OrdersDeserialize")]
-    public List<Order> ProtobufDeserializeOrders() =>
-        Serializer.Deserialize<List<Order>>(new ReadOnlySpan<byte>(ProtobufOrders));
 
-    [Benchmark, BenchmarkCategory("ShapesDeserialize")]
-    public List<Shape> MessagePackDeserializeShapes() =>
-        MessagePackSerializer.Deserialize<List<Shape>>(MessagePackShapes);
 
-    [Benchmark, BenchmarkCategory("ShapesDeserialize")]
-    public List<Shape> ProtobufDeserializeShapes() =>
-        Serializer.Deserialize<List<Shape>>(new ReadOnlySpan<byte>(ProtobufShapes));
 
     [Benchmark, BenchmarkCategory("TreeDeserialize")]
     public TreeNode MessagePackDeserializeTree() => MessagePackSerializer.Deserialize<TreeNode>(MessagePackTree);

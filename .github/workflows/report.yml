@@ -159,10 +159,11 @@ jobs:
           fi
 
   # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), every
-  # serializer's runs of a case (Nino, MemoryPack, MessagePack, protobuf-net) always on one runner. Ten shards of 36
-  # to 52 cases (just under a minute each with three launches, a million-object ScatteredTest case over one), balanced
-  # by the shards' times in the last report (v4.0.0-rc.8's shard b, 61 cases, took 65 minutes and the others 35 to
-  # 45); BclTypesTest, CollectionsTest and CommonTypesTest are split by type, ScatteredTest by data. SimpleTest is
+  # serializer's runs of a case (Nino, MemoryPack, MessagePack, protobuf-net, and in WorkloadTest Google.Protobuf and
+  # System.Text.Json) always on one runner. Fourteen shards of 24 to 52 cases (just under a minute each with three
+  # launches, a million-object ScatteredTest case over one), balanced by the shards' times in the last report
+  # (v4.0.0-rc.9's took 34 to 47 minutes); BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest are split by
+  # type, ScatteredTest by data. SimpleTest is
   # split into its serialize (a) and deserialize (h) cases, and on x64 each half of v3 runs directly before the same
   # half of v4, on its runner, as benchmarks/run.sh does (v3 takes about 10 minutes a half, so these shards have fewer
   # v4 cases). The publish job merges the reports into one table (benchmarks/merge_reports.py). The same shards run on
@@ -456,21 +457,23 @@ jobs:
             echo "::warning::benchmarks/readme.py could not read this run: README left as it is"
             exit 0
           fi
-          # README.md goes into the NuGet packages, and nuget.org shows no SVG: render the PNG with Chrome.
-          # Headless Chrome paints less than its window, so it gets a taller window and the image is cropped.
-          # The chart's size, from the viewBox readme.py wrote.
-          read -r WIDTH HEIGHT < <(grep -oE 'viewBox="0 0 [0-9]+ [0-9]+"' docs/assets/benchmark.svg | head -n1 \
-            | sed -E 's/viewBox="0 0 ([0-9]+) ([0-9]+)"/\1 \2/')
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
-            --default-background-color=00000000 --window-size="$WIDTH,$((HEIGHT + 300))" \
-            --screenshot="$RUNNER_TEMP/chart.png" "file://$RUNNER_TEMP/chart.html"
+          # README.md goes into the NuGet packages, and nuget.org shows no SVG: render the PNGs (light and dark theme)
+          # with Chrome. Headless Chrome paints less than its window, so it gets a taller window and the image is
+          # cropped to the chart's size, from the viewBox readme.py wrote.
           python3 -m pip install --quiet pillow
-          python3 -c 'import sys; from PIL import Image; w, h = int(sys.argv[2]), int(sys.argv[3]); Image.open(sys.argv[1]).crop((0, 0, 2 * w, 2 * h)).save(sys.argv[4])' \
-            "$RUNNER_TEMP/chart.png" "$WIDTH" "$HEIGHT" docs/assets/benchmark.png
-
+          for SUFFIX in "" "-dark"; do
+            read -r WIDTH HEIGHT < <(grep -oE 'viewBox="0 0 [0-9]+ [0-9]+"' "docs/assets/benchmark$SUFFIX.svg" | head -n1 \
+              | sed -E 's/viewBox="0 0 ([0-9]+) ([0-9]+)"/\1 \2/')
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+              --default-background-color=00000000 --window-size="$WIDTH,$((HEIGHT + 300))" \
+              --screenshot="$RUNNER_TEMP/chart$SUFFIX.png" "file://$RUNNER_TEMP/chart$SUFFIX.html"
+            python3 -c 'import sys; from PIL import Image; w, h = int(sys.argv[2]), int(sys.argv[3]); Image.open(sys.argv[1]).crop((0, 0, 2 * w, 2 * h)).save(sys.argv[4])' \
+              "$RUNNER_TEMP/chart$SUFFIX.png" "$WIDTH" "$HEIGHT" "docs/assets/benchmark$SUFFIX.png"
+          done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md README.zh.md docs/v4-benchmarks.md docs/assets/benchmark.svg docs/assets/benchmark.png
+          git add README.md README.zh.md docs/v4-benchmarks.md docs/assets/benchmark.svg docs/assets/benchmark.png \
+            docs/assets/benchmark-dark.svg docs/assets/benchmark-dark.png
           if git diff --cached --quiet; then
             echo "⏭️ README numbers unchanged"
             exit 0

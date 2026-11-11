@@ -26,7 +26,7 @@ layouts.md                   the layout of every unmanaged BCL struct on every r
                              against the canonical one, from tests/Nino.RuntimeTests' `# layout` lines
 v4-benchmarks.md             build-time and runtime numbers against v3 3.3.13 and MemoryPack; the runtime tables are
                              written by benchmarks/readme.py from a release's report
-assets/                      logo.png (README); benchmark.svg (the README chart, written by readme.py) and
+assets/                      logo.png (README); benchmark.svg and benchmark-dark.svg (the README chart in light and dark, written by readme.py) and
                              benchmark.png (rendered from it by report.yml: nuget.org shows no SVG)
 ```
 

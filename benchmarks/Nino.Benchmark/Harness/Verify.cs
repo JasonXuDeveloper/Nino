@@ -17,7 +17,8 @@ namespace Nino.Benchmark;
 /// every case twice (the second call on reused buffers and targets), and checks that
 ///  - each serialize case writes as many bytes as its Payload column says (the byte[] API's length);
 ///  - every case of a category that returns a value returns one deep-equal to the baseline's: Nino, MemoryPack,
-///    MessagePack and protobuf-net read back the same data, new or in place.
+///    MessagePack, protobuf-net and System.Text.Json read back the same data, new or in place; a class that reads
+///    into other types (Google.Protobuf's messages) turns them into the baseline's type first (<see cref="IReadBack"/>).
 /// </summary>
 public static class Verify
 {
@@ -84,6 +85,7 @@ public static class Verify
                 continue;
             }
 
+            if (bench is IReadBack readBack) result = readBack.ReadBack(result, expected.GetType());
             Check($"{name} reads what {expectedFrom} reads", Same(expected, result, new HashSet<(object, object)>()));
         }
     }
@@ -166,4 +168,13 @@ public static class Verify
         return equals != null && equals.DeclaringType != typeof(object) && equals.DeclaringType != typeof(ValueType) &&
                !equals.DeclaringType!.IsDefined(typeof(CompilerGeneratedAttribute));
     }
+}
+
+/// <summary>
+/// A benchmark class whose cases read into types of their own: <see cref="ReadBack"/> turns such a result into the
+/// baseline's <paramref name="model"/> type (outside the timed region), and returns any other result as it is.
+/// </summary>
+public interface IReadBack
+{
+    object ReadBack(object result, Type model);
 }

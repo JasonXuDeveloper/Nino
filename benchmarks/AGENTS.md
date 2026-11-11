@@ -7,7 +7,8 @@ every option, class and environment variable: read it instead of guessing. The r
 benchmarks in `runtimes/*/bench`. `audit-code` audits the scripts, `benchmark` runs them, `audit-perf` and `optimize` use them.
 
 ```
-README.md                    options of run.sh, the classes, MessagePack / protobuf-net, member by member, machine code
+README.md                    options of run.sh, the classes, MessagePack / protobuf-net / Google.Protobuf / JSON, member
+                             by member, machine code
                              (asm.py, cross JIT), the runtimes' benchmarks
 run.sh                       the published runtime benchmark: v3 3.3.13 then the full v4 suite on one machine (QUICK=1,
                              FILTER=...); writes benchmarks/results/ (ignored)
@@ -15,7 +16,9 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              against MemoryPack, MessagePack and protobuf-net per class
                              (SimpleTest, PolymorphicTest, GenericPolymorphicTest, PooledTest, PooledGraphTest,
                              ReferenceTest, VersionTolerantTest, FixedSizeTest, CommonTypesTest, CollectionsTest,
-                             BclTypesTest, ScatteredTest, UntrustedTest), CpuProbe (block copies against Memmove),
+                             BclTypesTest, ScatteredTest, UntrustedTest), Workloads/ (WorkloadTest: 12 real-world
+                             payloads, the headline numbers, also against Google.Protobuf through
+                             workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
                              Harness/Verify.cs (--verify: every case reads back right), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
                              Fixtures/ contains shared models and payloads. NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest; -p:NinoBenchLegacy for older refs
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,

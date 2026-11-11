@@ -58,5 +58,8 @@
         <!-- MessagePack's formatters for System.Collections.Immutable (ImmutableCollectionResolver). -->
         <PackageVersion Include="MessagePack.ImmutableCollection" Version="3.1.12"/>
         <PackageVersion Include="protobuf-net" Version="3.4.40"/>
+        <!-- Google.Protobuf and the protoc of Grpc.Tools, which compiles WorkloadTest's workloads.proto at build time. -->
+        <PackageVersion Include="Google.Protobuf" Version="3.36.2"/>
+        <PackageVersion Include="Grpc.Tools" Version="2.85.0"/>
     </ItemGroup>
 </Project>
