@@ -46,6 +46,13 @@ public struct KeyedStruct
 }
 
 [NinoType(format: NinoFormat.Keyed)]
+public struct KeyedFlag
+{
+    public bool Enabled;
+    public int Count;
+}
+
+[NinoType(format: NinoFormat.Keyed)]
 public struct KeyedMemory
 {
     public Memory<int> Values;
@@ -157,6 +164,39 @@ public class KeyedMemberTests
 
         var r = new KeyedRecord(3, "r");
         Assert.AreEqual(r, NinoDeserializer.Deserialize<KeyedRecord>(NinoSerializer.Serialize(r)));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void KeyedBoolRejectsInvalidValue(bool reorder)
+    {
+        var value = new KeyedFlag { Enabled = true, Count = 42 };
+        var bytes = NinoSerializer.Serialize(value);
+        const int body = sizeof(int);
+        const int header = 2 * sizeof(int);
+        const int flagSize = header + sizeof(byte);
+        const int countSize = header + sizeof(int);
+        if (reorder)
+        {
+            var flag = bytes.AsSpan(body, flagSize).ToArray();
+            bytes.AsSpan(body + flagSize, countSize).CopyTo(bytes.AsSpan(body));
+            flag.CopyTo(bytes.AsSpan(body + countSize));
+        }
+
+        Assert.AreEqual(value, NinoDeserializer.Deserialize<KeyedFlag>(bytes));
+        bytes[body + (reorder ? countSize : 0) + header] = 2;
+        var error = Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<KeyedFlag>(bytes));
+        StringAssert.Contains(error.Message, "invalid bool byte");
+    }
+
+    [TestMethod]
+    public void KeyedBoolRejectsMissingPayloadAfterMatchingHeader()
+    {
+        var bytes = NinoSerializer.Serialize(new KeyedFlag { Enabled = true });
+        Array.Resize(ref bytes, 3 * sizeof(int));
+        BitConverter.GetBytes(2 * sizeof(int)).CopyTo(bytes, 0);
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<KeyedFlag>(bytes));
     }
 
     [TestMethod]

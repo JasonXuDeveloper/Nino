@@ -1248,11 +1248,15 @@ internal sealed class BodyEmitter
             var header = KeyHeader(member);
             if (header != null)
             {
-                if (member.Raw!.Read == RawRead.Plain)
+                var read = member.Raw!.Read;
+                if (read is RawRead.Plain or RawRead.Bool)
                 {
                     string local = "__k" + i;
-                    _w.Line($"if (!{r}.TryReadKeyed({header}, out {member.TypeName} {local})) goto __keyed;");
-                    _w.Line(Store(_m, member, inPlace, local, _mode.Target));
+                    // Read the wire byte so non-canonical bool values still reach the check.
+                    string type = read == RawRead.Bool ? "byte" : member.TypeName;
+                    _w.Line($"if (!{r}.TryReadKeyed({header}, out {type} {local})) goto __keyed;");
+                    string value = read == RawRead.Bool ? $"{CoreCompilerServices}NinoUnsafe.ReadBool(ref {local}, 0)" : local;
+                    _w.Line(Store(_m, member, inPlace, value, _mode.Target));
                     continue;
                 }
 
