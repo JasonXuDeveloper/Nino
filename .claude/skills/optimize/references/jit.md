@@ -286,6 +286,18 @@ and when `asm.py compare` lists methods the change did not touch.
   to 96 and 103 bytes, and x64 cross-JIT formatter code from 204 to 271 and
   386. The x64 caller stayed at 157 bytes. Six wire comparisons at offsets
   0, 1 and 7 matched for both variants, with zero steady allocation.
+  Keep the four-byte read cutoff until larger reads avoid regressing the controls. Reading five
+  to eight bytes into a signed long removed one 32 B temporary array on the local Arm64 .NET 10
+  host running the netstandard2.0 build. Sign-extend the upper word and preserve the low word.
+  Inline and small-helper variants slowed nine-byte values in ordered mixed runs, with some
+  slower controls also in randomized runs. Moving all reads above four bytes into one helper
+  removed the consistent mixed nine-byte slowdown after shuffling the case order. Its positive
+  nine-byte first-read median was still about 6% slower in the follow-up randomized comparison
+  with two identical baseline controls, so withdraw it too. That variant changed the formatter
+  from 159 to 150 IL bytes plus a 132-byte helper, and the Arm64 public read from 644 to 456 bytes
+  plus a 400-byte helper. Its x64 composite read moved from 384 to 276 bytes plus a 281-byte
+  helper. All 48 wire comparisons and 15,744 signed payload probes matched, with the nonempty
+  payloads also checked for truncation. Treat the x64 listing as code-size evidence only.
 - Rent a character buffer for portable `StringBuilder` writes of 4,096 or more characters. Use the existing
   UTF-16 reservation and copy only the builder's length. A 1,024-character cutoff regressed multi-chunk
   builders, while 4,096-character single- and multi-chunk cases improved without a steady-state allocation.
