@@ -283,6 +283,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   The search grew from 312 to 413 IL bytes, 1,196 to 1,472 Arm64 bytes and 640 to
   858 offline x64 bytes, plus the small filter helper. All generator builds matched
   emitted files, 578-model reuse and collection (`207c1206`).
+- Walk closed type arguments directly from Roslyn's immutable arrays. Recurse through containing
+  types first to keep the flattened traversal order without its list or interface boxing.
+  The 418-root real-project replay found the same 58 registrations in order and saved 22–38 KB
+  per traversal in four comparisons. Whole-project cold, cached and edit timings varied within
+  the control spread. `Walk` went from 394 IL bytes to 349 + 73, 1,284 Arm64 bytes to
+  1,108 + 252, and 870 offline x64 bytes to 765 + 186, including its new argument helper.
+  All three generator builds matched emitted source, 578-model reuse and collection
+  (`ebf033ad`).
 - Skip type parameter collection, projection and constraint rendering for non-generic models.
   Roslyn's `IsGenericType` includes parameters on containing types. The real project had 495
   non-generic models and eight arity-zero models that inherited parameters. Four default-JIT
