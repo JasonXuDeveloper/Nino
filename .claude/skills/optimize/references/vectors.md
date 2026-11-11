@@ -1466,6 +1466,13 @@ of bytes in a block.
   alongside two identical baselines, with no repeatable throughput change. All 96 wire
   samples matched at 0 B steady allocation, and all three targeted test runs passed
   (`44016216`).
+  Reduce the Arm64 accumulator directly to zero. The unsigned comparisons already fill
+  the entire failing lane, so a separate sign mask repeats work. The scan grew from 278 to
+  285 IL bytes and shrank from 200 to 192 Arm64 bytes, without the 16-byte mask constant.
+  Offline x64 instructions matched at 128/256/512 bits. Four default-JIT comparisons and
+  isolated reruns showed no repeatable throughput change on either side of 64 KiB.
+  All 120 wire samples matched at 0 B steady allocation. The guarded tests and two
+  1,500-input fuzz runs passed (`de631c97`).
   Fold a sign-only pass into a preceding pass of the same lane width after the original density
   check. Reopening vector eligibility for formerly scalar TimeOnly layouts regressed first use.
   On x64, bound the low bits and OR the masked value to preserve its sign test. On Arm64, use
