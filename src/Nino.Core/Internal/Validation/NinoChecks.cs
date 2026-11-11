@@ -24,6 +24,14 @@ namespace Nino.Core.Internal
         public static void Bools(ref byte first, int count)
         {
 #if NET8_0_OR_GREATER
+            if (count == 1)
+            {
+                byte value = first;
+                if (value > 1)
+                    NinoThrow.InvalidBool(value);
+                return;
+            }
+
             // Vectorized by the runtime.
             int at = MemoryMarshal.CreateReadOnlySpan(ref first, count).IndexOfAnyExcept((byte)0, (byte)1);
             if (at >= 0)
