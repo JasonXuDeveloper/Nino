@@ -60,13 +60,7 @@ namespace Nino.Core
 
             if (typeof(T) == typeof(bool) && values.Length < 4 && BitConverter.IsLittleEndian && Stride == 2 && Offset == 1)
             {
-                for (int i = 0; i < values.Length; i++)
-                {
-                    bool? element = Unsafe.As<T?, bool?>(ref Unsafe.Add(ref item, i));
-                    bool value = element.GetValueOrDefault();
-                    ushort slot = element.HasValue ? (ushort)(1 | Unsafe.As<bool, byte>(ref value) << 8) : (ushort)0;
-                    NinoUnsafe.Write(ref Unsafe.Add(ref dst, i * 2), slot);
-                }
+                WriteBoolValues(ref item, ref dst, values.Length);
                 return;
             }
 
@@ -93,28 +87,12 @@ namespace Nino.Core
 #endif
 
 #if !NET8_0_OR_GREATER
-            int completed = 0;
             if (typeof(T) == typeof(bool) && values.Length >= NinoKernelHook.MinWriteBoolSlots &&
-                BitConverter.IsLittleEndian && NullableLayout<T>.HasValueOffset == 0 &&
-                NullableLayout<T>.ValueOffset == 1 && Unsafe.SizeOf<T?>() == 2 && Stride == 2 && Offset == 1)
-            {
-                ref byte source = ref Unsafe.As<T?, byte>(ref item);
-                int bytes = values.Length * Stride;
-                nint distance = Unsafe.ByteOffset(ref source, ref dst);
-                if (distance <= -bytes || distance >= bytes)
-                {
-                    completed = NinoKernelHook.TryNormalizeBoolSlots(ref source, ref dst, values.Length);
-                    if (completed == values.Length)
-                        return;
-                }
-            }
-            Unsafe.InitBlockUnaligned(ref Unsafe.Add(ref dst, completed * Stride), 0,
-                (uint)((values.Length - completed) * Stride));
-            for (int i = completed; i < values.Length; i++)
-#else
+                TryWriteNativeBoolSlots(ref item, ref dst, values.Length))
+                return;
+#endif
             Unsafe.InitBlockUnaligned(ref dst, 0, (uint)(values.Length * Stride));
             for (int i = 0; i < values.Length; i++)
-#endif
             {
                 ref T? element = ref Unsafe.Add(ref item, i);
                 if (!element.HasValue)
@@ -124,6 +102,58 @@ namespace Nino.Core
                 NinoLayout<T>.Write(ref Unsafe.Add(ref slot, Offset), element.GetValueOrDefault());
             }
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteBoolValues(ref T? item, ref byte destination, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                bool? element = Unsafe.As<T?, bool?>(ref Unsafe.Add(ref item, i));
+                bool value = element.GetValueOrDefault();
+                ushort slot = element.HasValue ? (ushort)(1 | Unsafe.As<bool, byte>(ref value) << 8) : (ushort)0;
+                NinoUnsafe.Write(ref Unsafe.Add(ref destination, i * 2), slot);
+            }
+        }
+
+#if !NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryWriteNativeBoolSlots(ref T? item, ref byte destination, int count)
+        {
+            if (!BitConverter.IsLittleEndian || NullableLayout<T>.HasValueOffset != 0 ||
+                NullableLayout<T>.ValueOffset != 1 || Unsafe.SizeOf<T?>() != 2 || Stride != 2 || Offset != 1)
+                return false;
+
+            ref byte source = ref Unsafe.As<T?, byte>(ref item);
+            int bytes = count * Stride;
+            nint distance = Unsafe.ByteOffset(ref source, ref destination);
+            if (distance > -bytes && distance < bytes)
+                return false;
+
+            int completed = NinoKernelHook.TryNormalizeBoolSlots(ref source, ref destination, count);
+            WriteBoolValues(ref Unsafe.Add(ref item, completed),
+                ref Unsafe.Add(ref destination, completed * Stride), count - completed);
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryReadNativeBoolSlots(ref byte source, ref bool? destination, int count, int bytes)
+        {
+            if (!BitConverter.IsLittleEndian || NullableLayout<T>.HasValueOffset != 0 ||
+                NullableLayout<T>.ValueOffset != 1 || Unsafe.SizeOf<T?>() != 2 || Stride != 2 || Offset != 1)
+                return false;
+
+            ref byte target = ref Unsafe.As<bool?, byte>(ref destination);
+            nint distance = Unsafe.ByteOffset(ref source, ref target);
+            if (distance > -bytes && distance < bytes)
+                return false;
+
+            int completed = NinoKernelHook.TryNormalizeBoolSlots(ref source, ref target, count);
+            if (completed != count)
+                ReadBoolValues(ref Unsafe.Add(ref source, completed * Stride),
+                    ref Unsafe.Add(ref destination, completed), count - completed);
+            return true;
+        }
+#endif
 
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
@@ -268,21 +298,9 @@ namespace Nino.Core
                     }
                 }
 #else
-                if (count >= NinoKernelHook.MinBoolSlots && BitConverter.IsLittleEndian &&
-                    NullableLayout<T>.HasValueOffset == 0 && NullableLayout<T>.ValueOffset == 1 &&
-                    Unsafe.SizeOf<T?>() == 2 && Stride == 2 && Offset == 1)
-                {
-                    ref byte target = ref Unsafe.As<bool?, byte>(ref booleans);
-                    nint distance = Unsafe.ByteOffset(ref src, ref target);
-                    if (distance <= -bytes || distance >= bytes)
-                    {
-                        int completed = NinoKernelHook.TryNormalizeBoolSlots(ref src, ref target, count);
-                        if (completed != count)
-                            ReadBoolValues(ref Unsafe.Add(ref src, completed * Stride),
-                                ref Unsafe.Add(ref booleans, completed), count - completed);
-                        return;
-                    }
-                }
+                if (count >= NinoKernelHook.MinBoolSlots &&
+                    TryReadNativeBoolSlots(ref src, ref booleans, count, bytes))
+                    return;
 #endif
                 // Keep the original conversion loop for long reads outside the vector path.
                 if (count <= 1024)
