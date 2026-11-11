@@ -268,8 +268,8 @@ const codes: number[] = [];
 
 /**
  * Open class bodies after which the next one is deferred, as `NinoDepth.Inline` in .NET: its slot gets the instance
- * now and its body is written and read later, from a shallow point (see "Deep nesting" in docs/v4-design.md), so a
- * long list or deep tree, or data forged to nest deeply, costs a bounded stack.
+ * now and its body is written and read later, from a shallow point (see "Deep nesting" in
+ * docs/v4-design/binary-format.md), so a long list or deep tree, or data forged to nest deeply, costs a bounded stack.
  */
 const inlineDepth = 128;
 /** Open bodies after which a body that cannot be deferred fails, as `NinoDepth.Max` in .NET. */
