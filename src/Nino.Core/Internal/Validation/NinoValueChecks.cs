@@ -346,7 +346,8 @@ namespace Nino.Core.Internal
                     tailPhase += period & (tailPhase >> 31);
                     bad |= Test<T, TRange>(Load<T>(ref first, last), ref masks, ref bounds, tailPhase);
                 }
-                if (typeof(T) == typeof(byte))
+                // Arm64 comparisons already produce whole-lane masks.
+                if (typeof(T) == typeof(byte) || NinoSimd.HasArm64)
                     return bad == Vector<T>.Zero;
                 // Wider lanes: their sign bits.
                 return (Vector.AsVectorUInt64(bad) & new Vector<ulong>(typeof(T) == typeof(uint)
