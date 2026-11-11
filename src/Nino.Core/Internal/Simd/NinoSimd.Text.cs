@@ -284,6 +284,36 @@ namespace Nino.Core.Internal
             Widen16(ref source, ref destination, last);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe bool TryWidenAligned128(ref byte source, ref ushort destination, nuint n)
+        {
+            if (!HasArm64 || n < 512)
+                return false;
+
+            nuint misalignment = (nuint)Unsafe.AsPointer(ref destination) & 31;
+            if ((misalignment & 15) == 0)
+                return false;
+
+            // The head covers the prefix to the next 32-byte boundary, at most sixteen UTF-16 characters.
+            WidenAligned128(ref source, ref destination, n, (32 - misalignment) / 2);
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WidenAligned128(ref byte source, ref ushort destination, nuint n, nuint start)
+        {
+            Widen16(ref source, ref destination, 0);
+            nuint last = n - 16;
+            for (nuint i = start; i < last; i += 16)
+            {
+                var (lower, upper) = Vector128.Widen(Vector128.LoadUnsafe(ref source, i));
+                ref ushort at = ref Unsafe.Add(ref destination, (nint)i);
+                lower.StoreUnsafe(ref at);
+                upper.StoreUnsafe(ref at, 8);
+            }
+            Widen16(ref source, ref destination, last);
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool TryWiden512(ref byte source, ref ushort destination, nuint n)
         {

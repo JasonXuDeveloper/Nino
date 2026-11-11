@@ -401,7 +401,7 @@ namespace Nino.Core.Internal
                     size = start + (int)length;
                     return current != null && current.Length == (int)length && SameLongLatin1(ref chars, current)
                         ? current
-                        : NewLatin1(ref chars, (int)length);
+                        : NewLatin1(ref chars, (int)length, longHeader: true);
                 }
 
                 ulong bytes = (ulong)length * sizeof(char);
@@ -498,15 +498,19 @@ namespace Nino.Core.Internal
 
         /// <summary>A new string of the <paramref name="length"/> Latin-1 chars at <paramref name="source"/> (length &gt; 0).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static string NewLatin1(ref byte source, int length, bool share = true)
+        public static string NewLatin1(ref byte source, int length, bool share = true, bool longHeader = false)
         {
             // A string of one char (a digit, a letter, a separator) is shared, as char.ToString shares those of
             // ASCII chars on .NET 8 and later: no allocation. A constant share: false leaves the branch out.
             if (share && length == 1)
                 return OneChar(source);
             string value = Allocate(length);
-            Widen(ref source, ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan())),
-                (uint)length);
+            ref ushort destination = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
+#if NET8_0_OR_GREATER
+            if (longHeader && TryWidenAligned128(ref source, ref destination, (uint)length))
+                return value;
+#endif
+            Widen(ref source, ref destination, (uint)length);
             return value;
         }
 
@@ -558,8 +562,10 @@ namespace Nino.Core.Internal
             foreach (var chunk in builder.GetChunks())
             {
                 ref char destination = ref MemoryMarshal.GetReference(chunk.Span);
-                Widen(ref Unsafe.Add(ref source, done), ref Unsafe.As<char, ushort>(ref destination),
-                    (uint)chunk.Length);
+                ref byte input = ref Unsafe.Add(ref source, done);
+                ref ushort output = ref Unsafe.As<char, ushort>(ref destination);
+                if (!TryWidenAligned128(ref input, ref output, (uint)chunk.Length))
+                    Widen(ref input, ref output, (uint)chunk.Length);
                 done += chunk.Length;
             }
         }
