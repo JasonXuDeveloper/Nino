@@ -95,15 +95,9 @@ internal static class GeneratedCode
             sb.Append('\n');
     }
 
-    private const string BytesType = "global::System.ReadOnlySpan<byte>";
-    private const string BytesAlias = "__NinoBytes";
-    private const string BytesDeclaration = "using " + BytesAlias + " = " + BytesType + ";";
-
-    private static int AliasUsesNeeded(int declarationLength, int saving) => (declarationLength + 5) / saving + 1;
-
     /// <summary>
     /// The names generated bodies repeat most, each with the alias <see cref="WithAliases"/> writes it as.
-    /// A name ending in a dot is a static class, always followed by a member.
+    /// A name ending in a dot is a static class or a namespace, always followed by a member.
     /// </summary>
     private static readonly (string Name, string Alias, string Declaration)[] CoreAliases =
     {
@@ -113,7 +107,8 @@ internal static class GeneratedCode
         CoreAlias(TypeNames.CoreCompilerServices + "NinoUnsafe.", "__NinoUnsafe."),
         CoreAlias(TypeNames.CoreCompilerServices + "NinoBlocks.", "__NinoBlocks."),
         CoreAlias(TypeNames.CoreCompilerServices + "NinoTypes.", "__NinoTypes."),
-        (BytesType, BytesAlias, BytesDeclaration),
+        CoreAlias("global::System.Collections.Generic.", "__SCG."),
+        CoreAlias("global::System.ReadOnlySpan<byte>", "__NinoBytes"),
     };
 
     private static (string Name, string Alias, string Declaration) CoreAlias(string name, string alias) =>
@@ -127,84 +122,6 @@ internal static class GeneratedCode
     private const string CoreNamespaceAlias = "__C";
     private const string CoreNamespacePrefix = CoreNamespaceAlias + ".";
     private const string CoreNamespaceDeclaration = "using " + CoreNamespaceAlias + " = global::Nino.Core;";
-
-    /// <summary>Shortens dense type references without rewriting literals or scanning the whole emitted file.</summary>
-    internal struct NamespaceAliases
-    {
-        private const string Collections = "global::System.Collections.Generic.";
-        private const string CollectionsAliasName = "__SCG";
-        private const string CollectionsAlias = CollectionsAliasName + ".";
-        private const string CollectionsDeclaration = "using " + CollectionsAliasName + " = global::System.Collections.Generic;";
-        private static readonly int CoreThreshold =
-            (CoreNamespaceDeclaration.Length + 5) / (TypeNames.Core.Length - CoreNamespacePrefix.Length) + 1;
-        private static readonly int CollectionsThreshold =
-            (CollectionsDeclaration.Length + 5) / (Collections.Length - CollectionsAlias.Length) + 1;
-        private int _coreUses;
-        private int _collectionUses;
-
-        private readonly bool UseCore => _coreUses == CoreThreshold;
-        private readonly bool UseCollections => _collectionUses == CollectionsThreshold;
-        public readonly bool Ready => UseCore && UseCollections;
-
-        public void Count(string code)
-        {
-            _coreUses = CountUntil(code, TypeNames.Core, _coreUses, CoreThreshold);
-            _collectionUses = CountUntil(code, Collections, _collectionUses, CollectionsThreshold);
-        }
-
-        public readonly void Declare(List<string> declarations)
-        {
-            if (UseCore)
-                declarations.Add(CoreNamespaceDeclaration);
-            if (UseCollections)
-                declarations.Add(CollectionsDeclaration);
-        }
-
-        public readonly void Append(StringBuilder builder, string code) => Append(builder, code, 0, code.Length);
-
-        public readonly void Append(StringBuilder builder, string code, int start, int length)
-        {
-            // Keep the next match for the other prefix when writing one.
-            int end = start + length;
-            int core = UseCore ? code.IndexOf(TypeNames.Core, start, length, StringComparison.Ordinal) : -1;
-            int collections = UseCollections ? code.IndexOf(Collections, start, length, StringComparison.Ordinal) : -1;
-            int copied = start;
-            while (core >= 0 || collections >= 0)
-            {
-                if (core >= 0 && (collections < 0 || core < collections))
-                {
-                    AppendRange(builder, code, copied, core);
-                    builder.Append(CoreNamespacePrefix);
-                    copied = core + TypeNames.Core.Length;
-                    core = code.IndexOf(TypeNames.Core, copied, end - copied, StringComparison.Ordinal);
-                }
-                else
-                {
-                    AppendRange(builder, code, copied, collections);
-                    builder.Append(CollectionsAlias);
-                    copied = collections + Collections.Length;
-                    collections = code.IndexOf(Collections, copied, end - copied, StringComparison.Ordinal);
-                }
-            }
-
-            AppendRange(builder, code, copied, end);
-        }
-
-        private static void AppendRange(StringBuilder builder, string code, int start, int end) =>
-            builder.Append(code, start, end - start);
-
-        private static int CountUntil(string text, string prefix, int count, int threshold)
-        {
-            int start = 0;
-            while (count < threshold && (start = text.IndexOf(prefix, start, StringComparison.Ordinal)) >= 0)
-            {
-                count++;
-                start += prefix.Length;
-            }
-
-            return count;
-        }
-    }
 
     /// <summary>
     /// <paramref name="body"/> (the part of a file inside the <c>NinoGen</c> namespace) with the names it repeats
@@ -314,7 +231,7 @@ internal static class GeneratedCode
         if (saving <= 0)
             return body;
         int declarationLength = declaration?.Length ?? ("using ".Length + alias.Length + " = ".Length + name.Length + 1);
-        int needed = AliasUsesNeeded(declarationLength, saving);
+        int needed = (declarationLength + 5) / saving + 1;
         bool member = name[name.Length - 1] == '.';
         int first = FindName(body, name, 0, member);
         int at = first;

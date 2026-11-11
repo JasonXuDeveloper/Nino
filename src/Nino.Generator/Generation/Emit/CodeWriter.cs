@@ -40,16 +40,6 @@ internal sealed class CodeWriter
         return this;
     }
 
-    /// <summary>Writes a nonblank registration line, compacting only the supplied code fragment.</summary>
-    public void AliasedLine(string code, GeneratedCode.NamespaceAliases aliases, string prefix = "", string suffix = "")
-    {
-        StartLine(prefix.Length == 0 ? code[0] : prefix[0],
-            suffix.Length == 0 ? code[code.Length - 1] : suffix[suffix.Length - 1]);
-        _sb.Append(prefix);
-        aliases.Append(_sb, code);
-        _sb.Append(suffix).Append('\n');
-    }
-
     /// <summary>Writes an attribute and its optional comment without assembling a temporary line.</summary>
     public void AttributeLine(string name, string arguments, string comment)
     {
@@ -61,18 +51,13 @@ internal sealed class CodeWriter
     }
 
     /// <summary>Writes a numbered static forwarder without materializing its signature fragments.</summary>
-    public void NumberedForwarder(string signature, int number, string target, string call,
-        GeneratedCode.NamespaceAliases aliases)
+    public void NumberedForwarder(string signature, int number, string target, string call)
     {
         int parameters = signature.IndexOf('(');
         StartLine('p', ';');
-        _sb.Append("public static ");
-        aliases.Append(_sb, signature, 0, parameters);
-        _sb.Append(number);
-        aliases.Append(_sb, signature, parameters, signature.Length - parameters);
-        _sb.Append(" => ").Append(target);
-        aliases.Append(_sb, call);
-        _sb.Append(";\n");
+        _sb.Append("public static ").Append(signature, 0, parameters).Append(number)
+            .Append(signature, parameters, signature.Length - parameters).Append(" => ").Append(target).Append(call)
+            .Append(";\n");
     }
 
     /// <summary>Writes a numeric switch label without assembling a temporary line.</summary>

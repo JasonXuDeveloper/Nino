@@ -139,29 +139,10 @@ internal static class RegistryEmitter
         foreach (var registration in generics)
             AddStatements(registrations, registration);
         var cases = OrderCases(registrations, out int mask);
-        var compact = new GeneratedCode.NamespaceAliases();
-        // The alias counts saturate, so the bucket order does not affect which aliases are declared.
-        foreach (var entry in cases)
-        {
-            if (compact.Ready)
-                break;
-            compact.Count(entry.First);
-            if (entry.Rest != null)
-                foreach (var statement in entry.Rest)
-                    compact.Count(statement);
-        }
-        foreach (var type in layoutTypes)
-        {
-            if (compact.Ready)
-                break;
-            compact.Count(type);
-        }
-        compact.Declare(aliases);
-
         // The registry calls Register, so these stay with it: NativeAOT keeps the fields NinoLayout measures.
         foreach (var type in layoutTypes)
-            w.AliasedLine(type, compact, "[__NinoDynamicDependency(__Fields, typeof(", "))]");
-        EmitIdDispatch(w, "internal static", "", cases, mask, compact);
+            w.Line($"[__NinoDynamicDependency(__Fields, typeof({type}))]");
+        EmitIdDispatch(w, "internal static", "", cases, mask);
         w.Close();
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         return GeneratedCode.File("", aliases, body, fileScoped);
@@ -258,8 +239,7 @@ internal static class RegistryEmitter
     /// it compiles, so one switch over every type would load every formatter on the first lookup. With buckets of
     /// about <see cref="IdsPerBucket"/> ids, a lookup only loads the types of its bucket.
     /// </summary>
-    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, IdCase[] cases, int mask,
-        GeneratedCode.NamespaceAliases compact = default)
+    private static void EmitIdDispatch(CodeWriter w, string modifiers, string prelude, IdCase[] cases, int mask)
     {
         w.Open($"{modifiers} void Register(int id)");
         if (prelude.Length != 0)
@@ -267,7 +247,7 @@ internal static class RegistryEmitter
         if (mask == 0)
         {
             if (cases.Length != 0)
-                EmitIdSwitch(w, cases, compact);
+                EmitIdSwitch(w, cases);
             w.Close();
             return;
         }
@@ -292,13 +272,13 @@ internal static class RegistryEmitter
 
             w.Line();
             w.OpenNumbered("private static void __Bucket", bucket, "(int id)");
-            EmitIdSwitch(w, cases.AsSpan(start, end - start), compact);
+            EmitIdSwitch(w, cases.AsSpan(start, end - start));
             w.Close();
             start = end;
         }
     }
 
-    private static void EmitIdSwitch(CodeWriter w, ReadOnlySpan<IdCase> cases, GeneratedCode.NamespaceAliases compact)
+    private static void EmitIdSwitch(CodeWriter w, ReadOnlySpan<IdCase> cases)
     {
         w.Open("switch (id)");
         foreach (var c in cases)
@@ -306,10 +286,10 @@ internal static class RegistryEmitter
             w.CaseLabel(c.Id);
             using (w.Indent())
             {
-                w.AliasedLine(c.First, compact);
+                w.Line(c.First);
                 if (c.Rest != null)
                     foreach (var statement in c.Rest)
-                        w.AliasedLine(statement, compact);
+                        w.Line(statement);
                 w.Line("break;");
             }
         }

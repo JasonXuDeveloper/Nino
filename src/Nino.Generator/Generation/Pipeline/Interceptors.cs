@@ -291,16 +291,6 @@ internal static class Interceptors
         var aliases = new List<string> { GeneratedCode.InterceptsAlias };
         aliases.AddRange(GeneratedCode.InlineAliases);
         aliases.Add(GeneratedCode.DirectAlias);
-        var compact = new GeneratedCode.NamespaceAliases();
-        foreach (var group in groups)
-        {
-            if (compact.Ready)
-                break;
-            compact.Count(group.Key.Signature);
-            compact.Count(group.Key.Call);
-        }
-        compact.Declare(aliases);
-
         int n = 0;
         foreach (var group in groups)
         {
@@ -310,7 +300,7 @@ internal static class Interceptors
                 w.AttributeLine(GeneratedCode.InterceptsName, call.Location, call.Where);
             w.Line(GeneratedCode.Inline);
             // "R Name(params)" becomes "public static R NameN(params) => call;"
-            w.NumberedForwarder(group.Key.Signature, n++, "__NinoDirect.", group.Key.Call, compact);
+            w.NumberedForwarder(group.Key.Signature, n++, "__NinoDirect.", group.Key.Call);
         }
 
         w.Close();
