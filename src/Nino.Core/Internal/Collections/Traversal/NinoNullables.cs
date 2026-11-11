@@ -29,6 +29,15 @@ namespace Nino.Core
                                            NullableLayout<T>.ValueOffset == Offset &&
                                            Unsafe.SizeOf<T?>() == Stride;
 
+        /// <summary>
+        /// <c>bool?</c> slots laid out as on the wire: little-endian, the presence byte first and the value after it,
+        /// two bytes a slot, so slots copy as they are once their bools are checked (the native slot kernels' gate).
+        /// </summary>
+        private static readonly bool NativeBoolSlots = BitConverter.IsLittleEndian &&
+                                                       NullableLayout<T>.HasValueOffset == 0 &&
+                                                       NullableLayout<T>.ValueOffset == 1 &&
+                                                       Unsafe.SizeOf<T?>() == 2 && Stride == 2 && Offset == 1;
+
         private static readonly NinoMask Mask = BuildMask();
 
         private static NinoMask BuildMask()
@@ -65,21 +74,20 @@ namespace Nino.Core
             }
 
 #if NET8_0_OR_GREATER
-            if (typeof(T) == typeof(bool) && values.Length >= 4 &&
-                (values.Length >= 8 ? NinoSimd.Has128 : NinoSimd.HasArm64) &&
-                BitConverter.IsLittleEndian && NullableLayout<T>.HasValueOffset == 0 &&
-                NullableLayout<T>.ValueOffset == 1 && Stride == 2 && Offset == 1)
+            if (typeof(T) == typeof(bool) && values.Length >= 4 && NativeBoolSlots)
             {
                 ref ushort source = ref Unsafe.As<T?, ushort>(ref item);
                 ref ushort target = ref Unsafe.As<byte, ushort>(ref dst);
-                if (NinoSimd.Prefer512Int16 && values.Length >= Vector512<ushort>.Count)
+                if (NinoSimd.Prefer512 && values.Length >= Vector512<ushort>.Count)
                     WriteBoolSlots<Vector512<ushort>, BoolSlots512>(ref source, ref target, values.Length);
                 else if (NinoSimd.Has256 && values.Length >= Vector256<ushort>.Count)
                     WriteBoolSlots<Vector256<ushort>, BoolSlots256>(ref source, ref target, values.Length);
-                else if (values.Length >= Vector128<ushort>.Count)
+                else if (NinoSimd.Has128 && values.Length >= Vector128<ushort>.Count)
                     WriteBoolSlots<Vector128<ushort>, BoolSlots128>(ref source, ref target, values.Length);
-                else
+                else if (NinoSimd.HasArm64)
                     WriteBoolSlots<Vector64<ushort>, BoolSlots64>(ref source, ref target, values.Length);
+                else
+                    WriteBoolSlots<ulong, BoolSlotsWord>(ref source, ref target, values.Length);
 
                 return;
             }
@@ -119,8 +127,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool TryWriteNativeBoolSlots(ref T? item, ref byte destination, int count)
         {
-            if (!BitConverter.IsLittleEndian || NullableLayout<T>.HasValueOffset != 0 ||
-                NullableLayout<T>.ValueOffset != 1 || Unsafe.SizeOf<T?>() != 2 || Stride != 2 || Offset != 1)
+            if (!NativeBoolSlots)
                 return false;
 
             ref byte source = ref Unsafe.As<T?, byte>(ref item);
@@ -138,8 +145,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static bool TryReadNativeBoolSlots(ref byte source, ref bool? destination, int count, int bytes)
         {
-            if (!BitConverter.IsLittleEndian || NullableLayout<T>.HasValueOffset != 0 ||
-                NullableLayout<T>.ValueOffset != 1 || Unsafe.SizeOf<T?>() != 2 || Stride != 2 || Offset != 1)
+            if (!NativeBoolSlots)
                 return false;
 
             ref byte target = ref Unsafe.As<bool?, byte>(ref destination);
@@ -157,7 +163,7 @@ namespace Nino.Core
 
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static void WriteBoolSlots<TVector, TSlots>(ref ushort source, ref ushort target, int count)
+        internal static void WriteBoolSlots<TVector, TSlots>(ref ushort source, ref ushort target, int count)
             where TVector : struct where TSlots : struct, IBoolSlots<TVector>
         {
             nuint lanes = (uint)(Unsafe.SizeOf<TVector>() / sizeof(ushort));
@@ -179,7 +185,7 @@ namespace Nino.Core
         private const ushort InvalidBoolSlotBits = 0xFE00;
 
         // Extend the low-byte 0/1 flag to mask each slot. Readers check presence bytes separately.
-        private interface IBoolSlots<TVector> where TVector : struct
+        internal interface IBoolSlots<TVector> where TVector : struct
         {
             static abstract TVector Normalize(TVector pairs);
             static abstract bool HasInvalidValues(TVector pairs);
@@ -196,6 +202,28 @@ namespace Nino.Core
             {
                 var active = (pairs << 15).AsInt16() >> 15;
                 return pairs & active.AsUInt16();
+            }
+        }
+
+        /// <summary>
+        /// Four slots in a 64-bit word, where no vector of four slots is (x64 and x86 below one 128-bit vector, hosts
+        /// without vectors): the presence bit spread over its 16 bits masks the slot, as <see cref="BoolSlots64"/>'s shifts
+        /// do.
+        /// </summary>
+        private readonly struct BoolSlotsWord : IBoolSlots<ulong>
+        {
+            private const ulong Presence = 0x0001_0001_0001_0001UL;
+            private const ulong Invalid = InvalidBoolSlotBits * Presence;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool HasInvalidValues(ulong pairs) => (pairs & Invalid) != 0;
+
+            // (bits << 16) - bits is bits * 0xFFFF without a 64-bit multiplication, which 32-bit x86 calls a helper for.
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static ulong Normalize(ulong pairs)
+            {
+                ulong bits = pairs & Presence;
+                return pairs & ((bits << 16) - bits);
             }
         }
 
@@ -227,7 +255,7 @@ namespace Nino.Core
             }
         }
 
-        private readonly struct BoolSlots512 : IBoolSlots<Vector512<ushort>>
+        internal readonly struct BoolSlots512 : IBoolSlots<Vector512<ushort>>
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static bool HasInvalidValues(Vector512<ushort> pairs) =>
@@ -295,9 +323,7 @@ namespace Nino.Core
                     return;
                 }
 
-                if (NinoSimd.Has128 && BitConverter.IsLittleEndian &&
-                    NullableLayout<T>.HasValueOffset == 0 && NullableLayout<T>.ValueOffset == 1 &&
-                    Stride == 2 && Offset == 1)
+                if (NativeBoolSlots)
                 {
                     ref byte target = ref Unsafe.As<bool?, byte>(ref booleans);
                     nint distance = Unsafe.ByteOffset(ref src, ref target);
@@ -305,12 +331,14 @@ namespace Nino.Core
                     {
                         ref ushort source = ref Unsafe.As<byte, ushort>(ref src);
                         ref ushort destinationSlots = ref Unsafe.As<byte, ushort>(ref target);
-                        if (NinoSimd.Prefer512Int16 && count >= Vector512<ushort>.Count)
+                        if (NinoSimd.Prefer512 && count >= Vector512<ushort>.Count)
                             ReadBoolSlots<Vector512<ushort>, BoolSlots512>(ref source, ref destinationSlots, count);
                         else if (NinoSimd.Has256 && count >= Vector256<ushort>.Count)
                             ReadBoolSlots<Vector256<ushort>, BoolSlots256>(ref source, ref destinationSlots, count);
-                        else
+                        else if (NinoSimd.Has128)
                             ReadBoolSlots<Vector128<ushort>, BoolSlots128>(ref source, ref destinationSlots, count);
+                        else
+                            ReadBoolSlots<ulong, BoolSlotsWord>(ref source, ref destinationSlots, count);
                         return;
                     }
                 }
@@ -340,9 +368,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool TryReadShortBoolSlots(ref byte source, ref bool? destination, int count, int bytes)
         {
-            if (!NinoSimd.HasArm64 || !BitConverter.IsLittleEndian ||
-                NullableLayout<T>.HasValueOffset != 0 || NullableLayout<T>.ValueOffset != 1 ||
-                Stride != 2 || Offset != 1)
+            if (!NativeBoolSlots)
                 return false;
 
             ref byte target = ref Unsafe.As<bool?, byte>(ref destination);
@@ -350,20 +376,28 @@ namespace Nino.Core
             if (distance > -bytes && distance < bytes)
                 return false;
 
-            ReadShortBoolSlots(ref Unsafe.As<byte, ushort>(ref source), ref Unsafe.As<byte, ushort>(ref target), count);
+            ref ushort from = ref Unsafe.As<byte, ushort>(ref source);
+            ref ushort to = ref Unsafe.As<byte, ushort>(ref target);
+            if (NinoSimd.HasArm64)
+                ReadShortBoolSlots<Vector64<ushort>, BoolSlots64>(ref from, ref to, count);
+            else
+                ReadShortBoolSlots<ulong, BoolSlotsWord>(ref from, ref to, count);
             return true;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static void ReadShortBoolSlots(ref ushort source, ref ushort target, int count)
+        private static void ReadShortBoolSlots<TVector, TSlots>(ref ushort source, ref ushort target, int count)
+            where TVector : struct
+            where TSlots : struct, IBoolSlots<TVector>
         {
-            ReadBoolGroup<Vector64<ushort>, BoolSlots64>(ref source, ref target, 0);
-            if (count > Vector64<ushort>.Count)
-                ReadBoolGroup<Vector64<ushort>, BoolSlots64>(ref source, ref target, (uint)(count - Vector64<ushort>.Count));
+            // Four slots, then the last four (overlapping): 4 to 7 slots.
+            ReadBoolGroup<TVector, TSlots>(ref source, ref target, 0);
+            if (count > 4)
+                ReadBoolGroup<TVector, TSlots>(ref source, ref target, (uint)(count - 4));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static void ReadBoolSlots<TVector, TSlots>(ref ushort source, ref ushort target, int count)
+        internal static void ReadBoolSlots<TVector, TSlots>(ref ushort source, ref ushort target, int count)
             where TVector : struct
             where TSlots : struct, IBoolSlots<TVector>
         {
