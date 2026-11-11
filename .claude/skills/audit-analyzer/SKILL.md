@@ -194,8 +194,9 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
 
 ## Tests: every rule, every edge
 
-`tests/Nino.UnitTests/Generator/AnalyzerTests.cs` and `CodeFixTests.cs` (locations as markup, `{|#0:Name|}` and
-`.WithLocation(0)`, never line and column spans):
+`tests/Nino.UnitTests/Generator/Analyzer/AnalyzerTests.*.cs` and `Generator/CodeFixes/CodeFixTests.*.cs`, one
+partial file per group of rules, named after the group (a new rule's tests go into its group's file, or a new one;
+locations as markup, `{|#0:Name|}` and `.WithLocation(0)`, never line and column spans):
 - each NINO id appears in a test that expects it and one that expects it not to fire; each code fix has a case per
   form it rewrites, its output compiles and reports nothing, and applying it twice changes nothing;
 - edge cases where they apply: generic, nested and partial types, records and structs, inheritance across
