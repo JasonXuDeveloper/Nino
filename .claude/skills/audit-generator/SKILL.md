@@ -258,6 +258,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   and passed the collection probes. `Build` went from 1,140 to 1,142 IL bytes, 3,636 to
   3,524 Arm64 bytes, and 3,364 to 3,281 offline x64 bytes. The uncommon collection helper
   adds 58 IL, 288 Arm64 and 198 offline x64 bytes (`eea79b60`).
+- Skip sorting empty closed registrations and enumerate nesting names in their existing order
+  through one iterator. Only 43 of the 578 real-project models named closed types and three named
+  nesting formatters. Four warmed model traversals saved 153–163 KB each, while whole-project
+  cold and edit measurements stayed in the baseline spread. All three Roslyn builds matched
+  generated source across the four phases and kept 578-model reuse and collection.
+  `BuildRegistrations` went from 570 to 482 IL bytes, 2,500 to 2,100 Arm64 FullOpts bytes,
+  and 1,861 to 1,526 offline x64 bytes. The iterator entry and `MoveNext` add 29/291 IL,
+  120/636 Arm64 and 98/397 offline x64 bytes (`e1fb67e9`).
 - Skip type parameter collection, projection and constraint rendering for non-generic models.
   Roslyn's `IsGenericType` includes parameters on containing types. The real project had 495
   non-generic models and eight arity-zero models that inherited parameters. Four default-JIT
