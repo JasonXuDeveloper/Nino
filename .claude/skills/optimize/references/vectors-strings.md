@@ -66,7 +66,7 @@ Contents: [Rules](#rules), [Short reuse](#short-reuse), [Long comparison](#long-
 - Measure the short Latin-1 dispatcher and neighbouring sizes when widening the batch. For x64 short reuse, widen one
   result vector per block: 16 source bytes to 16 UTF-16 chars with AVX2, or 32 to 32 with AVX-512BW. Share
   `SameLatin1Blocks` with the long comparators through two small policies; select 512, 256 and 128 outside the loop,
-  retaining `Prefer512Int16`. Test the 32-char bound before reading the CPU preference. Keep the x64 dispatch out of
+  gated by `Prefer512` (it implies AVX-512BW). Test the 32-char bound before reading the CPU preference. Keep the x64 dispatch out of
   the Arm64 24–63-char path: its normalized FullOpts reader remains 1,240 B and its medium helper 148 B. Four
   default-JIT A/B rounds with repeated-binary controls were on par across 15/16/17/23/24/31/32/33/47/63/64/65 chars,
   offsets 0 and 7, equal strings and front/tail edits; equal reads allocated 0 B. The short comparator IL grows 309 to

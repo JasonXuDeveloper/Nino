@@ -160,8 +160,8 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   showed ZMM loads and stores but did not run on hardware. Both modern suites, the scalar fallback and netstandard
   builds passed (`cc716ba8`).
 - Reuse that write loop for 512/256/128-bit groups on modern .NET. Select the largest complete group through NinoSimd
-  and require its shared Prefer512Int16 policy for 16-bit AVX-512BW shifts. Four-to-seven-element vector groups remain
-  Arm64-only. The width adapters contain the shifts and mask; the traversal and overlapping tail stay shared. Portable
+  and require `Prefer512` (it implies AVX-512BW) for the 16-bit shifts. Four-to-seven-element groups take Arm64's
+  `Vector64` or, elsewhere, the `ulong` word (`BoolSlotsWord`). The width adapters contain the shifts and mask; the traversal and overlapping tail stay shared. Portable
   tests directly exercised 64/128/256/512-bit kernels with dirty null slots, offsets 0/1/7 and sentinels. The x64
   guest selected AVX2 or SSE2 and matched the scalar wire bytes. Offline x64 emitted XMM/YMM/ZMM bodies of 78/79/99 B;
   only the audit copy omitted AggressiveOptimization for ReadyToRun. Native AVX-512 execution and throughput remain
