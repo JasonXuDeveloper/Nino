@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Nino.Core
@@ -21,7 +22,7 @@ namespace Nino.Core
     /// </para>
     /// <para>
     /// Each kernel must produce exactly the bytes of its scalar reference (<see cref="PermuteScalar"/>,
-    /// <see cref="NarrowScalar"/>, <see cref="WidenScalar"/>, <see cref="NarrowAsciiScalar"/>,
+    /// <see cref="Interleave32Scalar"/>, <see cref="NarrowScalar"/>, <see cref="WidenScalar"/>, <see cref="NarrowAsciiScalar"/>,
     /// <see cref="WidenAsciiScalar"/>, <see cref="NormalizeBoolSlotsScalar"/>): the wire format does not depend on which
     /// path ran. Nino calls a kernel only for runs of at least <see cref="MinBlocks"/> values or
     /// <see cref="MinChars"/> chars, where the call costs less than it saves. Register kernels before serializing,
@@ -88,8 +89,8 @@ namespace Nino.Core
 
         /// <summary>
         /// The fewest values of a collection <see cref="Permute"/> is called for (default 16; at least 16 to copy raw
-        /// structs with padding, whose own path already copies whole words; <see cref="NormalizeBoolSlots"/> uses
-        /// at least 16 slots when reading and 32 when writing).
+        /// structs with padding, whose own path already copies whole words; <see cref="Interleave32"/> uses at least
+        /// 16 pairs, <see cref="NormalizeBoolSlots"/> at least 16 slots when reading and 32 when writing).
         /// </summary>
         public int MinBlocks { get; set; } = 16;
 
@@ -107,7 +108,10 @@ namespace Nino.Core
         public delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void> Permute { get; set; }
 
         /// <summary>
-        /// Interleaves two arrays of four-byte raw values into the checked destination. Count is a multiple of four.
+        /// <c>void Interleave32(int* first, int* second, byte* target, int count)</c>: writes the <c>count</c> pairs of
+        /// four-byte values <c>first[i]</c>, <c>second[i]</c> as 8 bytes each at <c>target + 8 * i</c> (a raw
+        /// <c>SortedList</c>'s keys and values as wire pairs). <c>count</c> is a multiple of four; the destination
+        /// overlaps neither source and may be unaligned. Reference: <see cref="Interleave32Scalar"/>.
         /// </summary>
         public delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void> Interleave32 { get; set; }
 
@@ -119,6 +123,16 @@ namespace Nino.Core
         /// Bytes after the completed prefix remain untouched. Reference: <see cref="NormalizeBoolSlotsScalar"/>.
         /// </summary>
         public delegate* unmanaged[Cdecl]<byte*, byte*, int, int> NormalizeBoolSlots { get; set; }
+
+        /// <summary>The bytes <see cref="Interleave32"/> must write, one pair at a time.</summary>
+        public static void Interleave32Scalar(int* first, int* second, byte* target, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                Unsafe.WriteUnaligned(target + 8 * (nint)i, first[i]);
+                Unsafe.WriteUnaligned(target + 8 * (nint)i + 4, second[i]);
+            }
+        }
 
         /// <summary>What <see cref="NormalizeBoolSlots"/> does, with one slot per processing group.</summary>
         public static int NormalizeBoolSlotsScalar(byte* source, byte* destination, int count)
