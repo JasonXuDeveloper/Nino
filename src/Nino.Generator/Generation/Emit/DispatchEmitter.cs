@@ -21,6 +21,18 @@ internal static class DispatchEmitter
     /// <summary>Above this many subtypes, writes go through the registry rather than a chain of type checks.</summary>
     private const int MaxWriteChain = 64;
 
+    /// <summary>
+    /// A bucket of at most this many subtypes with distinct ids compares the ids directly, without the collision
+    /// filter larger buckets need (5cf67a6d).
+    /// </summary>
+    private const int MaxDirectBucket = 4;
+
+    /// <summary>
+    /// From this many subtypes on, nested exact-subtype writes go out of line so a wide dispatch does not repeat the
+    /// depth handling per case; fewer stay inline (a70aab2c).
+    /// </summary>
+    private const int MinOutlinedNestedWrites = 4;
+
     private const string CompactServices = GeneratedCode.CompilerServicesPrefix;
 
     public static string Emit(EquatableArray<DispatchEntry> entries, bool fileScoped)
@@ -134,11 +146,15 @@ internal static class DispatchEmitter
     /// about 45% slower, since the indirect jump mispredicts where the conditional branches mostly do not, and in a
     /// fixed order it was equal; it executes one instruction more on x64 and three fewer on ARM64.
     /// </summary>
+    /// <summary>A type name as a comment shows it: without the <c>global::</c> qualifier.</summary>
+    private static string Display(string typeName) => typeName.Replace("global::", "");
+
     private static void EmitReadSwitch(CodeWriter w, List<DispatchEntry> subtypes)
     {
         w.Open("switch (id)");
         for (int i = 0; i < subtypes.Count; i++)
-            w.Line($"case {subtypes[i].TypeId.ToString(CultureInfo.InvariantCulture)}: __ReadExact{i}(ref reader, ref value); return;");
+            // The subtype's name after the id: the ids alone do not say which type a case reads.
+            w.Line($"case {subtypes[i].TypeId.ToString(CultureInfo.InvariantCulture)}: __ReadExact{i}(ref reader, ref value); return; // {Display(subtypes[i].TypeName)}");
         w.Close();
     }
 
@@ -154,7 +170,7 @@ internal static class DispatchEmitter
         if (all.Count == 1)
             return all[0].TypeId == baseId ? null : all;
 
-        if (all.Count <= 4 && HasUniqueIds(all, baseId))
+        if (all.Count <= MaxDirectBucket && HasUniqueIds(all, baseId))
             return all;
 
         var subtypes = new List<DispatchEntry>();
@@ -203,7 +219,7 @@ internal static class DispatchEmitter
         if (subtypes is { Count: > 0 and <= MaxWriteChain })
         {
             // Leave small writes inline. Nested writes repeat the depth handling in a wider dispatch.
-            bool outlineNestedWrites = subtypes.Count >= 4;
+            bool outlineNestedWrites = subtypes.Count >= MinOutlinedNestedWrites;
             w.Open(WriteSubtype(t));
             for (int i = 0; i < subtypes.Count; i++)
             {

@@ -21,6 +21,19 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal sealed class BodyEmitter
 {
+    /// <summary>
+    /// Keyed fallback switches of at most this many members open the member reader in each known case (the JIT then
+    /// drops the unused child reader: 1,000 reused <c>KeyedStruct</c>s 8.4 to 7.4 µs, M4); larger switches share one
+    /// region read so it is not repeated at every case (`audit-generated-code`, read-paths.md).
+    /// </summary>
+    private const int MaxSplitRegionMembers = 3;
+
+    /// <summary>
+    /// Constructor argument lists up to this long are scanned for each member; longer ones go through a set (the unit
+    /// tests' constructors take at most three; `audit-generator`, emit-text.md).
+    /// </summary>
+    private const int MaxScannedArguments = 8;
+
     private readonly TypeModel _m;
     private readonly CodeWriter _w;
     private readonly FormatterNames _names;
@@ -138,15 +151,29 @@ internal sealed class BodyEmitter
     private bool OutOfLine => _m.OutOfLineBody;
 
     /// <summary>
-    /// Writes the methods in front of a body method (the instance forwarder, and the wrapper that calls an
-    /// inlinable body on a local copy of the reader or writer), with the attributes of the body method, and returns
-    /// the body method's signature, for the caller to write its statements under. An out-of-line body is a static method behind an inlined instance forwarder:
-    /// a call to an instance method of the (empty) formatter struct stores a dummy byte on the caller's stack and
-    /// passes its address as <c>this</c>. A body inlined wherever the formatter is used
-    /// (<see cref="TypeModel.InlineBody"/>) is an inlinable static method (<c>__ReadBodyInline</c>) that the forwarder
-    /// and the <c>__Top</c> twin call, with no out-of-line copy. An out-of-line body on a local copy of the writer
-    /// (<see cref="TypeModel.LocalWriter"/>), or whose new-instance read the <c>__Top</c> twin shares
-    /// (<see cref="TypeModel.ReadTop"/>), calls an inlinable one on that copy.
+    /// Writes the methods in front of a body method (an instance forwarder, and the wrapper that calls an inlinable
+    /// body on a local copy of the reader or writer), with the attributes of the body method, and returns the body
+    /// method's signature, for the caller to write its statements under. Where the body goes depends on who calls it:
+    /// <list type="bullet">
+    /// <item>A body of raw members only (not <see cref="OutOfLine"/>) is the instance <c>WriteBody</c> /
+    /// <c>ReadBody</c> itself, AggressiveInlining.</item>
+    /// <item>An out-of-line body that only the formatter's own <c>WriteBody</c> / <c>ReadBody</c> calls (most of
+    /// them) is that instance method itself, <c>[NoInline]</c>. It used to be a static method behind an inlined
+    /// instance forwarder, which avoided passing the address of a dummy byte as <c>this</c>; merging the two kept the
+    /// no-inline boundary, removed the forwarder's source and IL, and measured on par or faster (709af0ae for reads, 8ca095f4
+    /// for writes; audit-generated-code, read-paths.md and write-paths.md).</item>
+    /// <item>A body inlined wherever the formatter is used (<see cref="TypeModel.InlineBody"/>) is an inlinable static
+    /// method (<c>__ReadBodyInline</c>, <c>__WriteBodyInline</c>) that the forwarder and the <c>__Top</c> twin call,
+    /// with no out-of-line copy.</item>
+    /// <item>A body another method shares stays a static <c>[NoInline]</c> method (<c>__WriteBody</c>,
+    /// <c>__ReadBody</c>) behind an inlined forwarder: a write on a local copy of the writer
+    /// (<see cref="TypeModel.LocalWriter"/>) or a read whose new-instance path the <c>__Top</c> twin shares
+    /// (<see cref="TypeModel.ReadTop"/>) calls an inlinable <c>...Inline</c> twin on that copy.</item>
+    /// <item>A struct's write stays a static method, to take the struct by reference (<see cref="ValueArgument"/>): an
+    /// instance body taking it by value grew its machine code by up to twice and wrote lists of structs 5-13% slower.</item>
+    /// </list>
+    /// Shallow bodies (<see cref="EmitShallowBodies"/>) are always static <c>__WriteBodyShallow</c> /
+    /// <c>__ReadBodyShallow</c> methods.
     /// </summary>
     private string EmitForwardersReturningSignature(string name, string parameters)
     {
@@ -162,7 +189,8 @@ internal sealed class BodyEmitter
             return $"internal static void __{name}Shallow({parameters})";
         }
 
-        // Keep static bodies when a caller shares them or the write takes a struct by reference.
+        // Out of line, and called only through this instance method: the body is the method itself. A body that a
+        // twin shares, and a struct's write (by reference), stay static, below.
         if (OutOfLine && !_m.InlineBody && (write ? !LocalWriter && _m.Kind != FormatterKind.Struct : !ReadTop))
         {
             _w.Line(_names.NoInline);
@@ -1035,7 +1063,7 @@ internal sealed class BodyEmitter
 
         // The planner already matched each argument to its serialized member name.
         string call = assign + c.Creator + "(" + string.Join(", ", c.Arguments.Select(Local)) + ")";
-        var args = c.Arguments.Length > 8 ? new HashSet<string>(c.Arguments) : null;
+        var args = c.Arguments.Length > MaxScannedArguments ? new HashSet<string>(c.Arguments) : null;
         bool initialized = false;
         foreach (var member in _m.Members)
         {
@@ -1280,9 +1308,8 @@ internal sealed class BodyEmitter
             _w.Line("__keyed:");
         _w.Open($"while (!{r}.Eof)");
         _w.Line($"int __key = {r}.UnsafeRead<int>();");
-        // Keep large switches from duplicating the region read at every case.
-        bool splitRegion = members.Count is > 0 and <= 3;
-        _w.Line(splitRegion ? "global::Nino.Core.Reader __m;" : $"var __m = {r}.ReadRegion();");
+        bool splitRegion = members.Count is > 0 and <= MaxSplitRegionMembers;
+        _w.Line(splitRegion ? $"{Core}Reader __m;" : $"var __m = {r}.ReadRegion();");
         if (members.Count != 0)
         {
             // A member's value fills its entry exactly; an unknown member is skipped with its entry.
