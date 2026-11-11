@@ -54,14 +54,8 @@ namespace Nino.Core
                 return;
             }
 
-            // Small copies already have an efficient chunk loop; larger builders may allocate a chunk index.
-            if (length <= 64)
-            {
-                CopyChunks(value, length, ref body);
-                return;
-            }
-#endif
-#if !NETSTANDARD2_0
+            CopyChunks(value, length, ref body);
+#elif !NETSTANDARD2_0
             value.CopyTo(0, MemoryMarshal.CreateSpan(ref Unsafe.As<byte, char>(ref body), length), length);
 #else
             if (length >= 4096)
@@ -76,6 +70,11 @@ namespace Nino.Core
         }
 
 #if NET8_0_OR_GREATER
+        // Out of line: the loop kept inline enlarged every caller for the one-character case (optimize,
+        // jit-formatters.md). Each chunk through NinoUnsafe.Copy, never StringBuilder.CopyTo: CopyTo copies with the
+        // BCL's Memmove, which serialized a 1,000-char builder 2.6 times slower on an EPYC 9V74 and 1.55 times on
+        // Neoverse-N2 (runner A/B, rc.10 review head f26881a1 against main 51a7bd18), where NinoUnsafe.Copy's vector
+        // loops are tuned per CPU. GetChunks allocates only for a builder of more than 8 chunks.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void CopyChunks(StringBuilder value, int length, ref byte body)
         {
