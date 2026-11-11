@@ -28,8 +28,11 @@ Properties/launchSettings.json  debug profile: runs the generator on tests/Nino.
 ## Analysis/
 
 ```
-NinoAnalyzer.cs              the DiagnosticAnalyzer: attribute usage, and what ModelBuilder finds for a type (the
-                             generator reports nothing)
+NinoAnalyzer.cs              the DiagnosticAnalyzer: registration, assembly attributes ([NinoFormatter], the layout
+                             baseline), top-level calls (the generator reports nothing); its other parts:
+NinoAnalyzer.Formatters.cs     Nino.Core's generic formatters made by hand over Vector<T> (NINO029)
+NinoAnalyzer.Types.cs          what ModelBuilder finds for a type, the layout baseline check of it, NINO032
+NinoAnalyzer.Callbacks.cs      methods marked as serialization callbacks (NINO038-NINO044)
 NinoDiagnostics.cs           every NINO0xx descriptor, grouped by id range (also compiled into the code fixes)
 NinoSuppressor.cs            suppresses "never used / never assigned / make readonly" on private members Nino serializes
 LayoutCheck.cs               the layout baseline of a compilation as the analyzer checks it (NINO034-NINO037): parsed
@@ -79,7 +82,9 @@ MemberCache.cs               MemberCollector's results memoized per compilation
 MemberCollector.cs           the serialized members in wire order, and the findings about their annotations
 Model.cs                     the equatable model records (TypeModel, MemberModel, registrations, intercepted calls,
                              dispatch); TypeModel.Need, DispatchesSubtypes, IsDispatchRoot
-ModelBuilder.cs              turns a [NinoType] symbol into a TypeModel (reports through a DiagnosticSink)
+ModelBuilder.cs              turns a [NinoType] symbol into a TypeModel (reports through a DiagnosticSink): the type,
+                             its construction, dispatch and registrations
+ModelBuilder.Members.cs      the MemberModel of each serialized member, and whether members start at their defaults
 PrefetchRules.cs             which classes' top-level arrays and lists prefetch their objects (INinoPrefetchFormatter):
                              the object's estimated bytes for the cache budget, and which members' objects it prefetches
 TypeFacts.cs                 everything model builds ask about one compilation's symbols, memoized and shared
@@ -87,6 +92,7 @@ TypeShape.cs                 TypeShape (what a [NinoType] is: kind, format, trac
                              that decide what its formatter has)
 WrittenParameters.cs         which type parameters of a generic [NinoType] its formatter writes (a fixpoint over the
                              definitions, memoized per compilation): what NINO029 and NINO007 search of a closed one
+Pattern.cs                   Pattern and PatternKind: what a generic formatter writes of one type argument
 ```
 
 ### Generation/Binding/
@@ -122,6 +128,8 @@ ModelCache.cs                reuses TypeModels across compilations while nothing
 NinoGenerator.cs             the IIncrementalGenerator: one formatter file per [NinoType], NinoGen.Registry.g.cs,
                              NinoGen.Usages.g.cs, NinoGen.Dispatch.g.cs, NinoGen.Interceptors.g.cs,
                              NinoGen.Nesting.g.cs
+NinoGenerator.Syntax.cs      the syntax-only predicates (run on every keystroke): calls that may reach Nino, types
+                             that may carry [NinoType]
 ```
 
 ## Generation/Emit/ (generated text)
@@ -129,7 +137,10 @@ NinoGenerator.cs             the IIncrementalGenerator: one formatter file per [
 ```
 FormatterEmitter.cs          the source file of one type's formatter
 BodyEmitter.cs               WriteBody / ReadBody and WriteMembers / ReadMembers: positional, version-tolerant and
-                             keyed layouts, raw blocks, __Shallow and fresh bodies
+                             keyed layouts, __Shallow and fresh bodies; raw structs, fixed-size and block bodies
+BodyEmitter.Writes.cs        the member writes: positional, raw blocks, a region opened with its first raw members
+BodyEmitter.Reads.cs         the member reads: in place, recreating (constructor arguments), split fresh bodies
+BodyEmitter.Keyed.cs         keyed bodies: (key, length, value) writes and the in-order reads with their fallback
 RawBlock.cs                  consecutive raw members in one reservation (offsets as expressions)
 MemberCode.cs                expressions and statements reading or assigning a member, whatever its accessibility
 AccessorEmitter.cs           non-public member access: [UnsafeAccessor] (.NET 8+, generic .NET 9+) or a partial class
