@@ -50,6 +50,27 @@ public class IncrementalGeneratorTests
     }
 
     [TestMethod]
+    public void ShiftedModelsReuseTheirFormatterText()
+    {
+        // A type inserted ahead of another shifts it to a new slot of the model step; its file must be the same
+        // SourceText instance, found by model value (EmittedFormatters), so the compiler keeps its parsed tree.
+        var compilation = Create(("Types.cs", Usings + "[NinoType] public class Kept { public int A; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGenerators(compilation);
+        var before = Text(driver);
+
+        compilation = Edit(compilation, "Types.cs", "[NinoType] public class Kept",
+            "[NinoType] public class Inserted { public long B; }\n[NinoType] public class Kept");
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Inc_InsertedFormatter.g.cs").SourceText.ToString(), "value.B");
+        Assert.AreSame(before, Text(driver));
+
+        static SourceText Text(GeneratorDriver driver) => driver.GetRunResult().Results[0].GeneratedSources
+            .Single(s => s.HintName == "NinoGen.Inc_KeptFormatter.g.cs").SourceText;
+    }
+
+    [TestMethod]
     public void DependentModelsAreRebuiltOnEdit()
     {
         var compilation = Create(

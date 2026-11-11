@@ -19,97 +19,38 @@ namespace Nino.Generator.Generation;
 /// </summary>
 internal static class EmittedFormatters
 {
-    private const int GenerationSize = 2048;
+    private const int MinSweep = 1024;
 
     private static readonly object Lock = new();
+
+    /// <summary>Keeps each emission alive exactly as long as its text, which Roslyn or another consumer holds.</summary>
     private static readonly ConditionalWeakTable<SourceText, Emission> Live = new();
-    private static Index _current = new();
-    private static Index _previous = new();
+
+    /// <summary>
+    /// The latest emission per bucket key, compared by the full model on a hit. Two live models rarely share a key
+    /// (an older version of the same type, another project's), and the one emitted last wins it.
+    /// </summary>
+    private static readonly Dictionary<int, WeakReference<Emission>> Index = new();
+
+    /// <summary>The <see cref="Index"/> size at which its collected entries are swept out.</summary>
+    private static int _sweepAt = MinSweep;
 
     private sealed record Emission(TypeModel Model, bool FileScoped, SourceText Text);
-
-    private sealed class Index
-    {
-        // Most hashes have one entry. Allocate a list only when live models share a hash.
-        private readonly Dictionary<int, object> _buckets = new();
-        public int Count { get; private set; }
-
-        public WeakReference<Emission>? Find(int hash, TypeModel model, bool fileScoped, out SourceText? text)
-        {
-            if (_buckets.TryGetValue(hash, out var slot))
-            {
-                if (slot is WeakReference<Emission> single)
-                {
-                    if (!single.TryGetTarget(out var entry))
-                    {
-                        _buckets.Remove(hash);
-                        Count--;
-                    }
-                    else if (entry.FileScoped == fileScoped && entry.Model.Equals(model))
-                    {
-                        text = entry.Text;
-                        return single;
-                    }
-
-                    text = null;
-                    return null;
-                }
-
-                var bucket = (List<WeakReference<Emission>>)slot;
-                for (int i = bucket.Count - 1; i >= 0; i--)
-                {
-                    var weak = bucket[i];
-                    if (!weak.TryGetTarget(out var entry))
-                    {
-                        bucket.RemoveAt(i);
-                        Count--;
-                    }
-                    else if (entry.FileScoped == fileScoped && entry.Model.Equals(model))
-                    {
-                        text = entry.Text;
-                        return weak;
-                    }
-                }
-
-                if (bucket.Count == 0)
-                    _buckets.Remove(hash);
-            }
-
-            text = null;
-            return null;
-        }
-
-        public void Add(int hash, WeakReference<Emission> emission)
-        {
-            if (!_buckets.TryGetValue(hash, out var slot))
-                _buckets.Add(hash, emission);
-            else if (slot is WeakReference<Emission> single)
-                _buckets[hash] = new List<WeakReference<Emission>> { single, emission };
-            else
-                ((List<WeakReference<Emission>>)slot).Add(emission);
-            Count++;
-        }
-    }
 
     /// <summary>
     /// The file of <paramref name="model"/> in the layout <paramref name="fileScoped"/> selects, emitted by
     /// <paramref name="emit"/> unless an equal model's is known.
     /// </summary>
-    public static SourceText Get(TypeModel model, bool fileScoped, System.Func<TypeModel, bool, string> emit)
+    public static SourceText Get(TypeModel model, bool fileScoped, Func<TypeModel, bool, string> emit)
     {
-        // The index compares the full model on a hit; bucket it without hashing every member and registration.
+        // Compared by the full model on a hit: bucket it without hashing every member and registration.
         int count = model.Members.Length;
         string? lastType = count == 0 ? null : model.Members[count - 1].TypeName;
         int hash = (model.FormatterName, model.Format, count, lastType, fileScoped).GetHashCode();
         lock (Lock)
         {
-            if (_current.Find(hash, model, fileScoped, out var text) != null)
-                return text!;
-            if (_previous.Find(hash, model, fileScoped, out text) is { } previous)
-            {
-                Add(hash, previous);
-                return text!;
-            }
+            if (Find(hash, model, fileScoped) is { } text)
+                return text;
         }
 
         var emitted = SourceText.From(emit(model, fileScoped), Encoding.UTF8);
@@ -117,23 +58,34 @@ internal static class EmittedFormatters
         lock (Lock)
         {
             // Another generator may have finished an equal emission while this one rendered.
-            if (_current.Find(hash, model, fileScoped, out var text) != null)
-                return text!;
+            if (Find(hash, model, fileScoped) is { } text)
+                return text;
             Live.Add(emitted, entry);
-            Add(hash, new WeakReference<Emission>(entry));
+            Index[hash] = new WeakReference<Emission>(entry);
+            if (Index.Count >= _sweepAt)
+                Sweep();
         }
+
         return emitted;
     }
 
-    /// <summary>Adds an entry to the current generation, starting a new one when it is full. Guarded by <see cref="Lock"/>.</summary>
-    private static void Add(int hash, WeakReference<Emission> entry)
-    {
-        if (_current.Count >= GenerationSize)
-        {
-            _previous = _current;
-            _current = new Index();
-        }
+    /// <summary>The text of an equal model's emission, if it is still alive. Guarded by <see cref="Lock"/>.</summary>
+    private static SourceText? Find(int hash, TypeModel model, bool fileScoped) =>
+        Index.TryGetValue(hash, out var weak) && weak.TryGetTarget(out var entry) &&
+        entry.FileScoped == fileScoped && entry.Model.Equals(model)
+            ? entry.Text
+            : null;
 
-        _current.Add(hash, entry);
+    /// <summary>Drops the entries whose emission was collected. Guarded by <see cref="Lock"/>.</summary>
+    private static void Sweep()
+    {
+        var dead = new List<int>();
+        foreach (var pair in Index)
+            if (!pair.Value.TryGetTarget(out _))
+                dead.Add(pair.Key);
+        foreach (int key in dead)
+            Index.Remove(key);
+        // Doubling keeps the sweeps' cost proportional to the entries added.
+        _sweepAt = Math.Max(MinSweep, 2 * Index.Count);
     }
 }
