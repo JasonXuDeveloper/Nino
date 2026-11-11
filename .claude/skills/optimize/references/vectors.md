@@ -1406,6 +1406,18 @@ of bytes in a block.
   runs 42341861781 and 42365821207). Arm64's 16-byte vectors keep it scalar by the cost rule (48 > 32), on par there. Tried and not kept:
   the loop over whole periods with the tables' offsets from an inner loop instead of the phase wrap, 5-10 % on the
   check alone, inside the noise of the case.
+  Keep the existing periodic scan. For strides that divide the vector width, the mask and bound can
+  be loaded once, and the overlapping final vector has the same mask phase. An inline version
+  regressed nonuniform layouts. An outlined scan with a 256-byte gate preserved the periodic loop,
+  but its 496-byte instrumented Arm64 Tier 0 loop was slow before reaching the 156-byte Tier 1
+  body. Compiling the loop optimized from entry improved warm DateOnly reads, while the independent
+  1,025-item first-read repeat was about 9–11% slower than both identical baseline controls.
+  Withdraw the four variants. All 63 wire outputs matched at zero steady read allocation.
+  The x64 Crossgen2 audit rooted the same algorithm at 128/256/512 bits. The existing
+  `Vector<T>` scan emitted XMM/YMM/ZMM operations with code sizes of 188/190/212 bytes
+  for ulong lanes. The separate fixed-mask loop emitted 116/113/141 bytes. The 512-bit listing
+  required the wider vector-width setting. These listings provide width and code-size evidence,
+  with throughput measured on Arm64 only.
 
 ## Blocks, permutes and copies
 
