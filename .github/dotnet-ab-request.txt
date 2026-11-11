@@ -263,6 +263,10 @@
 # done (run 42365821207): cpu='EPYC|Xeon|Neoverse' 13ec4369 13ec4369 12 *UntrustedTest* # r129-security floor
 # codex/nino-audit review (claude/magical-gauss-7fd7mj f26881a1, = codex/nino-audit merged with main 51a7bd18 plus the
 # review's fixes) against main 51a7bd18 over the whole suite, with main's floor and a second Neoverse-N2 job.
-cpu='EPYC|Xeon|Neoverse' 51a7bd18 f26881a1 6 *Test.Nino* # audit review vs main
-cpu='EPYC|Xeon|Neoverse' 51a7bd18 51a7bd18 6 *Test.Nino* # audit review floor
-cpu='Neoverse' 51a7bd18 f26881a1 6 *Test.Nino* # audit review vs main, second Neoverse job
+# done (run 43041103376): cpu='EPYC|Xeon|Neoverse' 51a7bd18 f26881a1 6 *Test.Nino* # audit review vs main
+# done (run 43041103376): cpu='EPYC|Xeon|Neoverse' 51a7bd18 51a7bd18 6 *Test.Nino* # audit review floor
+# done (run 43041103376): cpu='Neoverse' 51a7bd18 f26881a1 6 *Test.Nino* # audit review vs main, second Neoverse job
+# Run 43041103376: the review is 1.6 to 4.2% faster than main by geomean on every CPU (floor 0.99 to 1.01), but
+# StringBuilder serialize (CopyTo), SelfTree serialize (WriteItems not inlined) and GenericSealedClassTupleBase
+# serialize on Neoverse-N2 (outlined dispatch) were slower; 4c72e384 fixes the three. Its floor is that run's line 2.
+cpu='EPYC|Xeon|Neoverse' 51a7bd18 4c72e384 6 *Test.Nino* # review with the three fixes vs main
