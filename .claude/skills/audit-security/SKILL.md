@@ -60,11 +60,14 @@ the runtime it targets.
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
 - A presize budget per collection instead of per read: each collection nested in another claims the bytes left
   again, so a read that fails at the end of the data has allocated the bytes left times its nesting. Give the read one
-  budget that every presized collection spends (Rust `Reader::capacity`, Go `Reader.SliceCap`, 16 bytes a byte plus a
-  floor), and grow past it. Why: Go budgeted each collection, and 120 nested `TreeNode` lists each claiming the bytes
-  left allocated 959 MB from 1 MB (a Go out-of-memory is fatal); TypeScript's generated `new Array(length)` does the
-  same (200 KB raised the RSS by 190 MB, 1 MB aborted Node under a 64 MB heap; open). Test it with nested claims and
-  the allocation measured (`internal/generated/nesting_test.go`).
+  budget that every presized collection spends (Rust `Reader::capacity`, Go `Reader.SliceCap`, TypeScript
+  `NinoReader.capacity`, which nino-gen's arrays and `keyGuard`'s tables call; 16 bytes a byte plus a floor), and grow
+  past it. Why: Go budgeted each collection, and 120 nested `TreeNode` lists each claiming the bytes left allocated
+  959 MB from 1 MB (a Go out-of-memory is fatal); TypeScript's generated `new Array(length)` did the same (200 KB
+  raised the RSS by 190 MB, 1 MB aborted Node under a 64 MB heap with a fatal out-of-memory, not a `NinoError`; fixed
+  in dad5bb0a). Test it with nested claims and the allocation measured (Go `internal/generated/nesting_test.go`;
+  TypeScript `malicious.test.ts` reads 1 MB in a child process under `--max-old-space-size=64`, which a heap limit
+  proves where `heapUsed` after a failed read does not).
 - A hash table filled from the data whose hash the data can predict. In other runtimes the language's own table may
   be unseeded: V8 hashes number and `bigint` keys of `Map`/`Set` without a seed (8,000 crafted ints took 40 times as
   long as ordinary ones in Node 22), which `NinoKeyGuard` in `nino.ts` bounds by counting the buckets of the table V8 ends with; it is exact for
