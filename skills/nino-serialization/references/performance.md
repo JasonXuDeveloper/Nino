@@ -10,7 +10,9 @@ https://nino.xgamedev.net/en/docs/v4/pooling.md
 - One `NinoArrayBufferWriter` per thread or connection (it is not thread safe): `ResetWrittenCount()` before each
   message, send `WrittenSpan` (or `WrittenMemory`), `Dispose()` at the end (returns its array to the pool).
   `new NinoArrayBufferWriter(capacity, pool)` rents from your own `ArrayPool<byte>`. Nino writes into it in place;
-  any other `IBufferWriter<byte>` (a `PipeWriter`) costs one copy. Do not use `WrittenSpan` after the next write or
+  into any other `IBufferWriter<byte>` (a `PipeWriter`) it writes raw values, raw arrays and lists and fixed-size
+  values in place too (and raw array slices, single-segment sequences and, on modern .NET, raw multidimensional
+  arrays), and copies everything else once. Do not use `WrittenSpan` after the next write or
   reset: it points into the reused array.
 - `NinoSerializer.Serialize(value)` returns a new `byte[]` of exactly the data's size: use it only where an API needs
   a `byte[]`.

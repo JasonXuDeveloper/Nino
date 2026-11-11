@@ -389,14 +389,19 @@ and owned by a `NinoArrayBufferWriter`.
   interface call per write. Growth is a non-inlined cold path.
 * Because the buffer is contiguous, back-patching (body lengths of version-tolerant types, counts of
   `IEnumerable<T>`) is always possible.
-* Serializing to a foreign `IBufferWriter<byte>` writes into a thread-local scratch buffer and copies once
-  at the end. Serializing to a `NinoArrayBufferWriter` writes in place.
+* Serializing to a `NinoArrayBufferWriter` writes in place. Into a foreign `IBufferWriter<byte>`, values whose
+  size is known before writing (raw values, raw arrays and lists, fixed-size values; raw array slices and
+  single-segment sequences in the netstandard2.1 and modern .NET builds; zero-based raw multidimensional arrays on
+  modern .NET) are written in place too, into one `GetSpan` of their size; everything else goes into a thread-local
+  scratch buffer and is copied once at the end.
 * Serializing to a `Stream` (`Serialize(value, stream)`, `SerializeAsync`) writes into the same scratch buffer, then
   hands its array to the stream in one write, with no framing. An asynchronous write still pending when the call
   returns takes the scratch buffer's array with it (back to the pool when the write completes), and the scratch
   buffer continues with another of the same size: nothing is copied, and other calls on the thread are not held up.
-  Deserializing from a `Stream` reads it to its end into an array rented from the shared pool (a `MemoryStream`
-  whose buffer is exposed is read in place) and then reads that span: every check of the data is the span
+  Deserializing from a `Stream` consumes it to its end before decoding, into an array rented from the shared pool
+  (read in place instead: a `MemoryStream` whose buffer is exposed, an `UnmanagedMemoryStream` of exactly that type
+  and a `MemoryMappedViewStream`, whose pointer, length and position are their own; a derived stream may override
+  them and is copied) and then reads that span: every check of the data is the span
   overload's. The array grows by doubling as bytes arrive, and a seekable stream's `Length` sizes the first one only
   up to 1 MiB, so a stream makes Nino hold at most about twice what it delivered. The async forms return `ValueTask`
   and are not in the netstandard2.0 build (`ValueTask` needs a package there); Task-returning forms there would have
@@ -931,7 +936,8 @@ which the regular calls already copy directly, and not types it can only reach t
 `NinoDirect.DeserializeRaw<T>`: one bounds check and one unaligned load with a single return, which the JIT keeps in
 registers (the regular method's several returns go through a stack temp).
 The `ReadOnlySequence<byte>` overloads are intercepted the same way, to `NinoDirect`'s sequence forms: one segment
-is read in place through the span call, several are copied once into a pooled array out of line (`NinoSequences`).
+is read in place through the span call, several are copied once out of line (`NinoSequences`): to the stack up to
+1,024 bytes (`StackBytes`), else into a pooled array.
 The `Stream` overloads (and `SerializeAsync` / `DeserializeAsync`) are intercepted to `NinoDirect`'s Stream forms,
 which pass the I/O in `NinoStreams` (out of line, the async state machines included) a writer or reader struct that
 names the resolved formatter (its `__Top` twin where it has one, and the `...Prefetched` forms for arrays and lists of
@@ -1020,15 +1026,17 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   mscorlib, Unity included), which no Mono JIT accelerates.
   `NinoKernels` (public, netstandard builds only) lets a host register native kernels for them, as a table of
   `delegate* unmanaged[Cdecl]` function pointers with two thresholds: `Permute` (a byte table per value, 0xFF for a
-  zero byte; strides 1 to 64), `Narrow`, `Widen`, and for `[NinoUtf8]` strings `NarrowAscii` and `WidenAscii`, which
+  zero byte; strides 1 to 64), `Interleave32` (a raw `SortedList`'s four-byte keys and values as wire pairs, from 16
+  pairs), `NormalizeBoolSlots` (`bool?` slots checked and normalized, from 16 slots when reading and 32 when
+  writing), `Narrow`, `Widen`, and for `[NinoUtf8]` strings `NarrowAscii` and `WidenAscii`, which
   move the leading ASCII text and return how much there was (the encoder and the strict decoder do the rest from the
   first other char or byte, which starts a char, so what is accepted and rejected does not change). `Register` copies
   each pointer into a static field of `NinoKernelHook` and sets its threshold (`MinBlocks` values or `MinChars`
   chars; int.MaxValue for a null pointer, which is never called): a call site tests one static int, then loads the
   pointer, tests it for null and calls it (`calli`), with no object and no virtual call. Nino calls them from the paths
   that are already out of line and checks bools before a kernel reads blocks. The tables are built once per type, in
-  unmanaged memory. A kernel must write the bytes of its scalar reference (`PermuteScalar`, `NarrowScalar`,
-  `WidenScalar`, `NarrowAsciiScalar`, `WidenAsciiScalar`); `KernelHookTests` registers those references through the
+  unmanaged memory. A kernel must write the bytes of its scalar reference (`PermuteScalar`, `Interleave32Scalar`,
+  `NormalizeBoolSlotsScalar`, `NarrowScalar`, `WidenScalar`, `NarrowAsciiScalar`, `WidenAsciiScalar`); `KernelHookTests` registers those references through the
   hook ([UnmanagedCallersOnly]). The Unity package registers Burst-compiled kernels (`Nino.Burst`, compiled only with
   `com.unity.burst` installed): SSSE3 on x86 and x64, Neon on AArch64, Burst's function pointers handed over as they
   are; WebGL players built with SIMD register the same kernels in C (`Nino.WebGL`, `nino_wasm.c`, whose

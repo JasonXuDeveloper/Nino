@@ -185,11 +185,10 @@ Order piped = NinoDeserializer.Deserialize<Order>(sequence); // a pipe's ReadOnl
   (a socket, a file of records) need your own frames (a length, then that many bytes into
   `Deserialize(span, ref value)`). The async read has no `ref` form. Bound a stream from a peer yourself (Nino keeps
   what it delivers, growing as bytes arrive). `SerializeBoxed` / `DeserializeBoxed` (and `...Async`) take a `Stream`
-  too. A `ReadOnlySequence<byte>` of one segment is read in place, of several copied once (to the stack up to
-  512 bytes, else a pooled array).
-- Stream reads consume the remaining bytes before decoding. An exposed `MemoryStream` buffer, a plain
-  pointer-backed `UnmanagedMemoryStream`, and a memory-mapped view can be read in place. See the
-  [Streams guide](https://nino.xgamedev.net/en/docs/v4/advanced/streams#streams) for buffering and framing.
+  too. A read consumes the rest of the stream before decoding; a `MemoryStream` whose buffer is exposed, an
+  `UnmanagedMemoryStream` of exactly that type and a memory-mapped view are read in place, other streams copied
+  ([Streams](https://nino.xgamedev.net/en/docs/v4/advanced/streams#streams)). A `ReadOnlySequence<byte>` of one
+  segment is read in place, of several copied once (to the stack up to 1,024 bytes, else a pooled array).
 - On rc.9 and earlier there are no `Stream`, async or sequence overloads: serialize to a buffer and write it, read
   the bytes into a buffer, and read a sequence's `First.Span` when `IsSingleSegment`, else copy it first.
 - Hot paths: one `NinoArrayBufferWriter` per thread or connection, `ResetWrittenCount()` before each message, send
@@ -260,8 +259,11 @@ Never suppress NINO006 or NINO007 blindly. Each id and its fix: [references/diag
 
 - No framing of several messages on one stream (the `Stream` overloads read one value to the end), no
   compression, no `System.Type`, no schema in the bytes, no human-readable output, no reading of v3 data.
-- Generated formatters access members directly. On JIT runtimes, Nino can use reflection on first use to resolve
-  a missing formatter registration. For Native AOT and IL2CPP, make the types visible to the generator.
+- No reflection over members: generated formatters read and write them directly. The one run-time fallback is for a
+  closed generic `[NinoType]` that no compilation names (a `Type` made at run time): on a JIT Nino builds its
+  formatter on first use; Native AOT cannot and throws an error naming the type; IL2CPP relies on Unity's full
+  generic sharing (Unity 2022.1 and later) and runs slower shared code. Name such a type where the generator sees
+  it (a member type, a `NinoSerializer` call's type argument, `typeof` in `IsSupported`).
 - No languages besides .NET, TypeScript/JavaScript, Go and Rust (use Protocol Buffers or MessagePack there).
 
 ## Example

@@ -66,8 +66,8 @@ v4 under 1 ns against a measurable time is faster, too fast to measure, with no 
 in a "vs" column means the case was not measured there, or v4 is not ahead.
 
 Each library serializes to its own buffer writer: Nino to `NinoArrayBufferWriter`, MemoryPack and MessagePack to
-`ArrayBufferWriter<byte>`, protobuf-net to a `MemoryStream` (its fastest writer). Nino writes in place only into its own; into any other `IBufferWriter<byte>` it writes a
-pooled buffer and then copies it over, one copy more than these tables measure.
+`ArrayBufferWriter<byte>`, protobuf-net to a `MemoryStream` (its fastest writer). Into any other `IBufferWriter<byte>` Nino writes raw and fixed-size values in place too, and
+everything else into a pooled buffer that it then copies over, one copy more than these tables measure.
 Before the benchmarks run, `--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`) checks every case: each serialize case writes
 its payload's bytes, and every deserialize case of a category reads back the same value, deep-compared. The data is
 seeded, so every run serializes the same values.

@@ -20,8 +20,9 @@ Packages/
     Runtime/                 Nino.Core.dll (netstandard2.1), Nino.Generator.dll (Roslyn 4.3), Nino.Generator.CodeFixes.dll,
                              Nino.UnityTypes.dll; ThirdParty/: System.Buffers, System.Memory,
                              System.Runtime.CompilerServices.Unsafe
-    Burst/                   Nino.Burst: NinoBurst.cs registers Burst-compiled NinoKernels (Permute, Narrow, Widen,
-                             NarrowAscii, WidenAscii; AVX2 / SSSE3 / AArch64 Neon with scalar branches) at startup;
+    Burst/                   Nino.Burst: NinoBurst.cs registers Burst-compiled NinoKernels (Permute, Interleave32,
+                             Narrow, Widen, NarrowAscii, WidenAscii; AVX2 / SSSE3 / AArch64 Neon with scalar branches)
+                             at startup;
                              compiled only with com.unity.burst 1.8+ (NINO_BURST, versionDefines); Nino.Core calls
                              Burst's function pointers directly (delegate* unmanaged), none registered where that fails
                              NinoBurst.BoolSlots.cs normalizes nullable bool slots with a checked prefix return
