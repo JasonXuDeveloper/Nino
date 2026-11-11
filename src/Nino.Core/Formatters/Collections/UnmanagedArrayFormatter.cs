@@ -36,31 +36,13 @@ namespace Nino.Core
 
         internal static void WriteRawTo(IBufferWriter<byte> buffer, ReadOnlySpan<T> values, int length, int size)
         {
-            int payloadSize = size - NinoWire.LengthSize;
-            var destination = buffer.GetSpan(size);
-            var body = destination.Slice(NinoWire.LengthSize, payloadSize);
-            if (!values.IsEmpty)
-            {
 #if NETSTANDARD2_0
-                var source = MemoryMarshal.AsBytes(values);
+            var source = MemoryMarshal.AsBytes(values);
 #else
-                var source = MemoryMarshal.CreateReadOnlySpan(
-                    ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), payloadSize);
+            var source = MemoryMarshal.CreateReadOnlySpan(
+                ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), size - NinoWire.LengthSize);
 #endif
-                // A caller-provided span may alias the source. Publish the header after the payload copy.
-                if (!NinoLayout<T>.HasPadding)
-                    source.CopyTo(body);
-                else if (length == 1 || source.Overlaps(body))
-                {
-                    source.CopyTo(body);
-                    NinoLayout<T>.ClearPadding(ref MemoryMarshal.GetReference(body), length);
-                }
-                else
-                    NinoLayout<T>.CopyToWire(ref MemoryMarshal.GetReference(body),
-                        ref MemoryMarshal.GetReference(source), length);
-            }
-            NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), length);
-            buffer.Advance(size);
+            NinoLayout<T>.WriteRawExternal(buffer, source, length, size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

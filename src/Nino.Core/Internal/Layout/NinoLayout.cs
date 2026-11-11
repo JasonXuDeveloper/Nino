@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -941,6 +942,28 @@ namespace Nino.Core.Internal
             NinoUnsafe.Write(ref destination, count);
             if (count != 0)
                 CopyToWire(ref Unsafe.Add(ref destination, NinoWire.LengthSize), ref source, count);
+        }
+
+        /// <summary>Writes a checked canonical block into a caller-provided buffer.</summary>
+        internal static void WriteRawExternal(IBufferWriter<byte> buffer, ReadOnlySpan<byte> source, int count, int size)
+        {
+            var destination = buffer.GetSpan(size);
+            var body = destination.Slice(NinoWire.LengthSize, source.Length);
+            if (!source.IsEmpty)
+            {
+                // A caller-provided span may alias the source. Publish the header after the payload copy.
+                if (!HasPadding)
+                    source.CopyTo(body);
+                else if (count == 1 || source.Overlaps(body))
+                {
+                    source.CopyTo(body);
+                    ClearPadding(ref MemoryMarshal.GetReference(body), count);
+                }
+                else
+                    CopyToWire(ref MemoryMarshal.GetReference(body), ref MemoryMarshal.GetReference(source), count);
+            }
+            NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), count);
+            buffer.Advance(size);
         }
 
         /// <summary>Writes <paramref name="value"/> in its wire layout (<see cref="Size"/> bytes).</summary>

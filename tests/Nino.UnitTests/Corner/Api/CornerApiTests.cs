@@ -129,6 +129,92 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(new[] { 42 }, NinoDeserializer.Deserialize<int[]>(buffer.Written));
         }
 
+        [TestMethod]
+        public void RawSlicesCanWriteOverTheirBackingArray()
+        {
+            Check(static bytes => new Memory<byte>(bytes, 2, 7));
+            Check(static bytes => new ReadOnlyMemory<byte>(bytes, 2, 7));
+            Check(static bytes => new ArraySegment<byte>(bytes, 2, 7));
+
+            static void Check<T>(Func<byte[], T> slice)
+            {
+                byte[] bytes = Enumerable.Range(0, 16).Select(i => (byte)i).ToArray();
+                T value = slice(bytes);
+                byte[] expected = NinoSerializer.Serialize(value);
+                var output = new AliasedBufferWriter(bytes);
+                NinoSerializer.Serialize(value, output);
+                CollectionAssert.AreEqual(expected, bytes.AsSpan(0, output.Written).ToArray());
+            }
+        }
+
+        private sealed class AliasedBufferWriter : IBufferWriter<byte>
+        {
+            private readonly byte[] _bytes;
+            public int Written { get; private set; }
+
+            public AliasedBufferWriter(byte[] bytes) => _bytes = bytes;
+            public Memory<byte> GetMemory(int sizeHint = 0) => _bytes.AsMemory(Written);
+            public Span<byte> GetSpan(int sizeHint = 0) => _bytes.AsSpan(Written);
+            public void Advance(int count) => Written += count;
+        }
+
+        [TestMethod]
+        public void CustomMemoryManagerIsReadBeforeCallingTheDestination()
+        {
+            using var manager = new ArrayMemoryManager();
+            var value = manager.Memory;
+            byte[] expected = NinoSerializer.Serialize(value);
+            var output = new StingyBufferWriter { OnGetSpan = () => manager.GetSpan()[0] = 99 };
+
+            NinoSerializer.Serialize(value, output);
+
+            CollectionAssert.AreEqual(expected, output.Written);
+        }
+
+        private enum SliceCode : short { Low = -31, High = 300 }
+
+        [TestMethod]
+        public void RawSlicesPreserveNonIntWireLayouts()
+        {
+            Check(new[] { true, false, true });
+            Check(new[] { SliceCode.Low, SliceCode.High });
+            Check(new[] { new RawPadded { A = 1, D = 9 }, new RawPadded { A = 2, D = -7 } });
+
+            static void Check<T>(T[] values) where T : unmanaged
+            {
+                byte[] expected = NinoSerializer.Serialize(values);
+                CheckOutput(new Memory<T>(values), expected);
+                CheckOutput(new ReadOnlyMemory<T>(values), expected);
+                CheckOutput(new ArraySegment<T>(values), expected);
+            }
+
+            static void CheckOutput<T>(T value, byte[] expected)
+            {
+                var output = new ArrayBufferWriter<byte>(expected.Length + 1);
+                output.GetSpan(expected.Length + 1).Fill(0xCC);
+                output.Advance(1);
+                NinoSerializer.Serialize(value, output);
+                Assert.AreEqual((byte)0xCC, output.WrittenSpan[0]);
+                CollectionAssert.AreEqual(expected, output.WrittenSpan.Slice(1).ToArray());
+            }
+        }
+
+        private sealed class ArrayMemoryManager : MemoryManager<byte>
+        {
+            private readonly byte[] _bytes = { 1, 2, 3 };
+
+            public override Span<byte> GetSpan() => _bytes;
+            public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
+            public override void Unpin() { }
+            protected override void Dispose(bool disposing) { }
+
+            protected override bool TryGetArray(out ArraySegment<byte> segment)
+            {
+                segment = new ArraySegment<byte>(_bytes);
+                return true;
+            }
+        }
+
         /// <summary>A pool that records what it hands out and gets back (issue #198).</summary>
         private sealed class CountingPool : ArrayPool<byte>
         {

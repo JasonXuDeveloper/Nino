@@ -101,6 +101,7 @@ namespace Nino.Core
         /// Serializes <paramref name="value"/> into <paramref name="bufferWriter"/>. Writing into a
         /// <see cref="NinoArrayBufferWriter"/> or writing a raw value, raw array, raw list or fixed-size value is done
         /// in place.
+        /// The .NET Standard 2.1 and modern .NET builds also write raw array-backed memory and segments in place.
         /// Other values are copied from a scratch buffer.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

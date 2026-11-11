@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using Nino.Core.CompilerServices;
 
@@ -317,6 +318,36 @@ namespace Nino.Core.Internal
             writer.WriteLength(values.Length);
             NinoElements.Write<T, TFormatter>(values, ref writer);
         }
+
+#if !NETSTANDARD2_0
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool TryWriteRawExternal<T, TFormatter>(ReadOnlyMemory<T> value, IBufferWriter<byte> buffer)
+            where TFormatter : struct, INinoFormatter<T> =>
+            RawFormatter.Is<T, TFormatter>() &&
+            !MemoryMarshal.TryGetMemoryManager<T, MemoryManager<T>>(value, out _) &&
+            MemoryMarshal.TryGetArray(value, out var segment) &&
+            TryWriteCanonicalExternal(segment, buffer, nullSegment: false);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool TryWriteRawExternal<T, TFormatter>(ArraySegment<T> value, IBufferWriter<byte> buffer)
+            where TFormatter : struct, INinoFormatter<T> =>
+            RawFormatter.Is<T, TFormatter>() && TryWriteCanonicalExternal(value, buffer, nullSegment: true);
+
+        private static bool TryWriteCanonicalExternal<T>(ArraySegment<T> value, IBufferWriter<byte> buffer, bool nullSegment)
+        {
+            long size = (long)value.Count * Unsafe.SizeOf<T>() + NinoWire.LengthSize;
+            if (!BitConverter.IsLittleEndian || size > int.MaxValue)
+                return false;
+
+            // The destination can call user code. Borrow the array, without a MemoryManager that can release it.
+            var values = value.AsSpan();
+            var source = MemoryMarshal.CreateReadOnlySpan(
+                ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), (int)size - NinoWire.LengthSize);
+            int count = nullSegment && value.Array == null ? NinoWire.NullLength : value.Count;
+            NinoLayout<T>.WriteRawExternal(buffer, source, count, (int)size);
+            return true;
+        }
+#endif
 
         /// <summary>Reads a new <c>T[]</c> (null for a null length).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
