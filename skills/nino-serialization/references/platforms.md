@@ -24,10 +24,11 @@ https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore.md
 
 ## IL2CPP and Native AOT
 
-- No reflection over members, and no formatter built at run time: every type must appear in code the generator
-  sees (a member type, the type
+- No reflection over members: make every type appear in code the generator sees (a member type, the type
   argument of a `NinoSerializer`/`NinoDeserializer` call, or the `typeof` argument of `SerializeBoxed`,
-  `DeserializeBoxed` or `IsSupported`). A `Type` known only at run time registers nothing.
+  `DeserializeBoxed` or `IsSupported`). A `Type` known only at run time (a closed generic `[NinoType]` made with
+  `MakeGenericType`) registers nothing: Native AOT throws an error naming it; IL2CPP builds its formatter at run
+  time and runs it through Unity's full generic sharing (2022.1 and later), slower than generated code.
 - Native AOT on x64 takes Nino's SSSE3 paths on CPUs that have SSSE3; its AVX2 and AVX-512 paths need
   `<IlcInstructionSet>` (`x86-64-v3`, `x86-64-v4` or `native`), which makes the app require those CPUs.
 

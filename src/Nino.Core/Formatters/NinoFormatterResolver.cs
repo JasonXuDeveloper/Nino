@@ -13,8 +13,13 @@ namespace Nino.Core
     /// Builds struct formatter types for types without a registered formatter, by reflection, on first use of a
     /// type. Applies the <see cref="NinoFormatterAttribute"/> registrations with the same rules as the generator
     /// (strings, <c>object</c>, raw unmanaged values and <c>[NinoType]</c>s are built in), so both write the same
-    /// bytes. Ahead-of-time platforms (IL2CPP) need the generated registrations for value-type instantiations; the
-    /// generator emits them for every type it sees used.
+    /// bytes. The generator registers the closed formatters of every type it sees used, so this builds one only for a
+    /// type no compilation names (a closed generic <c>[NinoType]</c> made with <c>MakeGenericType</c>, for example),
+    /// and per platform: a JIT compiles it; Native AOT has no dynamic code and throws
+    /// <see cref="NinoThrow.NoGeneratedFormatter"/> naming the type; IL2CPP builds it too and runs the fully shared
+    /// code of Unity's full generic sharing (always on since Unity 2022.1; the package requires 2022.3), slower than
+    /// code compiled for the instantiation. Verified by Test.Runtime.RuntimeGenericTests in unity.yml (play mode and
+    /// the IL2CPP player) and on a JIT by LazyRegistrationTests.RuntimeTypeGenericsRoundTrip.
     /// <para>
     /// Trimming and NativeAOT: everything here closes generic formatter definitions over runtime types, so it is
     /// <see cref="RequiresDynamicCodeAttribute"/>: where the runtime cannot compile code (NativeAOT, iOS), the callers
