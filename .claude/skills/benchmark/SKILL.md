@@ -231,3 +231,12 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   together with `readme.py`; until a release's report measured them, their markers read "—".
 - Within 5 % is on par and is written so; under the 1 ns floor (`bdn.py`, `FLOOR_NS`) a time is "too fast to
   measure"; the docs never call Nino slower; v3 means 3.3.13.
+- Publish an Allocated cell only when the row's GC counts agree with it: BenchmarkDotNet printed "-" (nothing
+  allocated) beside a nonzero Gen0 for 31 of 445 rows of v4.0.0-rc.9's x64 report and 6 of its Arm64 one, different
+  rows on each (`ProtobufDeserializeNew` allocates 3,544 B per call measured again), and the site showed them as 0 B.
+  `merge_reports.py` writes "?" for such a cell (`unmeasured_allocation`), which the site and `readme.py` show as
+  unknown; a claim of 0 B (a reuse row, "no allocation") needs a run where the GC count is zero too. Every table of the
+  site's Benchmarks page names every library that wrote the same data (MemoryPack, MessagePack, protobuf-net; the
+  workloads add Google.Protobuf and System.Text.Json): a new benchmark class gets its case list in the site's
+  `moreCases` or `extraCases`, never only the raw results table (round 130: five classes and the reuse and
+  polymorphism tables showed MemoryPack alone).
