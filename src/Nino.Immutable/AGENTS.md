@@ -10,9 +10,13 @@ tree builders follow `runtime-internals` (building a runtime's own objects).
 ```
 Nino.Immutable.csproj        targets, the Nino.Core reference (-p:NinoCoreTfm=netstandard2.0 / 2.1 picks a build),
                              System.Collections.Immutable on netstandard2.0, links Nino.Core's Internal/Layout/ObjectTypes.cs
-ImmutableFormatters.cs       the [assembly: NinoFormatter] list and the formatters: ImmutableArray (as T[], wrapped
-                             without a copy), ImmutableList, ImmutableHashSet, ImmutableSortedSet, ImmutableQueue,
-                             ImmutableStack, ImmutableDictionary, ImmutableSortedDictionary
+ImmutableFormatters.cs       the [assembly: NinoFormatter] list of the formatters below
+ImmutableCollections.cs      what the formatters share: rented arrays written and read as T[], duplicate keys rejected
+                             (Distinct, AddAll)
+Formatters/                  one formatter per collection: ImmutableArrayFormatter.cs (as T[], wrapped without a copy),
+                             ImmutableListFormatter.cs, ImmutableHashSetFormatter.cs, ImmutableSortedSetFormatter.cs,
+                             ImmutableQueueFormatter.cs, ImmutableStackFormatter.cs, ImmutableDictionaryFormatter.cs,
+                             ImmutableSortedDictionaryFormatter.cs
 HashTrees.cs                 ImmutableDictionary / ImmutableHashSet built directly as their tree through mirror classes
                              (DictionaryTree, SetTree), checked at startup, the builder's Add otherwise
 SortedTrees.cs               ImmutableSortedDictionary / ImmutableSortedSet built as their AVL tree in one pass from
