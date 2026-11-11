@@ -135,6 +135,7 @@ namespace Nino.UnitTests
             Check(static bytes => new Memory<byte>(bytes, 2, 7));
             Check(static bytes => new ReadOnlyMemory<byte>(bytes, 2, 7));
             Check(static bytes => new ArraySegment<byte>(bytes, 2, 7));
+            Check(static bytes => new ReadOnlySequence<byte>(bytes, 2, 7));
 
             static void Check<T>(Func<byte[], T> slice)
             {
@@ -161,14 +162,20 @@ namespace Nino.UnitTests
         [TestMethod]
         public void CustomMemoryManagerIsReadBeforeCallingTheDestination()
         {
-            using var manager = new ArrayMemoryManager();
-            var value = manager.Memory;
-            byte[] expected = NinoSerializer.Serialize(value);
-            var output = new StingyBufferWriter { OnGetSpan = () => manager.GetSpan()[0] = 99 };
+            Check(static manager => manager.Memory);
+            Check(static manager => new ReadOnlySequence<byte>(manager.Memory));
 
-            NinoSerializer.Serialize(value, output);
+            static void Check<T>(Func<ArrayMemoryManager, T> view)
+            {
+                using var manager = new ArrayMemoryManager();
+                T value = view(manager);
+                byte[] expected = NinoSerializer.Serialize(value);
+                var output = new StingyBufferWriter { OnGetSpan = () => manager.GetSpan()[0] = 99 };
 
-            CollectionAssert.AreEqual(expected, output.Written);
+                NinoSerializer.Serialize(value, output);
+
+                CollectionAssert.AreEqual(expected, output.Written);
+            }
         }
 
         private enum SliceCode : short { Low = -31, High = 300 }
@@ -186,6 +193,7 @@ namespace Nino.UnitTests
                 CheckOutput(new Memory<T>(values), expected);
                 CheckOutput(new ReadOnlyMemory<T>(values), expected);
                 CheckOutput(new ArraySegment<T>(values), expected);
+                CheckOutput(new ReadOnlySequence<T>(values), expected);
             }
 
             static void CheckOutput<T>(T value, byte[] expected)
