@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Nino.Core;
 
 namespace Nino.AspNetCore
 {
     /// <summary>
-    /// Positive <see cref="NinoSerializer.IsSupported"/> results, cached because MVC asks on every request through
-    /// <see cref="NinoInputFormatter"/> and <see cref="NinoOutputFormatter"/>.
+    /// <see cref="NinoSerializer.IsSupported"/> results, cached because MVC asks on every request through
+    /// <see cref="NinoInputFormatter"/> and <see cref="NinoOutputFormatter"/>. Negative results are cached only without
+    /// dynamic code (Native AOT): there every registration is generated and no assembly loads later, while
+    /// <see cref="NinoSerializer.IsSupported"/> of a type it cannot write throws and catches an exception each call.
     /// </summary>
     internal static class NinoSupportedTypes
     {
@@ -17,14 +20,14 @@ namespace Nino.AspNetCore
         /// the cache never keeps its <c>AssemblyLoadContext</c> from unloading.
         /// </summary>
         public static bool IsSupported(Type type) =>
-            Supported.ContainsKey(type) || CheckSupported(type);
+            Supported.TryGetValue(type, out bool supported) ? supported : CheckSupported(type);
 
         private static bool CheckSupported(Type type)
         {
             bool supported = NinoSerializer.IsSupported(type);
-            // A formatter can be registered after a negative lookup.
-            if (supported && !MentionsCollectible(type))
-                Supported.TryAdd(type, true);
+            // With dynamic code a formatter can be registered after a negative lookup.
+            if ((supported || !RuntimeFeature.IsDynamicCodeSupported) && !MentionsCollectible(type))
+                Supported.TryAdd(type, supported);
             return supported;
         }
 
