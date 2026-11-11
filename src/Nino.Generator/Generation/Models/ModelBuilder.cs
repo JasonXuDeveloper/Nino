@@ -30,8 +30,7 @@ internal static class ModelBuilder
         var typeParameters = generic ? AllTypeParameters(type) : null;
         var (typeId, nameId) = generic ? (0, 0) : facts.Ids(type);
 
-        var factories = new List<FactoryRegistration>();
-        var built = BuildMembers(type, shape, facts, diagnostics, factories, ct);
+        var built = BuildMembers(type, shape, facts, diagnostics, ct);
         var members = built.Models;
 
         var construction = kind == FormatterKind.Polymorphic || rawStruct
@@ -41,8 +40,8 @@ internal static class ModelBuilder
         var collection = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
             ? shape.Collection
             : null;
-        if (collection is { } c)
-            factories.AddRange(c.Factories);
+        if (collection is { } c && c.Factories.Length != 0)
+            built.AddFactories(c.Factories);
 
         if (construction.Recreate)
             MarkUnassignable(type, built, construction, diagnostics);
@@ -95,7 +94,7 @@ internal static class ModelBuilder
             Pooled: pooled,
             Partial: partial,
             // The analyzer needs none of the types the registry names.
-            Registrations: BuildRegistrations(type, kind, generic, built, collection?.Code, factories, facts,
+            Registrations: BuildRegistrations(type, kind, generic, built, collection?.Code, facts,
                 namesTypes: diagnostics == null),
             FixedSize: fixedSize,
             Block: !rawStruct && facts.IsBlock(type),
@@ -121,6 +120,13 @@ internal static class ModelBuilder
     {
         public readonly List<MemberModel> Models = new();
         public readonly List<ISymbol> Symbols = new();
+        public List<FactoryRegistration>? Factories;
+
+        public void AddFactories(EquatableArray<FactoryRegistration> additional)
+        {
+            foreach (var factory in additional)
+                (Factories ??= new List<FactoryRegistration>()).Add(factory);
+        }
 
         /// <summary>Whether a member is reached through an accessor class generated in the type's partial.</summary>
         public bool NeedsPartialAccessor;
@@ -137,7 +143,7 @@ internal static class ModelBuilder
     /// problems of each member, an empty positional struct and colliding or misplaced names.
     /// </summary>
     private static MemberSet BuildMembers(INamedTypeSymbol type, TypeShape shape, TypeFacts facts,
-        DiagnosticSink? diagnostics, List<FactoryRegistration> factories, CancellationToken ct)
+        DiagnosticSink? diagnostics, CancellationToken ct)
     {
         var attr = shape.Options;
         var kind = shape.Kind;
@@ -163,8 +169,7 @@ internal static class ModelBuilder
                 var own = diagnostics != null && ReportsOwnProblems(type, symbols[i].ContainingType, facts)
                     ? diagnostics
                     : null;
-                var member = BuildMember(type, attr.Keyed, symbols, i, facts, memberDiagnostics, own,
-                    ref set.NeedsPartialAccessor, factories, ct);
+                var member = BuildMember(type, attr.Keyed, symbols, i, facts, memberDiagnostics, own, set, ct);
                 if (member == null)
                     continue;
                 members.Add(member);
@@ -299,7 +304,7 @@ internal static class ModelBuilder
     /// measured structs and the nesting formatters (its members' and <paramref name="collection"/>'s) it names.
     /// </summary>
     private static RegistrationModel BuildRegistrations(INamedTypeSymbol type, FormatterKind kind, bool generic,
-        MemberSet members, FormatterRef? collection, List<FactoryRegistration> factories, TypeFacts facts,
+        MemberSet members, FormatterRef? collection, TypeFacts facts,
         bool namesTypes)
     {
         List<FormatterRegistration>? used = null;
@@ -340,9 +345,9 @@ internal static class ModelBuilder
             Formatters: used == null ? EquatableArray<FormatterRegistration>.Empty
                 : new EquatableArray<FormatterRegistration>(used),
             // Generic types name no closed collection types; their formatters resolve creators at runtime.
-            Factories: generic || kind == FormatterKind.Polymorphic
+            Factories: generic || kind == FormatterKind.Polymorphic || members.Factories == null
                 ? EquatableArray<FactoryRegistration>.Empty
-                : new EquatableArray<FactoryRegistration>(factories.Distinct()
+                : new EquatableArray<FactoryRegistration>(members.Factories.Distinct()
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
             GenericTypes: genericTypes == null ? EquatableArray<TypeRegistration>.Empty
                 : new EquatableArray<TypeRegistration>(genericTypes.Distinct()
@@ -535,8 +540,7 @@ internal static class ModelBuilder
     }
 
     private static MemberModel? BuildMember(INamedTypeSymbol type, bool keyed, MemberList symbols, int index,
-        TypeFacts facts, DiagnosticSink? diagnostics, DiagnosticSink? own, ref bool needsPartialAccessor,
-        List<FactoryRegistration> factories, CancellationToken ct)
+        TypeFacts facts, DiagnosticSink? diagnostics, DiagnosticSink? own, MemberSet set, CancellationToken ct)
     {
         var symbol = symbols[index];
         var memberType = MemberCollector.MemberType(symbol)?.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
@@ -586,7 +590,8 @@ internal static class ModelBuilder
             {
                 encoding = r.Encoding;
                 opensBodies = r.OpensBodies;
-                factories.AddRange(r.Factories);
+                if (r.Factories.Length != 0)
+                    set.AddFactories(r.Factories);
                 shallowFormatter = facts.ShallowFormatter(r.Code, r, utf8);
                 readsLoop = r.Elements is { IsDefault: false, Length: > 0 } && (r.Traits & FormatterTraits.Flat) == 0;
             }
@@ -637,7 +642,7 @@ internal static class ModelBuilder
         else
         {
             access = MemberAccess.Partial;
-            needsPartialAccessor = true;
+            set.NeedsPartialAccessor = true;
         }
 
         // Members join unmanaged blocks when their layout is the same on every runtime; others (rare struct
