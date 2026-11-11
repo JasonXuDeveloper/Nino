@@ -28,11 +28,14 @@ src/
   traits.rs                  the traits generated code implements and calls (NinoRead, NinoWrite, bodies)
   impls.rs                   NinoRead / NinoWrite for primitives, strings, Option, Box, tuples, std collections
   types.rs                   the .NET value types as plain Rust types keeping their exact bits
+  types/time.rs              DateTime, TimeSpan, DateOnly, TimeOnly, DateTimeOffset: ticks and .NET's ranges
   strings.rs                 string headers and the default encoding's writer
-  simd.rs                    the unsafe module: string transcoding into a Vec's spare capacity and Latin-1 /
-                             UTF-16 decoding into a String; its tests compare every kernel with a plain one
+  simd.rs                    the unsafe module: string transcoding into a Vec's spare capacity, the blocks of
+                             fixed-size values, the cache facts (prefetch, last-level cache)
+  simd/decode.rs             the reader's text: Latin-1 / UTF-16 decoding into a String it builds
   simd/x86.rs                x86_64 kernels (SSSE3, SSE4.1, AVX2, AVX-512) picked at run time
   simd/neon.rs               Arm64 NEON kernels
+  simd/tests.rs              every kernel and decoder against a plain one (Miri runs them)
   defer.rs                   deferred class bodies (spec §7.10): bounded stack whatever the depth
   shared.rs                  reference tracking (spec §7.9): each read's objects in an arena freed with it, cycles
                              included (one unsafe block, Shared::get on a weak link)
@@ -71,9 +74,9 @@ Generated files: `tests/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 do
   allocate out of proportion to the data. The crate is `#![deny(unsafe_code)]` and denies `indexing_slicing`,
   `unwrap_used`, `expect_used`, `panic` and `arithmetic_side_effects` (lib.rs): use `get`, `checked_*`/`wrapping_*` with
   a comment saying why it cannot wrap, and errors. The module allowed `unsafe` is `src/simd.rs` (with its submodules
-  `simd/x86.rs` and `simd/neon.rs`, a kernel per instruction set): the string writer's transcoding, and the reader's
-  decoding of Latin-1 and UTF-16 into a `String`'s spare capacity (`from_utf8_unchecked` only on what the decoder itself
-  writes from code units, so valid UTF-8 by construction; unpaired surrogates become U+FFFD). Besides it,
+  `simd/x86.rs` and `simd/neon.rs`, a kernel per instruction set, and `simd/decode.rs`): the string writer's
+  transcoding, and the reader's decoding of Latin-1 and UTF-16 into a `String`'s spare capacity (`from_utf8_unchecked`
+  only on what the decoder itself writes from code units, so valid UTF-8 by construction; unpaired surrogates become U+FFFD). Besides it,
   `src/shared.rs` has one block: `Shared::get` on a weak link inside a read's arena (its SAFETY comment;
   `tests/shared.rs` under Miri: cycles, deferred bodies and a `Drop` that reads another object). The reader's bounds
   checks stay safe code: an unsafe decoder takes a `&[u8]` already taken from the input. Every block has a `// SAFETY:`

@@ -777,7 +777,7 @@ strings_kernel!(
 
 /// [`super::latin1_utf8`] with SSSE3: 16 bytes a step, stored as they are when ASCII; else each byte as a 16-bit lane
 /// of its UTF-8 (a lead byte, and above 0x7F a continuation byte) and each half's lanes packed with one `pshufb`
-/// ([`super::EXPAND`]). The last bytes, and those past the room a step needs, a word at a time.
+/// ([`super::decode::EXPAND`]). The last bytes, and those past the room a step needs, a word at a time.
 ///
 /// # Safety
 /// The CPU has SSSE3.
@@ -810,24 +810,24 @@ pub(crate) unsafe fn latin1_ssse3(bytes: &[u8], dst: *mut u8, room: usize) -> us
         unsafe {
             _mm_storeu_si128(
                 dst.add(o).cast(),
-                _mm_shuffle_epi8(_mm_unpacklo_epi8(lead, cont), row(&super::EXPAND, m0)),
+                _mm_shuffle_epi8(_mm_unpacklo_epi8(lead, cont), row(&super::decode::EXPAND, m0)),
             );
             o = o.wrapping_add(8).wrapping_add(m0.count_ones() as usize);
             _mm_storeu_si128(
                 dst.add(o).cast(),
-                _mm_shuffle_epi8(_mm_unpackhi_epi8(lead, cont), row(&super::EXPAND, m1)),
+                _mm_shuffle_epi8(_mm_unpackhi_epi8(lead, cont), row(&super::decode::EXPAND, m1)),
             );
             o = o.wrapping_add(8).wrapping_add(m1.count_ones() as usize);
         }
         k = k.wrapping_add(16);
     }
     // SAFETY: the invariant: the room from `o` holds the rest's UTF-8.
-    unsafe { super::latin1_words(bytes, k, dst, o) }
+    unsafe { super::decode::latin1_words(bytes, k, dst, o) }
 }
 
 /// [`super::utf16_utf8`] with SSE4.1: eight units a step, by their longest UTF-8: ASCII narrowed; below U+0800 each
-/// unit's two bytes in its lane and the lanes packed with [`super::EXPAND`]; else four units at a time in 32-bit lanes
-/// of up to three bytes, packed with [`super::PACK3`]. Units with a surrogate, the last units, and those past the room
+/// unit's two bytes in its lane and the lanes packed with [`super::decode::EXPAND`]; else four units at a time in 32-bit lanes
+/// of up to three bytes, packed with [`super::decode::PACK3`]. Units with a surrogate, the last units, and those past the room
 /// a step needs, as the plain decoder does.
 ///
 /// # Safety
@@ -859,7 +859,7 @@ pub(crate) unsafe fn utf16_sse41(units: &[[u8; 2]], dst: *mut u8, room: usize) -
             let lanes = _mm_blendv_epi8(two, w, ascii);
             let m = (!_mm_movemask_epi8(_mm_packs_epi16(ascii, ascii)) & 0xFF) as usize;
             // SAFETY: `m < 256`; 32 bytes of room.
-            unsafe { _mm_storeu_si128(dst.add(o).cast(), _mm_shuffle_epi8(lanes, row(&super::EXPAND, m))) };
+            unsafe { _mm_storeu_si128(dst.add(o).cast(), _mm_shuffle_epi8(lanes, row(&super::decode::EXPAND, m))) };
             k = k.wrapping_add(8);
             o = o.wrapping_add(8).wrapping_add(m.count_ones() as usize);
             continue;
@@ -867,7 +867,7 @@ pub(crate) unsafe fn utf16_sse41(units: &[[u8; 2]], dst: *mut u8, room: usize) -
         let surrogate = _mm_cmpeq_epi16(_mm_and_si128(w, set(0xF800u16 as i16)), set(0xD800u16 as i16));
         if _mm_testz_si128(surrogate, surrogate) == 0 {
             // SAFETY: the invariant; the plain decoder takes these eight units (and the low half of a pair after them).
-            (k, o) = unsafe { super::utf16_words(units, k, k.wrapping_add(8), dst, o) };
+            (k, o) = unsafe { super::decode::utf16_words(units, k, k.wrapping_add(8), dst, o) };
             continue;
         }
         let at_least_800 = _mm_movemask_epi8(_mm_xor_si128(
@@ -893,7 +893,7 @@ pub(crate) unsafe fn utf16_sse41(units: &[[u8; 2]], dst: *mut u8, room: usize) -
             let lanes = _mm_blendv_epi8(one, two, _mm_cmpgt_epi32(u, s32(0x7F)));
             let lanes = _mm_blendv_epi8(lanes, three, _mm_cmpgt_epi32(u, s32(0x7FF)));
             let (shuffle, bytes) =
-                super::PACK3.get(((index >> half) & 0xFF) as usize).copied().unwrap_or(([0x80; 16], 0));
+                super::decode::PACK3.get(((index >> half) & 0xFF) as usize).copied().unwrap_or(([0x80; 16], 0));
             // SAFETY: 32 bytes of room from where the step started; the first half stores 16 bytes from there, the
             // second from at most 12 after it.
             unsafe {
@@ -904,7 +904,7 @@ pub(crate) unsafe fn utf16_sse41(units: &[[u8; 2]], dst: *mut u8, room: usize) -
         k = k.wrapping_add(8);
     }
     // SAFETY: the invariant.
-    unsafe { super::utf16_words(units, k, n, dst, o).1 }
+    unsafe { super::decode::utf16_words(units, k, n, dst, o).1 }
 }
 
 /// Spreads the low 16 or 32 bits of `bits` to the bits of `mask` (`pdep`). Under Miri, bit by bit.

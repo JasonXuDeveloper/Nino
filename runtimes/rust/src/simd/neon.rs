@@ -320,7 +320,7 @@ fn first(q: usize) -> u64 {
 }
 
 /// The reader's Latin-1 decoder (see `x86::latin1_ssse3`, which this follows): 16 bytes a step, stored as they are
-/// when ASCII, else each byte as a 16-bit lane of its UTF-8 packed with `tbl` ([`super::EXPAND`]); the last bytes,
+/// when ASCII, else each byte as a 16-bit lane of its UTF-8 packed with `tbl` ([`super::decode::EXPAND`]); the last bytes,
 /// and those past the room a step needs, a word at a time.
 ///
 /// # Safety
@@ -349,19 +349,19 @@ pub(crate) unsafe fn latin1(bytes: &[u8], dst: *mut u8, room: usize) -> usize {
             let cont = vorrq_u8(vandq_u8(v, vdupq_n_u8(0x3F)), vdupq_n_u8(0x80));
             let (m0, m1) = ((high & 0xFF) as usize, (high >> 8) as usize);
             // `m0, m1 < 256`; 32 bytes of room from `o`, and the second store starts at most 16 after it.
-            vst1q_u8(dst.add(o), vqtbl1q_u8(vzip1q_u8(lead, cont), row(&super::EXPAND, m0)));
+            vst1q_u8(dst.add(o), vqtbl1q_u8(vzip1q_u8(lead, cont), row(&super::decode::EXPAND, m0)));
             o = o.wrapping_add(8).wrapping_add(ones(m0));
-            vst1q_u8(dst.add(o), vqtbl1q_u8(vzip2q_u8(lead, cont), row(&super::EXPAND, m1)));
+            vst1q_u8(dst.add(o), vqtbl1q_u8(vzip2q_u8(lead, cont), row(&super::decode::EXPAND, m1)));
             o = o.wrapping_add(8).wrapping_add(ones(m1));
             k = k.wrapping_add(16);
         }
         // The invariant: the room from `o` holds the rest's UTF-8.
-        super::latin1_words(bytes, k, dst, o)
+        super::decode::latin1_words(bytes, k, dst, o)
     }
 }
 
 /// The reader's UTF-16 decoder (see `x86::utf16_sse41`, which this follows): eight units a step, by their longest
-/// UTF-8, packed with `tbl` ([`super::EXPAND`], [`super::PACK3`]); units with a surrogate, the last units, and those
+/// UTF-8, packed with `tbl` ([`super::decode::EXPAND`], [`super::decode::PACK3`]); units with a surrogate, the last units, and those
 /// past the room a step needs, as the plain decoder does.
 ///
 /// # Safety
@@ -394,7 +394,7 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
                 let lanes = vbslq_u16(ascii, w, two);
                 let m = (!bits(vcombine_u8(vmovn_u16(ascii), vdup_n_u8(0xFF))) & 0xFF) as usize;
                 // `m < 256`; 32 bytes of room.
-                vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(lanes), row(&super::EXPAND, m)));
+                vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u16(lanes), row(&super::decode::EXPAND, m)));
                 k = k.wrapping_add(8);
                 o = o.wrapping_add(8).wrapping_add(ones(m));
                 continue;
@@ -403,7 +403,7 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
             if vmaxvq_u16(surrogate) != 0 {
                 // The invariant; the plain decoder takes the next 32 units (and the low half of a pair after them):
                 // text with surrogates has more of them, where the vector steps only cost (measured on Neoverse-N2).
-                (k, o) = super::utf16_words(units, k, k.wrapping_add(32).min(n), dst, o);
+                (k, o) = super::decode::utf16_words(units, k, k.wrapping_add(32).min(n), dst, o);
                 continue;
             }
             // Two bits a unit, as `PACK3` takes them (at least U+0080, at least U+0800), a byte each.
@@ -430,7 +430,7 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
                 // The four codes of the half, two bits each: byte `q`'s two bits moved down to bits `2q`, `2q + 1`.
                 let x = (codes >> half) as u32;
                 let index = ((x | (x >> 6) | (x >> 12) | (x >> 18)) & 0xFF) as usize;
-                let (shuffle, count) = super::PACK3.get(index).copied().unwrap_or(([0x80; 16], 0));
+                let (shuffle, count) = super::decode::PACK3.get(index).copied().unwrap_or(([0x80; 16], 0));
                 // 32 bytes of room from where the step started; the first half stores 16 bytes from there, the second
                 // from at most 12 after it.
                 vst1q_u8(dst.add(o), vqtbl1q_u8(vreinterpretq_u8_u32(lanes), vld1q_u8(shuffle.as_ptr())));
@@ -439,6 +439,6 @@ pub(crate) unsafe fn utf16(units: &[[u8; 2]], dst: *mut u8, room: usize) -> usiz
             k = k.wrapping_add(8);
         }
         // The invariant.
-        super::utf16_words(units, k, n, dst, o).1
+        super::decode::utf16_words(units, k, n, dst, o).1
     }
 }
