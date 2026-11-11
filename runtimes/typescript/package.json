@@ -1,7 +1,7 @@
 {
   "name": "nino-serialization",
   "version": "4.0.0-rc.9",
-  "description": "The TypeScript runtime of Nino: reads and writes the bytes Nino v4 writes in .NET, for the classes and codecs nino-gen (Nino.Codegen) generates.",
+  "description": "Nino for TypeScript: reads and writes the same bytes as Nino, the fastest binary serializer for C#, with WebAssembly kernels, for the code nino-gen generates.",
   "license": "MIT",
   "repository": {
     "type": "git",

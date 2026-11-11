@@ -5,7 +5,7 @@ edition = "2021"
 # slice::as_chunks (1.88) keeps fixed-size element loops free of bounds checks and panics.
 rust-version = "1.88"
 license = "MIT"
-description = "Reads and writes Nino's binary wire format (the bytes Nino v4 writes in .NET)."
+description = "Nino for Rust: reads and writes the same bytes as Nino, the fastest binary serializer for C#, with SIMD kernels and safe on untrusted input."
 repository = "https://github.com/JasonXuDeveloper/Nino"
 readme = "README.md"
 homepage = "https://nino.xgamedev.net/en/docs/v4/advanced/rust"
