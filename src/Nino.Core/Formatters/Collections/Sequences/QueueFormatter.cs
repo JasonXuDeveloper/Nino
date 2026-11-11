@@ -59,8 +59,8 @@ namespace Nino.Core
                 }
 
                 writer.WriteLength(count);
-                NinoElements.WriteItems<T, TFormatter>(new ReadOnlySpan<T>(ring, head, first), ref writer);
-                NinoElements.WriteItems<T, TFormatter>(new ReadOnlySpan<T>(ring, 0, count - first), ref writer);
+                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, head, first), ref writer);
+                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, 0, count - first), ref writer);
                 return;
             }
 

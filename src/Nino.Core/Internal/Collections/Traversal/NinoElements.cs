@@ -268,14 +268,9 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            WriteItems<T, TFormatter>(values, ref writer);
-        }
-
-        /// <summary>Writes elements whose formatter does not use a fixed-size block.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void WriteItems<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
-        {
+            // The loop stays in this method: a helper of its own was not inlined where the element's formatter
+            // writes a collection of its own type (a tree), which added a call per level (SelfTree serialize 0.86x on
+            // EPYC 9V74, runner A/B of the rc.10 review head against main 51a7bd18).
             if (WritesOnLocal<T>())
             {
                 if (!values.IsEmpty)
