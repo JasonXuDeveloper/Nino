@@ -26,8 +26,8 @@ internal static class ModelBuilder
         var attr = shape.Options;
         var kind = shape.Kind;
         bool rawStruct = shape.RawStruct;
-        var typeParameters = AllTypeParameters(type);
-        bool generic = typeParameters.Count != 0;
+        bool generic = type.IsGenericType;
+        var typeParameters = generic ? AllTypeParameters(type) : null;
         var (typeId, nameId) = generic ? (0, 0) : facts.Ids(type);
 
         var factories = new List<FactoryRegistration>();
@@ -70,8 +70,9 @@ internal static class ModelBuilder
             TypeName: typeName,
             OpenTypeName: generic ? OpenName(type) : typeName,
             FormatterName: FormatterName(type),
-            TypeParameters: new EquatableArray<string>(typeParameters.Select(p => p.Name)),
-            Constraints: Constraints(typeParameters),
+            TypeParameters: typeParameters == null ? EquatableArray<string>.Empty
+                : new EquatableArray<string>(typeParameters.Select(static p => p.Name)),
+            Constraints: typeParameters == null ? "" : Constraints(typeParameters),
             Kind: kind,
             TypeId: typeId,
             NameId: nameId,
