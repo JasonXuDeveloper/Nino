@@ -162,7 +162,7 @@ reusing is written down before the task ends, in the same series of commits as t
   `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`.
   No `Co-Authored-By` or other trailer naming an AI, no session links, no model ids (the owner's rule: authorship
   stays in Git's author field).
-- **Release notes are trailers.** `.github/scripts/release_notes.py` groups commits by type and takes highlights
+- **Release notes are trailers.** `.github/scripts/release_notes.py` groups commits by type (leaving out `docs(skills)` and `docs(agents)`, which users never read) and takes highlights
   from trailers in the last paragraph (the trailer block): `Wire-Format:` (bytes that change, for which
   types), `Added:` (API, attribute, behavior), `Performance:` (what, which types, how much, runner numbers),
   `Fixed:` (a user-visible bug). One or two sentences of Markdown for users; `Closes #N` in the body above them. Tests,
