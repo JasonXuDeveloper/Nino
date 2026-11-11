@@ -242,6 +242,19 @@ namespace Nino.Core
         }
 #endif
 
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static bool TryReadFresh(T?[] destination, int length, ref Reader reader)
+        {
+            int bytes = length * Stride;
+            ref byte target = ref Unsafe.As<T?, byte>(ref NinoUnsafe.GetArrayDataReference(destination));
+            if (!NinoChecks.TryCopyFlags(ref target, ref reader.Peek(), bytes, Stride))
+                return false;
+            reader.UnsafeAdvance(bytes);
+            return true;
+        }
+#endif
+
         /// <summary>Reads the elements after the count check has bounded the full fixed-stride payload.</summary>
         public static void ReadPrechecked(Span<T?> destination, ref Reader reader)
         {

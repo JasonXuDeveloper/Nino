@@ -88,21 +88,71 @@ namespace Nino.Core.Internal
                    ValidFlagBlocks<Vector128<byte>, FlagVectors128>(ref first, bytes, stride);
         }
 
+        // The destination is a fresh array that is only published after a successful check.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static bool TryCopyFlags(ref byte target, ref byte source, int bytes, int stride)
+        {
+            if (!TryFlagMask(stride, out var mask))
+                return false;
+            if (NinoSimd.Prefer512)
+                return CopyFlags<Vector512<byte>, FlagVectors512>(ref target, ref source, bytes, mask);
+            if (NinoSimd.Has256)
+                return CopyFlags<Vector256<byte>, FlagVectors256>(ref target, ref source, bytes, mask);
+            return NinoSimd.Has128 &&
+                   CopyFlags<Vector128<byte>, FlagVectors128>(ref target, ref source, bytes, mask);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static bool CopyFlags<TVector, TOps>(ref byte target, ref byte source, int bytes, Vector128<ulong> mask)
+            where TVector : struct
+            where TOps : struct, IFlagVectors<TVector>
+        {
+            int width = Unsafe.SizeOf<TVector>();
+            int group = 4 * width;
+            TVector any = default;
+            for (; bytes >= group; bytes -= group)
+            {
+                var a = TOps.Load(ref source, 0);
+                var b = TOps.Load(ref source, (nuint)width);
+                var c = TOps.Load(ref source, (nuint)(2 * width));
+                var d = TOps.Load(ref source, (nuint)(3 * width));
+                TOps.Store(ref target, 0, a);
+                TOps.Store(ref target, (nuint)width, b);
+                TOps.Store(ref target, (nuint)(2 * width), c);
+                TOps.Store(ref target, (nuint)(3 * width), d);
+                any = TOps.Or(any, TOps.Or(TOps.Or(a, b), TOps.Or(c, d)));
+                source = ref Unsafe.Add(ref source, group);
+                target = ref Unsafe.Add(ref target, group);
+            }
+
+            for (; bytes >= width; bytes -= width)
+            {
+                var bits = TOps.Load(ref source, 0);
+                TOps.Store(ref target, 0, bits);
+                any = TOps.Or(any, bits);
+                source = ref Unsafe.Add(ref source, width);
+                target = ref Unsafe.Add(ref target, width);
+            }
+
+            // A partial final vector overlaps the previous one at the same mask phase.
+            if (bytes != 0)
+            {
+                var tail = TOps.Load(ref Unsafe.Add(ref source, bytes - width), 0);
+                TOps.Store(ref Unsafe.Add(ref target, bytes - width), 0, tail);
+                any = TOps.Or(any, tail);
+            }
+
+            return !TOps.HasMaskedBits(any, mask);
+        }
+
         // Tier 0 leaves calls inside the scan, so compile this validator with its helpers inlined from the start.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static bool ValidFlagBlocks<TVector, TOps>(ref byte first, int bytes, int stride)
             where TVector : struct
             where TOps : struct, IFlagVectors<TVector>
         {
-            Vector128<ulong> mask;
-            switch (stride)
-            {
-                case 2: mask = Vector128.Create(0x00FE_00FE_00FE_00FEUL); break;
-                case 4: mask = Vector128.Create(0x0000_00FE_0000_00FEUL); break;
-                case 8: mask = Vector128.Create(0xFEUL); break;
-                case 16: mask = Vector128.Create(0xFEUL, 0UL); break;
-                default: return false;
-            }
+            if (!TryFlagMask(stride, out var mask))
+                return false;
 
             int width = Unsafe.SizeOf<TVector>();
             int end = bytes & -width;
@@ -122,6 +172,19 @@ namespace Nino.Core.Internal
             }
 
             return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryFlagMask(int stride, out Vector128<ulong> mask)
+        {
+            switch (stride)
+            {
+                case 2: mask = Vector128.Create(0x00FE_00FE_00FE_00FEUL); return true;
+                case 4: mask = Vector128.Create(0x0000_00FE_0000_00FEUL); return true;
+                case 8: mask = Vector128.Create(0xFEUL); return true;
+                case 16: mask = Vector128.Create(0xFEUL, 0UL); return true;
+                default: mask = default; return false;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -164,6 +227,7 @@ namespace Nino.Core.Internal
         private interface IFlagVectors<TVector> where TVector : struct
         {
             static abstract TVector Load(ref byte at, nuint offset);
+            static abstract void Store(ref byte at, nuint offset, TVector value);
             static abstract TVector Or(TVector left, TVector right);
             static abstract bool HasMaskedBits(TVector bits, Vector128<ulong> mask);
         }
@@ -173,6 +237,9 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector128<byte> Load(ref byte at, nuint offset) =>
                 Vector128.LoadUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static void Store(ref byte at, nuint offset, Vector128<byte> value) => value.StoreUnsafe(ref at, offset);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector128<byte> Or(Vector128<byte> left, Vector128<byte> right) => left | right;
@@ -189,6 +256,9 @@ namespace Nino.Core.Internal
                 Vector256.LoadUnsafe(ref at, offset);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static void Store(ref byte at, nuint offset, Vector256<byte> value) => value.StoreUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector256<byte> Or(Vector256<byte> left, Vector256<byte> right) => left | right;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -201,6 +271,9 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector512<byte> Load(ref byte at, nuint offset) =>
                 Vector512.LoadUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static void Store(ref byte at, nuint offset, Vector512<byte> value) => value.StoreUnsafe(ref at, offset);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector512<byte> Or(Vector512<byte> left, Vector512<byte> right) => left | right;
