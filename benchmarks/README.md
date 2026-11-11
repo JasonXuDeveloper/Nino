@@ -29,14 +29,15 @@ references Nino 3.3.13 from nuget.org instead of the repository's code, compiles
 `ci.yml`'s integrations job on x64 and its Arm64 runtime-internals job) checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
 serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`, protobuf-net to
-a `MemoryStream`: each to the writer it writes fastest, all reused.
+a `MemoryStream`, Google.Protobuf and System.Text.Json (through a `Utf8JsonWriter`) to `ArrayBufferWriter<byte>`:
+each to the writer it writes fastest, all reused.
 
 The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come from the newest release's report (see
 below); the release notes of each release carry its numbers.
 
 Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) runs the benchmark
-classes in parallel on ten runners per architecture (SimpleTest split into its serialize and deserialize cases,
-BclTypesTest, CollectionsTest and CommonTypesTest by type), every serializer's run of a case always on one, every
+classes in parallel on twelve runners per architecture (SimpleTest split into its serialize and deserialize cases,
+BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest by type), every serializer's run of a case always on one, every
 case in three processes, and
 [`merge_reports.py`](merge_reports.py) merges their reports into one table, naming each class's runner under it.
 The release notes get the short tables of [`compact_report.py`](compact_report.py) (Method, Mean, Ratio, Payload,
@@ -108,15 +109,17 @@ Performance Report of each release.
 | `ReferenceTest` | A 200-node graph with shared tags, shared peers and cycles: `[NinoType(trackReferences: true)]` against MemoryPack's `GenerateType.CircularReference` (`GraphSerialize`, `GraphDeserialize`) |
 | `VersionTolerantTest` | `SimpleClass`'s members as `NinoFormat.VersionTolerant` against MemoryPack's `GenerateType.VersionTolerant`, one and 100 (`TolerantClassSerialize`, `TolerantClassesSerialize`, `TolerantClassDeserialize`, `TolerantClassesDeserialize`) |
 | `FixedSizeTest` | Types of fixed size (`NinoSerializer.GetFixedSize<T>()` is not -1), serialized to a new `byte[]` of exactly that size: a 40-byte unmanaged struct, a sealed class of the same members, and an array of 100 of the classes (`FixedStructSerialize`, `FixedClassSerialize`, `FixedClassesSerialize` and the `Deserialize` ones) |
-| `CommonTypesTest` | Data shaped like that of common applications (`CommonTypes.cs`), to a reused buffer writer and into new instances: `List<Player>` (100), `List<Order>` (100), `List<Shape>` (1,000 through an abstract base), a `TreeNode` tree (1,365 nodes), `InventoryItem[1000]` (a padded struct), `Waypoint[1000]` (a struct of fixed size that is not raw: a value tuple member) and `Dictionary<string, string>` (1,000) (`PlayersSerialize`, `OrdersSerialize`, `ShapesSerialize`, `TreeSerialize`, `InventorySerialize`, `WaypointsSerialize`, `StringDictionarySerialize` and the `Deserialize` ones) |
+| `WorkloadTest` | Payloads shaped like real workloads (`WorkloadModels.cs`, `workloads.proto`), to a reused buffer and into new instances, against MemoryPack, MessagePack, protobuf-net, Google.Protobuf and System.Text.Json: one RPC request (ids, a trace `Guid`, short strings, a `DateTime`, an enum, 8 ints), a Web API page of 100 orders (`decimal` money, nullable fields, an address, 1 to 8 lines each), a cached user profile (18 fields, several null, a 10-entry `Dictionary<string, string>`), a game snapshot of 500 entity structs (vectors, a quaternion, health, flags), 1,000 structured log events (timestamp, level, template, trace id, three tags) and 500 domain events of four subtypes through an abstract base (`RpcRequestSerialize`, `OrdersPageSerialize`, `UserProfileSerialize`, `GameSnapshotSerialize`, `LogBatchSerialize`, `EventStreamSerialize` and the `Deserialize` ones). The README's, the docs site's and the release notes' headline numbers come from it |
+| `CommonTypesTest` | Common type shapes (`CommonTypes.cs`), to a reused buffer writer and into new instances: a `TreeNode` tree (1,365 nodes), `InventoryItem[1000]` (a padded struct), `Waypoint[1000]` (a struct of fixed size that is not raw: a value tuple member) and `Dictionary<string, string>` (1,000) (`TreeSerialize`, `InventorySerialize`, `WaypointsSerialize`, `StringDictionarySerialize` and the `Deserialize` ones) |
 | `CollectionsTest` | Collections of the base class library, 1,000 elements each, to a reused buffer writer and into new instances: `List<(int, long)>`, `KeyValuePair<int, int>[]`, `HashSet<int>`, `Dictionary<int, int>`, `Queue<int>`, `LinkedList<int>`, `SortedSet<int>`, `SortedDictionary<int, int>`, `SortedList<int, int>` and `ConcurrentDictionary<int, int>` (`TupleListSerialize`, `KeyValuePairsSerialize`, `HashSetSerialize`, `IntDictionarySerialize`, `QueueSerialize`, `LinkedListSerialize`, `SortedSetSerialize`, `SortedDictionarySerialize`, `SortedListSerialize`, `ConcurrentDictionarySerialize` and the `Deserialize` ones); and `SelfTree`, a class derived from `List<SelfTree>` nested 6 deep, 4 wide (5,461 lists, each level counted; Nino and MemoryPack: `SelfTreeSerialize`, `SelfTreeDeserialize`) |
 | `BclTypesTest` | Base class library types beyond the common collections, to a reused buffer writer and into new instances: `BigInteger` (3^1000), `Uri`, `Version`, `StringBuilder` (1,000 chars), `BitArray` (1,000 bits), `CultureInfo`, `TimeZoneInfo`, `Lazy<string>`, and with 1,000 elements `Memory<int>`, `ReadOnlySequence<int>`, `ReadOnlyCollection<int>`, `ILookup<int, int>`, `BlockingCollection<int>` and the immutable collections of Nino.Immutable (`ImmutableHashSet`, `ImmutableSortedSet`, `ImmutableQueue`, `ImmutableStack`, `ImmutableDictionary`, `ImmutableSortedDictionary`) (`BigIntegerSerialize`, ..., `ImmutableSortedDictionarySerialize` and the `Deserialize` ones). Nino only for `BigInteger` and `BitArray`: MemoryPack 1.21.4 reads back another `BigInteger` than it wrote (up to 255 bytes), and on .NET 10 writes a `BitArray` wrong and crashes reading one |
 | `ScatteredTest` | Arrays of 1,000,000 objects whose order in the array is not their order in memory (shuffled after allocation), as objects created and replaced over a program's life are: `Shape[]` through the abstract base and `ScatteredItem[]` (an int, a string allocated in an order of its own, a long) to a reused buffer writer, the items read into an existing shuffled array; the same shapes in allocation order, and 8,192 of them in order, which stay in the cache (`ScatteredShapesSerialize`, `InOrderShapesSerialize`, `HotShapesSerialize`, `ScatteredItemsSerialize`, `ScatteredItemsDeserializeInto`). Every other class allocates its objects in order and fits in the cache |
 | `UntrustedTest` | Reads with `NinoSettings.Untrusted` on (set before first use; the class runs in a process of its own): `List<CheckedSample>` of 1,000 raw structs whose `DateTime` and `bool` fields Nino checks before copying them (`UntrustedListDeserialize`). Against MemoryPack only, which copies them unchecked; under `--verify` the setting is already frozen and the case reads in trusted mode |
 
 Method names are unique across classes (`<Serializer><Serialize|Deserialize><Case>`, e.g. `NinoSerializeTolerantClass`,
-`MemoryPackDeserializeGraph`, `ProtobufSerializePlayers`; the serializers are `Nino`, `MemoryPack`, `MessagePack` and
-`Protobuf`): the documentation site and the `Payload` column key rows by method name alone.
+`MemoryPackDeserializeGraph`, `ProtobufSerializeOrdersPage`; the serializers are `Nino`, `MemoryPack`, `MessagePack`,
+`Protobuf` (protobuf-net), `GoogleProtobuf` and `Json` (System.Text.Json), the last two in `WorkloadTest` only): the documentation site and the `Payload` column key rows by method name
+alone.
 
 ### MessagePack and protobuf-net
 
@@ -170,6 +173,24 @@ from what they measured; run them again on a CPU those choices were not measured
 dotnet run -c Release -- --filter '*CopyProbe*' '*NewArrayCopyProbe*'   # x64
 dotnet run -c Release -- --filter '*Copy128Probe*'                      # Arm64
 ```
+
+### Google.Protobuf and System.Text.Json
+
+`WorkloadTest` also measures the two serializers most .NET services use by default:
+
+- Google.Protobuf 3 writes and reads its own generated messages, as its users do: `workloads.proto`, compiled at build
+  time by the protoc of Grpc.Tools, filled with the same values outside the timed region (`WorkloadProto`). It writes
+  with `message.WriteTo(IBufferWriter<byte>)` into a reused `ArrayBufferWriter<byte>` and reads with
+  `Parser.ParseFrom(ReadOnlySpan<byte>)`. The workload models carry protobuf-net's
+  `CompatibilityLevel.Level300` (the well-known types: `DateTime` as `google.protobuf.Timestamp`, `decimal` and `Guid`
+  as strings) and the `.proto` uses the same field numbers, so protobuf-net and Google.Protobuf write the same
+  messages; `--verify` reads Google.Protobuf's result back through protobuf-net into the model (`IReadBack`) and
+  compares it with Nino's. A subtype takes the lowest field numbers (a `oneof` in the `.proto`): protobuf-net reads it
+  before its base's fields, and Google.Protobuf writes fields in the order of their numbers.
+- System.Text.Json writes UTF-8 through its source generator (`WorkloadJson`, `IncludeFields`, subtypes by
+  `[JsonDerivedType]`), with `JsonSerializer.Serialize(Utf8JsonWriter, value, JsonTypeInfo<T>)` into a reused
+  `Utf8JsonWriter` (`SkipValidation`, as the serializer's own writers) over an `ArrayBufferWriter<byte>`, and reads with
+  `JsonSerializer.Deserialize(ReadOnlySpan<byte>, JsonTypeInfo<T>)`: the same model types as the others.
 
 ## Member by Member
 

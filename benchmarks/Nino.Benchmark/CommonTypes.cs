@@ -10,13 +10,6 @@ using ProtoBuf;
 #nullable disable
 namespace Nino.Benchmark;
 
-public enum UnitKind : byte
-{
-    Warrior,
-    Mage,
-    Archer
-}
-
 /// <summary>A small struct with padding (4 + 2 + 1 bytes of members in 8).</summary>
 [NinoType]
 [MemoryPackable]
@@ -43,82 +36,6 @@ public partial struct Waypoint
     [Key(1)] [ProtoMember(2)] public float Y;
     [Key(2)] [ProtoMember(3)] public (int Tick, short Zone) Stamp;
     [Key(3)] [ProtoMember(4)] public bool Visited;
-}
-
-/// <summary>A game save record: scalars, an enum, a nullable, a struct list, a string dictionary, bytes and strings.</summary>
-[NinoType]
-[MemoryPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class Player
-{
-    [Key(0)] [ProtoMember(1)] public int Id;
-    [Key(1)] [ProtoMember(2)] public string Name;
-    [Key(2)] [ProtoMember(3)] public UnitKind Kind;
-    [Key(3)] [ProtoMember(4)] public float Hp;
-    [Key(4)] [ProtoMember(5)] public Vector3 Position;
-    [Key(5)] [ProtoMember(6)] public int? GuildId;
-    [Key(6)] [ProtoMember(7)] public DateTime LastLogin;
-    [Key(7)] [ProtoMember(8)] public List<InventoryItem> Items;
-    [Key(8)] [ProtoMember(9)] public Dictionary<string, int> Stats;
-    [Key(9)] [ProtoMember(10)] public byte[] Avatar;
-    [Key(10)] [ProtoMember(11)] public List<string> Friends;
-
-    public static Player Create(int i) => new()
-    {
-        Id = i,
-        Name = "player" + i,
-        Kind = (UnitKind)(i % 3),
-        Hp = i * 1.5f,
-        Position = new Vector3(i, i + 1, i + 2),
-        GuildId = i % 2 == 0 ? i : null,
-        LastLogin = new DateTime(2026, 1, 1).AddMinutes(i),
-        Items = Enumerable.Range(0, 20)
-            .Select(j => new InventoryItem { ItemId = j, Count = (short)j, Bound = j % 2 == 0 }).ToList(),
-        Stats = new Dictionary<string, int> { ["str"] = i, ["dex"] = i + 1, ["int"] = i + 2, ["vit"] = i + 3 },
-        Avatar = Enumerable.Range(0, 64).Select(j => (byte)(i + j)).ToArray(),
-        Friends = Enumerable.Range(0, 5).Select(j => "friend" + (i + j)).ToList(),
-    };
-}
-
-/// <summary>A line of an <see cref="Order"/> (not sealed, as most classes are).</summary>
-[NinoType]
-[MemoryPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class OrderLine
-{
-    [Key(0)] [ProtoMember(1)] public string Sku;
-    [Key(1)] [ProtoMember(2)] public int Quantity;
-    [Key(2)] [ProtoMember(3)] public decimal Price;
-}
-
-/// <summary>A business record: Guid, DateTimeOffset, decimal, an optional note, a list of classes and a string set.</summary>
-[NinoType]
-[MemoryPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class Order
-{
-    [Key(0)] [ProtoMember(1)] public long Id;
-    [Key(1)] [ProtoMember(2)] public Guid Customer;
-    [Key(2)] [ProtoMember(3)] public DateTimeOffset PlacedAt;
-    [Key(3)] [ProtoMember(4)] public decimal Total;
-    [Key(4)] [ProtoMember(5)] public string Note;
-    [Key(5)] [ProtoMember(6)] public List<OrderLine> Lines;
-    [Key(6)] [ProtoMember(7)] public HashSet<string> Tags;
-
-    public static Order Create(int i, Random r) => new()
-    {
-        Id = i,
-        Customer = new Guid(Enumerable.Range(0, 16).Select(_ => (byte)r.Next(256)).ToArray()),
-        PlacedAt = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.FromHours(8)).AddMinutes(i),
-        Total = 123.45m * i,
-        Note = i % 3 == 0 ? null : "leave at the door",
-        Lines = Enumerable.Range(0, 5)
-            .Select(j => new OrderLine { Sku = "SKU-" + j, Quantity = j + 1, Price = 9.99m * j }).ToList(),
-        Tags = new HashSet<string> { "gift", "express" },
-    };
 }
 
 /// <summary>An abstract base with two sealed subtypes, read and written through the base.</summary>
