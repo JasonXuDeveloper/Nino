@@ -969,6 +969,16 @@ Compaction increased `Find` from 258 to 306 IL bytes; both trials grew the Arm64
 from 1,252 to 1,272 B. The x64 cross JIT did not print the method. Both trials preserved
 candidate order, 582 generated files, 577-model reuse and collection. The stopping-condition
 trial passed 48 tests on each Roslyn target. Neither change was retained.
+Allocate a singleton base-name array directly and keep the existing declaration record.
+Of 704 real declarations, 139 unmarked declarations had one base and ten had multiple
+bases. Keeping the first name in the record saved 11,128 B per pass. The owned singleton
+array saved 12,232 B per pass and kept the record's size and equality. Its direct replay
+improved by about 20–40% in four M4 pairs. Whole-project cold and edit timings varied,
+while method-body edits saved about 4.8–18.3 KB per run. `From` went from 137 IL bytes
+to 74 plus the 122-byte `BaseNames` helper. Arm64 Tier 1 went from 2,232 to 1,608 plus
+1,540 bytes. Offline x64 went from 464 to 253 plus 372 bytes. The ordered declaration
+digest, 583–584 generated files, 579-model reuse and collection matched across all
+three generator builds. Modern and legacy targeted tests passed (`2153c835`).
 Keep the existing index growth until a capacity hint also improves lookup time. On the same
 512-pass candidate probe, pre-sizing from the C# tree count reduced allocations from 5.55
 to 2.27 MB but increased time in all four rounds. Keeping the current syntax root in the
