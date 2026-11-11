@@ -367,6 +367,16 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   mismatch so the checked fallback handles truncation, unknown keys and reordered members. Emit little-endian
   constants directly because Reader already rejects big-endian hosts. The unit test project emitted 3,820
   fewer bytes and the local `KeyedStruct[]` timing was broadly on par.
+  Read keyed bools as bytes through that same helper and validate the byte before assigning it. Arm64 Tier 1
+  eliminated the separate payload bounds check and cursor advance, dropping the two-bool fixture's body
+  from 1,128 to 1,052 bytes. Offline x64 went from 814 to 806 bytes, while IL grew from 298 to 311 bytes
+  and the six fixture files grew by 99 source bytes. The pre-existing 583 unit test outputs matched.
+  On M4, the in-order offset-7 case improved in both four-round sweeps, by about 20–40% in the
+  confirmation against paired identical-baseline averages. Other offsets and the reordered case were
+  closer to the control spread. Steady allocation was zero. Both builds emitted the same bytes and
+  agreed on all 2,598 payload mutations and prefixes. A missing payload behind a matching header now
+  reports invalid length through the checked fallback. All four targeted configurations passed
+  (`e8be71c3`).
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
   pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
   signature generated code repeats is written once in `Signature`.
