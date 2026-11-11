@@ -133,9 +133,18 @@ Buffers/                     MemoryFormatters.cs (Memory and ReadOnlyMemory), Re
 ## IO/
 
 ```
-Reader.cs                    ref struct Reader: bounds-checked reads, lengths checked before allocating, depth,
-                             regions and deferred sections, strings
-Writer.cs                    ref struct Writer: writes into a NinoArrayBufferWriter (Flush when done)
+Reader.cs                    ref struct Reader (partial, a file per concern): its fields, constructors and the cursor
+                             (the only code that reads the position fields, per target)
+Reader.References.cs         back references (ReadReference, SetReference) and the depth of struct bodies (EnterStruct)
+Reader.Regions.cs            slices and length-prefixed regions, deferred bodies and the sections after them
+Reader.Values.cs             position, blocks, unmanaged values, lengths checked before allocating, presence, raw bytes
+Reader.Strings.cs            strings (Latin-1 or UTF-16 through NinoStrings, UTF-8), shared or reused
+Writer.cs                    ref struct Writer (partial, as Reader): writes into a NinoArrayBufferWriter (Flush when
+                             done); its fields, the cursor, Flush and reserving buffer space (growing it)
+Writer.References.cs         back references (WriteReference) and the depth of struct bodies (EnterStruct)
+Writer.Regions.cs            patched lengths, regions and deferred bodies
+Writer.Values.cs             unmanaged values, lengths and presence, raw bytes, reservations for counted elements
+Writer.Strings.cs            strings (NinoStrings) and UTF-8
 NinoArrayBufferWriter.cs     the pooled, growable IBufferWriter<byte> Writer writes into
 NinoWire.cs                  the wire constants (null length, presence bytes, headers; also compiled into the generator)
 NinoDepth.cs                 depth bounds: bodies past Inline (128) open bodies are deferred; the limit is MaxDepth
