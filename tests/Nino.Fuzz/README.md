@@ -6,7 +6,7 @@ request and nightly (`.github/workflows/fuzz.yml`).
 
 It has three parts:
 
-- **The mutational fuzzer** (`fuzz`): mutates the bytes of sample values of each root type (`Targets.cs`), reads
+- **The mutational fuzzer** (`fuzz`): mutates the bytes of sample values of each root type (`Inputs/Targets.cs`), reads
   them, and checks what happened. It runs each target in a worker process under a supervisor, so an input that kills
   the process is saved like any other finding.
 - **Probes** (`probes`): hand-made inputs that mutation does not reach, such as 100,000 levels of nesting or 50,000
@@ -29,10 +29,10 @@ For each input, the fuzzer:
   - `SLOW`: a read slower than `--slow-ms` (250 ms) twice in a row;
   - `ALLOC`: a read that allocates more than `--alloc-factor` (64) bytes per input byte plus 1 MB
     (`GC.GetAllocatedBytesForCurrentThread`);
-  - `INVARIANT`: a collection in the result that breaks its own invariants through its public API (`Invariants.cs`:
+  - `INVARIANT`: a collection in the result that breaks its own invariants through its public API (`Checks/Invariants.cs`:
     Count against enumeration, every item found again by lookup, sorted collections in order, linked lists without
     loops). These catch collections Nino builds from their internals;
-  - `STALE`: data rejected while read into an existing value left freed heap memory in it (`StaleMemory.cs`).
+  - `STALE`: data rejected while read into an existing value left freed heap memory in it (`Checks/StaleMemory.cs`).
     Large arrays of unmanaged values are allocated uninitialized; one that takes its slot before a check that can
     still reject the data (a `bool`, a presence byte, an `Untrusted` check) leaves the value holding whatever the
     memory held, which reads as valid values. So a target marked `Poisoned` (`Stale`, `StaleUntrusted`) reads each
@@ -114,18 +114,18 @@ bug coming back. Every other probe (nesting through a list, a struct array, a di
 
 ## Adding a root type
 
-1. Declare the type in `Types.cs`. Give it members that reach the feature you want fuzzed: the fuzzer only mutates
+1. Declare the type in `Inputs/Types.cs`. Give it members that reach the feature you want fuzzed: the fuzzer only mutates
    bytes, so a format the samples never write is barely reached.
-2. Add a sample value in `Samples.cs`, with fixed contents (no random `Guid`, no clock): a non-empty instance of each
+2. Add a sample value in `Inputs/Samples.cs`, with fixed contents (no random `Guid`, no clock): a non-empty instance of each
    member, and a second, larger or sparser sample if the type's paths depend on sizes (`CollsLarge`).
-3. Add a line to `Targets.All` in `Targets.cs`: `Make("Name", "what it covers", Samples.X, Samples.XLarge)`.
-4. If its collections have invariants the checks miss, add a `Check<Collection>` method to `Invariants.cs` (named after
+3. Add a line to `Targets.All` in `Inputs/Targets.cs`: `Make("Name", "what it covers", Samples.X, Samples.XLarge)`.
+4. If its collections have invariants the checks miss, add a `Check<Collection>` method to `Checks/Invariants.cs` (named after
    the generic type definition; it is found by name).
 5. Run `fuzz --targets Name` for a few minutes, with and without SIMD. The worker first checks that every seed reads
    back, writes and reads again unchanged.
 
 A collection or value whose read allocates its array uninitialized (`NinoUnsafe.NewArray`, from 6 KB) and can still
-reject the data after that is a member of `Stale` in `Types.cs` (with its elements in `Samples.Stale`, an empty or
+reject the data after that is a member of `Stale` in `Inputs/Types.cs` (with its elements in `Samples.Stale`, an empty or
 one-element value in `Samples.StaleExisting`), not a new target: a poisoned target costs a collection per rejected
 input. `StaleUntrusted` reads the same type with `NinoSettings.Untrusted` on (`Target.Untrusted`).
 

@@ -41,10 +41,12 @@ Nino.Codegen.Integration.Tests/  build/Nino.Codegen.targets in real builds (Buil
                              TypeScript (TypeScriptTests, harness.ts under Node), Go (GoTests) and Rust (RustTests)
                              against the bytes .NET writes for Samples.cs; GenericSamples.cs: the generic values and
                              the helpers the Go and Rust tests share
-Nino.Fuzz/                   the deserializer fuzzer (README.md): fuzz (mutations under a supervisor, guard pages,
-                             Invariants.cs, StaleMemory.cs: freed memory left by rejected reads), probes (deep nesting,
-                             colliding keys), selftest, repro, list, libfuzzer/ (SharpFuzz driver, run.sh); Golden/
-                             seeds it from GoldenBytesTests; findings/ is ignored
+Nino.Fuzz/                   the deserializer fuzzer (README.md): the commands at its root (Program.cs: fuzz, repro,
+                             list; Probes.cs: deep nesting, colliding keys; SelfTest.cs; LibFuzzerEntry.cs); Engine/
+                             (mutations under a supervisor, workers, guard pages, findings), Checks/ (Invariants.cs,
+                             StaleMemory.cs: freed memory left by rejected reads), Inputs/ (the root types, their
+                             samples and the targets); libfuzzer/ (SharpFuzz driver, run.sh); Golden/ seeds it from
+                             GoldenBytesTests; findings/ is ignored
 Shared/                      RepositoryFiles.cs + .props: the repository root as assembly metadata, for tests that check
                              committed files (Nino.UnitTests, Nino.Codegen.Tests, Nino.Codegen.Integration.Tests)
 ```
@@ -52,14 +54,17 @@ Shared/                      RepositoryFiles.cs + .props: the repository root as
 ## Nino.UnitTests/
 
 ```
-Serialization/               round trips of the public API: primitives, strings (StringEncodingTests, Utf8WireTests),
-                             BCL types, DateTimeOffset, tuples, records, generics, private members, custom formatters,
-                             reference tracking, threads, issue regressions (IssueTests), serialization callbacks
-                             (CallbackTests: order and counts on every path, with Subset's CallbackTypes.cs);
-                             GoldenBytesTests pins the wire format for every Nino.Core build (and seeds the fuzzer)
+Serialization/               round trips of the public API: private members, custom formatters, reference tracking,
+                             streams, threads, issue regressions (IssueTests), serialization callbacks (CallbackTests:
+                             order and counts on every path, with Subset's CallbackTypes.cs); GoldenBytesTests pins the
+                             wire format for every Nino.Core build (and seeds the fuzzer)
+  Types/                     primitives, BCL types, DateTimeOffset, tuples and pairs, records, generics
+  Strings/                   string encodings (StringEncodingTests) and UTF-8 on the wire (Utf8WireTests)
 Collections/                 arrays, BCL and user collections, empty ones, Stack/Queue through their arrays, the
-                             HashTables fill, the collection fast paths, the prefetch of long top-level arrays and lists
-                             of scattered objects and the interceptors that route them there (PrefetchTests)
+                             prefetch of long top-level arrays and lists of scattered objects and the interceptors that
+                             route them there (PrefetchTests)
+  FastPaths/                 the collection fast paths (arrays, blocks, dictionaries, linked lists, priority queues,
+                             sorted collections and lists; CollectionFastPathFixtures) and the HashTables fill
 Layout/                      raw structs, padding, the portable (canonical) layout, BCL structs inside raw structs
                              (BclStructLayoutTests: CoreCLR's auto layout of tuples, DateTimeOffset), block structs,
                              fixed-size types, the unmanaged constraint, top-level fast paths
@@ -72,13 +77,21 @@ Registration/                [NinoFormatter] registrations and lazy registration
 Security/                    hostile input: StrictReadTests, HashFloodingTests, UntrustedModeTests, UntrustedInputTests,
                              ValueCheckLayoutTests (Untrusted mode's value checks over random struct layouts, scalar and
                              vector, against the types' own constructors), SettingsTests (limits frozen on first use,
-                             each case in its own load context), the nesting tests (DeepNesting, BoundedNesting,
-                             SelfNestingCollection, WriteDepth)
-Generator/                   AnalyzerTests (every rule; the AnalyzerReleases files), CodeFixTests, the layout baseline
-                             (LayoutRulesTests: its rules and TOML on the shared sources, linked; LayoutAnalyzerTests:
-                             NINO034-NINO037, their fixes and the refactoring; LayoutBaselineTests), the callbacks'
-                             rules and fixes (CallbackAnalyzerTests: NINO038-NINO044), incremental caching,
-                             __Top twins, receiver aliases, the tools/CodeGen output checks (*FormattersGenerationTests)
+                             each case in its own load context)
+  Nesting/                   DeepNesting, BoundedNesting, SelfNestingCollection, WriteDepth
+Generator/                   the generator, the analyzer and the code fixes: incremental caching
+                             (IncrementalGeneratorTests), the tools/CodeGen output checks (*FormattersGenerationTests)
+  Analyzer/                  AnalyzerTests (every rule; the AnalyzerReleases files), a partial file per group of rules
+                             (Types, Construction, Members, Utf8, InterfaceMembers, Vectors, Features, Pooling,
+                             Registrations); the callbacks' rules and fixes (CallbackAnalyzerTests: NINO038-NINO044)
+  CodeFixes/                 CodeFixTests, a partial file per group of fixes (Types, Members, Annotations, Utf8,
+                             InterfaceMembers, WeakTolerance, Features, Pooling)
+  LayoutBaseline/            the layout baseline: LayoutRulesTests (its rules and TOML on the shared sources, linked),
+                             LayoutAnalyzerTests (NINO034-NINO037, their fixes and the refactoring),
+                             LayoutBaselineTests, LayoutMatchesParityTests (LayoutEmitter.Matches against Emit)
+  GeneratedCode/             what the emitted code does: regions only patched (PatchOnlyRegionTests), formatters that
+                             keep the read context (ReadContextParityTests), __Top twins (TopLevelInlineTests),
+                             receiver aliases (ReceiverAliasTests)
 Corner/                      corner cases grouped into Api/, Layout/, Modeling/, and ObjectGraphs/;
                              CornerCompiler builds in-memory fixtures, and Modeling/ShapeMatrixTests.cs
                              generates, compiles and round-trips type hierarchies
