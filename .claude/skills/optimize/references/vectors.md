@@ -62,6 +62,16 @@ of bytes in a block.
   but added about 0.8 ms to first reads of 1,025 and 32,752 elements. The shared validator
   grew from 217 to 244 IL bytes. The x64 audit added 24 bytes at each vector width, with
   `AggressiveOptimization` omitted for cross compilation. Withdraw the long scan.
+  Fuse validation with copying for fresh top-level bool arrays above the measured 4 KiB
+  gate. Reuse the nullable copy's 128/256/512-bit kernel and supply the contiguous mask.
+  Retry the exact-byte check before reporting invalid input. Outlining the large fresh
+  path kept short reuse within A/A variation; applying the gate to the shared ref reader
+  had slowed singleton reuse and first reads. In four isolated M4 comparisons, fresh
+  32,752 and 32,800 byte payloads took 40–52% less time at equal allocations, with mixed
+  4,097-byte results. The Arm64 fresh entry grew from 432 to 488 B plus the 440 B
+  outlined entry and 172 B copy loop. The AVX2 guest and 128-bit fallback matched bytes;
+  the 512-bit kernel passed software checks. Native x64 throughput remains unmeasured
+  (`2b415f63`).
 
 - Batch two native Arm64 vectors before reducing ordered-key comparisons (`c377dd97`). The packed
   `SortedList<int, int>` validator still unzips keys and carries the last key across groups, but tests
