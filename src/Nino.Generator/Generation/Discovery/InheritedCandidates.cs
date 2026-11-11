@@ -28,20 +28,27 @@ internal static class InheritedCandidates
 {
     public static TypeDeclarationInfo From(TypeDeclarationSyntax syntax, bool marked)
     {
-        // Marked declarations seed the search by name alone.
+        var bases = !marked && syntax.BaseList is { } baseList ? BaseNames(baseList) : EquatableArray<string>.Empty;
+        return new TypeDeclarationInfo(syntax.Identifier.ValueText, bases, marked,
+            syntax.SyntaxTree.FilePath, syntax.Identifier.SpanStart);
+    }
+
+    private static EquatableArray<string> BaseNames(BaseListSyntax baseList)
+    {
+        var types = baseList.Types;
+        if (types.Count == 1)
+            return SimpleName(types[0].Type) is { } name
+                ? EquatableArray<string>.Single(name)
+                : EquatableArray<string>.Empty;
+
         List<string>? bases = null;
-        if (!marked && syntax.BaseList is { } baseList)
+        foreach (var type in types)
         {
-            foreach (var type in baseList.Types)
-            {
-                var name = SimpleName(type.Type);
-                if (name != null)
-                    (bases ??= new List<string>()).Add(name);
-            }
+            if (SimpleName(type.Type) is { } baseName)
+                (bases ??= new List<string>()).Add(baseName);
         }
 
-        return new TypeDeclarationInfo(syntax.Identifier.ValueText, new EquatableArray<string>(bases), marked,
-            syntax.SyntaxTree.FilePath, syntax.Identifier.SpanStart);
+        return new EquatableArray<string>(bases);
     }
 
     /// <summary>The rightmost identifier of a (qualified) name, e.g. <c>Base</c> for <c>Ns.Base&lt;T&gt;</c>.</summary>

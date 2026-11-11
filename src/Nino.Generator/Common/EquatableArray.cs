@@ -22,7 +22,14 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
         _array = items?.ToArray();
     }
 
+    private EquatableArray(T[] ownedItems)
+    {
+        _array = ownedItems;
+    }
+
     public static EquatableArray<T> Empty => default;
+
+    public static EquatableArray<T> Single(T item) => new(new[] { item });
 
     private T[] Items => _array ?? Array.Empty<T>();
 
