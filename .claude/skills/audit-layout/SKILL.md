@@ -41,6 +41,26 @@ its own `AGENTS.md` maps every file in it.
   repository's projects import it.
 - Run `verify` for what the references touch, `actionlint` for workflows, and `tools/agents.sh` (then `--check`).
 
+## Splitting long files
+
+- **Split a long Markdown document into `<name>.md` and a `<name>/` folder of parts, and keep `<name>.md` as the
+  index that links every section**: links from outside the repository (the docs site's link to the GitHub file)
+  and comments that cite a section by name ("Deep nesting in docs/v4-design.md") keep landing. Keep each heading's
+  text when its level changes (GitHub's anchor is the text), repoint `file.md#anchor` links to the part, and run a
+  relative-link and anchor checker over every `*.md` after the move (`docs/v4-design.md`, 1,197 lines, became
+  `v4-design/binary-format.md`, `runtime.md` and `generator.md`; 0 of 343 links broken). A specification with
+  numbered sections and its own contents (`docs/spec/wire-format.md`) stays one file: readers cite it by `§`.
+- **Split a long C# class into partial files named `Class.Concern.cs`**, each holding its concern's members and the
+  delegates or constants only it uses (`NinoBurst.Permute.cs`, `.Text.cs`, `.Interleave.cs`, `.Vectors.cs`); one
+  class-level attribute (`[BurstCompile]`) covers every part. In the Unity project each new file gets a `.meta`
+  with a fresh GUID (`python3 -c 'import uuid;print(uuid.uuid4().hex)'`, then `grep -rh '^guid:' --include=*.meta
+  . | sort | uniq -d` is empty), and a moved file is `git mv`ed with its `.meta`. Unity's sources do not build
+  here: compile the old and the new files against small stubs of the Unity API they use and compare the members
+  both assemblies declare (MetadataLoadContext); only compiler-generated names may differ.
+- In the Unity project an asmdef, not the folder name, decides where an assembly compiles: `Assets/Test/Editor/Model`
+  and `CrossRef` build for players too and sit under `Editor/` because only the editor tests use them (their
+  namespaces say `Test.Editor`); move them only together with their namespaces.
+
 ## Adding files that nothing builds
 
 A new kind of file inside source folders (instruction files, notes, eval runs, generated reports) reaches every

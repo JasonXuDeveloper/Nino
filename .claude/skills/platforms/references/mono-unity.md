@@ -63,6 +63,6 @@ tests: `src/Nino.Unity/AGENTS.md`; the kernels' techniques: `optimize`, referenc
   in Chrome and passes (run 40735278928). The WebGL player collects garbage only between frames: a test or benchmark
   that allocates must yield a frame now and then (a coroutine), or the heap fills within one frame (`OOM`, then "memory
   access out of bounds").
-- The Burst kernels (`src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Burst/NinoBurst.cs`) write the same bytes as
+- The Burst kernels (`src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Burst/NinoBurst*.cs`) write the same bytes as
   Nino.Core; their golden-bytes tests (`Assets/Test/Runtime/Burst/BurstKernelTests.cs`) change with any wire-format
   change (`wire-format`).
