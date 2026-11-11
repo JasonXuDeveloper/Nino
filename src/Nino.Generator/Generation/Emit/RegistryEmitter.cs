@@ -52,21 +52,20 @@ internal static class RegistryEmitter
             """);
         w.Open($"internal sealed class {name} : {CoreCompilerServices}INinoRegistry");
 
-        w.Block($"static {name}()", () =>
-        {
-            // Before Add, which hands the assembly's [NinoFormatter] registrations to the runtime resolver: it binds
-            // them by these marks where the runtime drops attributes of generic parameters (IL2CPP).
-            foreach (var marks in options.FormatterMarks)
-                w.Line($"{CoreCompilerServices}NinoParameterMarks.Register(typeof({marks.Formatter}), {string.Join(", ", marks.Marks)});");
-            // Before Add too: the function pointer fields Nino.Core lays out as pointers, zero-extended, on every
-            // runtime (reflection reports them as IntPtr on Mono and IL2CPP).
-            foreach (var fields in pointerFields)
-                w.Line($"{CoreCompilerServices}NinoFunctionPointerFields.Register({fields});");
-            w.Line($"{Core}NinoRegistry.Add(new {name}());");
-            // Libraries declaring formatters this assembly may resolve at runtime (see FormatterRules.RegisteringReferences).
-            foreach (var formatter in options.RegisteringReferences)
-                w.Line($"{Core}NinoRegistry.EnsureInitialized(typeof({formatter}).Assembly);");
-        });
+        w.Open($"static {name}()");
+        // Before Add, which hands the assembly's [NinoFormatter] registrations to the runtime resolver: it binds
+        // them by these marks where the runtime drops attributes of generic parameters (IL2CPP).
+        foreach (var marks in options.FormatterMarks)
+            w.Line($"{CoreCompilerServices}NinoParameterMarks.Register(typeof({marks.Formatter}), {string.Join(", ", marks.Marks)});");
+        // Before Add too: the function pointer fields Nino.Core lays out as pointers, zero-extended, on every
+        // runtime (reflection reports them as IntPtr on Mono and IL2CPP).
+        foreach (var fields in pointerFields)
+            w.Line($"{CoreCompilerServices}NinoFunctionPointerFields.Register({fields});");
+        w.Line($"{Core}NinoRegistry.Add(new {name}());");
+        // Libraries declaring formatters this assembly may resolve at runtime (see FormatterRules.RegisteringReferences).
+        foreach (var formatter in options.RegisteringReferences)
+            w.Line($"{Core}NinoRegistry.EnsureInitialized(typeof({formatter}).Assembly);");
+        w.Close();
         w.Line();
         var cases = new Dictionary<int, IdCase>(caseCapacity);
         foreach (var entry in entries)
@@ -76,7 +75,8 @@ internal static class RegistryEmitter
         EmitIdDispatch(w, "public", $"{UsagesClass}.Register(id);", ordered, mask);
         w.Line();
         w.Line("/// <summary>Runs the registration (once).</summary>");
-        w.Block("public static void Init()", () => { });
+        w.Open("public static void Init()");
+        w.Close();
         if (options.HasModuleInitializer)
         {
             w.Line();

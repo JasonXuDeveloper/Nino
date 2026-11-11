@@ -409,20 +409,18 @@ internal static class FormatterEmitter
         }
 
         w.Line(names.Inline);
-        w.Block($"{Signature.Serialize(t)}", () =>
-        {
-            w.Line("if (writer.WriteReference(value))");
-            w.IndentedLine($"{write};");
-        });
+        w.Open(Signature.Serialize(t));
+        w.Line("if (writer.WriteReference(value))");
+        w.IndentedLine($"{write};");
+        w.Close();
         w.Line();
         w.Line(names.Inline);
-        w.Block($"{Signature.Deserialize(t)}", () =>
-        {
-            w.Line("if (!reader.ReadReference(ref value, out int __index))");
-            w.IndentedLine("return;");
-            w.Line($"{read};");
-            w.Line("reader.EndReference(__index, value);");
-        });
+        w.Open(Signature.Deserialize(t));
+        w.Line("if (!reader.ReadReference(ref value, out int __index))");
+        w.IndentedLine("return;");
+        w.Line($"{read};");
+        w.Line("reader.EndReference(__index, value);");
+        w.Close();
     }
 
     /// <summary>
@@ -455,43 +453,42 @@ internal static class FormatterEmitter
                 $"{CoreCompilerServices}NinoObject.EnsureSubtype<{t}>(value);",
             };
         w.Line(names.Inline);
-        w.Block(Signature.Serialize(t), () =>
+        w.Open(Signature.Serialize(t));
+        if (ownId)
         {
-            if (ownId)
-            {
-                w.Line($"if (!{CoreCompilerServices}NinoObject.{(m.RawBody ? "TryWriteOwnRaw" : "TryWriteOwn")}<{t}, {self}>(value, ref writer))");
-                w.IndentedLine(write);
-                return;
-            }
-
+            w.Line($"if (!{CoreCompilerServices}NinoObject.{(m.RawBody ? "TryWriteOwnRaw" : "TryWriteOwn")}<{t}, {self}>(value, ref writer))");
+            w.IndentedLine(write);
+        }
+        else
+        {
             w.Line("if (value == null)");
             w.IndentedLine($"writer.UnsafeWrite({NinoWire.NullTypeId});");
             w.Line("else");
             w.IndentedLine(write);
-        });
+        }
+        w.Close();
         w.Line();
         w.Line(names.Inline);
-        w.Block(Signature.Deserialize(t), () =>
+        w.Open(Signature.Deserialize(t));
+        w.Line("int id = reader.UnsafeRead<int>();");
+        if (!ownId)
         {
-            w.Line("int id = reader.UnsafeRead<int>();");
-            if (!ownId)
-            {
-                foreach (var line in read)
-                    w.Line(line);
-                return;
-            }
-
-            w.Line($"if (!{CoreCompilerServices}NinoObject.TryReadOwn<{t}, {self}>(id, ref reader, ref value))");
-            if (read.Length == 1)
-            {
-                w.IndentedLine(read[0]);
-                return;
-            }
-
-            w.Open();
             foreach (var line in read)
                 w.Line(line);
-            w.Close();
-        });
+        }
+        else
+        {
+            w.Line($"if (!{CoreCompilerServices}NinoObject.TryReadOwn<{t}, {self}>(id, ref reader, ref value))");
+            if (read.Length == 1)
+                w.IndentedLine(read[0]);
+            else
+            {
+                w.Open();
+                foreach (var line in read)
+                    w.Line(line);
+                w.Close();
+            }
+        }
+        w.Close();
     }
 }

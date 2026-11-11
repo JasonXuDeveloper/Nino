@@ -162,14 +162,6 @@ internal sealed class CodeWriter
         public void Dispose() => _writer._indent--;
     }
 
-    /// <summary><paramref name="header"/> { <paramref name="body"/> }.</summary>
-    public CodeWriter Block(string header, Action body)
-    {
-        Open(header);
-        body();
-        return Close();
-    }
-
     /// <summary>The source written, ending with the blank line asked for last (one that separates it from what follows).</summary>
     public string Finish()
     {
