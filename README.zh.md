@@ -22,6 +22,7 @@
 [🚀 **快速上手**](https://nino.xgamedev.net/zh/docs/v4/start) ·
 [**v4 新特性**](https://nino.xgamedev.net/zh/docs/v4/whats-new) ·
 [**性能**](https://nino.xgamedev.net/zh/docs/v4/benchmarks) ·
+[💬 **QQ 群**](https://qm.qq.com/q/Octgj3BS8g) ·
 [**English**](https://github.com/JasonXuDeveloper/Nino/blob/main/README.md)
 
 </div>
@@ -140,6 +141,8 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 ## 参与贡献
 
 欢迎提交 Issue 和 Pull Request。构建、测试矩阵和发布流程见 [CONTRIBUTING.md](https://github.com/JasonXuDeveloper/Nino/blob/main/CONTRIBUTING.md)。
+
+使用问题和交流讨论欢迎加 QQ 群 [1054653934](https://qm.qq.com/q/Octgj3BS8g)。
 
 <div align="center">
 
