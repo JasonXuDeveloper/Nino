@@ -243,12 +243,16 @@ namespace Nino.Core
 #endif
 
 #if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool TryReadFresh(T?[] destination, int length, ref Reader reader)
         {
-            int bytes = length * Stride;
+            if (!NinoSimd.Has128)
+                return false;
+
+            int stride = Unsafe.SizeOf<T?>();
+            int bytes = length * stride;
             ref byte target = ref Unsafe.As<T?, byte>(ref NinoUnsafe.GetArrayDataReference(destination));
-            if (!NinoChecks.TryCopyFlags(ref target, ref reader.Peek(), bytes, Stride))
+            if (!NinoChecks.TryCopyFlags(ref target, ref reader.Peek(), bytes, stride))
                 return false;
             reader.UnsafeAdvance(bytes);
             return true;
