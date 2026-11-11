@@ -157,11 +157,14 @@ internal sealed class BodyEmitter
     /// <list type="bullet">
     /// <item>A body of raw members only (not <see cref="OutOfLine"/>) is the instance <c>WriteBody</c> /
     /// <c>ReadBody</c> itself, AggressiveInlining.</item>
-    /// <item>An out-of-line body that only the formatter's own <c>WriteBody</c> / <c>ReadBody</c> calls (most of
-    /// them) is that instance method itself, <c>[NoInline]</c>. It used to be a static method behind an inlined
-    /// instance forwarder, which avoided passing the address of a dummy byte as <c>this</c>; merging the two kept the
-    /// no-inline boundary, removed the forwarder's source and IL, and measured on par or faster (709af0ae for reads, 8ca095f4
-    /// for writes; audit-generated-code, read-paths.md and write-paths.md).</item>
+    /// <item>An out-of-line read body that only the formatter's own <c>ReadBody</c> calls (most of them) is that
+    /// instance method itself, <c>[NoInline]</c>: merging it with its forwarder kept the no-inline boundary, removed
+    /// the forwarder's source and IL, and measured on par or faster (709af0ae; read-paths.md).</item>
+    /// <item>An out-of-line write body stays a static <c>[NoInline]</c> method (<c>__WriteBody</c>) behind an
+    /// inlined instance forwarder. As the instance method itself (8ca095f4, reverted), every call stored a dummy
+    /// byte on the caller's stack and passed its address as <c>this</c>, and a subtype dispatch calls one body per
+    /// element: an array of 1,000 subtypes with a tuple member serialized 16-22% slower on x64, and on par again
+    /// with this and the exact dispatch checks restored (write-paths.md).</item>
     /// <item>A body inlined wherever the formatter is used (<see cref="TypeModel.InlineBody"/>) is an inlinable static
     /// method (<c>__ReadBodyInline</c>, <c>__WriteBodyInline</c>) that the forwarder and the <c>__Top</c> twin call,
     /// with no out-of-line copy.</item>
@@ -189,9 +192,9 @@ internal sealed class BodyEmitter
             return $"internal static void __{name}Shallow({parameters})";
         }
 
-        // Out of line, and called only through this instance method: the body is the method itself. A body that a
-        // twin shares, and a struct's write (by reference), stay static, below.
-        if (OutOfLine && !_m.InlineBody && (write ? !LocalWriter && _m.Kind != FormatterKind.Struct : !ReadTop))
+        // A read out of line, and called only through this instance method: the body is the method itself. Write
+        // bodies, and a read body that a twin shares, stay static, below.
+        if (!write && OutOfLine && !_m.InlineBody && !ReadTop)
         {
             _w.Line(_names.NoInline);
             return $"public void {name}({forwarded})";
