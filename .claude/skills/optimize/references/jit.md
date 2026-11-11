@@ -244,6 +244,21 @@ and when `asm.py compare` lists methods the change did not touch.
   522 plus 334 bytes. Use those listings as instruction evidence only. Wire bytes
   matched on both architectures, all 584 real-project generated files matched, and
   the four targeted configurations passed (`6e21668c`).
+  Share the raw array span writer with canonical unmanaged lists. Capture the
+  element span and count before calling the destination's `GetSpan`, and write
+  the header after the payload to preserve aliasing. Converted layouts and
+  variable formats use scratch. At 8,192 ints and input-independent destination
+  offset seven, the M4 probe dropped from a median 909 to 414 ns across four
+  comparisons, with zero allocation. The input and destination take about
+  64 KiB together before scratch. Padded lists also improved. The first trial
+  regressed two 128-int unaligned cases, so keep the modern unchecked span
+  construction after validating the size and inline the two formatter adapters.
+  With pinned destination placement the 128-int controls were within the A/A
+  spread or faster. The final raw-array and string-list controls varied.
+  The list adapter uses 94 IL bytes, the shared copy uses 144, and the dispatcher
+  uses 43. Arm64 and x64 guest listings confirm that the path skips scratch.
+  Wire bytes, all 584 generated files, callback growth and padding tests matched.
+  The four targeted configurations passed (`e2fb5762`).
 
 - Delay copying the prefix of a full synchronous stream buffer until the next read returns bytes.
   A non-seekable stream ending at a buffer boundary needs the EOF read but no prefix copy.
