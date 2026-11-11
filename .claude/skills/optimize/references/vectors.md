@@ -48,6 +48,21 @@ of bytes in a block.
 
 ## Vector loops
 
+- Check a one-byte contiguous bool block directly. Its first byte is also its first possible
+  invalid byte, so it can skip the runtime's search without changing the diagnostic. Keep the
+  runtime search for every other length. Eight randomized first-read runs per binary, with two
+  identical baseline controls, found a repeatable singleton gain on the M4. Warm singleton
+  results favored the fast path at offsets 0 and 7 and varied at offset 1. A 32,800-element
+  regression in the unpinned fixture did not reproduce with fixed cache-line positions and
+  randomized A/A/B. The checker grew from 33 to 51 IL bytes, 96 to 144 Arm64 FullOpts bytes,
+  and 54 to 77 x64 ReadyToRun bytes across SSE4.2, AVX2, and AVX-512 listings. All 24 serialized
+  outputs matched and reuse allocated 0 B.
+  Do not reuse the strided flag kernel for contiguous bools without checking first use. A
+  stride-one mask and a 256-byte gate improved warm 1,025-element reads at all three offsets
+  but added about 0.8 ms to first reads of 1,025 and 32,752 elements. The shared validator
+  grew from 217 to 244 IL bytes. The x64 audit added 24 bytes at each vector width, with
+  `AggressiveOptimization` omitted for cross compilation. Withdraw the long scan.
+
 - Batch two native Arm64 vectors before reducing ordered-key comparisons (`c377dd97`). The packed
   `SortedList<int, int>` validator still unzips keys and carries the last key across groups, but tests
   one combined result per eight keys. Keep the four-key and scalar tails. Use `NinoSimd.HasArm64`
