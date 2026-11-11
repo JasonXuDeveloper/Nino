@@ -168,6 +168,46 @@ public class StringEncodingTests
     }
 
     [TestMethod]
+    public void ReusedStringReadsKeepTheirBoundaryAcrossHeaderShapes()
+    {
+        foreach (string value in new[] { null, "", "é", new string('a', 7), new string('é', 31),
+                     new string('é', 63), new string('é', 64), new string('中', 31) })
+        foreach (bool utf16 in new[] { false, true })
+        {
+            byte[] wire = utf16
+                ? NinoSerializer.Serialize(value == null ? null : new StringBuilder(value))
+                : NinoSerializer.Serialize(value);
+            foreach (string current in new[] { null, "", "x", value,
+                         value == null ? "other" : new string('z', value.Length) })
+            foreach (int offset in new[] { 0, 1, 7 })
+            {
+                var data = new byte[offset + wire.Length + 1];
+                wire.CopyTo(data, offset);
+                data[data.Length - 1] = 0xA5;
+                var reader = new Reader(data.AsSpan(offset));
+                string actual = reader.ReadString(current);
+                Assert.AreEqual(value, actual);
+                if (current != null && current == value)
+                    Assert.AreSame(current, actual);
+                if (!utf16 && value?.Length == 1 && current != value)
+                    Assert.AreSame(NinoDeserializer.Deserialize<string>(wire), actual);
+                Assert.AreEqual(1, reader.Remaining);
+                Assert.AreEqual((byte)0xA5, reader.Read<byte>());
+                Assert.AreEqual(0, reader.Remaining);
+            }
+
+            for (int cut = 0; cut < wire.Length; cut++)
+            {
+                Assert.ThrowsExactly<NinoDataException>(() =>
+                {
+                    string current = value == null ? "other" : new string('z', value.Length);
+                    NinoDeserializer.Deserialize(wire.AsSpan(0, cut), ref current);
+                });
+            }
+        }
+    }
+
+    [TestMethod]
     public void TruncatedStringsAreRejected()
     {
         foreach (var s in new[] { "abcdefghijklmnopqrstuvwxyz", "中文テキスト", new string('é', 97) })

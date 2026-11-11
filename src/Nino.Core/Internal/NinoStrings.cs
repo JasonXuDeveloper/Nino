@@ -316,17 +316,22 @@ namespace Nino.Core.Internal
         /// <summary>
         /// Whether the string at <paramref name="source"/> (<paramref name="available"/> bytes) is a Latin-1 string of
         /// up to 63 chars holding the chars of <paramref name="current"/> (not null), setting <paramref name="size"/>
-        /// to the bytes it takes: a string read again into an existing object, compared without a call on .NET 8 and
-        /// later; anything else is left to <see cref="Read"/>.
+        /// to the bytes it takes. Clears the caller's local value only after a complete, same-length short Latin-1
+        /// comparison fails, so the fallback need not compare it again. Other header forms retain the value.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Same(ref byte source, int available, string current, out int size)
+        public static bool TryReuseShortLatin1(ref byte source, int available, ref string current, out int size)
         {
             uint length = (uint)current.Length;
             size = 1 + (int)length;
             // The one-byte header of a Latin-1 string of this length (odd), with its chars in the data.
-            return length - 1 < 63 && length < (uint)available && source == (byte)(length * 2 + 1) &&
-                   SameShortLatin1(ref Unsafe.Add(ref source, 1), current);
+            if (length - 1 < 63 && length < (uint)available && source == (byte)(length * 2 + 1))
+            {
+                if (SameShortLatin1(ref Unsafe.Add(ref source, 1), current))
+                    return true;
+                current = null;
+            }
+            return false;
         }
 
 #if !NET8_0_OR_GREATER

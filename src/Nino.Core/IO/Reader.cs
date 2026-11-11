@@ -1212,7 +1212,7 @@ namespace Nino.Core
             // NinoStrings.Read it took a second call (SameLatin1), where rc.7 read the header inline and made one, and
             // items read into existing objects took up to 1.14 times rc.7's time on Neoverse-N2 (dotnet-ab run
             // 41413072278). Here, out of line, it costs the callers' inlining budgets nothing.
-            if (NinoStrings.Same(ref source, available, current, out int same))
+            if (NinoStrings.TryReuseShortLatin1(ref source, available, ref current, out int same))
                 return new SizedString(current, same);
             string value = NinoStrings.Read(ref source, available, current, out int size);
             return new SizedString(value, size);
