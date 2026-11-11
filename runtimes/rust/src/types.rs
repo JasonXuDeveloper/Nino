@@ -917,6 +917,9 @@ impl<T, const R: usize> Grid<T, R> {
     }
 }
 
+/// .NET's `Array.MaxLength`: the longest dimension of a multi-dimensional array it reads.
+const MAX_ARRAY_LENGTH: i32 = 0x7FFF_FFC7;
+
 impl<T: NinoRead, const R: usize> NinoRead for Grid<T, R> {
     const MIN_SIZE: usize = 4;
 
@@ -936,12 +939,21 @@ impl<T: NinoRead, const R: usize> NinoRead for Grid<T, R> {
             if i == 0 && length == -1 {
                 return Ok(None);
             }
-            let length_u = usize::try_from(length).map_err(|_| Error::length(length))?;
-            count = count.checked_mul(length_u as u64).ok_or_else(|| Error::length(length))?;
-            if count.saturating_mul(T::MIN_SIZE.max(1) as u64) > r.remaining() as u64 {
+            // As .NET's `MultiDim.TryReadShape`: no length below 0 or above `Array.MaxLength`, and each product of
+            // the lengths so far within a `u32`.
+            if !(0..=MAX_ARRAY_LENGTH).contains(&length) {
                 return Err(Error::length(length));
             }
-            *dim = length_u;
+            count = count.saturating_mul(length as u64);
+            if count > u64::from(u32::MAX) {
+                return Err(Error::length(i32::MAX));
+            }
+            *dim = length as usize;
+        }
+        // Only then against the bytes left: a later length of 0 makes any earlier one valid (.NET writes
+        // `new int[1000, 0]` as its 8 bytes of lengths).
+        if count.saturating_mul(T::MIN_SIZE.max(1) as u64) > r.remaining() as u64 {
+            return Err(Error::length(i32::try_from(count).unwrap_or(i32::MAX)));
         }
         let count = usize::try_from(count).map_err(|_| Error::too_large())?;
         let data = T::read_many(r, count)?;

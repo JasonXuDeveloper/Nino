@@ -359,8 +359,15 @@ fn grids() {
     assert_eq!(kind::<Option<Grid<i32, 2>>>("02000000 FFFFFFFF"), ErrorKind::InvalidLength);
     assert_eq!(kind::<Option<Grid<i32, 2>>>("FEFFFFFF 00000000"), ErrorKind::InvalidLength);
     assert_eq!(kind::<Option<Grid<i32, 2>>>("FFFF0000 FFFF0000"), ErrorKind::InvalidLength);
-    // Zero rows with a large second dimension is valid (no elements).
-    assert!(deserialize_exact::<Option<Grid<i32, 2>>>(&hex("00000000 FFFFFF7F")).unwrap().is_some());
+    // Zero rows with a large second dimension is valid (no elements), and so are many rows of zero columns, which
+    // .NET writes (`new int[1000, 0]`); a dimension past .NET's Array.MaxLength, or lengths whose product so far
+    // passes a u32 (65536 x 65536 x 0), are not, as in .NET.
+    assert!(deserialize_exact::<Option<Grid<i32, 2>>>(&hex("00000000 C7FFFF7F")).unwrap().is_some());
+    let g = deserialize_exact::<Option<Grid<i32, 2>>>(&hex("E8030000 00000000")).unwrap().unwrap();
+    assert_eq!((g.dims(), g.data().len()), ([1000, 0], 0));
+    assert_eq!(kind::<Option<Grid<i32, 2>>>("00000000 C8FFFF7F"), ErrorKind::InvalidLength);
+    assert_eq!(kind::<Option<Grid<i32, 3>>>("00000100 00000100 00000000"), ErrorKind::InvalidLength);
+    assert!(deserialize_exact::<Option<Grid<i32, 3>>>(&hex("FFFF0000 FFFF0000 00000000")).unwrap().is_some());
 }
 
 #[test]
