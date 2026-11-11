@@ -20,12 +20,16 @@ Packages/
     Runtime/                 Nino.Core.dll (netstandard2.1), Nino.Generator.dll (Roslyn 4.3), Nino.Generator.CodeFixes.dll,
                              Nino.UnityTypes.dll; ThirdParty/: System.Buffers, System.Memory,
                              System.Runtime.CompilerServices.Unsafe
-    Burst/                   Nino.Burst: NinoBurst.cs registers Burst-compiled NinoKernels (Permute, Interleave32,
-                             Narrow, Widen, NarrowAscii, WidenAscii; AVX2 / SSSE3 / AArch64 Neon with scalar branches)
-                             at startup;
-                             compiled only with com.unity.burst 1.8+ (NINO_BURST, versionDefines); Nino.Core calls
-                             Burst's function pointers directly (delegate* unmanaged), none registered where that fails
-                             NinoBurst.BoolSlots.cs normalizes nullable bool slots with a checked prefix return
+    Burst/                   Nino.Burst, one partial class NinoBurst: Burst-compiled NinoKernels (AVX2 / SSSE3 /
+                             AArch64 Neon with scalar branches), compiled only with com.unity.burst 1.8+ (NINO_BURST,
+                             versionDefines); Nino.Core calls Burst's function pointers directly (delegate* unmanaged)
+      NinoBurst.cs           the platforms and call form (header comment), Register at startup (none registered where
+                             the pointers cannot be called), Isa, InstructionSet
+      NinoBurst.Permute.cs   Permute (raw blocks by a byte table; 32-byte AVX2 and 16-byte paths)
+      NinoBurst.Text.cs      Narrow, Widen (Latin-1 strings), NarrowAscii, WidenAscii ([NinoUtf8]'s leading ASCII)
+      NinoBurst.Interleave.cs  Interleave32 (two int columns written as pairs)
+      NinoBurst.BoolSlots.cs NormalizeBoolSlots (nullable bool slots, with a checked prefix return)
+      NinoBurst.Vectors.cs   the 16-byte vector operations the kernels share, one instruction each per ISA
     WebGL/                   Nino.WebGL (WebGL players only): nino_wasm.c (the kernels in WebAssembly SIMD, a source
                              plugin Emscripten compiles into the player; nino_wasm_kernels hands out their pointers) and
                              NinoWasm.cs, which registers them when the player has SIMD (Unity 6's WebAssembly 2023, or
