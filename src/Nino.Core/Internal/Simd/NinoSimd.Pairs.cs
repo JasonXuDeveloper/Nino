@@ -335,15 +335,27 @@ namespace Nino.Core.Internal
             var previous = Vector128.Create(NinoUnsafe.Read<int>(ref source));
             source = ref Unsafe.Add(ref source, 8);
             count--;
+            if (HasArm64)
+            {
+                // Two native vectors, one reduction to a scalar condition.
+                while (count >= 8)
+                {
+                    var first = LoadEvenInt32(ref source, 0);
+                    var second = LoadEvenInt32(ref source, 32);
+                    var increasing = Vector128.GreaterThan(first, PrecedingInt32(first, previous))
+                        & Vector128.GreaterThan(second, PrecedingInt32(second, first));
+                    if (increasing != Vector128.Create(-1))
+                        return false;
+
+                    previous = second;
+                    source = ref Unsafe.Add(ref source, 64);
+                    count -= 8;
+                }
+            }
             while (count >= 4)
             {
-                var a = Vector128.LoadUnsafe(ref source).AsInt32();
-                var b = Vector128.LoadUnsafe(ref source, 16).AsInt32();
-                var keys = EvenInt32(a, b);
-                var preceding = AdvSimd.Arm64.IsSupported
-                    ? AdvSimd.ExtractVector128(previous, keys, 3)
-                    : Ssse3.AlignRight(keys.AsByte(), previous.AsByte(), 12).AsInt32();
-                if (!Vector128.GreaterThanAll(keys, preceding))
+                var keys = LoadEvenInt32(ref source, 0);
+                if (!Vector128.GreaterThanAll(keys, PrecedingInt32(keys, previous)))
                     return false;
 
                 previous = keys;
@@ -353,6 +365,16 @@ namespace Nino.Core.Internal
 
             return IncreasingInt32Tail(ref source, count, previous.GetElement(3));
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<int> LoadEvenInt32(ref byte source, nuint offset) =>
+            EvenInt32(Vector128.LoadUnsafe(ref source, offset).AsInt32(),
+                Vector128.LoadUnsafe(ref source, offset + 16).AsInt32());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<int> PrecedingInt32(Vector128<int> keys, Vector128<int> previous) =>
+            AdvSimd.Arm64.IsSupported ? AdvSimd.ExtractVector128(previous, keys, 3)
+                : Ssse3.AlignRight(keys.AsByte(), previous.AsByte(), 12).AsInt32();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool IncreasingInt32Tail(ref byte source, int count, int previous)
