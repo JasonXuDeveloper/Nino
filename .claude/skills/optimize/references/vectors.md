@@ -443,6 +443,14 @@ of bytes in a block.
   shrank from 528 to 296 B, with a 388 B fresh helper and a 172 B fused loop. Emulated
   x64 AVX2 emitted a 191 B fused loop, and the 512-bit variant passed software checks.
   Native x64 throughput remains unmeasured (`16dc6de8`).
+  Broadcast a repeated 128-bit mask into the AVX-512 register with a lane shuffle.
+  The low lane is initialized and the shuffle selects it four times. The isolated
+  x64 copy-and-check loop went from 257 to 220 B and dropped its ZMM stack load.
+  Broadcasting from memory saved less (238 B), and reducing halves to 128 bits took
+  242 B. The 256-bit alternatives grew, so retain its existing mask construction.
+  Arm64 caller and loop sizes matched, with no stable timing or allocation change.
+  All 135 software width/stride/offset cases and end-to-end wire outputs matched.
+  AVX-512 hardware execution and throughput remain unmeasured (`3ab4e4e9`).
   Inline the fresh read entry into `ReadNew` and specialize the stride from the raw slot size.
   Check SIMD support there so the scalar build skips the dispatch. The Arm64 entry and helper
   went from 388 + 124 B to 432 B, or 332 B with intrinsics disabled. Emulated AVX2 went from
