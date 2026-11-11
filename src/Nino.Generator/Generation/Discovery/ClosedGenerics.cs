@@ -51,8 +51,7 @@ internal static class ClosedGenerics
                 Walk(array.ElementType, facts, into, visited, depth);
                 return;
             case INamedTypeSymbol { IsGenericType: true } named:
-                foreach (var arg in TypeNames.AllTypeArguments(named))
-                    Walk(arg, facts, into, visited, depth);
+                WalkArguments(named, facts, into, visited, depth);
                 if (!named.OriginalDefinition.IsNinoType() || !facts.Visibility.CanName(named))
                     return;
                 Add(named, facts, into);
@@ -83,6 +82,19 @@ internal static class ClosedGenerics
                 }
 
                 return;
+        }
+    }
+
+    private static void WalkArguments(INamedTypeSymbol type, TypeFacts facts, List<TypeRegistration> into,
+        HashSet<ITypeSymbol> visited, int depth)
+    {
+        // Preserve the outer-to-inner order without flattening the arguments into a list.
+        if (type.ContainingType is { } containing)
+            WalkArguments(containing, facts, into, visited, depth);
+        if (type.Arity != 0)
+        {
+            foreach (var argument in type.TypeArguments)
+                Walk(argument, facts, into, visited, depth);
         }
     }
 
