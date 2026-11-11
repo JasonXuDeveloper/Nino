@@ -1300,6 +1300,16 @@ of bytes in a block.
   bytes. Dirty-padding output matched in 39 M4 cases and five emulated x64 cases, with
   zero steady-state allocation. The 512-bit specialization passed 57 software checks for
   dirty padding and destination bounds. Native AVX-512 throughput was unmeasured.
+  Select fixed 512-, 256-, and 128-bit adapters for the managed masked copy in that order.
+  Keep the existing 512-bit CPU policy. Repeat the mask for the widest eligible adapter and
+  retain a phase period per width, so shorter inputs can use the same table at a narrower width.
+  The netstandard path keeps its existing native hook and numeric-vector adapter. The shared
+  copy loop passed 12,042 forced-width, stride and offset cases. All 48 public wire outputs
+  matched with zero steady allocation. An apparent two-element slowdown did not reproduce with
+  isolated longer warmup and identical-binary controls. Arm64 throughput and first use were
+  broadly flat. Copy grew from 508 to 559 IL bytes while its Arm64 listing fell from 460 to
+  412 bytes. The loop stayed at 761 IL and 456 Arm64 bytes. The x64 audit emitted 325/318/366-byte
+  kernels at the corresponding 128/256/512-bit ceilings. Native x64 throughput remains unmeasured.
   Let the final store own the vector at the end of a one-vector mask period. Skipping the
   tail with an extra branch slowed a 48-byte block with a 12-byte stride by about 8%, even
   when the branch was limited to one-vector periods. Make the aligned body's bound exclusive
