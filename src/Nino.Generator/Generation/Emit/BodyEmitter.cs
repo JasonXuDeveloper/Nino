@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Nino.Generator.Common;
 using MemberGroups = Nino.Generator.Generation.Emit.RawBlock.MemberGroups;
 using MemberRange = Nino.Generator.Generation.Emit.RawBlock.MemberRange;
 using static Nino.Generator.Generation.Emit.MemberCode;
@@ -1032,30 +1033,46 @@ internal sealed class BodyEmitter
         string target = isClass ? "__new" : "value";
         string assign = isClass ? "var __new = " : "value = ";
 
-        var args = new HashSet<string>(c.Arguments);
-        var assigned = _m.Members.Where(x => !args.Contains(x.Name) && !x.Unassignable).ToList();
-        var initializers = assigned.Where(x => x.Access == MemberAccess.Direct).ToList();
-        string call = c.Creator + "(" +
-                      string.Join(", ", c.Arguments.Select(a => Local(_m.Members.First(x => x.Name == a)))) + ")";
-        if (initializers.Count == 0)
+        // The planner already matched each argument to its serialized member name.
+        string call = assign + c.Creator + "(" + string.Join(", ", c.Arguments.Select(Local)) + ")";
+        var args = c.Arguments.Length > 8 ? new HashSet<string>(c.Arguments) : null;
+        bool initialized = false;
+        foreach (var member in _m.Members)
         {
-            _w.Line($"{assign}{call};");
+            if (member.Access != MemberAccess.Direct || member.Unassignable ||
+                IsConstructorArgument(c.Arguments, args, member.Name))
+                continue;
+            if (!initialized)
+            {
+                _w.Line(call);
+                _w.Open();
+                initialized = true;
+            }
+            _w.Line($"{Identifier(member.SourceName)} = {Local(member)},");
         }
-        else
-        {
-            _w.Line($"{assign}{call}");
-            _w.Open();
-            foreach (var member in initializers)
-                _w.Line($"{Identifier(member.SourceName)} = {Local(member)},");
+        if (initialized)
             _w.Close(";");
-        }
+        else
+            _w.Line(call + ";");
 
-        foreach (var member in assigned.Where(x => x.Access != MemberAccess.Direct))
-            _w.Line(Set(_m, member, target, Local(member)));
+        foreach (var member in _m.Members)
+            if (member.Access != MemberAccess.Direct && !member.Unassignable &&
+                !IsConstructorArgument(c.Arguments, args, member.Name))
+                _w.Line(Set(_m, member, target, Local(member)));
 
         if (isClass)
             _w.Line($"{Core}NinoRecycler.Replace(ref value, __new);");
         EmitCallbacks(CallbackKind.Deserialized, "value");
+    }
+
+    private static bool IsConstructorArgument(EquatableArray<string> arguments, HashSet<string>? lookup, string name)
+    {
+        if (lookup != null)
+            return lookup.Contains(name);
+        foreach (string argument in arguments)
+            if (argument == name)
+                return true;
+        return false;
     }
 
     /// <param name="eof">

@@ -6,7 +6,9 @@ namespace Nino.Generator.Generation.Emit;
 internal static class MemberCode
 {
     /// <summary>Local variable that holds a member while a re-created instance is read.</summary>
-    public static string Local(MemberModel member) => "__v_" + member.Name;
+    public static string Local(MemberModel member) => Local(member.Name);
+
+    public static string Local(string memberName) => "__v_" + memberName;
 
     public static string AccessorClass(TypeModel m) => "__NinoAccess_" + m.FormatterName;
 
