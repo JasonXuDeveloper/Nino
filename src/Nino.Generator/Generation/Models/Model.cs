@@ -400,7 +400,7 @@ internal sealed record TypeModel(
                                Members.All(static x => x.Raw != null || (x.Traits & FormatterTraits.Flat) != 0);
 
     /// <summary>
-    /// Whether the <c>__Top</c> twin reads a new value with a reader of its own (<c>__ReadTop</c>, see
+    /// Whether the <c>__Top</c> twin reads a new value with a reader of its own (see
     /// <c>INinoTopFormatter.Read</c>), for the reasons of <see cref="LocalWriter"/>'s <c>__WriteTop</c>: the body that
     /// reads a new instance (<c>__ReadBodyInline</c>, or <c>__ReadBodyFreshInline</c> when <see cref="SplitFresh"/>) is
     /// then an inlinable method that the out-of-line one calls on its local copy. Not for pooled types, whose new

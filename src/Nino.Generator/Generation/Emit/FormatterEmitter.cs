@@ -248,21 +248,6 @@ internal static class FormatterEmitter
             w.Line();
         }
 
-        // The same for the top-level reads of a new value (TypeModel.ReadTop): the reader is created in __ReadTop.
-        if (m.ReadTop)
-        {
-            w.Line(names.NoInline);
-            w.Open($"private static {t} __ReadTop(global::System.ReadOnlySpan<byte> data)");
-            w.Line($"var __r = new {Core}Reader(data);");
-            w.Line($"{t} value = null;");
-            w.Line("if (__r.ReadPresent())");
-            w.IndentedLine($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref __r, ref value);");
-            w.Line("__r.ReleaseReferences();");
-            w.Line("return value;");
-            w.Close();
-            w.Line();
-        }
-
         OpenTwin(w, m, names, top, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>{Prefetch(m)}");
         w.Line(names.Inline);
         w.Line(serializeTop
@@ -274,10 +259,24 @@ internal static class FormatterEmitter
             : $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => {CoreCompilerServices}NinoDirect.Write<{t}, {top}>(value, buffer);");
         w.Line(names.Inline);
         w.Line($"{Signature.Deserialize(t)} => {CoreCompilerServices}NinoObject.DeserializeTop<{t}, {top}>(ref reader, ref value);");
-        w.Line(names.Inline);
-        w.Line(m.ReadTop
-            ? $"public {t} Read(global::System.ReadOnlySpan<byte> data) => __ReadTop(data);"
-            : $"public {t} Read(global::System.ReadOnlySpan<byte> data) => {CoreCompilerServices}NinoDirect.Deserialize<{t}, {top}>(data);");
+        if (m.ReadTop)
+        {
+            w.Line(names.NoInline);
+            w.Open($"public {t} Read(global::System.ReadOnlySpan<byte> data)");
+            w.Line($"var __r = new {Core}Reader(data);");
+            w.Line("if (!__r.ReadPresent())");
+            w.IndentedLine("return null;");
+            w.Line($"{t} value = null;");
+            w.Line($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref __r, ref value);");
+            w.Line("__r.ReleaseReferences();");
+            w.Line("return value;");
+            w.Close();
+        }
+        else
+        {
+            w.Line(names.Inline);
+            w.Line($"public {t} Read(global::System.ReadOnlySpan<byte> data) => {CoreCompilerServices}NinoDirect.Deserialize<{t}, {top}>(data);");
+        }
         ForwardWriteBody(w, m, names, m.TopInline ? "__WriteBodyInline" : null);
         ForwardReadBody(w, m, names, m.TopInline ? "__ReadBodyInline" : null);
         EmitPrefetch(w, m, names, twin: true);

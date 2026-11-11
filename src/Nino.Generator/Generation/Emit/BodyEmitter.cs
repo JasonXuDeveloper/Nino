@@ -893,7 +893,7 @@ internal sealed class BodyEmitter
         _w.Line(_names.NoInline);
         if (ReadTop)
         {
-            // The new-instance read is also __ReadTop's: inlinable, called here on a local copy of the reader.
+            // The top twin's new-instance body is inlinable and called here on a local copy of the reader.
             _w.Open($"private static void {body}Fresh({parameters})");
             BeginLocalCopy(_w, reader: true);
             _w.Line($"{body}FreshInline(ref __r, ref value);");
