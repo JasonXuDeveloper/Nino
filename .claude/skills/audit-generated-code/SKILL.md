@@ -85,6 +85,19 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   materializing their list enlarged the Arm64 emitter method from 328 to 1,044 bytes and gave mixed timings.
 - Traverse raw member groups as ranges of the existing model array. Continue from the first group after emitting
   its region prefix, so a mixed body needs neither copied groups nor a second grouping pass.
+- Emit constructor arguments from the member names the construction planner already matched. Walk the
+  existing member array for direct initializers and accessor assignments, opening the initializer at its
+  first entry. Scan short argument lists and keep the set lookup for wide constructors. The 33 recreating
+  models from the unit test project had at most three constructor arguments. Four warmed A/B pairs of
+  their formatter emission saved about 23 KB per 33 models at identical output, with mixed elapsed time.
+  Both Roslyn builds reproduced all 583 real-project files byte for byte, and a 12-argument fixture
+  exercised the set lookup and matched its initializer and wire output. The emitter fell from 771 to
+  765 IL bytes plus a 49-byte argument helper. Arm64 FullOpts fell from 2,536 to 2,108 bytes plus
+  the 292-byte helper. The x64 cross listing went from 1,718 to 1,698 bytes plus the 158-byte
+  helper. The prior listings had separate closure methods for the member scans and argument projection.
+  The randomized project replay found similar cold, cached, and method-edit times to both identical
+  baseline controls, with about 33–35 KB less allocation at the cold median. Both generator builds
+  reused 578 tracked models and passed the collection probes for old compiler objects and source text.
 - Accumulate the symbolic part of each raw offset as its emitted text. Keep the constant separate and prepend
   it only when needed. The actual unit test formatter replay saved about 12 KB per pass, with identical source.
   Reuse the same offset formatting in fixed layouts to avoid copying the symbolic terms even for constant offsets.
