@@ -75,6 +75,10 @@ internal static class FormatterTraitsOf
             "ListFormatter" when count == 3 &&
                                    (last & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 =>
                 FormatterTraits.PreservesReadContext,
+            "KeyValuePairFormatter" when count == 4 &&
+                                         (previous & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 &&
+                                         (last & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 =>
+                FormatterTraits.PreservesReadContext,
             // DictionaryFormatter<[TDictionary, ]TKey, TValue, TKeyFormatter, TValueFormatter>
             "DictionaryFormatter" when count >= 4 &&
                                        (previous & FormatterTraits.Raw) != 0 &&
