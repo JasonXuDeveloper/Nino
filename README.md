@@ -6,20 +6,20 @@
 
 **The fastest binary serializer for C#.**<br>
 Source-generated, zero-allocation, thread-safe and safe on untrusted input.<br>
-For .NET, Unity, Godot and HybridCLR, with the same bytes on every platform and runtime, Go, Rust and TypeScript included.
+For .NET, Unity (Mono and IL2CPP), Godot, Native AOT and HybridCLR, with Go, Rust and TypeScript writing and reading the identical bytes.
 
 [![NuGet](https://img.shields.io/nuget/vpre/Nino?style=for-the-badge&logo=nuget&logoColor=white&label=NuGet&labelColor=004880&color=0078D4)](https://www.nuget.org/packages/Nino)
 [![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?style=for-the-badge&logo=unity&logoColor=white&label=OpenUPM&labelColor=000000&color=3E4C59&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
 [![crates.io](https://img.shields.io/crates/v/nino-serialization?style=for-the-badge&logo=rust&logoColor=white&label=crates.io&labelColor=000000&color=CE422B)](https://crates.io/crates/nino-serialization)<br>
 [![npm](https://img.shields.io/npm/v/nino-serialization/next?style=for-the-badge&logo=npm&logoColor=white&label=npm&labelColor=CB3837&color=E05D44)](https://www.npmjs.com/package/nino-serialization)
 [![Go](https://img.shields.io/badge/Go-pkg.go.dev-00ADD8?style=for-the-badge&logo=go&logoColor=white&labelColor=007D9C)](https://pkg.go.dev/github.com/JasonXuDeveloper/Nino/runtimes/go/v4)<br>
-[![Build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=build)](https://github.com/JasonXuDeveloper/Nino/actions)
-[![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square&color=blue)](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE)
-[![Docs](https://img.shields.io/badge/docs-nino.xgamedev.net-6E56CF?style=flat-square&logo=readthedocs&logoColor=white)](https://nino.xgamedev.net/en)
-[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-1F6FEB?style=flat-square)](https://deepwiki.com/JasonXuDeveloper/Nino)
+[![Build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=Build&labelColor=24292F)](https://github.com/JasonXuDeveloper/Nino/actions)
+[![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=License&labelColor=24292F&color=3DA639)](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/Docs-nino.xgamedev.net-6E56CF?style=for-the-badge&logo=readthedocs&logoColor=white&labelColor=24292F)](https://nino.xgamedev.net/en)
+[![DeepWiki](https://img.shields.io/badge/DeepWiki-Ask-1F6FEB?style=for-the-badge&logo=bookstack&logoColor=white&labelColor=24292F)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
-[🌐 **Website**](https://nino.xgamedev.net/en) ·
-[🚀 **Getting Started**](https://nino.xgamedev.net/en/docs/v4/start) ·
+[**Website**](https://nino.xgamedev.net/en) ·
+[**Getting started**](https://nino.xgamedev.net/en/docs/v4/start) ·
 [**What's new in v4**](https://nino.xgamedev.net/en/docs/v4/whats-new) ·
 [**Benchmarks**](https://nino.xgamedev.net/en/docs/v4/benchmarks) ·
 [**中文**](https://github.com/JasonXuDeveloper/Nino/blob/main/README.zh.md)
@@ -28,31 +28,70 @@ For .NET, Unity, Godot and HybridCLR, with the same bytes on every platform and 
 
 ## Why Nino
 
-- **Fastest.** Up to **<!--bench:ser.max-->7.2<!--/bench-->× faster** serialization than MemoryPack, and up to
-  **<!--bench:reuse.inplace-->9.5<!--/bench-->× faster** deserialization into existing objects. [Benchmarks](#benchmarks)
+- **Fastest.** Serializes classes **<!--bench:ser.range-->3.5–7.2<!--/bench-->×** faster than MemoryPack,
+  **<!--bench:msgpack.ser.range-->8.4–23<!--/bench-->×** faster than MessagePack and
+  **<!--bench:protobuf.ser.range-->41–122<!--/bench-->×** faster than protobuf-net. [Benchmarks](#benchmarks)
+- **SIMD everywhere, Burst in Unity.** Hand-written vector paths for AVX-512, AVX2, SSSE3, Arm64 and WebAssembly move tuples,
+  padded structs and strings; Burst kernels in Unity, vector kernels in Go, Rust and TypeScript, and a portable
+  fallback that writes the same bytes. [SIMD](https://nino.xgamedev.net/en/docs/v4/simd)
 - **Safe on untrusted input.** Crafted bytes cannot crash the process, read past the input, allocate out of proportion
   or name a type to create; every invalid input throws one `NinoDataException`. [Untrusted data](https://nino.xgamedev.net/en/docs/v4/security)
-- **Zero allocation.** Serialize into an `IBufferWriter<byte>`, deserialize into existing or pooled objects: nothing
-  allocated per call, thread-safe, with no locks on the hot path. [Zero allocation](https://nino.xgamedev.net/en/docs/v4/advanced/zero-allocation)
-- **Everything at compile time.** No reflection, no IL emit, no registration, no init call: works on IL2CPP, Native AOT
-  and HybridCLR hot updates, and compiles up to 221× faster than v3. [Platforms](https://nino.xgamedev.net/en/docs/v4/platforms)
-- **The same bytes everywhere.** Identical bytes on every runtime and CPU, and from Go, Rust and TypeScript through the
-  code `nino-gen` writes for your types. [Other languages](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)
-- **Rich types that evolve.** Polymorphism without tags, keyed and version-tolerant types, reference tracking, every
-  BCL collection. [Supported types](https://nino.xgamedev.net/en/docs/v4/types)
+- **Zero allocation.** Serialize into an `IBufferWriter<byte>`, deserialize into existing or pooled objects; thread-safe,
+  no locks on the hot path. [Zero allocation](https://nino.xgamedev.net/en/docs/v4/advanced/zero-allocation)
+- **Everything at compile time.** No reflection, no IL emit, no registration: runs on IL2CPP, Native AOT and HybridCLR
+  hot updates. [Platforms](https://nino.xgamedev.net/en/docs/v4/platforms)
+- **The same bytes everywhere.** Every runtime and CPU writes identical bytes, and so do Go, Rust and TypeScript,
+  which read and write your types through the code `nino-gen` generates. [Other languages](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)
+- **Rich types that evolve.** Polymorphism without tags, version-tolerant and keyed types, reference tracking, every BCL
+  collection. [Supported types](https://nino.xgamedev.net/en/docs/v4/types)
 - **Mistakes caught as you type.** 33 analyzer diagnostics, many with a one-click fix. [Analyzers](https://nino.xgamedev.net/en/docs/v4/analyzers)
 
 ## Install
 
+### .NET and Godot
+
 ```bash
-dotnet add package Nino --prerelease    # .NET and Godot: the runtime and the generator
-openupm add com.jasonxudeveloper.nino   # Unity 2022.3+
+dotnet add package Nino --prerelease
 ```
 
-Nino v4 is a prerelease, so `--prerelease` is required: without it NuGet installs 3.9.x, which cannot read or write v4
-data. Optional packages: `Nino.Immutable` (System.Collections.Immutable), `Nino.AspNetCore` (MVC formatters, Minimal API
-bodies and results), `Nino.Codegen` (your types as TypeScript, Go or Rust after each build; `Nino.Codegen.Tool` is the
-same as the `nino-gen` command). [Installation for .NET, Unity and Godot](https://nino.xgamedev.net/en/docs/v4/start#installation).
+The runtime and the source generator, for .NET Standard 2.0 to .NET 10, Native AOT and Godot 4. v4 is a prerelease:
+without `--prerelease` NuGet installs 3.9.x, which cannot read v4 data. Add-ons: `Nino.Immutable`, `Nino.AspNetCore`, and `Nino.Codegen`, which writes your types as Go, Rust or TypeScript
+after each build ([guide](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)).
+
+### Unity
+
+```bash
+openupm add com.jasonxudeveloper.nino
+```
+
+Unity 2022.3+, Mono and IL2CPP, HybridCLR. [Unity guide](https://nino.xgamedev.net/en/docs/v4/advanced/unity)
+
+### Go
+
+```bash
+go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4
+```
+
+Go 1.22+, no dependencies. Use the code `Nino.Codegen` writes, or map your own structs with struct tags.
+[Go guide](https://nino.xgamedev.net/en/docs/v4/advanced/go)
+
+### Rust
+
+```bash
+cargo add nino-serialization
+```
+
+Rust 1.88+. Use the code `Nino.Codegen` writes, or derive on your own structs with `--features derive`.
+[Rust guide](https://nino.xgamedev.net/en/docs/v4/advanced/rust)
+
+### TypeScript
+
+```bash
+npm install nino-serialization
+```
+
+Node.js and browsers. Optional: `Nino.Codegen` can write the runtime next to the code it generates.
+[TypeScript guide](https://nino.xgamedev.net/en/docs/v4/advanced/typescript)
 
 ## Quick start
 
@@ -90,89 +129,80 @@ Next: [your first types](https://nino.xgamedev.net/en/docs/v4/start),
 
 ## AI coding assistants
 
-Nino ships a skill for Claude Code, Codex, Cursor, Copilot and other agents:
-
 ```bash
 npx skills add JasonXuDeveloper/Nino
 ```
 
-The [`nino-serialization` skill](https://github.com/JasonXuDeveloper/Nino/blob/main/skills/nino-serialization/SKILL.md) teaches your assistant to declare `[NinoType]`s, pick the format for data that
-outlives a release, use the fast and zero-allocation forms, and fix every NINO diagnostic. The docs are written for
-models too: [llms.txt](https://nino.xgamedev.net/llms.txt), [llms-full.txt](https://nino.xgamedev.net/llms-full.txt), and
-every page as Markdown (add `.md` to its URL).
+The [`nino-serialization` skill](https://github.com/JasonXuDeveloper/Nino/blob/main/skills/nino-serialization/SKILL.md)
+teaches Claude Code, Codex, Cursor, Copilot and other agents to declare `[NinoType]`s, pick the right format and fix
+every NINO diagnostic. The docs are also in [llms.txt](https://nino.xgamedev.net/llms.txt) and
+[llms-full.txt](https://nino.xgamedev.net/llms-full.txt).
 
 ## Benchmarks
 
+| Classes and polymorphic types | Serialize | Deserialize |
+|---|---|---|
+| vs MemoryPack | **<!--bench:ser.range-->3.5–7.2<!--/bench-->× faster** | **<!--bench:deser.range-->1.7–2.1<!--/bench-->× faster** |
+| vs MessagePack | **<!--bench:msgpack.ser.range-->8.4–23<!--/bench-->× faster** | **<!--bench:msgpack.deser.range-->5.2–14<!--/bench-->× faster** |
+| vs protobuf-net | **<!--bench:protobuf.ser.range-->41–122<!--/bench-->× faster** | **<!--bench:protobuf.deser.range-->17–57<!--/bench-->× faster** |
+| Into existing objects | — | **0 B, up to <!--bench:reuse.inplace-->9.5<!--/bench-->× faster** than MemoryPack |
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-dark.png">
+    <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="How many times faster Nino v4 serializes and deserializes than MemoryPack, MessagePack, protobuf-net and Nino v3" width="760">
+  </picture>
 </p>
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.14<!--/bench-->, server GC, <!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. Payloads are about the same size (`SimpleClass`: <!--bench:payload.v4-->1,069<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md); the notes of each release carry that release's numbers.</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.14<!--/bench-->, server GC, <!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->, on GitHub's runners; all libraries in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. `SimpleClass` payloads: <!--bench:payload.v4-->1,069<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack. Method and every case: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md).</sub>
 
-Every case, Arm64, MessagePack and protobuf-net: [.NET benchmarks](https://nino.xgamedev.net/en/docs/v4/benchmarks);
-[Unity with Burst](https://nino.xgamedev.net/en/docs/v4/benchmarks-unity);
-[Go, Rust and TypeScript](https://nino.xgamedev.net/en/docs/v4/benchmarks-runtimes). Arrays of tuples and structs and
-string conversion use AVX-512, AVX2, SSSE3, Arm64 and WebAssembly SIMD (Burst kernels in Unity), with portable code
-writing the same bytes elsewhere: [SIMD](https://nino.xgamedev.net/en/docs/v4/simd).
+More: [every .NET case and Arm64](https://nino.xgamedev.net/en/docs/v4/benchmarks),
+[Unity with Burst](https://nino.xgamedev.net/en/docs/v4/benchmarks-unity) and
+[Go, Rust and TypeScript](https://nino.xgamedev.net/en/docs/v4/benchmarks-runtimes).
 
 ## Built for
 
-| | |
-|---|---|
-| ⚙️ **[Services & IPC](https://nino.xgamedev.net/en/docs/v4/advanced/high-performance)** | No per-call allocations, safe concurrent use; [ASP.NET Core](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore) bodies as `application/x-nino`. |
-| 🌐 **[RPC & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)** | Straight into a `PipeWriter`, pooled messages, and a crafted message throws instead of taking the server down. |
-| 📨 **[Message queues](https://nino.xgamedev.net/en/docs/v4/advanced/message-queues)** · 🗄️ **[Caching](https://nino.xgamedev.net/en/docs/v4/advanced/caching)** · 💾 **[Storage](https://nino.xgamedev.net/en/docs/v4/advanced/persistence)** | Polymorphic events, small payloads, and formats that let fields be added, reordered and removed across releases. |
-| 🧩 **[Web, Node, Go & Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)** | Types and codecs generated after each build, so browsers and services read and write the same bytes as .NET. |
-| 🎮 **[Unity](https://nino.xgamedev.net/en/docs/v4/advanced/unity)** | 2022.3+, Mono and IL2CPP, HybridCLR without an init call, Burst SIMD kernels, `AnimationCurve` and `Gradient` built in. |
-| 👾 **[Godot 4 (.NET)](https://nino.xgamedev.net/en/docs/v4/advanced/godot)** | A regular NuGet package; `Vector3`, `Transform3D` and other math structs are copied as raw memory. |
+- **[Services & IPC](https://nino.xgamedev.net/en/docs/v4/advanced/high-performance)**: no per-call allocations, safe concurrent use; [ASP.NET Core](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore) bodies as `application/x-nino`.
+- **[RPC & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)**: straight into a `PipeWriter`, pooled messages, and a crafted message throws instead of taking the server down.
+- **[Message queues](https://nino.xgamedev.net/en/docs/v4/advanced/message-queues)**, **[caching](https://nino.xgamedev.net/en/docs/v4/advanced/caching)** and **[storage](https://nino.xgamedev.net/en/docs/v4/advanced/persistence)**: polymorphic events, small payloads, fields added, reordered and removed across releases.
+- **[Web, Node, Go & Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)**: types and codecs generated after each build, writing and reading the same bytes as .NET.
+- **[Unity](https://nino.xgamedev.net/en/docs/v4/advanced/unity)**: Mono and IL2CPP, HybridCLR without an init call, Burst SIMD kernels, `AnimationCurve` and `Gradient` built in.
+- **[Godot 4 (.NET)](https://nino.xgamedev.net/en/docs/v4/advanced/godot)**: a regular NuGet package; `Vector3`, `Transform3D` and other math structs copied as raw memory.
 
 ## Compared with MemoryPack
 
-MemoryPack's README now calls it "a high-performance serialization format for trusted data only"
-([MemoryPack README](https://github.com/Cysharp/MemoryPack#readme)); Nino is built for data from network peers and
-user files ([details](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#untrusted-input)).
+MemoryPack describes itself as "for trusted data only" ([its README](https://github.com/Cysharp/MemoryPack#readme));
+Nino is built for data from network peers and user files.
 
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
-| Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only, per its README |
-| Serialize classes and polymorphic types | **<!--bench:ser.range-->3.5–7.2<!--/bench-->× faster** | |
-| Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.7–2.1<!--/bench-->× faster** | |
-| Raw struct arrays | at least on par without padding (a block copy in both); padding zeroed | padding copied as is, in the platform's layout |
-| Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->9.5<!--/bench-->× faster** (in place) | overwrite mode: clears collections and allocates their elements again |
+| Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only |
+| Deserialize into existing objects | **0 B** (in place) | clears collections and allocates their elements again |
 | Polymorphism | automatic type ids, any base class or interface, generic bases included | `[MemoryPackUnion]` tags you maintain, not on generic types |
-| Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
-| Unity | ✅ 2022.3+, one OpenUPM package, `netstandard2.0` and `2.1` | ✅ 2022.3.12f1+, NuGetForUnity plus a git package, `netstandard2.1` |
+| Keyed members, reference tracking, object pools | all three | version tolerance and circular references, no pools |
+| Unity | 2022.3+, one OpenUPM package | 2022.3.12f1+, NuGetForUnity plus a git package |
 
-While benchmarking we found three types MemoryPack 1.21.4 does not round-trip (`BigInteger`, `BitArray` on .NET 10,
-tuples between runtimes); Nino writes them by value. The [full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack)
-covers them, what MemoryPack has that Nino does not, and how to switch. Also compared:
-[MessagePack](https://nino.xgamedev.net/en/docs/v4/vs-messagepack) and
-[protobuf-net](https://nino.xgamedev.net/en/docs/v4/vs-protobuf-net).
+The [full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) covers the three types MemoryPack does not
+round-trip and how to switch; also [vs MessagePack](https://nino.xgamedev.net/en/docs/v4/vs-messagepack) and
+[vs protobuf-net](https://nino.xgamedev.net/en/docs/v4/vs-protobuf-net).
 
 ## v4 vs v3
 
-v4 is a rewrite of the runtime and the generator. **Its binary format is not compatible with v3.**
+v4 rewrote the runtime and the generator; **its binary format is not compatible with v3.**
 
 | v4 vs v3 (3.3.13) | |
 |---|---|
 | Serialize | <!--bench:v3.ser-->**2.11× faster** (class), **2.49× faster** (class array), **1.37× faster** (struct), on par (struct array)<!--/bench--> |
-| Deserialize | <!--bench:v3.deser-->**1.55× faster** (class), **1.55× faster** (class array), on par (struct), on par (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
-| Compiling the generated code | **51× faster** at 330 types (42.9 s → 0.84 s), **221× faster** at 1,100 types (462 s → 2.1 s) |
-| Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
-| Generated code | **14× smaller** source, **5× smaller** IL |
+| Deserialize | <!--bench:v3.deser-->**1.55× faster** (class), **1.55× faster** (class array), on par (struct), on par (struct array)<!--/bench--> |
+| Build | generated code compiles **221× faster** at 1,100 types (462 s → 2.1 s); **14× smaller** source |
 
-Everything new: [what's new in v4](https://nino.xgamedev.net/en/docs/v4/whats-new), the
-[changelog](https://nino.xgamedev.net/en/docs/v4/changelog) and the
-[migration guide](https://nino.xgamedev.net/en/docs/v4/migration); internals are in
-[docs/v4-design.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-design.md).
+[What's new in v4](https://nino.xgamedev.net/en/docs/v4/whats-new) · [Changelog](https://nino.xgamedev.net/en/docs/v4/changelog) · [Migration guide](https://nino.xgamedev.net/en/docs/v4/migration)
 
 ## Contributing
 
-Issues and pull requests are welcome. [CONTRIBUTING.md](https://github.com/JasonXuDeveloper/Nino/blob/main/CONTRIBUTING.md) covers building, the test matrix and
-releasing.
+Issues and pull requests are welcome; see [CONTRIBUTING.md](https://github.com/JasonXuDeveloper/Nino/blob/main/CONTRIBUTING.md).
+Report security issues privately as [SECURITY.md](https://github.com/JasonXuDeveloper/Nino/blob/main/SECURITY.md) describes.
 
-<div align="center">
+## License
 
-MIT License · Made by [JasonXuDeveloper](https://github.com/JasonXuDeveloper)
-
-</div>
+[MIT](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE) © [JasonXuDeveloper](https://github.com/JasonXuDeveloper)
