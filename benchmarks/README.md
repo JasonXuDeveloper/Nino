@@ -109,7 +109,7 @@ Performance Report of each release.
 | `ReferenceTest` | A 200-node graph with shared tags, shared peers and cycles: `[NinoType(trackReferences: true)]` against MemoryPack's `GenerateType.CircularReference` (`GraphSerialize`, `GraphDeserialize`) |
 | `VersionTolerantTest` | `SimpleClass`'s members as `NinoFormat.VersionTolerant` against MemoryPack's `GenerateType.VersionTolerant`, one and 100 (`TolerantClassSerialize`, `TolerantClassesSerialize`, `TolerantClassDeserialize`, `TolerantClassesDeserialize`) |
 | `FixedSizeTest` | Types of fixed size (`NinoSerializer.GetFixedSize<T>()` is not -1), serialized to a new `byte[]` of exactly that size: a 40-byte unmanaged struct, a sealed class of the same members, and an array of 100 of the classes (`FixedStructSerialize`, `FixedClassSerialize`, `FixedClassesSerialize` and the `Deserialize` ones) |
-| `WorkloadTest` | Payloads shaped like real workloads (`WorkloadModels.cs`, `workloads.proto`), to a reused buffer and into new instances, against MemoryPack, MessagePack, protobuf-net, Google.Protobuf and System.Text.Json: one RPC request (ids, a trace `Guid`, short strings, a `DateTime`, an enum, 8 ints), a Web API page of 100 orders (`decimal` money, nullable fields, an address, 1 to 8 lines each), a cached user profile (18 fields, several null, a 10-entry `Dictionary<string, string>`), a game snapshot of 500 entity structs (vectors, a quaternion, health, flags), 1,000 structured log events (timestamp, level, template, trace id, three tags) and 500 domain events of four subtypes through an abstract base (`RpcRequestSerialize`, `OrdersPageSerialize`, `UserProfileSerialize`, `GameSnapshotSerialize`, `LogBatchSerialize`, `EventStreamSerialize` and the `Deserialize` ones). The README's, the docs site's and the release notes' headline numbers come from it |
+| `WorkloadTest` | 12 payloads shaped like real workloads (`Workloads/`), to a reused buffer and back, against MemoryPack, MessagePack, protobuf-net, Google.Protobuf and System.Text.Json: jvm-serializers' `MediaContent`, a Stack Exchange API page of 20 questions (the models of Jil's and MessagePack-CSharp's benchmarks), an RPC call with an interface result, a profile cached by the previous version (Nino keyed, MemoryPack version tolerant), an event store page (two-level hierarchies in generic envelopes), 1,000 log events, a state-sync snapshot read into the client's copy, 10 lockstep frames of 8 players, an MMO AOI update, an SLG map region and a card battle replay that share objects (Nino and MemoryPack references, JSON `Preserve`, copies elsewhere), and an idle save of the previous version read in place (`MediaContentSerialize`, ..., `IdleSaveSerialize` and the `Deserialize` ones; docs/v4-benchmarks.md has the table). The README's, the docs site's and the release notes' headline numbers come from it |
 | `CommonTypesTest` | Common type shapes (`CommonTypes.cs`), to a reused buffer writer and into new instances: a `TreeNode` tree (1,365 nodes), `InventoryItem[1000]` (a padded struct), `Waypoint[1000]` (a struct of fixed size that is not raw: a value tuple member) and `Dictionary<string, string>` (1,000) (`TreeSerialize`, `InventorySerialize`, `WaypointsSerialize`, `StringDictionarySerialize` and the `Deserialize` ones) |
 | `CollectionsTest` | Collections of the base class library, 1,000 elements each, to a reused buffer writer and into new instances: `List<(int, long)>`, `KeyValuePair<int, int>[]`, `HashSet<int>`, `Dictionary<int, int>`, `Queue<int>`, `LinkedList<int>`, `SortedSet<int>`, `SortedDictionary<int, int>`, `SortedList<int, int>` and `ConcurrentDictionary<int, int>` (`TupleListSerialize`, `KeyValuePairsSerialize`, `HashSetSerialize`, `IntDictionarySerialize`, `QueueSerialize`, `LinkedListSerialize`, `SortedSetSerialize`, `SortedDictionarySerialize`, `SortedListSerialize`, `ConcurrentDictionarySerialize` and the `Deserialize` ones); and `SelfTree`, a class derived from `List<SelfTree>` nested 6 deep, 4 wide (5,461 lists, each level counted; Nino and MemoryPack: `SelfTreeSerialize`, `SelfTreeDeserialize`) |
 | `BclTypesTest` | Base class library types beyond the common collections, to a reused buffer writer and into new instances: `BigInteger` (3^1000), `Uri`, `Version`, `StringBuilder` (1,000 chars), `BitArray` (1,000 bits), `CultureInfo`, `TimeZoneInfo`, `Lazy<string>`, and with 1,000 elements `Memory<int>`, `ReadOnlySequence<int>`, `ReadOnlyCollection<int>`, `ILookup<int, int>`, `BlockingCollection<int>` and the immutable collections of Nino.Immutable (`ImmutableHashSet`, `ImmutableSortedSet`, `ImmutableQueue`, `ImmutableStack`, `ImmutableDictionary`, `ImmutableSortedDictionary`) (`BigIntegerSerialize`, ..., `ImmutableSortedDictionarySerialize` and the `Deserialize` ones). Nino only for `BigInteger` and `BitArray`: MemoryPack 1.21.4 reads back another `BigInteger` than it wrote (up to 255 bytes), and on .NET 10 writes a `BitArray` wrong and crashes reading one |
@@ -117,7 +117,7 @@ Performance Report of each release.
 | `UntrustedTest` | Reads with `NinoSettings.Untrusted` on (set before first use; the class runs in a process of its own): `List<CheckedSample>` of 1,000 raw structs whose `DateTime` and `bool` fields Nino checks before copying them (`UntrustedListDeserialize`). Against MemoryPack only, which copies them unchecked; under `--verify` the setting is already frozen and the case reads in trusted mode |
 
 Method names are unique across classes (`<Serializer><Serialize|Deserialize><Case>`, e.g. `NinoSerializeTolerantClass`,
-`MemoryPackDeserializeGraph`, `ProtobufSerializeOrdersPage`; the serializers are `Nino`, `MemoryPack`, `MessagePack`,
+`MemoryPackDeserializeGraph`, `ProtobufSerializeStackOverflowPage`; the serializers are `Nino`, `MemoryPack`, `MessagePack`,
 `Protobuf` (protobuf-net), `GoogleProtobuf` and `Json` (System.Text.Json), the last two in `WorkloadTest` only): the documentation site and the `Payload` column key rows by method name
 alone.
 
@@ -178,19 +178,27 @@ dotnet run -c Release -- --filter '*Copy128Probe*'                      # Arm64
 
 `WorkloadTest` also measures the two serializers most .NET services use by default:
 
-- Google.Protobuf 3 writes and reads its own generated messages, as its users do: `workloads.proto`, compiled at build
-  time by the protoc of Grpc.Tools, filled with the same values outside the timed region (`WorkloadProto`). It writes
-  with `message.WriteTo(IBufferWriter<byte>)` into a reused `ArrayBufferWriter<byte>` and reads with
-  `Parser.ParseFrom(ReadOnlySpan<byte>)`. The workload models carry protobuf-net's
-  `CompatibilityLevel.Level300` (the well-known types: `DateTime` as `google.protobuf.Timestamp`, `decimal` and `Guid`
-  as strings) and the `.proto` uses the same field numbers, so protobuf-net and Google.Protobuf write the same
-  messages; `--verify` reads Google.Protobuf's result back through protobuf-net into the model (`IReadBack`) and
-  compares it with Nino's. A subtype takes the lowest field numbers (a `oneof` in the `.proto`): protobuf-net reads it
-  before its base's fields, and Google.Protobuf writes fields in the order of their numbers.
+- Google.Protobuf 3 writes and reads its own generated messages, as its users do: `Workloads/workloads.proto`,
+  compiled at build time by the protoc of Grpc.Tools. The file is what protobuf-net's contracts of the workload models
+  generate (`RuntimeTypeModel.GetSchema`, proto3): run `dotnet bin/Release/net10.0/Nino.Benchmark.dll --write-proto`
+  in `benchmarks/Nino.Benchmark` after changing a model, and `WorkloadTest`'s setup fails while the file is stale. The
+  models carry `CompatibilityLevel.Level300` (`DateTime` as `google.protobuf.Timestamp`, `decimal` and `Guid` as
+  strings), so both libraries write the same messages, and Google.Protobuf's data is parsed from protobuf-net's bytes
+  of the same values outside the timed region. It writes with `message.WriteTo(IBufferWriter<byte>)` into a reused
+  `ArrayBufferWriter<byte>` and reads with `Parser.ParseFrom(ReadOnlySpan<byte>)`; `--verify` reads its result back
+  through protobuf-net into the model (`IReadBack`) and compares it with Nino's. A type with subtypes numbers them
+  from 1 and its own members from 20 (a `oneof` before the base's fields): protobuf-net reads the subtype's field
+  before the base's, and Google.Protobuf writes fields in the order of their numbers.
 - System.Text.Json writes UTF-8 through its source generator (`WorkloadJson`, `IncludeFields`, subtypes by
   `[JsonDerivedType]`), with `JsonSerializer.Serialize(Utf8JsonWriter, value, JsonTypeInfo<T>)` into a reused
   `Utf8JsonWriter` (`SkipValidation`, as the serializer's own writers) over an `ArrayBufferWriter<byte>`, and reads with
-  `JsonSerializer.Deserialize(ReadOnlySpan<byte>, JsonTypeInfo<T>)`: the same model types as the others.
+  `JsonSerializer.Deserialize(ReadOnlySpan<byte>, JsonTypeInfo<T>)`: the same model types as the others. The
+  workloads that share objects go through a second context with `ReferenceHandler.Preserve` (`WorkloadReferenceJson`).
+
+In `WorkloadTest`, unlike the other classes, a library that lacks a feature a workload needs is measured with its
+usual workaround rather than left out (the owner's choice: the workloads are what applications send, whatever the
+library): MessagePack and protobuf write a copy of a shared object for each reference (read back as equal copies);
+the libraries that cannot read into an existing object read a new one (MemoryPack overwrites, Nino reads in place).
 
 ## Member by Member
 

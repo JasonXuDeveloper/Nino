@@ -35,7 +35,9 @@
         <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
         <Compile Remove="V3/**"/>
-        <Protobuf Include="workloads.proto" GrpcServices="None"/>
+        <Protobuf Include="Workloads/workloads.proto" GrpcServices="None"/>
+        <!-- WorkloadTest checks it against what the models' protobuf-net contracts generate (Nino.Benchmark with write-proto). -->
+        <EmbeddedResource Include="Workloads/workloads.proto" LogicalName="workloads.proto"/>
     </ItemGroup>
 
     <!-- The v3 run (NINO_BENCH_V3=true, Directory.Build.props): Nino 3.3.13 from nuget.org and the same SimpleTest

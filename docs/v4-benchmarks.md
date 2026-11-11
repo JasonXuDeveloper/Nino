@@ -74,15 +74,30 @@ seeded, so every run serializes the same values.
 
 ### Real-world workloads
 
-`WorkloadTest` (`benchmarks/Nino.Benchmark/WorkloadModels.cs`): one RPC request (ids, a trace `Guid`, short strings,
-a timestamp, an enum, 8 ints), a Web API page of 100 orders (`decimal` money, nullable fields, an address, 1 to 8
-lines each), a cached user profile (18 fields, several null, a 10-entry string dictionary), a game snapshot of 500
-entity structs (vectors, a quaternion, health, flags), 1,000 structured log events (timestamp, level, template,
-trace id, three tags) and 500 domain events of four subtypes through an abstract base. Every library writes the same
-values through its fastest API: Google.Protobuf its own messages generated from `workloads.proto` (the same field
-numbers as protobuf-net's contracts, so both write the same messages: one payload size), System.Text.Json UTF-8
-through its source generator into a reused `Utf8JsonWriter`. These are the README's headline numbers. A ratio in
-parentheses is how many times faster Nino is; a dash, that it is not ahead by more than 5%.
+`WorkloadTest` (`benchmarks/Nino.Benchmark/Workloads`), 12 payloads with the problems real ones have:
+
+| Workload | What it is | What it exercises |
+|---|---|---|
+| `MediaContent` | jvm-serializers' standard payload, with its standard values | small objects, enums, a string list |
+| `StackOverflowPage` | 20 Stack Exchange API questions with answers, comments and users (the models of Jil's, MessagePack-CSharp's and MemoryPack's benchmarks) | nested lists, nullable dates, HTML bodies |
+| `RpcCall` | a request and its response, the result an interface (`Ok<List<Item>>`, `NotFound`, `ValidationFailed`) | interface polymorphism, a generic subtype, `decimal`, `Guid` |
+| `ProfileCache` | a profile the previous release cached, read by this one (a member removed, two added) | version tolerance: Nino's keyed format, MemoryPack's version-tolerant one |
+| `EventStream` | 500 events of an event store: two levels of abstract classes (three families, eight events) in generic envelopes | deep hierarchies, generic subtypes of a non-generic base |
+| `LogBatch` | 1,000 structured log events | strings, small dictionaries |
+| `StateSnapshot` | a state-sync server's tick: 64 entities whose components are an interface, full or changed only, read into the client's snapshot | interface lists, deserializing into an existing object |
+| `LockstepFrames` | a frame-sync broadcast: 10 frames of 8 players' input commands (an interface) | many tiny polymorphic messages |
+| `AoiUpdate` | an MMO's area-of-interest update: 200 enter, leave, move, cast and buff events, and chat | an abstract base with five subtypes, structs |
+| `WorldRegion` | an SLG map region: 64 x 64 tiles, cities, armies and marches, sharing their alliances | a large struct array, shared references |
+| `CardBattleLog` | a card battle's replay: 300 actions in two levels of abstract classes, sharing the card definitions | deep hierarchies, shared references |
+| `IdleSave` | an idle game's save from the previous release (members appended since), read into the save the game holds | big numbers, dictionaries, version tolerance, deserializing into an existing object |
+
+Every library writes the same values through its fastest API: Google.Protobuf its own messages, generated from
+`workloads.proto`, which protobuf-net's contracts of the same models produce (so both write the same messages: one
+payload size), System.Text.Json UTF-8 through its source generator into a reused `Utf8JsonWriter`. Where a library
+lacks a feature it takes its usual workaround: MessagePack and protobuf write a copy of a shared object for each
+reference (System.Text.Json uses its `Preserve` references), and the libraries that cannot read into an existing
+object (all but Nino and MemoryPack's overwrite) read a new one. These are the README's headline numbers. A ratio
+in parentheses is how many times faster Nino is; a dash, that it is not ahead by more than 5%.
 
 Serialize (to a reused buffer):
 

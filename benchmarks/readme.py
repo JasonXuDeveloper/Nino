@@ -16,9 +16,9 @@ usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 rep
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
 carries whole tables between such markers. Everything outside the markers (the build-time numbers among it) is
-written by hand. The headline numbers come from WorkloadTest's six workloads: the ranges of how many times faster
+written by hand. The headline numbers come from WorkloadTest's workloads: the ranges of how many times faster
 Nino is than MemoryPack (ser.range, deser.range), MessagePack (msgpack.*), protobuf-net (protobuf.*), Google.Protobuf
-(gprotobuf.*) and System.Text.Json (json.*), and the chart (light and dark), the geometric mean over the six of each
+(gprotobuf.*) and System.Text.Json (json.*), and the chart (light and dark), the geometric mean over them of each
 library's time against Nino's. Ratios follow the docs site (nino.docs src/lib/benchmarks.ts): within 5% is "on
 par", and a case where v4 is slower is left out of a range, never shown as slower; a mean within 5% has no bar.
 A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
@@ -34,9 +34,14 @@ from bdn import FLOOR_NS, mean_ns, rows
 
 ROOT = Path(__file__).resolve().parent.parent
 # The headline cases: WorkloadTest's workloads, with their names in the docs table.
-WORKLOADS = [("RpcRequest", "RPC request"), ("OrdersPage", "Web API page, 100 orders"),
-             ("UserProfile", "Cached user profile"), ("GameSnapshot", "Game snapshot, 500 entities"),
-             ("LogBatch", "Log batch, 1,000 events"), ("EventStream", "Event stream, 500 polymorphic events")]
+WORKLOADS = [("MediaContent", "`MediaContent` (jvm-serializers)"),
+             ("StackOverflowPage", "Stack Exchange API page, 20 questions"),
+             ("RpcCall", "RPC call, interface result"), ("ProfileCache", "Cached profile, previous version"),
+             ("EventStream", "Event store page, 500 events in generic envelopes"),
+             ("LogBatch", "Log batch, 1,000 events"), ("StateSnapshot", "State-sync snapshot, in place"),
+             ("LockstepFrames", "Lockstep, 10 frames of 8 players"), ("AoiUpdate", "MMO AOI update, 200 events"),
+             ("WorldRegion", "SLG map region, shared alliances"), ("CardBattleLog", "Card battle replay, shared cards"),
+             ("IdleSave", "Idle save, previous version, in place")]
 WORKLOAD_KEYS = [key for key, _ in WORKLOADS]
 # The other libraries of the headline, as (method prefix, key prefix of the README markers, name).
 OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "MessagePack"),
@@ -122,10 +127,10 @@ def numbers(v4_path, v3_paths, tag=None):
         if prefix:
             out[f"{prefix}.ser.range"] = win_range("Serialize", other)
             out[f"{prefix}.deser.range"] = win_range("Deserialize", other)
-    # The bytes of the Web API page, each library's (the README's environment line).
+    # The bytes of the Stack Exchange page, each library's (the README's environment line).
     # (Google.Protobuf writes the same messages as protobuf-net: one number for both.)
     for other, prefix in [("Nino", "v4")] + [(o, p or "memorypack") for o, p, _ in OTHERS if o != "GoogleProtobuf"]:
-        out[f"payload.{prefix}"] = v4[f"{other}SerializeOrdersPage"]["payload"].replace(" B", "")
+        out[f"payload.{prefix}"] = v4[f"{other}SerializeStackOverflowPage"]["payload"].replace(" B", "")
 
     # The chart: how many times faster Nino v4 is than each library, the geometric mean over the workloads (one
     # Nino does not beat by more than 5% has no bar), and into existing objects against MemoryPack's overwrite.
@@ -146,7 +151,7 @@ def numbers(v4_path, v3_paths, tag=None):
                                 for k in WORKLOAD_KEYS) / len(WORKLOAD_KEYS))
             if mean > 1 and not on_par(mean):
                 bars.append((name, mean))
-        chart.append((f"{verb} · six workloads (geometric mean)", bars))
+        chart.append((f"{verb} · {len(WORKLOAD_KEYS)} workloads (geometric mean)", bars))
     for title, nino, memorypack in [("pooled node", "NinoNodePooled", "MemoryPackNodeOverwrite"),
                                     ("leaves in place", "NinoLeavesInPlace", "MemoryPackLeavesOverwrite")]:
         chart.append((f"Deserialize into existing objects · {title} (Nino {allocated(v4[nino])}, "
@@ -332,7 +337,7 @@ def svg(chart, theme="light"):
     head = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 {height}" width="820" height="{height}" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
 <style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]}}}.v{{font-size:12px;font-weight:700;fill:{c["text"]}}}</style>
 <text x="0" y="22" class="t">How many times faster Nino v4 is (log scale)</text>
-<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine; six real-world workloads, each library's fastest API.</text>
+<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine; 12 real-world workloads, each library's fastest API.</text>
 '''
     return head + "\n".join(out) + "\n</svg>\n", height
 

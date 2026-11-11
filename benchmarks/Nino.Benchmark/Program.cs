@@ -13,11 +13,17 @@ namespace Nino.Benchmark
         // One joined summary, and --filter is honored (RunAllJoined ignores it). Times always in ns and sizes in B,
         // as the published report has always shown them: report.yml merges the reports of classes that ran in
         // parallel (benchmarks/merge_reports.py), whose cells then compare as they are.
-        // `--verify` checks the cases (Verify.cs) and does not start BenchmarkDotNet.
+        // `--verify` checks the cases (Verify.cs) and does not start BenchmarkDotNet; `--write-proto` rewrites the
+        // workloads' .proto from their models (WorkloadTest).
         public static int Main(string[] args)
         {
             if (args.Contains("--verify"))
                 return Verify.Run();
+            if (args.Contains("--write-proto"))
+            {
+                Workloads.WorkloadTest.WriteProto();
+                return 0;
+            }
 
             // The probes (classes named *Probe, CpuProbe.cs) time kernels on their own jobs: only
             // a filter that names one runs them, never the suite's '*'.

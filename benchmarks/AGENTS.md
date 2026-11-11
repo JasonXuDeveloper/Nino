@@ -15,9 +15,9 @@ run.sh                       the published runtime benchmark: v3 3.3.13 then the
 Nino.Benchmark/              the BenchmarkDotNet suite: Nino against MemoryPack, MessagePack and protobuf-net per class
                              (SimpleTest, PolymorphicTest, GenericPolymorphicTest, PooledTest, PooledGraphTest,
                              ReferenceTest, VersionTolerantTest, FixedSizeTest, CommonTypesTest, CollectionsTest,
-                             BclTypesTest, ScatteredTest, UntrustedTest), WorkloadTest (six real-world payloads in
-                             WorkloadModels.cs, the headline numbers, also against Google.Protobuf through
-                             workloads.proto and System.Text.Json), CpuProbe (block copies against Memmove),
+                             BclTypesTest, ScatteredTest, UntrustedTest), Workloads/ (WorkloadTest: 12 real-world
+                             payloads, the headline numbers, also against Google.Protobuf through
+                             workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
                              Verify.cs (--verify: every case reads back right), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
                              NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest; -p:NinoBenchLegacy for older refs
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
