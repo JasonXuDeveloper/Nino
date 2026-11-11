@@ -1,0 +1,1 @@
+Fixed: An assembly removed from the registry while its formatter registration was failing is no longer kept alive by a strong reference.
