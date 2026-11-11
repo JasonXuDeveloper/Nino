@@ -1180,6 +1180,23 @@ of bytes in a block.
   kept their Tier 1 sizes. All variants matched the 834 wire, refill and truncation probes,
   allocated 0 B per timed read, and the shared-address version matched all 584 generated files.
   Retain the scratch patches when revisiting the caller timing or the x64 AVX2 widen loads.
+  Align the middle stores of long Arm64 Latin-1 reads when the UTF-16 destination starts
+  off a 16-byte boundary. Write the head once and use its overlap to reach a 32-byte
+  boundary. Keep the 512-character guard at the existing long-header and builder-chunk
+  callers. Putting it in the shared entry slowed the 16-character kernel by about 17%.
+  The unconditional paired-store version showed no repeatable gain when the source and
+  destination placements were swept independently. With alignment, at 4,096 characters
+  and destination offset 2 in a 128-byte region, all four M4 pairs improved by 32–34%.
+  A new string from offset seven improved by 16–22% at 21,844 characters and 3–21%
+  at 21,846, either side of a 64 KiB live input/output budget. Builder refill timings
+  around that boundary varied and its steady allocation stayed zero. The isolated
+  31-character string comparison overlapped the controls.
+  The 177-byte IL and 104-byte Arm64 Tier 1 shared entry stayed the same. The guard
+  adds 56 IL bytes and the new loop adds 85 IL and 120 Arm64 Tier 1 bytes. Offline x64
+  v2/v3/v4 kept the widening entry at 79/184/243 bytes and the v4 helper at 156.
+  The 5,598 direct alignment checks and 1,638 public wire and truncation checks matched,
+  as did 584 real-project generated files. The .NET 8/10, scalar and both netstandard
+  suites passed (`585c22c6`).
   For AVX-512BW, widen two 32-byte loads directly with the ISA's conversion and align the middle stores.
   A 64-byte load and tuple widening emitted a vector copy and half extraction. The direct conversion folds
   both loads into `vpmovzxbw` and reduced the v4 helper from 177 to 158 B. Gate the outlined call with the
