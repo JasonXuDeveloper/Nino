@@ -9,7 +9,7 @@ name: Unity
 # report.yml calls it for each release with `benchmark: true`: the editor's tests are skipped, the IL2CPP player is
 # built as a release build (Test.Editor.Burst.BenchmarkPlayerBuild) and runs the correctness tests and the Burst
 # benchmark (Test.Runtime.Burst.BurstBenchmark, measured with the Unity Performance Testing package), and its results
-# are uploaded per Unity version (artifacts unity-bench-<version>) for benchmarks/unity_report.py. A called run joins the same concurrency group, so
+# are uploaded per Unity version (artifacts unity-bench-<version>) for benchmarks/reports/unity_report.py. A called run joins the same concurrency group, so
 # it waits for a running Unity job and is never cancelled while it runs. The webgl job then builds a WebGL player per
 # version and runs it in headless Chrome (Nino.WebGL's kernels; timed too in the benchmark's run).
 

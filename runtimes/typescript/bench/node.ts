@@ -1,7 +1,7 @@
 // The benchmark in Node: node node.ts <data directory> [scenario]
 // NINO_BENCH_TIME sets tinybench's time per task in milliseconds (default 1000). With NINO_BENCH_JSON=<file>, the
 // rows are also written to that file as JSON ({ node, tinybench, rows }), for the release's report
-// (benchmarks/runtimes_report.py).
+// (benchmarks/reports/runtimes_report.py).
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { run, table } from "./bench.ts";

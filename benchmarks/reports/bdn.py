@@ -1,6 +1,7 @@
 """Reads BenchmarkDotNet's GitHub Markdown reports (*-report-github.md) for the scripts that compare them: readme.py,
-ab.py, merge_reports.py, compact_report.py, compare_v3.py and members/table.py. One parser, one unit table and one
-floor, so the scripts cannot drift apart in how they read a report or which times they call too fast to measure.
+merge_reports.py, compact_report.py, ../compare/ab.py, ../compare/compare_v3.py and ../members/table.py. One parser,
+one unit table and one floor, so the scripts cannot drift apart in how they read a report or which times they call
+too fast to measure.
 `show` is also how runtimes_report.py and unity_report.py print times: every table of the release body writes them
 alike (readme.py keeps the docs site's own format for README and docs)."""
 import re

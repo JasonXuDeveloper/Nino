@@ -22,7 +22,7 @@ Every number that counts comes from a GitHub runner. Local runs only choose betw
 | .NET case against competitors, locally | `QUICK=1 FILTER='*SimpleTest*' benchmarks/run.sh` (any BenchmarkDotNet filter; quick mode stops each case at 6 to 10 iterations under 2 % error, about 30-45 min for everything) |
 | Every case still reads back right | `Nino.Benchmark --verify` (Verify.cs) |
 | One member's cost, v3 against v4 | `benchmarks/members/run.sh` (`DISASM=1` for listings) |
-| Did the machine code change | `python3 benchmarks/asm.py compare origin/main` (`optimize`) |
+| Did the machine code change | `python3 benchmarks/asm/asm.py compare origin/main` (`optimize`) |
 | Generator time and generated size | `benchmarks/Nino.GeneratorBenchmark` (`audit-generator`); on runners, `generator` lines of runtime-ab (below) |
 | Go | `cd runtimes/go/bench && go test -run='^$' -bench=. -benchmem -count=6 . \| tee bench.txt`, then benchstat |
 | Rust | `cargo bench -p nino-bench --bench compare` (and `--bench text` for transcoding, `--bench blocks` for blocks of fixed-size elements). Back to back across worktrees with the shared `CARGO_TARGET_DIR`, touch each side's `.rs` and `Cargo.toml` files before its run, or give each side its own target directory: every worktree builds the workspace's crates under the same artifact names, and cargo, finding them newer than the other side's sources, ran one binary for both sides (land/rust's first local run) |

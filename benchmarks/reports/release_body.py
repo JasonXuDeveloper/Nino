@@ -78,7 +78,7 @@ def perf_section(report, repo, tag, now):
 
 
 def v3_section(v3, x64, repo, tag, settings):
-    compare = subprocess.run([sys.executable, os.path.join(HERE, "compare_v3.py"), v3, x64],
+    compare = subprocess.run([sys.executable, os.path.join(HERE, "..", "compare", "compare_v3.py"), v3, x64],
                              stdout=subprocess.PIPE, encoding="utf-8")
     table = compare.stdout
     if compare.returncode:

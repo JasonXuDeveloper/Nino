@@ -12,7 +12,7 @@ namespace Nino.Benchmark
     {
         // One joined summary, and --filter is honored (RunAllJoined ignores it). Times always in ns and sizes in B,
         // as the published report has always shown them: report.yml merges the reports of classes that ran in
-        // parallel (benchmarks/merge_reports.py), whose cells then compare as they are.
+        // parallel (benchmarks/reports/merge_reports.py), whose cells then compare as they are.
         // `--verify` checks the cases (Verify.cs) and does not start BenchmarkDotNet; `--write-proto` rewrites the
         // workloads' .proto from their models (WorkloadTest).
         public static int Main(string[] args)

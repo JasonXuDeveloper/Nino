@@ -39,8 +39,8 @@ Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/
 classes in parallel on twelve runners per architecture (SimpleTest split into its serialize and deserialize cases,
 BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest by type), every serializer's run of a case always on one, every
 case in three processes, and
-[`merge_reports.py`](merge_reports.py) merges their reports into one table, naming each class's runner under it.
-The release notes get the short tables of [`compact_report.py`](compact_report.py) (Method, Mean, Ratio, Payload,
+[`merge_reports.py`](reports/merge_reports.py) merges their reports into one table, naming each class's runner under it.
+The release notes get the short tables of [`compact_report.py`](reports/compact_report.py) (Method, Mean, Ratio, Payload,
 Allocated, one table per class), as a release body holds at most 125,000 characters; the full reports are attached
 to the release, and when the later sections (runtimes, Unity) lack room the Arm64 section becomes a link to its attached
 copy. BenchmarkDotNet writes a report of one class without a Type column: both scripts then take the class
@@ -55,7 +55,7 @@ adds whichever section is missing.
 The runtimes outside .NET get a section each after all of those: **🌐 TypeScript runtime benchmark**
 (`runtimes/typescript/bench`, Node), **🐹 Go runtime benchmark** (`runtimes/go/bench`) and **🦀 Rust runtime
 benchmark** (`runtimes/rust/bench`), each against the serializers of its language, run on one runner from the tag's
-sources and formatted by [`runtimes_report.py`](runtimes_report.py). Their headings and tables have none of the
+sources and formatted by [`runtimes_report.py`](reports/runtimes_report.py). Their headings and tables have none of the
 words the readers of the .NET sections look for ("Performance Report", "Method", "Mean"), and a language whose
 benchmark fails is left out without touching the rest. The same three run on an Arm64 runner too and follow as
 **🌐 Arm64: TypeScript runtime benchmark**, **🐹 Arm64: Go runtime benchmark** and **🦀 Arm64: Rust runtime
@@ -70,18 +70,18 @@ benchmark measures each case with the Unity Performance Testing package (`Measur
 the kernels and one with them, plus "SSSE3 only" on AVX2 CPUs), whose results and run metadata (Unity version, backend,
 CPU, packages) land in the player's NUnit results; the player adds a `NINO_UNITY_ENV` line (the kernels' instruction
 set) and the editor a `NINO_UNITY_BUILD` line (IL2CPP's settings and Burst's x64 targets, which the package does not
-record). [`unity_report.py`](unity_report.py) turns them into a line per Unity version naming the player and the
+record). [`unity_report.py`](reports/unity_report.py) turns them into a line per Unity version naming the player and the
 machine and a table per version (tested by `test_unity_report.py` on `fixtures/unity-bench-*/`). It waits for the Unity
 license's seat like every Unity run, and a failure leaves only this section out (the run shows it as failed).
 
 The README numbers and chart (`docs/assets/benchmark.svg` and `.png`) and the runtime tables of
 `docs/v4-benchmarks.md` follow the newest v4 release too: for that release, `report.yml` runs
-[`readme.py`](readme.py) on its reports, which rewrites everything between the `<!--bench:...-->` markers of
+[`readme.py`](reports/readme.py) on its reports, which rewrites everything between the `<!--bench:...-->` markers of
 `README.md`, `README.zh.md` and `docs/v4-benchmarks.md` and the chart, then pushes them to `main`. After a full
 local run, the same script updates them from your reports (it writes the SVG; render the PNG from `--png-html`):
 
 ```sh
-python3 benchmarks/readme.py --v4 out/v4/results/*-joined-*-report-github.md \
+python3 benchmarks/reports/readme.py --v4 out/v4/results/*-joined-*-report-github.md \
   --v3 out/v3/results/*-report-github.md --png-html chart.html
 ```
 
@@ -91,7 +91,7 @@ it against a measurable one is "faster (too fast to measure)", with no ratio, an
 Build-time numbers and everything outside the markers are edited by hand.
 
 The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `compact_report.py`, `compare_v3.py`,
-`members/table.py`) share one parser, unit table and floor: [`bdn.py`](bdn.py).
+`members/table.py`) share one parser, unit table and floor: [`bdn.py`](reports/bdn.py).
 
 ## Benchmark Classes
 
@@ -224,7 +224,7 @@ Microsoft's crossgen2 package into the .NET 10 runtime. With it every method is 
 shows both listings:
 
 ```sh
-JIT=$(benchmarks/cross-jit.sh)
+JIT=$(benchmarks/asm/cross-jit.sh)
 DOTNET_AltJit='*' DOTNET_AltJitName=$JIT DOTNET_JitDisasm='Nino*' dotnet <app>.dll > out.txt   # stdout, not
 python3 benchmarks/members/split-asm.py out.txt asm      # DOTNET_JitStdOutFile; writes asm-x64.txt, asm-arm64.txt
 ```
@@ -240,13 +240,13 @@ call, between two commits, in about two minutes (BenchmarkDotNet needs half an h
 a shared machine; the JIT's code barely moves):
 
 ```sh
-python3 benchmarks/asm.py compare v4.0.0-rc.6             # that tag against the working tree
-python3 benchmarks/asm.py dump --ref main base.json       # or one side at a time,
-python3 benchmarks/asm.py dump --asm head.asm head.json   # keeping the listing,
-python3 benchmarks/asm.py diff base.json head.json        # and compared
+python3 benchmarks/asm/asm.py compare v4.0.0-rc.6             # that tag against the working tree
+python3 benchmarks/asm/asm.py dump --ref main base.json       # or one side at a time,
+python3 benchmarks/asm/asm.py dump --asm head.asm head.json   # keeping the listing,
+python3 benchmarks/asm/asm.py diff base.json head.json        # and compared
 ```
 
-It runs `Nino.Benchmark` of each side with the startup hook in `jitwarm/`, which calls every case until it is compiled
+It runs `Nino.Benchmark` of each side with the startup hook in `asm/jitwarm/`, which calls every case until it is compiled
 at Tier1 (the code BenchmarkDotNet times: everything a top-level call reaches is inlined into the case), and lists
 the methods whose code grew by more than 15% and 64 bytes or that access the stack more often (a reader, a writer or
 a cursor left in memory), with the calls each makes that it did not make before. What the JIT inlines also depends on

@@ -3,7 +3,7 @@ name: Agent instructions
 # The AGENTS.md indexes, the CLAUDE.md imports, the skills' metadata and every directory's file map stay current
 # (tools/agents.sh --check). Runs on the paths that can make them stale: the instruction files and skills, and any
 # file added to or removed from a mapped directory.
-# It also compiles the Python scripts that only report.yml and release.yml run (benchmarks/*.py, .github/scripts/*.py)
+# It also compiles the Python scripts that only report.yml and release.yml run (benchmarks/*/*.py, .github/scripts/*.py)
 # and runs their tests, so a script that breaks fails on its push instead of at the next release.
 on:
   push:
@@ -53,5 +53,5 @@ jobs:
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
         run: |
-          python3 -m py_compile benchmarks/*.py .github/scripts/*.py
-          python3 -m unittest discover -s benchmarks -p 'test_*.py'
+          python3 -m py_compile benchmarks/*/*.py .github/scripts/*.py
+          python3 -m unittest discover -s benchmarks/reports -p 'test_*.py'

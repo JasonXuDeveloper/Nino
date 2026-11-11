@@ -180,7 +180,7 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   member that is not `Direct` delegates to a by-value `__WriteFixed` as a sealed class's does (an
   `Unsafe.AsRef(in o)` getter needs C# 12 against .NET 8+'s `ref readonly` signature: CS9058 in the C# 11 test
   project).
-- Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`benchmarks/asm.py`), and
+- Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`benchmarks/asm/asm.py`), and
   compare with the hand-written equivalent where one exists: generated code is not slower than what a user would
   write by hand.
 - nino-gen output follows each runtime's performance and safety rules (`runtimes/*/AGENTS.md`): one bounds check per

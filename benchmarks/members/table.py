@@ -7,8 +7,8 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from bdn import mean_ns, rows  # noqa: E402 (benchmarks/bdn.py)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reports"))
+from bdn import mean_ns, rows  # noqa: E402 (benchmarks/reports/bdn.py)
 
 
 def parse(directory):

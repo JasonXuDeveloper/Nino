@@ -86,7 +86,7 @@ proof](#reusing-a-length-proof), [Vector loops](#vector-loops).
   an empty array, and is a bounds check itself); `GetReference` of an empty span is a valid ref that must not be read.
   `ref span.GetPinnableReference()` is the same as `GetReference` but returns a null ref for an empty span: use it
   only with `fixed`.
-- Find the checks left: `CORINFO_HELP_RNGCHKFAIL` in the Tier1 listing (`benchmarks/asm.py dump --asm FILE`), counted
+- Find the checks left: `CORINFO_HELP_RNGCHKFAIL` in the Tier1 listing (`benchmarks/asm/asm.py dump --asm FILE`), counted
   per method; a hot method with one in its loop is a finding, one on a cold path out of line is not.
 - Validate a pooled reference array's exact element type with a writable span before obtaining a byref for stores. The
   shared pool checks the returned array's length, and its API expects clients to return their own rentals. In the

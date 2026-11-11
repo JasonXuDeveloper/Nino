@@ -26,12 +26,12 @@ env:
   # before it (remove once no report is run for v4.0.0-rc.7 or older), and named in the report's text.
   BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
   # The release body's sections, their headings (which the docs site, nino.docs scripts/sync-benchmarks.ts, looks for)
-  # and the size limit: benchmarks/release_body.py.
-  # The last sections: the runtimes outside .NET (benchmarks/runtimes_report.py's HEADINGS, then its ARM64_HEADINGS),
+  # and the size limit: benchmarks/reports/release_body.py.
+  # The last sections: the runtimes outside .NET (benchmarks/reports/runtimes_report.py's HEADINGS, then its ARM64_HEADINGS),
   # appended after every other section by the runtimes jobs. Their headings and tables never contain "Performance
   # Report", "Method" or "Mean", so nothing reading the .NET report takes them for its own, and no Arm64 heading
   # contains an x64 one, which the docs site finds by its first occurrence.
-  # The very last section: the Burst kernels in a Unity IL2CPP player (benchmarks/unity_report.py's HEADING), from
+  # The very last section: the Burst kernels in a Unity IL2CPP player (benchmarks/reports/unity_report.py's HEADING), from
   # unity.yml's benchmark run, appended after the runtime sections by publish-unity. The docs site looks for it.
   UNITY_HEADING: "## 🎮 Unity benchmark (Burst, IL2CPP)"
   # The benchmark the Unity section comes from; a tag without it has no Unity section.
@@ -129,7 +129,7 @@ jobs:
         run: |
           gh release view "$TAG_NAME" --json body --jq '.body' > "$RUNNER_TEMP/body.md"
           # Skip only when every section is there; otherwise run and add the missing ones.
-          if [[ $(python3 benchmarks/release_body.py complete --body "$RUNNER_TEMP/body.md") == true ]]; then
+          if [[ $(python3 benchmarks/reports/release_body.py complete --body "$RUNNER_TEMP/body.md") == true ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "⏭️ Benchmark, v3 comparison and Arm64 benchmark already exist for this release"
           else
@@ -166,7 +166,7 @@ jobs:
   # type, ScatteredTest by data. SimpleTest is
   # split into its serialize (a) and deserialize (h) cases, and on x64 each half of v3 runs directly before the same
   # half of v4, on its runner, as benchmarks/run.sh does (v3 takes about 10 minutes a half, so these shards have fewer
-  # v4 cases). The publish job merges the reports into one table (benchmarks/merge_reports.py). The same shards run on
+  # v4 cases). The publish job merges the reports into one table (benchmarks/reports/merge_reports.py). The same shards run on
   # Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64 never takes); an Arm64
   # failure leaves that section out and never blocks the x64 report.
   bench:
@@ -256,7 +256,7 @@ jobs:
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
           NINO_BENCH_V3=true dotnet "$V3_DLL" --filter "${V3_PATTERNS[@]}" $BDN_ARGS \
             --artifacts "$V3_OUT"
-          # Under BenchmarkDotNet's own file name, which names the class (benchmarks/bdn.py, class_name).
+          # Under BenchmarkDotNet's own file name, which names the class (benchmarks/reports/bdn.py, class_name).
           mkdir -p "$OUT/v3-${{ matrix.shard }}"
           cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}/"
 
@@ -359,7 +359,7 @@ jobs:
             echo "❌ ${#X64[@]} of the $SHARDS x64 reports: not publishing a partial Performance Report"
             exit 1
           fi
-          python3 benchmarks/merge_reports.py "${X64[@]}" > "$RUNNER_TEMP/v4-report.md"
+          python3 benchmarks/reports/merge_reports.py "${X64[@]}" > "$RUNNER_TEMP/v4-report.md"
           for CLASS in $BENCH_CLASSES; do
             if grep -qE "^\| *${CLASS} +\|" "$RUNNER_TEMP/v4-report.md"; then
               echo "  ✅ $CLASS"
@@ -370,14 +370,14 @@ jobs:
           echo "BENCHMARK_FILE=$RUNNER_TEMP/v4-report.md" >> "$GITHUB_ENV"
           # Arm64: every shard or no section (a partial table would read as the whole suite).
           if (( ${#ARM64[@]} == SHARDS )); then
-            python3 benchmarks/merge_reports.py "${ARM64[@]}" > "$RUNNER_TEMP/arm64-report.md"
+            python3 benchmarks/reports/merge_reports.py "${ARM64[@]}" > "$RUNNER_TEMP/arm64-report.md"
             echo "ARM64_REPORT=$RUNNER_TEMP/arm64-report.md" >> "$GITHUB_ENV"
           else
             echo "::warning::${#ARM64[@]} of the $SHARDS Arm64 reports: the Arm64 section is left out"
           fi
           V3=("$DIR"/v3-*/*-report-github.md)
           if (( ${#V3[@]} == V3_SHARDS )); then
-            python3 benchmarks/merge_reports.py "${V3[@]}" > "$RUNNER_TEMP/v3-report.md"
+            python3 benchmarks/reports/merge_reports.py "${V3[@]}" > "$RUNNER_TEMP/v3-report.md"
             echo "V3_REPORT=$RUNNER_TEMP/v3-report.md" >> "$GITHUB_ENV"
           elif (( ${#V3[@]} )); then
             echo "::warning::${#V3[@]} of the $V3_SHARDS v3 reports: the v3 comparison is left out"
@@ -392,16 +392,16 @@ jobs:
             done
           fi
 
-      # The Performance Report (short tables, benchmarks/compact_report.py: a major version's release notes take most of
+      # The Performance Report (short tables, benchmarks/reports/compact_report.py: a major version's release notes take most of
       # GitHub's limit), the v3 comparison and the Arm64 section, each only when the body lacks it, and the full
-      # reports attached: benchmarks/release_body.py.
+      # reports attached: benchmarks/reports/release_body.py.
       - name: Update release notes with benchmark
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           gh release view "$TAG_NAME" --json body --jq '.body' > current_notes.md
-          python3 benchmarks/release_body.py dotnet --body current_notes.md --tag "$TAG_NAME" \
+          python3 benchmarks/reports/release_body.py dotnet --body current_notes.md --tag "$TAG_NAME" \
             --settings "$BDN_ARGS" --x64 "$BENCHMARK_FILE" ${V3_REPORT:+--v3 "$V3_REPORT"} \
             ${ARM64_REPORT:+--arm64 "$ARM64_REPORT"} --out sections
           if [[ ! -f sections/body.md ]]; then
@@ -426,7 +426,7 @@ jobs:
           python-version: '3.x'
 
       # README.md, README.zh.md, the README chart and the runtime tables of docs/v4-benchmarks.md show the newest v4
-      # release: regenerate them (benchmarks/readme.py, between the <!--bench:...--> markers) from this run and push
+      # release: regenerate them (benchmarks/reports/readme.py, between the <!--bench:...--> markers) from this run and push
       # them to main.
       - name: Update the README benchmark numbers
         env:
@@ -452,9 +452,9 @@ jobs:
           git fetch origin main
           git checkout --detach origin/main
 
-          if ! python3 benchmarks/readme.py --v4 "$BENCHMARK_FILE" ${V3_ARGS[@]+"${V3_ARGS[@]}"} \
+          if ! python3 benchmarks/reports/readme.py --v4 "$BENCHMARK_FILE" ${V3_ARGS[@]+"${V3_ARGS[@]}"} \
             --tag "$TAG_NAME" --png-html "$RUNNER_TEMP/chart.html"; then
-            echo "::warning::benchmarks/readme.py could not read this run: README left as it is"
+            echo "::warning::benchmarks/reports/readme.py could not read this run: README left as it is"
             exit 0
           fi
           # README.md goes into the NuGet packages, and nuget.org shows no SVG: render the PNGs (light and dark theme)
@@ -592,7 +592,7 @@ jobs:
           # tinybench, protobuf-es and msgpackr (releases before them compared with JSON only, without a lockfile).
           if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund; fi
           NINO_BENCH_JSON="$RUNNER_TEMP/bench.json" node --no-warnings node.ts out/data
-          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} typescript "$RUNNER_TEMP/bench.json" \
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/reports/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} typescript "$RUNNER_TEMP/bench.json" \
             "$TAG_NAME" > "$RUNNER_TEMP/section.md"
 
       - name: Run the Go benchmark
@@ -604,7 +604,7 @@ jobs:
           go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
           go test -run '^$' -bench . -benchmem -count 6 . | tee "$RUNNER_TEMP/bench.txt"
           "$(go env GOPATH)/bin/benchstat" -format csv "$RUNNER_TEMP/bench.txt" > "$RUNNER_TEMP/bench.csv"
-          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} go "$RUNNER_TEMP/bench.csv" \
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/reports/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} go "$RUNNER_TEMP/bench.csv" \
             "$TAG_NAME" > "$RUNNER_TEMP/section.md"
 
       - name: Run the Rust benchmark
@@ -617,7 +617,7 @@ jobs:
           rustup toolchain install stable --profile minimal
           # The output too: compare.rs prints each case's encoded sizes.
           cargo bench -p nino-bench --bench compare --locked 2>&1 | tee "$RUNNER_TEMP/bench.log"
-          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} rust "$CARGO_TARGET_DIR/criterion" \
+          python3 "$GITHUB_WORKSPACE/workflow/benchmarks/reports/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} rust "$CARGO_TARGET_DIR/criterion" \
             "$TAG_NAME" "$RUNNER_TEMP/bench.log" > "$RUNNER_TEMP/section.md"
 
       - name: Upload the section
@@ -639,7 +639,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG_NAME: ${{ needs.target.outputs.tag }}
     steps:
-      # This workflow's commit, for benchmarks/release_body.py.
+      # This workflow's commit, for benchmarks/reports/release_body.py.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -652,12 +652,12 @@ jobs:
           pattern: runtime-section-*
           path: sections
 
-      # One section per language, each only once: x64, then Arm64 (benchmarks/release_body.py).
+      # One section per language, each only once: x64, then Arm64 (benchmarks/reports/release_body.py).
       - name: Append the missing sections to the release body
         run: |
           set -euo pipefail
           gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
-          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md --tag "$TAG_NAME" \
+          python3 benchmarks/reports/release_body.py append --body current_notes.md --out updated_notes.md --tag "$TAG_NAME" \
             sections/runtime-section-{typescript,go,rust,typescript-arm64,go-arm64,rust-arm64}/section.md
           if [[ -f updated_notes.md ]]; then
             gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
@@ -716,15 +716,15 @@ jobs:
             echo "::warning::No Unity benchmark results (see the Unity benchmark job): the Unity section is left out"
             exit 0
           fi
-          python3 benchmarks/test_unity_report.py
-          if ! python3 benchmarks/unity_report.py "$TAG_NAME" "${FILES[@]}" > section.md; then
-            echo "::warning::benchmarks/unity_report.py found no performance test results: the Unity section is left out"
+          python3 benchmarks/reports/test_unity_report.py
+          if ! python3 benchmarks/reports/unity_report.py "$TAG_NAME" "${FILES[@]}" > section.md; then
+            echo "::warning::benchmarks/reports/unity_report.py found no performance test results: the Unity section is left out"
             exit 0
           fi
           cat section.md
-          # Once (by its heading), within GitHub's limit (benchmarks/release_body.py).
+          # Once (by its heading), within GitHub's limit (benchmarks/reports/release_body.py).
           gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > current_notes.md
-          python3 benchmarks/release_body.py append --body current_notes.md --out updated_notes.md --tag "$TAG_NAME" section.md
+          python3 benchmarks/reports/release_body.py append --body current_notes.md --out updated_notes.md --tag "$TAG_NAME" section.md
           if [[ -f updated_notes.md ]]; then
             gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes-file updated_notes.md
           fi

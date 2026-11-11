@@ -202,13 +202,13 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   npm, Go), each in its platform's colours and logo (`labelColor`, `color`), then a row of build, license, docs and
   DeepWiki on a dark `labelColor=24292F`. Every package badge shows the newest version, prereleases included
   (`nuget/vpre`, npm's `next` tag); Go has no registry, so its badge links pkg.go.dev. Every speed number in README is
-  a `<!--bench:...-->` marker `benchmarks/readme.py` fills from the release run (`ser.range`, `deser.range`,
+  a `<!--bench:...-->` marker `benchmarks/reports/readme.py` fills from the release run (`ser.range`, `deser.range`,
   `msgpack.*`, `protobuf.*`, `reuse.inplace`, `v3.*`); a new number gets a key there, never a hand-typed value. Never
   start a line of a paragraph or list item with a marker: a line starting `<!--` opens an HTML block, and the rest
   of the item loses its bold and links (README.zh.md's first bullet, round 129). GitHub renders only pushed content,
   so render the branch locally (GitHub's own renderer: `gh api markdown` with `mode: markdown`, not `gfm`, which
   turns every line break into `<br>`; github-markdown-css at 838 px; screenshot with headless Chrome) and check the
-  markers by running `benchmarks/readme.py`'s `fill` on a copy with the newest release's report (its
+  markers by running `benchmarks/reports/readme.py`'s `fill` on a copy with the newest release's report (its
   `benchmark-x64-full.md` and `benchmark-v3-full.md` assets): every key found, no value changed.
 - **Copies that must exist agree**: README / README.zh.md, the site's index and comparison pages, the analyzers page
   and `docs/diagnostics.md`, `docs/spec/wire-format.md` and the site's wire-format page, the public skill, the

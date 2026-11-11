@@ -282,7 +282,7 @@ jobs:
             local files
             mapfile -t files < <(find shards/*/"$1"/results -name '*-report-github.md' 2>/dev/null | sort)
             ((${#files[@]})) || return 1
-            if ((${#files[@]} == 1)); then cp "${files[0]}" "$2"; else python3 benchmarks/merge_reports.py "${files[@]}" > "$2"; fi
+            if ((${#files[@]} == 1)); then cp "${files[0]}" "$2"; else python3 benchmarks/reports/merge_reports.py "${files[@]}" > "$2"; fi
           }
           # How many shards have a report of a side.
           measured() {
@@ -315,9 +315,9 @@ jobs:
                 echo "It was built with NinoBenchLegacy: the benchmarks marked NINO_BENCH_LEGACY ran on head alone (\`-\` in base)."
               fi
               echo ""
-              python3 benchmarks/ab.py base.md head.md
+              python3 benchmarks/compare/ab.py base.md head.md
             else
-              python3 benchmarks/ab.py head.md
+              python3 benchmarks/compare/ab.py head.md
             fi
             if grep -q '^bisect/' <<< "$SIDES"; then
               FIRST=""
@@ -326,7 +326,7 @@ jobs:
                 [[ -n $FIRST ]] || FIRST="$(basename "$B").md"
                 echo ""
                 echo "### $(basename "$B") against the release"
-                python3 benchmarks/ab.py "$FIRST" "$(basename "$B").md"
+                python3 benchmarks/compare/ab.py "$FIRST" "$(basename "$B").md"
               done < <(grep -o '^bisect/[^ ]*' <<< "$SIDES" | sort -u)
             fi
             echo ""

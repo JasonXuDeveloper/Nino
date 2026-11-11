@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Threading;
 
 /// <summary>
-/// Loaded into Nino.Benchmark through DOTNET_STARTUP_HOOKS by benchmarks/asm.py, so that it works on any commit's
+/// Loaded into Nino.Benchmark through DOTNET_STARTUP_HOOKS by benchmarks/asm/asm.py, so that it works on any commit's
 /// benchmark: before Main, it calls every Nino case (those whose name contains NINO_JIT_FILTER) until the JIT has
 /// compiled it at Tier1, then exits, so that DOTNET_JitDisasm prints the code BenchmarkDotNet times (the same code:
 /// the cases have no profile data of their own there either). BenchmarkDotNet is found by attribute names only.

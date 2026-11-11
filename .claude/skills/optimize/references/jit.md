@@ -90,7 +90,7 @@ where that is so, and its x64 sizes are listings, not throughput.
   placement moved the case from 9.2-9.6 to 10.7-12.0 ns on 6973P (run 41802774827), more than the gap. A local copy
   table on Emerald Rapids took 14.6 to 41.8 ns for 1,200 bytes by (dst - src) mod 4096. A 200-byte or an 85 KB array
   allocated before the writer did not move the buffer. Nino cannot choose where a caller's pooled array lands, so this
-  gap is not closable in Nino's code. Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/cross-jit.sh`): one
+  gap is not closable in Nino's code. Check the Tier1 listing on x64 and with the Arm64 cross JIT (`benchmarks/asm/cross-jit.sh`): one
   method, a two-instruction prolog.
 - Inlining a small out-of-line method that the JIT left as a call can be a wash: `NinoLookup.Add` inlined into the
   `ILookup` read (one call per grouping instead of two) measured 1.002 and 1.003 times main on EPYC 7763 and

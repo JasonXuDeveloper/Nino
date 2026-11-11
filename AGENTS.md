@@ -12,7 +12,7 @@ export PATH=$HOME/.dotnet:$HOME/go/bin:$PATH DOTNET_ROOT=$HOME/.dotnet      # cl
 dotnet build                                                               # the solution (Nino.slnx), 0 warnings
 dotnet test tests/Nino.UnitTests                                           # the unit tests (CONTRIBUTING.md has the matrix)
 QUICK=1 FILTER='*SimpleTest*' benchmarks/run.sh                            # benchmarks while developing (`benchmark` skill)
-python3 benchmarks/asm.py compare origin/main                              # what a change did to the machine code
+python3 benchmarks/asm/asm.py compare origin/main                          # what a change did to the machine code
 tools/agents.sh                                                            # refresh the indexes below (--check in CI)
 ```
 

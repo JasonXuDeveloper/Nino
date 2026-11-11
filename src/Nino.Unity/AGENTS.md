@@ -75,7 +75,7 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
   `editmode`, never `all`: see `audit-ci`), then an IL2CPP Linux player and its tests (`standalone`). Every Unity
   launch is bounded by `ENGINE_LAUNCH_WRAPPER` (`timeout`), every Unity step by `timeout-minutes`.
   report.yml calls it with `benchmark: true` for a release: editor tests skipped, the player built as a release
-  build with BurstBenchmark, its results uploaded as `unity-bench-<version>` for `benchmarks/unity_report.py`.
+  build with BurstBenchmark, its results uploaded as `unity-bench-<version>` for `benchmarks/reports/unity_report.py`.
 - Then per version a WebGL player with SIMD (`webgl` job, after the tests, also `max-parallel: 1`), run in headless
   Chrome by `.github/scripts/webgl_run.mjs`: WebGLBench must report the kernels registered and no failure; the
   benchmark's run also times each case (artifact `webgl-<version>`).

@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-    <!-- The startup hook benchmarks/asm.py runs Nino.Benchmark with (see StartupHook.cs). -->
+    <!-- The startup hook benchmarks/asm/asm.py runs Nino.Benchmark with (see StartupHook.cs). -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <LangVersion>latest</LangVersion>

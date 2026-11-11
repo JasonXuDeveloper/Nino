@@ -37,4 +37,4 @@ echo "done $(date)"
 
 V4_REPORT=$(ls "$OUT"/v4/results/*-report-github.md | head -n1)
 echo "== v3 vs v4"
-python3 "$ROOT/benchmarks/compare_v3.py" "$OUT/v3/results/Nino.Benchmark.SimpleTest-report-github.md" "$V4_REPORT"
+python3 "$ROOT/benchmarks/compare/compare_v3.py" "$OUT/v3/results/Nino.Benchmark.SimpleTest-report-github.md" "$V4_REPORT"

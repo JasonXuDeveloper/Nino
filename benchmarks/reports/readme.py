@@ -2,7 +2,7 @@
 """Write the benchmark numbers of README.md / README.zh.md, the README chart and the runtime tables of
 docs/v4-benchmarks.md from BenchmarkDotNet reports.
 
-usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 report-github.md>]... [--tag <tag>]
+usage: python3 benchmarks/reports/readme.py --v4 <joined report-github.md> [--v3 <v3 report-github.md>]... [--tag <tag>]
                                     [--png-html <file>]
 
   --v4        the joined report of benchmarks/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
@@ -32,7 +32,7 @@ from pathlib import Path
 
 from bdn import FLOOR_NS, mean_ns, rows
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 # The headline cases: WorkloadTest's workloads, with their names in the docs table.
 WORKLOADS = [("MediaContent", "`MediaContent` (jvm-serializers)"),
              ("StackOverflowPage", "Stack Exchange API page, 20 questions"),

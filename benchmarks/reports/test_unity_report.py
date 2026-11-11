@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests of unity_report.py on the results in fixtures/unity-bench-* (run: python3 benchmarks/test_unity_report.py)."""
+"""Tests of unity_report.py on the results in fixtures/unity-bench-* (run: python3 benchmarks/reports/test_unity_report.py)."""
 import contextlib
 import io
 import os

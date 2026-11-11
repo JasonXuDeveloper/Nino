@@ -5,13 +5,13 @@
 #   FILTER='*DMap*' benchmarks/members/run.sh
 #   FILTER='*DStr*' DISASM=1 benchmarks/members/run.sh   also writes the JIT's code for x64 AND arm64, whatever the
 #                                                        machine (results/asm-<run>-<version>-<arch>.txt; timings
-#                                                        of such a run are meaningless, see ../cross-jit.sh)
+#                                                        of such a run are meaningless, see ../asm/cross-jit.sh)
 set -euo pipefail
 cd "$(dirname "$0")"
 D=$(pwd)
 OUT="$D/results"
 rm -rf "$OUT"; mkdir -p "$OUT"
-[ -n "${DISASM:-}" ] && CROSS=$("$D/../cross-jit.sh")
+[ -n "${DISASM:-}" ] && CROSS=$("$D/../asm/cross-jit.sh")
 dotnet build -c Release v3/P3.csproj > "$OUT/build_v3.log"
 dotnet build -c Release v4/P4.csproj > "$OUT/build_v4.log"
 n=0

@@ -8,8 +8,10 @@ against MemoryPack's case of the same name in head. Times may be in any unit Ben
 the table has no base columns: never pass head as its own base, which reads as a comparison that was not made.
 """
 import sys
+from pathlib import Path
 
-from bdn import FLOOR_NS, mean_ns, rows, show
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reports"))
+from bdn import FLOOR_NS, mean_ns, rows, show  # noqa: E402 (benchmarks/reports/bdn.py)
 
 
 def means(path):

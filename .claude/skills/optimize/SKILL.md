@@ -29,7 +29,7 @@ techniques are `optimize-runtimes`.
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
-one, run `python3 benchmarks/asm.py compare origin/main` (about two minutes, see benchmarks/README.md) and explain or
+one, run `python3 benchmarks/asm/asm.py compare origin/main` (about two minutes, see benchmarks/README.md) and explain or
 fix every method it lists; on a branch whose `origin/main` has moved since it started, compare its base instead
 (`git merge-base HEAD origin/main`), or the diff holds other commits' changes too (round 129). To prove the code unchanged, dump both sides with `DOTNET_TieredCompilation=0` (the
 variable around `asm.py dump [--ref REF] --runs 1 --asm FILE`) and compare the listings per method: FullOpts code
@@ -113,7 +113,7 @@ a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runt
   disabled, while the x64 serialization caller's normalized listing stayed identical.
 
 
-- x64: `--asm` of `benchmarks/asm.py`, once per ISA (`DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`).
+- x64: `--asm` of `benchmarks/asm/asm.py`, once per ISA (`DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`).
 - NativeAOT: ILC compiles with the JIT, which takes the same options as `--codegenopt`: publish
   `benchmarks/Nino.Benchmark -r linux-x64` with `PublishAot` set in a props file passed as
   `-p:CustomBeforeMicrosoftCommonProps=` (conditioned on the project name, or the netstandard references get it) and
@@ -124,7 +124,7 @@ a file and a line above. Go, Rust and TypeScript techniques go to `optimize-runt
   `test reg, 2` before `call [reg-0x02]` a fat pointer of shared generic code, and `lea rax, [(reloc ..)]` then
   `call rax` a helper. Walk the direct calls from each case to find what it reaches. Its `--verify` stops in
   MessagePack's setup (not AOT-safe), so time a scratch program instead.
-- Arm64 from an x64 machine: `benchmarks/cross-jit.sh` installs the other architecture's JIT, and
+- Arm64 from an x64 machine: `benchmarks/asm/cross-jit.sh` installs the other architecture's JIT, and
   `DISASM=1 benchmarks/members/run.sh` writes both listings for the member cases (that JIT only lists: with
   `DOTNET_AltJit='*'` around `asm.py`, the build and the benchmark died with SIGSEGV); or build for `linux-arm64` and
   run under `qemu-aarch64-static` with

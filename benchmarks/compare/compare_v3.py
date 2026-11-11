@@ -13,8 +13,8 @@ Prints: case | v3 3.3.13 | v4 | v4 vs v3 | MemoryPack (v4 run) | MemoryPack (v3 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bdn import FLOOR_NS, mean_ns, rows, show  # noqa: E402 (benchmarks/bdn.py)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reports"))
+from bdn import FLOOR_NS, mean_ns, rows, show  # noqa: E402 (benchmarks/reports/bdn.py)
 
 LIBS = ("Nino", "MemoryPack", "MessagePack", "Protobuf")
 

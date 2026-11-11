@@ -17,7 +17,7 @@ that skill when the part applies, not only this list.
   hand.
 - The read and write paths stay as fast on every platform (`platforms`): rare or large paths out of line, small
   helpers `AggressiveInlining`, no `ref reader` / `ref writer` passed to a call that is not inlined; the machine code
-  is checked with `python3 benchmarks/asm.py compare origin/main` and every method it lists is explained or fixed.
+  is checked with `python3 benchmarks/asm/asm.py compare origin/main` and every method it lists is explained or fixed.
 - Every check of the data throws `NinoDataException`; lengths are checked before allocating; recursion counts depth;
   hash tables Nino fills count collisions (`audit-security`).
 - A path through a runtime's internals follows `runtime-internals` (startup check, public API fallback, a

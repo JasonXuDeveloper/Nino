@@ -7,7 +7,7 @@ The build-time numbers were measured on one machine, an Intel Xeon 2.10 GHz (4 c
 generated code sizes do not depend on the machine. The runtime tables are those of the newest release: its CI run
 (`report.yml`) benchmarks v4 against MemoryPack, each case's Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest` runners),
 puts the report in the release notes,
-and writes these tables from it (`benchmarks/readme.py`), as it does for the README and the documentation site.
+and writes these tables from it (`benchmarks/reports/readme.py`), as it does for the README and the documentation site.
 Absolute times vary between machines; the ratios are what to look at.
 
 ## Build time and generated code
@@ -315,7 +315,7 @@ the result objects.
   callee's whole IL, and counts a method it inlines on its own judgement (on profile data), with everything inlined
   into it, against the caller's budget: so the formatters' and the generated code's entry points are
   `AggressiveInlining` too, and the larger helpers (the copy, Latin-1 widening and narrowing) are split into small
-  parts. `benchmarks/asm.py compare` lists every method whose machine code changed against a
+  parts. `benchmarks/asm/asm.py compare` lists every method whose machine code changed against a
   base commit, and the signs of a spent budget (`Reader:Skip` or `NinoUnsafe:Read` as calls, the cursor kept in
   memory), so a change cannot slow down the types it does not touch unnoticed.
 * **No checks the JIT cannot drop.** Element loops (array and list fallbacks, in-place reads, the padding mask,

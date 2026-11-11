@@ -28,7 +28,7 @@ namespace Test.Runtime.Burst
     /// </list>
     /// The package writes each test's result (##performancetestresult2:) and the run's metadata
     /// (##performancetestruninfo2: Unity, platform, CPU, packages) into the test output, which the player's results XML
-    /// keeps; benchmarks/unity_report.py turns it into the release's Unity section. The one line of its own here,
+    /// keeps; benchmarks/reports/unity_report.py turns it into the release's Unity section. The one line of its own here,
     /// NINO_UNITY_ENV, names what the package cannot know: the kernels' instruction set and the process architecture.
     /// Nothing here asserts a speed: a test fails only when Burst or the kernels are missing or when the paths write
     /// different bytes.

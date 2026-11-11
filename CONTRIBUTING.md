@@ -59,7 +59,7 @@ The workflows pin every action to a commit SHA with its version in a comment (`u
 Dependabot updates both, all actions in one pull request. `actionlint` (with `.github/actionlint.yaml`) checks them.
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) also needs
-`python3 benchmarks/asm.py compare origin/main` ([benchmarks/README.md](benchmarks/README.md)), which lists every
+`python3 benchmarks/asm/asm.py compare origin/main` ([benchmarks/README.md](benchmarks/README.md)), which lists every
 method whose machine code changed.
 
 * `src/Nino.Core/Formatters/TupleFormatters.g.cs` and `MultiDimFormatters.g.cs` are generated: after changing
@@ -72,7 +72,7 @@ method whose machine code changed.
 ## Performance work
 
 * Optimize from the JIT's Tier1 machine code for **both x64 and ARM64**, then confirm with timings. One machine shows
-  both: `benchmarks/cross-jit.sh` installs the other architecture's JIT, and `DISASM=1 benchmarks/members/run.sh`
+  both: `benchmarks/asm/cross-jit.sh` installs the other architecture's JIT, and `DISASM=1 benchmarks/members/run.sh`
   writes both listings for the member cases ([benchmarks/README.md](benchmarks/README.md#machine-code-for-x64-and-arm64)).
 * ARM64 is a load/store architecture: what x64 does in one instruction on memory is a load, an operation and a store
   there, and 64-bit constants and addresses take several instructions. Keep hot state in registers:

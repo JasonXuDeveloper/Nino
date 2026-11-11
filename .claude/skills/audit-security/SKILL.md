@@ -31,7 +31,7 @@ the runtime it targets.
 - `NinoSettings.Untrusted` holds the checks that cost time on every read (seeded comparers, value checks of raw
   structs, trailing bytes). It is a constant once frozen (`NinoLimits.Untrusted`): keep each test of it a single
   `if` on the field, with the work out of line, so the default path compiles to what it was; prove it with
-  `benchmarks/asm.py compare` (`optimize`).
+  `benchmarks/asm/asm.py compare` (`optimize`).
 - A rule the other runtimes must follow goes into `docs/spec/wire-format.md` §9, with malicious cases in the corpus
   (`wire-format`). A check only `Untrusted` makes gets `untrusted` cases (`AddUntrusted`, conformance/AGENTS.md):
   .NET's default mode may read them, its untrusted mode and every other runtime (they always check) must reject them.

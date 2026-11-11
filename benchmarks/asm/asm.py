@@ -30,7 +30,7 @@ import subprocess
 import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LISTING = re.compile(r"^; Assembly listing for method (.+) \((Tier1|FullOpts)\)$")
 # The generated interceptors' class names carry a hash of the file.
 HASH = re.compile(r"[0-9A-F]{32,}")
@@ -66,7 +66,7 @@ def parse(listing):
 
 def hook():
     """-> the path of the startup hook (jitwarm/), built from this tree."""
-    project = os.path.join(ROOT, "benchmarks", "jitwarm")
+    project = os.path.join(ROOT, "benchmarks", "asm", "jitwarm")
     subprocess.run(["dotnet", "build", "-c", "Release", "-v", "q", project], check=True, stdout=subprocess.DEVNULL)
     return os.path.join(project, "bin", "Release", "net10.0", "JitWarm.dll")
 

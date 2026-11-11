@@ -338,4 +338,4 @@ the same values, with criterion. Each group covers serialize and deserialize, an
 The Nino codecs there are what the templates generate for those types: a class's members read and written one by
 one, a raw struct as one block, and a class held as `Option<Box<_>>` (every serializer gets the same values). Compare
 changes back to back on one machine; local numbers are not published. Each release's notes get a "🦀 Rust runtime benchmark" section from one run of
-this benchmark on a GitHub runner (`report.yml`, `benchmarks/runtimes_report.py`).
+this benchmark on a GitHub runner (`report.yml`, `benchmarks/reports/runtimes_report.py`).
