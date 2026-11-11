@@ -11,7 +11,8 @@ ns and every size in B, so cells merge as they are. BenchmarkDotNet leaves the T
 class: when another report has one, its rows take the class from the file name
 (Nino.Benchmark.SimpleTest-report-github.md), or "-" for a renamed copy. After the table, each report's runner is
 named, by the classes of its Type column (a joined summary of two or more classes) or, for a report of one class
-(the v3 SimpleTest, run in halves), by its class when the file name gives it and its first and last case.
+(the v3 SimpleTest, run in halves), by its class when the file name gives it and its first and last case. An
+Allocated of "-" beside a nonzero GC count becomes "?" (unmeasured_allocation).
 """
 import re
 import sys
@@ -31,6 +32,18 @@ def read(path):
     cpu = next((line.strip() for line in lines[:first] if re.search(r"\bCPU\b|cores", line)), "unknown CPU")
     return ("\n".join(lines[:first]), header, align, [cells(line) for line in lines[first + 2:end]], cpu,
             class_name(path))
+
+
+def unmeasured_allocation(row):
+    """Allocated "-" (nothing allocated) beside a nonzero Gen0, Gen1 or Gen2 count is a failed measurement, not 0 B:
+    the GC ran, so the method allocated. BenchmarkDotNet printed it so for 31 of 445 rows of v4.0.0-rc.9's x64 report
+    and 6 of its Arm64 one, different rows on each (ProtobufDeserializeNew allocates 3,544 B per call when measured
+    again), and the docs site showed them as 0 B. Writes "?", which the site and readme.py show as unknown."""
+    if row.get("Allocated") != "-":
+        return
+    if any(re.fullmatch(r"[\d.,]+", row.get(gen, "")) and float(row[gen].replace(",", "")) > 0
+           for gen in ("Gen0", "Gen1", "Gen2")):
+        row["Allocated"] = "?"
 
 
 def merge(paths):
@@ -53,6 +66,8 @@ def merge(paths):
             blank = all(cell == "" for cell in row)
             if not blank and "Type" not in by_name and type_name:
                 by_name["Type"] = type_name
+            if not blank:
+                unmeasured_allocation(by_name)
             rows.append([by_name.get(name, "" if blank else "-") for name in columns])
 
     widths = [max(len(name), *(len(row[i]) for row in rows)) for i, name in enumerate(columns)]

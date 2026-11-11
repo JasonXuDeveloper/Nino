@@ -85,7 +85,9 @@ def one(r):
 
 
 def allocated(row):
-    """BDN prints "-" for nothing allocated."""
+    """BDN prints "-" for nothing allocated; merge_reports.py writes "?" for a failed measurement."""
+    if row["allocated"] == "?":
+        return "? B"
     value = re.match(r"([\d,]+)\s*B$", row["allocated"])
     return f"{int(value.group(1).replace(',', '')):,} B" if value else "0 B"
 
