@@ -24,10 +24,10 @@ its own `AGENTS.md` maps every file in it.
   `tests/Nino.Fuzz/{Engine,Checks,Inputs}`), code by the part of the pipeline (nino-gen's
   `Targets/{Go,Rust,TypeScript}`).
 - **A file too long to read**: past roughly 800 lines a file with sections (`#region`, `// ----- x` markers, test
-  groups by rule) is split along them into partial files named `Type.Concern.cs` (`BodyEmitter.Reads.cs`,
-  `AnalyzerTests.Vectors.cs`, `CodegenModel.Generics.cs`), with the topic of a test part in a comment above its
-  partial declaration; secondary top-level types go to their own files (`Pattern.cs`, `GoShape.cs`). The class
-  keeps its name, so test names, filters and the docs naming them stay valid.
+  groups by rule) is split along them; how, and how to prove nothing changed, is "Splitting long files" below. A
+  test part carries its topic in a comment above its partial declaration, and secondary top-level types go to their
+  own files (`Pattern.cs`, `GoShape.cs`); the class keeps its name, so test names, filters and the docs naming them
+  stay valid.
 - **Dead or one-off files**: migration scripts whose job is done (a restructure script after the restructure), stale
   fixtures, generated files committed by accident, folders with one file that could join a neighbor.
 - **Names**: a folder or file named after its history rather than its job; two names for one kind of thing
@@ -71,13 +71,28 @@ its own `AGENTS.md` maps every file in it.
   relative-link and anchor checker over every `*.md` after the move (`docs/v4-design.md`, 1,197 lines, became
   `v4-design/binary-format.md`, `runtime.md` and `generator.md`; 0 of 343 links broken). A specification with
   numbered sections and its own contents (`docs/spec/wire-format.md`) stays one file: readers cite it by `§`.
-- **Split a long C# class into partial files named `Class.Concern.cs`**, each holding its concern's members and the
-  delegates or constants only it uses (`NinoBurst.Permute.cs`, `.Text.cs`, `.Interleave.cs`, `.Vectors.cs`); one
-  class-level attribute (`[BurstCompile]`) covers every part. In the Unity project each new file gets a `.meta`
-  with a fresh GUID (`python3 -c 'import uuid;print(uuid.uuid4().hex)'`, then `grep -rh '^guid:' --include=*.meta
-  . | sort | uniq -d` is empty), and a moved file is `git mv`ed with its `.meta`. Unity's sources do not build
-  here: compile the old and the new files against small stubs of the Unity API they use and compare the members
-  both assemblies declare (MetadataLoadContext); only compiler-generated names may differ.
+- **Split a long C# type by concern into partial files named `Type.Concern.cs` beside `Type.cs`**, one line each in
+  the directory's AGENTS.md map: `Reader.Strings.cs`, `NinoLayout.Measure.cs`, startup checks in `.Checks.cs`
+  (`HashTables.Checks.cs`), a .NET 8-only vector path in its own file wrapped whole in `#if NET8_0_OR_GREATER`
+  (`NinoBlockCollections.Lanes.cs`); a folder per kind where one folder holds a dozen files of several kinds
+  (`Formatters/Collections/Arrays`, `Sequences`, `Dictionaries`, `Concurrent`). Why: `partial` and moves leave the
+  IL as it was, and namespaces do not follow folders here (`Nino.Core`, `Nino.Core.Internal`,
+  `Nino.Core.CompilerServices`): keep them, a folder changes no API. Prove a split by the IL, not by `asm.py` alone:
+  dump every method body with its tokens resolved to names (System.Reflection.Metadata), base and branch, and
+  compare with the compiler's lambda and closure ordinals (`b__83_0`, `<>c__58`) masked, since they follow member
+  order. The codex/nino-audit review's core split: identical in all four Nino.Core builds; `asm.py compare` still listed
+  `Writer.Write(string)` (517 to 1,581 bytes, its string writes inlined in one of the head's runs: profile data).
+- **Move methods and nested types only: every static field with an initializer, and every instance field of a struct,
+  stay in the main file.** Why: the field initializers of a partial type run in an unspecified order across its
+  files (C# spec, field initialization), and instance fields of a struct in two parts warn (CS0282, layout order
+  undefined). `NinoBlockPlan`, `CollectionViews`, `HashTables` and `ConcurrentTables` keep their flags, each read
+  from the one before it, in one file; their tables, candidates and checks moved out.
+- **In the Unity project, split a class the same way and give each new file a `.meta`** with a fresh GUID
+  (`python3 -c 'import uuid;print(uuid.uuid4().hex)'`, then `grep -rh '^guid:' --include=*.meta . | sort | uniq -d`
+  is empty); a moved file is `git mv`ed with its `.meta`. One class-level attribute (`[BurstCompile]`) covers every
+  part (`NinoBurst.Permute.cs`, `.Text.cs`, `.Interleave.cs`, `.Vectors.cs`), and each kernel's delegate moves with
+  it. Unity's sources do not build here: compile the old and the new files against small stubs of the Unity API they
+  use and compare the members both assemblies declare (MetadataLoadContext); only compiler-generated names may differ.
 - In the Unity project an asmdef, not the folder name, decides where an assembly compiles: `Assets/Test/Editor/Model`
   and `CrossRef` build for players too and sit under `Editor/` because only the editor tests use them (their
   namespaces say `Test.Editor`); move them only together with their namespaces.
