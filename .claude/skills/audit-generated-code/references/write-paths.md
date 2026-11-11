@@ -71,12 +71,14 @@ claim still needs runner numbers (`benchmark`).
 
 ## The write body's methods
 
-- **Merge standalone class writes that have no local-writer twin into the instance method** (as the read body is,
-  `read-paths.md`) (`8ca095f4`). The unit test project saved 37,716 source bytes across 252 files in each replay
-  state. The string-holder write kept 22 IL bytes and lost an 8-byte forwarder. The body stayed at 1,208 B on Arm64
-  and 818 B on x64 cross-JIT, and the caller stayed at 272 and 214 B. Four local rounds showed no meaningful write
-  timing change, with identical wire bytes and zero steady allocation. All 577 models were reused on edits and both
-  Roslyn suites passed.
+- **Keep every out-of-line write body a static `[NoInline]` method behind the inlined instance forwarder; do not
+  merge it into the instance `WriteBody`** (as the read body is, `read-paths.md`). Why: the instance method takes the
+  address of a dummy byte as `this`, so every call stores that byte and passes one more argument, and a subtype
+  dispatch makes one such call per element. Evidence: `8ca095f4` merged them (37,716 source bytes saved across 252
+  unit-test files, no listing or timing change in its four Arm64 rounds). On x64 (Emerald Rapids, in-process loop,
+  six alternated rounds), `GenericPolymorphicTest.NinoSerializeGenericUnmanagedTupleBase` (1,000 subtypes with a
+  `(int, long)` member) ran 16-22% slower than main; restoring the static bodies and the exact dispatch checks below
+  brought it back to on par (4,474/4,774 ns min/median against main's 4,466/4,797). Reverted.
 - **Keep by-reference static write bodies for structs.** A by-value instance body removed 6,375 source bytes across
   41 files and saved the 9-byte forwarder, but grew the Arm64 FullOpts bodies from 356 to 688 B for `NamedItem` and
   from 508 to 840 B for `WideItem`. The x64 cross JIT printed the unchanged 160 B caller, but omitted the candidate
@@ -92,12 +94,14 @@ claim still needs runner numbers (`benchmark`).
   dispatch shrank from 2,476 to 604 bytes, with eight separate 332-byte helpers: count those helpers and the caller
   separately. The benchmark emitted 2,160 more source bytes and all tested wire outputs matched, including short
   writes to unaligned offsets.
-- **Keep exact runtime type comparisons adjacent (each reads `value.GetType()` in place) when a subtype can be derived
-  from; keep the first comparison exact and use `is` only for later sealed targets**: the JIT loads the method table
-  once for the chain, and the first load establishes non-nullness without an explicit branch. The benchmark dispatch saved 774 source bytes and the sampled IL went from 256 to 151
-  bytes. The Arm64 entries grew by 4 and 8 bytes; the x64 cross listings shrank from 1,148 to 602 and from 1,068 to
-  519 bytes. Thread CPU and wall time varied against the same-binary controls, so it is a size change. Wire bytes,
-  including unaligned writes, and 0 B steady-state allocation matched.
+- **Write every check of a subtype dispatch as `value.GetType() == typeof(Sub)`, adjacent (each reads `GetType()`
+  in place); never `value is Sub` for the later sealed targets.** Why: with `is`, the x64 Tier1 chain kept one method
+  table load but laid the checks out as forward jumps to scattered blocks, and the per-element dispatch of an array
+  of mixed subtypes got slower. Evidence: `87bcedc2` used `is` after the first check (774 source bytes and 105 IL
+  bytes saved, Arm64 entries 4-8 bytes larger; its timings varied against the controls). On x64 (Emerald Rapids,
+  in-process loop, six alternated rounds) `NinoSerializeGenericIntBase` ran 16-20% and `NinoSerializeNonGenericBase`
+  7-9% slower than main; with the exact checks restored they measured 2,844/2,899 ns (main 2,847/3,034) and
+  2,944/3,006 ns (main 3,072/3,327) min/median. Reverted.
   - Do not hoist `value.GetType()` to a shared local: it saved 496 source bytes and shrank the sampled dispatch IL
     from 256 to 223 bytes, but Arm64 Tier 1 already loaded the method table once in the original chain; the shared
     local materialized a runtime type object and grew the dispatch from 604 to 672 machine bytes. The non-generic

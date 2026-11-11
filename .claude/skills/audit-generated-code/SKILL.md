@@ -167,9 +167,10 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
     bodies (`OpensBodies == false`).
   - Pack a constant key and its length into one header store.
   - Select the presence byte once and write it once.
-  - Merge single-use class write bodies into the instance method; keep structs' by-reference static bodies.
-  - Dispatch: outline exact writes only for nesting subtypes; the first comparison exact, `is` for later sealed
-    targets, `GetType()` never hoisted.
+  - Keep out-of-line write bodies static behind the inlined forwarder (a dummy `this` per call measured slower in
+    subtype dispatch); merge only single-use read bodies into the instance method.
+  - Dispatch: outline exact writes only for nesting subtypes; every comparison `GetType() == typeof(...)`, never
+    `is`, `GetType()` never hoisted.
 - **Reach an interface member a struct implements explicitly through a generic accessor constrained to the
   interface** (`MemberAccess.Interface`: `__G_X<__TI>(ref __TI o) where __TI : IFoo => o.X` in the formatter), a
   class's through a cast (`MemberAccess.Cast`, `((IFoo)value).X`): a cast of a struct boxes a copy and loses a write.
