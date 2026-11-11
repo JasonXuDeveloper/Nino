@@ -284,6 +284,25 @@ and when `asm.py compare` lists methods the change did not touch.
   excluding the shared copy. Both architectures matched the wire output.
   Overlap and custom memory-manager callbacks passed along with all four
   targeted configurations and the 584-file replay (`752a9c5f`).
+  Keep the per-segment reservation for fixed-stride multi-segment writes
+  after the pre-reservation trials. Reserving only when the destination
+  already had room avoided releasing a potentially aliased pooled array
+  before reading the segments. The bounded loop checked the remaining count
+  and rejected inconsistent lengths before publishing output. It saved
+  7–17% at 8,192 ints across sixteen segments and offset seven, but slowed
+  the 128-int case by 17–38% in four M4 pairs. A 1,024-element gate and an
+  outlined copy restored the short case and gave mixed long results.
+  Keeping the gated loop in the main method recovered a 7–14% gain on
+  sixteen segments, while the short case slowed 11–21% again despite
+  skipping that loop. Padded and threshold-sized timings varied.
+  `WriteSegments` used 118 IL bytes before the trials, 249 for the initial
+  version, 167 plus a 97-byte helper for the outlined version, and 260 for
+  the gated in-method version. The gated in-method Tier 1 body grew from
+  1,540 to 2,304 bytes on Arm64 and from 1,508 to 2,164 in the x64 guest.
+  All wire comparisons and zero steady
+  allocation matched. The outlined candidate passed four targeted
+  configurations, including the inconsistent-length cases, and the real
+  generated files matched. None of the source candidates was retained.
 
 - Delay copying the prefix of a full synchronous stream buffer until the next read returns bytes.
   A non-seekable stream ending at a buffer boundary needs the EOF read but no prefix copy.
