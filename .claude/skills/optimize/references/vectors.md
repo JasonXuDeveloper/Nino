@@ -90,6 +90,18 @@ of bytes in a block.
   256/512-bit versions as x64 candidates: crossgen emitted `vpcmpgtd` plus `vmovmskps` or `kmovw`,
   respectively. The 94/103-byte loop listings are instruction evidence only; measure actual x64
   throughput and alignment before changing dispatch.
+  Keep the 128-bit dispatch after testing the two wider validators through the actual
+  `SortedList<int, int>` entry. Unzipping keys and carrying the previous group was 9–11%
+  slower at 4,080 pairs and offset seven in four AVX2 guest kernel rounds. Comparing two
+  overlapping packed blocks and reducing only the key lanes was 8–37% slower. Reuse and
+  fresh reads did not establish an end-to-end gain. Both retained zero steady kernel
+  allocation and matched wire output. Guard-page tests covered duplicate keys at every
+  position, with AVX2 and with the SSSE3 fallback. The second candidate's exact 512-bit
+  generic loop also passed the software guard-page tests. Offline v3 listings were 115 B
+  for the original vector method and 136/140 B for the candidate wide entries. The v4
+  candidates were 327/382 B, including both width branches, and emitted ZMM compares.
+  Arm64 retained 116 B for the dispatch and 260 B for its Tier 1 vector loop. Native
+  AVX-512 throughput remains unmeasured.
   Measure reuse separately from fresh reads. The Arm64 reuse kernel already validates and splits
   in one pass. Batching two of its groups grew the instantiated method from 232 to 392 bytes.
   Advancing the three byrefs kept it at 232 bytes and produced a paired load, but slowed the
