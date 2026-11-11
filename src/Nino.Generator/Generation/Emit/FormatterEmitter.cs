@@ -322,12 +322,10 @@ internal static class FormatterEmitter
     /// <summary>The presence byte and the body of <c>value</c>, on the local writer <c>__w</c>.</summary>
     private static void EmitTopWrite(CodeWriter w)
     {
-        w.Line("if (value == null)");
-        w.IndentedLine($"__w.UnsafeWrite((byte){NinoWire.Null});");
-        w.Open("else");
-        w.Line($"__w.UnsafeWrite((byte){NinoWire.NotNull});");
-        w.Line("__WriteBodyInline(value, ref __w);");
-        w.Close();
+        w.Line($"byte __present = (byte)(value == null ? {NinoWire.Null} : {NinoWire.NotNull});");
+        w.Line("__w.UnsafeWrite(__present);");
+        w.Line($"if (__present != {NinoWire.Null})");
+        w.IndentedLine("__WriteBodyInline(value, ref __w);");
     }
 
     /// <summary>
