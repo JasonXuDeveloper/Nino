@@ -16,6 +16,13 @@ crashing. Read it before running anything under qemu or taking a listing for Arm
   (`microsoft.netcore.app.crossgen2.linux-x64`, `--targetos:windows --targetarch:x86 --inputbubble`,
   `--codegenopt JitDisasm=...`) with the `System.Private.CoreLib.dll` of `microsoft.netcore.app.runtime.win-x86` as
   reference (with x64's, `IntPtr.Size` folds to 8); it is R2R code, so a `static readonly` field is a load there.
+  In single-method mode, qualify a Nino type with its assembly (`--singlemethodtypename
+  "Nino.Core.Internal.NinoSimd, Nino.Core"`), since an unqualified name resolves against CoreLib and fails with
+  "Type not found". Use the target's runtime references and an explicit ISA group such as `x86-64-v2`, `v3`
+  or `v4` (spell each full group name). If Crossgen skips an `AggressiveOptimization` method, clear that flag
+  only in a private listing copy, preserving its IL and other flags; never modify the timed or shipped assembly.
+  The short Latin-1 probe used one-method listings for the dispatcher and caller at all three ISAs. Commands
+  follow the runtime's [AOT compiler debugging guide](https://github.com/dotnet/runtime/blob/main/docs/workflow/debugging/coreclr/debugging-aot-compilers.md).
 - Measure a struct layout of a target you cannot run the same way, and never assume one rule per field size: a
   `[NoInlining]` method `ref T F(ref S s) => ref s.B` compiles to `lea eax, [ecx+offset]` and `Unsafe.SizeOf<S>()` to
   `mov eax, size` (crossgen2 with `--parallelism 1`, or the listings interleave; `--inputbubble --inputbubbleref` with

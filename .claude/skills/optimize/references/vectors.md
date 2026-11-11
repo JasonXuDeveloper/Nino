@@ -17,8 +17,9 @@ of bytes in a block.
   Audit the dispatch and every reachable loop together: a 128-bit tail, mask seed or Arm64-only helper does not
   establish the width of the whole operation. Conversely, `System.Numerics.Vector<T>` does not establish an explicit
   512-bit path. The November 11 audit after `ed6b9311` found managed 512/256/128 paths for nullable bool slots, flag
-  validation, long Latin-1 text and packed pair interleaving, but outstanding width work in `SameShortLatin1`,
-  ordered-key validation (`AreStrictlyIncreasingInt32Vector`, Arm64-only `SplitOrderedPairs`), `NinoValueChecks`,
+  validation, long Latin-1 text and packed pair interleaving. Short Latin-1 reuse now has dedicated 512/256-bit
+  adapters (the short-text entry below); outstanding width work remains in ordered-key validation
+  (`AreStrictlyIncreasingInt32Vector`, Arm64-only `SplitOrderedPairs`), `NinoValueChecks`,
   and Burst's text loops. Keep those findings open until their actual entry points, exact ISA guards and tails
   have been implemented and checked; never report all SIMD covered from one widened kernel.
 
@@ -609,6 +610,30 @@ of bytes in a block.
   Wire bytes and strict decoding tests matched, with 31 targeted tests passing on both .NET 8
   and 10. The candidates were withdrawn.
 - Measure the short Latin-1 dispatcher and neighbouring sizes when widening the batch.
+  Compare Latin-1 with a full-character Latin-1 comparator, never `Ascii.Equals`: ASCII-only equality rejects
+  unchanged non-ASCII text and can silently defeat reuse while returning correct decoded values. `804d7185`
+  makes `NinoStrings.SameLatin1` use the existing portable comparator on every target. The mixed nine-string
+  array probe at 1/4/8/16/31/32/63/64/65 chars replaced seven strings on its first read and allocated 456 B per
+  steady reuse before the fix,
+  and retained all strings at 0 B after it, with intrinsics on and off. Four alternating M4 default-JIT rounds
+  improved the Latin-1 array median by 32%; ASCII controls showed no consistent regression. These local results
+  establish the allocation fix and a candidate benefit, not published runner throughput. The helper IL is 8 to
+  10 B; Arm64 FullOpts is 48 to 40 B plus the existing 244 B comparator, offline x64 13 to 15 B. Guarded short
+  comparisons cover every mismatch position including equal low bytes with different UTF-16 high bytes.
+  For x64 short reuse, widen one result vector per block: 16 source bytes to 16 UTF-16 chars with AVX2, or 32 to
+  32 with AVX-512BW. Share `SameLatin1Blocks` with the long comparators through two small policies; select 512,
+  256 and 128 outside the loop, retaining `Prefer512Int16`. Test the 32-char bound before reading the CPU
+  preference. Keep the x64 dispatch out of the Arm64 24–63-char path: its normalized FullOpts reader remains
+  1,240 B and its medium helper 148 B. Four default-JIT A/B rounds with repeated-binary controls were on par
+  across 15/16/17/23/24/31/32/33/47/63/64/65 chars, offsets 0 and 7, equal strings and front/tail edits; equal
+  reads allocated 0 B. The short comparator IL grows 309 to 338 B, plus a 47 B dispatch and 80 B of policies;
+  the shared loop stays 67 B. Offline x64 helpers emit YMM at 78 B or YMM/ZMM at 205 B. Reader code stays 968 B
+  on the 128-bit target and grows 963 to 987 B on AVX2, 959 to 985 B on AVX-512: coverage, not a code-size win.
+  Native x64 throughput remains unmeasured (`ad78c40f`). Portable guarded tests make 20,736 comparisons at both widths,
+  with every tail length, shifted source alignments and high/low-byte edits. Source plus compared chars are at
+  most 189 payload bytes, with no table or temporary buffer, within the 64 KiB budget. The real benchmark's
+  104 generated Nino files remain byte-identical at 523,973 B; `PooledSimpleClass` calls `ReadString(__c)` in
+  its reuse formatter. Each filtered FullOpts comparison flags no regression among 308 methods.
   Reusing the long comparison kernels inline improved 31–63-character M4 reuse, but the offset-zero
   64-character control slowed in four pairs. Outlining a 32–63-character helper with 512-, 256- and
   128-bit dispatch retained a 1–66% gain at 63 characters across both offsets, but 31 characters and
