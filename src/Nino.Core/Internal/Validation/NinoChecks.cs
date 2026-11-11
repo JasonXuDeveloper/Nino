@@ -82,9 +82,9 @@ namespace Nino.Core.Internal
         {
             if (NinoSimd.Prefer512)
                 return ValidFlagBlocks<Vector512<byte>, NinoVectors512>(ref first, bytes, stride);
-            if (NinoSimd.Has256)
+            if (Vector256.IsHardwareAccelerated)
                 return ValidFlagBlocks<Vector256<byte>, NinoVectors256>(ref first, bytes, stride);
-            return NinoSimd.Has128 &&
+            return Vector128.IsHardwareAccelerated &&
                    ValidFlagBlocks<Vector128<byte>, NinoVectors128>(ref first, bytes, stride);
         }
 
@@ -104,9 +104,9 @@ namespace Nino.Core.Internal
         {
             if (NinoSimd.Prefer512)
                 return CopyFlags<Vector512<byte>, NinoVectors512>(ref target, ref source, bytes, mask);
-            if (NinoSimd.Has256)
+            if (Vector256.IsHardwareAccelerated)
                 return CopyFlags<Vector256<byte>, NinoVectors256>(ref target, ref source, bytes, mask);
-            return NinoSimd.Has128 &&
+            return Vector128.IsHardwareAccelerated &&
                    CopyFlags<Vector128<byte>, NinoVectors128>(ref target, ref source, bytes, mask);
         }
 

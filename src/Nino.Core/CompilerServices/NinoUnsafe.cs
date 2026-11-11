@@ -378,7 +378,7 @@ namespace Nino.Core.CompilerServices
         private static void Copy33To64(ref byte destination, ref byte source, uint size)
         {
 #if NET8_0_OR_GREATER
-            if (NinoSimd.Has256)
+            if (Vector256.IsHardwareAccelerated)
             {
                 var head = Vector256.LoadUnsafe(ref source);
                 var tail = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, (nint)size - 32));
@@ -474,7 +474,7 @@ namespace Nino.Core.CompilerServices
             }
 
 #if NET8_0_OR_GREATER
-            if (NinoSimd.Has256)
+            if (Vector256.IsHardwareAccelerated)
             {
                 if (size <= 128)
                 {
@@ -492,7 +492,7 @@ namespace Nino.Core.CompilerServices
                         return;
                     }
                 }
-                else if ((NinoSimd.Has512
+                else if ((Vector512.IsHardwareAccelerated
                               ? size <= (NinoSimd.Amd ? MaxVectorCopy : MaxVector256Copy)
                               : size - 256 <= MaxVector256Copy - 256) &&
                          !(IceLakeMemmove && size - MinIceLakeMemmove <= MaxVectorCopy - MinIceLakeMemmove))
@@ -502,7 +502,7 @@ namespace Nino.Core.CompilerServices
                     // Xeon Platinum 8370C, 160,000 bytes into a new zeroed array: 3.18 µs instead of 3.51); on AMD's
                     // Zen 5 Memmove beats it into such an array (EPYC 9V45: 1.81 µs against 1.67). CopyToNew is the
                     // other way round.
-                    if (NinoSimd.Has512 && size <= MaxVectorCopy)
+                    if (Vector512.IsHardwareAccelerated && size <= MaxVectorCopy)
                         CopyVectors<Vector512<byte>>(ref destination, ref source, size);
                     else
                         CopyVectors<Vector256<byte>>(ref destination, ref source, size);
@@ -570,7 +570,7 @@ namespace Nino.Core.CompilerServices
             // On AMD with 64-byte vectors, 32-byte ones beyond 32 KB too, where Copy calls Memmove: into a new
             // uninitialized array they beat it (GitHub's EPYC 9V45 and 9V74, 160,000 bytes: 0.92 to 0.96 times the
             // time).
-            if (NinoSimd.Amd && NinoSimd.Has512 &&
+            if (NinoSimd.Amd && Vector512.IsHardwareAccelerated &&
                 size - (MaxVectorCopy + 1) <= MaxVector256Copy - (MaxVectorCopy + 1))
             {
                 CopyVectors<Vector256<byte>>(ref destination, ref source, size);

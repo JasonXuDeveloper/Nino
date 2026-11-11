@@ -80,9 +80,9 @@ namespace Nino.Core
                 ref ushort target = ref Unsafe.As<byte, ushort>(ref dst);
                 if (NinoSimd.Prefer512 && values.Length >= Vector512<ushort>.Count)
                     WriteBoolSlots<Vector512<ushort>, BoolSlots512>(ref source, ref target, values.Length);
-                else if (NinoSimd.Has256 && values.Length >= Vector256<ushort>.Count)
+                else if (Vector256.IsHardwareAccelerated && values.Length >= Vector256<ushort>.Count)
                     WriteBoolSlots<Vector256<ushort>, BoolSlots256>(ref source, ref target, values.Length);
-                else if (NinoSimd.Has128 && values.Length >= Vector128<ushort>.Count)
+                else if (Vector128.IsHardwareAccelerated && values.Length >= Vector128<ushort>.Count)
                     WriteBoolSlots<Vector128<ushort>, BoolSlots128>(ref source, ref target, values.Length);
                 else if (NinoSimd.HasArm64)
                     WriteBoolSlots<Vector64<ushort>, BoolSlots64>(ref source, ref target, values.Length);
@@ -274,7 +274,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool TryReadFresh(T?[] destination, int length, ref Reader reader)
         {
-            if (!NinoSimd.Has128)
+            if (!Vector128.IsHardwareAccelerated)
                 return false;
 
             int stride = Unsafe.SizeOf<T?>();
@@ -333,9 +333,9 @@ namespace Nino.Core
                         ref ushort destinationSlots = ref Unsafe.As<byte, ushort>(ref target);
                         if (NinoSimd.Prefer512 && count >= Vector512<ushort>.Count)
                             ReadBoolSlots<Vector512<ushort>, BoolSlots512>(ref source, ref destinationSlots, count);
-                        else if (NinoSimd.Has256 && count >= Vector256<ushort>.Count)
+                        else if (Vector256.IsHardwareAccelerated && count >= Vector256<ushort>.Count)
                             ReadBoolSlots<Vector256<ushort>, BoolSlots256>(ref source, ref destinationSlots, count);
-                        else if (NinoSimd.Has128)
+                        else if (Vector128.IsHardwareAccelerated)
                             ReadBoolSlots<Vector128<ushort>, BoolSlots128>(ref source, ref destinationSlots, count);
                         else
                             ReadBoolSlots<ulong, BoolSlotsWord>(ref source, ref destinationSlots, count);

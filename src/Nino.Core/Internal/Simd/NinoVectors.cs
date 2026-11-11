@@ -104,7 +104,7 @@ namespace Nino.Core.Internal
             (bits.AsUInt64() & Vector256.Create(mask, mask)) != Vector256<ulong>.Zero;
     }
 
-    /// <summary>64-byte vectors: callers check <see cref="NinoSimd.Has512"/> or <see cref="NinoSimd.Prefer512"/>.</summary>
+    /// <summary>64-byte vectors: callers check <c>Vector512.IsHardwareAccelerated</c> or <see cref="NinoSimd.Prefer512"/>.</summary>
     internal readonly struct NinoVectors512 : INinoVectors<Vector512<byte>>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

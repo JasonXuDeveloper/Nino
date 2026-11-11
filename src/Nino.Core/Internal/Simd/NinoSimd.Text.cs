@@ -18,7 +18,7 @@ namespace Nino.Core.Internal
         internal static bool SameShortLatin1(ref byte source, string value)
         {
             // Widened as little-endian words: big-endian machines compare through SameLatin1.
-            if (NinoSimd.Has128 && BitConverter.IsLittleEndian)
+            if (Vector128.IsHardwareAccelerated && BitConverter.IsLittleEndian)
             {
                 nuint n = (uint)value.Length;
                 ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
@@ -138,7 +138,7 @@ namespace Nino.Core.Internal
                 if (result != WideNarrowResult.Unsupported)
                     return result == WideNarrowResult.Written;
             }
-            if (Has256 && n >= 32)
+            if (Vector256.IsHardwareAccelerated && n >= 32)
             {
                 nuint i = 0;
                 while (true)
@@ -262,7 +262,7 @@ namespace Nino.Core.Internal
                 return;
 
             nuint i = 0;
-            if (Has256 && n >= 32)
+            if (Vector256.IsHardwareAccelerated && n >= 32)
             {
                 while (true)
                 {
@@ -373,11 +373,11 @@ namespace Nino.Core.Internal
             ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
             if (Prefer512)
                 return SameLatin1Blocks<CompareLatin1_512>(ref source, ref chars, n);
-            if (Has256)
+            if (Vector256.IsHardwareAccelerated)
                 return SameLatin1Blocks<CompareLatin1_256>(ref source, ref chars, n);
             if (HasArm64)
                 return SameLatin1Arm64(ref source, ref chars, n);
-            if (Has128)
+            if (Vector128.IsHardwareAccelerated)
                 return SameLatin1Blocks<CompareLatin1_128>(ref source, ref chars, n);
             return NinoStrings.SameBytes(ref source, value, 0);
         }

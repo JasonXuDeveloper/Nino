@@ -76,9 +76,9 @@ namespace Nino.Core.Internal
 #if NET8_0_OR_GREATER
             // Not on Ice Lake (NinoSimd.Prefer512): GitHub's Xeon Platinum 8370C wrote 1,000 8-byte structs with a
             // padding byte in 116 ns with 64-byte vectors, 83 with 32-byte ones (MemoryPack's copy 88).
-            if (NinoSimd.Has128)
+            if (Vector128.IsHardwareAccelerated)
             {
-                int width = NinoSimd.Prefer512 ? 64 : NinoSimd.Has256 ? 32 : 16;
+                int width = NinoSimd.Prefer512 ? 64 : Vector256.IsHardwareAccelerated ? 32 : 16;
                 _vectorMask = Repeat(mask, width, width, out int period);
                 _vectorPeriod = width == 16 ? period : Period(mask.Length, 16);
                 _period256 = width == 32 ? period : width == 64 ? Period(mask.Length, 32) : 0;
@@ -132,12 +132,12 @@ namespace Nino.Core.Internal
                 return;
 #endif
 #if NET8_0_OR_GREATER
-            if (NinoSimd.Has512 && _period512 != 0 && total >= Vector512<byte>.Count)
+            if (Vector512.IsHardwareAccelerated && _period512 != 0 && total >= Vector512<byte>.Count)
             {
                 CopyVectors<Vector512<byte>, NinoVectors512>(ref destination, ref source, total, _vectorMask, _period512);
                 return;
             }
-            if (NinoSimd.Has256 && _period256 != 0 && total >= Vector256<byte>.Count)
+            if (Vector256.IsHardwareAccelerated && _period256 != 0 && total >= Vector256<byte>.Count)
             {
                 CopyVectors<Vector256<byte>, NinoVectors256>(ref destination, ref source, total, _vectorMask, _period256);
                 return;

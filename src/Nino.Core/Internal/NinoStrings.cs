@@ -1,3 +1,6 @@
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics;
+#endif
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -68,11 +71,11 @@ namespace Nino.Core.Internal
             nuint n = (uint)length;
             ref byte body = ref Unsafe.Add(ref destination, 1);
 #if NET8_0_OR_GREATER
-            if (NinoSimd.Has128 && n >= 8)
+            if (Vector128.IsHardwareAccelerated && n >= 8)
             {
                 if (n > 16)
                 {
-                    if (NinoSimd.Has256 && (uint)(length - 32) < 32)
+                    if (Vector256.IsHardwareAccelerated && (uint)(length - 32) < 32)
                         return WriteMedium256(ref destination, ref chars, n);
                     return WriteLong(ref destination, ref chars, length);
                 }
@@ -103,7 +106,7 @@ namespace Nino.Core.Internal
 #if NET8_0_OR_GREATER
             // 17 to 63 chars: at most four 128-bit steps, faster than Ascii.FromUtf16's setup (a URL of 53 chars took
             // 10% longer through it, as the header was moved to its odd offset).
-            bool narrowed = NinoSimd.Has128
+            bool narrowed = Vector128.IsHardwareAccelerated
                 ? Narrow16s(ref Unsafe.As<char, ushort>(ref chars), ref Unsafe.Add(ref destination, 1), (uint)length)
                 : Narrow(ref chars, ref Unsafe.Add(ref destination, 1), (uint)length);
             if (!narrowed)
@@ -426,7 +429,7 @@ namespace Nino.Core.Internal
         private static bool Narrow(ref char source, ref byte destination, nuint n)
         {
 #if NET8_0_OR_GREATER
-            if (NinoSimd.Has128)
+            if (Vector128.IsHardwareAccelerated)
                 return NarrowVector(ref Unsafe.As<char, ushort>(ref source), ref destination, n);
 #endif
             return NarrowWords(ref source, ref destination, n); // without vectors
@@ -649,7 +652,7 @@ namespace Nino.Core.Internal
         private static void Widen(ref byte source, ref ushort destination, nuint n)
         {
 #if NET8_0_OR_GREATER
-            if (NinoSimd.Has128 && n >= 8)
+            if (Vector128.IsHardwareAccelerated && n >= 8)
             {
                 if (n >= 16)
                 {

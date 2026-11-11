@@ -230,7 +230,7 @@ ValueViews.cs                where value types' fields are on this runtime (Date
 ### Internal/Simd/
 
 ```
-NinoSimd.cs                  managed SIMD capabilities and CPU policy, with inlinable 512/256/128 checks
+NinoSimd.cs                  managed SIMD CPU policy (HasArm64, Prefer512, AMD and Ice Lake) and shared vector helpers
 NinoSimd.Text.cs             managed Latin-1 narrowing, widening, and comparison kernels
 NinoSimd.Text.Legacy.cs      netstandard numeric-vector text kernels
 NinoSimd.Pairs.cs            packed pair interleave, deinterleave and ordering checks, including the Burst hook

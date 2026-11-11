@@ -16,24 +16,6 @@ namespace Nino.Core.Internal
             get => !Sse2.IsSupported && AdvSimd.Arm64.IsSupported;
         }
 
-        internal static bool Has512
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Vector512.IsHardwareAccelerated;
-        }
-
-        internal static bool Has256
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Vector256.IsHardwareAccelerated;
-        }
-
-        internal static bool Has128
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Vector128.IsHardwareAccelerated;
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static Vector512<ulong> Broadcast128To512(Vector128<ulong> value)
         {
@@ -84,7 +66,7 @@ namespace Nino.Core.Internal
         internal static bool Prefer512
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Has512 && X86Base.IsSupported && !IceLake;
+            get => Vector512.IsHardwareAccelerated && X86Base.IsSupported && !IceLake;
         }
 
         /// <summary>

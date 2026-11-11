@@ -1,3 +1,6 @@
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics;
+#endif
 using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
@@ -36,7 +39,7 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             // Full arrays benefit at medium sizes. Offset slices keep the general overlap-safe copy.
             if (!NinoLayout<T>.HasPadding &&
-                (NinoSimd.Has256 || NinoSimd.HasArm64) &&
+                (Vector256.IsHardwareAccelerated || NinoSimd.HasArm64) &&
                 (uint)(size - NinoWire.LengthSize - 512) <= 1024 - 512)
             {
                 NinoLayout<T>.WriteRawVectorExternal(buffer,
@@ -105,7 +108,7 @@ namespace Nino.Core
             // A new array (NinoDeserializer.Deserialize<T[]>(data) passes null, a constant once inlined): no slot
             // to reuse, so no local whose address reaches the recycler and stays in memory.
 #if NET8_0_OR_GREATER
-            if (typeof(T) == typeof(bool) && existing == null && NinoSimd.Has128 &&
+            if (typeof(T) == typeof(bool) && existing == null && Vector128.IsHardwareAccelerated &&
                 data.Length >= NinoWire.LengthSize + MinFusedBytes)
                 return ReadNewChecked(data);
 #endif
