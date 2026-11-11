@@ -663,6 +663,13 @@ func TestFixedAndShape(t *testing.T) {
 	expectCode(t, hx("01000000 FFFFFFFF"), CodeInvalidLength, func(r *Reader) { r.ReadShape(2, 1) })
 	expectCode(t, hx("00000000 C8FFFF7F"), CodeInvalidLength, func(r *Reader) { r.ReadShape(2, 1) })
 	expectCode(t, hx("00000100 00000100 00000100"), CodeInvalidLength, func(r *Reader) { r.ReadShape(3, 0) })
+	// An element size of 0 (nino-gen's for a generic struct) counts as 1 byte, as spec §9 says: 65535 x 65535
+	// elements in no bytes would have the caller allocate them all.
+	expectCode(t, hx("FFFF0000 FFFF0000"), CodeInvalidLength, func(r *Reader) { r.ReadShape(2, 0) })
+	r = NewReader(hx("FFFF0000 00000000"))
+	if s, ok = r.ReadShape(2, 0); !ok || s.Total != 0 || s.Dims[0] != 0xFFFF {
+		t.Fatal("65535 x 0", s, r.Err())
+	}
 	expectBytes(t, encode(t, func(w *Writer) { w.WriteShape(2, 3) }), "02000000 03000000")
 }
 

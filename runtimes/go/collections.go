@@ -305,8 +305,8 @@ type Shape struct {
 }
 
 // ReadShape reads the rank lengths of a multi-dimensional array; ok is false for null (the first length -1). As
-// .NET: a negative length, one past .NET's longest array, or more elements than the bytes left (minSize each)
-// fail; the first length alone is not checked against the bytes left, as another may be 0.
+// .NET: a negative length, one past .NET's longest array, or more elements than the bytes left (minSize each, at
+// least 1) fail; the first length alone is not checked against the bytes left, as another may be 0.
 func (r *Reader) ReadShape(rank, minSize int) (s Shape, ok bool) {
 	if rank < 2 || rank > 4 {
 		r.Fail(CodeInvalidValue, "rank")
@@ -339,7 +339,9 @@ func (r *Reader) ReadShape(rank, minSize int) (s Shape, ok bool) {
 			return s, false
 		}
 	}
-	if total*uint64(max(minSize, 0)) > uint64(len(r.buf)) {
+	// Every element takes at least a byte (spec §9: the minimum element size is at least 1 for all but raw
+	// elements): a minSize of 0 would let a shape claim 2^32 elements in no data, which the caller allocates.
+	if total*uint64(max(minSize, 1)) > uint64(len(r.buf)) {
 		r.badLength(int64(min(total, maxInt32)))
 		return s, false
 	}
