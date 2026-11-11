@@ -201,8 +201,27 @@ namespace Nino.Core
             // Bools and Untrusted mode's values are checked by the read: a new array takes the slot once filled.
             var current = value;
             var array = NinoElements.NewOrSame(current, length);
-            reader.ReadUnmanagedRaw(array.AsSpan());
+#if NET8_0_OR_GREATER
+            if (NinoLayout<T>.Checks is not { } checks || !NinoLayout<T>.IsCanonical ||
+                array == current || !TryReadFreshChecked(array, length, checks, ref reader))
+#endif
+                reader.ReadUnmanagedRaw(array.AsSpan());
             NinoElements.Publish(ref value, current, array);
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static bool TryReadFreshChecked(T[] array, int length, NinoValueChecks checks, ref Reader reader)
+        {
+            int stride = Unsafe.SizeOf<T>();
+            int bytes = length * stride;
+            if (bytes < MinFusedBytes || !checks.TryCopy(ref reader.Peek(),
+                    ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)), bytes, stride))
+                return false;
+
+            reader.UnsafeAdvance(bytes);
+            return true;
+        }
+#endif
     }
 }

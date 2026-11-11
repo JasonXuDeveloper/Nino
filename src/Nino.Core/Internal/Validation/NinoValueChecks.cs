@@ -51,7 +51,7 @@ namespace Nino.Core.Internal
             // A single Arm64 vector does not repay building and dispatching a plan on first use.
             int minimumBytes = Vector<byte>.Count + (NinoSimd.HasArm64 ? 1 : 0);
             if (Vector.IsHardwareAccelerated && (long)whole * stride >= minimumBytes &&
-                PlanFor(stride) is { } plan && plan.Valid(ref first, whole * stride))
+                PlanFor(stride) is { } plan && plan.Valid<CheckOnly>(ref first, ref first, whole * stride))
             {
                 CheckFields(ref Unsafe.Add(ref first, whole * stride), 1, stride, type);
                 return;
@@ -128,6 +128,14 @@ namespace Nino.Core.Internal
         }
 
 #if NET8_0_OR_GREATER
+        private readonly struct CheckOnly { }
+        private readonly struct Copy { }
+
+        // Whole array slots are readable, including the final slot. The caller owns an unpublished destination.
+        internal bool TryCopy(ref byte first, ref byte destination, int bytes, int stride) =>
+            Vector.IsHardwareAccelerated && PlanFor(stride) is { Passes.Length: 1 } plan &&
+            plan.Valid<Copy>(ref first, ref destination, bytes);
+
         // The plan of the last stride checked (one per type in practice: its size, or a pair's): replaced whole, so a
         // race only builds it twice. Plan.None where the fields do not lie on lanes of their size.
         private Plan _plan;
@@ -298,17 +306,19 @@ namespace Nino.Core.Internal
             }
 
             /// <summary>Whether every value in the <paramref name="length"/> bytes at <paramref name="first"/> passes.</summary>
-            public bool Valid(ref byte first, int length)
+            public bool Valid<TMode>(ref byte first, ref byte destination, int length)
             {
                 foreach (var pass in Passes)
                 {
                     bool valid = pass.Size switch
                     {
-                        1 => Valid<byte, Masked>(ref first, length, pass),
-                        4 => (NinoSimd.HasArm64 || pass.FullRange) ? Valid<uint, FullRange>(ref first, length, pass)
-                            : Valid<uint, Masked>(ref first, length, pass),
-                        _ => (NinoSimd.HasArm64 || pass.FullRange) ? Valid<ulong, FullRange>(ref first, length, pass)
-                            : Valid<ulong, Masked>(ref first, length, pass),
+                        1 => Valid<byte, Masked, TMode>(ref first, ref destination, length, pass),
+                        4 => (NinoSimd.HasArm64 || pass.FullRange)
+                            ? Valid<uint, FullRange, TMode>(ref first, ref destination, length, pass)
+                            : Valid<uint, Masked, TMode>(ref first, ref destination, length, pass),
+                        _ => (NinoSimd.HasArm64 || pass.FullRange)
+                            ? Valid<ulong, FullRange, TMode>(ref first, ref destination, length, pass)
+                            : Valid<ulong, Masked, TMode>(ref first, ref destination, length, pass),
                     };
                     if (!valid)
                         return false;
@@ -320,7 +330,8 @@ namespace Nino.Core.Internal
             private readonly struct Masked { }
             private readonly struct FullRange { }
 
-            private bool Valid<T, TRange>(ref byte first, int length, Pass pass) where T : unmanaged
+            private bool Valid<T, TRange, TMode>(ref byte first, ref byte destination, int length, Pass pass)
+                where T : unmanaged
             {
                 int width = Vector<byte>.Count;
                 ref byte masks = ref NinoUnsafe.GetArrayDataReference(pass.Masks);
@@ -331,7 +342,10 @@ namespace Nino.Core.Internal
                 int last = length - width;
                 for (int at = 0; at <= last; at += width)
                 {
-                    bad |= Test<T, TRange>(Load<T>(ref first, at), ref masks, ref bounds, phase);
+                    var value = Load<T>(ref first, at);
+                    if (typeof(TMode) == typeof(Copy))
+                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), value);
+                    bad |= Test<T, TRange>(value, ref masks, ref bounds, phase);
                     phase += width;
                     if (phase == period)
                         phase = 0;
@@ -344,7 +358,10 @@ namespace Nino.Core.Internal
                     int tailPhase = phase + tail - width;
                     // Backing up can cross at most one period boundary.
                     tailPhase += period & (tailPhase >> 31);
-                    bad |= Test<T, TRange>(Load<T>(ref first, last), ref masks, ref bounds, tailPhase);
+                    var value = Load<T>(ref first, last);
+                    if (typeof(TMode) == typeof(Copy))
+                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, last), value);
+                    bad |= Test<T, TRange>(value, ref masks, ref bounds, tailPhase);
                 }
                 // Arm64 comparisons already produce whole-lane masks.
                 if (typeof(T) == typeof(byte) || NinoSimd.HasArm64)

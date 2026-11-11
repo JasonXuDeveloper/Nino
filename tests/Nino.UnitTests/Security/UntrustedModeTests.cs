@@ -266,7 +266,7 @@ public static partial class SettingsProbes
     public static unsafe string UntrustedValueRuns(byte[] _)
     {
         NinoSettings.Untrusted = true;
-        var lengths = Enumerable.Range(1, 20).Concat(new[] { 31, 32, 33, 63, 64, 65, 100, 1000 });
+        var lengths = Enumerable.Range(1, 20).Concat(new[] { 31, 32, 33, 63, 64, 65, 100, 1000, 1025 });
         var when = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Local);
         var price = new decimal(-1, -1, -1, true, 28);
         var mixed = new UntrustedMixed
