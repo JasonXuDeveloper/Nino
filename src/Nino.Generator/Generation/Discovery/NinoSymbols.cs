@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -279,24 +278,21 @@ internal sealed class NinoSymbols
 
     /// <summary>
     /// The C# 11 <c>required</c> members the type and its bases declare, which <c>new T()</c> must set in its object
-    /// initializer unless the constructor is <c>[SetsRequiredMembers]</c>. <c>IsRequired</c> is read by reflection:
-    /// Roslyn 4.3, which the generator is built against, predates it (and the language feature).
+    /// initializer unless the constructor is <c>[SetsRequiredMembers]</c>.
     /// </summary>
-    public static List<ISymbol> RequiredMembers(INamedTypeSymbol type)
+    public static IReadOnlyList<ISymbol> RequiredMembers(INamedTypeSymbol type)
     {
-        var result = new List<ISymbol>();
-        if (PropertyIsRequired == null && FieldIsRequired == null)
-            return result;
+        List<ISymbol>? result = null;
         for (var t = type; t != null; t = t.BaseType)
         {
             foreach (var member in t.GetMembers())
             {
                 if (IsRequired(member))
-                    result.Add(member);
+                    (result ??= new List<ISymbol>()).Add(member);
             }
         }
 
-        return result;
+        return result ?? (IReadOnlyList<ISymbol>)System.Array.Empty<ISymbol>();
     }
 
     /// <inheritdoc cref="RequiredMembers"/>
@@ -307,19 +303,7 @@ internal sealed class NinoSymbols
         a.AttributeClass is { } type &&
         TypeNames.HasMetadataName(type, "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"));
 
-    private static bool IsRequired(ISymbol member)
-    {
-        var isRequired = member switch
-        {
-            IPropertySymbol => PropertyIsRequired,
-            IFieldSymbol => FieldIsRequired,
-            _ => null,
-        };
-        return isRequired != null && !member.IsStatic && isRequired.GetValue(member) is true;
-    }
-
-    // Interface properties of the Roslyn that runs the generator (4.4+); null on 4.3, which has no required members.
-    private static readonly PropertyInfo? PropertyIsRequired = typeof(IPropertySymbol).GetProperty("IsRequired");
-
-    private static readonly PropertyInfo? FieldIsRequired = typeof(IFieldSymbol).GetProperty("IsRequired");
+    private static bool IsRequired(ISymbol member) =>
+        member is IPropertySymbol { IsStatic: false, IsRequired: true } or
+            IFieldSymbol { IsStatic: false, IsRequired: true };
 }
