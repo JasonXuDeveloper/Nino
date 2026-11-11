@@ -35,11 +35,12 @@ public unsafe class KernelHookTests
     /// </summary>
     private static class ScalarKernels
     {
-        public static int Permutes, Narrows, Widens, NarrowAsciis, WidenAsciis, MinBlocks, MinChars;
+        public static int Permutes, Narrows, Widens, NarrowAsciis, WidenAsciis, BoolSlots, BoolPrefix, MinBlocks, MinChars;
 
         public static NinoKernels Create(int minBlocks = 16, int minChars = 32)
         {
             Permutes = Narrows = Widens = NarrowAsciis = WidenAsciis = 0;
+            BoolSlots = BoolPrefix = 0;
             MinBlocks = minBlocks;
             MinChars = minChars;
             return new NinoKernels
@@ -51,6 +52,7 @@ public unsafe class KernelHookTests
                 Widen = &Widen,
                 NarrowAscii = &NarrowAscii,
                 WidenAscii = &WidenAscii,
+                NormalizeBoolSlots = &NormalizeBoolSlots,
             };
         }
 
@@ -102,6 +104,28 @@ public unsafe class KernelHookTests
             return ascii;
         }
 
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static int NormalizeBoolSlots(byte* source, byte* destination, int count)
+        {
+            Check(count >= Math.Max(16, MinBlocks));
+            Check(source + 2 * count <= destination || destination + 2 * count <= source);
+            BoolSlots++;
+            // A vector stand-in: reject a whole group before storing any of its slots.
+            for (int start = 0; start < count; start += 8)
+            {
+                int length = Math.Min(8, count - start);
+                for (int i = start; i < start + length; i++)
+                {
+                    if (source[2 * i] != 0 && source[2 * i + 1] > 1)
+                        return BoolPrefix = start;
+                }
+
+                NinoKernels.NormalizeBoolSlotsScalar(source + 2 * start, destination + 2 * start, length);
+            }
+
+            return BoolPrefix = count;
+        }
+
         // An exception may not leave a native-callable function: a failed check is counted and asserted after.
         public static int Failures;
 
@@ -113,11 +137,15 @@ public unsafe class KernelHookTests
     }
 
     private static readonly int[] Lengths = { 0, 1, 2, 15, 16, 17, 31, 32, 33, 64, 100, 1000 };
+    private NinoKernels _previous;
+
+    [TestInitialize]
+    public void Initialize() => _previous = NinoKernels.Current;
 
     [TestCleanup]
     public void Cleanup()
     {
-        NinoKernels.Register(null);
+        NinoKernels.Register(_previous);
         Assert.AreEqual(0, ScalarKernels.Failures, "a kernel was called below its threshold or out of its range");
     }
 
@@ -138,6 +166,179 @@ public unsafe class KernelHookTests
     }
 
     private static bool Equal<T>(T[] a, T[] b) => a.SequenceEqual(b);
+
+    [TestMethod]
+    public void NullableBoolSlotsNormalizeDirtyNullsThroughTheHook()
+    {
+        foreach (int count in Lengths)
+        {
+            var values = Enumerable.Range(0, count).Select(i => i % 3 == 0 ? (bool?)null : i % 2 == 0).ToArray();
+            for (int i = 0; i < count; i += 3)
+                Unsafe.Add(ref Unsafe.As<bool?, byte>(ref values[i]), 1) = 0xEF;
+            Same(values, Equal);
+            Assert.AreEqual((count >= 32 ? 1 : 0) + (count >= 16 ? 1 : 0), ScalarKernels.BoolSlots,
+                $"nullable bool x {count}");
+            var bytes = NinoSerializer.Serialize(values);
+            for (int i = 0; i < count; i += 3)
+            {
+                Assert.AreEqual((byte)0, bytes[4 + 2 * i]);
+                Assert.AreEqual((byte)0, bytes[5 + 2 * i]);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void NullableBoolHookKeepsTheFirstInvalidValueAndWrittenPrefix()
+    {
+        const int count = 40;
+        foreach (int invalid in new[] { 0, 7, 8, 15, 16, 19, 31, 39 })
+        {
+            var bytes = new byte[count * 2];
+            for (int i = 0; i < count; i++)
+            {
+                bytes[2 * i] = 1;
+                bytes[2 * i + 1] = (byte)(i & 1);
+            }
+            bytes[2 * invalid + 1] = 7;
+            var expected = Enumerable.Repeat<bool?>(true, count).ToArray();
+            NinoKernels.Register(null);
+            string scalarError = ReadInvalidBoolSlots(bytes, expected);
+            var actual = Enumerable.Repeat<bool?>(true, count).ToArray();
+            NinoKernels.Register(ScalarKernels.Create());
+            Assert.AreEqual(scalarError, ReadInvalidBoolSlots(bytes, actual));
+            Assert.AreEqual(1, ScalarKernels.BoolSlots);
+            Assert.AreEqual(invalid / 8 * 8, ScalarKernels.BoolPrefix);
+            CollectionAssert.AreEqual(expected, actual);
+        }
+    }
+
+    private static string ReadInvalidBoolSlots(byte[] bytes, bool?[] destination)
+    {
+        var reader = new Reader(bytes);
+        try
+        {
+            NinoNullables<bool>.ReadPrechecked(destination, ref reader);
+        }
+        catch (NinoDataException error)
+        {
+            Assert.AreEqual(typeof(NinoDataException), error.GetType());
+            Assert.AreEqual(0, reader.Remaining);
+            return error.Message;
+        }
+
+        Assert.Fail("The invalid bool was accepted.");
+        return null;
+    }
+
+    [TestMethod]
+    public void NullableBoolWriterKeepsUnsafeValuesInTheScalarSuffix()
+    {
+        var values = Enumerable.Repeat<bool?>(true, 40).ToArray();
+        Unsafe.Add(ref Unsafe.As<bool?, byte>(ref values[19]), 1) = 7;
+        NinoKernels.Register(null);
+        byte[] expected = NinoSerializer.Serialize(values);
+        NinoKernels.Register(ScalarKernels.Create());
+        CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values));
+        Assert.AreEqual(1, ScalarKernels.BoolSlots);
+        Assert.AreEqual(16, ScalarKernels.BoolPrefix);
+        Assert.AreEqual((byte)7, expected[4 + 2 * 19 + 1]);
+    }
+
+    [TestMethod]
+    public void NullableBoolHookRespectsItsFloorAndAbsentPointer()
+    {
+        var values = Enumerable.Repeat<bool?>(true, 40).ToArray();
+        var kernels = ScalarKernels.Create(minBlocks: 1);
+        NinoKernels.Register(kernels);
+        NinoSerializer.Serialize(values.AsSpan(0, 31).ToArray());
+        Assert.AreEqual(0, ScalarKernels.BoolSlots);
+        NinoSerializer.Serialize(values.AsSpan(0, 32).ToArray());
+        Assert.AreEqual(1, ScalarKernels.BoolSlots);
+        kernels.NormalizeBoolSlots = null;
+        NinoSerializer.Serialize(values);
+        Assert.AreEqual(2, ScalarKernels.BoolSlots, "registration copies the pointer");
+        NinoKernels.Register(kernels);
+        byte[] bytes = NinoSerializer.Serialize(values);
+        CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<bool?[]>(bytes));
+        Assert.AreEqual(2, ScalarKernels.BoolSlots);
+        NinoKernels.Register(null);
+        var target = new byte[values.Length * 2];
+        Assert.AreEqual(0, NinoKernelHook.TryNormalizeBoolSlots(ref bytes[4], ref target[0], values.Length));
+        NinoKernels.Register(ScalarKernels.Create(minBlocks: 48));
+        NinoSerializer.Serialize(values);
+        Assert.AreEqual(0, ScalarKernels.BoolSlots);
+    }
+
+    [TestMethod]
+    public void NullableBoolScalarReferenceStopsBeforeTheInvalidSlot()
+    {
+        var source = new byte[] { 0, 0xEF, 1, 1, 1, 7, 1, 0 };
+        var target = Enumerable.Repeat((byte)0xA5, source.Length).ToArray();
+        fixed (byte* from = source, to = target)
+            Assert.AreEqual(2, NinoKernels.NormalizeBoolSlotsScalar(from, to, 4));
+        CollectionAssert.AreEqual(new byte[] { 0, 0, 1, 1, 0xA5, 0xA5, 0xA5, 0xA5 }, target);
+    }
+
+    [TestMethod]
+    public void NullableBoolPresenceIsCheckedBeforeTheHook()
+    {
+        var bytes = new byte[80];
+        bytes[0] = 1;
+        bytes[1] = 7;
+        bytes[78] = 2;
+        NinoKernels.Register(ScalarKernels.Create());
+        var destination = new bool?[40];
+        string error = ReadInvalidBoolSlots(bytes, destination);
+        NinoKernels.Register(null);
+        Assert.AreEqual(error, ReadInvalidBoolSlots(bytes, new bool?[40]));
+        Assert.AreEqual(0, ScalarKernels.BoolSlots);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void NullableBoolOverlappingReadsKeepScalarOrder(bool destinationAfterSource)
+    {
+        const int count = 40;
+        var storage = new bool?[count + 1];
+        for (int i = 0; i < storage.Length; i++)
+            storage[i] = i % 3 == 0 ? true : i % 3 == 1 ? false : null;
+        int source = destinationAfterSource ? 0 : 1, target = destinationAfterSource ? 1 : 0;
+        var expected = new bool?[count];
+        if (destinationAfterSource)
+            Array.Fill(expected, storage[source]);
+        else
+            storage.AsSpan(source, count).CopyTo(expected);
+        var bytes = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<bool?, byte>(ref storage[source]), 2 * count);
+        var reader = new Reader(bytes);
+        NinoKernels.Register(ScalarKernels.Create());
+        NinoNullables<bool>.ReadPrechecked(storage.AsSpan(target, count), ref reader);
+        CollectionAssert.AreEqual(expected, storage.AsSpan(target, count).ToArray());
+        Assert.AreEqual(0, ScalarKernels.BoolSlots);
+    }
+
+    [TestMethod]
+    public void NullableBoolOverlappingWritesKeepScalarOrder()
+    {
+        byte[] Write(bool hook)
+        {
+            using var buffer = new NinoArrayBufferWriter();
+            Span<byte> storage = buffer.GetSpan(84);
+            ref bool? first = ref Unsafe.As<byte, bool?>(ref storage[4]);
+            for (int i = 0; i < 40; i++)
+                Unsafe.Add(ref first, i) = i % 3 == 0 ? true : i % 3 == 1 ? false : null;
+            var values = MemoryMarshal.CreateReadOnlySpan(ref first, 40);
+            var writer = new Writer(buffer);
+            NinoKernels.Register(hook ? ScalarKernels.Create() : null);
+            NinoNullables<bool>.Write(values, ref writer);
+            writer.Flush();
+            return buffer.ToArray();
+        }
+
+        byte[] scalar = Write(false);
+        CollectionAssert.AreEqual(scalar, Write(true));
+        Assert.AreEqual(0, ScalarKernels.BoolSlots);
+    }
 
     [TestMethod]
     public void BlocksWriteAndReadTheSameBytesThroughTheHook()

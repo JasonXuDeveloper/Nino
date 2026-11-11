@@ -15,6 +15,7 @@ namespace Nino.Core
 
         internal static delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void> Permute;
         internal static delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void> Interleave32;
+        internal static delegate* unmanaged[Cdecl]<byte*, byte*, int, int> NormalizeBoolSlots;
         internal static delegate* unmanaged[Cdecl]<ushort*, byte*, int, int> Narrow;
         internal static delegate* unmanaged[Cdecl]<byte*, ushort*, int, void> Widen;
         internal static delegate* unmanaged[Cdecl]<ushort*, byte*, int, int> NarrowAscii;
@@ -34,6 +35,18 @@ namespace Nino.Core
         internal const int CopyFloor = 16;
 
         internal static int MinInterleave = int.MaxValue;
+        internal static int MinBoolSlots = int.MaxValue;
+        internal static int MinWriteBoolSlots = int.MaxValue;
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static int TryNormalizeBoolSlots(ref byte source, ref byte destination, int count)
+        {
+            var normalize = NormalizeBoolSlots;
+            if (normalize == null)
+                return 0;
+            fixed (byte* from = &source, to = &destination)
+                return normalize(from, to, count);
+        }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static int TryInterleave32(ref int first, ref int second, ref byte target, int count)

@@ -22,9 +22,10 @@ namespace Nino.Core
     /// <para>
     /// Each kernel must produce exactly the bytes of its scalar reference (<see cref="PermuteScalar"/>,
     /// <see cref="NarrowScalar"/>, <see cref="WidenScalar"/>, <see cref="NarrowAsciiScalar"/>,
-    /// <see cref="WidenAsciiScalar"/>): the wire format does not depend on which path ran. Nino calls a kernel only for
-    /// runs of at least <see cref="MinBlocks"/> values or <see cref="MinChars"/> chars, where the call costs less than it
-    /// saves. Register kernels before serializing, from one thread.
+    /// <see cref="WidenAsciiScalar"/>, <see cref="NormalizeBoolSlotsScalar"/>): the wire format does not depend on which
+    /// path ran. Nino calls a kernel only for runs of at least <see cref="MinBlocks"/> values or
+    /// <see cref="MinChars"/> chars, where the call costs less than it saves. Register kernels before serializing,
+    /// from one thread.
     /// </para>
     /// </remarks>
     public sealed unsafe class NinoKernels
@@ -42,6 +43,8 @@ namespace Nino.Core
             // call site also loads its pointer once and tests it for null).
             NinoKernelHook.MinBlocks = int.MaxValue;
             NinoKernelHook.MinInterleave = int.MaxValue;
+            NinoKernelHook.MinBoolSlots = int.MaxValue;
+            NinoKernelHook.MinWriteBoolSlots = int.MaxValue;
             NinoKernelHook.MinCopies = int.MaxValue;
             NinoKernelHook.MinNarrow = int.MaxValue;
             NinoKernelHook.MinWiden = int.MaxValue;
@@ -50,6 +53,7 @@ namespace Nino.Core
             Thread.MemoryBarrier();
             NinoKernelHook.Permute = kernels == null ? null : kernels.Permute;
             NinoKernelHook.Interleave32 = kernels == null ? null : kernels.Interleave32;
+            NinoKernelHook.NormalizeBoolSlots = kernels == null ? null : kernels.NormalizeBoolSlots;
             NinoKernelHook.Narrow = kernels == null ? null : kernels.Narrow;
             NinoKernelHook.Widen = kernels == null ? null : kernels.Widen;
             NinoKernelHook.NarrowAscii = kernels == null ? null : kernels.NarrowAscii;
@@ -67,6 +71,11 @@ namespace Nino.Core
 
             if (kernels.Interleave32 != null)
                 NinoKernelHook.MinInterleave = Math.Max(16, minBlocks);
+            if (kernels.NormalizeBoolSlots != null)
+            {
+                NinoKernelHook.MinBoolSlots = Math.Max(16, minBlocks);
+                NinoKernelHook.MinWriteBoolSlots = Math.Max(32, minBlocks);
+            }
             if (kernels.Narrow != null)
                 NinoKernelHook.MinNarrow = minChars;
             if (kernels.Widen != null)
@@ -79,7 +88,8 @@ namespace Nino.Core
 
         /// <summary>
         /// The fewest values of a collection <see cref="Permute"/> is called for (default 16; at least 16 to copy raw
-        /// structs with padding, whose own path already copies whole words).
+        /// structs with padding, whose own path already copies whole words; <see cref="NormalizeBoolSlots"/> uses
+        /// at least 16 slots when reading and 32 when writing).
         /// </summary>
         public int MinBlocks { get; set; } = 16;
 
@@ -100,6 +110,30 @@ namespace Nino.Core
         /// Interleaves two arrays of four-byte raw values into the checked destination. Count is a multiple of four.
         /// </summary>
         public delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void> Interleave32 { get; set; }
+
+        /// <summary>
+        /// Normalizes <c>count</c> nullable-bool slots from <c>source</c> into the nonoverlapping
+        /// <c>destination</c>. Each slot is two little-endian bytes: a presence flag (0 or 1), then the bool value.
+        /// Null slots become two zero bytes. Returns the number of completed leading slots (0 to count).
+        /// If an active value exceeds 1, returns the start of its processing group before writing that group.
+        /// Bytes after the completed prefix remain untouched. Reference: <see cref="NormalizeBoolSlotsScalar"/>.
+        /// </summary>
+        public delegate* unmanaged[Cdecl]<byte*, byte*, int, int> NormalizeBoolSlots { get; set; }
+
+        /// <summary>What <see cref="NormalizeBoolSlots"/> does, with one slot per processing group.</summary>
+        public static int NormalizeBoolSlotsScalar(byte* source, byte* destination, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                byte flag = source[2 * i], value = source[2 * i + 1];
+                if (flag != 0 && value > 1)
+                    return i;
+                destination[2 * i] = flag;
+                destination[2 * i + 1] = flag == 0 ? (byte)0 : value;
+            }
+
+            return count;
+        }
 
         /// <summary>
         /// <c>int Narrow(ushort* source, byte* destination, int length)</c>: narrows the <c>length</c> UTF-16 chars at
