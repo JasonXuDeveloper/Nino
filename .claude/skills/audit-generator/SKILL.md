@@ -266,6 +266,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   `BuildRegistrations` went from 570 to 482 IL bytes, 2,500 to 2,100 Arm64 FullOpts bytes,
   and 1,861 to 1,526 offline x64 bytes. The iterator entry and `MoveNext` add 29/291 IL,
   120/636 Arm64 and 98/397 offline x64 bytes (`e1fb67e9`).
+- Key nesting lookup by the qualified name already used by formatter references. Extract the
+  declaration name only on a match. The initial tuple variant avoided the concatenation but
+  enlarged each entry; keeping the qualified name as the key retains the original value shape.
+  The 11-name, 578-model replay saved about 2.84 MB per traversal, and the real project's
+  cold allocation median fell by 2.30–2.32 MB against identical baselines. No stable whole-project
+  time change was measured. The search went from 303 to 312 IL bytes, 1,264 to 1,196 Arm64
+  FullOpts bytes and 614 to 640 offline x64 bytes. The three generator builds matched all
+  generated files, reused every model on edits and passed the collection probes (`95a3102a`).
 - Skip type parameter collection, projection and constraint rendering for non-generic models.
   Roslyn's `IsGenericType` includes parameters on containing types. The real project had 495
   non-generic models and eight arity-zero models that inherited parameters. Four default-JIT
