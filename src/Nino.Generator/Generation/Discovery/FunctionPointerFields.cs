@@ -123,7 +123,7 @@ internal static class FunctionPointerFields
             return LayoutTypes.ToArray(In(compilation.Compilation.Assembly, ct));
         if (reference is not PortableExecutableReference file)
             return EquatableArray<string>.Empty;
-        var result = new List<string>();
+        List<string>? result = null;
         try
         {
             switch (file.GetMetadata())
@@ -135,10 +135,10 @@ internal static class FunctionPointerFields
                         break;
                     string name = manifest.GetString(manifest.GetAssemblyDefinition().Name);
                     foreach (var module in modules)
-                        Scan(module.GetMetadataReader(), name, result, ct);
+                        Scan(module.GetMetadataReader(), name, ref result, ct);
                     break;
                 case ModuleMetadata module:
-                    Scan(module.GetMetadataReader(), assembly, result, ct);
+                    Scan(module.GetMetadataReader(), assembly, ref result, ct);
                     break;
             }
         }
@@ -147,11 +147,11 @@ internal static class FunctionPointerFields
             return EquatableArray<string>.Empty;
         }
 
-        return LayoutTypes.ToArray(result);
+        return result == null ? EquatableArray<string>.Empty : LayoutTypes.ToArray(result);
     }
 
     /// <summary>Adds the registration of every value type <paramref name="reader"/> defines with a function pointer field.</summary>
-    private static void Scan(MetadataReader reader, string assembly, List<string> into, CancellationToken ct)
+    private static void Scan(MetadataReader reader, string assembly, ref List<string>? into, CancellationToken ct)
     {
         foreach (var handle in reader.TypeDefinitions)
         {
@@ -166,7 +166,7 @@ internal static class FunctionPointerFields
             }
 
             if (fields != null && IsValueType(reader, type))
-                into.Add(Registration(assembly, RuntimeName(reader, type), fields));
+                (into ??= new List<string>()).Add(Registration(assembly, RuntimeName(reader, type), fields));
         }
     }
 
