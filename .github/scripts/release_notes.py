@@ -13,7 +13,7 @@ Tags matching IGNORE (Unity/OpenUPM -preview.N tags, the v3.9.x v4 test builds) 
 v4.0.0 starts at v3.3.13. Only tags that are ancestors of --tag are candidates.
 
 Highlights come from trailers in the commit messages of the range, so nothing is written by hand at release time.
-Put them in the message's last paragraph (the trailer block, next to Co-Authored-By); a value may go on over
+Put them in the message's last paragraph (the trailer block); a value may go on over
 indented lines:
   Wire-Format: what now writes different bytes, and since when   -> "Wire format"
   Added: a new API, attribute or behavior users can rely on       -> "New"

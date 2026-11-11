@@ -13,20 +13,19 @@ techniques are `optimize-runtimes`.
 
 ## Before committing a read or write path
 
-When a representative workload improves and a narrow small-input case slows, first isolate the large-input loop
-or its dispatch and retest both. Compare Tier 0, Tier 1 and the caller before attributing a slowdown to the extra
-instructions in the loop. Record the remaining tradeoff alongside the evidence.
-When an experiment removes real work but the first A/B shows no gain, inspect the caller and loop for where the
-cost moved, then test a materially different variant before shelving it. Repair build or test infrastructure
-failures and rerun the relevant check before treating it as an outcome for the candidate.
-Keep a sound byref loop in a reproducible patch or experiment commit while diagnosing a flat result or regression.
-Compare Tier 0 and Tier 1 at the public or generated caller and the loop on Arm64 and x64. Check cursor register
-pressure, spills, frame size, helper inlining and tier promotion. Keep the cursor loop fixed and change one
-code-generation factor at a time, such as the helper boundary, placement of cursor initialization, or short-tail
-dispatch. Compare the resulting listings before attributing a timing change to the JIT. Remeasure short and
-representative inputs under default tiering before deciding what to land. If timings remain inconclusive, record
-the evidence and retain the candidate for the next iteration. See the `BlockWaypoint` example in
-[vectors.md](references/vectors.md).
+- **Isolate before trading a small case for a big one.** When a representative workload gets faster and a narrow
+  small-input case slower, keep the small-input path as it was and move the change into the larger loop or its
+  dispatch, then retest both; record a tradeoff that remains next to its evidence. Why: one inlining budget covers
+  everything a top-level call reaches, so the slowdown usually sits in the caller, not in the loop's extra
+  instructions (compare Tier0, Tier1 and the caller first).
+- **Diagnose a flat or failed first result before shelving a sound candidate.** When an experiment removes real
+  work and the first A/B shows nothing, find where the cost moved (caller and loop listings: cursor register
+  pressure, spills, frame size, helper inlining, tier promotion) and try a materially different variant; a build or
+  test infrastructure failure is repaired and rerun, never counted as the candidate's result. Keep the candidate in a
+  reproducible patch or experiment commit meanwhile, change one code-generation factor at a time (helper boundary,
+  where the cursor is initialized, short-tail dispatch), compare the listings on Arm64 and x64, and remeasure short
+  and representative inputs under default tiering. Inconclusive: record the evidence, keep the candidate for the
+  next round (the `BlockWaypoint` example in [vectors-blocks.md](references/vectors-blocks.md#scalar-block-reads)).
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
 touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
@@ -49,11 +48,17 @@ Each line is the rule; the reference file holds it in full with why and the runn
 for the topic you touch before changing code there: most of these were learned by a slower commit, and the evidence
 says which CPUs and cases moved.
 
-- **The JIT** ([references/jit.md](references/jit.md)): keep rare or large paths out of line (`NoInlining`), platform
+- **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
+  `NinoSimd`'s properties (`HasArm64`, `Has128/256/512`, `Prefer512`), and a size band shared by several call sites is
+  one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks
+  its own ISA's `IsSupported` (`AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipLow(a, b) : Sse2.UnpackLow(a, b)`). Why:
+  the codex/nino-audit series wrote the Arm64 short-copy band six times with four ranges and three gates, and spelled
+  `!Sse2.IsSupported && AdvSimd.Arm64.IsSupported` by hand beside `HasArm64`.
+- **The JIT** ([references/jit.md](references/jit.md); the measured experiments by area in [jit-io.md](references/jit-io.md) (Reader, Writer, buffer writers, streams, sequences), [jit-arrays.md](references/jit-arrays.md) (raw arrays, spans, memory, external buffer writers), [jit-formatters.md](references/jit-formatters.md) (BitArray, BigInteger, StringBuilder, hashing, caches) and [jit-collections.md](references/jit-collections.md) (collections, dictionary refill)): keep rare or large paths out of line (`NoInlining`), platform
   branches in the out-of-line part, and decide options at generation time, never as a run-time branch on the default
   path (the root's budget is sized from its IL); avoid passing `ref reader` / `ref writer` to an out-of-line helper
   when it would force a register-resident cursor to spill. Check the caller and helper when the cursor is already
-  held by reference, as in the multidimensional heavy read ([vectors.md](references/vectors.md)). Mark every small
+  held by reference, as in the multidimensional heavy read ([vectors-multidim.md](references/vectors-multidim.md#heavy-reads)). Mark every small
   helper `AggressiveInlining`; add nothing to a method whose inlinee sits at the edge of the budget; write a platform
   test as `A || B` of branch-free operands at
   each site; fold JIT-time checks into one `static readonly`; keep locals few; a smaller listing is not a faster one;
@@ -64,13 +69,19 @@ says which CPUs and cases moved.
   readonly` field read directly, never through `??`, and keep it never null; the inventory of the indirect calls that
   stay (another assembly's `[NinoType]`, shared generic code, the netstandard block loops, user-extensible points, one
   per top-level call in shared code) and why.
-- **Bounds checks and vector loops** ([references/vectors.md](references/vectors.md)): index through a ref to the first
-  element and `Unsafe.Add` behind the one length check; bump `ref` cursors and count down; take `Vector128` parts out
-  of the loop on Arm64; consecutive `tbl` registers; `Unsafe.As` for `Vector<T>` in the netstandard builds; checks of
-  strided bytes and value ranges with accumulators and subtract-and-OR; strided runtime entries through the block path;
-  per-CPU gates by CPUID model (Ice Lake), per-vendor block copies, Arm64 lane groups on the 16-byte grid; allocate
-  uninitialized only when every byte is written; nothing added to `ArrayFormatter` / `ListFormatter.Deserialize`;
-  research the microarchitecture before probing a gap on one CPU, and the Ice Lake attempts not to retry.
+- **Bounds checks and vector loops** ([references/vectors.md](references/vectors.md), the index of the vector files):
+  index through a ref to the first element and `Unsafe.Add` behind the one length check, and reuse a length proof
+  instead of checking twice; dispatch 512/256/128/scalar from `NinoSimd`; bump `ref` cursors and count down (with the
+  measured exceptions); take `Vector128` parts out of the loop on Arm64; consecutive `tbl` registers; `Unsafe.As` for
+  `Vector<T>` in the netstandard builds. By concern: [checks](references/vectors-checks.md) of strided bytes, bools
+  and value ranges with accumulators and subtract-and-OR; [nullable slots](references/vectors-nullable.md);
+  [blocks](references/vectors-blocks.md): strided runtime entries through the block path, per-CPU gates by CPUID model
+  (Ice Lake), Arm64 lane groups on the 16-byte grid, allocate uninitialized only when every byte is written, nothing
+  added to `ArrayFormatter` / `ListFormatter.Deserialize`, research the microarchitecture before probing a gap on one
+  CPU, and the Ice Lake attempts not to retry; [copies](references/vectors-copies.md): per-vendor long copies, the
+  Arm64 65-128-byte head and tail, the masked copy; [strings](references/vectors-strings.md);
+  [collections](references/vectors-collections.md) (`SortedList`, pair interleave, `PriorityQueue`);
+  [multidimensional arrays](references/vectors-multidim.md).
 - **Unity, Burst and IL2CPP** ([references/unity.md](references/unity.md)): a generic formatter takes its type
   parameters' formatters as type parameters; never cast `default(TFormatter)` to an interface per value; native
   kernels as function pointers in static fields, each `calli` in its own `NoInlining` helper; thresholds from a sweep;

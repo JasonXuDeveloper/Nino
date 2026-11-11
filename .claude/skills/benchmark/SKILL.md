@@ -38,16 +38,16 @@ and median. `NinoDeserializePooled` read 213-284 ns (rc.7), 250-296 (main) round
 gave overlapping ranges. Never pin it to one CPU (`taskset`): the tiering thread starves and the loop times Tier0 code
 (1,000 ns instead of 250); `DOTNET_TieredCompilation=0` times code whose `static readonly` fields do not fold, not what
 runners measure. Runners still decide (round 123).
-Use a byte-identical A/A control before trusting a small-case result from two assembly load contexts in one
-process. The 64-item `BlockWaypoint` A/A showed a 5–15% gap on multiple Arm64 runs, even after alternating
-warmup order. In a process per build, four default-JIT A/B rounds at each of three offsets showed no repeatable
-SIMD regression for the scalar cursor gate. See `optimize/references/vectors.md` for the code-generation result.
-Complete validation before warming the measured corpus, and warm the timing wrapper as well as the target under
-default tiering. Do not classify a surprising small-case result from a short per-case warmup until an isolated
-longer warmup and same-binary controls reproduce it. The string-miss probe reported a seven-char ASCII hit at
-29–44 ns after 100 ms per case; isolated one-second warmup put both builds near 3.7 ns with Tier1 listings.
-The final fixture validates first, warms all case paths and its wrapper for two seconds, then alternates complete
-processes over four rounds. Keep the earlier logs as a warmup warning, not as evidence of production throughput.
+
+- Time each build in a process of its own, not two assembly load contexts in one process: a byte-identical A/A of
+  the 64-item `BlockWaypoint` case in one process showed a 5–15% gap on several Arm64 runs, even with the warmup
+  order alternated; in a process per build, four default-JIT A/B rounds at each of three offsets showed no
+  repeatable SIMD regression for the scalar cursor gate (the code-generation result: `optimize/references/vectors-blocks.md#scalar-block-reads`).
+- Validate before warming, warm the timing wrapper as well as the target under default tiering, and never classify
+  a surprising small-case result from a short per-case warmup until a longer isolated warmup and same-binary
+  controls reproduce it: the string-miss probe timed a seven-char ASCII hit at 29–44 ns after 100 ms per case, and
+  near 3.7 ns on both builds after an isolated one-second warmup (Tier1 listings). The fixture that held validates
+  first, warms every case path and its wrapper for two seconds, then alternates complete processes over four rounds.
 
 In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
 6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused
@@ -57,6 +57,11 @@ commits in Unity only within one CPU: each unity.yml job takes whatever runner i
 player's `results.xml`), and of two base/head pairs (runs 40818519412, 40822269653, 40838031821) none put the same
 Unity version on the same CPU (AMD EPYC 7763, 9V74, 9V45), with untouched cases 13 to 34 % apart between them. Judge a
 Unity change by the with/without ratio inside one run, or put both variants in one player.
+
+Run a local A/B from worktrees nobody edits while it runs, one per side: BenchmarkDotNet builds a project of its
+own (`Nino.Benchmark-Quick-1`) from the sources when each run starts, so an edit to a tree whose run is queued is
+measured as that side (and a broken edit fails the run). The review of codex/nino-audit edited its review tree while
+the branch's run waited behind main's; the branch side then ran from a worktree of the unedited commit.
 
 Both .NET modes run v3 3.3.13 (NuGet, `NINO_BENCH_V3=true`) once, directly before v4, on the same machine; MemoryPack
 runs in both, so its two results show how much the machine moved. Heavy runs go through

@@ -1,6 +1,6 @@
 ---
 name: audit-generated-code
-description: "Audit what the generators write - the C# formatters, registrations and interceptors Nino.Generator emits, and the TypeScript, Go and Rust nino-gen writes - for readable text (no dead locals, no repeated qualified names, values said once), for size (build time, package size), and for the machine code it compiles to (inlined to one method, no spills, block copies and vector paths taken). Use when changing an emitter or a template, when generated code is slow, large or hard to read, or when a type's serializer is slower than a hand-written one. Triggers: Generation/Emit, *.g.cs, EmitCompilerGeneratedFiles, generated code, generated formatter, global::, alias, IL, Templates/*.sbn, nino_types.go, nino_types.rs, nino_types.ts, NINO_UPDATE_GENERATED, 生成代码, 生成的代码, 生成产物."
+description: "Audit what the generators write - the C# formatters, registrations and interceptors Nino.Generator emits, and the TypeScript, Go and Rust nino-gen writes - for readable text (no dead locals, no repeated qualified names, values said once), for size (build time, package size), and for the machine code it compiles to (inlined to one method, no spills, block copies and vector paths taken). Use when changing an emitter or a template, when generated code is slow, large or hard to read, or when a type's serializer is slower than a hand-written one. Triggers: Generation/Emit, *.g.cs, EmitCompilerGeneratedFiles, generated code, generated formatter, global::, alias, IL, BodyEmitter, DispatchEmitter, FormatterTraitsOf, EndRegion, PatchLength, CodeWriter, WithAliases, Templates/*.sbn, nino_types.go, nino_types.rs, nino_types.ts, NINO_UPDATE_GENERATED, 生成代码, 生成的代码, 生成产物, 别名, 生成的读写路径."
 metadata:
   internal: true
 ---
@@ -10,6 +10,9 @@ metadata:
 Generated code is code users read (Go To Definition opens it) and the code their programs run. It is held to the
 standard of the best hand-written code, and to `optimize` for its speed. The emitters are
 `src/Nino.Generator/Generation/Emit` (C#) and `src/Nino.Codegen/Templates` with `Targets/` (TypeScript, Go, Rust).
+Each section below states its rules in one line; the measurements behind them, and the attempts that lost, live in
+`references/` (linked where they apply). Record a new measurement in that file, in the form AGENTS.md gives ("Keep
+what you learn"), and its one-line rule here.
 
 ## See it
 
@@ -24,10 +27,6 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 - nino-gen: the committed outputs in `tests/Nino.Codegen.Tests` and the runtimes' `internal/sample` / corpus types.
 
 ## The text
-
-- Keep the by-value formatter text lookup weak. Roslyn can move an equal model to a new slot after a declaration
-  is inserted. Reuse its immutable source text while a consumer holds it, then let the model and text collect.
-  An index bound by entry count alone still held closed projects' generated texts in the real project GC probe.
 
 - **Short names through one alias block**: a type named more than once goes through a file-level `using` alias, not
   `global::System...` in every line; never a plain `using` a user type could shadow. Every file is framed by
@@ -45,338 +44,6 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `[__MI(__IL.NoInline)]` need only the attribute alias per file. Use the fully qualified BCL attribute
   if a formatter's type parameter shadows the flags type. The compiler folds the constants into the same method
   flags, with no helper calls.
-  Shortening the attribute alias removed 29,864 source bytes from the unit test project (6d82f7a7),
-  with identical generated IL and controlled Arm64 Tier 1 listings.
-  Shortening it again to `__MI` saved 25,356 bytes across 579 files and 312–344 KB of
-  allocation per cold project replay. Full consumer IL matched after normalizing the
-  compiler's file-local interceptor type suffix. The sampled writer retained 172 Arm64
-  and 145 emulated x64 FullOpts bytes, the wire and 0 B allocation. Keep formatter aliases
-  inside `NinoGen`. Moving the Core alias before assembly layout attributes saved 21,942
-  bytes but failed with CS0576 when the consumer declared a same-named global type.
-  Shortening the shared flags type to `__IL` saved another 23,044 bytes across 580 files
-  and 302–384 KB per cold project replay. Retain the type-parameter fallback in C# 9 and
-  later. Consumer IL matched after normalizing the internal type names and relocated data
-  addresses. The sampled round trip kept 376 Arm64 and 329 emulated x64 FullOpts bytes,
-  identical wire bytes, and 0 B allocation. The only large timing swing also appeared in
-  the identical-binary control.
-  Shortening the self alias to `__T` saved 29,008 bytes across 494 files. Cold project
-  allocation fell by 131–247 KB in four pairs, with mixed timings before a counterbalanced
-  cold-only replay. Normalized consumer IL and the sampled wire matched. Wait for Tier 1
-  before comparing the round trip: the initial samples sometimes mixed tiers. With
-  longer warmup, the Arm64 Tier 1 body remained 376 bytes, emulated x64 FullOpts stayed
-  at 329 bytes, and timing stayed close to the identical-binary control at 0 B allocation.
-  Alias repeated non-generic named raw member types in symbolic sizes and loads (acc67d4b). Avoid aliases
-  of constructed types that add TypeSpec metadata. Expanding the aliases recovered the same source;
-  generated IL, Arm64 Tier 1 summaries and normalized x64 listings matched the baseline.
-- Alias the compiler-services namespace in closed dispatch fallbacks when at least two bodies share the alias.
-  Keep open generic partial bodies qualified because user type parameters can shadow a namespace alias.
-  This saved 10,659 generated source bytes in the unit test project with identical dispatch IL and DLL size
-  (ddd7bc90). Check both file-scoped and block namespaces with an alias-named type parameter.
-- Reuse common alias declarations and only rewrite alias numbers when their order changes. A file-scoped body
-  already has its final indentation, so concatenate it with the preamble and alias block directly. Use the first
-  generator pass to measure emission allocations, since later passes can reuse cached formatter source.
-  Carrying original indices and building a remap saved about 48 KB per replay of the unit test formatters,
-  but throughput followed load order and the Arm64 alias method grew from 3,060 to 3,480 bytes. Keep the
-  simpler renumbering on this workload.
-  Keep formatter alias ordering and renumbering together, separate from self, Core and raw type aliases.
-- Find dispatch ID collisions with a set of seen IDs and allocate a collision set only on demand. Keep the
-  original order and omit every entry with a colliding ID. This saved about 100 KB per dispatch emission on
-  the unit test project with identical output. A separate attempt to stream the generated checks instead of
-  materializing their list enlarged the Arm64 emitter method from 328 to 1,044 bytes and gave mixed timings.
-- Traverse raw member groups as ranges of the existing model array. Continue from the first group after emitting
-  its region prefix, so a mixed body needs neither copied groups nor a second grouping pass.
-- Emit constructor arguments from the member names the construction planner already matched. Walk the
-  existing member array for direct initializers and accessor assignments, opening the initializer at its
-  first entry. Scan short argument lists and keep the set lookup for wide constructors. The 33 recreating
-  models from the unit test project had at most three constructor arguments. Four warmed A/B pairs of
-  their formatter emission saved about 23 KB per 33 models at identical output, with mixed elapsed time.
-  Both Roslyn builds reproduced all 583 real-project files byte for byte, and a 12-argument fixture
-  exercised the set lookup and matched its initializer and wire output. The emitter fell from 771 to
-  765 IL bytes plus a 49-byte argument helper. Arm64 FullOpts fell from 2,536 to 2,108 bytes plus
-  the 292-byte helper. The x64 cross listing went from 1,718 to 1,698 bytes plus the 158-byte
-  helper. The prior listings had separate closure methods for the member scans and argument projection.
-  The randomized project replay found similar cold, cached, and method-edit times to both identical
-  baseline controls, with about 33–35 KB less allocation at the cold median. Both generator builds
-  reused 578 tracked models and passed the collection probes for old compiler objects and source text.
-- Accumulate the symbolic part of each raw offset as its emitted text. Keep the constant separate and prepend
-  it only when needed. The actual unit test formatter replay saved about 12 KB per pass, with identical source.
-  Reuse the same offset formatting in fixed layouts to avoid copying the symbolic terms even for constant offsets.
-- Write the length up front when a region consists entirely of one raw member group. Reserve the header and
-  payload together. Raw stores cannot queue deferred bodies, so the writer does not need to open a region or patch
-  its length. Keep the begin/end path for mixed bodies and collections. This removed 2,747 generated bytes from
-  the unit test project and reduced the Arm64 `PaddedItem[]` element loop from 428 to 252 machine-code bytes.
-- Keep the remaining-length guard followed by `ReadBlock` for a complete version-tolerant raw group. The JIT
-  folded the duplicate source check in the inspected Arm64 and x64 listings. A ref-returning `TryReadBlock`
-  with an out flag reduced generated source by 706 bytes but enlarged the Arm64 `PaddedItem[]` read loop and
-  slowed the local A/B. Keep the checked member-by-member fallback for old data and truncated fields.
-- Omit `EndRegion` for a version-tolerant member region whose raw members and formatters preserve read context.
-  Classify built-in strings, raw arrays and lists, and dictionaries with raw keys and raw or UTF-16 string
-  values in `FormatterTraitsOf`. Keep `ReadRegion` to validate lengths and any section of deferred bodies
-  from newer writers. The Arm64 `PaddedItem[]` loop dropped from 572 to
-  452 machine-code bytes and `NamedItem`'s body from 1,136 to 940. Keep the unaligned raw reads and check a
-  region at offset one.
-  Classify the built-in fixed-stride nullable array and list formatters as context-preserving,
-  without granting the separate flat trait. They validate presence bytes and advance the
-  reader without registering references or deferring bodies. The 582-file unit-test replay
-  saved 254 bytes across four formatters. The mixed nullable array/list probe saved 73 source
-  bytes and moved the reusable read body from 129 to 120 IL bytes, 500 to 416 Arm64 FullOpts
-  bytes and 230 to 216 offline x64 bytes. Four M4 default-JIT pairs showed about 3–5% lower
-  medians for 16, 512 and 1,024 objects at offsets zero and one, with a mixed single-object
-  control. All 84 samples allocated 0 B. Wire bytes matched exactly, and the legacy empty
-  region, truncation and deferred-body tests passed (`1dc38168`).
-  Apply the same trait to the scalar DateTimeOffset formatter, which reads a checked
-  fixed-width block and never changes reader context. The 582-file replay removed 38 bytes
-  from OffsetBox only. The inline read body went from 62 to 54 IL bytes; its caller
-  went from 484 to 376 Arm64 FullOpts bytes and 196 to 182 offline x64 bytes. Four
-  same-Core M4 pairs at each size and offset had mixed timing, so retain this for
-  code size. All 84 samples allocated 0 B and four serialized arrays matched byte
-  for byte. The two Roslyn builds and .NET 8 passed 54 targeted tests each (`47dda0cb`).
-  Propagate the trait through the built-in NullableFormatter only for a raw or already
-  context-preserving inner formatter. The real EnumHolder lost its EndRegion call and
-  saved 35 bytes across the 582-file replay. Its ReadBody fell from 65 to 56 IL bytes,
-  3,124 to 2,724 Arm64 FullOpts bytes and 823 to 809 offline x64 bytes. Four same-Core
-  M4 default-JIT pairs per case gave 4–9% lower medians at 16, 128 and 512 objects,
-  with mixed repeats and a flat single-object control. All 84 samples allocated 0 B
-  and serialized arrays matched byte for byte. Three configurations passed 59
-  targeted tests each (`49ba68fe`).
-  Classify the built-in BigInteger, Uri and Version formatters as preserving read
-  context. They read only scalar data and strings, and never queue or register
-  objects with the reader. The 583-file unit-test replay removed 38 source bytes
-  from the new BCL scalar fixture and kept the other files identical. Its ReadBody
-  fell from 109 to 101 IL bytes, 1,376 to 1,272 Arm64 FullOpts bytes, and 1,118
-  to 1,020 emulated x64 bytes. Four M4 pairs at 512 objects with absent URI and
-  version values reduced median time by 8–9% at offsets zero and one, at 0 B
-  allocation per object. Short and non-null controls varied; allocations and
-  all 12 wire comparisons matched. Cover an older empty region and truncation.
-  Apply the same trait to StringBuilder, CultureInfo and TimeZoneInfo. Their reads
-  can allocate or reuse the value, but do not change reader context. The isolated
-  formatter's ReadBody fell from 109 to 101 IL bytes, 1,324 to 1,232 Arm64 FullOpts
-  bytes and 1,036 to 956 emulated x64 bytes. Four M4 pairs improved the unaligned
-  512-item null case by 7–11% at 0 B per item. Non-null timings varied, including
-  identical-binary controls, and retained 32 B per item. All 12 wire cases matched.
-  Apply the same trait to BitArray. Its reader copies the bit payload and updates
-  the collection without changing reader context. The generated read body went
-  from 47 to 39 IL bytes, 556 to 436 Arm64 FullOpts bytes and 428 to 295 emulated
-  x64 bytes. Four M4 replays with longer warmup and QoS gave mixed timings,
-  including the identical-binary control. Reuse allocated 0 B and all ten wire
-  comparisons matched, including payloads on both sides of 64 KiB.
-  Propagate context preservation through Memory, ReadOnlyMemory, ArraySegment
-  and ReadOnlySequence when their element formatter is raw or preserves context.
-  Their readers do not create context independently of the element read. The
-  Memory<string> fixture lost 38 source bytes and went from 47 to 39 IL bytes,
-  764 to 644 Arm64 FullOpts bytes, and 623 to 483 emulated x64 bytes. Four M4
-  pairs improved the aligned 512-item, two-string reuse case by 2–22%; short,
-  unaligned and larger cases varied. All 18 wire comparisons matched at 0 B
-  per reused item. Keep unknown element formatters on the writeback path.
-  Propagate the same trait through ArrayFormatter and ListFormatter. Their
-  collection management does not change reader context. Ten unit-test formatters
-  lost 362 source bytes in total. In a string array/list fixture, ReadBody went
-  from 78 to 70 IL bytes, 1,472 to 1,328 Arm64 FullOpts bytes, and 1,226 to
-  1,013 emulated x64 bytes. Short and unaligned timing varied after longer
-  warmup. The larger batch was within 1% at both offsets. All 18 wire comparisons
-  matched, and reuse allocated 0 B.
-  Propagate the trait through KeyValuePairFormatter only when both component
-  formatters are raw or preserve read context. The pair itself only reads its
-  components and assigns the result. Both Roslyn builds changed one of 583
-  real-project files, removing 38 bytes from PairBox. The generated inline
-  body went from 62 to 54 IL bytes, and its out-of-line body from 540 to 460
-  Arm64 FullOpts bytes and 720 to 623 x64 Crossgen2 bytes. Four M4 rounds
-  improved 128- and 1,024-item reuse at offsets 0/1/7. Single-item timings
-  varied within 5%, and all 15 wire comparisons matched at 0 B per reuse read.
-  Verify that the old empty region keeps the current pair and that both a
-  truncated region and a partial key reject. Pairs with tracked components
-  keep the writeback and preserve shared and cyclic identities.
-  The trait switch grew from 976 to 1,063 IL bytes and from 2,464 to 2,584
-  Arm64 FullOpts bytes. The x64 cross listing grew from 2,054 to 2,174 bytes.
-  Fresh, cached and method-edit replay differences were comparable to the
-  spread between identical baseline controls. Both Roslyn builds reused all 578 tracked models and
-  passed compilation, syntax-tree, symbol and generated-text collection checks.
-  Keep the existing dictionary trait for now. Extending context preservation to
-  all context-preserving key and value formatters changed five real-project files.
-  A string-to-string fixture's read body fell from 47 to 39 IL bytes, 864 to 668
-  Arm64 FullOpts bytes, and 698 to 524 emulated x64 bytes. Short cases varied,
-  but four longer M4 pairs of 512 dictionaries with 16 pairs each at offset one
-  slowed by 5–12%, against −2% to +4% for the identical-binary control. The
-  allocations and all 18 wire comparisons matched. The candidate was withdrawn.
-  Keep the outer `EndRegion` for keyed bodies. Applying the same omission to context-preserving keyed members
-  saved 936 source bytes in the unit test project and reduced Arm64 Tier 1 `KeyedStruct` read-body code from
-  1,444 to 1,352 bytes, but the local unaligned array read slowed by about 2% in each of four alternating rounds.
-- For a context-preserving member on the keyed in-order path, call `EndMember` only
-  when its reader is not at EOF. This retains the exact-length error and skips copying
-  the read context on success. Use the same guard on the shared switch exit only
-  when every member in that switch preserves context.
-  The `KeyedStruct` fixture gained 14 source bytes and 12 IL bytes but shrank from
-  1,444 to 1,372 Arm64 Tier 1 bytes and from 1,338 to 1,251 offline x64 bytes.
-  Four local timings overlapped the A/A spread. All 15 wire comparisons matched.
-  Guarding the switch exit added another 14 source and 12 IL bytes, but reduced
-  the reordered body's Arm64 Tier 1 size from 1,440 to 1,356 bytes and offline
-  x64 from 1,251 to 1,141. After a longer warmup, four local 1,000-item reordered
-  reads took 9.24–9.39 µs against 9.46–9.47 µs, at zero steady allocation.
-  Retesting outer `EndRegion` omission after the member changes still favored
-  keeping it. Pin the same Core binary on both sides and warm 16-item reordered
-  reads until the array caller and element loop reach Tier 1. The apparent large
-  short-array regression then fell to about 1% (157.85–158.34 to 159.00–159.59 ns
-  in four rounds). The 1,000-item reordered case also slowed slightly. Removing
-  the call saved 39 source bytes, 8 IL bytes, 92 Arm64 Tier 1 bytes and 167 offline
-  x64 bytes. All 30 wire comparisons passed. Keep the omission as an experiment.
-- On keyed fallback switches with at most three members, open the member reader in
-  each known case and discard the validated region on the unknown path. This lets
-  the JIT omit the unused child Reader. Keep one shared region read for larger
-  switches to bound code growth. On `KeyedStruct` with one unknown key per value,
-  1,000 reused items went from 8.43–8.49 to 7.35–7.56 µs in four local rounds, at
-  zero steady allocation. Known reordered keys also improved, while the in-order
-  array cases overlapped A/A. The file gained 174 source bytes and the body gained
-  33 IL bytes, 324 Arm64 Tier 1 bytes and 384 offline x64 bytes.
-  Sharing one region read for known cases after a separate unknown-key check
-  saved 52 source bytes, 200 Arm64 Tier 1 bytes and 304 offline x64 bytes, but
-  increased IL by 7 bytes and slowed 1,000 known reordered entries from roughly
-  8.77 to 9.49–9.76 µs. Mapping each key to an ordinal before reading the shared
-  region also slowed that case and took 8.57–8.68 µs for 1,000 unknown-key entries,
-  against about 7.49 µs with separate reads. All three used the same Core DLL,
-  stayed at zero steady allocation, and matched all 30 wire comparisons per
-  candidate. Keep the per-case reads for small switches.
-  Sharing a no-inline region reader while preserving the key switch also lost.
-  It needed a scoped parent reference to return the child. The Arm64 Tier 1
-  body fell from 1,684 to 1,556 bytes but the helper added 236 bytes. Offline
-  x64 fell from 1,525 to 1,127 + 161 bytes. Generated source grew by 156 bytes
-  and IL by 7 bytes. With the same Core DLL and zero steady allocation,
-  1,000 known reordered entries took 16.95–17.13 µs against 8.77–8.79 µs,
-  and 16 ordered entries slowed even though they bypassed the helper.
-  All 30 wire comparisons passed. Keep the patch as a code-generation experiment.
-  Do not add a separate region-skipping API for the unknown-key branch. An
-  experimental `SkipRegion` shared the section validator and advanced only the
-  parent, but discarding `ReadRegion` already lets the JIT remove the child.
-  The Arm64 Tier 1 body stayed at 1,684 bytes, and offline x64 kept the same
-  instructions and 1,525-byte size. Source size matched and IL saved one byte.
-  Four same-Core A/B rounds overlapped A/A at zero steady allocation, with all
-  30 wire comparisons passing.
-- Classify `MemoryFormatter` over a raw element formatter as preserving read
-  context, while keeping its existing formatter call. Keyed `Memory<int>` reuse
-  saved 228 Arm64 Tier 1 bytes and 200 offline x64 bytes, with 28 extra source
-  bytes and 21 extra IL bytes. Four local 1,000-item ordered reads fell from
-  about 5.47 to 4.90–4.94 µs, and reordered reads also improved. Allocation
-  stayed at zero. All 30 wire and round-trip comparisons passed. The keyed
-  memory regression checks reuse and the exact-length error.
-  `ReadOnlyMemoryFormatter` over raw elements also preserves read context.
-  Keep allocating fresh backing storage. The keyed fixture stayed at 40 B
-  per item with 28 more source bytes and 21 more IL bytes. Arm64 Tier 1
-  fell from 2,260 to 2,008 bytes and offline x64 from 3,904 to 3,472.
-  Sixteen reordered items improved in four paired rounds, while the 1,000-item
-  results overlapped the A/A spread. All 30 wire and round-trip probes passed.
-  `ArraySegmentFormatter` over raw elements preserves context as well.
-  Keep the fresh backing array and the default segment's null marker.
-  The keyed fixture added 28 source bytes and 21 IL bytes, but Arm64 Tier 1
-  fell from 1,928 to 1,712 bytes and offline x64 from 1,666 to 1,466.
-  After longer warmup, 1,000 reordered items fell from 9.80–10.04 to
-  9.35–9.49 µs over four rounds. Ordered results overlapped A/A and allocation
-  stayed at 40 B per item. All 30 wire and round-trip probes passed.
-  `ReadOnlySequenceFormatter` over raw elements uses the same array read.
-  The keyed sequence fixture stayed at 40 B per item and added 28 source and
-  21 IL bytes. Arm64 Tier 1 fell from 2,348 to 2,092 bytes and offline x64
-  from 4,012 to 3,557. Four 1,000-item ordered reads went from 8.93–8.98
-  to 8.29–8.74 µs, and reordered reads also improved. All 30 wire and
-  round-trip probes passed.
-- Patch a keyed string member's length without opening a nested writer region.
-  The direct UTF-16 and UTF-8 writes cannot defer bodies. Reserve the preceding raw
-  members, key and length together as before. The `KeyedStruct` writer gained 19
-  source bytes and 7 IL bytes, but fell from 1,232 to 1,092 Arm64 Tier 1 bytes
-  and from 953 to 863 offline x64 bytes. Four local 1,000-item ASCII writes went
-  from 5.20–5.23 to 5.10–5.12 µs at zero steady allocation. All 54 wire and
-  round-trip comparisons matched across both string encodings and offsets 0, 1 and 7.
-  Patch the outer keyed body the same way when it has no collection elements
-  and every member is raw or a direct string. Keep the one-reservation raw
-  prefix and the fixed-region path for wholly raw bodies. This saved another
-  140 Arm64 Tier 1 bytes and 90 offline x64 bytes, with 20 more source bytes
-  and 5 more IL bytes. Four local 1,000-item ASCII writes went from about
-  5.10 to 4.75–4.77 µs at zero steady allocation. The 54 byte and round-trip
-  checks included a UTF-8-only body with no raw prefix.
-  Apply the same outer patch to version-tolerant bodies with only raw members
-  and direct strings. On the version-tolerant fixture, source grew by 20 bytes
-  and IL by 5, while Arm64 Tier 1 shrank from 868 to 728 bytes and offline x64
-  from 703 to 613. Four 16-item ASCII rounds improved against the paired
-  baseline. The 1,000-item results overlapped A/A after longer warmup, at zero
-  steady allocation. All 54 wire and round-trip checks passed, including a
-  UTF-8-only body.
-  A version-tolerant collection can patch its member region too when those members
-  are raw or direct strings. Its elements are written before the region opens.
-  Keyed collections include their elements, so also require the collection formatter
-  to have `OpensBodies == false`. The version-tolerant `NamedList` fixture added three source bytes with unchanged 38-byte
-  IL. Arm64 Tier 1 fell from 1,672 to 1,532 bytes and offline x64 from 2,495 to 2,405.
-  Four 1,000-item ASCII runs fell from 5.95–6.10 to 5.32–5.84 µs at zero steady
-  allocation. All 27 wire and round-trip probes passed.
-  Switching the fixture to keyed and applying the element check saved 140
-  Arm64 Tier 1 bytes and 90 offline x64 bytes. Four 1,000-item writes fell
-  from 6.77–6.93 to 6.13–6.33 µs at zero steady allocation. A keyed list
-  containing a deep class chain still writes and reads its deferred elements.
-  Carry the same resolved `OpensBodies` fact for members. A body with a built-in
-  `List<int>` member can patch its outer length directly. Keep custom formatters
-  conservative. The version-tolerant fixture gained 20 source bytes and 5 IL
-  bytes but saved 140 Arm64 Tier 1 and 99 offline x64 bytes. Four 1,000-item
-  writes went from 4.79–5.13 to 4.57–4.61 µs at zero steady allocation.
-  The 54 wire and round-trip probes covered both keyed and version-tolerant bodies.
-  Apply that same member predicate to individual keyed entries. With a built-in
-  `List<int>` member, 1,000 ASCII writes fell from 7.06–7.10 to 6.04–6.16 µs
-  across four same-Core rounds at zero allocation. The generated file gained
-  19 bytes and the body gained 7 IL bytes, while Arm64 Tier 1 fell from 1,940 to
-  1,800 bytes and offline x64 from 2,785 to 2,688. All 27 wire and round-trip
-  probes passed, including null and wide strings at unaligned offsets.
-  Keep `EndRegion` for version-tolerant collection reads. Omitting it when all
-  members preserved context shrank the `NamedList` body from 1,228 to 1,148 Arm64
-  Tier 1 bytes and from 1,744 to 1,643 offline x64 bytes, but 16 ASCII items
-  slowed in all four paired rounds. A guard that skipped the call only at EOF
-  brought the short array back into the A/A spread but added 12 Arm64 bytes,
-  6 offline x64 bytes and 9 IL bytes, with the 1,000-item case still slower.
-  Both experiments matched all 27 wire and round-trip probes at zero steady allocation.
-- Use target-typed construction for an ordinary constructor when the generated return or assignment names the
-  exact type. Keep explicit construction on the existing older-language path and in pool fallback expressions.
-- Keep generic formatter registrations on individual assembly attribute lines. Grouping the
-  83 formatter attributes removed 568 source bytes while keeping assembly attributes,
-  compiled IL and wire output identical. The indented list allocated about 11 KB more
-  per isolated Roslyn parse in both load orders. Smaller indented groups still allocated
-  more, and the unindented probes saved at most 3.8 KB per parse. The emitter grew from
-  915 to 952 IL bytes, 2,776 to 2,892 Arm64 FullOpts bytes, and 1,751 to 1,850 x64
-  cross-JIT bytes. Whole-project timing showed no repeatable change. Both Roslyn
-  builds matched all other outputs and preserved incremental reuse and collection.
-- Shorten repeated namespace qualifiers in interceptor signatures and calls and in usage registration statements
-  and type references, where one alias serves the whole file. Leave location attributes and registry literals
-  alone. Compare consumer DLL metadata as well as method IL: typed aliases and factoring opaque location strings
-  made the DLL larger in the local prototype. Reusing the namespace alias selector for usage registrations
-  (120c9508) removed 20,759 source bytes in the unit test project with identical generated IL and DLL size.
-  Use the short `__NinoAt` alias for the location attribute, leaving its arguments intact.
-  This saved 15,448 source bytes in the real unit test project. The probe consumer had identical
-  IL and DLL size, and Arm64 and x64 listings kept their code sizes. Four runtime rounds had no
-  repeatable timing difference, and wire bytes and allocation matched. Both Roslyn versions
-  differed only in the alias spelling, and 80 tests passed on each of .NET 8 and 10 (`237a414a`).
-  Stop counting once the declaration pays for itself. For registration statements, merge the next exact prefix
-  matches and append their source slices directly to the output writer. This preserves the emitted text and
-  avoids intermediate replacement strings. Scanning every `global::` token was slower in the local probe.
-- Emit constant type IDs directly in formatter and twin accessors. When no generated caller needs a constant
-  field, retaining it duplicates consumer metadata without changing the getter's IL.
-- Keep the presence-byte writes in their null and non-null branches in top-level local-writer wrappers.
-  Sharing one capacity check reduced the `SimpleClass` listing on both architectures, but the same-process
-  Arm64 A/B moved from about 47 ns to 49 ns. Keep the null test's existing operator semantics in any follow-up.
-- Let raw stores infer the type from their member expression or typed header literal. Keep the
-  explicit type on reads, where the return value cannot drive inference. This removed 5,020 source
-  bytes across 239 files in the unit test project. The consumer DLL size and normalized IL matched.
-  The keyed write stayed at 129 IL bytes, 804 Arm64 Tier 1 bytes and 541 x64 cross-JIT bytes.
-  Local runtime timings overlapped the identical-binary control, at zero steady allocation.
-- Pack a keyed member's constant key and byte length into one unaligned header store on write.
-  Keep symbolic lengths on the existing path. The real unit test project emitted 2,329 fewer source bytes.
-  For `KeyedStruct`, the x64 listing changed four header stores to two and the Arm64 listing stayed the same size.
-- Check a constant keyed header and its plain raw value together on read. Leave the cursor unchanged on a
-  mismatch so the checked fallback handles truncation, unknown keys and reordered members. Emit little-endian
-  constants directly because Reader already rejects big-endian hosts. The unit test project emitted 3,820
-  fewer bytes and the local `KeyedStruct[]` timing was broadly on par.
-  Read keyed bools as bytes through that same helper and validate the byte before assigning it. Arm64 Tier 1
-  eliminated the separate payload bounds check and cursor advance, dropping the two-bool fixture's body
-  from 1,128 to 1,052 bytes. Offline x64 went from 814 to 806 bytes, while IL grew from 298 to 311 bytes
-  and the six fixture files grew by 99 source bytes. The pre-existing 583 unit test outputs matched.
-  On M4, the in-order offset-7 case improved in both four-round sweeps, by about 20–40% in the
-  confirmation against paired identical-baseline averages. Other offsets and the reordered case were
-  closer to the control spread. Steady allocation was zero. Both builds emitted the same bytes and
-  agreed on all 2,598 payload mutations and prefixes. A missing payload behind a matching header now
-  reports invalid length through the checked fallback. All four targeted configurations passed
-  (`e8be71c3`).
 - **Reads take the reader first**, every generated read included: round 128's rewriter swapped `(ref X, ref Reader)`
   pairs only, and the generated `ReadMembers(T value, ref Reader reader)` kept the old order until round 129. A
   signature generated code repeats is written once in `Signature`.
@@ -420,127 +87,21 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   that emits them (`type_consts!`: NINO_TYPE_ID, NINO_TYPE_NAME, NINO_LAYOUT). Round 129 took `tests/generated` from
   436 KB to 381 KB. A macro call's layout is rustfmt's: one line when it fits 120 columns, else an argument per line
   when each fits, else left on one line (rustfmt gives up on an overlong string), or `cargo fmt --check` fails.
-- Bypass sorting and renumbering when a formatter has a single alias candidate. In a unit test project
-  snapshot, 122 files declared one formatter alias and 52 needed renumbering. Keeping the multi-alias
-  order unchanged saved about 307 KB of cold allocations in the real project replay. All 577 replayed
-  files matched byte for byte, and the cold and method-body edit timings were flat. For multiple aliases,
-  checking whether the names are already ordered and precomputing the regex remap saved another 32 KB
-  in cold replay. The emitter-only timing changed direction with the loaded variant order, and all 577
-  output files still matched. The candidate kept 310 IL bytes in the original helper and added a
-  177-byte renumbering helper (383 bytes combined before). Keep the simpler production path until a
-  representative workload shows a larger benefit.
-- Join declarations before concatenating the file-scoped output. The fixed-arity concatenation kept all
-  577 replayed files byte-identical and saved about 229 KB per cold run on the unit test project. The
-  variadic concatenation saved about 590 KB but repeatedly produced slower model-edit samples. With
-  fixed arity the model-edit timings varied in both directions, and incremental model reuse and collection
-  of obsolete compiler objects matched the baseline. The emitter helper grew from 304 to 319 IL bytes.
-  For block namespaces, reserve the body length plus one quarter for indentation instead of twice
-  the body length. The largest block file in the replay was a 617 KB interceptor file with about
-  3% extra indentation. The smaller reservation saved 0.92 MB cold and 0.90 MB on a method-body edit
-  with identical output and timings within the local noise floor.
-- Inspect trimmed line boundaries through a span in `CodeWriter.Line`. Keep writing the original
-  text so the output's whitespace stays identical. The unit test project replay saved about 15 KB
-  of cold allocations and matched all 577 files. Timing was flat and the helper gained 11 IL bytes.
-  Scanning ranges instead of splitting in `CodeWriter.Lines` saved only another 21 KB cold.
-  It matched the same 577 files and did not improve elapsed time. The method grew from 62 to 73
-  IL bytes, from 260 to 320 Arm64 bytes, and from 205 to 268 x64 cross-JIT bytes. Keep the simpler
-  split for the registry and pool hook templates.
-- Append interceptor signature slices and the method ordinal directly to the code writer. This
-  avoids allocating two substrings and the assembled method line. In the 577-file unit test replay,
-  cold and method-body edit runs each allocated about 1.1 MB less with byte-identical output.
-  The main emitter went from 870 to 813 IL bytes and added a 99-byte append helper.
-  Appending the location attribute and its optional comment directly saved another 0.50 MB on cold
-  and edited replays. It kept the same output and reduced the main emitter to 764 IL bytes, adding
-  a separate 99-byte append helper.
-  Estimate the interceptor body buffer from both call sites and grouped methods, capped at the
-  previous call-only reservation. The replay had 1,930 locations and 1,192 methods. The estimate
-  reduced initial capacity from 741,120 to 628,480 characters and saved about 223 KB in each cold
-  or edited replay, with identical output and no stable timing difference.
-  Streaming namespace alias replacements into the numbered method avoided about 0.52 MB of cold
-  allocations, but slowed the model-edit replay in both run orders. Applying it to only the call
-  expression still slowed that case, saving about 0.45 MB. Both variants emitted the same 577
-  files byte for byte. Keep the string replacements for this path.
-- Reuse the first successful alias rewrite's builder for the rest of that file. The rewrite only
-  shortens the body and the builder stays local, so later aliases do not allocate another
-  body-sized buffer or retain one in the generator. The 577-file unit test replay matched byte for
-  byte and saved 11.6 MB of cold allocations per run. Cold and hot timing differences were within
-  local noise, with the `WithAliases` IL growing from 473 to 490 bytes.
-  Storing the first eight match offsets on the stack skipped the duplicate prefix scan, but did
-  not materially change allocations or whole-project timings. The emitter-only result changed
-  direction with load order and the 577 files matched byte for byte. `WithAlias` grew from 242
-  to 352 IL bytes and from 760 to 1,212 Arm64 FullOpts bytes. Keep the simpler profitability scan.
-- Prefer one compiler-services namespace alias when it can replace overlapping type aliases. Adding it as a
-  separate rewrite allocated about 6.7 MB more in a cold local generator replay. Skipping the overlapping
-  rewrites reduced that overhead to about 0.94 MB and removed 47,024 bytes from the unit test project's
-  generated output. The normalized IL matched after accounting for file-local type names, explicit interface
-  member spellings and data RVAs. Warm replay and method-body edits were within the local noise floor.
-  Reuse the existing dispatch namespace alias for the exact subtype calls as well as fallbacks.
-  This removed 3,380 bytes from the unit-test dispatch and 1,872 from the benchmark dispatch,
-  with all 760 dispatch method bodies byte-identical in IL. The 1,000-element polymorphic array
-  wrote the same bytes, with identical allocation and no repeatable timing change. The sampled
-  Arm64 and x64 cross-JIT dispatch method sizes matched. Both targeted suites passed (`686fd8d1`).
-  Reuse that namespace alias in the generic selectors with `::`, so a user's same-named type
-  parameter cannot shadow it. The unit-test dispatch shrank by 2,112 bytes and the other 576
-  files matched on both Roslyn builds. The compiled IL listing and the sample wire matched.
-  For the closed tuple selector, Arm64 FullOpts write/read stayed at 948/296 bytes, x64 cross-JIT
-  at 208/169, and local reuse reads and writes at zero allocations. Timing varied between
-  identical baselines as well, so treat this as a source-size change.
-  Outline exact writes in wider subtype dispatches when the subtype body nests. Keep flat and raw writes
-  inline. Outlining every non-raw case made the 1,000-element unmanaged tuple workload consistently slower.
-  The nesting gate left that dispatch unchanged and the open-class tuple workload improved in four local
-  Arm64 rounds. Its Tier 1 dispatch shrank from 2,476 to 604 bytes, with eight separate 332-byte helpers.
-  Count those helpers and the caller separately. The benchmark emitted 2,160 more source bytes and all
-  tested wire outputs matched, including short writes to unaligned offsets.
-  Keep exact runtime type comparisons adjacent when a subtype can be derived from. Hoisting
-  `value.GetType()` to a shared local saved 496 source bytes and shrank the sampled dispatch IL
-  from 256 to 223 bytes. Arm64 Tier 1 already loaded the method table once in the original chain.
-  The shared local materialized a runtime type object and grew the dispatch from 604 to 672
-  machine bytes. The non-generic 1,000-item case was slower in all four local rounds.
-  A shared generic comparison helper saved only 136 source bytes and grew the non-generic
-  dispatch from 2,984 to 3,064 Arm64 Tier 1 bytes and from 1,148 to 2,281 x64 cross-JIT bytes.
-  Using `is` for every sealed target saved 936 source bytes and kept the method-table comparison,
-  but added an explicit null branch before the chain. The non-generic case was slower than its
-  paired baseline in four local rounds. The wire bytes matched and both probes allocated 0 B.
-  Keep the first comparison exact and use `is` only for later sealed targets. The first method-table
-  load establishes non-nullness without the explicit branch. The benchmark dispatch saved 774
-  source bytes and the sampled IL went from 256 to 151 bytes. The Arm64 entries grew by 4 and 8 bytes.
-  The x64 cross listings shrank from 1,148 to 602 and from 1,068 to 519 bytes. Thread CPU and wall time
-  varied against the same-binary controls, so treat this as a size change. Wire bytes, including
-  unaligned writes, and 0 B steady-state allocation matched.
-  A separate post-emission alias for `System.Runtime.CompilerServices` paid off in only 22 of 577
-  replayed files. It removed 2,444 source bytes with identical normalized unit test assembly IL, but
-  added about 740 KB of cold generator allocations and enlarged the alias helper from 473 to 512 IL
-  bytes. Prefer emitting such an alias directly if a workload uses it often enough.
-  A shorter `__NC` namespace alias for Core replaced the overlapping reader and writer aliases
-  after the compiler-services pass. It removed 36,002 bytes across 577 replayed files and saved
-  0.50 MB of cold allocations. The normalized unit test assembly IL matched, timings were flat,
-  and the alias helper grew from 490 to 571 IL bytes.
-  Share that alias with the streaming namespace writer for usages and interceptors. The unit
-  test replay emitted 19,620 fewer bytes and the benchmark emitted 3,102 fewer bytes. Expanding
-  the alias restored the original text. All 1,850 normalized generated benchmark methods
-  matched, as did the Arm64 and x64 cross-JIT registration entry sizes. Warm registration
-  allocated 0 B and timings varied within the controls.
-  Use the shorter `__SCG` alias for repeated generic collection names. The unit test replay
-  emitted 18,060 fewer bytes and the benchmark emitted 2,376 fewer bytes, with the original
-  text restored by alias expansion. The shorter threshold can introduce the alias into a
-  smaller file. Normalize aliases in assertions about registration content, and assert the
-  spelling only in the compaction test. Benchmark IL, wire bytes and registration allocations
-  matched, with no repeatable timing change.
-  Use `__CS` for the shared compiler-services alias. With the original substring guard, an alias
-  starting with `__NC` made Core fall back to longer Reader and Writer aliases. The overlapping
-  candidate grew the benchmark output by 2,208 B. The final spelling saved 6,024 B across 104 benchmark
-  files and 23,409 B across 582 unit-test files. Expanding aliases restored the original sources.
-  All 3,340 benchmark method signatures and bodies matched after normalizing file-local type names.
-  The sampled Arm64 and x64 cross-JIT dispatch sizes, three wire outputs and runtime allocations matched.
-  Timings varied against A/A. Both Roslyn targeted suites and the versioning, tracking and depth tests
-  passed (`7053428a`).
-  Check the full Core alias prefix, including the dot, so `__C.` and `__CS.` can coexist.
-  Shortening Core to `__C` saved 9,365 B across all 583 unit-test files. Expanding the
-  alias restored byte-identical output in all four replay stages. Consumer IL matched
-  apart from the two test assertion strings. The sampled version-tolerant writer and
-  reader stayed at 2,648 and 1,348 Arm64 FullOpts bytes and 104 and 170 offline x64 bytes.
-  Wire bytes and zero steady allocation matched. Local timing varied with the duplicate
-  baseline. Both Roslyn builds passed 63 targeted tests (`a8097712`).
+- **Measured spelling rules**, one line each; the numbers and the attempts that lost are in
+  [references/text-size.md](references/text-size.md) (read it before adding or renaming an alias, changing a
+  qualified name, an interceptor or a registration line, or when output bytes per type grew):
+  - Spell per-file aliases short (`__MI`, `__IL`, `__T`, `__C`, `__CS`, `__SCG`, `__NinoAt`); keep the fully
+    qualified attribute where a type parameter shadows `__IL`.
+  - Keep formatter and Core aliases inside `NinoGen` (outside, CS0576); never alias a constructed type (TypeSpec).
+  - Let one namespace alias replace overlapping type aliases; match its prefix with the dot (`__C.` beside `__CS.`).
+  - Write `__CS::` in generic selectors and dispatch; keep open generic partial bodies qualified (type parameters
+    shadow aliases).
+  - Emit an alias directly where the emitter knows it pays, never as one more post-emission rewrite.
+  - Shorten qualifiers in interceptors and usage registrations, not location attribute arguments or registry
+    literals; compare the consumer DLL's metadata, not only its IL.
+  - Keep generic formatter registrations one attribute per line: a grouped list costs Roslyn's parse more.
+  - Let raw stores infer their type, use `new(...)` where the line names the type, emit constant type IDs in place,
+    and omit the empty prefetch member hook when Core has the object-only interface.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
   `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
@@ -551,7 +112,8 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   second namespace, the interceptors' attribute and the partial accessors, keep the block), which took 4.4%
   (benchmarks) and 5.1% (unit tests) with the IL identical. Rejected with their numbers (benchmarks / unit tests),
   so nobody retries them blind: a `__NinoCore.` namespace alias for `global::Nino.Core.` (1.0% / 1.1%, a second
-  spelling of one namespace per file); dropping `[__NinoInline(AggressiveInlining)]` from the interceptors (1.1% /
+  spelling of one namespace per file; it later landed as `__C` once it replaced the reader and writer aliases
+  instead of adding to them, references/text-size.md); dropping `[__NinoInline(AggressiveInlining)]` from the interceptors (1.1% /
   1.3%, and `optimize` keeps it on every small helper the budget must not drop); dropping their
   `// File.cs(line,column)` comments (0.8% / 1.6%, the only readable link to the call); NinoDirect overloads
   inferring `T` from the argument (1.0% / 1.2%, new public API); a non-generic `NinoSubtypes` for the dispatch's
@@ -568,78 +130,16 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is
   `audit-redundancy`.
 
+## The emitter's own cost
+
+What writing the output costs the generator (allocation, time, the emitters' IL and listings) is `audit-generator`'s:
+read its [emit-text.md](../audit-generator/references/emit-text.md),
+[emit-interceptors.md](../audit-generator/references/emit-interceptors.md) and
+[pipeline-and-binding.md](../audit-generator/references/pipeline-and-binding.md) before changing `GeneratedCode`,
+`CodeWriter`, `FormatterNames` or the interceptor emission.
+
 ## The machine code
 
-- Select the top-level presence byte once and share its write. Preserve the generated equality
-  operator and the local writer on both entries. The 583-file replay saved 1,256 source bytes in
-  37 formatters and changed only the presence blocks. The two `SimpleClass` entries saved 4 IL
-  bytes each. The buffer and byref entries went from 1,068/1,016 to 1,012/932 Arm64 FullOpts
-  bytes and from 945/1,053 to 898/982 offline x64 bytes. The 16- and 257-character byref probes
-  at offset zero took less time in four M4 pairs, with variable identical-binary controls.
-  The buffer null case initially lost, then overlapped the baseline spread at both offsets
-  with longer isolated warmup. Other buffer, cold and whole-generator timings varied.
-  Wire bytes, 0 B steady allocation, model reuse and collection matched. The modern and
-  netstandard2.1 targeted configurations passed (`7804d75f`).
-- Emit the standalone out-of-line read body as the instance method when no inline twin or
-  top-level reader calls its static body. Keep the no-inline boundary. The unit test project
-  saved 50,736 source bytes across 328 of 582 files, with no changes outside the merged
-  forwarders. The string reuse fixture kept its 65-byte body and removed an 8-byte IL
-  forwarder. Arm64 FullOpts kept the body at 2,556 B and moved the caller from 612 to 628 B.
-  In the x64 cross-JIT MinOpts listing the body grew from 233 to 256 B and the caller stayed
-  at 163 B. Unaligned 64-character reuse improved in four paired runs and the A/A/B replay.
-  Adjacent lengths varied. Wire bytes, allocations, 577-model reuse and collection matched.
-  Both Roslyn target suites passed (`709af0ae`).
-  Merge the single-use `__ReadTop` body into the twin's no-inline `Read` method.
-  Return directly after reading an absent presence flag, before any body can acquire
-  reference state. Moving the body without the early return repeatedly slowed the
-  null case. The final null-only, mixed and first-call timings varied with controls.
-  The 68 affected files saved 4,080 source bytes across all four replay states.
-  `SimpleClass` used 39 IL bytes in place of 37 plus a 7-byte forwarder. Arm64 Tier 1
-  moved the caller from 108 to 120 bytes because it materialized the empty receiver,
-  and the reader body from 904 to 928 bytes. Offline x64 moved the caller from
-  97 to 113 bytes and the reader from 387 to 394. Wire bytes, old short data,
-  truncation, invalid presence, allocations, 579-model reuse and collection matched.
-  Each of the three targeted configurations passed 63 tests (`8ab1698e`).
-  Apply the same merge to standalone class writes that have no local-writer twin. Keep the
-  struct's static body with its by-reference value. The unit test project saved 37,716
-  source bytes across 252 files in each replay state. The string-holder write kept 22 IL bytes
-  and lost an 8-byte forwarder. The body stayed at 1,208 B on Arm64 and 818 B on x64 cross-JIT,
-  and the caller stayed at 272 and 214 B. Four local rounds showed no meaningful write
-  timing change, with identical wire bytes and zero steady allocation. All 577 models were
-  reused on edits and both Roslyn suites passed (`8ca095f4`).
-  Keep by-reference static write bodies for structs. A by-value instance body removed
-  6,375 source bytes across 41 files and saved the 9-byte forwarder, but grew the Arm64
-  FullOpts bodies from 356 to 688 B for `NamedItem` and from 508 to 840 B for `WideItem`.
-  The x64 cross JIT printed the unchanged 160 B caller, but omitted the candidate bodies
-  with GC-tracked struct arguments. At 127 `NamedItem` elements the M4 writer slowed
-  about 5–13% across four rounds at both offsets. Wide timings were closer. Wire bytes,
-  allocation, model reuse and collection matched. The prototype passed 86 and 87 targeted
-  tests on .NET 8 and 10, respectively, and was withdrawn.
-- Omit the empty member hook for object-only prefetch formatters when Core exposes the object-only interface.
-  Retain the existing generated contract against older Core versions. This removed 15,136 source bytes across
-  148 of the unit test project's 582 files. The wire output and the activation threshold matched in both
-  compatibility directions. See `optimize`'s prefetch reference for the eliminated loop and timing controls.
-- Emit twin traits from the same model as the main formatter and return `default` directly when a
-  twin cannot defer construction. Forward actual construction so pooling and factories stay in one
-  body. This saved 8,693 source bytes across 140 files in the real test project. The probe twin's
-  trait getter shrank from 15 to 2 IL bytes. The Arm64 and x64 FullOpts reader listings kept their
-  code sizes. Four local A/B rounds showed no repeatable time change, and wire bytes and
-  per-operation allocations matched. The targeted .NET 8 and 10 tests passed (`f0188eea`).
-- Keep the unchanged-string check at the generated field assignment. An assembly-wide byref
-  helper for normal string fields removed 18,847 source bytes in the real test project. The
-  probe read body fell from 167 to 90 IL bytes plus a 19-byte helper, and x64 ReadyToRun fell
-  from 501 to 377 bytes including that helper. Arm64 FullOpts grew from 1,500 to 1,524 bytes.
-  After reversing run order, unchanged-string reuse was 4–8% slower across four rounds despite
-  matching wire bytes and allocations. The isolated candidate passed 82 targeted tests.
-
-  For a private field, a ref local removes the second accessor from source but may add a live
-  interior reference across the string read. The baseline x64 FullOpts listing already had no
-  accessor calls. On the private-field probe the read body IL stayed at 169 bytes, while the
-  enclosing FullOpts read grew from 1,500 to 1,512 Arm64 bytes and from 367 to 373 x64 cross-JIT
-  bytes. Unchanged reuse varied within 1.2% across four default-tiering runs and allocated 0 B.
-  Changed and fresh reads varied across runs, with matching allocation and wire bytes. The real
-  test project replay added 75 bytes across four of 577 generated files. Keep the baseline shape
-  until a probe shows an actual machine-code or throughput benefit.
 - Everything a top-level call reaches inlines into one method under one budget (`optimize`): the generated
   read and write bodies keep rare paths (deferral, pooling, growth, polymorphic fallback) in calls out of line and
   the common path inline; a run of fixed-size members is one bounds check and one block copy where the layout allows.
@@ -648,16 +148,27 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   `CachedFormatter<T>` only for a method's type parameter or a `[NinoType]` generated in another assembly (a type
   that holds itself gets a generated nesting struct, `optimize`); read the IL2CPP C++ as well as the Tier1 listing (`optimize`, references/unity.md); look for `call [rax+0x..]`, `call [r11]` and `call rax` in the Tier1
   listing and explain each.
-- Emit the runtime compiler-services alias directly for two or more UnsafeAccessor annotations.
-  Keep the full qualifier when a generic parameter shadows the alias. The 582-file unit-test
-  replay shrank from 3,240,332 to 3,239,060 bytes across 12 formatter files. A body rewrite
-  saved another 274 bytes but consistently added about 100–232 KB of cold generator allocation.
-  Direct emission had no repeatable timing or allocation change across the four cold and edit
-  pairs. The compiled project matched all 14,374 method bodies and flags. The sampled formatter
-  matched in normalized Arm64 FullOpts and x64 offline ReadyToRun listings, and mixed A/B
-  reuse results were within the repeated-binary spread at 0 B allocation and identical wire
-  bytes. Both Roslyn builds passed 73 targeted tests (`14b075da`).
-
+- **Measured read-path rules**, one line each; the numbers and the attempts that lost are in
+  [references/read-paths.md](references/read-paths.md) (read it before changing `BodyEmitter`'s reads or a
+  formatter's traits in `FormatterTraitsOf`, or when a generated deserializer got slower or larger):
+  - Guard the remaining length, then `ReadBlock`, for a complete raw group (no `TryReadBlock`).
+  - Omit `EndRegion` for a version-tolerant member region whose formatters all preserve read context: a formatter
+    that queues and registers nothing, or a wrapper whose inner formatters do (not dictionaries in general).
+  - Keep `EndRegion` for keyed bodies and for version-tolerant collection reads.
+  - Keyed members: `EndMember` only when not at EOF; per-case region reads in fallback switches of at most three
+    members; the constant header and raw value checked together (bools as validated bytes).
+  - Give a single-use read body one method (the instance method, or the twin's no-inline `Read` with an early return
+    on an absent value); keep the unchanged-string check at the field assignment.
+- **Measured write-path rules**, one line each; the numbers and the attempts that lost are in
+  [references/write-paths.md](references/write-paths.md) (read it before changing `BodyEmitter`'s writes, the
+  top-level writes or `DispatchEmitter`, or when a generated serializer got slower or larger):
+  - Write the length up front for a wholly raw region; patch it without a nested region when nothing inside opens
+    bodies (`OpensBodies == false`).
+  - Pack a constant key and its length into one header store.
+  - Select the presence byte once and write it once.
+  - Merge single-use class write bodies into the instance method; keep structs' by-reference static bodies.
+  - Dispatch: outline exact writes only for nesting subtypes; the first comparison exact, `is` for later sealed
+    targets, `GetType()` never hoisted.
 - **Reach an interface member a struct implements explicitly through a generic accessor constrained to the
   interface** (`MemberAccess.Interface`: `__G_X<__TI>(ref __TI o) where __TI : IFoo => o.X` in the formatter), a
   class's through a cast (`MemberAccess.Cast`, `((IFoo)value).X`): a cast of a struct boxes a copy and loses a write.

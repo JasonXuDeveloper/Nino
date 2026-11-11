@@ -149,14 +149,6 @@ reusing is written down before the task ends, in the same series of commits as t
 
 ## Rules
 
-- **Performance tradeoffs**: Keep pursuing a change with a repeatable gain on representative workloads when a
-  narrower case regresses. First try to preserve the small-input path and isolate the larger loop or dispatch.
-  If a promising candidate misses its first measurement or verification, diagnose why and try a materially
-  different implementation or repair the failing check before dropping it. Keep a reproducible patch or
-  experiment commit for a sound managed hot-loop candidate while diagnosing and addressing JIT code
-  generation in the caller and loop. Follow
-  `optimize` for diagnosis and `benchmark` for retesting both paths.
-
 - **Numbers**: performance claims come only from GitHub runners (`report.yml` for releases, the A/B workflows while
   developing). Never publish quick, local or editor numbers. Within 5 % is on par; the docs never call Nino
   "slower". v3 means 3.3.13.
@@ -168,10 +160,10 @@ reusing is written down before the task ends, in the same series of commits as t
 - **Commits**: Conventional Commits, `type(scope): summary` and a body that says why (types `feat`, `fix`, `perf`,
   `refactor`, `docs`, `test`, `ci`, `build`, `chore`; scope = area). Author:
   `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`.
-  Keep authorship in Git's author field and add a co-author trailer only at the owner's request.
-  Omit session links and model IDs.
+  No `Co-Authored-By` or other trailer naming an AI, no session links, no model ids (the owner's rule: authorship
+  stays in Git's author field).
 - **Release notes are trailers.** `.github/scripts/release_notes.py` groups commits by type and takes highlights
-  from trailers in the last paragraph, including `Wire-Format:` (bytes that change, for which
+  from trailers in the last paragraph (the trailer block): `Wire-Format:` (bytes that change, for which
   types), `Added:` (API, attribute, behavior), `Performance:` (what, which types, how much, runner numbers),
   `Fixed:` (a user-visible bug). One or two sentences of Markdown for users; `Closes #N` in the body above them. Tests,
   CI, docs and refactors get none. A trailer that landed wrong is fixed by a git note, never by rewriting `main`:
@@ -182,11 +174,8 @@ reusing is written down before the task ends, in the same series of commits as t
   the test branch only by merge. No force push, no pull request unless the owner asks, never trigger a release.
 - **Shell**: never bare `git stash`, `pkill -f` or `pgrep -f`; heavy commands (builds, tests, benchmarks, cargo) run
   under `flock -o /tmp/nino-heavy.lock` when agents share the machine; scratch files stay out of the repository.
-  After each measured iteration, remove its disposable worktree and temporary directory, including builds and
-  generated files. Move inputs still used by other runs to the shared probe directory first, and remove stale
-  path markers. Inventory older task directories as well as the current scratch directory. Retain uncommitted
-  source changes and live processes, and consolidate reusable inputs before deleting old experiments.
-  Do cleanup after timing, then verify the paths are gone. In
+  Remove each experiment's worktree and temporary builds once its timing is done (keep uncommitted source changes,
+  live processes and inputs other runs still use), then check the paths are gone. In
   cloud sessions `env` on the PATH is uv's `~/.local/bin/env` script, which runs nothing and prints nothing: write
   `VAR=0 cmd` or `/usr/bin/env VAR=0 cmd`.
 - **Secrets** go only into GitHub secrets, never into chat, files or logs.
