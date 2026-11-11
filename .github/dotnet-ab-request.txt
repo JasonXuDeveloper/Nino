@@ -258,6 +258,11 @@
 # r129-security 668d1edb: Untrusted value checks stop a stride before a run's last value (over-read fix), one scalar
 # value per run. Against main before it (13ec4369, with the bool join), against main before the bool join (79fdcd8a,
 # for the rc.9 Performance note), and 13ec4369's floor.
-cpu='EPYC|Xeon|Neoverse' 13ec4369 668d1edb 12 *UntrustedTest* # r129-security fix vs main
-cpu='EPYC|Xeon|Neoverse' 79fdcd8a 668d1edb 12 *UntrustedTest* # r129-security fix vs before the bool join
-cpu='EPYC|Xeon|Neoverse' 13ec4369 13ec4369 12 *UntrustedTest* # r129-security floor
+# done (run 42365821207): cpu='EPYC|Xeon|Neoverse' 13ec4369 668d1edb 12 *UntrustedTest* # r129-security fix vs main
+# done (run 42365821207): cpu='EPYC|Xeon|Neoverse' 79fdcd8a 668d1edb 12 *UntrustedTest* # r129-security fix vs before the bool join
+# done (run 42365821207): cpu='EPYC|Xeon|Neoverse' 13ec4369 13ec4369 12 *UntrustedTest* # r129-security floor
+# codex/nino-audit review (claude/magical-gauss-7fd7mj f26881a1, = codex/nino-audit merged with main 51a7bd18 plus the
+# review's fixes) against main 51a7bd18 over the whole suite, with main's floor and a second Neoverse-N2 job.
+cpu='EPYC|Xeon|Neoverse' 51a7bd18 f26881a1 6 *Test.Nino* # audit review vs main
+cpu='EPYC|Xeon|Neoverse' 51a7bd18 51a7bd18 6 *Test.Nino* # audit review floor
+cpu='Neoverse' 51a7bd18 f26881a1 6 *Test.Nino* # audit review vs main, second Neoverse job
