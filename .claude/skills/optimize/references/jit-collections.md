@@ -33,10 +33,13 @@ Rules in short:
   dictionary callers. Why: a shared inline branch shortened the two callers by 10 IL bytes but added a 14-byte helper,
   for nothing measurable. Evidence: the Arm64 listings kept their sizes, only the x64 set listing shrank (6 bytes), and
   the local A/B showed no repeatable throughput gain or allocation change.
-- Leave the empty-tail test inside `NinoElements.WriteItems` for variable-size queue writes; the raw block path keeps
-  its existing guard. Why: a `first != count` guard at the queue saved work for a one-string queue in three of four
-  local rounds, but the 16-string case varied widely and the 1,024-string case stayed on par. Evidence: the extra branch
-  grew the Arm64 caller by 16 bytes and the x64 queue formatter by 12 bytes.
+- Keep the element loop inside `NinoElements.Write`, never in a helper of its own, and call `Write` from the queue's
+  variable-size path: `BlockStride` is a constant of each instantiation, so the block check folds away. Why: where an
+  element writes a collection of its own type (a tree), the JIT did not inline the helper, and every level paid one
+  more call. Evidence: e4064404's `WriteItems` showed in the Tier1 listings of `SelfTree` as a call from both `Write`
+  and `ListFormatter.Serialize`; the runner A/B of the rc.10 review head against main measured SelfTree serialize at
+  0.84 to 0.86x on EPYC 9V74 (both jobs) and about 0.9x on other x64 CPUs; with the loop back in `Write`, asm.py
+  showed no method worse than main. The queue's empty-tail test went with the helper (a local guard was on par).
 - Keep the existing count reservation in the shared enumerable loop until a broader win is measured. Why: writing a
   known count before enumeration avoids carrying its patch position but does not remove a store (`ReserveInt32` itself
   writes no value). Evidence: four default-JIT M4 pairs favored small offset-one integer collections, while larger,

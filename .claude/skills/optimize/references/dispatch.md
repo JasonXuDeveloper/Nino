@@ -132,3 +132,10 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   per element, and callers with T exact (interceptors, Tier1 code that inlines the call) read the `static readonly`
   field as its exact type and inline it. A per-element or per-value interface or virtual call where the type is known
   is the one to remove (round 103: kept after review; no form without an indirect call exists).
+
+- Write each subtype inline in a generated dispatch (`DispatchEmitter.EmitBase`), nesting ones included; never move
+  them into `NoInlining` `__WriteExact<n>` methods to keep the dispatch small. Why: the call per element costs more than
+  the repeated depth handling saves. Evidence: a70aab2c outlined nesting subtypes in dispatches of four or more; the
+  case's code fell from 1,934 to 958 bytes, yet the runner A/B of the rc.10 review head against main measured
+  GenericSealedClassTupleBase serialize at 0.78 to 0.86x on Neoverse-N2 (two jobs, not in the floor) with nothing won
+  on x64 beyond the noise; reverted.

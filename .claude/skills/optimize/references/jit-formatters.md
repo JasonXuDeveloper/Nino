@@ -98,6 +98,12 @@ Rules in short:
 
 ## StringBuilder and strings
 
+- Copy every chunk of a builder longer than one character with `NinoUnsafe.Copy` (`GetChunks`), never
+  `StringBuilder.CopyTo` into the reservation. Why: `CopyTo` copies with the BCL's Memmove, and Nino's copy kernel is
+  tuned per vendor (`vectors-copies.md`); a local Intel run showed no difference, so only runners catch it. Evidence:
+  1b2e3404 sent builders over 64 characters through `CopyTo`; the runner A/B of the rc.10 review head against main
+  measured `NinoSerializeStringBuilder` (1,000 characters) at 0.29 to 0.38x on EPYC 9V74 and 0.63 to 0.68x on
+  Neoverse-N2, in every job, and the main-vs-main floor did not show it.
 - Rent a character buffer for portable `StringBuilder` writes of 4,096 or more characters, use the existing UTF-16
   reservation, and copy only the builder's length. Why: a 1,024-character cutoff regressed multi-chunk builders.
   Evidence: 4,096-character single- and multi-chunk cases improved without a steady-state allocation; an empty pool
