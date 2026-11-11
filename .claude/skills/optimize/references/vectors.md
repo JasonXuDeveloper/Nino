@@ -1501,6 +1501,15 @@ of bytes in a block.
   isolated reruns showed no repeatable throughput change on either side of 64 KiB.
   All 120 wire samples matched at 0 B steady allocation. The guarded tests and two
   1,500-input fuzz runs passed (`de631c97`).
+  Fuse a single vector range pass with the copy into a fresh canonical unmanaged array.
+  Keep the scalar diagnostic path on rejection and publish only after success. Share the
+  4 KiB byte gate with the fresh bool read. The vector loop's copy mode folds away for
+  check-only calls, retaining the 192 B Arm64 and 207/208/240 B x64 ulong FullOpts loops.
+  The copy loop is 204 B on Arm64 and 222/225/262 B offline x64 at 128/256/512 bits.
+  Four focused M4 pairs improved fresh DateTime, DateOnly and a 12-byte mixed record at
+  equal allocation. DateTime near 64 KiB took 9–29% less time across offsets zero and
+  seven. Reuse varied. All 120 wire samples and three generated files matched; the
+  guarded and stale-memory probes passed (`a5812f25`).
   Fold a sign-only pass into a preceding pass of the same lane width after the original density
   check. Reopening vector eligibility for formerly scalar TimeOnly layouts regressed first use.
   On x64, bound the low bits and OR the masked value to preserve its sign test. On Arm64, use
