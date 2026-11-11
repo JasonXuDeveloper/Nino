@@ -525,7 +525,7 @@ internal sealed record InterceptedCall(string Signature, string Method, string T
 // block (TypeModel.RawBody), written with its type id in one reservation.
 internal sealed record DispatchEntry(string TypeName, string FormatterName, string TypeParameterList, int TypeId,
     bool IsBase, bool IsTarget, EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces,
-    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody, bool Nests)
+    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody)
 {
     /// <inheritdoc cref="TypeModel.Self"/>
     public string Self => TypeModel.SelfOf(FormatterName, TypeParameterList);
