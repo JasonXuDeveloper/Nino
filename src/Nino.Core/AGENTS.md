@@ -181,7 +181,9 @@ NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deseria
 ```
 CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode)
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
-                             SortedDictionary per runtime, checked at startup against known contents
+                             SortedDictionary per runtime (offsets, the first candidate that passes), as static fields
+CollectionViews.Mirrors.cs   the candidates: mirror classes per runtime, the fields by name (UnsafeAccessor, net10.0)
+CollectionViews.Checks.cs    the startup checks of each candidate against an instance with known contents
 ConcurrentStackNodes.cs      read-only CoreLib ConcurrentStack node snapshots for raw writes, startup-checked
 ListAccess.cs                a List<T>'s elements as a span (CollectionsMarshal, its fields, or copies)
 PriorityQueueHeap.cs         checked .NET 10 integer heap copies to and from raw pairs, preserving heap order
@@ -193,8 +195,10 @@ NinoCollectionViews.cs       reads into the backing storage shared by Queue and 
 
 ```
 ConcurrentTables.cs          the same for ConcurrentDictionary (mirror classes per runtime, Builder)
+ConcurrentTables.Checks.cs   its startup checks (the layout, the hash mask, chains, a built table)
 HashTables.cs                fills new HashSet / Dictionary entries and buckets directly, counting collisions
                              against MaxHashCollisions (Plan, TryFill, Insert, Added, Walk)
+HashTables.Checks.cs         its startup checks (the hashing of each implementation, chains, references and strings)
 ```
 
 ### Internal/Collections/Traversal/
