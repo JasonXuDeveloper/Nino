@@ -48,6 +48,23 @@ of bytes in a block.
 
 ## Vector loops
 
+- Batch two native Arm64 vectors before reducing ordered-key comparisons (`c377dd97`). The packed
+  `SortedList<int, int>` validator still unzips keys and carries the last key across groups, but tests
+  one combined result per eight keys. Keep the four-key and scalar tails. Use `NinoSimd.HasArm64`
+  for the outer loop so the x64 ReadyToRun listing does not retain the Arm64 batch. The validation
+  method went from 150 to 188 IL bytes and from 172 to 268 Arm64 FullOpts bytes; the x64 AVX2 cross
+  listing went from 372 to 375 bytes and retained its four-key loop. Four default-JIT local rounds
+  improved the isolated long-input validation at offsets 0, 1 and 7, with 0 B allocated. Fresh reads
+  through a generated interceptor improved in some long cases and varied in others; allocations and
+  all 24 wire outputs matched. The source plus destination payloads near 64 KiB were included, without
+  hardware cache-miss measurements. Duplicate keys at the batch boundary still take the existing
+  fallback; the targeted .NET 8 and 10 suites passed, including .NET 10 with intrinsics disabled.
+  Do not replace the Arm64 unzip with two overlapping vector loads and an even-lane mask: that
+  processes only two keys per vector and extracts the mask with shifts and a horizontal add. A
+  vector-only reduction recovered part of the loss but was still slower on long input. Keep the
+  256/512-bit versions as x64 candidates: crossgen emitted `vpcmpgtd` plus `vmovmskps` or `kmovw`,
+  respectively. The 94/103-byte loop listings are instruction evidence only; measure actual x64
+  throughput and alignment before changing dispatch.
 - Validate four priority-queue children against their shared parent in one signed vector compare.
   Reuse the odd-lane unzip for interleaved raw pairs and keep the scalar tail for incomplete groups.
   The local 8,193-pair heap adoption probe cut read time by 54–58%, with unchanged bytes and allocation.
