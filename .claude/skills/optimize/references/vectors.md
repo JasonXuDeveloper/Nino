@@ -1210,6 +1210,21 @@ of bytes in a block.
   The widening helper retained folded loads and fell from 158 to 156 B. Portable block tests covered
   every mismatch lane and the public wire bytes matched with SIMD on and off. M4 fallback timings
   varied with process profile, and native AVX-512 timing was unavailable (`4d10592c`).
+  Share the 16-byte widening load between the AVX2 short comparator and both 32-character
+  decode and comparison batches. This emits two memory-operand `vpmovzxbw` instructions
+  instead of a YMM load, copy and half extraction. Default-JIT x64 guest code fell from
+  239 to 203 bytes for the widening entry and from 139 to 122 for long comparison.
+  The offline v3 entry fell from 184 to 172 bytes. Arm64 Tier 1 instructions, offline
+  v2 instructions and the v4 AVX-512BW helper matched. Widening IL went from 177 to
+  170 bytes, with a shared 39-byte helper, and the long comparator adapter fell from 73
+  to 64 bytes. In four emulated x64 pairs with input offset seven, the 4,096-character
+  builder refill was 14–18% faster and string reuse was 11–20% faster, both with zero
+  allocation. The 21,844/21,846-character cases also improved. Cold first calls, isolated
+  short controls and fixed-placement Arm64 widening were within or mixed with A/A spread.
+  Guest timing does not establish native x64 throughput. Both guest ISA configurations
+  and Arm64 matched all direct and public checks, including same-low-byte mismatches and
+  truncation. All 584 generated files and five targeted test configurations matched
+  (`def92685`).
 - Apply the same full-vector and overlapping-tail loop to 128-bit Latin-1 narrowing, checking each
   vector before writing it so UTF-16 fallback still works. The unaligned Arm64 writer probe improved
   at 64, 4,096 and 32,768 Latin-1 characters in all four rounds, with identical wire bytes and
