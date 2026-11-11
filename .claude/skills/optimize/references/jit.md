@@ -532,6 +532,12 @@ and when `asm.py compare` lists methods the change did not touch.
   under qemu (`platforms`, with tiering on: `DOTNET_TieredCompilation=0` listings inlined what Tier1 did not) for `blr`
   in such a loop. Two groups a step (a smaller loop share for one-vector groups) measured nothing on AVX2 Zen and lost 3
   to 8 % on `HashSet<int>` writes (run 41052335826): not landed.
+  A literal option on a large parser is not automatically free for its other callers. Adding a `compareShortLatin1`
+  bool to `NinoStrings.Read` removed the repeated short miss comparison after folding, but changed fresh generated
+  formatter inlining: `PooledSimpleClass.__ReadBodyFresh` stack accesses rose from 18 to 81, and its new-object
+  caller from 43 to 107 in the FullOpts pooled comparison. Keep the default parser's signature and IL unchanged;
+  pass the failed-comparison knowledge through its caller's existing local instead. The complete string-miss
+  variants and validation are in `vectors.md`, under short Latin-1 comparison.
 
 - Give an out-of-line kernel one out-of-line entry with its loops inlined into it, and keep that entry at Tier1:
   a size dispatch (`NinoUnsafe.CopyOver64`) that called the vector loop (`CopyVectors`) out of line made two calls per

@@ -42,6 +42,12 @@ Use a byte-identical A/A control before trusting a small-case result from two as
 process. The 64-item `BlockWaypoint` A/A showed a 5–15% gap on multiple Arm64 runs, even after alternating
 warmup order. In a process per build, four default-JIT A/B rounds at each of three offsets showed no repeatable
 SIMD regression for the scalar cursor gate. See `optimize/references/vectors.md` for the code-generation result.
+Complete validation before warming the measured corpus, and warm the timing wrapper as well as the target under
+default tiering. Do not classify a surprising small-case result from a short per-case warmup until an isolated
+longer warmup and same-binary controls reproduce it. The string-miss probe reported a seven-char ASCII hit at
+29–44 ns after 100 ms per case; isolated one-second warmup put both builds near 3.7 ns with Tier1 listings.
+The final fixture validates first, warms all case paths and its wrapper for two seconds, then alternates complete
+processes over four rounds. Keep the earlier logs as a warmup warning, not as evidence of production throughput.
 
 In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
 6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused

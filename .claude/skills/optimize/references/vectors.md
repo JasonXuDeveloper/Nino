@@ -609,6 +609,28 @@ of bytes in a block.
   bytes plus a 408 B helper. The x64 cross JIT only emitted the helper at 470 B in MinOpts.
   Wire bytes and strict decoding tests matched, with 31 targeted tests passing on both .NET 8
   and 10. The candidates were withdrawn.
+- Carry a failed short Latin-1 comparison into the fallback through the existing caller local (`6723d580`), without changing
+  the default decoder. `TryReuseShortLatin1` clears a by-value reader parameter only after a complete same-length
+  short comparison fails; other shapes keep the original value. The inlined ref argument does not expose the user
+  field, and the managed source ref retains any aliased object. The original `NinoStrings.Read` signature and
+  174 B IL remain byte-identical. Short ASCII/Latin-1 misses in four warmed M4 default-JIT A/B rounds improved
+  roughly 8–20% for a front edit and 20–38% for a tail edit; equal strings and 64/65-char controls were on par.
+  Match allocations stayed 0 B and misses kept the original allocation. The actual `SameLatin1` call disappears
+  from the short-miss trace. Reader IL grows 38 to 39 B, helper IL 49 to 57 B; Arm64 FullOpts is 1,240 to 1,244 B.
+  Offline x64 reader sizes are 968 to 941 B at v2, 987 to 969 B at v3, 985 to 967 B at v4; no native x64 throughput
+  was measured. The pooled FullOpts comparison flags no regression among 209 methods, and all 104 generated Nino
+  benchmark files remain byte-identical at 523,973 B. Changed 7–63-char reads touch at most 315 payload bytes
+  across input, current chars and output, with no temporary buffer; one-char sharing uses the existing cache.
+  Preserve the failed variants: directly inlining the checked decode grew the Arm64 entry to 1,764 B; outlining
+  it kept a 1,292 B entry plus a 520 B helper. A folded bool on the default decoder produced a 1,208 B entry but
+  broke fresh-formatter inlining (see `jit.md`); a caller-side header peek added long-string overhead, and a signed
+  match count added work to some matched cases. Keep only the original bool result with local-value clearing.
+  Tests cover all relevant header shapes, changed lengths, null/empty, UTF-16 forced by StringBuilder, exact next
+  byte consumption at offsets 0/1/7, truncation, high-byte differences and unchanged identity. Exact-name reference
+  tracking and deep-deferred selections add 25 passing cases per compatibility configuration (`verify`). Warmup pitfalls
+  belong to `benchmark`; do not count the early 100 ms per-case logs as steady-state results.
+  The local Strings fuzzer processed 3,516,160 inputs with intrinsics and 3,545,024 without them, with no findings;
+  its planted-bug selftest passed. The shipped netstandard Core DLL and related selection passed 31 cases.
 - Measure the short Latin-1 dispatcher and neighbouring sizes when widening the batch.
   Compare Latin-1 with a full-character Latin-1 comparator, never `Ascii.Equals`: ASCII-only equality rejects
   unchanged non-ASCII text and can silently defeat reuse while returning correct decoded values. `804d7185`

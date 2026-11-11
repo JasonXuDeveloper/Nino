@@ -29,6 +29,9 @@ for p in Nino.AspNetCore.Tests Nino.Codegen.Tests Nino.Codegen.Integration.Tests
 
 - Runtime internals on every runtime a change to `CollectionViews`, mirrors or retyping reaches (`runtime-internals`,
   `platforms`: .NET, Mono, Arm64 and Arm32 under qemu); trimmed and Native AOT publish of `tests/Nino.AotTests`.
+- Check every requested class in a filtered gate, using `--list-tests --filter` when choosing the names. A combined
+  OR filter can pass while one branch matches nothing: `RefTrack` does not match `ReferenceTrackingTests`.
+  Use the exact `ReferenceTrackingTests` and `DeepNestingTests` names for reference and deferred-body coverage.
 - Read or security change: `dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- selftest`, then a timed `fuzz`
   with and without `DOTNET_EnableHWIntrinsic=0` (`audit-security`).
 - Read or write path: `python3 benchmarks/asm.py compare origin/main`, every listed method explained (`optimize`).
