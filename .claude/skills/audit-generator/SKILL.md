@@ -248,6 +248,15 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   264/824 to 260/280 Arm64 FullOpts bytes, and 178/599 to 176/207 x64 cross-listing
   bytes. Whole-project allocation stayed within the identical-baseline spread.
   All three generator builds matched real-project source and passed the collection probes.
+- Skip type parameter collection, projection and constraint rendering for non-generic models.
+  Roslyn's `IsGenericType` includes parameters on containing types. The real project had 495
+  non-generic models and eight arity-zero models that inherited parameters. Four default-JIT
+  model-rebuild comparisons saved 38–67 KB per traversal and three took less time. Whole-project
+  timings varied alongside identical binaries, and temporary counters confirmed that both edits
+  and the cached run called `ModelBuilder.Build` zero times. All three generator builds emitted
+  identical files across four phases and passed both collection probes. `Build` went from
+  1,115 to 1,140 IL bytes, 3,716 to 3,636 Arm64 FullOpts bytes, and 3,288 to 3,364 offline x64
+  bytes. The pinned Roslyn 4.3 host compiled nested types with inherited constraints (`d1a40bd0`).
 - Walk overridden properties directly during member deduplication. The former LINQ predicate bound
   a delegate and created an iterator even when the member had no overridden property. On .NET 8
   the 548-type probe went from 1,122 to 789 B per type and from 399–412 to 352–359 ns. The
