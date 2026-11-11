@@ -220,6 +220,16 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   set lazily alone went from 912 to 850 B per type. Delaying the scan reduced it to 786 B and kept
   member order identical. It saved 114–177 KB per cold project replay. Cold, cached, edit and reopen
   timings varied, so keep the allocation result separate from whole-project latency.
+- Walk Roslyn's constructor and member arrays directly when choosing a construction plan.
+  Preserve marked instance constructors before marked static factories, then check visibility before
+  choosing an unmarked constructor. Avoid materializing factory and visible-constructor lists for
+  ordinary parameterless types. The 507 actual project plans had identical creator, ordered arguments,
+  factory and recreation fields. Their warmed isolated replay allocated about 329–361 KB less per full
+  traversal, with variable elapsed time. Randomized real-project cold medians saved about 648–650 KB against two identical
+  baseline controls, with cold elapsed time within 2%. All 583 generated files matched on both Roslyn
+  builds across cold, cached and method-edit phases. Both builds reused 578 models and collected
+  old compiler objects and generated text. The planner went from 1,003 to 1,002 IL bytes and
+  3,900 to 3,784 Arm64 FullOpts bytes. The x64 cross listing grew from 2,372 to 2,527 bytes.
 - Walk overridden properties directly during member deduplication. The former LINQ predicate bound
   a delegate and created an iterator even when the member had no overridden property. On .NET 8
   the 548-type probe went from 1,122 to 789 B per type and from 399–412 to 352–359 ns. The
