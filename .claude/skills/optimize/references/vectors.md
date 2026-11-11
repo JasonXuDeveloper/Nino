@@ -65,6 +65,17 @@ of bytes in a block.
   256/512-bit versions as x64 candidates: crossgen emitted `vpcmpgtd` plus `vmovmskps` or `kmovw`,
   respectively. The 94/103-byte loop listings are instruction evidence only; measure actual x64
   throughput and alignment before changing dispatch.
+  Measure reuse separately from fresh reads. The Arm64 reuse kernel already validates and splits
+  in one pass. Batching two of its groups grew the instantiated method from 232 to 392 bytes.
+  Advancing the three byrefs kept it at 232 bytes and produced a paired load, but slowed the
+  4,100-pair, offset-1 reuse case in all four local rounds. Both variants regressed at that size
+  and offset, allocated 0 B per reuse read, and matched the baseline's 24 serialized outputs.
+  Keep the indexed loop. For the separate x64 fused-split probe, reuse the unpacked keys to build
+  their predecessors: use a two-source dword permute at 512 bits, a lane permute and byte align
+  at 256 bits, or byte align at 128 bits. With the linux-x64 runtime pack as references,
+  Crossgen2 emitted 150/125/101-byte methods for the three supported widths. An Arm64 CoreLib
+  reference can emit calls to unsupported-intrinsic stubs instead. Run the fused probe natively
+  before selecting dispatch thresholds.
 - Validate four priority-queue children against their shared parent in one signed vector compare.
   Reuse the odd-lane unzip for interleaved raw pairs and keep the scalar tail for incomplete groups.
   The local 8,193-pair heap adoption probe cut read time by 54–58%, with unchanged bytes and allocation.
