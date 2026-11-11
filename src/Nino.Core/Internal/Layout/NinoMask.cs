@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+#if !NET8_0_OR_GREATER
 using System.Numerics;
+#endif
 using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
@@ -18,13 +20,11 @@ namespace Nino.Core.Internal
     {
         private readonly byte[] _mask;
         private readonly ulong[] _words; // the mask repeated over lcm(length, 8) bytes
-        // The mask repeated over lcm(length, vector width) bytes plus one vector more, so the mask of any offset
-        // is a single unaligned load.
+        // The mask repeated over the widest selected period plus one vector, so every width shares one table.
         private readonly byte[] _vectorMask;
         private readonly int _vectorPeriod;
 #if NET8_0_OR_GREATER
-        // The same for 64-byte vectors, where they are accelerated (see CopyVectors).
-        private readonly byte[] _mask512;
+        private readonly int _period256;
         private readonly int _period512;
 #endif
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
@@ -73,13 +73,20 @@ namespace Nino.Core.Internal
             _words = new ulong[words.Length / 8];
             for (int i = 0; i < _words.Length; i++)
                 _words[i] = Unsafe.ReadUnaligned<ulong>(ref words[i * 8]);
-            if (NinoUnsafe.VectorMasks)
-                _vectorMask = Repeat(mask, Vector<byte>.Count, Vector<byte>.Count, out _vectorPeriod);
 #if NET8_0_OR_GREATER
             // Not on Ice Lake (NinoSimd.Prefer512): GitHub's Xeon Platinum 8370C wrote 1,000 8-byte structs with a
             // padding byte in 116 ns with 64-byte vectors, 83 with 32-byte ones (MemoryPack's copy 88).
-            if (NinoSimd.Prefer512)
-                _mask512 = Repeat(mask, Vector512<byte>.Count, Vector512<byte>.Count, out _period512);
+            if (NinoSimd.Has128)
+            {
+                int width = NinoSimd.Prefer512 ? 64 : NinoSimd.Has256 ? 32 : 16;
+                _vectorMask = Repeat(mask, width, width, out int period);
+                _vectorPeriod = width == 16 ? period : Period(mask.Length, 16);
+                _period256 = width == 32 ? period : width == 64 ? Period(mask.Length, 32) : 0;
+                _period512 = width == 64 ? period : 0;
+            }
+#else
+            if (NinoUnsafe.VectorMasks)
+                _vectorMask = Repeat(mask, Vector<byte>.Count, Vector<byte>.Count, out _vectorPeriod);
 #endif
         }
 
@@ -89,9 +96,7 @@ namespace Nino.Core.Internal
         /// </summary>
         private static byte[] Repeat(byte[] mask, int multiple, int extra, out int period)
         {
-            period = mask.Length;
-            while (period % multiple != 0)
-                period += mask.Length;
+            period = Period(mask.Length, multiple);
             var bytes = new byte[period + extra];
             mask.AsSpan().CopyTo(bytes);
             // Double the filled prefix until only a partial copy remains.
@@ -102,6 +107,14 @@ namespace Nino.Core.Internal
                 filled += count;
             }
             return bytes;
+        }
+
+        private static int Period(int length, int multiple)
+        {
+            int period = length;
+            while (period % multiple != 0)
+                period += length;
+            return period;
         }
 
         /// <summary>Copies <paramref name="count"/> masked elements (the mask's length each).</summary>
@@ -119,17 +132,28 @@ namespace Nino.Core.Internal
                 return;
 #endif
 #if NET8_0_OR_GREATER
-            if (_mask512 != null && total >= Vector512<byte>.Count)
+            if (NinoSimd.Has512 && _period512 != 0 && total >= Vector512<byte>.Count)
             {
-                CopyVectors<Vector512<byte>, Vectors512>(ref destination, ref source, total, _mask512, _period512);
+                CopyVectors<Vector512<byte>, Vectors512>(ref destination, ref source, total, _vectorMask, _period512);
                 return;
             }
-#endif
+            if (NinoSimd.Has256 && _period256 != 0 && total >= Vector256<byte>.Count)
+            {
+                CopyVectors<Vector256<byte>, Vectors256>(ref destination, ref source, total, _vectorMask, _period256);
+                return;
+            }
+            if (_vectorMask != null && total >= Vector128<byte>.Count)
+            {
+                CopyVectors<Vector128<byte>, Vectors128>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
+                return;
+            }
+#else
             if (_vectorMask != null && total >= Vector<byte>.Count)
             {
                 CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
                 return;
             }
+#endif
 
             int i = 0;
             int words = _words.Length;
@@ -317,7 +341,8 @@ namespace Nino.Core.Internal
 #endif
         }
 
-        /// <summary><see cref="Vector{T}"/> of bytes, on every runtime where it is hardware accelerated.</summary>
+#if !NET8_0_OR_GREATER
+        /// <summary><see cref="Vector{T}"/> of bytes on the compatibility targets.</summary>
         private readonly struct Vectors : IMaskVectors<Vector<byte>>
         {
             // Plain ldobj / stobj (Unsafe.As), not Unsafe.ReadUnaligned / WriteUnaligned: classic Mono compiles their
@@ -334,13 +359,38 @@ namespace Nino.Core.Internal
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public Vector<byte> And(Vector<byte> left, Vector<byte> right) => left & right;
-#if NET8_0_OR_GREATER
+        }
+#else
+
+        private readonly struct Vectors128 : IMaskVectors<Vector128<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Load(ref byte at, nuint offset) => Vector128.LoadUnsafe(ref at, offset);
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector128<byte> Lower(Vector<byte> value) => value.AsVector128();
-#endif
+            public void Store(Vector128<byte> value, ref byte at, nuint offset) => value.StoreUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> And(Vector128<byte> left, Vector128<byte> right) => left & right;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Lower(Vector128<byte> value) => value;
         }
-#if NET8_0_OR_GREATER
+
+        private readonly struct Vectors256 : IMaskVectors<Vector256<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector256<byte> Load(ref byte at, nuint offset) => Vector256.LoadUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Store(Vector256<byte> value, ref byte at, nuint offset) => value.StoreUnsafe(ref at, offset);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector256<byte> And(Vector256<byte> left, Vector256<byte> right) => left & right;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Lower(Vector256<byte> value) => value.GetLower();
+        }
 
         /// <summary>64-byte vectors, where the runtime reports them accelerated.</summary>
         private readonly struct Vectors512 : IMaskVectors<Vector512<byte>>
