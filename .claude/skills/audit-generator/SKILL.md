@@ -240,6 +240,14 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   cross-listing bytes. A real Roslyn 4.3.0 host compiled the required field and property fixture
   with matching output. All three generator builds matched the real-project source and passed
   the collection probes.
+- Share factory validation flags between discovery and the analyzer. Format NINO017 messages
+  only where diagnostics use them. The 32 real factory-type probes matched their selections and
+  saved 1,080 bytes per traversal in four pairs. Their warmed time fell by 4–11%.
+  A method violating all five checks kept the same diagnostic text and ordering.
+  The lookup and its validation callee went from 93/137 to 88/82 IL bytes,
+  264/824 to 260/280 Arm64 FullOpts bytes, and 178/599 to 176/207 x64 cross-listing
+  bytes. Whole-project allocation stayed within the identical-baseline spread.
+  All three generator builds matched real-project source and passed the collection probes.
 - Walk overridden properties directly during member deduplication. The former LINQ predicate bound
   a delegate and created an iterator even when the member had no overridden property. On .NET 8
   the 548-type probe went from 1,122 to 789 B per type and from 399–412 to 352–359 ns. The
