@@ -284,6 +284,35 @@ and when `asm.py compare` lists methods the change did not touch.
   excluding the shared copy. Both architectures matched the wire output.
   Overlap and custom memory-manager callbacks passed along with all four
   targeted configurations and the 584-file replay (`752a9c5f`).
+  Reserve the shape and payload together for zero-based, canonical raw
+  multidimensional arrays on modern .NET. Share the raw payload copy,
+  publish the dimensions after copying, and keep the normal formatter for
+  other layouts. At destination offset seven, four M4 pairs moved the
+  single-int matrix from 8.5 to 6.2 ns, the 8,192-int matrix from 777 to
+  350 ns, and the 4,096-element padded matrix from 669 to 517 ns, at zero
+  steady allocation. The 8,192-int input and output already occupy 64 KiB
+  before the shape and scratch. The shared copy went from 128 IL bytes to
+  50 plus an 83-byte inlined helper. The shape writer adds 169 IL bytes
+  and the generated adapters add 9 each. Its Arm64 Tier 1 listing was
+  1,028 bytes and the formatter wrapper went from 1,172 to 1,080 bytes.
+  The offline x64 v4 shape writer was 1,127 bytes and the shared copy
+  went from 878 to 873 bytes. Wire samples matched at offsets zero, one
+  and seven, five targeted configurations passed, and all 584
+  project-generated files matched in each replay phase (`0d98165b`).
+  Keep the overlap-safe span copy for unpadded external payloads after
+  testing the existing Nino vector copy. The 128-byte through 64 KiB
+  nonoverlap gate slowed the 8,192-int array at offset seven by 25–69%
+  across four M4 pairs. Arm64 used paired vector loads and stores. Offline
+  x64 v3 selected the 256-bit kernel and v4 could select the 512-bit
+  kernel. The shared method grew from 128 to 205 IL bytes and from 460
+  to 536 Arm64 Tier 1 bytes. Narrowing the range to 256–1,024 bytes and
+  removing the extra forwarding call kept the 512- and 1,024-byte
+  array gains in all four pairs at offsets zero, one and seven. The
+  512-byte slice at offset seven still took 6–38% longer and list
+  timings varied. That version had 205 IL bytes and a 532-byte Arm64
+  body. Both variants wrote identical bytes and allocated zero in the
+  timed loop. Measure full arrays and offset slices separately before
+  applying a shared copy threshold.
   Keep the per-segment reservation for fixed-stride multi-segment writes
   after the pre-reservation trials. Reserving only when the destination
   already had room avoided releasing a potentially aliased pooled array
