@@ -589,6 +589,17 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   at 163 B. Unaligned 64-character reuse improved in four paired runs and the A/A/B replay.
   Adjacent lengths varied. Wire bytes, allocations, 577-model reuse and collection matched.
   Both Roslyn target suites passed (`709af0ae`).
+  Merge the single-use `__ReadTop` body into the twin's no-inline `Read` method.
+  Return directly after reading an absent presence flag, before any body can acquire
+  reference state. Moving the body without the early return repeatedly slowed the
+  null case. The final null-only, mixed and first-call timings varied with controls.
+  The 68 affected files saved 4,080 source bytes across all four replay states.
+  `SimpleClass` used 39 IL bytes in place of 37 plus a 7-byte forwarder. Arm64 Tier 1
+  moved the caller from 108 to 120 bytes because it materialized the empty receiver,
+  and the reader body from 904 to 928 bytes. Offline x64 moved the caller from
+  97 to 113 bytes and the reader from 387 to 394. Wire bytes, old short data,
+  truncation, invalid presence, allocations, 579-model reuse and collection matched.
+  Each of the three targeted configurations passed 63 tests (`8ab1698e`).
   Apply the same merge to standalone class writes that have no local-writer twin. Keep the
   struct's static body with its by-reference value. The unit test project saved 37,716
   source bytes across 252 files in each replay state. The string-holder write kept 22 IL bytes
