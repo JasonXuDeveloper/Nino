@@ -745,6 +745,16 @@ can enumerate twice without copying the entries into a list. Replaying the real 
 saved 16.7–16.9 KB per emission in both load orders. Cold and edit timing varied. All 577 outputs
 matched, tracked edits reused all 572 models, and collection and targeted tests passed
 (`de92db3d`).
+Allocate metadata function-pointer registration lists only when a module contributes an
+entry, and skip sorting empty results. The 216-reference Nino.UnitTests replay saved
+53,568 bytes per complete scan in four M4 comparisons. Scan, cold generation and edit
+timing showed no repeatable change beyond the controls. Checking the value-type base
+before scanning fields made two warmed comparisons about 22% slower. The retained
+change grew Scan from 237 to 254 IL bytes, from 7,072 to 7,488 Arm64 Tier 1 bytes
+and from 581 to 619 offline x64 bytes. The Arm64 caller shrank from 3,128 to 2,632
+bytes. Outputs matched on Roslyn 4.3, 4.8 and 4.12, edits reused all 216 reference
+results, collection checks passed, and three targeted configurations passed 41 tests
+each (`c00db141`).
 Indent each registry case with a value-type scope to avoid its capturing action. Registry
 emission saved about 55 KB per pass in both load orders. The 577 generated files matched,
 all 572 models were reused on tracked edits, and collection and 58 targeted tests passed
