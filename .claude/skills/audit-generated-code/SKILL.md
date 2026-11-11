@@ -162,6 +162,22 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
   1,013 emulated x64 bytes. Short and unaligned timing varied after longer
   warmup. The larger batch was within 1% at both offsets. All 18 wire comparisons
   matched, and reuse allocated 0 B.
+  Propagate the trait through KeyValuePairFormatter only when both component
+  formatters are raw or preserve read context. The pair itself only reads its
+  components and assigns the result. Both Roslyn builds changed one of 583
+  real-project files, removing 38 bytes from PairBox. The generated inline
+  body went from 62 to 54 IL bytes, and its out-of-line body from 540 to 460
+  Arm64 FullOpts bytes and 720 to 623 x64 Crossgen2 bytes. Four M4 rounds
+  improved 128- and 1,024-item reuse at offsets 0/1/7. Single-item timings
+  varied within 5%, and all 15 wire comparisons matched at 0 B per reuse read.
+  Verify that the old empty region keeps the current pair and that both a
+  truncated region and a partial key reject. Pairs with tracked components
+  keep the writeback and preserve shared and cyclic identities.
+  The trait switch grew from 976 to 1,063 IL bytes and from 2,464 to 2,584
+  Arm64 FullOpts bytes. The x64 cross listing grew from 2,054 to 2,174 bytes.
+  Fresh, cached and method-edit replay differences were comparable to the
+  spread between identical baseline controls. Both Roslyn builds reused all 578 tracked models and
+  passed compilation, syntax-tree, symbol and generated-text collection checks.
   Keep the existing dictionary trait for now. Extending context preservation to
   all context-preserving key and value formatters changed five real-project files.
   A string-to-string fixture's read body fell from 47 to 39 IL bytes, 864 to 668
