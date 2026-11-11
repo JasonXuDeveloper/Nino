@@ -21,6 +21,12 @@ namespace Nino.Core
         public static void WriteLengths(Array value, int rank, ref Writer writer)
         {
             ref byte p = ref writer.Reserve(rank * NinoWire.LengthSize);
+            WriteLengths(value, rank, ref p);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteLengths(Array value, int rank, ref byte p)
+        {
             NinoUnsafe.Write(ref p, 0, value.GetLength(0));
             NinoUnsafe.Write(ref p, NinoWire.LengthSize, value.GetLength(1));
             if (rank > 2)
@@ -28,6 +34,35 @@ namespace Nino.Core
             if (rank > 3)
                 NinoUnsafe.Write(ref p, 3 * NinoWire.LengthSize, value.GetLength(3));
         }
+
+#if NET8_0_OR_GREATER
+        internal static bool TryWriteRawExternal<T, TFormatter>(Array value, int rank, IBufferWriter<byte> buffer)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (!BitConverter.IsLittleEndian || !RawFormatter.Is<T, TFormatter>() || value == null)
+                return false;
+
+            int count = value.Length;
+            int header = rank * NinoWire.LengthSize;
+            long size = (long)count * Unsafe.SizeOf<T>() + header;
+            if (size > int.MaxValue)
+                return false;
+
+            // The normal formatter starts at the zero index in each dimension.
+            if (count != 0 && (value.GetLowerBound(0) != 0 || value.GetLowerBound(1) != 0 ||
+                rank > 2 && value.GetLowerBound(2) != 0 || rank > 3 && value.GetLowerBound(3) != 0))
+                return false;
+
+            int payload = (int)size - header;
+            var source = MemoryMarshal.CreateReadOnlySpan(ref MemoryMarshal.GetArrayDataReference(value), payload);
+            var destination = buffer.GetSpan((int)size);
+            // An external destination can overlap the source. Write the shape after copying the elements.
+            NinoLayout<T>.CopyRawExternal(source, destination.Slice(header, payload), count);
+            WriteLengths(value, rank, ref MemoryMarshal.GetReference(destination));
+            buffer.Advance((int)size);
+            return true;
+        }
+#endif
 
         /// <summary>
         /// Reads the <paramref name="rank"/> lengths (false when the first is -1, for null) and checks them: rejects

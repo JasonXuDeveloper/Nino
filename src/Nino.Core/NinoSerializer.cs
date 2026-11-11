@@ -103,6 +103,7 @@ namespace Nino.Core
         /// in place.
         /// The .NET Standard 2.1 and modern .NET builds also write raw array-backed slices and single-segment
         /// sequences in place.
+        /// Modern .NET also writes zero-based raw multidimensional arrays in place.
         /// Other values are copied from a scratch buffer.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

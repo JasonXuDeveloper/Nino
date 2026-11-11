@@ -25,7 +25,7 @@ namespace Nino.CodeGen
             sb.Append("// from the repository root. MultiDimFormattersGenerationTests fails while this file is out of date.\n");
             sb.Append("// </auto-generated>\n");
             sb.Append("using System.Runtime.CompilerServices;\n");
-            sb.Append("#if NET8_0_OR_GREATER\nusing System.Runtime.InteropServices;\n#endif\n");
+            sb.Append("#if NET8_0_OR_GREATER\nusing System.Buffers;\nusing System.Runtime.InteropServices;\n#endif\n");
             sb.Append("using Nino.Core.Internal;\n");
             sb.Append("\n");
             sb.Append("namespace Nino.Core\n");
@@ -49,8 +49,14 @@ namespace Nino.CodeGen
             string name = $"Array{rank}DFormatter<T, TFormatter>";
 
             sb.Append($"    /// <summary><c>{type}</c>: {RankNames[rank]} (first is -1 for null), then the elements in row-major order.</summary>\n");
-            sb.Append($"    public struct {name} : INinoFormatter<{type}> where TFormatter : struct, INinoFormatter<T>\n");
+            sb.Append($"    public struct {name} : INinoFormatter<{type}>\n");
+            sb.Append($"#if NET8_0_OR_GREATER\n        , INinoExternalFormatter<{type}>\n#endif\n");
+            sb.Append("        where TFormatter : struct, INinoFormatter<T>\n");
             sb.Append("    {\n");
+            sb.Append("#if NET8_0_OR_GREATER\n");
+            sb.Append($"        bool INinoExternalFormatter<{type}>.TryWriteExternal({type} value, IBufferWriter<byte> buffer) =>\n");
+            sb.Append($"            MultiDim.TryWriteRawExternal<T, TFormatter>(value, {rank}, buffer);\n\n");
+            sb.Append("#endif\n");
             sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
             sb.Append("        {\n");
             sb.Append("            if (writer.TryWriteNullLength(value))\n");

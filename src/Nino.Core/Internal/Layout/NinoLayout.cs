@@ -948,10 +948,17 @@ namespace Nino.Core.Internal
         internal static void WriteRawExternal(IBufferWriter<byte> buffer, ReadOnlySpan<byte> source, int count, int size)
         {
             var destination = buffer.GetSpan(size);
-            var body = destination.Slice(NinoWire.LengthSize, source.Length);
+            // An external destination can overlap the source. Publish the header after the payload copy.
+            CopyRawExternal(source, destination.Slice(NinoWire.LengthSize, source.Length), count);
+            NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), count);
+            buffer.Advance(size);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void CopyRawExternal(ReadOnlySpan<byte> source, Span<byte> body, int count)
+        {
             if (!source.IsEmpty)
             {
-                // A caller-provided span may alias the source. Publish the header after the payload copy.
                 if (!HasPadding)
                     source.CopyTo(body);
                 else if (count == 1 || source.Overlaps(body))
@@ -962,8 +969,6 @@ namespace Nino.Core.Internal
                 else
                     CopyToWire(ref MemoryMarshal.GetReference(body), ref MemoryMarshal.GetReference(source), count);
             }
-            NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), count);
-            buffer.Advance(size);
         }
 
         /// <summary>Writes <paramref name="value"/> in its wire layout (<see cref="Size"/> bytes).</summary>

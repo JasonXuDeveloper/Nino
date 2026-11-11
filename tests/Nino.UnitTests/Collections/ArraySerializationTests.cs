@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -64,6 +65,28 @@ public class ArraySerializationTests
             NinoDeserializer.Deserialize<int[,,]>(NinoSerializer.Serialize(new[] { -2, 0, 0 })[4..]));
         Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new[] { int.MaxValue, 0 })[4..]));
+    }
+
+    [TestMethod]
+    public void MultiDimensionalArraysWriteTheSameBytesToExternalBuffers()
+    {
+        Check<int[,]>(null);
+        Check(new int[0, 5]);
+        Check(new short[,,] { { { -2, 3 } } });
+        Check(new bool[,,,] { { { { true, false } } } });
+        Check(new PaddedPlain[,] { { new() { A = 1, B = 2 }, new() { A = 3, B = 4 } } });
+        Check(new string[,] { { "a", null, "界" } });
+
+        static void Check<T>(T value)
+        {
+            var expected = NinoSerializer.Serialize(value);
+            var output = new ArrayBufferWriter<byte>(expected.Length + 7);
+            output.GetSpan(expected.Length + 7).Fill(0xCC);
+            output.Advance(7);
+            NinoSerializer.Serialize(value, output);
+            Assert.AreEqual((byte)0xCC, output.WrittenSpan[6]);
+            CollectionAssert.AreEqual(expected, output.WrittenSpan[7..].ToArray());
+        }
     }
 
     [TestMethod]
