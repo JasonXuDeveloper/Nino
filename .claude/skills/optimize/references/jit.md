@@ -313,6 +313,21 @@ and when `asm.py compare` lists methods the change did not touch.
   body. Both variants wrote identical bytes and allocated zero in the
   timed loop. Measure full arrays and offset slices separately before
   applying a shared copy threshold.
+  Select the medium vector copy at the whole-array adapter. A shared
+  eligibility flag grew the external writer from 50 to 137 IL bytes and
+  regressed some 256-byte arrays. The outlined adapter uses the common
+  hardware policy and selects 512–1,024 bytes, with the overlap test inside
+  the vector writer. At offset seven, four M4 pairs moved 512-byte
+  `int[]` from 31.4 to 18.2 ns and `short[]` from 24.7 to 20.1 ns.
+  The 1,024-byte int case also improved in all four pairs. First-call,
+  single-int and 32 KiB controls varied. All warmed cases allocated zero.
+  The array adapter went from 31 to 90 IL bytes and the outlined writer
+  adds 77. Arm64 Tier 1 used 808 bytes for `SerializeOther` (was 716)
+  and 520 for the outlined writer. Offline x64 v4 used 142 bytes for
+  the adapter (was 72) and 268 for the writer, while the shared copy
+  stayed at 873 bytes. The x64 v2 adapter had no vector writer call.
+  Wire samples at all three offsets, targeted tests, and each phase of
+  the 584-file replay matched (`a619db65`).
   Keep the per-segment reservation for fixed-stride multi-segment writes
   after the pre-reservation trials. Reserving only when the destination
   already had room avoided releasing a potentially aliased pooled array
