@@ -23,44 +23,45 @@ internal static class LayoutTypes
     /// </summary>
     public static void Collect(ITypeSymbol type, TypeFacts facts, ICollection<string> into)
     {
+        HashSet<ITypeSymbol>? visited = null;
+        Walk(type, facts, into, ref visited, 0);
+    }
+
+    private static void Walk(ITypeSymbol type, TypeFacts facts, ICollection<string> into,
+        ref HashSet<ITypeSymbol>? visited, int depth)
+    {
+        if (depth > MaxDepth)
+            return;
         while (type is IArrayTypeSymbol array)
             type = array.ElementType;
         if (type is not INamedTypeSymbol named)
             return;
-        // A top-level non-generic leaf has no type arguments or fields to visit.
-        if (named.ContainingType == null && !named.IsGenericType &&
-            (named.TypeKind != TypeKind.Struct || !named.IsUnmanagedType || RawLayout.Leaf(named) != NinoLeaf.None))
+        bool generic = named.IsGenericType;
+        if (!generic && !IsMeasured(named))
             return;
-        Walk(named, facts, into, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
-    }
+        if (!(visited ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default)).Add(named))
+            return;
 
-    private static void Walk(ITypeSymbol type, TypeFacts facts, ICollection<string> into, HashSet<ITypeSymbol> visited,
-        int depth)
-    {
-        if (depth > MaxDepth || !visited.Add(type))
-            return;
-        switch (type)
+        if (generic)
         {
-            case IArrayTypeSymbol array:
-                Walk(array.ElementType, facts, into, visited, depth);
-                return;
-            case INamedTypeSymbol named:
-                foreach (var arg in TypeNames.AllTypeArguments(named))
-                    Walk(arg, facts, into, visited, depth);
-                if (named.TypeKind != TypeKind.Struct || !named.IsUnmanagedType || RawLayout.Leaf(named) != NinoLeaf.None)
-                    return;
-                // A struct generated code cannot name is still measured (inside one it can), and so are its fields.
-                if (facts.Visibility.CanName(named))
-                    into.Add(TypeNames.Global(named));
-                foreach (var member in named.GetMembers())
-                {
-                    if (member is IFieldSymbol { IsStatic: false } field)
-                        Walk(field.Type, facts, into, visited, depth + 1);
-                }
-
+            foreach (var arg in TypeNames.AllTypeArguments(named))
+                Walk(arg, facts, into, ref visited, depth);
+            if (!IsMeasured(named))
                 return;
         }
+
+        // A struct generated code cannot name is still measured (inside one it can), and so are its fields.
+        if (facts.Visibility.CanName(named))
+            into.Add(TypeNames.Global(named));
+        foreach (var member in named.GetMembers())
+        {
+            if (member is IFieldSymbol { IsStatic: false } field)
+                Walk(field.Type, facts, into, ref visited, depth + 1);
+        }
     }
+
+    private static bool IsMeasured(INamedTypeSymbol named) =>
+        named.TypeKind == TypeKind.Struct && named.IsUnmanagedType && RawLayout.Leaf(named) == NinoLeaf.None;
 
     /// <summary>
     /// Whether generated code can name <c>DynamicDependencyAttribute</c> and <c>DynamicallyAccessedMemberTypes</c>
