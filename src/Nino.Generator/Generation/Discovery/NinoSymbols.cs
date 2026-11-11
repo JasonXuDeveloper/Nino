@@ -245,20 +245,46 @@ internal sealed class NinoSymbols
     /// code calls it as <c>T.Factory()</c>, so it must be a public static non-generic method of the type, callable
     /// without arguments and returning the type.
     /// </summary>
-    public static List<string> FactoryErrors(IMethodSymbol method)
+    public static IReadOnlyList<string> FactoryErrors(IMethodSymbol method)
     {
+        var problems = CheckFactory(method);
+        if (problems == FactoryProblem.None)
+            return System.Array.Empty<string>();
+
         var errors = new List<string>();
-        if (method.DeclaredAccessibility != Accessibility.Public)
+        if ((problems & FactoryProblem.NotPublic) != 0)
             errors.Add("must be public");
-        if (!method.IsStatic)
+        if ((problems & FactoryProblem.NotStatic) != 0)
             errors.Add("must be static");
-        if (method.IsGenericMethod)
+        if ((problems & FactoryProblem.Generic) != 0)
             errors.Add("must not be generic");
-        if (!CallableWithoutArguments(method))
+        if ((problems & FactoryProblem.NeedsArguments) != 0)
             errors.Add("must be callable without arguments (parameterless, or every parameter optional)");
-        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
+        if ((problems & FactoryProblem.WrongReturnType) != 0)
             errors.Add($"must return {method.ContainingType.ToDisplayString()}");
         return errors;
+    }
+
+    [System.Flags]
+    private enum FactoryProblem
+    {
+        None = 0, NotPublic = 1, NotStatic = 2, Generic = 4, NeedsArguments = 8, WrongReturnType = 16,
+    }
+
+    private static FactoryProblem CheckFactory(IMethodSymbol method)
+    {
+        var problems = FactoryProblem.None;
+        if (method.DeclaredAccessibility != Accessibility.Public)
+            problems |= FactoryProblem.NotPublic;
+        if (!method.IsStatic)
+            problems |= FactoryProblem.NotStatic;
+        if (method.IsGenericMethod)
+            problems |= FactoryProblem.Generic;
+        if (!CallableWithoutArguments(method))
+            problems |= FactoryProblem.NeedsArguments;
+        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
+            problems |= FactoryProblem.WrongReturnType;
+        return problems;
     }
 
     /// <summary>The valid <c>[NinoFactory]</c> of <paramref name="type"/> (see <see cref="FactoryErrors"/>), or null.</summary>
@@ -269,7 +295,7 @@ internal sealed class NinoSymbols
         foreach (var member in type.GetMembers())
         {
             if (member is IMethodSymbol { MethodKind: MethodKind.Ordinary } method && Has(method, Factory) &&
-                FactoryErrors(method).Count == 0)
+                CheckFactory(method) == FactoryProblem.None)
                 return method;
         }
 
