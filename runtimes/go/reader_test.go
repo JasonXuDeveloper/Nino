@@ -601,13 +601,24 @@ func TestCollections(t *testing.T) {
 }
 
 func TestSliceCapBoundsMemory(t *testing.T) {
-	// 1 MB of data claiming 2^20 elements of 1 KB each: the slice starts at what 16 bytes a byte allows.
+	// 1 MB of data claiming 2^20 elements of 1 KB each: the slice starts at what 16 bytes a byte (and 16 KB) allow,
+	// and the budget is the whole read's: the next collection gets one slot.
 	r := NewReader(make([]byte, 1<<20))
-	if c := r.SliceCap(1<<20, 1024); c != 1<<14 {
-		t.Fatal(c)
-	}
 	if c := r.SliceCap(100, 8); c != 100 {
 		t.Fatal(c)
+	}
+	if c := r.SliceCap(1<<20, 1024); c != (16<<20+16<<10-800)/1024+1 {
+		t.Fatal(c)
+	}
+	if c := r.SliceCap(100, 8); c != 1 {
+		t.Fatal("budget spent", c)
+	}
+	r.Reset(make([]byte, 1<<20))
+	if c := r.SliceCap(100, 8); c != 100 {
+		t.Fatal("Reset renews the budget", c)
+	}
+	if c := r.SliceCap(1<<20, 0); c != 1<<20 {
+		t.Fatal("empty structs take no budget", c)
 	}
 	if c := NewReader(nil).SliceCap(10, 1024); c != 10 {
 		t.Fatal("presize floor", c)

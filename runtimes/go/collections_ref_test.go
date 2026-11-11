@@ -28,7 +28,7 @@ func readSet[T comparable](r *Reader, minSize int, read func(*Reader) T) map[T]s
 		return nil
 	}
 	var e T
-	m := make(map[T]struct{}, capacity(n, int(unsafe.Sizeof(e))+hashSlot, len(r.buf)))
+	m := make(map[T]struct{}, r.capacity(n, int(unsafe.Sizeof(e))+hashSlot))
 	nan := false
 	for i := 0; i < n; i++ {
 		v := read(r)

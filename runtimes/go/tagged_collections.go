@@ -235,7 +235,7 @@ func (b *builder) mapCodec(c *codec) error {
 		if c.enter && !r.EnterStruct() {
 			return
 		}
-		m := reflect.MakeMapWithSize(t, capacity(n, slot, len(r.buf)))
+		m := reflect.MakeMapWithSize(t, r.capacity(n, slot))
 		k := reflect.New(kt).Elem()
 		val := reflect.New(vt).Elem()
 		nan := false

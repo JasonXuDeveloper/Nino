@@ -39,6 +39,8 @@ type Reader struct {
 	boxAt int
 	// The slots that check a set's elements or a dictionary's keys for a repeat (unique.go), kept across Reset.
 	keys []uint64
+	// The memory collections may still allocate ahead of their elements in this read (see [Reader.SliceCap]).
+	budget uint64
 }
 
 // NewReader returns a reader of data.
@@ -57,6 +59,7 @@ func (r *Reader) Reset(data []byte) {
 	r.err = nil
 	r.depth = 0
 	r.regions = 0
+	r.budget = uint64(len(data))*amplification + presizeFloor
 	if r.ctx != nil {
 		r.ctx.reset()
 	}
@@ -263,22 +266,28 @@ func (r *Reader) ByteArrayView() []byte {
 	return r.Take(n)
 }
 
-// SliceCap returns the capacity to give a slice of n elements of elemSize bytes in memory before reading them:
-// n, unless they would take more than 16 bytes of memory per byte of data left (or 16 KB), and then what fits
-// that bound. Data claiming more elements than it holds then fails after allocating a bounded multiple of the
-// memory of the elements it held (as a loop that appends each element read grows the slice).
+// SliceCap returns the capacity to give a slice of n elements of elemSize bytes in memory before reading them: n,
+// while the slices and maps the read has allocated ahead of their elements take at most 16 bytes of memory per byte
+// of data (plus 16 KB), and then what is left of that budget (at least one element). Data claiming more elements
+// than it holds then fails after allocating a bounded multiple of its size, however deep its collections nest (a
+// budget per collection let each nested one claim the bytes left again: 120 nested lists in 1 MB allocated 959 MB).
 func (r *Reader) SliceCap(n, elemSize int) int {
-	return capacity(n, elemSize, len(r.buf))
-}
-
-func capacity(n, slotSize, remaining int) int {
 	if n <= 0 {
 		return 0
 	}
-	budget := max(uint64(remaining)*amplification, presizeFloor)
-	slot := uint64(max(slotSize, 1))
-	if uint64(n)*slot <= budget {
-		return n
+	return r.capacity(n, elemSize)
+}
+
+// capacity is [Reader.SliceCap] of n > 0 slots of slotSize bytes (a map's adds its table's own, hashSlot): n while
+// the budget holds them, else what it holds plus one (fewer than n), spending it.
+func (r *Reader) capacity(n, slotSize int) int {
+	slot := uint64(slotSize)
+	size := uint64(n) * slot
+	if size > r.budget {
+		// slot > 0 here: a slot of 0 bytes (an empty struct) never exceeds the budget.
+		n = int(r.budget/slot) + 1
+		size = r.budget
 	}
-	return int(max(budget/slot, 1))
+	r.budget -= size
+	return n
 }

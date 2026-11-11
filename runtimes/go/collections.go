@@ -59,7 +59,7 @@ func readMap[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) 
 	}
 	var k K
 	var v V
-	m := make(map[K]V, capacity(n, int(unsafe.Sizeof(k))+int(unsafe.Sizeof(v))+hashSlot, len(r.buf)))
+	m := make(map[K]V, r.capacity(n, int(unsafe.Sizeof(k))+int(unsafe.Sizeof(v))+hashSlot))
 	nan := false
 	for i := 0; i < n; i++ {
 		key := readKey(r)

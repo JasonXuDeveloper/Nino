@@ -274,7 +274,7 @@ func ReadPrimitiveMap[K, V Primitive](r *Reader) map[K]V {
 	if n < 0 {
 		return nil
 	}
-	m := make(map[K]V, capacity(n, wire+hashSlot, len(r.buf)))
+	m := make(map[K]V, r.capacity(n, wire+hashSlot))
 	b := r.Take(n * wire)
 	if len(b) != n*wire {
 		return nil

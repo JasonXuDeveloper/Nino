@@ -16,8 +16,9 @@ const (
 	// sectionFlag is set in the length of a region followed by a section of deferred bodies.
 	sectionFlag = -1 << 31
 
-	// amplification is the most memory a collection read allocates ahead of its elements, per byte of data left
-	// (NinoElements.Amplification); presizeFloor what it may allocate however few bytes are left.
+	// amplification is the most memory a read's collections allocate ahead of their elements, per byte of data
+	// (NinoElements.Amplification, and Rust's per-read budget); presizeFloor what they may allocate however few
+	// bytes there are.
 	amplification = 16
 	presizeFloor  = 16 << 10
 	// hashSlot is the memory a map takes per entry beyond its key and value, for the same bound.
