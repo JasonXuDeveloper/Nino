@@ -1449,6 +1449,15 @@ of bytes in a block.
   for ulong lanes. The separate fixed-mask loop emitted 116/113/141 bytes. The 512-bit listing
   required the wider vector-width setting. These listings provide width and code-size evidence,
   with throughput measured on Arm64 only.
+  Keep the period in a local and reuse the next vector's phase for the overlapping tail.
+  Back up by less than one vector and wrap a negative phase once. This removes the period
+  load inside the Arm64 loop and the signed divide in the tail. The loop went from 255 to
+  280 IL bytes and from 272 to 224 Arm64 FullOpts bytes. The offline x64 ulong full-range
+  loops went from 215/216/247 to 230/231/263 B at 128/256/512 bits, without `idiv`.
+  Eight DateOnly values at offset seven improved in all four isolated M4 comparisons;
+  short mixed and near-64-KiB controls varied alongside identical binaries. All 96 wire
+  samples matched and warmed reads allocated 0 B. The guarded-page suite and 1,500-input
+  fuzz runs passed with SIMD on and off (`fa18a12c`).
   Fold a sign-only pass into a preceding pass of the same lane width after the original density
   check. Reopening vector eligibility for formerly scalar TimeOnly layouts regressed first use.
   On x64, bound the low bits and OR the masked value to preserve its sign test. On Arm64, use
