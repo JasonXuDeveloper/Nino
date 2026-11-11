@@ -248,6 +248,16 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   264/824 to 260/280 Arm64 FullOpts bytes, and 178/599 to 176/207 x64 cross-listing
   bytes. Whole-project allocation stayed within the identical-baseline spread.
   All three generator builds matched real-project source and passed the collection probes.
+- Collect factory registrations only for members and collection bodies that have them. Enumerate
+  the equatable array directly, and skip the helper call for an empty array. Preserve sorting
+  and deduplication for nonempty registrations. The 578-model replay had 85 registrations in
+  42 models. Four comparisons saved 112–137 KB per traversal; warmed times varied. The
+  122-tree project's cold median saved 387–400 KB against two identical baseline binaries.
+  Collection-file edit time returned to the control range on the final variant. The three
+  Roslyn builds matched every generated file across four phases, reused 578 models on edits,
+  and passed the collection probes. `Build` went from 1,140 to 1,142 IL bytes, 3,636 to
+  3,524 Arm64 bytes, and 3,364 to 3,281 offline x64 bytes. The uncommon collection helper
+  adds 58 IL, 288 Arm64 and 198 offline x64 bytes (`eea79b60`).
 - Skip type parameter collection, projection and constraint rendering for non-generic models.
   Roslyn's `IsGenericType` includes parameters on containing types. The real project had 495
   non-generic models and eight arity-zero models that inherited parameters. Four default-JIT
