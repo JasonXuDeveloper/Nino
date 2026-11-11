@@ -1384,6 +1384,13 @@ of bytes in a block.
   The three candidates used 761, 774 and 777 IL bytes against 761, with Arm64 FullOpts
   at 456, 472 and 460 bytes against 456 and emulated AVX2 at 324, 334 and 333 against
   324. All matched dirty-padding wire bytes and steady allocations. The candidates were withdrawn.
+  The retry against `5069bda0` confirmed the short aligned penalty. The exclusive bound
+  slowed three of four 48-byte direct comparisons by 7–9%, with A/A within 2%. Keeping
+  the inclusive branch opcode by comparing against `end - 1` moved the penalty to the
+  unaligned 96-byte case (11–16% slower in three pairs). Public writes and first use
+  varied. The exclusive-bound audit kept 761 IL, 456 Arm64 and 325/318/366 offline x64
+  bytes at the three width ceilings. It matched all 57 wire outputs, 12,042 software
+  cases and the five targeted configurations. Withdraw both retries.
   Keep the initial phase check on the multi-vector loop for now. Its condition cannot fire
   because the initial offset is at most one vector and the period is strictly wider. Removing
   it nevertheless changed Arm64 register choice and loop alignment. Four longer M4 default-JIT
