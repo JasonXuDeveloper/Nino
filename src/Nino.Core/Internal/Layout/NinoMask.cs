@@ -134,23 +134,23 @@ namespace Nino.Core.Internal
 #if NET8_0_OR_GREATER
             if (NinoSimd.Has512 && _period512 != 0 && total >= Vector512<byte>.Count)
             {
-                CopyVectors<Vector512<byte>, Vectors512>(ref destination, ref source, total, _vectorMask, _period512);
+                CopyVectors<Vector512<byte>, NinoVectors512>(ref destination, ref source, total, _vectorMask, _period512);
                 return;
             }
             if (NinoSimd.Has256 && _period256 != 0 && total >= Vector256<byte>.Count)
             {
-                CopyVectors<Vector256<byte>, Vectors256>(ref destination, ref source, total, _vectorMask, _period256);
+                CopyVectors<Vector256<byte>, NinoVectors256>(ref destination, ref source, total, _vectorMask, _period256);
                 return;
             }
             if (_vectorMask != null && total >= Vector128<byte>.Count)
             {
-                CopyVectors<Vector128<byte>, Vectors128>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
+                CopyVectors<Vector128<byte>, NinoVectors128>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
                 return;
             }
 #else
             if (_vectorMask != null && total >= Vector<byte>.Count)
             {
-                CopyVectors<Vector<byte>, Vectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
+                CopyVectors<Vector<byte>, NinoVectors>(ref destination, ref source, total, _vectorMask, _vectorPeriod);
                 return;
             }
 #endif
@@ -221,7 +221,7 @@ namespace Nino.Core.Internal
         private static unsafe void CopyVectors<TVector, TOps>(ref byte destination, ref byte source, int total,
             byte[] masks, int repeat)
             where TVector : struct
-            where TOps : struct, IMaskVectors<TVector>
+            where TOps : struct, INinoVectors<TVector>
         {
             var ops = default(TOps);
             nuint width = (nuint)Unsafe.SizeOf<TVector>();
@@ -318,94 +318,6 @@ namespace Nino.Core.Internal
             }
 
             return i;
-        }
-#endif
-
-        /// <summary>
-        /// The vector operations of <see cref="CopyVectors{TVector, TOps}"/> on <typeparamref name="TVector"/>: a
-        /// struct, so each call is direct and inlined.
-        /// </summary>
-        private interface IMaskVectors<TVector> where TVector : struct
-        {
-            /// <summary>The vector at <paramref name="offset"/> bytes from <paramref name="at"/>, unaligned.</summary>
-            TVector Load(ref byte at, nuint offset);
-
-            /// <summary>Stores <paramref name="value"/> at <paramref name="offset"/> bytes from <paramref name="at"/>, unaligned.</summary>
-            void Store(TVector value, ref byte at, nuint offset);
-
-            TVector And(TVector left, TVector right);
-#if NET8_0_OR_GREATER
-
-            /// <summary>The first 16 bytes (<see cref="CopyPairs"/>, for a 16-byte vector).</summary>
-            Vector128<byte> Lower(TVector value);
-#endif
-        }
-
-#if !NET8_0_OR_GREATER
-        /// <summary><see cref="Vector{T}"/> of bytes on the compatibility targets.</summary>
-        private readonly struct Vectors : IMaskVectors<Vector<byte>>
-        {
-            // Plain ldobj / stobj (Unsafe.As), not Unsafe.ReadUnaligned / WriteUnaligned: classic Mono compiles their
-            // unaligned. prefix on a 16-byte struct to a call to memcpy through a stack slot (mini_emit_memory_load in
-            // mono/mini/memory-access.c), and plain ones to movups. RyuJIT never assumes a vector aligned: CopyVectors'
-            // machine code on .NET 10 is the same with either form (netstandard2.0 and net10.0 builds).
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector<byte> Load(ref byte at, nuint offset) =>
-                Unsafe.As<byte, Vector<byte>>(ref Unsafe.Add(ref at, offset));
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Store(Vector<byte> value, ref byte at, nuint offset) =>
-                Unsafe.As<byte, Vector<byte>>(ref Unsafe.Add(ref at, offset)) = value;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector<byte> And(Vector<byte> left, Vector<byte> right) => left & right;
-        }
-#else
-
-        private readonly struct Vectors128 : IMaskVectors<Vector128<byte>>
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector128<byte> Load(ref byte at, nuint offset) => Vector128.LoadUnsafe(ref at, offset);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Store(Vector128<byte> value, ref byte at, nuint offset) => value.StoreUnsafe(ref at, offset);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector128<byte> And(Vector128<byte> left, Vector128<byte> right) => left & right;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector128<byte> Lower(Vector128<byte> value) => value;
-        }
-
-        private readonly struct Vectors256 : IMaskVectors<Vector256<byte>>
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector256<byte> Load(ref byte at, nuint offset) => Vector256.LoadUnsafe(ref at, offset);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Store(Vector256<byte> value, ref byte at, nuint offset) => value.StoreUnsafe(ref at, offset);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector256<byte> And(Vector256<byte> left, Vector256<byte> right) => left & right;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector128<byte> Lower(Vector256<byte> value) => value.GetLower();
-        }
-
-        /// <summary>64-byte vectors, where the runtime reports them accelerated.</summary>
-        private readonly struct Vectors512 : IMaskVectors<Vector512<byte>>
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector512<byte> Load(ref byte at, nuint offset) => Vector512.LoadUnsafe(ref at, offset);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Store(Vector512<byte> value, ref byte at, nuint offset) => value.StoreUnsafe(ref at, offset);
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector512<byte> And(Vector512<byte> left, Vector512<byte> right) => left & right;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public Vector128<byte> Lower(Vector512<byte> value) => value.GetLower().GetLower();
         }
 #endif
 

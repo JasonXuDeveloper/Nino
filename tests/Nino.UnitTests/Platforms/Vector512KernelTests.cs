@@ -291,11 +291,11 @@ public class Vector512KernelTests
         }
     }
 
-    // NinoChecks.cs: FlagVectors512 through ValidFlagBlocks (presence bytes or bools stride bytes apart, any length)
+    // NinoChecks.cs: NinoVectors512 through ValidFlagBlocks (presence bytes or bools stride bytes apart, any length)
     // and CopyFlags (a copy checked in the same pass; at least one vector, a whole number of strides).
 
     [TestMethod]
-    public void FlagVectors512FindsEveryInvalidFlag()
+    public void ValidFlagBlocks512FindsEveryInvalidFlag()
     {
         Require(Vector512.IsHardwareAccelerated, "Vector512");
         foreach (int stride in new[] { 2, 4, 8, 16 })
@@ -310,7 +310,7 @@ public class Vector512KernelTests
             var guarded = Guard(data);
             ref byte first = ref MemoryMarshal.GetReference(guarded);
             string what = $"stride {stride}, {bytes} bytes";
-            Assert.IsTrue(NinoChecks.ValidFlagBlocks<Vector512<byte>, NinoChecks.FlagVectors512>(ref first, bytes, stride),
+            Assert.IsTrue(NinoChecks.ValidFlagBlocks<Vector512<byte>, NinoVectors512>(ref first, bytes, stride),
                 what);
             if (bytes == 0)
                 continue;
@@ -323,7 +323,7 @@ public class Vector512KernelTests
                 byte original = flag;
                 flag = invalid;
                 Assert.IsFalse(
-                    NinoChecks.ValidFlagBlocks<Vector512<byte>, NinoChecks.FlagVectors512>(ref first, bytes, stride),
+                    NinoChecks.ValidFlagBlocks<Vector512<byte>, NinoVectors512>(ref first, bytes, stride),
                     $"{what}: {invalid} at flag {index}");
                 flag = original;
             }
@@ -331,7 +331,7 @@ public class Vector512KernelTests
     }
 
     [TestMethod]
-    public void FlagVectors512CopiesAndFindsEveryInvalidFlag()
+    public void CopyFlags512CopiesAndFindsEveryInvalidFlag()
     {
         Require(Vector512.IsHardwareAccelerated, "Vector512");
         foreach (int stride in new[] { 1, 2, 4, 8, 16 })
@@ -378,7 +378,7 @@ public class Vector512KernelTests
     }
 
     private static bool CopyFlags512(ref byte target, ref byte source, int bytes, Vector128<ulong> mask) =>
-        NinoChecks.CopyFlags<Vector512<byte>, NinoChecks.FlagVectors512>(ref target, ref source, bytes, mask);
+        NinoChecks.CopyFlags<Vector512<byte>, NinoVectors512>(ref target, ref source, bytes, mask);
 
     // NinoNullables.cs: BoolSlots512 through WriteBoolSlots and ReadBoolSlots (bool? slots, at least 32 of them):
     // a slot is its presence byte and its bool, zero when null; reads throw on a bool other than 0 or 1 after storing

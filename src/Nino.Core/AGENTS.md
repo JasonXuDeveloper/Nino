@@ -234,6 +234,8 @@ NinoSimd.cs                  managed SIMD capabilities and CPU policy, with inli
 NinoSimd.Text.cs             managed Latin-1 narrowing, widening, and comparison kernels
 NinoSimd.Text.Legacy.cs      netstandard numeric-vector text kernels
 NinoSimd.Pairs.cs            packed pair interleave, deinterleave and ordering checks, including the Burst hook
+NinoVectors.cs               INinoVectors: the byte-vector operations of each width (128, 256, 512; Vector<byte> in the
+                             netstandard builds) that the masked copy (NinoMask) and the flag checks (NinoChecks) share
 NinoKernelHook.cs            registered native function pointers and call thresholds for Burst and WebGL
 ```
 
