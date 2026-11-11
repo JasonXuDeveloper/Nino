@@ -560,6 +560,16 @@ standard of the best hand-written code, and to `optimize` for its speed. The emi
 
 ## The machine code
 
+- Select the top-level presence byte once and share its write. Preserve the generated equality
+  operator and the local writer on both entries. The 583-file replay saved 1,256 source bytes in
+  37 formatters and changed only the presence blocks. The two `SimpleClass` entries saved 4 IL
+  bytes each. The buffer and byref entries went from 1,068/1,016 to 1,012/932 Arm64 FullOpts
+  bytes and from 945/1,053 to 898/982 offline x64 bytes. The 16- and 257-character byref probes
+  at offset zero took less time in four M4 pairs, with variable identical-binary controls.
+  The buffer null case initially lost, then overlapped the baseline spread at both offsets
+  with longer isolated warmup. Other buffer, cold and whole-generator timings varied.
+  Wire bytes, 0 B steady allocation, model reuse and collection matched. The modern and
+  netstandard2.1 targeted configurations passed (`7804d75f`).
 - Emit the standalone out-of-line read body as the instance method when no inline twin or
   top-level reader calls its static body. Keep the no-inline boundary. The unit test project
   saved 50,736 source bytes across 328 of 582 files, with no changes outside the merged
