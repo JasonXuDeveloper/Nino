@@ -1011,6 +1011,16 @@ of bytes in a block.
   the loop and optimize from the first call. The first generic OSR version spilled the predecessor
   vector. With `AggressiveOptimization`, the sampled Arm64 loops were 224–236 B and the x64 v3
   fallback remained 401 B (`6f64a961`, `bae2d41b`).
+  Extract the last lane with `GetElement` in an x64 fused check and split. Taking a byref to
+  the predecessor for the scalar tail spilled the vector in every AVX2 iteration. Explicit
+  lane extraction kept it in registers and reduced the generic loop from 210 to 206 IL bytes
+  and from 221 to 204 AVX2 FullOpts bytes. Inline the ISA dispatch so the Arm64 caller
+  still calls the existing loop directly. The fused candidate was withdrawn after the emulated
+  AVX2 probe against `915a8c54` won at 32 pairs with offset zero in all four comparisons but
+  lost at 4,080 pairs with offset seven in all four even after removing the spill. The ordered,
+  shuffled, duplicate and truncated probes matched with AVX2, SSSE3 and SIMD disabled. Wire and
+  generated source matched and steady reuse allocated 0 B. The AVX-512 dispatcher was inspected
+  offline only. Repeat the offset sweep on native x64 before changing the two-pass path.
   Keep custom unmanaged keys in their typed comparer. A four-byte `ReverseIndex` sorted in reverse
   integer order with the default comparer and matched the baseline bytes in 1,376 round trips. Split
   the staged array after typed validation, since comparison can run user code and the input is no
