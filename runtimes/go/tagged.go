@@ -13,7 +13,8 @@ import (
 // same, and a plan that cannot express a type fails when it is built, with a *TagError naming the field.
 //
 // The parts: tagged_codec.go (the codecs and how a plan walks a body), tagged_cache.go (built codecs by type),
-// tagged_build.go (the builder, one codec per Go type) and tagged_plan.go (struct plans: tags, field order, layout).
+// tagged_build.go (the builder, one codec per Go type), tagged_collections.go (its slices, arrays and maps) and
+// tagged_plan.go (struct plans: tags, field order, layout).
 
 // TagError reports a Go type that struct tags cannot map: a bad tag, a field type the wire format has no encoding
 // for, or a mismatch with the type's layout. It is a programming error, returned before any byte is read or

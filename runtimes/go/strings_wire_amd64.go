@@ -9,7 +9,7 @@ import "unsafe"
 // The string paths' x64 kernels (strings_wire_amd64.s, written by internal/asm with avo), one tier per instruction set:
 // the writer's SSSE3, AVX2 and AVX-512 paths and the reader's SSSE3 and AVX-512 paths, each taken where the
 // processor and the system support it; without SSSE3, and with the purego build tag, the Go loops of
-// strings_write.go and strings.go write and read the same bytes.
+// strings_write.go and strings_read.go write and read the same bytes.
 
 // wireStringAVX2 converts src[i:n] (n > i, the bytes before i ASCII) to Latin-1 at dst+i, returning the bytes
 // written, or to UTF-16 at dst+2*i, returning ^units; for text that is not WTF-8 it returns wireInvalid. dst has

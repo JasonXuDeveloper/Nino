@@ -19,7 +19,7 @@ import (
 // Each word is read and written with encoding/binary's little-endian order, so the code is the same on every
 // platform: the compiler makes each one load or store on hosts that allow unaligned ones (amd64, arm64, ppc64le,
 // ...), byte-reversed on big-endian hosts that have such loads (ppc64, s390x), and byte by byte elsewhere. The
-// reader takes untrusted bytes and stays on checked slices (strings.go).
+// reader takes untrusted bytes and stays on checked slices (strings_read.go).
 //
 // On amd64 (SSE2) and arm64 (NEON), runs of ASCII of [asciiLong] bytes or more are copied or widened to UTF-16 16
 // bytes at a time in assembly (asciiCopy, widenASCII: strings_amd64.s, strings_arm64.s); with the purego build tag,
@@ -595,4 +595,39 @@ func WriteStringPtrs(w *Writer, v []*string) {
 		w.StringPtr(v[0])
 		v = v[1:]
 	}
+}
+
+// nextUnit decodes the char at s[i:] as WTF-8: a scalar value, an unpaired surrogate (0xD800 to 0xDFFF, from its
+// 3-byte form), or utf8.RuneError for a byte that is neither (size 1).
+func nextUnit(s string, i int) (rune, int) {
+	c, size := utf8.DecodeRuneInString(s[i:])
+	if c == utf8.RuneError && size == 1 && s[i] == 0xED && i+2 < len(s) &&
+		s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2] >= 0x80 && s[i+2] <= 0xBF {
+		return 0xD000 | rune(s[i+1]&0x3F)<<6 | rune(s[i+2]&0x3F), 3
+	}
+	return c, size
+}
+
+// pairs2 and pairs2Want: the bits of four 2-byte UTF-8 chars (as 16-bit lanes, little-endian: the lead byte low)
+// that tell a lead byte (110xxxxx) followed by a continuation byte (10xxxxxx).
+const (
+	pairs2     = 0xC0E0C0E0C0E0C0E0
+	pairs2Want = 0x80C080C080C080C0
+	laneHigh   = 0x0100010001000100
+)
+
+// pairBad returns, for the eight bytes of word read as four 16-bit lanes, a value whose lowest set bit lies in the
+// first lane that is not a valid 2-byte UTF-8 char (a lead byte of C2 to DF, then a continuation byte); 0 when all
+// four are.
+func pairBad(word uint64) uint64 {
+	// The lead's bits 0x1E are zero only for C0 and C1 (overlong). Per lane they are at most 0x1E: adding 0xFE
+	// carries into bit 8 exactly when they are not zero.
+	return (word&pairs2 ^ pairs2Want) | ((word&0x001E001E001E001E+0x00FE00FE00FE00FE)&laneHigh ^ laneHigh)
+}
+
+// widen returns four ASCII bytes as four UTF-16 code units, little-endian.
+func widen(v uint32) uint64 {
+	w := uint64(v)
+	w = (w | w<<16) & 0x0000FFFF0000FFFF
+	return (w | w<<8) & 0x00FF00FF00FF00FF
 }
