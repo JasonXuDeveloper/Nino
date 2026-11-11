@@ -24,6 +24,7 @@ Packages/
                              NarrowAscii, WidenAscii; AVX2 / SSSE3 / AArch64 Neon with scalar branches) at startup;
                              compiled only with com.unity.burst 1.8+ (NINO_BURST, versionDefines); Nino.Core calls
                              Burst's function pointers directly (delegate* unmanaged), none registered where that fails
+                             NinoBurst.BoolSlots.cs normalizes nullable bool slots with a checked prefix return
     WebGL/                   Nino.WebGL (WebGL players only): nino_wasm.c (the kernels in WebAssembly SIMD, a source
                              plugin Emscripten compiles into the player; nino_wasm_kernels hands out their pointers) and
                              NinoWasm.cs, which registers them when the player has SIMD (Unity 6's WebAssembly 2023, or

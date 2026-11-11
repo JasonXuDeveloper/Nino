@@ -45,7 +45,7 @@ namespace Nino.Burst
     /// reload). <see cref="Register"/> and <see cref="Unregister"/> switch them by hand.
     /// </summary>
     [BurstCompile]
-    public static unsafe class NinoBurst
+    public static unsafe partial class NinoBurst
     {
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate void PermuteFunction(byte* source, int sourceStride, byte* destination, int destinationStride,
@@ -128,11 +128,12 @@ namespace Nino.Burst
 
                     var permute = BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute).Value;
                     var interleave = BurstCompiler.CompileFunctionPointer<Interleave32Function>(Interleave32).Value;
+                    var boolSlots = BurstCompiler.CompileFunctionPointer<NormalizeBoolSlotsFunction>(NormalizeBoolSlots).Value;
                     var narrow = BurstCompiler.CompileFunctionPointer<NarrowFunction>(Narrow).Value;
                     var widen = BurstCompiler.CompileFunctionPointer<WidenFunction>(Widen).Value;
                     var narrowAscii = BurstCompiler.CompileFunctionPointer<NarrowFunction>(NarrowAscii).Value;
                     var widenAscii = BurstCompiler.CompileFunctionPointer<WidenAsciiFunction>(WidenAscii).Value;
-                    NinoKernels Make(IntPtr permuteKernel, IntPtr interleaveKernel) => new NinoKernels
+                    NinoKernels Make(IntPtr permuteKernel, IntPtr interleaveKernel, IntPtr boolSlotsKernel) => new NinoKernels
                     {
                         // The thresholds from a sweep in unity.yml run 40735278928 (IL2CPP players, Linux x64, 2022.3
                         // and 6000.3): blocks of tuples were faster through the kernels from 2 values (1.09-1.30x;
@@ -142,15 +143,17 @@ namespace Nino.Burst
                         MinChars = 16,
                         Permute = (delegate* unmanaged[Cdecl]<byte*, int, byte*, int, byte*, int, void>)permuteKernel,
                         Interleave32 = (delegate* unmanaged[Cdecl]<int*, int*, byte*, int, void>)interleaveKernel,
+                        NormalizeBoolSlots = (delegate* unmanaged[Cdecl]<byte*, byte*, int, int>)boolSlotsKernel,
                         Narrow = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrow,
                         Widen = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, void>)widen,
                         NarrowAscii = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrowAscii,
                         WidenAscii = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, int>)widenAscii,
                     };
-                    _kernels = Make(permute, interleave);
+                    _kernels = Make(permute, interleave, boolSlots);
                     _kernels16 = _best == Avx2
                         ? Make(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Value,
-                            BurstCompiler.CompileFunctionPointer<Interleave32Function>(Interleave32Narrow).Value)
+                            BurstCompiler.CompileFunctionPointer<Interleave32Function>(Interleave32Narrow).Value,
+                            BurstCompiler.CompileFunctionPointer<NormalizeBoolSlotsFunction>(NormalizeBoolSlots128).Value)
                         : _kernels;
                 }
                 catch (Exception e)

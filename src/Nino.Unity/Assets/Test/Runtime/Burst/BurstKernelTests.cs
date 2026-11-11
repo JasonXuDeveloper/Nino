@@ -47,7 +47,7 @@ namespace Test.Runtime.Burst
             // Nino.Core calls each kernel through its function pointer.
             Assert.IsTrue(NinoBurst.Registered);
             Assert.IsTrue(NinoKernels.Current.Permute != null && NinoKernels.Current.Interleave32 != null &&
-                          NinoKernels.Current.Narrow != null &&
+                          NinoKernels.Current.NormalizeBoolSlots != null && NinoKernels.Current.Narrow != null &&
                           NinoKernels.Current.Widen != null && NinoKernels.Current.NarrowAscii != null &&
                           NinoKernels.Current.WidenAscii != null, "a kernel is missing");
             Debug.Log($"Nino Burst kernels: instruction set {NinoBurst.IsaName}");
@@ -105,6 +105,42 @@ namespace Test.Runtime.Burst
 
                 if (!burst.SequenceEqual(scalar))
                     Assert.Fail($"{tier}: permute of {count} values, {from} to {to} bytes");
+            }
+        }
+
+        [Test]
+        public void NullableBoolSlotsMatchTheScalarPrefix()
+        {
+            foreach (int tier in Tiers)
+            foreach (int count in Lengths)
+            foreach (bool invalid in new[] { false, true })
+            {
+                var kernels = Use(tier);
+                var source = new byte[1 + count * 2];
+                for (int i = 0; i < count; i++)
+                {
+                    source[1 + i * 2] = i % 3 == 0 ? (byte)0 : (byte)1;
+                    source[2 + i * 2] = i % 3 == 0 ? (byte)0x7F : (byte)(i % 2);
+                }
+                if (invalid && count != 0)
+                {
+                    int at = count / 2;
+                    source[1 + at * 2] = 1;
+                    source[2 + at * 2] = 2;
+                }
+                var actual = Enumerable.Repeat((byte)0xA5, source.Length + 16).ToArray();
+                var expected = (byte[])actual.Clone();
+                fixed (byte* from = source, into = actual, scalar = expected)
+                {
+                    int expectedDone = NinoKernels.NormalizeBoolSlotsScalar(from + 1, scalar + 1, count);
+                    int done = kernels.NormalizeBoolSlots(from + 1, into + 1, count);
+                    Assert.GreaterOrEqual(done, 0);
+                    Assert.LessOrEqual(done, expectedDone);
+                    done += NinoKernels.NormalizeBoolSlotsScalar(from + 1 + done * 2,
+                        into + 1 + done * 2, count - done);
+                    Assert.AreEqual(expectedDone, done);
+                }
+                CollectionAssert.AreEqual(expected, actual);
             }
         }
 
