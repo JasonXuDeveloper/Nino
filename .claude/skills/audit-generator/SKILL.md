@@ -161,8 +161,9 @@ are in [references/emit-text.md](references/emit-text.md): read it before changi
 - Use value-type scopes for indentation and body modes.
 - Size dictionaries and arrays from counts the emitter already has; count eligible inputs before tuning a rare case.
 - Keep list-backed dispatch buckets, uniform offsets, the separate preamble writer, escaping on the finished range.
-- Renumber formatter aliases only when their order changes, not at all for a single candidate; reuse one builder
-  across a file's alias rewrites; no variadic concatenation.
+- Renumber formatter aliases only when their order changes, not at all for a single candidate; choose every alias of
+  a file as ranges of one body string and write them with the file (`GeneratedCode.File`), never a rewrite per
+  alias; no variadic concatenation.
 - Find dispatch ID collisions with a seen set; walk raw groups as ranges; reuse the planner's constructor matches.
 
 ### Emitting interceptors

@@ -87,5 +87,6 @@ entry kept its output byte-identical.
   cold run (33.9 to 39.9 MB) and 6.0 MB per edit of the call file (29.5 to 35.5 MB), and merging the streamed aliases
   into `WithAliases` another 5.4 MB and 2.7 MB; generator time stayed within the base's own spread (edit medians
   260-365 ms base, 278-321 ms head; pooled over seven rounds 332 ms base, 287 ms head). The interceptor file stayed
-  byte-identical on both Roslyn builds. Before reviving a streamed or preindented path, show a time gain on the
+  byte-identical on both Roslyn builds. Choosing all aliases in one pass then took the totals to 36.1 MB cold and
+  32.3 MB per edit, against 33.9 and 29.5 MB for the removed path (`emit-text.md`, one pass). Before reviving a streamed or preindented path, show a time gain on the
   replay against an identical-binary control, not an allocation saving.

@@ -92,7 +92,8 @@ from local timings that also vary between identical binaries.
     allocations. Timing varied between identical baselines as well: a source-size change.
 - **Emit the compiler-services alias directly where the emitter knows it pays (two or more `UnsafeAccessor`
   annotations), not through a post-emission rewrite; keep the full qualifier when a generic parameter shadows it**:
-  a rewrite pass scans every file to help a few.
+  a rewrite pass scans every file to help a few. (Measured when each alias rewrote the body; `WithAliases` now copies
+  a body once however many aliases pay, so a table entry costs a scan, not a copy: `emit-text.md`, one pass.)
   - Direct emission (14b075da): the 582-file unit-test replay shrank from 3,240,332 to 3,239,060 bytes across 12
     formatter files, with no repeatable timing or allocation change across the four cold and edit pairs. The
     compiled project matched all 14,374 method bodies and flags. The sampled formatter matched in normalized Arm64

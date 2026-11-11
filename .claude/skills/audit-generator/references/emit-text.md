@@ -30,18 +30,21 @@ byte-identical.
   307 KB of cold allocations in the real project replay. All 577 replayed files matched byte for byte, and the cold
   and method-body edit timings were flat.
   - Keep the simpler multi-alias path: checking whether the names are already ordered and precomputing the regex
-    remap saved another 32 KB in cold replay, but the emitter-only timing changed direction with the loaded variant
+    remap saved another 32 KB in cold replay (the remap is now a rename of the chosen ranges), but the emitter-only timing changed direction with the loaded variant
     order (all 577 files still matched). The candidate kept 310 IL bytes in the original helper and added a 177-byte
     renumbering helper (383 bytes combined before). Revisit only when a representative workload shows a larger
     benefit.
-- Reuse one builder for all the alias rewrites of a file: the rewrite only shortens the body, so later aliases need
-  not allocate another body-sized buffer. Reusing the first successful rewrite's builder matched the 577-file unit
-  test replay byte for byte and saved 11.6 MB of cold allocations per run; cold and hot timing differences were within
-  local noise, with `WithAliases` growing from 473 to 490 IL bytes. (The lease below replaced the per-file builder.)
-  - Do not store the first eight match offsets on the stack to skip the duplicate prefix scan: it did not materially
-    change allocations or whole-project timings, the emitter-only result changed direction with load order (577 files
-    matched), and `WithAlias` grew from 242 to 352 IL bytes and from 760 to 1,212 Arm64 FullOpts bytes. Keep the
-    simpler profitability scan.
+- Choose a file's aliases in one pass and copy its body once: `WithAliases` records each alias as ranges of the body
+  string (a name is matched only outside the ranges of the names tried before it, where it would still be found had
+  those been replaced) and `GeneratedCode.File` writes the ranges as their aliases while it indents, into a buffer
+  sized to the written length; `global::NinoGen.` is removed in the writer's own buffer (`CodeWriter.Finish(omitted)`)
+  before the body becomes a string. The rewrite per alias it replaced copied the body once per alias that paid. On the
+  596-file unit test compilation (Roslyn 4.12 build, six alternated rounds of seven runs) it allocated 36.1 MB cold
+  and 32.3 MB per call-file edit against 45.3 and 38.2 MB for the rewrite per alias, with every file byte-identical
+  on both Roslyn builds and time on par (cold medians 259 against 281 ms, edits 320 against 349 ms). The base with
+  streamed namespace aliases and a preindented interceptor path allocated 33.9 and 29.5 MB (321 and 368 ms): the
+  difference is the body string of the interceptor and usage files, which the streamed path never made; it is the
+  price of one mechanism.
 - Lease one alias rewrite builder per generator load context, retaining at most 8,192 characters of capacity. The
   single slot saved 3.32-3.42 MB on each of four real unit-test project cold replays, close to the earlier
   thread-local experiment without storage per worker. Cold wall time stayed within 1%, and cache hits and edit times
@@ -52,18 +55,17 @@ byte-identical.
 - Keep oversized rewrites out of the slot. Growing a leased buffer beyond the cap discards it and makes the next small
   rewrite allocate again. Bypassing the lease saved another 0.60-0.71 MB per cold replay across four rounds, with cold
   wall time within 0.6% and all outputs identical (`0febf582`).
-- Lease the bounded builder before writing the formatter body and release it as soon as the immutable body string
-  exists, so the alias pass borrows the same slot and no fresh writer buffer is created per file. Four cold replays
+- Lease the bounded builder before writing the formatter body and release it as soon as the aliases are chosen, so
+  the file borrows the same slot and no fresh writer buffer is created per file. Four cold replays
   allocated 4.72-4.82 MB less and wall time stayed within 0.6%. All 577 outputs matched, tracked edits reused all 572
   models, and the collection probes and 71 targeted tests passed (`2616fc2c`).
 - Share the same lease with block namespace indentation. Four cold replays saved 12-35 KB with the test project's
   default language version (five block namespace files), and 4.80-4.95 MB with C# 9 generator parse options (577 block
   namespace files). Both output sets matched byte for byte and cold wall time had no repeatable change. The replay
   checks generated output; a separate C# 9 consumer compiled and round-tripped with matching wire bytes (`b066e8db`).
-- For block namespaces, reserve the body length plus one quarter for indentation, not twice the body length. The
-  largest block file in the replay was a 617 KB interceptor file with about 3% extra indentation. The smaller
-  reservation saved 0.92 MB cold and 0.90 MB on a method-body edit, with identical output and timings within the local
-  noise floor.
+- Size a large file's buffer to its written length (aliases and indentation counted), not a guess: the reserve of the
+  body plus one quarter cost about 0.4-0.5 MB per replay over the written size, nearly all of it the 594 KB
+  interceptor file.
 - Delay formatting an alias declaration until the occurrence count pays for it, computing its length from the alias
   and original name first. Four cold replays allocated 45-58 KB less, wall time stayed within 0.3%, and all 577
   outputs matched (`abc295cc`).

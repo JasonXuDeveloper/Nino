@@ -96,7 +96,8 @@ what you learn"), and its one-line rule here.
   - Let one namespace alias replace overlapping type aliases; match its prefix with the dot (`__C.` beside `__CS.`).
   - Write `__CS::` in generic selectors and dispatch; keep open generic partial bodies qualified (type parameters
     shadow aliases).
-  - Emit an alias directly where the emitter knows it pays, never as one more post-emission rewrite.
+  - Add a name every file may repeat to `WithAliases`' table (one scan per name, one copy of the body however many
+    pay); write an alias in the emitter only where it alone knows the alias is safe (`__CS::` beside type parameters).
   - Shorten qualifiers in interceptors and usage registrations, not location attribute arguments or registry
     literals; compare the consumer DLL's metadata, not only its IL.
   - Keep generic formatter registrations one attribute per line: a grouped list costs Roslyn's parse more.
