@@ -14,7 +14,15 @@ spec/
   wire-format.md             the byte-by-byte specification of what Nino v4 writes and reads, for implementations in
                              other languages: primitives, strings, raw layouts, collections, [NinoType] objects,
                              the [NinoTypeLayout] grammar (§8), reader validation (§9), worked examples
-v4-design.md                 the v4 architecture: goals, target frameworks, binary format, Nino.Core, the generator
+v4-design.md                 the v4 architecture: goals, target frameworks and the contents of its parts (every
+                             section, so a reference like "Deep nesting in docs/v4-design.md" lands)
+v4-design/
+  binary-format.md           the format's design and its reasons: strings, objects, collections, version tolerance,
+                             keyed members, reference tracking, deep nesting (the bytes themselves are spec/)
+  runtime.md                 Nino.Core: writer, reader, formatters and their registration, polymorphism, concurrency,
+                             reuse and pooling, callbacks, settings, untrusted input
+  generator.md               Nino.Generator: pipeline, interceptors, the API generated code calls, shared sources,
+                             source layout, analyzer and code fixes, generated code per type
 codegen.md                   nino-gen for contributors: where it lives, the pipeline (layouts, IR, targets, templates),
                              why each target writes what it does, adding a type, regenerating, tests; usage is the
                              site's codegen pages
@@ -26,8 +34,9 @@ layouts.md                   the layout of every unmanaged BCL struct on every r
                              against the canonical one, from tests/Nino.RuntimeTests' `# layout` lines
 v4-benchmarks.md             build-time and runtime numbers against v3 3.3.13 and MemoryPack; the runtime tables are
                              written by benchmarks/readme.py from a release's report
-assets/                      logo.png (README); benchmark.svg and benchmark-dark.svg (the README chart in light and dark, written by readme.py) and
-                             benchmark.png (rendered from it by report.yml: nuget.org shows no SVG)
+assets/                      logo.png (README); benchmark.svg and benchmark-dark.svg (the README chart in light and
+                             dark, written by readme.py) and benchmark.png and benchmark-dark.png (rendered from them
+                             by report.yml; the READMEs show the PNGs: nuget.org shows no SVG)
 ```
 
 ## Rules for these files

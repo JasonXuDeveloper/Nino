@@ -198,4 +198,4 @@ Unity's tests log the layouts of a few types (`Assets/Test/Runtime/BclLayoutTest
 | `Around<(int,long)>` | 32 | = |
 
 IL2CPP also drops the custom attributes on generic parameters, which the runtime resolver reads; how it gets them
-instead is in [v4-design.md, "Formatter registrations"](v4-design.md#formatter-registrations).
+instead is in [v4-design, "Formatter registrations"](v4-design/runtime.md#formatter-registrations).

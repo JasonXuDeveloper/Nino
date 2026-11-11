@@ -27,7 +27,7 @@ Each runtime's API is in its README: [TypeScript](../runtimes/typescript/README.
 - The file map is `src/Nino.Codegen/AGENTS.md`.
 
 nino-gen reads nothing but the `[assembly: NinoTypeLayout]` attributes the Nino generator publishes in every assembly
-it compiles ([v4-design.md](v4-design.md#generated-code-per-type); the grammar is
+it compiles ([v4-design, "Generated code per type"](v4-design/generator.md#generated-code-per-type); the grammar is
 [spec/wire-format.md §8](spec/wire-format.md)), through a `MetadataLoadContext`: no source, no loading, no running
 code.
 

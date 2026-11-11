@@ -459,7 +459,7 @@ nothing is checked. Correct the line, or write the baseline again (refactoring, 
 
 NINO038 to NINO044 check the methods marked `[NinoOnSerializing]`, `[NinoOnSerialized]`, `[NinoOnDeserializing]` and
 `[NinoOnDeserialized]`, which the generated formatter calls directly around writing and reading a value
-([design](v4-design.md#serialization-callbacks)). A method a rule reports is never called; the generator leaves it out.
+([design](v4-design/runtime.md#serialization-callbacks)). A method a rule reports is never called; the generator leaves it out.
 
 ### NINO038
 
