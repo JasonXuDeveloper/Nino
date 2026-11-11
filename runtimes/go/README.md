@@ -102,8 +102,9 @@ does it.
   `FuzzDecode` check it.
 - **Bounded memory.** Every length is checked before anything is allocated. A count must fit in the bytes left
   (`count x` the fewest bytes an element takes), with .NET's caps. Collections whose elements take far more memory
-  than their bytes start small and grow as they are read: the most a read presizes is 16 times the bytes left
-  (at least 16 KB), as in .NET. Multi-dimensional shapes are checked one product at a time.
+  than their bytes start small and grow as they are read: what a read presizes, all its collections together, is at
+  most 16 times its data plus 16 KB, so nested collections cannot each claim the same bytes. Multi-dimensional shapes
+  are checked one product at a time, each element counted as at least one byte.
 - **Bounded depth.** Class bodies deeper than 128 are deferred exactly as .NET defers them (spec §7.10), so the
   bytes are the same and the stack stays bounded however deep the data is. Bodies that cannot be deferred
   (`Class.Deferrable` false: records, types built through a constructor) fail past 512. So do collections that
