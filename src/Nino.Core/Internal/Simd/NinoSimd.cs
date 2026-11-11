@@ -34,6 +34,20 @@ namespace Nino.Core.Internal
             get => Vector128.IsHardwareAccelerated;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static Vector512<ulong> Broadcast128To512(Vector128<ulong> value)
+        {
+            if (Avx512F.IsSupported)
+            {
+                var low = value.ToVector256Unsafe().ToVector512Unsafe();
+                // The shuffle reads only the initialized low lane.
+                return Avx512F.Shuffle4x128(low, low, 0);
+            }
+
+            var half = Vector256.Create(value, value);
+            return Vector512.Create(half, half);
+        }
+
         /// <summary>
         /// An AMD x64 CPU, whose rep movsb (Memmove's copy of a large block) is slower than vector stores also into a
         /// new array, where Intel's writes whole lines without reading them first. Measured on GitHub's EPYC 7763

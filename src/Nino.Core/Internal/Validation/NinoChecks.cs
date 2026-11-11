@@ -287,11 +287,8 @@ namespace Nino.Core.Internal
             public static Vector512<byte> Or(Vector512<byte> left, Vector512<byte> right) => left | right;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public static bool HasMaskedBits(Vector512<byte> bits, Vector128<ulong> mask)
-            {
-                var half = Vector256.Create(mask, mask);
-                return (bits.AsUInt64() & Vector512.Create(half, half)) != Vector512<ulong>.Zero;
-            }
+            public static bool HasMaskedBits(Vector512<byte> bits, Vector128<ulong> mask) =>
+                (bits.AsUInt64() & NinoSimd.Broadcast128To512(mask)) != Vector512<ulong>.Zero;
         }
 #endif
 
