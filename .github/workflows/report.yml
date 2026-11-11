@@ -456,21 +456,23 @@ jobs:
             echo "::warning::benchmarks/readme.py could not read this run: README left as it is"
             exit 0
           fi
-          # README.md goes into the NuGet packages, and nuget.org shows no SVG: render the PNG with Chrome.
-          # Headless Chrome paints less than its window, so it gets a taller window and the image is cropped.
-          # The chart's size, from the viewBox readme.py wrote.
-          read -r WIDTH HEIGHT < <(grep -oE 'viewBox="0 0 [0-9]+ [0-9]+"' docs/assets/benchmark.svg | head -n1 \
-            | sed -E 's/viewBox="0 0 ([0-9]+) ([0-9]+)"/\1 \2/')
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
-            --default-background-color=00000000 --window-size="$WIDTH,$((HEIGHT + 300))" \
-            --screenshot="$RUNNER_TEMP/chart.png" "file://$RUNNER_TEMP/chart.html"
+          # README.md goes into the NuGet packages, and nuget.org shows no SVG: render the PNGs (light and dark theme)
+          # with Chrome. Headless Chrome paints less than its window, so it gets a taller window and the image is
+          # cropped to the chart's size, from the viewBox readme.py wrote.
           python3 -m pip install --quiet pillow
-          python3 -c 'import sys; from PIL import Image; w, h = int(sys.argv[2]), int(sys.argv[3]); Image.open(sys.argv[1]).crop((0, 0, 2 * w, 2 * h)).save(sys.argv[4])' \
-            "$RUNNER_TEMP/chart.png" "$WIDTH" "$HEIGHT" docs/assets/benchmark.png
-
+          for SUFFIX in "" "-dark"; do
+            read -r WIDTH HEIGHT < <(grep -oE 'viewBox="0 0 [0-9]+ [0-9]+"' "docs/assets/benchmark$SUFFIX.svg" | head -n1 \
+              | sed -E 's/viewBox="0 0 ([0-9]+) ([0-9]+)"/\1 \2/')
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+              --default-background-color=00000000 --window-size="$WIDTH,$((HEIGHT + 300))" \
+              --screenshot="$RUNNER_TEMP/chart$SUFFIX.png" "file://$RUNNER_TEMP/chart$SUFFIX.html"
+            python3 -c 'import sys; from PIL import Image; w, h = int(sys.argv[2]), int(sys.argv[3]); Image.open(sys.argv[1]).crop((0, 0, 2 * w, 2 * h)).save(sys.argv[4])' \
+              "$RUNNER_TEMP/chart$SUFFIX.png" "$WIDTH" "$HEIGHT" "docs/assets/benchmark$SUFFIX.png"
+          done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md README.zh.md docs/v4-benchmarks.md docs/assets/benchmark.svg docs/assets/benchmark.png
+          git add README.md README.zh.md docs/v4-benchmarks.md docs/assets/benchmark.svg docs/assets/benchmark.png \
+            docs/assets/benchmark-dark.svg docs/assets/benchmark-dark.png
           if git diff --cached --quiet; then
             echo "⏭️ README numbers unchanged"
             exit 0

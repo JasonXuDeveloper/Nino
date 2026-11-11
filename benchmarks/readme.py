@@ -10,13 +10,14 @@ usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 rep
   --v3        a report of the v3 run (Nino 3.3.13, SimpleTest); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.
   --tag       the release the reports belong to (report.yml); without it docs/v4-benchmarks.md names a local run
-  --png-html  also write the chart wrapped in an HTML page, to render benchmark.png from it (report.yml does
+  --png-html  also write the chart wrapped in an HTML page (and <name>-dark.html for the dark theme), to render
+              benchmark.png and benchmark-dark.png from them (report.yml does
               this with headless Chrome: README.md is packed into the NuGet packages, and nuget.org shows no SVG)
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
 carries whole tables between such markers. Everything outside the markers (the build-time numbers among it) is
-written by hand. The headline numbers and the chart compare Nino with MemoryPack; the serialize and deserialize
-tables also list MessagePack's and protobuf-net's times. Ratios follow the docs site (nino.docs
+written by hand. The headline numbers compare Nino with MemoryPack; the chart (light and dark), the comparison ranges (msgpack.*,
+protobuf.*) and the serialize and deserialize tables also cover MessagePack and protobuf-net. Ratios follow the docs site (nino.docs
 src/lib/benchmarks.ts): within 5% is "on par", and a case where v4 is slower is left out, never shown as slower.
 A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
 measurable v3 is "faster, too fast to measure" (no ratio: it would only reflect the floor); both under it is on par.
@@ -65,7 +66,8 @@ def against(slow, fast):
 
 
 def one(r):
-    return f"{r:.1f}"
+    """One decimal below 10 (7.2), whole numbers from 10 (23)."""
+    return f"{r:.1f}" if r < 10 else f"{r:.0f}"
 
 
 def allocated(row):
@@ -87,20 +89,19 @@ def environment(env):
 def numbers(v4_path, v3_paths, tag=None):
     env, v4 = parse(v4_path)
 
-    def vs_memorypack(verb, key):
-        return ratio(v4[f"MemoryPack{verb}{key}"]["mean"], v4[f"Nino{verb}{key}"]["mean"])
+    def vs(other, verb, key):
+        return ratio(v4[f"{other}{verb}{key}"]["mean"], v4[f"Nino{verb}{key}"]["mean"])
 
-    def wins(verb):
+    def wins(verb, other="MemoryPack"):
         """Ratios of the cases v4 wins: above 1, and not on par."""
-        return [r for r in (vs_memorypack(verb, k) for k in CLASS_KEYS) if r > 1 and not on_par(r)]
+        return [r for r in (vs(other, verb, k) for k in CLASS_KEYS) if r > 1 and not on_par(r)]
 
-    def win_range(verb):
-        won = wins(verb)
+    def win_range(verb, other="MemoryPack"):
+        won = wins(verb, other)
         return f"{one(min(won))}–{one(max(won))}" if won else "—"
 
     bdn, runtime, cpu = environment(env)
     out = {
-        "ser.max": one(max(wins("Serialize"), default=1.0)),
         "reuse.inplace": one(ratio(v4["MemoryPackLeavesOverwrite"]["mean"], v4["NinoLeavesInPlace"]["mean"])),
         "ser.range": win_range("Serialize"),
         "deser.range": win_range("Deserialize"),
@@ -110,7 +111,14 @@ def numbers(v4_path, v3_paths, tag=None):
         "payload.v4": v4["NinoSerializeSimpleClass"]["payload"].replace(" B", ""),
         "payload.memorypack": v4["MemoryPackSerializeSimpleClass"]["payload"].replace(" B", ""),
     }
+    # MessagePack and protobuf-net over the same class cases, when the run measured them (rc.8 and later).
+    for other, prefix in (("MessagePack", "msgpack"), ("Protobuf", "protobuf")):
+        if all(f"{other}{verb}{k}" in v4 for verb in ("Serialize", "Deserialize") for k in CLASS_KEYS):
+            out[f"{prefix}.ser.range"] = win_range("Serialize", other)
+            out[f"{prefix}.deser.range"] = win_range("Deserialize", other)
 
+    # The chart: how many times faster Nino v4 is than each library, per case (a library the run did not measure, or
+    # one Nino does not beat by more than 5%, has no bar).
     chart = []
     v3 = {}
     if v3_paths:
@@ -127,15 +135,17 @@ def numbers(v4_path, v3_paths, tag=None):
                              ("Deserialize", "SimpleClass", "SimpleClass"),
                              ("Deserialize", "SimpleClasses", "SimpleClass[100]"),
                              ("Deserialize", "PolymorphicClassArray", "polymorphic class array")]:
-        memorypack = v4[f"MemoryPack{verb}{key}"]["mean"]
-        bars = [("Nino v4", memorypack / v4[f"Nino{verb}{key}"]["mean"])]
-        if f"Nino{verb}{key}" in v3:
-            bars.append(("Nino v3", memorypack / v3[f"Nino{verb}{key}"]))
+        nino = v4[f"Nino{verb}{key}"]["mean"]
+        bars = []
+        for name, method in CHART_LIBS:
+            other = v3.get(f"Nino{verb}{key}") if name == "Nino v3" else v4.get(f"{method}{verb}{key}", {}).get("mean")
+            if other and other / nino > 1 and not on_par(other / nino):
+                bars.append((name, other / nino))
         chart.append((f"{verb} · {label}", bars))
     for title, nino, memorypack in [("pooled node", "NinoNodePooled", "MemoryPackNodeOverwrite"),
                                     ("leaves in place", "NinoLeavesInPlace", "MemoryPackLeavesOverwrite")]:
         chart.append((f"Deserialize into existing objects · {title} (Nino {allocated(v4[nino])}, "
-                      f"MemoryPack {allocated(v4[memorypack])})", [("Nino v4", v4[memorypack]["mean"] / v4[nino]["mean"])]))
+                      f"MemoryPack {allocated(v4[memorypack])})", [("MemoryPack", v4[memorypack]["mean"] / v4[nino]["mean"])]))
 
     if v3:
         cases = {"ser": [("Serialize", "SimpleClass", "class", "类"),
@@ -265,28 +275,50 @@ def tables(v4, v3, v3_runs, env, tag):
     return out
 
 
-def svg(chart):
+# The libraries of the chart, in order, with the prefix of their methods in the report, and their bar colours.
+CHART_LIBS = [("MemoryPack", "MemoryPack"), ("MessagePack", "MessagePack"), ("protobuf-net", "Protobuf"), ("Nino v3", None)]
+BAR_COLORS = {"MemoryPack": "#e3a03b", "MessagePack": "#2fa88f", "protobuf-net": "#d9645c", "Nino v3": "#8c96a8"}
+# Text and grid colours of the two themes (README picks one with <picture> and prefers-color-scheme).
+THEMES = {"light": {"text": "#1f2328", "muted": "#59636e", "grid": "#d1d9e0"},
+          "dark": {"text": "#f0f6fc", "muted": "#9198a1", "grid": "#3d444d"}}
+
+
+def svg(chart, theme="light"):
+    """The chart as SVG: per case, a bar per library, its length the log of how many times faster Nino v4 is."""
+    import math
+    c = THEMES[theme]
     top = max(v for _, bars in chart for _, v in bars)
-    scale = min(95, 640 / top)
-    out, y = [], 84
+    decades = max(1, math.ceil(math.log10(top) - 1e-9))
+    x0, width = 112, 600
+    scale = width / decades
+
+    def x(v):
+        return x0 + max(3.0, math.log10(v) * scale)
+
+    out, y = [], 96
+    for d in range(decades + 1):  # the scale, once above the first case
+        out.append(f'<text x="{x0 + d * scale:.1f}" y="{y - 22}" class="s" text-anchor="middle">{10 ** d}×</text>')
     for title, bars in chart:
+        if not bars:
+            continue
         out.append(f'<text x="0" y="{y}" class="g">{title}</text>')
         by = y + 22
-        for name, v in bars + [("MemoryPack", 1.0)]:
-            w = v * scale
-            fill = "url(#v4)" if name == "Nino v4" else ("#8b95a7" if name == "Nino v3" else "#e0a030")
-            cls = "v4" if name == "Nino v4" else "l"
-            out.append(f'<text x="90" y="{by}" class="l" text-anchor="end">{name}</text>')
-            out.append(f'<rect x="100" y="{by - 12}" width="{w:.1f}" height="16" rx="4" fill="{fill}"/>')
-            out.append(f'<text x="{100 + w + 8:.1f}" y="{by}" class="{cls}">{v:.2f}×</text>')
-            by += 21
-        y = by + 16
-    height = y - 12
+        for d in range(decades + 1):  # grid lines behind this case's bars only, never through its title
+            gx = x0 + d * scale
+            out.append(f'<line x1="{gx:.1f}" y1="{by - 16}" x2="{gx:.1f}" y2="{by + 20 * len(bars) - 16}" '
+                       f'stroke="{c["grid"]}" stroke-dasharray="3 3"/>')
+        for name, v in bars:
+            out.append(f'<text x="{x0 - 10}" y="{by}" class="l" text-anchor="end">vs {name}</text>')
+            out.append(f'<rect x="{x0}" y="{by - 12}" width="{x(v) - x0:.1f}" height="15" rx="3" fill="{BAR_COLORS[name]}"/>')
+            label = f"{v:.2f}×" if v < 10 else f"{v:.0f}×"
+            out.append(f'<text x="{x(v) + 8:.1f}" y="{by}" class="v">{label}</text>')
+            by += 20
+        y = by + 18
+    height = y - 8
     head = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 {height}" width="820" height="{height}" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
-<defs><linearGradient id="v4" x1="0" x2="1"><stop offset="0" stop-color="#22c3e6"/><stop offset="1" stop-color="#7c5cff"/></linearGradient>
-<style>.t{{font-size:18px;font-weight:700;fill:#8b95a7}}.s{{font-size:12px;fill:#8b95a7}}.g{{font-size:13px;font-weight:600;fill:#8b95a7}}.l{{font-size:12px;fill:#8b95a7}}.v4{{font-size:12px;font-weight:700;fill:#7c5cff}}</style></defs>
-<text x="0" y="22" class="t">Speed relative to MemoryPack (higher is faster)</text>
-<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, same machine. MemoryPack 1.21.4 = 1.00× (its overwrite mode for existing objects). Nino v3 = 3.3.13.</text>
+<style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]}}}.v{{font-size:12px;font-weight:700;fill:{c["text"]}}}</style>
+<text x="0" y="22" class="t">How many times faster Nino v4 is (log scale)</text>
+<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine; MemoryPack 1.21.4, MessagePack, protobuf-net, Nino v3 3.3.13.</text>
 '''
     return head + "\n".join(out) + "\n</svg>\n", height
 
@@ -319,11 +351,13 @@ def main():
     args = parser.parse_args()
 
     values, chart = numbers(args.v4, args.v3, args.tag)
-    image, height = svg(chart)
-    (ROOT / "docs/assets/benchmark.svg").write_text(image, encoding="utf-8")
-    if args.png_html:
-        Path(args.png_html).write_text(
-            f'<html><body style="margin:0;background:transparent">{image}</body></html>', encoding="utf-8")
+    for theme, suffix in (("light", ""), ("dark", "-dark")):
+        image, height = svg(chart, theme)
+        (ROOT / f"docs/assets/benchmark{suffix}.svg").write_text(image, encoding="utf-8")
+        if args.png_html:
+            html = Path(args.png_html)
+            html.with_name(html.stem + suffix + html.suffix).write_text(
+                f'<html><body style="margin:0;background:transparent">{image}</body></html>', encoding="utf-8")
     for name, zh in (("README.md", False), ("README.zh.md", True), ("docs/v4-benchmarks.md", False)):
         keys = {k for k in values if k.startswith("doc.") == (name.startswith("docs/"))}
         missing = keys - fill(ROOT / name, {k: values[k] for k in keys}, zh)

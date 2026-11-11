@@ -32,6 +32,7 @@ runtimes/typescript/test/generated/*.ts linguist-generated
 *_pb.ts linguist-generated
 # The README chart the release workflow draws.
 docs/assets/benchmark.svg linguist-generated
+docs/assets/benchmark-dark.svg linguist-generated
 # Lock files.
 package-lock.json linguist-generated
 Cargo.lock linguist-generated
