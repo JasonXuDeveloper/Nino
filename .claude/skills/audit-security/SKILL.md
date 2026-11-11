@@ -58,6 +58,13 @@ the runtime it targets.
   `DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`); its mutations of `Plan.Joins` and of the bool mask fail it. An assertion that a vector path ran follows the build of Nino.Core, not the test runtime: `#if !NINO_CORE_NETSTANDARD` (the netstandard builds have no vector passes, and `Vector.IsHardwareAccelerated` is true there too); run the netstandard2.0 and netstandard2.1 lines of `verify` before landing such a test (round 129: main went red on both netstandard shards).
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
+- A presize budget per collection instead of per read: each collection nested in another claims the bytes left
+  again, so a read that fails at the end of the data has allocated the bytes left times its nesting. Give the read one
+  budget that every presized collection spends (Rust `Reader::capacity`, Go `Reader.SliceCap`, 16 bytes a byte plus a
+  floor), and grow past it. Why: Go budgeted each collection, and 120 nested `TreeNode` lists each claiming the bytes
+  left allocated 959 MB from 1 MB (a Go out-of-memory is fatal); TypeScript's generated `new Array(length)` does the
+  same (200 KB raised the RSS by 190 MB, 1 MB aborted Node under a 64 MB heap; open). Test it with nested claims and
+  the allocation measured (`internal/generated/nesting_test.go`).
 - A hash table filled from the data whose hash the data can predict. In other runtimes the language's own table may
   be unseeded: V8 hashes number and `bigint` keys of `Map`/`Set` without a seed (8,000 crafted ints took 40 times as
   long as ordinary ones in Node 22), which `NinoKeyGuard` in `nino.ts` bounds by counting the buckets of the table V8 ends with; it is exact for

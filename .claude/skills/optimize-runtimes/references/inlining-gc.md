@@ -28,3 +28,7 @@ Read it before growing a TypeScript or Rust hot helper, or when a TypeScript cas
   Chromium and 4-5x in Node. Even with the slab, Chromium read 3 x 1,000 numbers 2.0-3.3 times slower into typed arrays
   than into `number[]` (Node 0.55-0.85x; run 40865735513, d07506b), so typed arrays are nino-gen's opt-in
   `--numeric-arrays typed`, not its default: serialize was faster in both engines (Samples 0.35-0.77x).
+- Keep a Go helper that generated code calls per collection under the inliner's budget of 80 by writing its rare
+  branch inline rather than as a call to a `//go:noinline` function: a call costs 57, so `Reader.capacity` with the
+  budget's spill-over in `overBudget` cost 86-94 and was no longer inlined; with the division written in the branch
+  it costs 38 (`go build -gcflags=-m=2`, review/runtimes on 2e952477).

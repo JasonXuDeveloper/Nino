@@ -123,7 +123,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
      paths and addresses stripped; TypeScript, runtime-ab runs the head's `bench.ts` on both sides, so the sides differ
      only in `src/nino.ts`, what nino-gen writes for `bench/Bench.dll` and the data `Bench.dll` writes (diff all
      three); Rust, `objdump -d` the bench binary each side builds with the line's
-     `RUSTFLAGS=-Cllvm-args=-align-all-functions=6`, addresses stripped; .NET, the generated files
+     `RUSTFLAGS=-Cllvm-args=-align-all-functions=6`, addresses stripped (after items moved between modules, also
+     the `::h<hash>` suffixes, the moved paths mapped and the `# <symbol>` comments; criterion's code and a bench's
+     own setup can land in other codegen units of the bench crate, so compare every `nino::` function and timed
+     closure; Go numbers `init.N` in file order); .NET, the generated files
      (`-p:EmitCompilerGeneratedFiles=true`) and the FullOpts listings (`optimize`). Round 105 needed 2 runtime lines of
      8 (Go: only the codec builder differed; TypeScript: all three identical; Rust `compare` and `text`: identical
      code, `blocks`: not).

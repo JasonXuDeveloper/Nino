@@ -106,7 +106,8 @@ corpus's types with codecs in the style a generator would write. Both performanc
 requirements:
 - Never panic on any input, and never rely on `recover`: check every bound, and keep errors sticky (after a failure
   the reader returns zeros, empty slices and null, so every loop ends). Check a length against the bytes left
-  before allocating, with .NET's caps (`SliceCap`, `capacity`); grow, never presize, what the data only claims.
+  before allocating, with .NET's caps (`SliceCap`, `capacity`: one budget for the whole read, `audit-security`);
+  grow, never presize, what the data only claims.
 - Count depth exactly as .NET does (`ReadClass`, `WriteClass`, regions and sections): the bytes must match, and
   the stack must stay bounded however deep the data. A polymorphic slot accepts only the ids of the types it allows.
 - Hot paths: no reflection, no boxing into `any` outside polymorphic slots; a run of fixed-size members is one
