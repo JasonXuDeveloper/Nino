@@ -462,6 +462,18 @@ of bytes in a block.
   180/181/207 B, with AggressiveOptimization omitted only in the audit copy. The AVX2 guest entry
   grew from 220 to 334 B plus its 181 B kernel. Four M4 A/B rounds and first-use reads varied
   alongside A/A at 0 B steady allocation. Native AVX-512 throughput remains unmeasured (786c2172).
+  Keep the per-vector read until a paired variant preserves cold latency. Sharing the invalid-value
+  exit reduced Arm64 FullOpts from 252 to 188 B but consistently slowed 1,025-slot reuse. An Arm64-only
+  16-slot batch reused the 128-bit mask and emitted paired loads and stores with one invalid-value
+  reduction. Dispatch inside the existing vector method kept `ReadPrechecked` at 496 IL bytes,
+  raised the single-vector method from 44 to 95 IL bytes and added 150 IL bytes for the batch and
+  its group helper. Arm64 machine code was 292 B for the single-vector method and 300 B for the batch.
+  Four warm rounds favored the batch at 1,025 slots across offsets 0/1/7, with 0 B allocated.
+  First reads in randomized fresh processes regressed at 9 and 1,025 slots relative to two identical
+  baseline controls. Withdraw the batch despite the warm gain. The extracted x64 audit kernels
+  stayed at 178/181/207 B for 128/256/512 bits with the Arm64 guard folded. All 27 wire outputs
+  matched. The candidate passed the .NET 8/10, scalar, and netstandard 2.0/2.1 targeted suites,
+  including first-invalid-value order across the two halves and overlapping tails.
   The M4 default-JIT 128-item mixed median went from 1.78 us to 38 ns; 16,896
   mixed items went from 25.9 to 0.59 us. The baseline was still instrumented
   Tier 0 at 128 items. Offsets zero and one, dirty null slots, and wire output
