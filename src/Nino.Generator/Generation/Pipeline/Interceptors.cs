@@ -1,7 +1,6 @@
 #if ROSLYN4_8
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using Nino.Generator.Generation.Emit;
 using Microsoft.CodeAnalysis;
@@ -297,10 +296,9 @@ internal static class Interceptors
             if (n != 0)
                 w.Line();
             foreach (var call in group)
-                w.AttributeLine(GeneratedCode.InterceptsName, call.Location, call.Where);
+                AttributeLine(w, call);
             w.Line(GeneratedCode.Inline);
-            // "R Name(params)" becomes "public static R NameN(params) => call;"
-            w.NumberedForwarder(group.Key.Signature, n++, "__NinoDirect.", group.Key.Call);
+            Forwarder(w, group.Key.Signature, n++, group.Key.Call);
         }
 
         w.Close();
@@ -309,5 +307,24 @@ internal static class Interceptors
         return GeneratedCode.File(AttributePrefix + scope + AttributeSuffix, aliases, body, fileScoped: false);
     }
 
+    /// <summary>The location attribute of <paramref name="call"/>, with the comment saying where it is.</summary>
+    private static void AttributeLine(CodeWriter w, InterceptedCall call)
+    {
+        var line = w.BeginLine('[', ']')
+            .Append('[').Append(GeneratedCode.InterceptsName).Append('(').Append(call.Location).Append(")]");
+        if (call.Where.Length != 0)
+            line.Append(" // ").Append(call.Where);
+        w.EndLine();
+    }
+
+    /// <summary>"R Name(params)" as "public static R Name<paramref name="number"/>(params) => __NinoDirect.call;".</summary>
+    private static void Forwarder(CodeWriter w, string signature, int number, string call)
+    {
+        int parameters = signature.IndexOf('(');
+        w.BeginLine('p', ';').Append("public static ").Append(signature, 0, parameters).Append(number)
+            .Append(signature, parameters, signature.Length - parameters).Append(" => __NinoDirect.").Append(call)
+            .Append(';');
+        w.EndLine();
+    }
 }
 #endif

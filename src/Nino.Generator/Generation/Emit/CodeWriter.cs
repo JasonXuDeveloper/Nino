@@ -40,47 +40,18 @@ internal sealed class CodeWriter
         return this;
     }
 
-    /// <summary>Writes an attribute and its optional comment without assembling a temporary line.</summary>
-    public void AttributeLine(string name, string arguments, string comment)
+    /// <summary>
+    /// Starts a nonblank line whose text begins with <paramref name="first"/> and ends with <paramref name="last"/>
+    /// and returns the builder to append that text to, for a line written in pieces; <see cref="EndLine"/> ends it.
+    /// </summary>
+    public StringBuilder BeginLine(char first, char last)
     {
-        StartLine('[', ']');
-        _sb.Append('[').Append(name).Append('(').Append(arguments).Append(")]");
-        if (comment.Length != 0)
-            _sb.Append(" // ").Append(comment);
-        _sb.Append('\n');
+        StartLine(first, last);
+        return _sb;
     }
 
-    /// <summary>Writes a numbered static forwarder without materializing its signature fragments.</summary>
-    public void NumberedForwarder(string signature, int number, string target, string call)
-    {
-        int parameters = signature.IndexOf('(');
-        StartLine('p', ';');
-        _sb.Append("public static ").Append(signature, 0, parameters).Append(number)
-            .Append(signature, parameters, signature.Length - parameters).Append(" => ").Append(target).Append(call)
-            .Append(";\n");
-    }
-
-    /// <summary>Writes a numeric switch label without assembling a temporary line.</summary>
-    public void CaseLabel(int id)
-    {
-        StartLine('c', ':');
-        _sb.Append("case ").Append(id).Append(":\n");
-    }
-
-    /// <summary>Writes the outer switch's branch to a registry bucket.</summary>
-    public void RegistryBucketCase(int bucket)
-    {
-        StartLine('c', ';');
-        _sb.Append("case ").Append(bucket).Append(": __Bucket").Append(bucket).Append("(id); break;\n");
-    }
-
-    /// <summary>Opens a block whose header contains a number between two nonempty fragments.</summary>
-    public void OpenNumbered(string prefix, int number, string suffix)
-    {
-        StartLine(prefix[0], suffix[suffix.Length - 1]);
-        _sb.Append(prefix).Append(number).Append(suffix).Append('\n');
-        Open();
-    }
+    /// <summary>Ends the line <see cref="BeginLine"/> started.</summary>
+    public void EndLine() => _sb.Append('\n');
 
     private void StartLine(char first, char last)
     {
