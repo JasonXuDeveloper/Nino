@@ -195,6 +195,16 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 - Pass the current syntax context and cancellation token to static callbacks in the call cache, and build a model
   directly on a miss. Capturing callbacks allocate before the lookup, even when the lookup hits. Keep the sweep's
   temporary key list lazy as well, so saving a call does not allocate a closure for a sweep that may never run.
+- Check sparse rebinding before memoizing method display strings. In a 2,416-call replay with 14 method definitions,
+  sharing display strings within the weak compilation state and storing the method and type as separate strings
+  saved 881,360 B per identity pass. Bypassing the memo for ordinary method-body edits kept this saving and
+  reduced cold project allocation by 565–880 KB and reopen allocation by 778–820 KB across four M4 pairs.
+  Whole-project timings varied with load. The independent warmed generic-fixture edit replay ranged from 14.5%
+  faster to 34.7% slower after the bypass, with the slower pair's identical-binary spread at 8.4%.
+  The bypass version grew `CallIdentity` from 34 to 131 IL bytes, 524 to 1,572 Arm64 Tier 1 bytes, and
+  89 to 315 offline x64 bytes. All files matched on Roslyn 4.3, 4.8 and 4.12, both edits reused all 579 models,
+  and the old compiler objects and generated text collected. Keep the existing identity path until an alternative
+  also holds the warmed edit timing.
 - Use a short-circuiting symbol scan when the model only needs to know whether a serialization callback exists.
   Keep the ordered callback iterator for building calls and diagnostics. On 548 types from the unit test project,
   the per-type probe went from 402 to 64 B and found the same callbacks. Roslyn 4.8 and 4.12 each matched all
