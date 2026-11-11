@@ -33,8 +33,7 @@ internal static class GeneratedCode
     /// the file (<c>namespace NinoGen;</c>, C# 10), where nothing follows the body and the preamble declares no
     /// namespace; otherwise it is a block, whose lines are indented one level.
     /// </summary>
-    public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped,
-        int? indentation = null)
+    public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped)
     {
         if (fileScoped)
         {
@@ -55,7 +54,7 @@ internal static class GeneratedCode
             return string.Concat(Header, preamble, text, body);
         }
 
-        var sb = BuildBlockFile(preamble, aliases, body, indentation);
+        var sb = BuildBlockFile(preamble, aliases, body);
         string file = sb.ToString();
         TextScratch.Return(sb);
         return file;
@@ -63,10 +62,10 @@ internal static class GeneratedCode
 
     /// <summary>Writes the closed namespace into a scratch buffer that the caller returns after use.</summary>
     internal static StringBuilder BuildBlockFile(string preamble, IEnumerable<string> aliases, string body,
-        int? indentation = null, int tailCapacity = 1024)
+        int tailCapacity = 1024)
     {
         // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
-        var sb = TextScratch.Rent(body.Length + (indentation ?? body.Length / 4) + preamble.Length + tailCapacity);
+        var sb = TextScratch.Rent(body.Length + body.Length / 4 + preamble.Length + tailCapacity);
         sb.Append(Header).Append(preamble);
         AppendBlockPrefix(sb, aliases);
         // The body's lines one level in (blank lines stay empty).
@@ -86,16 +85,6 @@ internal static class GeneratedCode
 
     private const string BlockIndent = "    ";
 
-    /// <summary>Combines a block namespace prefix with an already indented and closed body.</summary>
-    public static string IndentedFile(string preamble, IEnumerable<string> aliases, string body)
-    {
-        var prefix = TextScratch.Rent(256);
-        AppendBlockPrefix(prefix, aliases);
-        string text = prefix.ToString();
-        TextScratch.Return(prefix);
-        return string.Concat(Header, preamble, text, body);
-    }
-
     private static void AppendBlockPrefix(StringBuilder sb, IEnumerable<string> aliases)
     {
         sb.Append("namespace " + TypeNames.GenNamespace + "\n{\n");
@@ -106,12 +95,9 @@ internal static class GeneratedCode
             sb.Append('\n');
     }
 
-    public const string BytesType = "global::System.ReadOnlySpan<byte>";
-    public const string BytesAlias = "__NinoBytes";
-    public const string BytesDeclaration = "using " + BytesAlias + " = " + BytesType + ";";
-
-    public static readonly int BytesAliasThreshold = AliasUsesNeeded(BytesDeclaration.Length,
-        BytesType.Length - BytesAlias.Length);
+    private const string BytesType = "global::System.ReadOnlySpan<byte>";
+    private const string BytesAlias = "__NinoBytes";
+    private const string BytesDeclaration = "using " + BytesAlias + " = " + BytesType + ";";
 
     private static int AliasUsesNeeded(int declarationLength, int saving) => (declarationLength + 5) / saving + 1;
 
@@ -153,10 +139,6 @@ internal static class GeneratedCode
             (CoreNamespaceDeclaration.Length + 5) / (TypeNames.Core.Length - CoreNamespacePrefix.Length) + 1;
         private static readonly int CollectionsThreshold =
             (CollectionsDeclaration.Length + 5) / (Collections.Length - CollectionsAlias.Length) + 1;
-#if ROSLYN4_8
-        public bool OmitGeneratedNamespace;
-        public bool UseBytesAlias;
-#endif
         private int _coreUses;
         private int _collectionUses;
 
@@ -208,48 +190,8 @@ internal static class GeneratedCode
             AppendRange(builder, code, copied, end);
         }
 
-#if ROSLYN4_8
-        private readonly void AppendRange(StringBuilder builder, string code, int start, int end)
-        {
-            if (start == end)
-                return;
-
-            if (UseBytesAlias)
-            {
-                int at = FindName(code, BytesType, start, member: false);
-                while (at >= 0 && at + BytesType.Length <= end)
-                {
-                    AppendGeneratedRange(builder, code, start, at);
-                    builder.Append(BytesAlias);
-                    start = at + BytesType.Length;
-                    at = FindName(code, BytesType, start, member: false);
-                }
-            }
-
-            AppendGeneratedRange(builder, code, start, end);
-        }
-
-        private readonly void AppendGeneratedRange(StringBuilder builder, string code, int start, int end)
-        {
-            if (start == end)
-                return;
-
-            if (OmitGeneratedNamespace)
-            {
-                int at;
-                while ((at = code.IndexOf(TypeNames.Gen, start, end - start, StringComparison.Ordinal)) >= 0)
-                {
-                    builder.Append(code, start, at - start);
-                    start = at + TypeNames.Gen.Length;
-                }
-            }
-
-            builder.Append(code, start, end - start);
-        }
-#else
         private static void AppendRange(StringBuilder builder, string code, int start, int end) =>
             builder.Append(code, start, end - start);
-#endif
 
         private static int CountUntil(string text, string prefix, int count, int threshold)
         {
@@ -393,18 +335,6 @@ internal static class GeneratedCode
         sb.Append(body, start, body.Length - start);
         declarations.Add(declaration ?? $"using {alias} = {name};");
         return sb.ToString();
-    }
-
-    public static int CountBytesType(string text, int count)
-    {
-        int start = 0;
-        while (count < BytesAliasThreshold && (start = FindName(text, BytesType, start, member: false)) >= 0)
-        {
-            count++;
-            start += BytesType.Length;
-        }
-
-        return count;
     }
 
     private static int FindName(string body, string name, int start, bool member)

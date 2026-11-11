@@ -19,11 +19,7 @@ internal sealed class CodeWriter
     /// <summary>The last line written opened a block.</summary>
     private bool _opened;
 
-    public CodeWriter(int capacity = 4096, int indentation = 0)
-    {
-        _sb = new StringBuilder(capacity);
-        _indent = indentation;
-    }
+    public CodeWriter(int capacity = 4096) => _sb = new StringBuilder(capacity);
 
     public CodeWriter(StringBuilder buffer) => _sb = buffer;
 
@@ -168,12 +164,5 @@ internal sealed class CodeWriter
         if (_blank)
             _sb.Append('\n');
         return _sb.ToString();
-    }
-
-    /// <summary>Prepends a small file prefix without first materializing a separate body string.</summary>
-    public string Finish(string prefix)
-    {
-        _sb.Insert(0, prefix);
-        return Finish();
     }
 }

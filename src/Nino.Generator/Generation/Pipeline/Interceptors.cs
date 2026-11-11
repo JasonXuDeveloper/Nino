@@ -286,38 +286,12 @@ internal static class Interceptors
         }
 
         var groups = calls.ToLookup(c => (c.Signature, Call: RenderCall(c)));
-        // One location attribute per call site, but only one method per group.
-        int locationCapacity = calls.Length * 128;
-        bool canAliasBytes = false;
-        bool plainLocations = true;
-        // A class header and braces, one line per location, and two per forwarder.
-        int indentation = (3 + calls.Length + 2 * groups.Count) * 4;
-#if ROSLYN4_12
-        // The opaque location has no line breaks. A display path can have them.
-        bool preindent = true;
-        canAliasBytes = true;
-        locationCapacity = 0;
-        foreach (var call in calls)
-        {
-            // The name, brackets, parentheses and newline, plus the optional comment.
-            locationCapacity += GeneratedCode.InterceptsName.Length + 5 + call.Location.Length;
-            if (call.Where.Length != 0)
-                locationCapacity += 4 + call.Where.Length;
-            preindent = preindent && call.Where.IndexOf('\n') < 0;
-            canAliasBytes = canAliasBytes && !call.Where.Contains(GeneratedCode.BytesType);
-            plainLocations = plainLocations && !call.Where.Contains(TypeNames.Gen) &&
-                             !call.Where.Contains(TypeNames.Core);
-        }
-#else
-        bool preindent = false;
-#endif
-        int capacity = System.Math.Min(calls.Length * 384, locationCapacity + groups.Count * (preindent ? 312 : 320));
-        var w = preindent ? new CodeWriter(capacity + indentation + 2, indentation: 1) : new CodeWriter(capacity);
+        var w = new CodeWriter();
         w.Open($"{scope} static class NinoInterceptors");
         var aliases = new List<string> { GeneratedCode.InterceptsAlias };
         aliases.AddRange(GeneratedCode.InlineAliases);
         aliases.Add(GeneratedCode.DirectAlias);
-        var compact = new GeneratedCode.NamespaceAliases { OmitGeneratedNamespace = true };
+        var compact = new GeneratedCode.NamespaceAliases();
         foreach (var group in groups)
         {
             if (compact.Ready)
@@ -325,27 +299,7 @@ internal static class Interceptors
             compact.Count(group.Key.Signature);
             compact.Count(group.Key.Call);
         }
-        if (preindent && canAliasBytes)
-        {
-            int matches = 0;
-            foreach (var group in groups)
-            {
-                matches = GeneratedCode.CountBytesType(group.Key.Signature, matches);
-                matches = GeneratedCode.CountBytesType(group.Key.Call, matches);
-                if (matches == GeneratedCode.BytesAliasThreshold)
-                    break;
-            }
-
-            compact.UseBytesAlias = matches == GeneratedCode.BytesAliasThreshold;
-        }
         compact.Declare(aliases);
-
-        // Fully compacted slices and plain location comments need no final rewrite. Write the complete file once.
-        bool complete = preindent && plainLocations && compact.Ready && compact.UseBytesAlias;
-        string preamble = fileLocal ? AttributePrefix + "file" + AttributeSuffix
-            : AttributePrefix + "internal" + AttributeSuffix;
-        if (complete)
-            aliases.Add(GeneratedCode.BytesDeclaration);
 
         int n = 0;
         foreach (var group in groups)
@@ -356,21 +310,13 @@ internal static class Interceptors
                 w.AttributeLine(GeneratedCode.InterceptsName, call.Location, call.Where);
             w.Line(GeneratedCode.Inline);
             // "R Name(params)" becomes "public static R NameN(params) => call;"
-            // Compact type names only. The legacy attribute contains a physical path.
             w.NumberedForwarder(group.Key.Signature, n++, "__NinoDirect.", group.Key.Call, compact);
         }
 
         w.Close();
-        if (preindent)
-            w.Close();
-        if (complete)
-            return w.Finish(GeneratedCode.IndentedFile(preamble, aliases, ""));
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
-        if (compact.UseBytesAlias && !aliases.Contains(GeneratedCode.BytesDeclaration))
-            aliases.Add(GeneratedCode.BytesDeclaration);
         // A block namespace: the file declares the attribute in another namespace.
-        return preindent ? GeneratedCode.IndentedFile(preamble, aliases, body)
-            : GeneratedCode.File(preamble, aliases, body, fileScoped: false, indentation);
+        return GeneratedCode.File(AttributePrefix + scope + AttributeSuffix, aliases, body, fileScoped: false);
     }
 
 }
