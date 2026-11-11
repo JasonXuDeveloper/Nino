@@ -1,5 +1,5 @@
 // After `tsc` (npm run build): writes the package's version over the placeholder in dist, as nino-gen writes its
-// own version over it in the copy it puts next to generated code (src/Nino.Codegen/Targets/TypeScriptTarget.cs).
+// own version over it in the copy it puts next to generated code (src/Nino.Codegen/Targets/TypeScript/TypeScriptTarget.cs).
 import { readFileSync, writeFileSync } from "node:fs";
 
 const root = new URL("../", import.meta.url);

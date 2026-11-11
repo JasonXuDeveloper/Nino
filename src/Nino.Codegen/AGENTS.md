@@ -29,15 +29,23 @@ Layouts/
   WireEncoding.cs            one member encoding of a layout (seq, raw, type, ...), RawField
   ClosedTypeScan.cs          the closed generic types an assembly's metadata names (each a type id of its own)
 Inspect/                     nino-gen inspect's reader: an interpreter of the IR, with the reader checks of spec §9
-  Inspector.cs               reads a message into InspectNodes: headers, type ids, references, regions, keyed
-                             entries, deferred bodies and sections (§7.10), depth limits; InspectResult
+  Inspector.cs               reads a message into InspectNodes (InspectResult): the entry, depth limits, the value of
+                             each ValueKind; its other parts, one kind of value each:
+  Inspector.Raw.cs             raw values (primitives, raw structs, tuples) from bytes already taken
+  Inspector.Strings.cs         UTF-16 and UTF-8 strings
+  Inspector.Collections.cs     sequences, maps, grids, named and unsupported values
+  Inspector.Objects.cs         [NinoType] values: headers, type ids, references, members, keyed entries
+  Inspector.Regions.cs         version-tolerant and keyed regions, deferred bodies and sections (§7.10)
   InspectNode.cs             one part of the message (name, type, encoding, offset, length, value) as text or JSON
   Scalars.cs                 the fixed-size values as text and JSON, with their range checks (§9.3, §9.10)
   WireReader.cs              the bounds-checked reader (regions as limits), counts, string headers; InspectException
 Model/                       the IR: language-neutral, built once, read by every target
   CodegenModel.cs            the assembly's [NinoType]s (and those of its references), encodings resolved to ValueModels;
                              types by runtime-form name and their top-level value (ResolveType, RootValue), structs
-                             that hold themselves (HoldsItself)
+                             that hold themselves (HoldsItself); building the types from their layouts
+  CodegenModel.Generics.cs   generic types behind type ids: slot parameters, closed types, substitution, unification
+  CodegenModel.Values.cs     a layout's encoding as a ValueModel (generic, raw, raw struct, enum; unsupported ones)
+  CodegenModel.Clr.cs        CLR helpers: primitive kinds and sizes, generic definitions, interfaces, fields
   TypeModel.cs               TypeModel, MemberModel, ClosedTypeModel; BodyFormat, HeaderKind
   ValueModel.cs              ValueModel (what a value is on the wire), SlotModel, RawStructModel, EnumModel
   CanonicalLayout.cs         the canonical alignment a layout does not publish, by Nino.Core's NinoLayoutCore (linked)
@@ -47,10 +55,26 @@ Targets/                     what each language can express and how (NINOGEN002 
   CodegenTarget.cs           the base of the three: which types are written (the rest left out with a warning),
                              the closed generic types, the warnings, the names of the generated types; ResolveTypes,
                              how every Render starts
-  TypeScriptTarget.cs        classes, `as const` enums and a NinoCodec per type (TsShape, TsClass, ...)
-  GoTarget.cs                structs with nino tags and NinoLayout, codecs in the style of runtimes/go/internal/sample
-  RustTarget.cs              structs and NinoReadBody / NinoWriteBody impls in the shape of
+  TypeScript/                classes, `as const` enums and a NinoCodec per type
+    TypeScriptTarget.cs        which types, names, helpers, Render (and the runtime copy with nino-gen's version)
+    TypeScriptTarget.Shapes.cs   the TsShape of a value
+    TypeScriptTarget.Nesting.cs  which values may open a class body (structs holding themselves included)
+    TypeScriptOptions.cs       the options of the generated TypeScript
+    TsShape.cs                 how a value is written in TypeScript
+    TsTemplateTypes.cs         what types.sbn reads besides shapes (TsClass, TsSlot, TsEnum, TsRawStruct, ...)
+  Go/                        structs with nino tags and NinoLayout, codecs in the style of runtimes/go/internal/sample
+    GoTarget.cs                which types, names, helpers, Render
+    GoTarget.Shapes.cs         the GoShape of a value, slots and markers, raw blocks
+    GoOptions.cs               the options of the generated Go (TagNaming)
+    GoShape.cs                 how a value is written in Go
+    GoTemplateTypes.cs         what types.sbn reads besides shapes (GoType, GoSlot, GoField, GoRawBlock, ...)
+  Rust/                      structs and NinoReadBody / NinoWriteBody impls in the shape of
                              runtimes/rust/tests/conformance/types.rs
+    RustTarget.cs              which types, names, Render
+    RustTarget.Shapes.cs       the RustShape of a value
+    RustOptions.cs             the options of the generated Rust
+    RustShape.cs               how a value is written in Rust
+    RustTemplateTypes.cs       what types.sbn reads besides shapes (RustType, RustField, RustEnum, ...)
 Templates/                   Scriban templates: assemble text only
   typescript/types.sbn, shapes.sbn   the module of an assembly; the code of one value from its shape
   go/types.sbn, shapes.sbn           the Go file; the code of one value from its shape
