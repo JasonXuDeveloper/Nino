@@ -274,6 +274,15 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   time change was measured. The search went from 303 to 312 IL bytes, 1,264 to 1,196 Arm64
   FullOpts bytes and 614 to 640 offline x64 bytes. The three generator builds matched all
   generated files, reused every model on edits and passed the collection probes (`95a3102a`).
+- Filter nesting lookup inputs by the shared generated suffix before stacking them.
+  Keep exact lookup and traversal order for candidates, and allocate sorted results
+  on the first match. The real-project search replay kept all hits and reduced 96
+  traversals from 23.82 to 2.65 MB allocated. Four local pairs took 69–85% less time.
+  Cold project medians saved 578–595 KB with variable timing. Short-warmup whole-model
+  replays slowed, while the 2.7-second warmup gave three faster and one slower pair.
+  The search grew from 312 to 413 IL bytes, 1,196 to 1,472 Arm64 bytes and 640 to
+  858 offline x64 bytes, plus the small filter helper. All generator builds matched
+  emitted files, 578-model reuse and collection (`207c1206`).
 - Skip type parameter collection, projection and constraint rendering for non-generic models.
   Roslyn's `IsGenericType` includes parameters on containing types. The real project had 495
   non-generic models and eight arity-zero models that inherited parameters. Four default-JIT
