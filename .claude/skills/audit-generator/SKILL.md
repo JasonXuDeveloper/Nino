@@ -300,6 +300,16 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   bytes and went from 284 to 220 Arm64 bytes and from 166 to 152 offline x64 bytes.
   The new visited helper adds 98 IL, 324 Arm64 and 237 offline x64 bytes.
   All three builds matched generated files, edit reuse and collection (`2592b038`).
+- In layout discovery, skip tracking non-generic leaves and unwrap arrays at the
+  element's depth. For generic nodes, keep deduplication and argument traversal before
+  asking Roslyn if the type is unmanaged. Moving that check earlier raised whole-project
+  cold allocation by about 0.4 MB. The final order saved 18,128 bytes per 2,619-root replay
+  and 52–61 KB at cold start across two identical baseline binaries. Timings varied with
+  the controls. The 83 ordered registrations, generated files, 578-model reuse and
+  collection probes matched across all three Roslyn builds. `Collect` and `Walk` went
+  from 94 + 234 IL bytes to 14 + 258 plus a 30-byte predicate. Arm64 FullOpts emitted
+  868 + 136 bytes with `Collect` inlined, down from 384 + 788, and offline x64 emitted
+  26 + 574 + 79 bytes, down from 239 + 533 (`87064687`).
 - Skip type parameter collection, projection and constraint rendering for non-generic models.
   Roslyn's `IsGenericType` includes parameters on containing types. The real project had 495
   non-generic models and eight arity-zero models that inherited parameters. Four default-JIT
