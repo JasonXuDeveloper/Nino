@@ -62,6 +62,10 @@ reports/                     what a release publishes: reports of runners into t
 
 - Headings the release body uses (reports/release_body.py, runtimes_report.py, unity_report.py) are read by the docs site
   (Nino.Docs `scripts/sync-benchmarks.ts`): change one only together with its parser there.
+- Program.cs and the Harness files the v3 build lists (`Nino.Benchmark.csproj`, `NinoBenchV3`) compile against Nino
+  3.3.13 with only those files: guard what they reach outside them with `#if !NINO_BENCH_V3`, and build
+  `NINO_BENCH_V3=true dotnet build -c Release` after changing them. No CI job but report.yml builds it, so a break
+  shows only at a release (51a7bd18's `--write-proto` did, until the rc.10 review).
 - A script that reads BenchmarkDotNet reports does it through `reports/bdn.py` (one parser, one unit table, one floor);
   the 1 ns floor is the docs site's (`src/lib/benchmarks.ts`) too.
 

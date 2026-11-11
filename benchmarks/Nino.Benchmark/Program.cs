@@ -19,11 +19,13 @@ namespace Nino.Benchmark
         {
             if (args.Contains("--verify"))
                 return Verify.Run();
+#if !NINO_BENCH_V3
             if (args.Contains("--write-proto"))
             {
                 Workloads.WorkloadTest.WriteProto();
                 return 0;
             }
+#endif
 
             // The probes (classes named *Probe, CpuProbe.cs) time kernels on their own jobs: only
             // a filter that names one runs them, never the suite's '*'.

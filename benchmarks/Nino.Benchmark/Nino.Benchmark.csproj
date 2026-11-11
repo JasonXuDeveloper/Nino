@@ -9,6 +9,8 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <!-- -p:NinoBenchLegacy=true leaves out the benchmarks an older release's generator cannot compile (A/B runs). -->
         <DefineConstants Condition="'$(NinoBenchLegacy)' == 'true'">$(DefineConstants);NINO_BENCH_LEGACY</DefineConstants>
+        <!-- The v3 build (NINO_BENCH_V3=true) compiles Program.cs without the workloads it refers to. -->
+        <DefineConstants Condition="'$(NinoBenchV3)' == 'true'">$(DefineConstants);NINO_BENCH_V3</DefineConstants>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="BenchmarkDotNet" />
