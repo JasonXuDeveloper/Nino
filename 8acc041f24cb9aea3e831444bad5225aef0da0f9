@@ -1,0 +1,1 @@
+Added: `NinoKernels.Interleave32` lets a host register a native kernel that writes the pairs of `SortedList<K,V>` and other four-byte key/value collections; Unity registers a Burst one. The bytes are unchanged.
