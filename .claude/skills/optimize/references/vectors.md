@@ -433,6 +433,13 @@ of bytes in a block.
   shrank from 528 to 296 B, with a 388 B fresh helper and a 172 B fused loop. Emulated
   x64 AVX2 emitted a 191 B fused loop, and the 512-bit variant passed software checks.
   Native x64 throughput remains unmeasured (`16dc6de8`).
+  Inline the fresh read entry into `ReadNew` and specialize the stride from the raw slot size.
+  Check SIMD support there so the scalar build skips the dispatch. The Arm64 entry and helper
+  went from 388 + 124 B to 432 B, or 332 B with intrinsics disabled. Emulated AVX2 went from
+  276 + 78 B to 303 B. The fused loops kept their sizes. The helper added seven IL bytes and
+  the caller stayed at 47. Four default-JIT M4 comparisons favored the 129-item Int32 fresh
+  case at offset seven, while long, cold and reused cases varied with A/A. Wire, generated
+  source and typical allocation matched. All three targeted suites passed (`b7fb6874`).
   Keep the scalar tail for the shared validator. An overlapping load ending on a whole stride
   preserved mask phase, and a strided field ending at its last flag still needed one scalar check.
   Folding the tail vector into the accumulator, then trying a separate tail check with an exact-end
