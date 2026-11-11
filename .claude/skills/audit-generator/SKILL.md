@@ -291,6 +291,15 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   1,108 + 252, and 870 offline x64 bytes to 765 + 186, including its new argument helper.
   All three generator builds matched emitted source, 578-model reuse and collection
   (`ebf033ad`).
+- Track only generic nodes in closed registration traversal. A non-generic leaf has no
+  registrations or children, and arrays preserve the element's depth. Keep the first
+  generic node in local state and allocate a set for the second distinct node.
+  The 418-root replay preserved all 58 ordered registrations and saved 65–75 KB per pass.
+  Four timings were below their paired baseline averages, with substantial A/A variation.
+  Cold and edited real-project times remained in the control range. `Collect` kept 58 IL
+  bytes and went from 284 to 220 Arm64 bytes and from 166 to 152 offline x64 bytes.
+  The new visited helper adds 98 IL, 324 Arm64 and 237 offline x64 bytes.
+  All three builds matched generated files, edit reuse and collection (`2592b038`).
 - Skip type parameter collection, projection and constraint rendering for non-generic models.
   Roslyn's `IsGenericType` includes parameters on containing types. The real project had 495
   non-generic models and eight arity-zero models that inherited parameters. Four default-JIT
