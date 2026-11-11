@@ -422,6 +422,17 @@ of bytes in a block.
   at 0 B allocated. Nullable timings varied. The strided bool entry grew
   from 68 to 160 Arm64 FullOpts bytes and 25 to 91 x64 cross-JIT bytes.
   All three vector widths passed direct last-flag and full-slot probes.
+  Fuse the flag scan and copy for fresh raw nullable arrays of at least 128 slots with
+  strides of eight or sixteen bytes. The destination is unpublished until all flags pass.
+  Reuse the width-specific loads, masks and CPU policy. Four-vector groups emit paired
+  loads and stores on Arm64. The single-vector candidate lost on long inputs, and the
+  short-stride candidates slowed reuse. Keep those reads on the existing path. The final
+  version's default-JIT cache-boundary timings varied alongside A/A. The aligned 4,092
+  Int32 and 2,044 Int64 cases took less time in all four no-GC controls at the same
+  allocations. All 72 wire samples and four generated files matched. The Arm64 entry
+  shrank from 528 to 296 B, with a 388 B fresh helper and a 172 B fused loop. Emulated
+  x64 AVX2 emitted a 191 B fused loop, and the 512-bit variant passed software checks.
+  Native x64 throughput remains unmeasured (`16dc6de8`).
   Keep the scalar tail for the shared validator. An overlapping load ending on a whole stride
   preserved mask phase, and a strided field ending at its last flag still needed one scalar check.
   Folding the tail vector into the accumulator, then trying a separate tail check with an exact-end
