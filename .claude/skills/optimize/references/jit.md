@@ -230,6 +230,21 @@ and when `asm.py compare` lists methods the change did not touch.
   Arm64 Tier 1 listing from 668 to 1,880 bytes, while passing the result kept it at 668 bytes.
   Keep the isolated alternatives for future measurement.
 
+- Write registered fixed-size values into the external buffer's span. Use the same
+  fixed writer as the byte-array entry, write the null marker explicitly into dirty
+  memory, and advance only after the bytes are filled. Keep scratch for variable-sized
+  output and dispatch once through the formatter after the existing direct paths.
+  The 53-byte sealed object moved from 18.5 to 7.2 ns and the 13-byte struct from
+  6.7 to 4.2 ns in four M4 pairs, with offsets zero, one and seven at zero allocation.
+  The first call including initialization also took less time in four pairs. A mixed
+  fixed and variable probe showed large A/A variation. The dedicated mixed loop with
+  longer warmup took less time in all four comparisons.
+  `SerializeOther` went from 69 to 64 IL bytes and its Arm64 Tier 1 body went from
+  1,008 to 648 bytes plus a 428-byte fixed override. The x64 guest went from 731 to
+  522 plus 334 bytes. Use those listings as instruction evidence only. Wire bytes
+  matched on both architectures, all 584 real-project generated files matched, and
+  the four targeted configurations passed (`6e21668c`).
+
 - Delay copying the prefix of a full synchronous stream buffer until the next read returns bytes.
   A non-seekable stream ending at a buffer boundary needs the EOF read but no prefix copy.
   The 64 KiB wire case improved in each of four local rounds, with the adjacent 64 KiB plus
