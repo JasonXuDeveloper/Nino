@@ -173,7 +173,7 @@ public class StrictReadTests
         {
             Invalid<bool>(new[] { b });
             // In a block, at the start, in the middle (past the first 8 and 16) and at the end.
-            foreach (int length in new[] { 1, 9, 33, 100 })
+            foreach (int length in new[] { 1, 9, 33, 100, 4097 })
             foreach (int at in new[] { 0, length / 2, length - 1 })
             {
                 var block = new byte[length];

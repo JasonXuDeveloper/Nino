@@ -92,8 +92,16 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static bool TryCopyFlags(ref byte target, ref byte source, int bytes, int stride)
         {
-            if (!TryFlagMask(stride, out var mask))
-                return false;
+            return TryFlagMask(stride, out var mask) && CopyFlagsBest(ref target, ref source, bytes, mask);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool TryCopyBools(ref byte target, ref byte source, int bytes) =>
+            CopyFlagsBest(ref target, ref source, bytes, Vector128.Create(0xFEFE_FEFE_FEFE_FEFEUL));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool CopyFlagsBest(ref byte target, ref byte source, int bytes, Vector128<ulong> mask)
+        {
             if (NinoSimd.Prefer512)
                 return CopyFlags<Vector512<byte>, FlagVectors512>(ref target, ref source, bytes, mask);
             if (NinoSimd.Has256)

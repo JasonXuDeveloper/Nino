@@ -10,6 +10,10 @@ namespace Nino.Core
     /// <summary>Unmanaged <c>T[]</c>: length (-1 = null), then one block copy.</summary>
     public struct UnmanagedArrayFormatter<[NinoRaw] T> : INinoFormatter<T[]>, INinoRawArrayFormatter where T : unmanaged
     {
+#if NET8_0_OR_GREATER
+        private const int MinFusedBytes = 4096;
+#endif
+
         // Elements with a non-canonical layout take the formatter path, which converts them.
         int INinoRawArrayFormatter.ElementSize => NinoLayout<T>.IsCanonical ? Unsafe.SizeOf<T>() : 0;
 
@@ -104,6 +108,11 @@ namespace Nino.Core
         {
             // A new array (NinoDeserializer.Deserialize<T[]>(data) passes null, a constant once inlined): no slot
             // to reuse, so no local whose address reaches the recycler and stays in memory.
+#if NET8_0_OR_GREATER
+            if (typeof(T) == typeof(bool) && existing == null && NinoSimd.Has128 &&
+                data.Length >= NinoWire.LengthSize + MinFusedBytes)
+                return ReadNewChecked(data);
+#endif
             if (existing == null && NinoLayout<T>.CopiesAsIs)
                 return ReadNew(data);
             var reader = new Reader(data);
@@ -111,6 +120,11 @@ namespace Nino.Core
             Deserialize(ref reader, ref value);
             return value;
         }
+
+#if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static T[] ReadNewChecked(ReadOnlySpan<byte> data) => ReadNew(data);
+#endif
 
         /// <summary>The bytes of <see cref="Deserialize"/>, into a new array (null for null).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -129,8 +143,17 @@ namespace Nino.Core
             }
 
             var array = NinoUnsafe.NewArray<T>(length, uninitialized: true);
-            NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
-                ref Unsafe.Add(ref start, NinoWire.LengthSize), (uint)bytes);
+            ref byte target = ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array));
+            ref byte source = ref Unsafe.Add(ref start, NinoWire.LengthSize);
+#if NET8_0_OR_GREATER
+            if (typeof(T) == typeof(bool))
+            {
+                if (bytes >= MinFusedBytes && NinoChecks.TryCopyBools(ref target, ref source, (int)bytes))
+                    return array;
+                NinoChecks.Bools(ref source, length);
+            }
+#endif
+            NinoUnsafe.CopyToNew(ref target, ref source, (uint)bytes);
             return array;
         }
 
