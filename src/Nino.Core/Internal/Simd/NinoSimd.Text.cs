@@ -28,7 +28,7 @@ namespace Nino.Core.Internal
                         return SameWideShortLatin1(ref source, ref chars, n);
 
                     // ReadyToRun folds the x64 baseline ISA even when it leaves the Arm64 test as a call.
-                    if (n >= 24 && !Sse2.IsSupported && System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported)
+                    if (n >= 24 && HasArm64)
                         return SameMediumLatin1(ref source, ref chars, n);
 
                     var diff = Vector128<ushort>.Zero;
@@ -66,7 +66,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static bool SameWideShortLatin1(ref byte source, ref ushort chars, nuint count)
         {
-            if (count >= 32 && Prefer512Int16)
+            if (count >= 32 && Prefer512)
                 return SameLatin1Blocks<CompareShortLatin1_512>(ref source, ref chars, count);
             if (Avx2.IsSupported)
                 return SameLatin1Blocks<CompareShortLatin1_256>(ref source, ref chars, count);
@@ -188,7 +188,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe bool Narrow512(ref ushort source, ref byte destination, nuint n)
+        internal static unsafe bool Narrow512(ref ushort source, ref byte destination, nuint n)
         {
             nuint i = 0;
             while (true)
@@ -323,7 +323,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe void Widen512(ref byte source, ref ushort destination, nuint n)
+        internal static unsafe void Widen512(ref byte source, ref ushort destination, nuint n)
         {
             nuint i = 0;
             while (true)
@@ -413,7 +413,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool SameLatin1Blocks<TCompare>(ref byte source, ref ushort chars, nuint count)
+        internal static bool SameLatin1Blocks<TCompare>(ref byte source, ref ushort chars, nuint count)
             where TCompare : struct, ICompareLatin1
         {
             nuint width = TCompare.Width;
@@ -429,13 +429,13 @@ namespace Nino.Core.Internal
             return true;
         }
 
-        private interface ICompareLatin1
+        internal interface ICompareLatin1
         {
             static abstract nuint Width { get; }
             static abstract bool Same(ref byte source, ref ushort chars, nuint offset);
         }
 
-        private readonly struct CompareShortLatin1_256 : ICompareLatin1
+        internal readonly struct CompareShortLatin1_256 : ICompareLatin1
         {
             public static nuint Width => 16;
 
@@ -444,7 +444,7 @@ namespace Nino.Core.Internal
                 LoadWiden16To256(ref source, offset) == Vector256.LoadUnsafe(ref chars, offset);
         }
 
-        private readonly struct CompareShortLatin1_512 : ICompareLatin1
+        internal readonly struct CompareShortLatin1_512 : ICompareLatin1
         {
             public static nuint Width => 32;
 
@@ -484,7 +484,7 @@ namespace Nino.Core.Internal
             }
         }
 
-        private readonly struct CompareLatin1_512 : ICompareLatin1
+        internal readonly struct CompareLatin1_512 : ICompareLatin1
         {
             public static nuint Width => 64;
 

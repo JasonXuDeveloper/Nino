@@ -111,7 +111,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static bool CopyFlags<TVector, TOps>(ref byte target, ref byte source, int bytes, Vector128<ulong> mask)
+        internal static bool CopyFlags<TVector, TOps>(ref byte target, ref byte source, int bytes, Vector128<ulong> mask)
             where TVector : struct
             where TOps : struct, IFlagVectors<TVector>
         {
@@ -155,7 +155,7 @@ namespace Nino.Core.Internal
 
         // Tier 0 leaves calls inside the scan, so compile this validator with its helpers inlined from the start.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static bool ValidFlagBlocks<TVector, TOps>(ref byte first, int bytes, int stride)
+        internal static bool ValidFlagBlocks<TVector, TOps>(ref byte first, int bytes, int stride)
             where TVector : struct
             where TOps : struct, IFlagVectors<TVector>
         {
@@ -183,7 +183,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TryFlagMask(int stride, out Vector128<ulong> mask)
+        internal static bool TryFlagMask(int stride, out Vector128<ulong> mask)
         {
             switch (stride)
             {
@@ -232,7 +232,7 @@ namespace Nino.Core.Internal
             return TOps.Or(low, high);
         }
 
-        private interface IFlagVectors<TVector> where TVector : struct
+        internal interface IFlagVectors<TVector> where TVector : struct
         {
             static abstract TVector Load(ref byte at, nuint offset);
             static abstract void Store(ref byte at, nuint offset, TVector value);
@@ -274,7 +274,7 @@ namespace Nino.Core.Internal
                 (bits.AsUInt64() & Vector256.Create(mask, mask)) != Vector256<ulong>.Zero;
         }
 
-        private readonly struct FlagVectors512 : IFlagVectors<Vector512<byte>>
+        internal readonly struct FlagVectors512 : IFlagVectors<Vector512<byte>>
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static Vector512<byte> Load(ref byte at, nuint offset) =>

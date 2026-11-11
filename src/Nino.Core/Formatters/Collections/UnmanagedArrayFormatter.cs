@@ -68,9 +68,7 @@ namespace Nino.Core
             ref byte destination = ref NinoUnsafe.GetArrayDataReference(bytes);
             ref byte source = ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values));
 #if NET8_0_OR_GREATER
-            if (Unsafe.SizeOf<T>() == 1 && !System.Runtime.Intrinsics.X86.Sse2.IsSupported &&
-                System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && (uint)(length - 65) <= 63 &&
-                !NinoLayout<T>.HasPadding)
+            if (Unsafe.SizeOf<T>() == 1 && !NinoLayout<T>.HasPadding && NinoUnsafe.IsArm64Short((uint)length))
             {
                 NinoUnsafe.Write(ref destination, length);
                 NinoUnsafe.CopyArm64Short(ref Unsafe.Add(ref destination, NinoWire.LengthSize), ref source,
@@ -184,7 +182,7 @@ namespace Nino.Core
             ref byte destination = ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array));
             ref byte source = ref reader.UnsafeAdvance((int)bytes);
 #if NET8_0_OR_GREATER
-            if (System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && bytes - 81 <= 47)
+            if (NinoUnsafe.IsArm64Short((nuint)bytes))
                 NinoUnsafe.CopyArm64Short(ref destination, ref source, (uint)bytes);
             else
 #endif

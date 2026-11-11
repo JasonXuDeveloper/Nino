@@ -118,7 +118,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Interleave512<T, TZip>(ref T first, ref T second, ref byte target, int count)
+        internal static void Interleave512<T, TZip>(ref T first, ref T second, ref byte target, int count)
             where T : unmanaged where TZip : struct, IZip<T>
         {
             int lanes = Vector512<T>.Count;
@@ -417,7 +417,7 @@ namespace Nino.Core.Internal
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void DeinterleaveInt32_512(ref byte source, ref int first, ref int second, int count)
+        internal static void DeinterleaveInt32_512(ref byte source, ref int first, ref int second, int count)
         {
             var even = Vector512.Create(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30);
             var odd = even + Vector512.Create(1);

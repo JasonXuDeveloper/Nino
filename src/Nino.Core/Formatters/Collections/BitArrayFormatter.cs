@@ -54,7 +54,7 @@ namespace Nino.Core
             ref byte first = ref MemoryMarshal.GetReference(source);
             if (NinoSimd.HasArm64 && size > 64)
             {
-                if (size <= 128)
+                if (size <= NinoUnsafe.MaxArm64Short)
                     NinoUnsafe.CopyArm64Short(ref payload, ref first, (uint)size);
                 else
                     NinoUnsafe.CopyOver64(ref payload, ref first, (uint)size);
@@ -99,7 +99,7 @@ namespace Nino.Core
                     ref byte destination = ref MemoryMarshal.GetReference(target);
                     ref byte source = ref MemoryMarshal.GetReference(bytes);
                     uint size = (uint)bytes.Length;
-                    if (NinoSimd.HasArm64 && size <= 128)
+                    if (NinoUnsafe.IsArm64Short(size))
                         NinoUnsafe.CopyArm64Short(ref destination, ref source, size);
                     else
                         NinoUnsafe.CopyOver64(ref destination, ref source, size);

@@ -77,19 +77,14 @@ namespace Nino.Core.Internal
         /// and Intel's other than the Sunny Cove generation (<see cref="IsIceLake"/>), where both kernels below lost.
         /// Not by AVX512-FP16 (Sapphire Rapids and later): Azure's Xeon Platinum 8573C (Emerald Rapids) does not report
         /// it, and with 32-byte masks there it wrote 1,000 8-byte structs with a padding byte in 92 ns instead of 60
-        /// (.NET A/B run 41020623184). Uses the cached CPU profile.
+        /// (.NET A/B run 41020623184). Uses the cached CPU profile. Implies AVX-512BW: <see cref="Vector512"/> is
+        /// accelerated only with AVX-512 F, BW, CD, DQ and VL. The pair permutes and padding masks were measured on Ice
+        /// Lake; the text, pair-interleave, value-check and bool-slot kernels inherit the gate unmeasured there.
         /// </summary>
         internal static bool Prefer512
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => Has512 && X86Base.IsSupported && !IceLake;
-        }
-
-        /// <summary>512-bit operations on 16-bit lanes require AVX-512BW as well as the shared CPU preference.</summary>
-        internal static bool Prefer512Int16
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Avx512BW.IsSupported && Prefer512;
         }
 
         /// <summary>

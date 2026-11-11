@@ -649,6 +649,24 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         private const uint MaxArm64VectorCopy = 64 * 1024;
 
+        /// <summary>Smallest payload <see cref="CopyArm64Short"/> takes: one byte more than a single 64-byte chunk.</summary>
+        internal const uint MinArm64Short = 65;
+
+        /// <summary>Largest payload <see cref="CopyArm64Short"/> takes: its two 64-byte chunks.</summary>
+        internal const uint MaxArm64Short = 128;
+
+        /// <summary>
+        /// Whether a raw copy of <paramref name="size"/> bytes takes <see cref="CopyArm64Short"/> (or
+        /// <see cref="CopyArm64ShortMayOverlap"/>): on Arm64, from <see cref="MinArm64Short"/> to
+        /// <see cref="MaxArm64Short"/> bytes, where the Arm64 JIT turns the two constant 64-byte copies into paired
+        /// 128-bit loads and stores (M4: reads 23-45 % and writes 28-37 % faster than the general copy). Test it at the
+        /// call site, never inside <see cref="CopyToNew"/> or <see cref="Copy"/>: a branch in the shared dispatcher
+        /// slowed copies it did not take (the 1 KiB and 64-byte Int32 controls; `optimize`, vectors-copies.md).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool IsArm64Short(nuint size) =>
+            NinoSimd.HasArm64 && size - MinArm64Short <= MaxArm64Short - MinArm64Short;
+
         // Two overlapping 64-byte chunks for a 65- to 128-byte payload in distinct storage.
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static void CopyArm64Short(ref byte destination, ref byte source, uint size)

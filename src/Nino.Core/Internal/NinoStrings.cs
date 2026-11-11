@@ -108,8 +108,8 @@ namespace Nino.Core.Internal
                 : Narrow(ref chars, ref Unsafe.Add(ref destination, 1), (uint)length);
             if (!narrowed)
             {
-                if (!System.Runtime.Intrinsics.X86.Sse2.IsSupported &&
-                    System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported && length > 32)
+                // 33 to 63 chars: 66 to 126 bytes.
+                if (NinoUnsafe.IsArm64Short((uint)length * sizeof(char)))
                 {
                     int bytes = length * sizeof(char);
                     destination = (byte)bytes;
