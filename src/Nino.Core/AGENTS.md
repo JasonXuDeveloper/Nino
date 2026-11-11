@@ -81,8 +81,10 @@ NinoFunctionPointerFields.cs the delegate* fields of structs, by assembly and ru
                              register them (Register, merged across registries): the one source layouts take function
                              pointers from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
-NinoUnsafe.cs                unaligned little-endian memory access, block copies (vector loops, paired loads),
-                             ReadBool, array allocation; used by Reader, Writer and generated code
+NinoUnsafe.cs                unaligned little-endian memory access, ReadBool, array allocation, type queries; used by
+                             Reader, Writer and generated code
+NinoUnsafe.Copy.cs           NinoUnsafe.Copy and its parts: block copies by size (overlapping moves, vector loops, Arm64
+                             paired loads, Memmove beyond)
 ```
 
 ## Formatters/
