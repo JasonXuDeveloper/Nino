@@ -289,6 +289,7 @@ internal static class Interceptors
         // One location attribute per call site, but only one method per group.
         int locationCapacity = calls.Length * 128;
         bool canAliasBytes = false;
+        bool plainLocations = true;
         // A class header and braces, one line per location, and two per forwarder.
         int indentation = (3 + calls.Length + 2 * groups.Count) * 4;
 #if ROSLYN4_12
@@ -304,6 +305,8 @@ internal static class Interceptors
                 locationCapacity += 4 + call.Where.Length;
             preindent = preindent && call.Where.IndexOf('\n') < 0;
             canAliasBytes = canAliasBytes && !call.Where.Contains(GeneratedCode.BytesType);
+            plainLocations = plainLocations && !call.Where.Contains(TypeNames.Gen) &&
+                             !call.Where.Contains(TypeNames.Core);
         }
 #else
         bool preindent = false;
@@ -337,6 +340,13 @@ internal static class Interceptors
         }
         compact.Declare(aliases);
 
+        // Fully compacted slices and plain location comments need no final rewrite. Write the complete file once.
+        bool complete = preindent && plainLocations && compact.Ready && compact.UseBytesAlias;
+        string preamble = fileLocal ? AttributePrefix + "file" + AttributeSuffix
+            : AttributePrefix + "internal" + AttributeSuffix;
+        if (complete)
+            aliases.Add(GeneratedCode.BytesDeclaration);
+
         int n = 0;
         foreach (var group in groups)
         {
@@ -353,12 +363,12 @@ internal static class Interceptors
         w.Close();
         if (preindent)
             w.Close();
+        if (complete)
+            return w.Finish(GeneratedCode.IndentedFile(preamble, aliases, ""));
         string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
         if (compact.UseBytesAlias && !aliases.Contains(GeneratedCode.BytesDeclaration))
             aliases.Add(GeneratedCode.BytesDeclaration);
         // A block namespace: the file declares the attribute in another namespace.
-        string preamble = fileLocal ? AttributePrefix + "file" + AttributeSuffix
-            : AttributePrefix + "internal" + AttributeSuffix;
         return preindent ? GeneratedCode.IndentedFile(preamble, aliases, body)
             : GeneratedCode.File(preamble, aliases, body, fileScoped: false, indentation);
     }

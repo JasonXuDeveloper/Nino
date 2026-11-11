@@ -177,4 +177,11 @@ internal sealed class CodeWriter
             _sb.Append('\n');
         return _sb.ToString();
     }
+
+    /// <summary>Prepends a small file prefix without first materializing a separate body string.</summary>
+    public string Finish(string prefix)
+    {
+        _sb.Insert(0, prefix);
+        return Finish();
+    }
 }
