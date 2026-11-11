@@ -186,20 +186,30 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   Rust `RawNullables` to the site), keep the cut section's anchor and point the inbound links at the owner's anchor,
   so readers do not land on the summary (round 103: the platforms page's binary format and SIMD sections became
   summaries; about 30 links moved to `wire-format#strings` and `simd#dotnet`).
-- **Keep README a storefront in reading order**: hero (tagline, two badge rows, nav links), "Why Nino" as 5 to 7
-  claims of a line or two, each with its link, Install, a short Quick start, an "AI coding assistants" section of its own (the skill's install
-  command, what it teaches, llms.txt; owner: not a sub-item of Install), the benchmark chart, then compact
-  "Built for", the MemoryPack and v4-vs-v3 tables and links to the site for the rest; no callout or long list before
-  Install, and README.zh.md the same sections in the same order. Why: a reader decides in the first two screens
-  (round 129, owner: "README 有点乱"; Install sat at 4,300 px of 9,200, now at 850 of 4,800). Badges: a row of
-  packages (NuGet, OpenUPM, crates.io, npm, Go), each in its platform's colours and logo (`style=for-the-badge`, `labelColor`,
-  `color`, `logoColor=white`; owner's pick), then a smaller flat-square row of build, license, docs and DeepWiki; one grey row of all of them was too crowded
-  and plain (owner). Every package badge shows the newest version, prereleases included (`nuget/vpre`, npm's `next`
-  tag); Go has no registry, so its badge links pkg.go.dev. Never start a line of a paragraph or list item with a
-  `<!--bench:...-->` marker: a line starting `<!--` opens an HTML block, and the rest of the item loses its bold and
-  links (README.zh.md's first bullet, round 129). GitHub renders only pushed content, so render the branch locally
-  (marked and github-markdown-css at 838 px, screenshot with Playwright) and check the markers by running
-  `benchmarks/readme.py`'s `fill` on a copy with origin/main's values: every key found, no value changed.
+- **Keep README a storefront in reading order, short and plain**: hero (tagline, the platforms with Native AOT
+  named, two badge rows, nav links), "Why Nino" as 5 to 8 claims of a line or two (SIMD on every platform among them), each with its link (the first
+  names MemoryPack, MessagePack and protobuf-net: not every reader knows MemoryPack), Install, a short Quick start, an
+  "AI coding assistants" section of its own (the skill's install command, what it teaches, llms.txt; owner: not a
+  sub-item of Install), Benchmarks (the speed table against MemoryPack, MessagePack and protobuf-net, then the chart: a light and a
+  dark PNG in a `<picture>` with `prefers-color-scheme`, both written by `readme.py` and rendered by `report.yml`),
+  a compact "Built for" list, the MemoryPack feature table (no speed rows: the Benchmarks table has them), v4 vs v3,
+  Contributing, License; no callout or long list before Install, README.zh.md the same sections in the same order,
+  and links to the site for the rest. No emoji anywhere in either README, in headings, links, tables or lists (owner,
+  round 130: "AI 味道有点重，emoji 用的也不统一"; ✅ in tables became words). Why: a reader decides in the first two
+  screens (round 129, owner: "README 有点乱"; Install sat at 4,300 px of 9,200, now at 850 of 4,800; round 130 cut
+  the English README from 1,240 to 960 words). Badges: every badge `style=for-the-badge` with `logoColor=white`
+  (owner, round 130: the flat-square second row looked inconsistent): a row of packages (NuGet, OpenUPM, crates.io,
+  npm, Go), each in its platform's colours and logo (`labelColor`, `color`), then a row of build, license, docs and
+  DeepWiki on a dark `labelColor=24292F`. Every package badge shows the newest version, prereleases included
+  (`nuget/vpre`, npm's `next` tag); Go has no registry, so its badge links pkg.go.dev. Every speed number in README is
+  a `<!--bench:...-->` marker `benchmarks/readme.py` fills from the release run (`ser.range`, `deser.range`,
+  `msgpack.*`, `protobuf.*`, `reuse.inplace`, `v3.*`); a new number gets a key there, never a hand-typed value. Never
+  start a line of a paragraph or list item with a marker: a line starting `<!--` opens an HTML block, and the rest
+  of the item loses its bold and links (README.zh.md's first bullet, round 129). GitHub renders only pushed content,
+  so render the branch locally (GitHub's own renderer: `gh api markdown` with `mode: markdown`, not `gfm`, which
+  turns every line break into `<br>`; github-markdown-css at 838 px; screenshot with headless Chrome) and check the
+  markers by running `benchmarks/readme.py`'s `fill` on a copy with the newest release's report (its
+  `benchmark-x64-full.md` and `benchmark-v3-full.md` assets): every key found, no value changed.
 - **Copies that must exist agree**: README / README.zh.md, the site's index and comparison pages, the analyzers page
   and `docs/diagnostics.md`, `docs/spec/wire-format.md` and the site's wire-format page, the public skill, the
   runtimes' READMEs and the codegen pages.
