@@ -164,7 +164,7 @@ namespace Samples
         public List<char> Chars;
     }
 
-    // Deep nesting: past 128 open class bodies, a body is deferred (see "Deep nesting" in docs/v4-design.md).
+    // Deep nesting: past 128 open class bodies, a body is deferred (see "Deep nesting" in docs/v4-design/binary-format.md).
 
     /// <summary>Deferred bodies follow the top-level object.</summary>
     [NinoType]

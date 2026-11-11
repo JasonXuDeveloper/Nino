@@ -311,7 +311,7 @@ namespace Conformance
 
             Nest<Chain>("chain-inline-10k",
                 "A sealed chain nested inline 10,000 deep (a writer defers past 128 open bodies). Outside any region " +
-                ".NET reads deep inline data as deferred bodies by design (docs/v4-design.md, Deep nesting), so it " +
+                ".NET reads deep inline data as deferred bodies by design (docs/v4-design/binary-format.md, Deep nesting), so it " +
                 "may be read; a reader must not use stack in proportion to the depth.",
                 d => Repeat(d, i => Concat(NotNull, I32(i)), new byte[] { 0 }), true);
             Nest<Link>("links-inline-10k",

@@ -1121,7 +1121,7 @@ public class Holder
         var e = Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<CaseInsensitiveHolder>(bytes));
         StringAssert.Contains(e.Message, "twice");
         // Into an existing empty dictionary as well. (Merging into a non-empty one does not look for repeated keys:
-        // see "Reuse deserialization and pooling" in docs/v4-design.md.)
+        // see "Reuse deserialization and pooling" in docs/v4-design/runtime.md.)
         var target = new CaseInsensitiveHolder { Value = new CaseInsensitiveDictionary() };
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref target));
         Assert.ThrowsExactly<NinoDataException>(() => RuntimeOnly(new RuntimeBox<CaseInsensitiveDictionary>

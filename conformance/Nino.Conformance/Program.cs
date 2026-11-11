@@ -30,7 +30,7 @@ namespace Conformance
             if (args.Length > 0 && args[0] == "--probe-untrusted")
                 NinoSettings.Untrusted = true;
             // Closed generic subtypes the code only creates (new Box<int>), never names as a member or call type: a
-            // process that reads them without writing them first registers them (docs/v4-design.md, Polymorphism).
+            // process that reads them without writing them first registers them (docs/v4-design/runtime.md, Polymorphism).
             NinoPolymorphic.TryRegister<Box<int>>();
             NinoPolymorphic.TryRegister<Box<string>>();
             NinoPolymorphic.TryRegister<Box<List<Point>>>();
