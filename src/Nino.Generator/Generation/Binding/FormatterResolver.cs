@@ -47,7 +47,7 @@ internal sealed class FormatterResolver
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _plain = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _utf8 = new(SymbolEqualityComparer.Default);
 
-    /// <summary>The nesting formatters named so far (<see cref="GeneratedNestingFormatter"/>), by name: their type and encoding.</summary>
+    /// <summary>The nesting formatters named so far (<see cref="GeneratedNestingFormatter"/>), by fully qualified name.</summary>
     private readonly ConcurrentDictionary<string, (ITypeSymbol Type, bool Utf8)> _nesting = new();
 
     [System.ThreadStatic] private static HashSet<ITypeSymbol>? t_resolving;
@@ -131,11 +131,12 @@ internal sealed class FormatterResolver
             !_visibility.CanName(type))
             return CachedFormatter(type);
         string global = TypeNames.Global(named);
-        string name = TypeNames.NestingFormatterName(named, TypeNames.ComputeId(utf8 ? global + " utf8" : global));
-        _nesting.TryAdd(name, (type, utf8));
+        string qualifiedName = TypeNames.Gen +
+            TypeNames.NestingFormatterName(named, TypeNames.ComputeId(utf8 ? global + " utf8" : global));
+        _nesting.TryAdd(qualifiedName, (type, utf8));
         return CachedFormatter(type) with
         {
-            Code = FormatterRef.Named(TypeNames.Gen + name), Traits = FormatterTraits.None,
+            Code = FormatterRef.Named(qualifiedName), Traits = FormatterTraits.None,
         };
     }
 
@@ -158,11 +159,12 @@ internal sealed class FormatterResolver
             foreach (var entry in _nesting)
             {
                 if (found.ContainsKey(entry.Key) ||
-                    text.IndexOf(TypeNames.Gen + entry.Key, System.StringComparison.Ordinal) < 0)
+                    text.IndexOf(entry.Key, System.StringComparison.Ordinal) < 0)
                     continue;
                 // Null when no rule binds the type after all (its elements did): written as its formatter would be.
                 string body = (Resolve(entry.Value.Type, entry.Value.Utf8)?.Code ?? Cached(entry.Value.Type)).ToString();
-                found.Add(entry.Key, new NestingModel(entry.Key, TypeNames.Global(entry.Value.Type), body));
+                string name = entry.Key.Substring(TypeNames.Gen.Length);
+                found.Add(entry.Key, new NestingModel(name, TypeNames.Global(entry.Value.Type), body));
                 pending.Push(body);
             }
         }
