@@ -1563,7 +1563,7 @@ types.add(2087250468, OpenInt64, (r) => readOpen(r, closed$3), (w, v) => writeOp
 function read$0<T>(r: NinoReader, c: Bag$Codecs<T>): T[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<T>(length);
+  const values = new Array<T>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = c.p0.read(r);
   return values;
 }
@@ -1607,7 +1607,7 @@ function readInto$1<T>(r: NinoReader, c: Bag$Codecs<T>, cur: Map<string | null, 
 function read$2<T>(r: NinoReader, c: Bag$Codecs<T>): (Box<T> | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<Box<T> | null>(length);
+  const values = new Array<Box<T> | null>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = c.d0.read(r);
   return values;
 }
@@ -1697,7 +1697,7 @@ function write$3(w: NinoWriter, map: ReadonlyMap<number, number> | null): void {
 function read$4(r: NinoReader): (IThing | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<IThing | null>(length);
+  const values = new Array<IThing | null>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = IThingCodec.read(r);
   return values;
 }
@@ -1714,7 +1714,7 @@ function readInto$4(r: NinoReader, cur: (IThing | null)[]): (IThing | null)[] | 
 function read$5(r: NinoReader): Gappy[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<Gappy>(length);
+  const values = new Array<Gappy>(r.capacity(length));
   for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) values[i] = readGappy(r, at);
   return values;
 }
@@ -1861,7 +1861,7 @@ function write$8(w: NinoWriter, values: ReadonlySet<string | null> | null): void
 function read$9(r: NinoReader): (Int128 | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<Int128 | null>(length);
+  const values = new Array<Int128 | null>(r.capacity(length));
   for (let i = 0, at = r.take(length * 32); i < length; i++, at += 32) values[i] = (r.presentAt(at) ? readInt128(r, at + 16) : null);
   return values;
 }
@@ -1960,7 +1960,7 @@ function write$11<T>(w: NinoWriter, map: ReadonlyMap<T, number> | null, c: Keys$
 function read$12<T>(r: NinoReader, c: OpenHolder$Codecs<T>): (Open<T> | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<Open<T> | null>(length);
+  const values = new Array<Open<T> | null>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = c.s0.read(r);
   return values;
 }
@@ -1989,7 +1989,7 @@ function write$12<T>(w: NinoWriter, values: readonly (Open<T> | null)[] | null, 
 function read$13(r: NinoReader): (TupleCell | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<TupleCell | null>(length);
+  const values = new Array<TupleCell | null>(r.capacity(length));
   for (let i = 0, at = r.take(length * 16); i < length; i++, at += 16) values[i] = (r.presentAt(at) ? readTupleCell(r, at + 4) : null);
   return values;
 }
@@ -2020,7 +2020,7 @@ function write$13(w: NinoWriter, values: readonly (TupleCell | null)[] | null): 
 function read$14(r: NinoReader): (Box<number> | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<Box<number> | null>(length);
+  const values = new Array<Box<number> | null>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = codec$4.read(r);
   return values;
 }
@@ -2089,7 +2089,7 @@ function write$15(w: NinoWriter, map: ReadonlyMap<string | null, Pair<number, nu
 function read$16(r: NinoReader): Recursive[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<Recursive>(length);
+  const values = new Array<Recursive>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = readRecursive(r);
   return values;
 }
@@ -2118,7 +2118,7 @@ function write$16(w: NinoWriter, values: readonly Recursive[] | null): void {
 function read$17(r: NinoReader): number[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<number>(length);
+  const values = new Array<number>(r.capacity(length));
   for (let i = 0, at = r.take(length * 4); i < length; i++, at += 4) values[i] = r.view.getInt32(at, true);
   return values;
 }

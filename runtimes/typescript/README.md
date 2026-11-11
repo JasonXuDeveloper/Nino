@@ -76,6 +76,9 @@ check is in the specification's §9. Every failure is a `NinoError`, never anoth
   type id of 0). The reader records an object as it creates it, before its body; the writer numbers objects by
   identity.
 - A section of deferred bodies is checked when its region is opened, before any member is read (§7.10.3).
+- Arrays and the hash-flooding guards of maps and sets are presized from one budget per read: 16 bytes per byte of
+  data plus 16 KB, an element counted as 8 bytes (`NinoReader.capacity`). Past it they grow as they are read, so
+  nested collections that each claim the bytes left cannot each allocate them.
 - A repeated key or element in a map or set (§9.8) is found with one size comparison after it is read.
 - Hash flooding (§9.8): V8 hashes strings with a per-process seed but numbers and `bigint`s without one, so for a map
   or set of more than 128 number or `bigint` keys, generated code passes each key through `NinoKeyGuard`, which counts

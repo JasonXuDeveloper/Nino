@@ -302,7 +302,8 @@ func helper_body(h)
         $add = "values[i] = "
         $close = ""
       else
-        $o = $o + "  const values = new Array<" + ts($s.element) + ">(length);\n"
+        # Presized from the read's budget (NinoReader.capacity); past it, assigning at the end grows the array.
+        $o = $o + "  const values = new Array<" + ts($s.element) + ">(r.capacity(length));\n"
         $add = "values[i] = "
         $close = ""
       end

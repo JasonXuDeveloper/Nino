@@ -315,6 +315,13 @@ const maxHashCollisions = 100;
 const guardedKeys = 128;
 
 /**
+ * What the collections of one read may allocate ahead of their elements (`NinoReader.capacity`): 16 bytes per byte of
+ * data plus 16 KB, an element counted as 8 bytes (an array slot), as the Go and Rust readers budget a read.
+ */
+const presizePerByte = 16;
+const presizeFloor = 16384;
+
+/**
  * Bounds what keys read from the data cost a `Map` or `Set` (hash flooding), as `NinoSettings.MaxHashCollisions`
  * does in .NET. V8 hashes strings with a per-process seed, but numbers and bigints without one (its
  * `ComputeUnseededHash` and `ComputeLongHash`), and a string that is an array index ("0" to "4294967294") by its
@@ -797,17 +804,21 @@ export class NinoReader {
   private sectionEnd = 0;
   // Reference tracking: the objects of tracked types read so far, in the order of their headers (made on the first).
   private refs: unknown[] | null = null;
+  // The bytes the collections of this read may still allocate ahead of their elements (see `capacity`).
+  private budget: number;
 
   constructor(data: Uint8Array) {
     this.data = data;
     this.view = new DataView(data.buffer, data.byteOffset, data.byteLength);
     this.end = data.length;
+    this.budget = data.length * presizePerByte + presizeFloor;
   }
 
   // deserialize: copies `data` into this reader's own bytes (scratchSize of them), as a new reader would start.
   private load(data: Uint8Array): void {
     this.data.set(data);
     this.end = data.length;
+    this.budget = data.length * presizePerByte + presizeFloor;
     this.pos = this.depth = this.regions = this.structs = this.sectionEnd = this.textStart = this.textEnd = 0;
     this.text = "";
     this.textSize = 256;
@@ -1089,11 +1100,28 @@ export class NinoReader {
   }
 
 
+  /**
+   * How many of `length` elements (a length checked against the bytes left) a collection allocates before reading
+   * them; it grows as it reads the rest. All the collections of one read share one budget of 16 bytes per byte of
+   * data plus 16 KB, an element counted as 8 bytes, so collections nested in collections that claim more elements than
+   * they hold cannot each allocate the bytes left (as Go's `SliceCap` and Rust's `capacity`). Data a read accepts never
+   * spends it all: each element starts at a byte of its own.
+   */
+  capacity(length: number): number {
+    const size = length * 8, budget = this.budget;
+    if (size <= budget) {
+      this.budget = budget - size;
+      return length;
+    }
+    this.budget = 0;
+    return Math.floor(budget / 8);
+  }
+
   /** An array, list or other sequence: length, then each element. */
   array<T>(read: (reader: NinoReader) => T): T[] | null {
     const length = this.length();
     if (length < 0) return null;
-    const values = new Array<T>(length);
+    const values = new Array<T>(this.capacity(length));
     for (let i = 0; i < length; i++) values[i] = read(this);
     return values;
   }
@@ -1110,10 +1138,12 @@ export class NinoReader {
 
   /**
    * The guard against hash flooding (`NinoKeyGuard`) for a map or set of `length` number, bigint or string keys read
-   * from the data, or null for one of up to 128 keys, which cannot be flooded far.
+   * from the data, or null for one of up to 128 keys, which cannot be flooded far. Its table spends the read's presize
+   * budget (`capacity`): past it (data that claims more than it holds) it counts fewer, fuller buckets, so it is only
+   * stricter.
    */
   keyGuard(length: number): NinoKeyGuard | null {
-    return length > guardedKeys ? new NinoKeyGuard(length) : null;
+    return length > guardedKeys ? new NinoKeyGuard(this.capacity(length)) : null;
   }
 
   /** A dictionary: length, then each key and value. A key read twice is invalid data, as in .NET (see `duplicateKey`). */

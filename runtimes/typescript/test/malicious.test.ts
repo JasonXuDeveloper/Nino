@@ -2,6 +2,7 @@
 // unknown type ids, and random or mutated bytes (fast-check). Every read must throw a NinoError (never read past the end, return garbage, allocate by a forged
 // count, or loop), as Nino's Reader does in .NET.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { describe, it } from "node:test";
 import fc from "fast-check";
 import { deserialize, deserializeExact, NinoError, NinoReader, NinoSubtypes, serialize, type NinoCodec } from "../src/nino.ts";
@@ -116,6 +117,46 @@ describe("malicious data", () => {
     assert.throws(() => new NinoReader(forged).numbers(Int16Array), NinoError);
     const short = Uint8Array.from([...int32(1000), ...new Array(3999).fill(0)]);
     assert.throws(() => new NinoReader(short).numbers(Int32Array), NinoError);
+  });
+
+  it("presizes the collections of one read from one budget, however deep they nest", () => {
+    // 120 nested TreeNode.Children lists, each claiming as many elements as bytes are left, then zeros: the deepest
+    // list reads them as nulls and the one above it runs out. Presized each against the bytes left, the lists took
+    // 120 times the data (1 MB aborted Node under a 64 MB heap with a fatal out-of-memory, not a NinoError); from one
+    // budget per read they take a bounded multiple of it, through generated code and through `NinoReader.array`.
+    const script = `
+      import { deserialize, NinoError } from ${JSON.stringify(new URL("../src/nino.ts", import.meta.url).href)};
+      import { TreeNodeCodec } from ${JSON.stringify(new URL("./generated/Nino.Conformance.ts", import.meta.url).href)};
+      const size = 1 << 20, data = new Uint8Array(size), view = new DataView(data.buffer);
+      for (let i = 0, at = 0; i < 120; i++, at += 9) {
+        data[at] = 1;
+        view.setInt32(at + 5, size - at - 9, true);
+      }
+      const Node = { read: (r) => (r.present() ? (r.i32(), r.array(Node.read)) : null) };
+      for (const codec of [TreeNodeCodec, Node]) {
+        try {
+          deserialize(codec, data);
+          console.log("read");
+        } catch (e) {
+          console.log(e instanceof NinoError ? "NinoError" : String(e));
+        }
+      }`;
+    const child = spawnSync(process.execPath, ["--max-old-space-size=64", "--input-type=module", "-e", script],
+      { encoding: "utf8" });
+    assert.equal(child.stdout, "NinoError\nNinoError\n", child.stderr.slice(0, 2000));
+    assert.equal(child.status, 0);
+  });
+
+  it("spends the presize budget of a read across its collections and key guards", () => {
+    // The budget is 16 bytes per byte of data plus 16 KB, an element counted as 8 bytes: 100 KB holds 204,800 + 2,048.
+    const data = new Uint8Array(100_000), slots = (16 * data.length + 16384) / 8;
+    const reader = new NinoReader(data);
+    assert.equal(reader.capacity(100_000), 100_000);
+    assert.notEqual(reader.keyGuard(100_000), null);
+    assert.equal(reader.capacity(100_000), slots - 200_000);
+    assert.equal(reader.capacity(100_000), 0);
+    // A new read has a budget of its own.
+    assert.equal(new NinoReader(data).capacity(100_000), 100_000);
   });
 
   it("rejects presence bytes other than 0 and 1", () => {
