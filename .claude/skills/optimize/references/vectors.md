@@ -1400,8 +1400,8 @@ of bytes in a block.
   1,000 `Waypoint`s (a bool at offset 14 of 15) deserialized in 0.81 to 0.93 times the time on every CPU (EPYC 7763,
   9V45, 9V74, Xeon 8573C and 8370C, Neoverse-N2). Rejected: a vector check with a periodic mask of the bool
   positions, 211 ns with 64-byte vectors and 325 with 32-byte ones against the scalar 155.
-- Check ranges of values in a run (Untrusted mode's bool, DateTime, decimal, DateOnly and TimeOnly fields,
-  `NinoValueChecks`) with a subtract and an OR, never with compares: per stride, tables of masks and bounds repeat over
+- On x64, check ranges of values in a run (Untrusted mode's bool, DateTime, decimal, DateOnly and TimeOnly fields,
+  `NinoValueChecks`) with subtraction and OR. Per stride, tables of masks and bounds repeat over
   lcm(stride, vector width), each vector ORs `bound - (v & mask)` into an accumulator (bytes: `v & 0xFE`) and only its
   sign bits are tested at the end. Use the vectors only when they cost less than the branch-free scalar loop
   (`2 * passes * stride <= fields * width`). Evidence (local Xeon, AVX-512, 1,000 values): unsigned `GreaterThan`
@@ -1428,6 +1428,16 @@ of bytes in a block.
   for ulong lanes. The separate fixed-mask loop emitted 116/113/141 bytes. The 512-bit listing
   required the wider vector-width setting. These listings provide width and code-size evidence,
   with throughput measured on Arm64 only.
+  Fold a sign-only pass into a preceding pass of the same lane width after the original density
+  check. Reopening vector eligibility for formerly scalar TimeOnly layouts regressed first use.
+  On x64, bound the low bits and OR the masked value to preserve its sign test. On Arm64, use
+  the native unsigned `cmhi` for every wider lane and keep a run of exactly one vector scalar.
+  The latter avoids building a plan on the first short read. In four M4 pairs at offsets 0/1/7,
+  1,025 DateOnly items and the mixed 12-byte record improved by 34% and 37% at the median.
+  Isolated two-baseline controls reproduced the long wins. The three-DateTime first read fell
+  from about 3.0 to 1.9 ms, while the longer cold controls varied. All 72 wire outputs matched
+  with 0 B steady allocation. The Arm64 dispatch and loop stayed at 240 and 272 bytes.
+  x64 fused uint loops were 215/216/247 bytes at 128/256/512-bit ceilings.
 
 ## Blocks, permutes and copies
 
