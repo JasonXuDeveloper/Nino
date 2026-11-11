@@ -284,11 +284,13 @@ NinoReflection.cs            what Nino.Core reads by reflection with the generat
 NinoUnload.cs                hooks that forget an unloaded assembly's types (NinoRegistry.Remove)
 ```
 
-### Internal/
+### Internal/Text/
 
 ```
 NinoStrings.cs               the default string encoding (header, then Latin-1 or UTF-16 chars), FastAllocateString;
                              UTF-8 ([NinoUtf8]) is in Reader / Writer
+NinoStrings.Latin1.cs        Latin-1 chars narrowed, widened, appended and compared (the scalar and word paths; the
+                             vector kernels are NinoSimd.Text)
 ```
 
 ## Rules for these files
