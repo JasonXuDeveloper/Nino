@@ -31,7 +31,20 @@ namespace Nino.Core
         void INinoRawArrayFormatter.WriteTo(IBufferWriter<byte> buffer, Array array)
         {
             var values = Unsafe.As<T[]>(array);
-            WriteRawTo(buffer, values, values.Length, WireSize(values.Length));
+            int length = values.Length;
+            int size = WireSize(length);
+#if NET8_0_OR_GREATER
+            // Full arrays benefit at medium sizes. Offset slices keep the general overlap-safe copy.
+            if (!NinoLayout<T>.HasPadding &&
+                (NinoSimd.Has256 || NinoSimd.HasArm64) &&
+                (uint)(size - NinoWire.LengthSize - 512) <= 1024 - 512)
+            {
+                NinoLayout<T>.WriteRawVectorExternal(buffer,
+                    ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), length, size);
+                return;
+            }
+#endif
+            WriteRawTo(buffer, values, length, size);
         }
 
         internal static void WriteRawTo(IBufferWriter<byte> buffer, ReadOnlySpan<T> values, int length, int size)
