@@ -395,7 +395,9 @@ internal static class TypeNames
     /// </summary>
     public static string NestingFormatterName(INamedTypeSymbol type, int id) =>
         Stem(type.OriginalDefinition).Append('_').Append(id.ToString("X8", System.Globalization.CultureInfo.InvariantCulture))
-            .Append("NestingFormatter").ToString();
+            .Append(NestingFormatterSuffix).ToString();
+
+    internal const string NestingFormatterSuffix = "NestingFormatter";
 
     private static StringBuilder Stem(INamedTypeSymbol type)
     {

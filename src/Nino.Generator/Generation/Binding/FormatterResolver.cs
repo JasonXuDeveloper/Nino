@@ -151,26 +151,39 @@ internal sealed class FormatterResolver
     {
         if (!HasNestingFormatters)
             return EquatableArray<NestingModel>.Empty;
-        var found = new SortedDictionary<string, NestingModel>(System.StringComparer.Ordinal);
-        var pending = new Stack<string>(code);
+        Stack<string>? pending = null;
+        foreach (string text in code)
+        {
+            if (NamesNestingFormatter(text))
+                (pending ??= new Stack<string>()).Push(text);
+        }
+        if (pending == null)
+            return EquatableArray<NestingModel>.Empty;
+
+        SortedDictionary<string, NestingModel>? found = null;
         while (pending.Count != 0)
         {
             string text = pending.Pop();
             foreach (var entry in _nesting)
             {
-                if (found.ContainsKey(entry.Key) ||
+                if (found?.ContainsKey(entry.Key) == true ||
                     text.IndexOf(entry.Key, System.StringComparison.Ordinal) < 0)
                     continue;
                 // Null when no rule binds the type after all (its elements did): written as its formatter would be.
                 string body = (Resolve(entry.Value.Type, entry.Value.Utf8)?.Code ?? Cached(entry.Value.Type)).ToString();
                 string name = entry.Key.Substring(TypeNames.Gen.Length);
-                found.Add(entry.Key, new NestingModel(name, TypeNames.Global(entry.Value.Type), body));
-                pending.Push(body);
+                (found ??= new SortedDictionary<string, NestingModel>(System.StringComparer.Ordinal))
+                    .Add(entry.Key, new NestingModel(name, TypeNames.Global(entry.Value.Type), body));
+                if (NamesNestingFormatter(body))
+                    pending.Push(body);
             }
         }
 
-        return new EquatableArray<NestingModel>(found.Values);
+        return found == null ? EquatableArray<NestingModel>.Empty : new EquatableArray<NestingModel>(found.Values);
     }
+
+    private static bool NamesNestingFormatter(string text) =>
+        text.IndexOf(TypeNames.NestingFormatterSuffix, System.StringComparison.Ordinal) >= 0;
 
     /// <summary>
     /// The collection formatter of a <c>[NinoType]</c> class that is also a collection (derived from
