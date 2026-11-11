@@ -216,8 +216,15 @@ BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries
 
 ```
 NinoBlockBytes.cs            a value's bytes matched to its block's, built once per type for the plans
-NinoBlockCollections.cs      collections of INinoBlockFormatter values: whole-block reads and writes, vector groups
-NinoBlockPlan.cs             NinoBlockPlan<T, TFormatter>: the per-type block plan (ReadPlan, LanePlan, KernelTables)
+NinoBlockCollections.cs      collections of INinoBlockFormatter values: whole-block reads and writes, value by value or
+                             through a kernel; the vector paths (.NET 8+) in the files below
+NinoBlockCollections.Groups.cs     AVX-512: groups by two-source permutes, aligned loads (Ice Lake), pairs (PerPair)
+NinoBlockCollections.Lanes.cs      groups moved as 16-byte lanes (AVX2, SSSE3, Arm64, Wasm), as LanePlan describes
+NinoBlockCollections.Permute64.cs  values moved by one 64-byte permute each step (AVX-512 VBMI, Arm64 table lookups)
+NinoBlockPlan.cs             NinoBlockPlan<T, TFormatter>: the per-type block plan, its flags and tables as static
+                             fields in initialization order (KernelTables in the netstandard builds)
+NinoBlockPlan.Groups.cs      its AVX-512 group tables (Aligned, ReadPlan, GroupReads)
+NinoBlockPlan.Lanes.cs       its lane plan (LanePlan)
 NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte lanes (SSSE3, AVX2, Arm64, Wasm)
 ```
 
