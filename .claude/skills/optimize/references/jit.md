@@ -259,6 +259,19 @@ and when `asm.py compare` lists methods the change did not touch.
   uses 43. Arm64 and x64 guest listings confirm that the path skips scratch.
   Wire bytes, all 584 generated files, callback growth and padding tests matched.
   The four targeted configurations passed (`e2fb5762`).
+  Use the same span copy for canonical array-backed memory and segments. Keep
+  `MemoryManager` values on scratch, even when they expose an array, because
+  `GetSpan` can reenter user code that releases their storage. The array-segment
+  null marker and an empty memory's zero length remain distinct. The final
+  8,192-int read-only slice at destination offset seven went from about 949
+  to 433 ns on M4, and the 4,096-element padded slice from 1,308 to 803 ns,
+  at zero steady allocation. The isolated nonraw string-memory control with
+  longer warmup varied alongside A/A. First use of the 128-int fixture took
+  less time in four rounds. The common copy uses 128 IL bytes, 348 Arm64 Tier 1
+  bytes and 245 x64 guest Tier 1 bytes for int. The raw array and list callers
+  reuse it. The four targeted configurations covered overlapping output, dirty
+  destination padding, enums, bools and custom memory managers. Wire bytes
+  and all 584 generated files matched (`90efac75`).
 
 - Delay copying the prefix of a full synchronous stream buffer until the next read returns bytes.
   A non-seekable stream ending at a buffer boundary needs the EOF read but no prefix copy.
