@@ -232,8 +232,10 @@ NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte
 
 ```
 NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, BCL structs inside them included (tuples,
-                             DateTimeOffset, nint), padding masks, conversion where the runtime differs (x86, Mono,
-                             IL2CPP, .NET Framework), offsets read from an instance (MeasureMemory); NinoLayout<T>
+                             DateTimeOffset, nint): the runtime's probes, Info, padding masks; NinoLayout<T>
+NinoLayout.Checks.cs         the fields of a raw type Untrusted mode checks (ValueChecks)
+NinoLayout.Convert.cs        conversion field by field where the runtime differs (x86, Mono, IL2CPP, .NET Framework)
+NinoLayout.Measure.cs        offsets read from an instance (MeasureMemory)
 NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
                              (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
 NinoMask.cs                  NinoMask: padding cleared while copying values to the wire (vector masks, 8-byte words)
