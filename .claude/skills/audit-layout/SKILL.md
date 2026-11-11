@@ -16,6 +16,18 @@ its own `AGENTS.md` maps every file in it.
   projects next to their own tooling, tests next to fixtures they do not use.
 - **A file in the wrong place**: a CI script under `benchmarks/`, a benchmark helper under `.github/`, a test project
   under `src/`, docs that belong to the website kept in the repository or the other way round.
+- **A flat folder**: scripts of several jobs side by side at one level go into subfolders named by job, as
+  `benchmarks/` did (reports/: what a release publishes; compare/: two runs while developing; asm/: machine code;
+  run.sh, shards.json and members/ stay at the root). A module several jobs share stays with its main users, and the
+  others put that folder on `sys.path` (`reports/bdn.py`, imported by compare/ and members/table.py). Test files
+  group by what they test (`tests/Nino.UnitTests/Generator/{Analyzer,CodeFixes,LayoutBaseline,GeneratedCode}`,
+  `tests/Nino.Fuzz/{Engine,Checks,Inputs}`), code by the part of the pipeline (nino-gen's
+  `Targets/{Go,Rust,TypeScript}`).
+- **A file too long to read**: past roughly 800 lines a file with sections (`#region`, `// ----- x` markers, test
+  groups by rule) is split along them into partial files named `Type.Concern.cs` (`BodyEmitter.Reads.cs`,
+  `AnalyzerTests.Vectors.cs`, `CodegenModel.Generics.cs`), with the topic of a test part in a comment above its
+  partial declaration; secondary top-level types go to their own files (`Pattern.cs`, `GoShape.cs`). The class
+  keeps its name, so test names, filters and the docs naming them stay valid.
 - **Dead or one-off files**: migration scripts whose job is done (a restructure script after the restructure), stale
   fixtures, generated files committed by accident, folders with one file that could join a neighbor.
 - **Names**: a folder or file named after its history rather than its job; two names for one kind of thing
@@ -35,6 +47,15 @@ its own `AGENTS.md` maps every file in it.
 - `git mv`, then update every reference: workflows (paths, `paths:` filters, cache keys), solution and project files,
   scripts that call each other, docs and READMEs, AGENTS.md maps, skills, `.gitattributes` and `.gitignore`.
   `git grep -n '<old path>'` must come back empty (history pages excepted).
+- Prove a move or split of code changed nothing: for the generator, build tests/Nino.UnitTests with
+  `-p:EmitCompilerGeneratedFiles=true` before (a clean worktree of the base) and after, and `diff -r` every
+  `obj/**/generated` tree (byte-identical when the generator and its tests were split, test files moved too: Roslyn
+  4.12's interceptor locations hash the file's content, not its path); for nino-gen, `NINO_UPDATE_GENERATED=1 dotnet
+  test tests/Nino.Codegen.Tests` must leave `git status` clean. A splitter finds a class's closing brace as the last
+  line at its indentation: test files hold C# sources in strings with `}` at column 0. Prune the usings a split leaves
+  by building with `-p:EnforceCodeStyleInBuild=true -p:GenerateDocumentationFile=true` and a temporary `.editorconfig`
+  raising IDE0005 to a warning (`dotnet format style --diagnostics IDE0005` removed nothing), then a plain build proves
+  each removal.
 - A move that published packages, OpenUPM or users' builds depend on (`src/Nino.Unity` is published from its path;
   the props and targets in each package's `build/` folder, such as `src/Nino.Generator/build`, are what NuGet imports
   into users' builds) stays where it is unless the owner agrees. The root `build/` is not one of them: only this
