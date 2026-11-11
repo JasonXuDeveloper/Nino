@@ -11,8 +11,8 @@ namespace Nino.Core.Internal
     internal static partial class NinoSimd
     {
         /// <summary>
-        /// <see cref="NinoStrings.SameLatin1"/> for 1 to 63 chars, inline where vectors are: eight bytes a step widened to eight
-        /// chars (the last step overlapping), four to seven as two overlapping halves, fewer one at a time.
+        /// <see cref="NinoStrings.SameLatin1"/> for 1 to 63 chars, using hardware-appropriate widening blocks and
+        /// overlapping tails within the checked input. Fewer than eight chars use scalar widening.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool SameShortLatin1(ref byte source, string value)
@@ -24,6 +24,9 @@ namespace Nino.Core.Internal
                 ref ushort chars = ref Unsafe.As<char, ushort>(ref MemoryMarshal.GetReference(value.AsSpan()));
                 if (n >= 8)
                 {
+                    if (n >= 16 && (Avx512BW.IsSupported || Avx2.IsSupported))
+                        return SameWideShortLatin1(ref source, ref chars, n);
+
                     // ReadyToRun folds the x64 baseline ISA even when it leaves the Arm64 test as a call.
                     if (n >= 24 && !Sse2.IsSupported && System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported)
                         return SameMediumLatin1(ref source, ref chars, n);
@@ -58,6 +61,16 @@ namespace Nino.Core.Internal
             for (nuint offset = 0; offset < last; offset += 16)
                 diff |= CompareLatin1_128.Difference(ref source, ref chars, offset);
             return diff == Vector128<ushort>.Zero;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static bool SameWideShortLatin1(ref byte source, ref ushort chars, nuint count)
+        {
+            if (count >= 32 && Prefer512Int16)
+                return SameLatin1Blocks<CompareShortLatin1_512>(ref source, ref chars, count);
+            if (Avx2.IsSupported)
+                return SameLatin1Blocks<CompareShortLatin1_256>(ref source, ref chars, count);
+            return SameLatin1Blocks<CompareLatin1_128>(ref source, ref chars, count);
         }
 
         /// <summary>The eight bytes at <paramref name="source"/> as the eight chars they are in Latin-1.</summary>
@@ -382,6 +395,30 @@ namespace Nino.Core.Internal
         {
             static abstract nuint Width { get; }
             static abstract bool Same(ref byte source, ref ushort chars, nuint offset);
+        }
+
+        private readonly struct CompareShortLatin1_256 : ICompareLatin1
+        {
+            public static nuint Width => 16;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool Same(ref byte source, ref ushort chars, nuint offset)
+            {
+                var bytes = Vector128.LoadUnsafe(ref source, offset);
+                var widened = Avx2.IsSupported
+                    ? Avx2.ConvertToVector256Int16(bytes).AsUInt16()
+                    : Vector256.WidenLower(bytes.ToVector256Unsafe());
+                return widened == Vector256.LoadUnsafe(ref chars, offset);
+            }
+        }
+
+        private readonly struct CompareShortLatin1_512 : ICompareLatin1
+        {
+            public static nuint Width => 32;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool Same(ref byte source, ref ushort chars, nuint offset) =>
+                LoadWiden32To512(ref source, offset) == Vector512.LoadUnsafe(ref chars, offset);
         }
 
         private readonly struct CompareLatin1_128 : ICompareLatin1

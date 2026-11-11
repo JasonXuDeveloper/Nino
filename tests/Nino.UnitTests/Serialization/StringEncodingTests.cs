@@ -223,6 +223,47 @@ public class StringEncodingTests
             }
         }
     }
+#if !NINO_CORE_NETSTANDARD
+    private delegate bool Latin1Compare(ref byte source, ref ushort chars, nuint count);
+
+    [TestMethod]
+    [DoNotParallelize]
+    [DataRow(256, 16)]
+    [DataRow(512, 32)]
+    public void ShortLatin1KernelsCompareWholeCharsAtEveryTail(int width, int minimum)
+    {
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic |
+                                                     System.Reflection.BindingFlags.Static;
+        var simd = typeof(Nino.Core.Internal.NinoSimd);
+        var policy = simd.GetNestedType($"CompareShortLatin1_{width}", System.Reflection.BindingFlags.NonPublic);
+        var compare = simd.GetMethod("SameLatin1Blocks", flags).MakeGenericMethod(policy)
+            .CreateDelegate<Latin1Compare>();
+        for (int length = minimum; length <= 63; length++)
+        foreach (int tailPadding in new[] { 0, 1, 7 })
+        {
+            // Padding shifts the actual source address; zero padding ends the payload at the guard page.
+            var bytes = new byte[length + tailPadding];
+            var chars = new char[length];
+            for (int i = 0; i < length; i++)
+                chars[i] = (char)(bytes[i] = (byte)(i * 31 + 0xE9));
+            var guarded = GuardedMemory.AtEnd(bytes);
+            if (guarded.IsEmpty)
+                Assert.Inconclusive("Guard pages are unavailable on this platform.");
+            ref byte source = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(guarded);
+            ref ushort target = ref System.Runtime.CompilerServices.Unsafe.As<char, ushort>(ref chars[0]);
+            Assert.IsTrue(compare(ref source, ref target, (nuint)length));
+            for (int at = 0; at < length; at++)
+            {
+                char original = chars[at];
+                chars[at] = (char)(original + 0x100);
+                Assert.IsFalse(compare(ref source, ref target, (nuint)length), $"{width}: high byte at {at}/{length}");
+                chars[at] = (char)(original ^ 1);
+                Assert.IsFalse(compare(ref source, ref target, (nuint)length), $"{width}: low byte at {at}/{length}");
+                chars[at] = original;
+            }
+        }
+    }
+#endif
 #endif
 
     [TestMethod]
