@@ -68,23 +68,24 @@ NinoDirect.cs                the top-level calls with the formatter the generato
                              Stream forms, the latter through NinoStreams)
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory
 NinoBlocks.cs                NinoBlocks: constrained calls on block formatters, and the offsets NinoBlockMap is built from
-NinoSubtypes.cs              NinoSubtypes<TBase>: the registry of a base type's subtypes by type id
-NinoGeneratedAttribute.cs    [NinoGenerated]: marks an assembly with generated code, names its registry
-INinoRegistry.cs             INinoRegistry: an assembly's generated registry (lazy registration by type id)
-NinoSubtypeHandler.cs        NinoSubtypeHandler: writes and reads one registered type; the registry's entry
-NinoTypes.cs                 NinoTypes: how a generated registry registers a concrete [NinoType], its formatter and its
-                             handler in one call (Register, RegisterFixed, RegisterTop, RegisterTracked)
-NinoParameterMarks.cs        what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
-                             attributes, or where the runtime drops them (IL2CPP) the marks Nino.Core registers for its
-                             own formatters and generated registries for the formatters they register (Register)
-NinoFunctionPointerFields.cs the delegate* fields of structs, by assembly and runtime name, as generated registries
-                             register them (Register, merged across registries): the one source layouts take function
-                             pointers from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
 NinoUnsafe.cs                unaligned little-endian memory access, ReadBool, array allocation, type queries; used by
                              Reader, Writer and generated code
 NinoUnsafe.Copy.cs           NinoUnsafe.Copy and its parts: block copies by size (overlapping moves, vector loops, Arm64
                              paired loads, Memmove beyond)
+Registration/                what a generated registry calls at startup:
+  NinoGeneratedAttribute.cs  [NinoGenerated]: marks an assembly with generated code, names its registry
+  INinoRegistry.cs           INinoRegistry: an assembly's generated registry (lazy registration by type id)
+  NinoTypes.cs               NinoTypes: how a generated registry registers a concrete [NinoType], its formatter and its
+                             handler in one call (Register, RegisterFixed, RegisterTop, RegisterTracked)
+  NinoSubtypes.cs            NinoSubtypes<TBase>: the registry of a base type's subtypes by type id
+  NinoSubtypeHandler.cs      NinoSubtypeHandler: writes and reads one registered type; the registry's entry
+  NinoParameterMarks.cs      what a formatter's type parameters require ([NinoRaw], unmanaged, [NinoCreated]): their
+                             attributes, or where the runtime drops them (IL2CPP) the marks Nino.Core registers for its
+                             own formatters and generated registries for the formatters they register (Register)
+  NinoFunctionPointerFields.cs the delegate* fields of structs, by assembly and runtime name, as generated registries
+                             register them (Register, merged across registries): the one source layouts take function
+                             pointers from
 ```
 
 ## Formatters/
