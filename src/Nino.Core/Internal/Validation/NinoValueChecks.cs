@@ -325,19 +325,26 @@ namespace Nino.Core.Internal
                 ref byte masks = ref pass.Masks[0];
                 ref byte bounds = ref pass.Bounds[0];
                 var bad = Vector<T>.Zero;
+                int period = _period;
                 int phase = 0;
                 int last = length - width;
                 for (int at = 0; at <= last; at += width)
                 {
                     bad |= Test<T, TRange>(Load<T>(ref first, at), ref masks, ref bounds, phase);
                     phase += width;
-                    if (phase == _period)
+                    if (phase == period)
                         phase = 0;
                 }
 
-                // The last vector again, over values already checked.
-                if (length % width != 0)
-                    bad |= Test<T, TRange>(Load<T>(ref first, last), ref masks, ref bounds, last % _period);
+                // Back up from the next vector's phase to the overlapping last vector.
+                int tail = length & (width - 1);
+                if (tail != 0)
+                {
+                    int tailPhase = phase + tail - width;
+                    // Backing up can cross at most one period boundary.
+                    tailPhase += period & (tailPhase >> 31);
+                    bad |= Test<T, TRange>(Load<T>(ref first, last), ref masks, ref bounds, tailPhase);
+                }
                 if (typeof(T) == typeof(byte))
                     return bad == Vector<T>.Zero;
                 // Wider lanes: their sign bits.
