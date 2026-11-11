@@ -1166,6 +1166,20 @@ of bytes in a block.
   tuple widening call with explicit lower and upper operations removed seven helper IL bytes
   but left the Arm64 Tier 1 and both x64 listing sizes unchanged. It slowed the 256-character
   local probe in all four rounds, so keep the tuple form.
+  Keep the existing 128-bit widening loop on Arm64 after the paired-block trials. Two indexed
+  blocks cut loop branches but retained per-block address arithmetic. The outlined byref version
+  formed paired stores and left the x64 width choices alone, but both versions slowed the
+  16-character reused builder at offset seven. Moving only the two stores to one destination
+  base formed `stp` without widening the loop. That version kept the entry at 177 IL bytes,
+  grew the helper from 43 to 48 IL bytes, and reduced Arm64 Tier 1 from 104 to 96 bytes.
+  Offline x64 v2/v3/v4 moved from 79/184/243 to 83/188/245 bytes and the 156-byte AVX-512BW
+  helper kept its folded memory loads. Near 64 KiB of live input and output the kernel's timing
+  overlapped the A/A controls. The 64-character public builder read slowed in all four broad
+  sweeps at offset seven and all four isolated comparisons at offsets zero, one and seven.
+  The direct kernel did not reproduce that slowdown. The builder caller and the timing wrapper
+  kept their Tier 1 sizes. All variants matched the 834 wire, refill and truncation probes,
+  allocated 0 B per timed read, and the shared-address version matched all 584 generated files.
+  Retain the scratch patches when revisiting the caller timing or the x64 AVX2 widen loads.
   For AVX-512BW, widen two 32-byte loads directly with the ISA's conversion and align the middle stores.
   A 64-byte load and tuple widening emitted a vector copy and half extraction. The direct conversion folds
   both loads into `vpmovzxbw` and reduced the v4 helper from 177 to 158 B. Gate the outlined call with the
