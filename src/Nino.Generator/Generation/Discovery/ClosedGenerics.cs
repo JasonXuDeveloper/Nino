@@ -20,38 +20,67 @@ internal static class ClosedGenerics
     // real types, bounded for recursive ones (Node<T> holding a Node<List<T>>).
     private const int MaxDepth = 4;
 
+    // A single generic node needs no set, even when it has several non-generic arguments.
+    private struct VisitedTypes
+    {
+        private INamedTypeSymbol? _first;
+        private HashSet<INamedTypeSymbol>? _many;
+
+        public bool Add(INamedTypeSymbol type)
+        {
+            if (_many != null)
+                return _many.Add(type);
+            if (_first == null)
+            {
+                _first = type;
+                return true;
+            }
+            if (SymbolEqualityComparer.Default.Equals(_first, type))
+                return false;
+
+            _many = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default) { _first, type };
+            return true;
+        }
+    }
+
     /// <summary>Adds the closed generic <c>[NinoType]</c>s that <paramref name="type"/> names.</summary>
     public static void Collect(ITypeSymbol type, TypeFacts facts, List<TypeRegistration> into)
     {
         while (type is IArrayTypeSymbol array)
             type = array.ElementType;
         if (type is INamedTypeSymbol { IsGenericType: true })
-            Walk(type, facts, into, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
+        {
+            var visited = default(VisitedTypes);
+            Walk(type, facts, into, ref visited, 0);
+        }
     }
 
     /// <summary>Adds the closed generic <c>[NinoType]</c> base types of <paramref name="type"/> (and what they name).</summary>
     public static void CollectBases(INamedTypeSymbol type, TypeFacts facts, List<TypeRegistration> into)
     {
-        HashSet<ITypeSymbol>? visited = null;
+        var visited = default(VisitedTypes);
         for (var b = type.BaseType; b != null; b = b.BaseType)
         {
             if (b.IsGenericType)
-                Walk(b, facts, into, visited ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), 0);
+                Walk(b, facts, into, ref visited, 0);
         }
     }
 
     private static void Walk(ITypeSymbol type, TypeFacts facts, List<TypeRegistration> into,
-        HashSet<ITypeSymbol> visited, int depth)
+        ref VisitedTypes visited, int depth)
     {
-        if (depth > MaxDepth || !visited.Add(type))
+        if (depth > MaxDepth)
             return;
         switch (type)
         {
             case IArrayTypeSymbol array:
-                Walk(array.ElementType, facts, into, visited, depth);
+                Walk(array.ElementType, facts, into, ref visited, depth);
                 return;
             case INamedTypeSymbol { IsGenericType: true } named:
-                WalkArguments(named, facts, into, visited, depth);
+                // Only generic types can produce registrations or traverse members.
+                if (!visited.Add(named))
+                    return;
+                WalkArguments(named, facts, into, ref visited, depth);
                 if (!named.OriginalDefinition.IsNinoType() || !facts.Visibility.CanName(named))
                     return;
                 Add(named, facts, into);
@@ -59,7 +88,7 @@ internal static class ClosedGenerics
                 for (var b = named.BaseType; b != null; b = b.BaseType)
                 {
                     if (b.IsGenericType)
-                        Walk(b, facts, into, visited, depth + 1);
+                        Walk(b, facts, into, ref visited, depth + 1);
                 }
 
                 if (named.OriginalDefinition.GetNinoTypeOptions() is { } attr)
@@ -67,7 +96,7 @@ internal static class ClosedGenerics
                     foreach (var member in facts.Members.Of(named.OriginalDefinition, attr))
                     {
                         if (Substituted(named, member) is { } memberType)
-                            Walk(memberType, facts, into, visited, depth + 1);
+                            Walk(memberType, facts, into, ref visited, depth + 1);
                     }
                 }
 
@@ -78,7 +107,7 @@ internal static class ClosedGenerics
                     named.TypeKind == TypeKind.Class && !named.IsSealed)
                 {
                     foreach (var subtype in ClosedSubtypes(named, facts))
-                        Walk(subtype, facts, into, visited, depth + 1);
+                        Walk(subtype, facts, into, ref visited, depth + 1);
                 }
 
                 return;
@@ -86,15 +115,15 @@ internal static class ClosedGenerics
     }
 
     private static void WalkArguments(INamedTypeSymbol type, TypeFacts facts, List<TypeRegistration> into,
-        HashSet<ITypeSymbol> visited, int depth)
+        ref VisitedTypes visited, int depth)
     {
         // Preserve the outer-to-inner order without flattening the arguments into a list.
         if (type.ContainingType is { } containing)
-            WalkArguments(containing, facts, into, visited, depth);
+            WalkArguments(containing, facts, into, ref visited, depth);
         if (type.Arity != 0)
         {
             foreach (var argument in type.TypeArguments)
-                Walk(argument, facts, into, visited, depth);
+                Walk(argument, facts, into, ref visited, depth);
         }
     }
 
