@@ -427,6 +427,26 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
 
 ## Measure
 
+Finish a fully compacted modern interceptor body in its existing builder (`205af3eb`) instead of materializing it and
+concatenating a second full string. Require preindented output, both namespace aliases, the byte-span alias,
+and location comments without generated/Core/byte-span rewrite targets; otherwise keep the original alias and
+file path. Prepend the small existing file prefix only after body emission, preserving the body's write positions
+and exact alias order. On 122 real unit-test trees, four local default-JIT rounds saved about 1.17 MB per cold
+generation and method-body edit; cached runs were unchanged. Isolated emission fell from about 4.57 to 3.40 MB
+allocated, with timing on par. Whole-project edit timings varied: do not claim a build-time gain. Both Roslyn
+4.8/4.12 kept all 583 files byte-identical across fresh/cached/two edit states, reused 578 models, and released
+closed compilations, trees, symbols, generated texts and the replaced tree. All 24 location/count edge cases
+matched baseline, including qualified-name comments, multiline comments, empty and tiny call sets. The two
+targeted suites passed 38 tests each. Emit grew from 1,007 to 1,131 IL bytes, 3,304 to 3,876 Arm64 FullOpts bytes
+and 2,330 to 2,646 offline x64 bytes; Finish(prefix) adds 21 IL bytes. A prefix-first variant grew Emit to 4,020
+Arm64 bytes and was slightly slower in isolated replay; prepend-after-emission retained the allocation benefit
+with on-par throughput. Keep the original statement-by-statement alias fallback for unusual comments.
+The preliminary CodeWriter.Lines slice trial saved only about 15.5 KB cold and showed no whole-project time
+gain. Preserve its patch rather than attributing the larger interceptor allocation result to line splitting.
+The cache-hit profile put state acquisition near 1–2 ms, key rendering near 0.2 ms and dependency lookup near
+0.1 ms per edit, with no rebuilt models; leave that state machine unchanged. Do not use tracked driver wall
+time as a verdict: cached tracking incurred RecordStepTree overhead while the stages did no work.
+
 Defer rendering a formatter sort key until two type names compare equal. The unit test replay
 had one tie among 517 registrations. Stage allocation fell from 273,920 to 72,904 bytes in
 four local rounds, and all 577 generated files matched. Keep stable ordering for equal keys
