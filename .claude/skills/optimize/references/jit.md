@@ -272,6 +272,18 @@ and when `asm.py compare` lists methods the change did not touch.
   reuse it. The four targeted configurations covered overlapping output, dirty
   destination padding, enums, bools and custom memory managers. Wire bytes
   and all 584 generated files matched (`90efac75`).
+  Reuse the memory entry for a single-segment `ReadOnlySequence<T>`. Its first
+  memory already describes the complete slice. Leave multi-segment output
+  on scratch, where copying one segment cannot overwrite another aliased
+  segment before it is read. At destination offset seven, the 128-int probe
+  moved from 35.4 to 17.2 ns and the 4,096-element padded sequence from 1,897
+  to 832 ns in four M4 comparisons, with zero allocation. First-use timing
+  improved in all four rounds. Multi-segment and nonraw control timings
+  varied. The adapter adds 25 IL bytes. The sampled Arm64 Tier 1 external
+  formatter moved from 1,524 to 976 bytes and the x64 guest from 1,239 to 865,
+  excluding the shared copy. Both architectures matched the wire output.
+  Overlap and custom memory-manager callbacks passed along with all four
+  targeted configurations and the 584-file replay (`752a9c5f`).
 
 - Delay copying the prefix of a full synchronous stream buffer until the next read returns bytes.
   A non-seekable stream ending at a buffer boundary needs the EOF read but no prefix copy.
