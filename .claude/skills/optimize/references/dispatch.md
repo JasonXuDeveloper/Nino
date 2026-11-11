@@ -6,6 +6,22 @@ stays, and what was measured. Read it when a listing shows `call [rax+0x..]`, `c
 adding a formatter lookup, a delegate or an interface call to a hot path. Go, Rust and TypeScript:
 `optimize-runtimes`, references/dispatch.md.
 
+- Keep the existing `IBufferWriter<byte>` overload for reference-type writers. A plain
+  interface constraint accepts both classes and structs, but a shared reference-type
+  instantiation still keeps interface dispatch. The actual raw-int serializer and the
+  monomorphic interface probe already guarded and inlined `ArrayBufferWriter<byte>`
+  in Tier 1. Both generic class probes still had interface fallback calls on Arm64 and
+  in the x64 guest. Four M4 rounds with one concrete class took 2.23–2.41 ns through
+  the interface, 2.77–2.90 ns through the generic ref path and 2.72–2.74 ns through
+  the generic value path. The mixed receiver probe varied. If a mutable struct writer needs a typed entry, carry it by `ref`
+  through the calls that advance it. The probe's constrained struct path inlined both
+  methods and allocated zero bytes. Converting the struct to an interface every call
+  allocated 32 bytes, while a generic by-value call updated only the copy's position.
+  Prototype this at the output boundary: Nino's own writer already bypasses interface
+  calls, and external writers receive a scratch copy for general values. Any public
+  two-type-parameter overload also needs source generator coverage because interception
+  currently requires one type argument.
+
 - Call a formatter known only at run time through a `static readonly` field read directly, never through
   `field ?? fallback` or a local that merges two sources: Tier1 knows the exact class of an initialized class's
   `static readonly` object and calls (and inlines) its overrides, but a merge loses it, and the JIT then loads the
