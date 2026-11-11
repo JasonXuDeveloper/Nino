@@ -1059,6 +1059,17 @@ of bytes in a block.
   existing Tier 1 loop already uses `ldp`, `uzp1` and `uzp2`. The compact replacement grew
   the entry from 120 to 152 Arm64 bytes and from 169 to 288 IL bytes. Compare the kernel alone
   as well as the public path, whose order check and allocation can hide the split cost.
+- Measure the short-call cost before widening the fused `PriorityQueue<int, int>` heap check.
+  Eight children occupy 64 bytes. AVX2 compares two vectors and AVX-512 compares one, masking out
+  the even element lanes. Keep the 128-bit and scalar tails. Advancing the three byrefs and using
+  `AggressiveOptimization` removed index scaling and three calls per group from the default
+  AVX2 listing. Its FullOpts helper went from 138 to 107 B, while the caller grew from 341 to 475 B
+  against baseline `1ee1b127`. Arm64 stayed at 572 B. In the offline 512-bit probe, selecting
+  between two broadcasts avoided the stack spill from composing two 256-bit halves (153 to 126 B).
+  Both production candidates were withdrawn. The offset-zero 33-node read lost in all four
+  emulated AVX2 comparisons for each variant, and the 4,080/4,100-node cases straddling 64 KiB
+  were mixed. Wire, generated files, rejected heap order and truncation matched. Steady reuse
+  allocated 0 B. The 512-bit probe passed in software and needs native throughput evidence.
 - Compare long Latin-1 input to an existing string by widening bytes and comparing UTF-16 lanes. Start with the last
   complete vector to reject tail edits early. Keep this out of the short-string comparison, and place boundary tests
   at the end of a guarded page to catch a load past either end of the input.
