@@ -323,6 +323,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Reader ReadRegion()
         {
+            // Two bodies, the one exception to the cursor section: the .NET 8+ body written against the fields is
+            // the IL size its keyed callers' inlining was measured at; one body through cursor primitives (a ref and
+            // the bytes left) changed what they inline (optimize skill, jit-io.md).
 #if NET8_0_OR_GREATER
             int remaining = _avail - sizeof(int);
             if (remaining < 0)
