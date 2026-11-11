@@ -14,6 +14,13 @@ of bytes in a block.
   so the exact ISA guard can fold in Tier 0. Leave string headers, scalar handling and the legacy native
   hook ordering in `NinoStrings`. Moving the guarded methods preserved the sampled Arm64 code sizes
   and the aligned fallback timings (`2a596daf`).
+  Audit the dispatch and every reachable loop together: a 128-bit tail, mask seed or Arm64-only helper does not
+  establish the width of the whole operation. Conversely, `System.Numerics.Vector<T>` does not establish an explicit
+  512-bit path. The November 11 audit after `ed6b9311` found managed 512/256/128 paths for nullable bool slots, flag
+  validation, long Latin-1 text and packed pair interleaving, but outstanding width work in `SameShortLatin1`,
+  ordered-key validation (`AreStrictlyIncreasingInt32Vector`, Arm64-only `SplitOrderedPairs`), `NinoValueChecks`,
+  and Burst's text loops. Keep those findings open until their actual entry points, exact ISA guards and tails
+  have been implemented and checked; never report all SIMD covered from one widened kernel.
 
 ## Bounds checks
 

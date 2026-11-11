@@ -52,6 +52,27 @@ value, a kernel hook or a kernel threshold. How to build and run Unity is `platf
 
 ## Native kernels
 
+- Use a prefix-returning kernel for data-dependent nullable-bool normalization, rather than extending the static
+  `Permute` table with a mask it cannot express. Keep whole-run presence validation and overlap handling in Core;
+  reject an invalid active value before storing its vector group, return the leading slot count, and let Core
+  finish the scalar suffix with the same first error and partial writes. Keep the destination after the prefix
+  untouched, so a group rejected at any lane can safely be retried. `ae4e5961` and `ed6b9311` add the optional
+  `NormalizeBoolSlots` hook and its AVX2/SSE2/NEON implementation. Cached Burst 1.8.21 compiled the production source
+  for AVX2, SSE2 and Arm64; the linked Arm64 code passed 620,928 cases across offsets 0–7, vector boundaries,
+  dirty nulls, every invalid value position and untouched sentinels. That SDK exposes v128/v256, with no AVX-512 API;
+  retain the managed .NET 8+ 512/256/128 implementation rather than inventing a Burst 512-bit path.
+  Native throughput alone is not a call threshold: a warmed default-JIT netstandard probe including pinning and
+  the indirect call found clear write gains from 32 slots and read gains from 16; write results at 16–17 were
+  inconclusive. Use separate internal floors with the existing `MinBlocks` setting. Source plus destination take
+  4 bytes per slot: test 16,383/16,384/16,385 slots around the 64 KiB budget, with no temporary buffer. These are
+  local candidate measurements, not Unity IL2CPP or x64 runner throughput; full Unity integration remains for CI.
+  Move layout checks, overlap checks and prefix completion into out-of-line helpers before judging the missing-hook
+  cost. The first inline integration grew netstandard `Write`/`ReadPrechecked` to 543/423 B IL and 580/580 B Arm64
+  Tier 1 entries. Splitting the native paths and sharing the scalar bool writer reduced them to 330/306 B IL and
+  448/416 B entries (`102d994a`); the old scalar baseline was 353/285 B IL and 404/348 B. Keep both registered/unregistered
+  controls: short-input timings still varied, so this establishes a smaller dispatch rather than a universal speedup.
+  The standalone native entry is 200 B on Arm64, 283 B with AVX2 and 217 B with SSE2; x64 sizes are cross-compiled
+  evidence, not throughput. The full FullOpts comparison against `50d6513d` flagged no regression among 1,101 methods.
 - Hold native kernels as function pointers in static fields, never behind a virtual base: `NinoKernels` is a table of
   `delegate* unmanaged[Cdecl]` that `Register` copies into `NinoKernelHook`'s static fields, a missing pointer leaves
   its threshold at `int.MaxValue`, so a call site is one static load, a compare and a `calli` (IL2CPP: a C function
