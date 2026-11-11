@@ -139,6 +139,8 @@ internal sealed class FormatterResolver
         };
     }
 
+    public bool HasNestingFormatters => !_nesting.IsEmpty;
+
     /// <summary>
     /// The nesting formatters (<see cref="GeneratedNestingFormatter"/>) that <paramref name="code"/> (generated code naming
     /// formatters) names, with the ones their formatters name in turn, sorted by name: what the assembly declares
@@ -146,7 +148,7 @@ internal sealed class FormatterResolver
     /// </summary>
     public EquatableArray<NestingModel> NestingFormattersNamedIn(IEnumerable<string> code)
     {
-        if (_nesting.IsEmpty)
+        if (!HasNestingFormatters)
             return EquatableArray<NestingModel>.Empty;
         var found = new SortedDictionary<string, NestingModel>(System.StringComparer.Ordinal);
         var pending = new Stack<string>(code);

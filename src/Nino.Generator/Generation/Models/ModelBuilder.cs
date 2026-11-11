@@ -349,15 +349,25 @@ internal static class ModelBuilder
                 ? EquatableArray<FactoryRegistration>.Empty
                 : new EquatableArray<FactoryRegistration>(members.Factories.Distinct()
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
-            GenericTypes: genericTypes == null ? EquatableArray<TypeRegistration>.Empty
-                : new EquatableArray<TypeRegistration>(genericTypes.Distinct()
-                .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
+            GenericTypes: genericTypes is { Count: > 0 }
+                ? new EquatableArray<TypeRegistration>(genericTypes.Distinct()
+                    .OrderBy(static g => g.TypeName, System.StringComparer.Ordinal))
+                : EquatableArray<TypeRegistration>.Empty,
             LayoutTypes: layoutTypes == null ? EquatableArray<string>.Empty : LayoutTypes.ToArray(layoutTypes),
-            Nesting: genericTypes != null
-                ? facts.Resolver.NestingFormattersNamedIn(members.Models.Select(static m => m.Formatter.ToString())
-                    .Concat(genericTypes.Select(static g => g.Formatter))
-                    .Concat(collection != null ? new[] { collection.ToString() } : System.Array.Empty<string>()))
+            Nesting: genericTypes != null && facts.Resolver.HasNestingFormatters
+                ? facts.Resolver.NestingFormattersNamedIn(NestingSources(members.Models, genericTypes, collection))
                 : EquatableArray<NestingModel>.Empty);
+    }
+
+    private static IEnumerable<string> NestingSources(List<MemberModel> members, List<TypeRegistration> genericTypes,
+        FormatterRef? collection)
+    {
+        foreach (var member in members)
+            yield return member.Formatter.ToString();
+        foreach (var generic in genericTypes)
+            yield return generic.Formatter;
+        if (collection != null)
+            yield return collection.ToString();
     }
 
     /// <summary>
