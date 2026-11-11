@@ -10,12 +10,6 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
-/// <summary>
-/// The kernel hook of the netstandard builds (<see cref="NinoKernels"/>), which Unity's Burst kernels register through:
-/// a managed stand-in that runs the scalar references through the hook, so the paths that call it write and read the
-/// same bytes as those that do not. Run with <c>-p:NinoCoreTfm=netstandard2.1</c> (or 2.0); the Burst kernels
-/// themselves are tested in the Unity project (Assets/Test/Editor/Burst).
-/// </summary>
 /// <summary>A <c>[NinoUtf8]</c> string, for the UTF-8 kernels.</summary>
 [NinoType]
 public partial class Utf8Text
@@ -25,6 +19,12 @@ public partial class Utf8Text
     public static bool Equal(Utf8Text a, Utf8Text b) => a.Text == b.Text;
 }
 
+/// <summary>
+/// The kernel hook of the netstandard builds (<see cref="NinoKernels"/>), which Unity's Burst kernels register through:
+/// a managed stand-in that runs the scalar references through the hook, so the paths that call it write and read the
+/// same bytes as those that do not. Run with <c>-p:NinoCoreTfm=netstandard2.1</c> (or 2.0); the Burst kernels
+/// themselves are tested in the Unity project (Assets/Test/Editor/Burst).
+/// </summary>
 [TestClass]
 [DoNotParallelize]
 public unsafe class KernelHookTests
@@ -35,11 +35,11 @@ public unsafe class KernelHookTests
     /// </summary>
     private static class ScalarKernels
     {
-        public static int Permutes, Narrows, Widens, NarrowAsciis, WidenAsciis, BoolSlots, BoolPrefix, MinBlocks, MinChars;
+        public static int Permutes, Interleaves, Narrows, Widens, NarrowAsciis, WidenAsciis, BoolSlots, BoolPrefix, MinBlocks, MinChars;
 
         public static NinoKernels Create(int minBlocks = 16, int minChars = 32)
         {
-            Permutes = Narrows = Widens = NarrowAsciis = WidenAsciis = 0;
+            Permutes = Interleaves = Narrows = Widens = NarrowAsciis = WidenAsciis = 0;
             BoolSlots = BoolPrefix = 0;
             MinBlocks = minBlocks;
             MinChars = minChars;
@@ -48,6 +48,7 @@ public unsafe class KernelHookTests
                 MinBlocks = minBlocks,
                 MinChars = minChars,
                 Permute = &Permute,
+                Interleave32 = &Interleave32,
                 Narrow = &Narrow,
                 Widen = &Widen,
                 NarrowAscii = &NarrowAscii,
@@ -63,6 +64,14 @@ public unsafe class KernelHookTests
             Check(count >= MinBlocks && sourceStride is > 0 and <= 64 && destinationStride is > 0 and <= 64);
             Permutes++;
             NinoKernels.PermuteScalar(source, sourceStride, destination, destinationStride, table, count);
+        }
+
+        [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+        private static void Interleave32(int* first, int* second, byte* target, int count)
+        {
+            Check(count >= Math.Max(16, MinBlocks) && count % 4 == 0);
+            Interleaves++;
+            NinoKernels.Interleave32Scalar(first, second, target, count);
         }
 
         [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
@@ -277,6 +286,25 @@ public unsafe class KernelHookTests
         fixed (byte* from = source, to = target)
             Assert.AreEqual(2, NinoKernels.NormalizeBoolSlotsScalar(from, to, 4));
         CollectionAssert.AreEqual(new byte[] { 0, 0, 1, 1, 0xA5, 0xA5, 0xA5, 0xA5 }, target);
+    }
+
+    [TestMethod]
+    [DataRow(15)]
+    [DataRow(16)]
+    [DataRow(17)]
+    [DataRow(33)]
+    public void SortedListPairsWriteTheSameBytesThroughTheHook(int count)
+    {
+        var ints = new SortedList<int, int>(Enumerable.Range(0, count).ToDictionary(i => i * 7 - 50, i => -i * 13));
+        var mixed = new SortedList<uint, float>(Enumerable.Range(0, count).ToDictionary(i => (uint)i * 3, i => i * 0.5f));
+        NinoKernels.Register(null);
+        byte[] intsScalar = NinoSerializer.Serialize(ints), mixedScalar = NinoSerializer.Serialize(mixed);
+        NinoKernels.Register(ScalarKernels.Create());
+        CollectionAssert.AreEqual(intsScalar, NinoSerializer.Serialize(ints));
+        CollectionAssert.AreEqual(mixedScalar, NinoSerializer.Serialize(mixed));
+        int calls = ScalarKernels.Interleaves;
+        NinoKernels.Register(null);
+        Assert.AreEqual(count >= 16 ? 2 : 0, calls);
     }
 
     [TestMethod]

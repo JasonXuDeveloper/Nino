@@ -150,7 +150,8 @@ namespace Nino.Fuzz
         public HashSet<int> HI; public HashSet<string> HS; public HashSet<long> HL;
         public Dictionary<int, string> DIS; public Dictionary<long, int> DLI; public Dictionary<string, int> DSI; public Dictionary<int, int> DII;
         public SortedSet<int> SSI; public SortedSet<string> SSS; public SortedDictionary<int, int> SDI; public SortedDictionary<string, string> SDS;
-        public SortedList<int, string> SLI; public SortedList<string, int> SLS;
+        public SortedList<int, string> SLI; public SortedList<string, int> SLS; public SortedList<int, int> SLII;
+        public PriorityQueue<int, int> PQ; public bool?[] ANB; public List<bool?> LNB;
         public LinkedList<int> LLI; public LinkedList<string> LLS; public Queue<int> QI; public Stack<string> StS; public Queue<string> QS;
         public ConcurrentDictionary<int, int> CD; public ConcurrentQueue<int> CQ; public ConcurrentStack<int> CS;
         public int[,] M2; public string[,,] M3; public List<int?> LNI; public int?[] ANI; public bool[] AB; public List<bool> LB;

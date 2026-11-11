@@ -22,6 +22,18 @@ namespace Nino.UnitTests
     [TestClass]
     public class RawNullableWireTests
     {
+        /// <summary>
+        /// One-byte nullables other than <c>bool?</c> are copied as blocks (their memory is their wire layout), so they
+        /// need none of the <c>bool?</c> slot kernels, which exist because a bool's value byte must be checked.
+        /// </summary>
+        [TestMethod]
+        public void OneByteNullablesOtherThanBoolAreCopiedAsBlocks()
+        {
+            Assert.IsTrue(NinoNullables<byte>.Raw);
+            Assert.IsTrue(NinoNullables<sbyte>.Raw);
+            Assert.IsFalse(NinoNullables<bool>.Raw);
+        }
+
         private const string Source = @"
 using System.Collections.Generic;
 using Nino.Core;

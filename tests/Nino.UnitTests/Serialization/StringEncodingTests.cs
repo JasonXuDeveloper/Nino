@@ -272,12 +272,9 @@ public class StringEncodingTests
     [DataRow(512, 32)]
     public void ShortLatin1KernelsCompareWholeCharsAtEveryTail(int width, int minimum)
     {
-        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic |
-                                                     System.Reflection.BindingFlags.Static;
-        var simd = typeof(Nino.Core.Internal.NinoSimd);
-        var policy = simd.GetNestedType($"CompareShortLatin1_{width}", System.Reflection.BindingFlags.NonPublic);
-        var compare = simd.GetMethod("SameLatin1Blocks", flags).MakeGenericMethod(policy)
-            .CreateDelegate<Latin1Compare>();
+        Latin1Compare compare = width == 512
+            ? Nino.Core.Internal.NinoSimd.SameLatin1Blocks<Nino.Core.Internal.NinoSimd.CompareShortLatin1_512>
+            : Nino.Core.Internal.NinoSimd.SameLatin1Blocks<Nino.Core.Internal.NinoSimd.CompareShortLatin1_256>;
         for (int length = minimum; length <= 63; length++)
         foreach (int tailPadding in new[] { 0, 1, 7 })
         {

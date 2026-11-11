@@ -17,6 +17,18 @@ internal static class Rt
         NinoDeserializer.Deserialize(NinoSerializer.Serialize(source), ref target);
 
     /// <summary>
+    /// A writer one byte past its start, so a test writes at an unaligned offset (the fast paths' unaligned stores);
+    /// its data is <c>WrittenSpan.Slice(1)</c>.
+    /// </summary>
+    public static NinoArrayBufferWriter OffsetWriter()
+    {
+        var buffer = new NinoArrayBufferWriter();
+        buffer.GetSpan(1);
+        buffer.Advance(1);
+        return buffer;
+    }
+
+    /// <summary>
     /// <c>Convert.FromHexString</c>, which the netstandard2.1 build (compiled for Unity) does not have; spaces between
     /// the bytes are ignored.
     /// </summary>

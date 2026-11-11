@@ -88,6 +88,14 @@ namespace Nino.Fuzz
             Inline = new KeyedStruct { X = 1.25, Ys = new[] { 1, 2, 3 } },
         };
 
+        private static PriorityQueue<int, int> Queue(int count)
+        {
+            var queue = new PriorityQueue<int, int>();
+            for (int i = 0; i < count; i++)
+                queue.Enqueue(i, (i * 37) % 11);
+            return queue;
+        }
+
         public static Colls Colls() => new()
         {
             LI = Enumerable.Range(0, 20).ToList(), LS = new() { "a", "bb", "ccc", null, "ünï", "日本" }, AI = Enumerable.Range(0, 40).ToArray(),
@@ -100,6 +108,7 @@ namespace Nino.Fuzz
             DII = new() { [1] = 1, [2] = 2, [3] = 3 }, SSI = new() { 1, 5, 9, 12 }, SSS = new() { "a", "m", "z" },
             SDI = new() { [1] = 2, [3] = 4, [5] = 6 }, SDS = new() { ["a"] = "b", ["c"] = "d" },
             SLI = new() { [1] = "a", [2] = "b", [9] = "c" }, SLS = new() { ["x"] = 1, ["y"] = 2 },
+            SLII = new() { [3] = -1, [7] = 2 }, PQ = Queue(5), ANB = new bool?[] { true, null, false }, LNB = new() { null, true },
             LLI = new(new[] { 1, 2, 3, 4 }), LLS = new(new[] { "p", "q" }), QI = new(new[] { 5, 6 }), StS = new(new[] { "s", "t" }),
             QS = new(new[] { "u" }), CD = new(new Dictionary<int, int> { [1] = 1, [2] = 2 }), CQ = new(new[] { 1, 2 }), CS = new(new[] { 3, 4 }),
             M2 = new int[2, 3] { { 1, 2, 3 }, { 4, 5, 6 } }, M3 = new string[1, 2, 2] { { { "a", "b" }, { "c", null } } },
@@ -115,6 +124,10 @@ namespace Nino.Fuzz
             DII = Enumerable.Range(0, 150).ToDictionary(i => i, i => -i), SSI = new(Enumerable.Range(0, 120).Select(i => i * 3)),
             SDI = new(Enumerable.Range(0, 90).ToDictionary(i => i, i => i)), LLI = new(Enumerable.Range(0, 64)),
             SLS = new(Enumerable.Range(0, 40).ToDictionary(i => "k" + i, i => i)), HS = Enumerable.Range(0, 50).Select(i => "s" + i).ToHashSet(),
+            // Past the fast paths' thresholds: SortedList pair split (32), heap adoption (16), bool slot kernels (32).
+            SLII = new(Enumerable.Range(0, 70).ToDictionary(i => i * 5 - 90, i => -i)), PQ = Queue(40),
+            ANB = Enumerable.Range(0, 70).Select(i => i % 3 == 0 ? (bool?)null : i % 2 == 0).ToArray(),
+            LNB = Enumerable.Range(0, 40).Select(i => i % 5 == 0 ? (bool?)null : i % 3 == 0).ToList(),
         };
 
         public static Imm Imm() => new()
