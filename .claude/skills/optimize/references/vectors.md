@@ -568,6 +568,18 @@ of bytes in a block.
   Arm64 FullOpts went from 532 to 588 B and uses the existing 64 B helper. The public caller
   stayed at 660 B on Arm64, and x64 cross-JIT caller/formatter stayed at 501/419 B.
   The boundary wire checks and both frameworks passed (`7939e974`).
+- Keep the existing allocating raw-array copy for zero to two elements. A fixed-size singleton
+  copy improved that case but slowed empty byte arrays in the mixed-size replay. Extending the
+  branch to zero through two fixed-size copies improved isolated short cases. It also made
+  eight-element Int32 writes consistently slower in the randomized mixed replay, beyond two
+  identical baseline controls. Isolating each length with longer warmup removed much of the
+  general slowdown. Moving the short path out of line then slowed isolated Int32 singletons.
+  Measure both mixed and isolated workloads and inspect Tier 0 and Tier 1 before interpreting a
+  short-array result. The inline branch grew the byte formatter from 110 to 222 IL bytes,
+  from 544 to 636 Arm64 FullOpts bytes and from 416 to 507 x64 composite bytes. The outlined
+  entry and helper were 137 plus 86 IL bytes and 471 plus 71 x64 bytes. All 19 serialized
+  outputs and allocation counts matched. First-use differences were comparable to the
+  randomized baseline controls. Withdraw all three branches.
 - Keep the overlap-safe span copy for raw arrays written to a caller-owned buffer.
   Adding the fixed Arm64 head and tail behind an overlap test slowed 65–128-byte writes
   by 7–21%. Replacing the checked destination slice with a prefix check plus byref span
