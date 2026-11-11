@@ -21,6 +21,16 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   calls, and external writers receive a scratch copy for general values. Any public
   two-type-parameter overload also needs source generator coverage because interception
   currently requires one type argument.
+  Compare a borrowed struct cursor with one existing `Writer` per batch before moving
+  the pooled array out of `NinoArrayBufferWriter`. A probe kept the rent and return in a
+  separate lease and advanced a struct cursor by reference. Four M4 rounds at 1,024
+  raw ints took 0.57–0.60 ns/int with direct Nino owner writes, 0.27–0.30 with one existing
+  `Writer` and one flush, 1.03–1.14 with the borrowed array and index, and 0.76–0.87 through
+  its constrained interface. The borrowed struct did not beat the existing writer at
+  eight or 64 items either. A single int was within local variation. Steady allocations
+  were zero for every path, and grow-from-empty and reuse produced the same bytes.
+  The pooled lease needs one active borrower because growth replaces its array. The
+  useful distinction in this probe is the existing byref cursor and the flush boundary.
 
 - Call a formatter known only at run time through a `static readonly` field read directly, never through
   `field ?? fallback` or a local that merges two sources: Tier1 knows the exact class of an initialized class's
