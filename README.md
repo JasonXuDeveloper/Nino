@@ -28,9 +28,10 @@ For .NET, Unity (Mono and IL2CPP), Godot, Native AOT and HybridCLR, with Go, Rus
 
 ## Why Nino
 
-- **Fastest.** Serializes classes **<!--bench:ser.range-->3.5–7.2<!--/bench-->×** faster than MemoryPack,
-  **<!--bench:msgpack.ser.range-->8.4–23<!--/bench-->×** faster than MessagePack and
-  **<!--bench:protobuf.ser.range-->41–122<!--/bench-->×** faster than protobuf-net. [Benchmarks](#benchmarks)
+- **Fastest.** On six real-world workloads it serializes **<!--bench:ser.range-->—<!--/bench-->×** faster than MemoryPack,
+  **<!--bench:msgpack.ser.range-->—<!--/bench-->×** than MessagePack, **<!--bench:protobuf.ser.range-->—<!--/bench-->×** than protobuf-net,
+  **<!--bench:gprotobuf.ser.range-->—<!--/bench-->×** than Google.Protobuf and **<!--bench:json.ser.range-->—<!--/bench-->×** than
+  System.Text.Json. [Benchmarks](#benchmarks)
 - **SIMD everywhere, Burst in Unity.** Hand-written vector paths for AVX-512, AVX2, SSSE3, Arm64 and WebAssembly move tuples,
   padded structs and strings; Burst kernels in Unity, vector kernels in Go, Rust and TypeScript, and a portable
   fallback that writes the same bytes. [SIMD](https://nino.xgamedev.net/en/docs/v4/simd)
@@ -140,21 +141,28 @@ every NINO diagnostic. The docs are also in [llms.txt](https://nino.xgamedev.net
 
 ## Benchmarks
 
-| Classes and polymorphic types | Serialize | Deserialize |
+| Six real-world workloads | Serialize | Deserialize |
 |---|---|---|
-| vs MemoryPack | **<!--bench:ser.range-->3.5–7.2<!--/bench-->× faster** | **<!--bench:deser.range-->1.7–2.1<!--/bench-->× faster** |
-| vs MessagePack | **<!--bench:msgpack.ser.range-->8.4–23<!--/bench-->× faster** | **<!--bench:msgpack.deser.range-->5.2–14<!--/bench-->× faster** |
-| vs protobuf-net | **<!--bench:protobuf.ser.range-->41–122<!--/bench-->× faster** | **<!--bench:protobuf.deser.range-->17–57<!--/bench-->× faster** |
+| vs MemoryPack | **<!--bench:ser.range-->—<!--/bench-->× faster** | **<!--bench:deser.range-->—<!--/bench-->× faster** |
+| vs MessagePack | **<!--bench:msgpack.ser.range-->—<!--/bench-->× faster** | **<!--bench:msgpack.deser.range-->—<!--/bench-->× faster** |
+| vs protobuf-net | **<!--bench:protobuf.ser.range-->—<!--/bench-->× faster** | **<!--bench:protobuf.deser.range-->—<!--/bench-->× faster** |
+| vs Google.Protobuf | **<!--bench:gprotobuf.ser.range-->—<!--/bench-->× faster** | **<!--bench:gprotobuf.deser.range-->—<!--/bench-->× faster** |
+| vs System.Text.Json | **<!--bench:json.ser.range-->—<!--/bench-->× faster** | **<!--bench:json.deser.range-->—<!--/bench-->× faster** |
 | Into existing objects | — | **0 B, up to <!--bench:reuse.inplace-->9.5<!--/bench-->× faster** than MemoryPack |
+
+The workloads: an RPC request, a Web API page of 100 orders, a cached user profile, a game snapshot of 500
+entities, a batch of 1,000 log events and a stream of 500 polymorphic domain events, each library through its fastest
+API (Google.Protobuf on its own generated messages, System.Text.Json source-generated to UTF-8). A range covers the
+workloads Nino wins by more than 5%; every time is in the docs.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-dark.png">
-    <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="How many times faster Nino v4 serializes and deserializes than MemoryPack, MessagePack, protobuf-net and Nino v3" width="760">
+    <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="How many times faster Nino v4 serializes and deserializes six real-world workloads than MemoryPack, MessagePack, protobuf-net, Google.Protobuf and System.Text.Json" width="760">
   </picture>
 </p>
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.14<!--/bench-->, server GC, <!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->, on GitHub's runners; all libraries in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. `SimpleClass` payloads: <!--bench:payload.v4-->1,069<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack. Method and every case: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md).</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.14<!--/bench-->, server GC, <!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->, on GitHub's runners; all libraries in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. The page of 100 orders takes <!--bench:payload.v4-->—<!--/bench--> bytes in Nino, <!--bench:payload.memorypack-->—<!--/bench--> in MemoryPack, <!--bench:payload.msgpack-->—<!--/bench--> in MessagePack, <!--bench:payload.protobuf-->—<!--/bench--> in protobuf (both libraries) and <!--bench:payload.json-->—<!--/bench--> in JSON. Method and every case: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md).</sub>
 
 More: [every .NET case and Arm64](https://nino.xgamedev.net/en/docs/v4/benchmarks),
 [Unity with Burst](https://nino.xgamedev.net/en/docs/v4/benchmarks-unity) and

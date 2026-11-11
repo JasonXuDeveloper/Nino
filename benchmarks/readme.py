@@ -16,13 +16,16 @@ usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 rep
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
 carries whole tables between such markers. Everything outside the markers (the build-time numbers among it) is
-written by hand. The headline numbers compare Nino with MemoryPack; the chart (light and dark), the comparison ranges (msgpack.*,
-protobuf.*) and the serialize and deserialize tables also cover MessagePack and protobuf-net. Ratios follow the docs site (nino.docs
-src/lib/benchmarks.ts): within 5% is "on par", and a case where v4 is slower is left out, never shown as slower.
+written by hand. The headline numbers come from WorkloadTest's six workloads: the ranges of how many times faster
+Nino is than MemoryPack (ser.range, deser.range), MessagePack (msgpack.*), protobuf-net (protobuf.*), Google.Protobuf
+(gprotobuf.*) and System.Text.Json (json.*), and the chart (light and dark), the geometric mean over the six of each
+library's time against Nino's. Ratios follow the docs site (nino.docs src/lib/benchmarks.ts): within 5% is "on
+par", and a case where v4 is slower is left out of a range, never shown as slower; a mean within 5% has no bar.
 A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
 measurable v3 is "faster, too fast to measure" (no ratio: it would only reflect the floor); both under it is on par.
 """
 import argparse
+import math
 import re
 import sys
 from pathlib import Path
@@ -30,9 +33,15 @@ from pathlib import Path
 from bdn import FLOOR_NS, mean_ns, rows
 
 ROOT = Path(__file__).resolve().parent.parent
-# The cases of the class/polymorphic ranges. The struct cases (SimpleStruct, SimpleStructs, Vectors) are a block copy in
-# both libraries, so they stay out.
-CLASS_KEYS = ["SimpleClass", "SimpleClasses", "PolymorphicClass", "PolymorphicClassArray", "PolymorphicFooArray"]
+# The headline cases: WorkloadTest's workloads, with their names in the docs table.
+WORKLOADS = [("RpcRequest", "RPC request"), ("OrdersPage", "Web API page, 100 orders"),
+             ("UserProfile", "Cached user profile"), ("GameSnapshot", "Game snapshot, 500 entities"),
+             ("LogBatch", "Log batch, 1,000 events"), ("EventStream", "Event stream, 500 polymorphic events")]
+WORKLOAD_KEYS = [key for key, _ in WORKLOADS]
+# The other libraries of the headline, as (method prefix, key prefix of the README markers, name).
+OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "MessagePack"),
+          ("Protobuf", "protobuf", "protobuf-net"), ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"),
+          ("Json", "json", "System.Text.Json")]
 
 
 def parse(path):
@@ -93,8 +102,8 @@ def numbers(v4_path, v3_paths, tag=None):
         return ratio(v4[f"{other}{verb}{key}"]["mean"], v4[f"Nino{verb}{key}"]["mean"])
 
     def wins(verb, other="MemoryPack"):
-        """Ratios of the cases v4 wins: above 1, and not on par."""
-        return [r for r in (vs(other, verb, k) for k in CLASS_KEYS) if r > 1 and not on_par(r)]
+        """Ratios of the workloads v4 wins: above 1, and not on par."""
+        return [r for r in (vs(other, verb, k) for k in WORKLOAD_KEYS) if r > 1 and not on_par(r)]
 
     def win_range(verb, other="MemoryPack"):
         won = wins(verb, other)
@@ -108,17 +117,18 @@ def numbers(v4_path, v3_paths, tag=None):
         "env.bdn": bdn,
         "env.runtime": runtime,
         "env.cpu": cpu,
-        "payload.v4": v4["NinoSerializeSimpleClass"]["payload"].replace(" B", ""),
-        "payload.memorypack": v4["MemoryPackSerializeSimpleClass"]["payload"].replace(" B", ""),
     }
-    # MessagePack and protobuf-net over the same class cases, when the run measured them (rc.8 and later).
-    for other, prefix in (("MessagePack", "msgpack"), ("Protobuf", "protobuf")):
-        if all(f"{other}{verb}{k}" in v4 for verb in ("Serialize", "Deserialize") for k in CLASS_KEYS):
+    for other, prefix, _ in OTHERS:
+        if prefix:
             out[f"{prefix}.ser.range"] = win_range("Serialize", other)
             out[f"{prefix}.deser.range"] = win_range("Deserialize", other)
+    # The bytes of the Web API page, each library's (the README's environment line).
+    # (Google.Protobuf writes the same messages as protobuf-net: one number for both.)
+    for other, prefix in [("Nino", "v4")] + [(o, p or "memorypack") for o, p, _ in OTHERS if o != "GoogleProtobuf"]:
+        out[f"payload.{prefix}"] = v4[f"{other}SerializeOrdersPage"]["payload"].replace(" B", "")
 
-    # The chart: how many times faster Nino v4 is than each library, per case (a library the run did not measure, or
-    # one Nino does not beat by more than 5%, has no bar).
+    # The chart: how many times faster Nino v4 is than each library, the geometric mean over the workloads (one
+    # Nino does not beat by more than 5% has no bar), and into existing objects against MemoryPack's overwrite.
     chart = []
     v3 = {}
     if v3_paths:
@@ -129,19 +139,14 @@ def numbers(v4_path, v3_paths, tag=None):
         for method in runs[0]:
             if method.startswith("Nino") and all(method in run for run in runs):
                 v3[method] = sum(run[method]["mean"] for run in runs) / len(runs)
-    for verb, key, label in [("Serialize", "SimpleClass", "SimpleClass"),
-                             ("Serialize", "SimpleClasses", "SimpleClass[100]"),
-                             ("Serialize", "PolymorphicClassArray", "polymorphic class array"),
-                             ("Deserialize", "SimpleClass", "SimpleClass"),
-                             ("Deserialize", "SimpleClasses", "SimpleClass[100]"),
-                             ("Deserialize", "PolymorphicClassArray", "polymorphic class array")]:
-        nino = v4[f"Nino{verb}{key}"]["mean"]
+    for verb in ("Serialize", "Deserialize"):
         bars = []
-        for name, method in CHART_LIBS:
-            other = v3.get(f"Nino{verb}{key}") if name == "Nino v3" else v4.get(f"{method}{verb}{key}", {}).get("mean")
-            if other and other / nino > 1 and not on_par(other / nino):
-                bars.append((name, other / nino))
-        chart.append((f"{verb} · {label}", bars))
+        for other, _, name in OTHERS:
+            mean = math.exp(sum(math.log(v4[f"{other}{verb}{k}"]["mean"] / v4[f"Nino{verb}{k}"]["mean"])
+                                for k in WORKLOAD_KEYS) / len(WORKLOAD_KEYS))
+            if mean > 1 and not on_par(mean):
+                bars.append((name, mean))
+        chart.append((f"{verb} · six workloads (geometric mean)", bars))
     for title, nino, memorypack in [("pooled node", "NinoNodePooled", "MemoryPackNodeOverwrite"),
                                     ("leaves in place", "NinoLeavesInPlace", "MemoryPackLeavesOverwrite")]:
         chart.append((f"Deserialize into existing objects · {title} (Nino {allocated(v4[nino])}, "
@@ -212,8 +217,7 @@ REUSE_CASES = [("Pooled node", "NinoNodeNew", "NinoNodePooled", "MemoryPackNodeN
 EXTRA_CASES = [("Graph", "Object graph, 200 tracked nodes"), ("TolerantClass", "`TolerantClass`"),
                ("TolerantClasses", "`TolerantClass[100]`"), ("FixedStruct", "`FixedStruct`"),
                ("FixedClass", "`FixedClass`"), ("FixedClasses", "`FixedClass[100]`"),
-               ("Players", "`List<Player>`, 100"), ("Orders", "`List<Order>`, 100"),
-               ("Shapes", "`List<Shape>`, 1,000 (abstract base)"), ("Tree", "`TreeNode`, 1,365 nodes"),
+               ("Tree", "`TreeNode`, 1,365 nodes"),
                ("Inventory", "`InventoryItem[1000]` (padded struct)"),
                ("Waypoints", "`Waypoint[1000]` (fixed size, not raw)"),
                ("StringDictionary", "`Dictionary<string, string>`, 1,000")]
@@ -234,6 +238,17 @@ def tables(v4, v3, v3_runs, env, tag):
         return time(mean(method)) if method in v4 else "—"
 
     out = {}
+    names = ["Nino"] + [o for o, _, _ in OTHERS]
+    head = ["Nino"] + [name for _, _, name in OTHERS]
+    for verb in ("Serialize", "Deserialize"):
+        out[f"table.workloads.{verb.lower()}"] = table(
+            ["Workload"] + head,
+            [[label] + [time(mean(f"{n}{verb}{key}")) + ("" if n == "Nino" else
+                        f" ({versus(mean(f'{n}{verb}{key}'), mean(f'Nino{verb}{key}'))})") for n in names]
+             for key, label in WORKLOADS])
+    out["table.workloads.payload"] = table(
+        ["Workload"] + head,
+        [[label] + [f"{v4[f'{n}Serialize{key}']['payload']}" for n in names] for key, label in WORKLOADS])
     for verb in ("Serialize", "Deserialize"):
         rows = []
         for key, label in SIMPLE_CASES:
@@ -275,9 +290,9 @@ def tables(v4, v3, v3_runs, env, tag):
     return out
 
 
-# The libraries of the chart, in order, with the prefix of their methods in the report, and their bar colours.
-CHART_LIBS = [("MemoryPack", "MemoryPack"), ("MessagePack", "MessagePack"), ("protobuf-net", "Protobuf"), ("Nino v3", None)]
-BAR_COLORS = {"MemoryPack": "#e3a03b", "MessagePack": "#2fa88f", "protobuf-net": "#d9645c", "Nino v3": "#8c96a8"}
+# The bar colours of the chart's libraries (OTHERS).
+BAR_COLORS = {"MemoryPack": "#e3a03b", "MessagePack": "#2fa88f", "protobuf-net": "#d9645c", "Google.Protobuf": "#4c8bf5",
+              "System.Text.Json": "#9a6dd7"}
 # Text and grid colours of the two themes (README picks one with <picture> and prefers-color-scheme).
 THEMES = {"light": {"text": "#1f2328", "muted": "#59636e", "grid": "#d1d9e0"},
           "dark": {"text": "#f0f6fc", "muted": "#9198a1", "grid": "#3d444d"}}
@@ -285,11 +300,10 @@ THEMES = {"light": {"text": "#1f2328", "muted": "#59636e", "grid": "#d1d9e0"},
 
 def svg(chart, theme="light"):
     """The chart as SVG: per case, a bar per library, its length the log of how many times faster Nino v4 is."""
-    import math
     c = THEMES[theme]
     top = max(v for _, bars in chart for _, v in bars)
     decades = max(1, math.ceil(math.log10(top) - 1e-9))
-    x0, width = 112, 600
+    x0, width = 140, 580  # room for "vs System.Text.Json"
     scale = width / decades
 
     def x(v):
@@ -318,7 +332,7 @@ def svg(chart, theme="light"):
     head = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 {height}" width="820" height="{height}" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
 <style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]}}}.v{{font-size:12px;font-weight:700;fill:{c["text"]}}}</style>
 <text x="0" y="22" class="t">How many times faster Nino v4 is (log scale)</text>
-<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine; MemoryPack 1.21.4, MessagePack, protobuf-net, Nino v3 3.3.13.</text>
+<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine; six real-world workloads, each library's fastest API.</text>
 '''
     return head + "\n".join(out) + "\n</svg>\n", height
 

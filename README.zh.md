@@ -29,7 +29,7 @@
 
 ## 为什么选 Nino
 
-- **最快。** 序列化类比 MemoryPack 快 **<!--bench:ser.range-->3.5–7.2<!--/bench--> 倍**，比 MessagePack 快 **<!--bench:msgpack.ser.range-->8.4–23<!--/bench--> 倍**，比 protobuf-net 快 **<!--bench:protobuf.ser.range-->41–122<!--/bench--> 倍**。[性能](#性能)
+- **最快。** 六个真实业务场景下，序列化比 MemoryPack 快 **<!--bench:ser.range-->—<!--/bench--> 倍**，比 MessagePack 快 **<!--bench:msgpack.ser.range-->—<!--/bench--> 倍**，比 protobuf-net 快 **<!--bench:protobuf.ser.range-->—<!--/bench--> 倍**，比 Google.Protobuf 快 **<!--bench:gprotobuf.ser.range-->—<!--/bench--> 倍**，比 System.Text.Json 快 **<!--bench:json.ser.range-->—<!--/bench--> 倍**。[性能](#性能)
 - **全平台 SIMD，Unity 里用 Burst。** 针对 AVX-512、AVX2、SSSE3、Arm64 和 WebAssembly 手写向量路径，搬运元组、带填充的结构体和字符串；Unity 里用 Burst 内核，Go、Rust 和 TypeScript 也有各自的向量内核，其他平台走可移植代码，写出的字节相同。[SIMD](https://nino.xgamedev.net/zh/docs/v4/simd)
 - **可放心读取不可信数据。** 伪造的字节不会让进程崩溃，不会越界读取，不会分配与输入不成比例的内存，也无法指定要创建的类型；任何无效输入都只抛出 `NinoDataException`。[不可信数据](https://nino.xgamedev.net/zh/docs/v4/security)
 - **零分配。** 序列化到 `IBufferWriter<byte>`，反序列化到已有对象或池化对象；线程安全，热路径上没有锁。[零分配](https://nino.xgamedev.net/zh/docs/v4/advanced/zero-allocation)
@@ -120,21 +120,25 @@ npx skills add JasonXuDeveloper/Nino
 
 ## 性能
 
-| 类和多态类型 | 序列化 | 反序列化 |
+| 六个真实场景 | 序列化 | 反序列化 |
 |---|---|---|
-| 对比 MemoryPack | **快 <!--bench:ser.range-->3.5–7.2<!--/bench--> 倍** | **快 <!--bench:deser.range-->1.7–2.1<!--/bench--> 倍** |
-| 对比 MessagePack | **快 <!--bench:msgpack.ser.range-->8.4–23<!--/bench--> 倍** | **快 <!--bench:msgpack.deser.range-->5.2–14<!--/bench--> 倍** |
-| 对比 protobuf-net | **快 <!--bench:protobuf.ser.range-->41–122<!--/bench--> 倍** | **快 <!--bench:protobuf.deser.range-->17–57<!--/bench--> 倍** |
+| 对比 MemoryPack | **快 <!--bench:ser.range-->—<!--/bench--> 倍** | **快 <!--bench:deser.range-->—<!--/bench--> 倍** |
+| 对比 MessagePack | **快 <!--bench:msgpack.ser.range-->—<!--/bench--> 倍** | **快 <!--bench:msgpack.deser.range-->—<!--/bench--> 倍** |
+| 对比 protobuf-net | **快 <!--bench:protobuf.ser.range-->—<!--/bench--> 倍** | **快 <!--bench:protobuf.deser.range-->—<!--/bench--> 倍** |
+| 对比 Google.Protobuf | **快 <!--bench:gprotobuf.ser.range-->—<!--/bench--> 倍** | **快 <!--bench:gprotobuf.deser.range-->—<!--/bench--> 倍** |
+| 对比 System.Text.Json | **快 <!--bench:json.ser.range-->—<!--/bench--> 倍** | **快 <!--bench:json.deser.range-->—<!--/bench--> 倍** |
 | 反序列化到已有对象 | — | **0 B，比 MemoryPack 最多快 <!--bench:reuse.inplace-->9.5<!--/bench--> 倍** |
+
+六个场景：一次 RPC 请求、Web API 返回的一页 100 个订单、缓存里的用户资料、500 个实体的游戏帧快照、1,000 条日志事件，以及 500 个多态领域事件。每个库都用它最快的 API（Google.Protobuf 用自己生成的消息类型，System.Text.Json 用源生成器输出 UTF-8）。区间只算 Nino 快出 5% 以上的场景，每个场景的耗时见文档。
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-dark.png">
-    <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 的序列化和反序列化比 MemoryPack、MessagePack、protobuf-net 和 Nino v3 快多少倍" width="760">
+    <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="六个真实场景下，Nino v4 的序列化和反序列化比 MemoryPack、MessagePack、protobuf-net、Google.Protobuf 和 System.Text.Json 快多少倍" width="760">
   </picture>
 </p>
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.14<!--/bench-->，服务器 GC，<!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->，GitHub runner 实测；所有库在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上<!--bench:v3.when-->紧接其前跑一次<!--/bench-->。`SimpleClass` 数据大小：v4 <!--bench:payload.v4-->1,069<!--/bench--> 字节，v3 1,152 字节，MemoryPack <!--bench:payload.memorypack-->1,148<!--/bench--> 字节。测试方法与全部用例见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)。</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.14<!--/bench-->，服务器 GC，<!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->，GitHub runner 实测；所有库在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上<!--bench:v3.when-->紧接其前跑一次<!--/bench-->。100 个订单那一页的数据大小：Nino <!--bench:payload.v4-->—<!--/bench--> 字节，MemoryPack <!--bench:payload.memorypack-->—<!--/bench--> 字节，MessagePack <!--bench:payload.msgpack-->—<!--/bench--> 字节，protobuf（两个库相同）<!--bench:payload.protobuf-->—<!--/bench--> 字节，JSON <!--bench:payload.json-->—<!--/bench--> 字节。测试方法与全部用例见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)。</sub>
 
 更多：[全部 .NET 用例与 Arm64](https://nino.xgamedev.net/zh/docs/v4/benchmarks)、[Unity 与 Burst](https://nino.xgamedev.net/zh/docs/v4/benchmarks-unity)和 [Go、Rust 和 TypeScript](https://nino.xgamedev.net/zh/docs/v4/benchmarks-runtimes)。
 

@@ -50,13 +50,14 @@ about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 ## Runtime
 
 `benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
-GC), all eleven benchmark classes, v4 and MemoryPack 1.21.4 side by side, with MessagePack 3.1.12 and protobuf-net
-3.4.30 wherever they can write the same data: the release run spreads the classes over ten runners per architecture
+GC), every benchmark class, v4 and MemoryPack 1.21.4 side by side, with MessagePack 3.1.12 and protobuf-net
+3.4.40 wherever they can write the same data, and in `WorkloadTest` Google.Protobuf 3.36.2 and System.Text.Json (.NET
+10): the release run spreads the classes over twelve runners per architecture
 and keeps every serializer's run of a case on one. v3 is Nino 3.3.13 from nuget.org, running a port of
 the same `SimpleTest` (same data, same attributes), each half (serialize, deserialize) on the runner of the same v4 cases
 directly before them; it has no
 polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks. These tables come from
-<!--bench:doc.source-->the performance report of [v4.0.0-rc.9](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.9): BenchmarkDotNet 0.15.8, .NET 10.0.14, Intel Xeon 6973P-C 3.54 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
+<!--bench:doc.source-->a local `benchmarks/run.sh` run: BenchmarkDotNet 0.15.8, .NET 10.0.14, Intel Xeon 6973P-C 3.54 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
 
 Differences under 5% are reported as on par: MemoryPack runs in both sessions, and its two times show how much the
 runner moved. A time under 1 ns (about three clock cycles) cannot be told apart from another: reading a 40-byte struct
@@ -70,6 +71,33 @@ pooled buffer and then copies it over, one copy more than these tables measure.
 Before the benchmarks run, `--verify` (`benchmarks/Nino.Benchmark/Verify.cs`) checks every case: each serialize case writes
 its payload's bytes, and every deserialize case of a category reads back the same value, deep-compared. The data is
 seeded, so every run serializes the same values.
+
+### Real-world workloads
+
+`WorkloadTest` (`benchmarks/Nino.Benchmark/WorkloadModels.cs`): one RPC request (ids, a trace `Guid`, short strings,
+a timestamp, an enum, 8 ints), a Web API page of 100 orders (`decimal` money, nullable fields, an address, 1 to 8
+lines each), a cached user profile (18 fields, several null, a 10-entry string dictionary), a game snapshot of 500
+entity structs (vectors, a quaternion, health, flags), 1,000 structured log events (timestamp, level, template,
+trace id, three tags) and 500 domain events of four subtypes through an abstract base. Every library writes the same
+values through its fastest API: Google.Protobuf its own messages generated from `workloads.proto` (the same field
+numbers as protobuf-net's contracts, so both write the same messages: one payload size), System.Text.Json UTF-8
+through its source generator into a reused `Utf8JsonWriter`. These are the README's headline numbers. A ratio in
+parentheses is how many times faster Nino is; a dash, that it is not ahead by more than 5%.
+
+Serialize (to a reused buffer):
+
+<!--bench:doc.table.workloads.serialize-->
+<!--/bench-->
+
+Deserialize (new instances):
+
+<!--bench:doc.table.workloads.deserialize-->
+<!--/bench-->
+
+Payload (bytes):
+
+<!--bench:doc.table.workloads.payload-->
+<!--/bench-->
 
 ### Serialize (to a reused buffer writer)
 
@@ -141,10 +169,8 @@ Each against the closest MemoryPack mode: `ReferenceTest` (a graph of 200 nodes 
 `trackReferences: true` against `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members;
 `NinoFormat.VersionTolerant`, one length per object, against `GenerateType.VersionTolerant`, a length per member)
 and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 100 of the classes, through the
-`byte[]` APIs of both, so allocating the result is part of every call). `CommonTypesTest` adds data shaped like
-that of common applications (`benchmarks/Nino.Benchmark/CommonTypes.cs`): players with a struct list, a string dictionary,
-bytes and strings; orders with `Guid`, `DateTimeOffset`, `decimal` and a list of classes; shapes through an abstract
-base; a tree; a padded struct array; an array of structs of fixed size that are not raw (a value tuple member), which
+`byte[]` APIs of both, so allocating the result is part of every call). `CommonTypesTest` adds common type shapes
+(`benchmarks/Nino.Benchmark/CommonTypes.cs`): a tree; a padded struct array; an array of structs of fixed size that are not raw (a value tuple member), which
 are read and written as blocks; and a string dictionary. `CollectionsTest` covers collections of the base
 class library: a list of tuples, an array of key-value pairs, and hashed, queued, linked, sorted and concurrent
 collections. `BclTypesTest` covers the other base class library types both libraries have formatters for: `BigInteger`,
@@ -162,9 +188,6 @@ MemoryPack writes and parses the zone's whole serialized string on every call.
 | `FixedStruct` | 5.08 ns | 5.02 ns | on par | < 1 ns | < 1 ns | on par |
 | `FixedClass` | 4.86 ns | 12.7 ns | **2.62× faster** | 4.83 ns | 10.6 ns | **2.20× faster** |
 | `FixedClass[100]` | 281 ns | 996 ns | **3.54× faster** | 692 ns | 994 ns | **1.44× faster** |
-| `List<Player>`, 100 | 4.10 µs | 14.3 µs | **3.49× faster** | 17.7 µs | 21.9 µs | **1.23× faster** |
-| `List<Order>`, 100 | 3.05 µs | 8.27 µs | **2.71× faster** | 12.8 µs | 16.5 µs | **1.29× faster** |
-| `List<Shape>`, 1,000 (abstract base) | 963 ns | 10.9 µs | **11.31× faster** | 6.15 µs | 8.47 µs | **1.38× faster** |
 | `TreeNode`, 1,365 nodes | 6.32 µs | 11.0 µs | **1.74× faster** | 26.5 µs | 33.0 µs | **1.25× faster** |
 | `InventoryItem[1000]` (padded struct) | 38.3 ns | 40.1 ns | on par | 178 ns | 199 ns | **1.11× faster** |
 | `Waypoint[1000]` (fixed size, not raw) | 150 ns | 134 ns | — | 502 ns | 593 ns | **1.18× faster** |
