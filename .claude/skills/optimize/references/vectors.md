@@ -1458,6 +1458,14 @@ of bytes in a block.
   short mixed and near-64-KiB controls varied alongside identical binaries. All 96 wire
   samples matched and warmed reads allocated 0 B. The guarded-page suite and 1,500-input
   fuzz runs passed with SIMD on and off (`fa18a12c`).
+  Take the validation table bases with `GetArrayDataReference`. Each pass allocates
+  period plus vector width for both tables. The indexed bases retained two length checks
+  in the Arm64 listing. Removing them shrank the scan from 280 to 278 IL bytes and from
+  224 to 200 Arm64 bytes. The x64 ulong full-range listings shrank from 230/231/263 to
+  207/208/240 B at 128/256/512 bits. Four default-JIT short and large comparisons varied
+  alongside two identical baselines, with no repeatable throughput change. All 96 wire
+  samples matched at 0 B steady allocation, and all three targeted test runs passed
+  (`44016216`).
   Fold a sign-only pass into a preceding pass of the same lane width after the original density
   check. Reopening vector eligibility for formerly scalar TimeOnly layouts regressed first use.
   On x64, bound the low bits and OR the masked value to preserve its sign test. On Arm64, use
