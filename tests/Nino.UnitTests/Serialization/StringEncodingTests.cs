@@ -156,6 +156,18 @@ public class StringEncodingTests
     }
 
     [TestMethod]
+    public void Latin1CollectionReuseRetainsStringInstances()
+    {
+        var values = new[] { 1, 4, 8, 16, 31, 32, 63, 64, 65 }.Select(n => new string('é', n)).ToArray();
+        byte[] bytes = NinoSerializer.Serialize(values);
+        var current = values.Select(value => new string(value.ToCharArray())).ToArray();
+        var original = (string[])current.Clone();
+        NinoDeserializer.Deserialize(bytes, ref current);
+        for (int i = 0; i < current.Length; i++)
+            Assert.AreSame(original[i], current[i], $"Latin-1 string of {values[i].Length} chars was replaced");
+    }
+
+    [TestMethod]
     public void TruncatedStringsAreRejected()
     {
         foreach (var s in new[] { "abcdefghijklmnopqrstuvwxyz", "中文テキスト", new string('é', 97) })
@@ -173,9 +185,19 @@ public class StringEncodingTests
 #if NET8_0_OR_GREATER
     [TestMethod]
     [DoNotParallelize]
+    [DataRow(1, 31)]
+    [DataRow(32, 63)]
+    public void ShortLatin1ReuseComparesEveryCharWithoutReadingPastTheInput(int first, int last) =>
+        CheckLatin1Reuse(first, last);
+
+    [TestMethod]
+    [DoNotParallelize]
     [DataRow(64, 96)]
     [DataRow(127, 161)]
-    public void LongLatin1ReuseComparesEveryCharWithoutReadingPastTheInput(int first, int last)
+    public void LongLatin1ReuseComparesEveryCharWithoutReadingPastTheInput(int first, int last) =>
+        CheckLatin1Reuse(first, last);
+
+    private static void CheckLatin1Reuse(int first, int last)
     {
         for (int length = first; length <= last; length++)
         {

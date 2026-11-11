@@ -701,11 +701,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static bool SameLatin1(ref byte source, string value)
         {
-#if NET8_0_OR_GREATER
-            return SameAscii(ref source, value);
-#else
             return SameBytes(ref source, value, 0);
-#endif
         }
 
 #if !NET8_0_OR_GREATER
