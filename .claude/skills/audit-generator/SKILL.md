@@ -230,6 +230,16 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   builds across cold, cached and method-edit phases. Both builds reused 578 models and collected
   old compiler objects and generated text. The planner went from 1,003 to 1,002 IL bytes and
   3,900 to 3,784 Arm64 FullOpts bytes. The x64 cross listing grew from 2,372 to 2,527 bytes.
+- Read required-member flags through typed Roslyn properties. The pinned 4.3.0 reference
+  already exposes both flags. Allocate the result list only after
+  finding a required member. The 507-plan replay retained identical ordered construction
+  fields and saved 58,800 bytes per traversal. Four warmed pairs took 5–11% less time.
+  Whole-project cold allocation medians fell by 35–44 KB. Process timings varied widely,
+  including the identical-binary controls. The scan and flag predicate went from 102/82 to
+  94/72 IL bytes, 368/392 to 384/236 Arm64 FullOpts bytes, and 243/167 to 248/154 x64
+  cross-listing bytes. A real Roslyn 4.3.0 host compiled the required field and property fixture
+  with matching output. All three generator builds matched the real-project source and passed
+  the collection probes.
 - Walk overridden properties directly during member deduplication. The former LINQ predicate bound
   a delegate and created an iterator even when the member had no overridden property. On .NET 8
   the 548-type probe went from 1,122 to 789 B per type and from 399–412 to 352–359 ns. The
