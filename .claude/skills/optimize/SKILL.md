@@ -49,11 +49,19 @@ for the topic you touch before changing code there: most of these were learned b
 says which CPUs and cases moved.
 
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
-  `NinoSimd`'s properties (`HasArm64`, `Has128/256/512`, `Prefer512`), and a size band shared by several call sites is
+  `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks
   its own ISA's `IsSupported` (`AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.ZipLow(a, b) : Sse2.UnpackLow(a, b)`). Why:
   the codex/nino-audit series wrote the Arm64 short-copy band six times with four ranges and three gates, and spelled
   `!Sse2.IsSupported && AdvSimd.Arm64.IsSupported` by hand beside `HasArm64`.
+- **Test a vector width with the BCL's `Vector128/256/512.IsHardwareAccelerated` in place, never through a wrapper
+  property.** Why: an `AggressiveInlining` getter is still an inlinee charged to the caller's inlining budget, and the
+  checks sit in helpers inlined into every case (copies, strings, masks, checks). Evidence: `9bd3c982` routed them
+  through `NinoSimd.Has128/256/512`; on x64 `ScatteredTest.NinoSerializeInOrderShapes` then inlined
+  `WriteRawWithId<Rect>` but called `Writer.Skip` and `RectFormatter.WriteRawBody` from it (two calls per element,
+  `Skip` an `AggressiveInlining` method), 6-12% slower than main; with the checks in place again the listing called
+  `WriteRawWithId` once as on main and measured 2.66/3.01 ms min/median against main's 2.77/3.05 (in-process loop,
+  six alternated rounds, Emerald Rapids).
 - **The JIT** ([references/jit.md](references/jit.md); the measured experiments by area in [jit-io.md](references/jit-io.md) (Reader, Writer, buffer writers, streams, sequences), [jit-arrays.md](references/jit-arrays.md) (raw arrays, spans, memory, external buffer writers), [jit-formatters.md](references/jit-formatters.md) (BitArray, BigInteger, StringBuilder, hashing, caches) and [jit-collections.md](references/jit-collections.md) (collections, dictionary refill)): keep rare or large paths out of line (`NoInlining`), platform
   branches in the out-of-line part, and decide options at generation time, never as a run-time branch on the default
   path (the root's budget is sized from its IL); avoid passing `ref reader` / `ref writer` to an out-of-line helper
