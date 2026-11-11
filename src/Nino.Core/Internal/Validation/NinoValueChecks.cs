@@ -47,7 +47,9 @@ namespace Nino.Core.Internal
             // Whole strides as vectors, but not the last value's: the run need not hold a stride past it (the values
             // of raw pairs end a key before the next pair, maybe the data's last byte). It takes the scalar loops.
             int whole = count - 1;
-            if (Vector.IsHardwareAccelerated && (long)whole * stride >= Vector<byte>.Count &&
+            // A single Arm64 vector does not repay building and dispatching a plan on first use.
+            int minimumBytes = Vector<byte>.Count + (NinoSimd.HasArm64 ? 1 : 0);
+            if (Vector.IsHardwareAccelerated && (long)whole * stride >= minimumBytes &&
                 PlanFor(stride) is { } plan && plan.Valid(ref first, whole * stride))
             {
                 CheckFields(ref Unsafe.Add(ref first, whole * stride), 1, stride, type);
@@ -142,8 +144,8 @@ namespace Nino.Core.Internal
         /// each lane masked and tested against its bound (<see cref="Test{T}"/>), from two tables repeated with the
         /// period of the values and the vectors (lcm(stride, vector width) bytes, one vector more for the last,
         /// overlapping one). Lanes without a field are masked to zero against a bound of zero. A field takes a pass of
-        /// its size (its offset and the stride multiples of it); a test that needs two (a decimal's sign and scale, the
-        /// top bit of a DateOnly or TimeOnly) two passes.
+        /// its size (its offset and the stride multiples of it). The sign-bit checks of DateOnly and TimeOnly
+        /// start in a separate pass, which the plan can merge after choosing the vector path.
         /// </summary>
         private sealed class Plan
         {
@@ -205,9 +207,44 @@ namespace Nino.Core.Internal
                 // 895; a 24-byte struct with a DateTime and a bool, two passes: 1,616 instead of 1,526, and the bool in
                 // the DateTime's pass, one: 830 instead of 1,300; a 48-byte one with six fields, five passes: 9,849
                 // instead of 5,658; AVX-512 Xeon, 32-byte vectors).
-                return new Plan(stride,
-                    passes.Contains(null) || 2 * passes.Count * stride > pairs.Length / 2 * width ? null : passes.ToArray(),
-                    period);
+                if (passes.Contains(null) || 2 * passes.Count * stride > pairs.Length / 2 * width)
+                    return new Plan(stride, null, period);
+
+                FoldSignPasses(passes, period);
+                return new Plan(stride, passes.ToArray(), period);
+            }
+
+            // Fuse checks of just the sign bit into a preceding pass of the same lane size.
+            // Run after the density check so this does not introduce vectors into scalar layouts.
+            private static void FoldSignPasses(List<Pass> passes, int period)
+            {
+                for (int i = passes.Count - 1; i > 0; i--)
+                {
+                    var upper = passes[i];
+                    var lower = passes[i - 1];
+                    if (upper.Size == 1 || upper.Size != lower.Size)
+                        continue;
+
+                    bool signsOnly = true;
+                    for (int at = 0; at < period; at++)
+                    {
+                        byte mask = upper.Masks[at];
+                        if (upper.Bounds[at] != 0 ||
+                            (mask != 0 && (mask != 0x80 || at % upper.Size != upper.Size - 1)))
+                        {
+                            signsOnly = false;
+                            break;
+                        }
+                    }
+
+                    if (!signsOnly)
+                        continue;
+
+                    for (int at = 0; at < lower.Masks.Length; at++)
+                        lower.Masks[at] |= upper.Masks[at];
+                    lower.FullRange = true;
+                    passes.RemoveAt(i);
+                }
             }
 
             /// <summary>
@@ -266,9 +303,11 @@ namespace Nino.Core.Internal
                 {
                     bool valid = pass.Size switch
                     {
-                        1 => Valid<byte>(ref first, length, pass),
-                        4 => Valid<uint>(ref first, length, pass),
-                        _ => Valid<ulong>(ref first, length, pass),
+                        1 => Valid<byte, Masked>(ref first, length, pass),
+                        4 => (NinoSimd.HasArm64 || pass.FullRange) ? Valid<uint, FullRange>(ref first, length, pass)
+                            : Valid<uint, Masked>(ref first, length, pass),
+                        _ => (NinoSimd.HasArm64 || pass.FullRange) ? Valid<ulong, FullRange>(ref first, length, pass)
+                            : Valid<ulong, Masked>(ref first, length, pass),
                     };
                     if (!valid)
                         return false;
@@ -277,7 +316,10 @@ namespace Nino.Core.Internal
                 return true;
             }
 
-            private bool Valid<T>(ref byte first, int length, Pass pass) where T : unmanaged
+            private readonly struct Masked { }
+            private readonly struct FullRange { }
+
+            private bool Valid<T, TRange>(ref byte first, int length, Pass pass) where T : unmanaged
             {
                 int width = Vector<byte>.Count;
                 ref byte masks = ref pass.Masks[0];
@@ -287,7 +329,7 @@ namespace Nino.Core.Internal
                 int last = length - width;
                 for (int at = 0; at <= last; at += width)
                 {
-                    bad |= Test<T>(Load<T>(ref first, at), ref masks, ref bounds, phase);
+                    bad |= Test<T, TRange>(Load<T>(ref first, at), ref masks, ref bounds, phase);
                     phase += width;
                     if (phase == _period)
                         phase = 0;
@@ -295,7 +337,7 @@ namespace Nino.Core.Internal
 
                 // The last vector again, over values already checked.
                 if (length % width != 0)
-                    bad |= Test<T>(Load<T>(ref first, last), ref masks, ref bounds, last % _period);
+                    bad |= Test<T, TRange>(Load<T>(ref first, last), ref masks, ref bounds, last % _period);
                 if (typeof(T) == typeof(byte))
                     return bad == Vector<T>.Zero;
                 // Wider lanes: their sign bits.
@@ -307,15 +349,31 @@ namespace Nino.Core.Internal
             /// <summary>
             /// Lanes of one byte: the bits of the mask, which a valid byte never has. Wider lanes: the bound less the
             /// masked lane, whose sign bit is set exactly when the lane is past the bound (masks and bounds below the
-            /// sign bit, or a mask of the sign bit alone and a bound of zero). Subtractions and ors, not compares:
-            /// unsigned compares are several instructions on x64, and these were slower than the scalar loop.
+            /// sign bit, or a mask of the sign bit alone and a bound of zero). Arm64 has a native unsigned compare.
+            /// On x64 use subtraction and OR because unsigned comparison takes several instructions.
             /// </summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private static Vector<T> Test<T>(Vector<T> value, ref byte masks, ref byte bounds, int phase)
-                where T : unmanaged =>
-                typeof(T) == typeof(byte)
-                    ? value & Load<T>(ref masks, phase)
-                    : Load<T>(ref bounds, phase) - (value & Load<T>(ref masks, phase));
+            private static Vector<T> Test<T, TRange>(Vector<T> value, ref byte masks, ref byte bounds, int phase)
+                where T : unmanaged
+            {
+                var masked = value & Load<T>(ref masks, phase);
+                if (typeof(T) == typeof(byte))
+                    return masked;
+
+                var bound = Load<T>(ref bounds, phase);
+                if (NinoSimd.HasArm64)
+                    return Vector.GreaterThan(masked, bound);
+                if (typeof(TRange) == typeof(FullRange))
+                {
+                    // Test the high bit and the bounded low bits in the same pass.
+                    var lowMask = Vector.As<ulong, T>(new Vector<ulong>(typeof(T) == typeof(uint)
+                        ? 0x7FFF_FFFF_7FFF_FFFFUL
+                        : 0x7FFF_FFFF_FFFF_FFFFUL));
+                    return (bound - (masked & lowMask)) | masked;
+                }
+
+                return bound - masked;
+            }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private static Vector<T> Load<T>(ref byte source, int at) where T : unmanaged =>
@@ -329,6 +387,7 @@ namespace Nino.Core.Internal
         {
             public readonly int Size;
             public readonly byte[] Masks, Bounds;
+            public bool FullRange;
 
             public Pass(int size, int length)
             {
