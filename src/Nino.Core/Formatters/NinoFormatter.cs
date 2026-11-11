@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
 
@@ -133,6 +134,10 @@ namespace Nino.Core
         /// <see cref="INinoTopFormatter{T}"/>).
         /// </summary>
         internal abstract void Write(T value, NinoArrayBufferWriter buffer);
+
+        /// <summary>Writes a whole payload to an external buffer, using scratch when the size is unknown.</summary>
+        internal virtual void WriteExternal(T value, IBufferWriter<byte> buffer) =>
+            NinoScratch.CopyTo(value, new NinoSerializer.FormatterWriter<T>(this), buffer);
 
         /// <summary>
         /// Reads a whole payload into a new value (the top-level calls): the reader is created by the formatter's
@@ -310,6 +315,31 @@ namespace Nino.Core
         internal override int FixedSize => default(TFormatter).FixedSize;
 
         internal override byte[] SerializeFixed(T value) => NinoDirect.WriteFixed<T, TFormatter>(value);
+
+        internal override void WriteExternal(T value, IBufferWriter<byte> buffer)
+        {
+            int size = default(TFormatter).FixedSize;
+            if (size < 0)
+            {
+                base.WriteExternal(value, buffer);
+                return;
+            }
+
+            if (!BitConverter.IsLittleEndian)
+                NinoThrow.BigEndianHost();
+            bool absent = value == null;
+            if (absent)
+                size = 1;
+            var span = buffer.GetSpan(size);
+            if (span.Length < size)
+                NinoThrow.EndOfData();
+            ref byte destination = ref MemoryMarshal.GetReference(span);
+            if (absent)
+                destination = NinoWire.Null;
+            else
+                default(TFormatter).WriteFixed(in value, ref destination);
+            buffer.Advance(size);
+        }
     }
 
     /// <summary>

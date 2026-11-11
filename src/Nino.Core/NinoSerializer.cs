@@ -87,7 +87,7 @@ namespace Nino.Core
             formatter.Write(value, buffer);
 
         /// <summary>Writes with a formatter known only as <see cref="NinoFormatterBase{T}"/> (<see cref="NinoScratch"/>).</summary>
-        private readonly struct FormatterWriter<T> : INinoScratchWriter<T>
+        internal readonly struct FormatterWriter<T> : INinoScratchWriter<T>
         {
             private readonly NinoFormatterBase<T> _formatter;
 
@@ -99,7 +99,7 @@ namespace Nino.Core
 
         /// <summary>
         /// Serializes <paramref name="value"/> into <paramref name="bufferWriter"/>. Writing into a
-        /// <see cref="NinoArrayBufferWriter"/> or writing a raw value or array is done in place.
+        /// <see cref="NinoArrayBufferWriter"/> or writing a raw value, raw array or fixed-size value is done in place.
         /// Other values are copied from a scratch buffer.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -146,7 +146,7 @@ namespace Nino.Core
                 return;
             }
 
-            NinoScratch.CopyTo(value, new FormatterWriter<T>(formatter), bufferWriter);
+            formatter.WriteExternal(value, bufferWriter);
         }
 
         /// <summary>

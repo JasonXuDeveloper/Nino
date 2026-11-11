@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 using Nino.UnitTests.Subset.Fixed;
@@ -40,6 +41,13 @@ public class FixedSizeTests
         CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(value));
         CollectionAssert.AreEqual(expected, NinoSerializer.SerializeBoxed(value, typeof(T)));
         CollectionAssert.AreEqual(expected, direct);
+
+        var external = new ArrayBufferWriter<byte>(size + 1);
+        external.GetSpan(size + 1).Slice(0, size + 1).Fill(0xCC);
+        external.Advance(1);
+        NinoSerializer.Serialize(value, external);
+        Assert.AreEqual((byte)0xCC, external.WrittenSpan[0]);
+        CollectionAssert.AreEqual(expected, external.WrittenSpan.Slice(1).ToArray());
     }
 
     [TestMethod]
@@ -100,8 +108,7 @@ public class FixedSizeTests
     {
         // The not-null flag alone.
         CollectionAssert.AreEqual(new byte[] { 0 }, ViaWriter<FixedSealed>(null));
-        CollectionAssert.AreEqual(new byte[] { 0 }, NinoSerializer.Serialize<FixedSealed>(null));
-        CollectionAssert.AreEqual(new byte[] { 0 }, FixedDirect.Serialize((FixedSealed)null));
+        Check<FixedSealed>(null, FixedDirect.Serialize((FixedSealed)null), 1);
         Assert.IsNull(NinoDeserializer.Deserialize<FixedSealed>(new byte[] { 0 }));
     }
 
