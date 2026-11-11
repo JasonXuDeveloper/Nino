@@ -20,11 +20,10 @@ internal static class FormatterEmitter
         AccessorEmitter.EmitGenericUnsafeAccessors(w, m, aliases);
         // The type's own name, which most lines of a formatter repeat, through an alias: not a generic type's, whose
         // name has the formatter's type parameters.
-        string unaliased = w.Finish();
-        TextScratch.Return(scratch);
         names.AddInliningAliases(aliases);
-        string body = GeneratedCode.WithAliases(unaliased, m.IsGeneric ? null : m.TypeName, aliases,
-            names.Formatters, names.RawTypes);
+        var body = GeneratedCode.WithAliases(w, m.IsGeneric ? null : m.TypeName, aliases, names.Formatters,
+            names.RawTypes);
+        TextScratch.Return(scratch);
 
         // The partial classes of the members' accessors follow in the types' own namespaces.
         string preamble = LayoutEmitter.Emit(m);

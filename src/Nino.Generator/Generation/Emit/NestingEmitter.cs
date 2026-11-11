@@ -37,7 +37,7 @@ internal static class NestingEmitter
         }
 
         var aliases = new List<string>();
-        string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
+        var body = GeneratedCode.WithAliases(w, null, aliases);
         return GeneratedCode.File("", aliases, body, fileScoped);
     }
 }

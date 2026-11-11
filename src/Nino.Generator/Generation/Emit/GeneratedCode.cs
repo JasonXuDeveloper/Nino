@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation.Emit;
@@ -29,57 +28,47 @@ internal static class GeneratedCode
     /// A generated file: the <see cref="Header"/>, <paramref name="preamble"/> (what precedes the namespace, such as
     /// assembly attributes, as is), and the <c>NinoGen</c> namespace holding <paramref name="aliases"/> (declarations,
     /// one per line, then a blank line) and <paramref name="body"/> (written at no indentation, as a
-    /// <see cref="CodeWriter"/> writes it). <paramref name="fileScoped"/>: the namespace is declared for the rest of
-    /// the file (<c>namespace NinoGen;</c>, C# 10), where nothing follows the body and the preamble declares no
-    /// namespace; otherwise it is a block, whose lines are indented one level.
+    /// <see cref="CodeWriter"/> writes it, with the aliases <see cref="WithAliases"/> chose). <paramref name="fileScoped"/>:
+    /// the namespace is declared for the rest of the file (<c>namespace NinoGen;</c>, C# 10), where nothing follows
+    /// the body and the preamble declares no namespace; otherwise it is a block, whose lines are indented one level.
     /// </summary>
-    public static string File(string preamble, IEnumerable<string> aliases, string body, bool fileScoped)
+    public static string File(string preamble, IEnumerable<string> aliases, AliasedBody body, bool fileScoped)
     {
         if (fileScoped)
         {
             const string fileNamespace = "namespace " + TypeNames.GenNamespace + ";\n\n";
             using var items = aliases.GetEnumerator();
-            if (!items.MoveNext())
-                return string.Concat(Header, preamble, fileNamespace, body);
+            if (body.Ranges == null && !items.MoveNext())
+                return string.Concat(Header, preamble, fileNamespace, body.Text);
 
-            var prefix = TextScratch.Rent(256);
-            prefix.Append(fileNamespace);
-            do
-            {
-                prefix.Append(items.Current).Append('\n');
-            } while (items.MoveNext());
-            prefix.Append('\n');
-            string text = prefix.ToString();
-            TextScratch.Return(prefix);
-            return string.Concat(Header, preamble, text, body);
+            var file = TextScratch.Rent(Header.Length + preamble.Length + 256 + WrittenLength(body, indent: false));
+            file.Append(Header).Append(preamble).Append(fileNamespace);
+            int length = file.Length;
+            foreach (var alias in aliases)
+                file.Append(alias).Append('\n');
+            if (file.Length != length)
+                file.Append('\n');
+            AppendBody(file, body, indent: false);
+            string text = file.ToString();
+            TextScratch.Return(file);
+            return text;
         }
 
         var sb = BuildBlockFile(preamble, aliases, body);
-        string file = sb.ToString();
+        string block = sb.ToString();
         TextScratch.Return(sb);
-        return file;
+        return block;
     }
 
     /// <summary>Writes the closed namespace into a scratch buffer that the caller returns after use.</summary>
-    internal static StringBuilder BuildBlockFile(string preamble, IEnumerable<string> aliases, string body,
+    internal static StringBuilder BuildBlockFile(string preamble, IEnumerable<string> aliases, AliasedBody body,
         int tailCapacity = 1024)
     {
-        // Each nonblank line adds four spaces. Reserve some room for indentation without doubling large files.
-        var sb = TextScratch.Rent(body.Length + body.Length / 4 + preamble.Length + tailCapacity);
+        var sb = TextScratch.Rent(Header.Length + preamble.Length + 256 + WrittenLength(body, indent: true) +
+                                  tailCapacity);
         sb.Append(Header).Append(preamble);
         AppendBlockPrefix(sb, aliases);
-        // The body's lines one level in (blank lines stay empty).
-        int start = 0;
-        while (start < body.Length)
-        {
-            int end = body.IndexOf('\n', start);
-            end = end < 0 ? body.Length : end + 1;
-            if (body[start] != '\n')
-                sb.Append(BlockIndent);
-            sb.Append(body, start, end - start);
-            start = end;
-        }
-
+        AppendBody(sb, body, indent: true);
         return sb.Append("}\n");
     }
 
@@ -93,6 +82,60 @@ internal static class GeneratedCode
             sb.Append(BlockIndent).Append(alias).Append('\n');
         if (sb.Length != length)
             sb.Append('\n');
+    }
+
+    /// <summary>How long <see cref="AppendBody"/> writes <paramref name="body"/>, so a large file is built in one buffer.</summary>
+    private static int WrittenLength(AliasedBody body, bool indent)
+    {
+        string text = body.Text;
+        int length = text.Length;
+        if (body.Ranges != null)
+            foreach (var range in body.Ranges)
+                length += range.Alias.Length - range.Length;
+        if (indent)
+            for (int start = 0; start < text.Length;)
+            {
+                int end = text.IndexOf('\n', start);
+                end = end < 0 ? text.Length : end + 1;
+                if (text[start] != '\n')
+                    length += BlockIndent.Length;
+                start = end;
+            }
+
+        return length;
+    }
+
+    /// <summary>
+    /// Appends <paramref name="body"/> with its ranges written as their aliases, each nonblank line one level in when
+    /// <paramref name="indent"/> (blank lines stay empty). No range holds a line break.
+    /// </summary>
+    private static void AppendBody(StringBuilder sb, AliasedBody body, bool indent)
+    {
+        string text = body.Text;
+        var ranges = body.Ranges;
+        int count = ranges?.Count ?? 0, next = 0;
+        int start = 0;
+        while (start < text.Length)
+        {
+            int end = text.Length;
+            if (indent)
+            {
+                end = text.IndexOf('\n', start);
+                end = end < 0 ? text.Length : end + 1;
+                if (text[start] != '\n')
+                    sb.Append(BlockIndent);
+            }
+
+            for (; next < count && ranges![next].Start < end; next++)
+            {
+                var range = ranges[next];
+                sb.Append(text, start, range.Start - start).Append(range.Alias);
+                start = range.Start + range.Length;
+            }
+
+            sb.Append(text, start, end - start);
+            start = end;
+        }
     }
 
     /// <summary>
@@ -124,134 +167,183 @@ internal static class GeneratedCode
     private const string CoreNamespaceDeclaration = "using " + CoreNamespaceAlias + " = global::Nino.Core;";
 
     /// <summary>
-    /// <paramref name="body"/> (the part of a file inside the <c>NinoGen</c> namespace) with the names it repeats
-    /// written shorter. The generated types lose <c>global::NinoGen.</c>: the body is inside that namespace, whose own
-    /// types a simple name finds before any other (only a type parameter of a generic formatter, which takes the names
-    /// of its type's, or a nested type could hide one, and none is named like a generated type). Then the names
-    /// become aliases: <paramref name="formatters"/> (generic formatters a type's members are read and written with,
-    /// none naming a type parameter; numbered in their order) as <c>__NinoF0</c>, <c>__NinoF1</c>..., <paramref name="self"/> (a type the file is about, when
-    /// given) as <c>__T</c>, <paramref name="rawTypes"/> as <c>__NinoRaw0</c>...,
-    /// and the <see cref="CoreAliases"/>. A name is replaced only where the alias makes the
+    /// What <paramref name="writer"/> wrote (the part of a file inside the <c>NinoGen</c> namespace) and the names
+    /// it repeats that <see cref="File"/> writes shorter. The generated types lose <c>global::NinoGen.</c> (removed in
+    /// the writer's buffer): the body is inside that namespace, whose own types a simple name finds before any other
+    /// (only a type parameter of a generic formatter, which takes the names of its type's, or a nested type could hide
+    /// one, and none is named like a generated type). Then the names become aliases, each tried in turn on what the
+    /// earlier ones left: <paramref name="formatters"/> (generic formatters a type's members are read and written
+    /// with, none naming a type parameter; numbered in their order) as <c>__NinoF0</c>, <c>__NinoF1</c>...,
+    /// <paramref name="self"/> (a type the file is about, when given) as <c>__T</c>, the <see cref="CoreAliases"/>,
+    /// and <paramref name="rawTypes"/> as <c>__NinoRaw0</c>.... A name is replaced only where the alias makes the
     /// file shorter, counting its declaration, which is added to <paramref name="declarations"/>; and only as a whole
-    /// name: not next to an identifier character, a dot or a colon (a longer name, a qualified or nested one), but for
-    /// the member that follows a static class's name.
+    /// name: not next to an identifier character, a dot or a colon (a longer name, a qualified or nested one), but
+    /// for the member that follows a static class's name. The body becomes one string, and the file another, however
+    /// many aliases pay.
     /// </summary>
-    public static string WithAliases(string body, string? self, List<string> declarations,
+    public static AliasedBody WithAliases(CodeWriter writer, string? self, List<string> declarations,
         IReadOnlyList<string>? formatters = null, IReadOnlyList<string>? rawTypes = null)
     {
-        body = body.Replace(TypeNames.Gen, "");
-        // Each successful rewrite shortens the body, so the first builder can hold all later rewrites.
-        StringBuilder? scratch = null;
+        string body = writer.Finish(TypeNames.Gen);
+        var plan = new AliasPlan(body);
         List<string>? formatterAliases = null;
         if (formatters is { Count: > 0 })
         {
             formatterAliases = new List<string>();
             if (formatters.Count == 1)
-            {
-                string name = formatters[0].Replace(TypeNames.Gen, "");
-                body = WithAlias(body, name, "__NinoF0", formatterAliases, ref scratch);
-            }
+                plan.TryAlias(formatters[0].Replace(TypeNames.Gen, ""), "__NinoF0", formatterAliases);
             else
-                body = WithFormatterAliases(body, formatters, formatterAliases, ref scratch);
+                PlanFormatterAliases(plan, formatters, formatterAliases);
         }
 
         if (self != null)
-            body = WithAlias(body, self, "__T", declarations, ref scratch);
-        int declarationsBefore = declarations.Count;
-        if (body.IndexOf(CompilerServicesAlias, StringComparison.Ordinal) < 0)
-            body = WithAlias(body, TypeNames.CoreCompilerServices, CompilerServicesPrefix, declarations, ref scratch,
-                CompilerServicesDeclaration);
-        bool compilerAlias = declarations.Count != declarationsBefore;
-        declarationsBefore = declarations.Count;
-        if (body.IndexOf(CoreNamespacePrefix, StringComparison.Ordinal) < 0)
-            body = WithAlias(body, TypeNames.Core, CoreNamespacePrefix, declarations, ref scratch, CoreNamespaceDeclaration);
-        bool coreAlias = declarations.Count != declarationsBefore;
+            plan.TryAlias(self, "__T", declarations);
+        bool compilerAlias = body.IndexOf(CompilerServicesAlias, StringComparison.Ordinal) < 0 &&
+                             plan.TryAlias(TypeNames.CoreCompilerServices, CompilerServicesPrefix, declarations,
+                                 CompilerServicesDeclaration);
+        bool coreAlias = body.IndexOf(CoreNamespacePrefix, StringComparison.Ordinal) < 0 &&
+                         plan.TryAlias(TypeNames.Core, CoreNamespacePrefix, declarations, CoreNamespaceDeclaration);
         foreach (var (name, alias, declaration) in CoreAliases)
             if ((!coreAlias || !name.StartsWith(TypeNames.Core, StringComparison.Ordinal)) &&
                 (!compilerAlias || !name.StartsWith(TypeNames.CoreCompilerServices, StringComparison.Ordinal)))
-                body = WithAlias(body, name, alias, declarations, ref scratch, declaration);
+                plan.TryAlias(name, alias, declarations, declaration);
 
         if (rawTypes is { Count: > 0 })
         {
             int start = declarations.Count;
             foreach (string name in rawTypes)
-            {
-                string alias = "__NinoRaw" + (declarations.Count - start).ToString(CultureInfo.InvariantCulture);
-                body = WithAlias(body, name, alias, declarations, ref scratch);
-            }
+                plan.TryAlias(name, "__NinoRaw" + (declarations.Count - start).ToString(CultureInfo.InvariantCulture),
+                    declarations);
         }
 
         if (formatterAliases != null)
             declarations.AddRange(formatterAliases);
-        TextScratch.Return(scratch);
-
-        return body;
+        return new AliasedBody(body, plan.Ranges);
     }
 
-    private static string WithFormatterAliases(string body, IReadOnlyList<string> formatters,
-        List<string> formatterAliases, ref StringBuilder? scratch)
+    private static void PlanFormatterAliases(AliasPlan plan, IReadOnlyList<string> formatters,
+        List<string> formatterAliases)
     {
-        // Replaced longest first (a name inside a longer one is replaced with it), numbered in the order given
+        // Tried longest first (a name inside a longer one is replaced with it), numbered in the order given
         // (the members').
         var names = formatters.Select(static n => n.Replace(TypeNames.Gen, "")).Distinct().ToList();
         var aliased = new List<string>();
         foreach (var name in names.OrderByDescending(static n => n.Length))
         {
             // Declared inside the namespace too, where the generated types need no qualifier either.
-            int count = formatterAliases.Count;
-            string alias = FormatterAlias(count);
-            body = WithAlias(body, name, alias, formatterAliases, ref scratch);
-            if (formatterAliases.Count != count)
+            if (plan.TryAlias(name, FormatterAlias(formatterAliases.Count), formatterAliases))
                 aliased.Add(name);
         }
 
         if (aliased.Count <= 1)
-            return body;
+            return;
 
         // Renumbered from the order of replacement to the order given.
         var order = aliased.OrderBy(names.IndexOf).ToList();
-        if (!order.SequenceEqual(aliased))
-        {
-            body = Regex.Replace(body, @"\b__NinoF(\d+)\b", x =>
-                FormatterAlias(order.IndexOf(aliased[int.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture)])));
-            formatterAliases.Clear();
-            formatterAliases.AddRange(order.Select((name, i) => $"using {FormatterAlias(i)} = {name};"));
-        }
-        return body;
+        if (order.SequenceEqual(aliased))
+            return;
+        var renamed = new Dictionary<string, string>(aliased.Count);
+        for (int i = 0; i < aliased.Count; i++)
+            renamed.Add(FormatterAlias(i), FormatterAlias(order.IndexOf(aliased[i])));
+        plan.Rename(renamed);
+        formatterAliases.Clear();
+        formatterAliases.AddRange(order.Select((name, i) => $"using {FormatterAlias(i)} = {name};"));
     }
 
     private static string FormatterAlias(int index) => "__NinoF" + index.ToString(CultureInfo.InvariantCulture);
 
-    private static string WithAlias(string body, string name, string alias, List<string> declarations,
-        ref StringBuilder? scratch, string? declaration = null)
-    {
-        // Count only until the alias pays for its declaration, including a line break and block-namespace indent.
-        // Most candidates do not pay off, so leave their body alone without allocating a replacement buffer.
-        int saving = name.Length - alias.Length;
-        if (saving <= 0)
-            return body;
-        int declarationLength = declaration?.Length ?? ("using ".Length + alias.Length + " = ".Length + name.Length + 1);
-        int needed = (declarationLength + 5) / saving + 1;
-        bool member = name[name.Length - 1] == '.';
-        int first = FindName(body, name, 0, member);
-        int at = first;
-        for (int count = 1; at >= 0 && count < needed; count++)
-            at = FindName(body, name, at + name.Length, member);
-        if (at < 0)
-            return body;
+    /// <summary>A range of a body that <see cref="File"/> writes as <see cref="Alias"/>.</summary>
+    internal readonly record struct AliasRange(int Start, int Length, string Alias);
 
-        var sb = scratch ??= TextScratch.Rent(body.Length);
-        sb.Clear();
-        int start = 0;
-        for (at = first; at >= 0; at = FindName(body, name, start, member))
+    /// <summary>A body and the ranges of it written as aliases (in order, none overlapping; null when none).</summary>
+    public readonly struct AliasedBody
+    {
+        public readonly string Text;
+        internal readonly List<AliasRange>? Ranges;
+
+        internal AliasedBody(string text, List<AliasRange>? ranges)
         {
-            sb.Append(body, start, at - start).Append(alias);
-            start = at + name.Length;
+            Text = text;
+            Ranges = ranges;
+        }
+    }
+
+    /// <summary>
+    /// The aliases chosen for one body, as ranges of it: a name is matched only outside the ranges of the names
+    /// aliased before it, which is where it would still be found had those been replaced.
+    /// </summary>
+    private sealed class AliasPlan(string text)
+    {
+        public List<AliasRange>? Ranges { get; private set; }
+        private List<AliasRange>? _merged;
+
+        /// <summary>Aliases <paramref name="name"/> if that makes the file shorter; whether it did.</summary>
+        public bool TryAlias(string name, string alias, List<string> declarations, string? declaration = null)
+        {
+            // Count only until the alias pays for its declaration, including a line break and block-namespace indent.
+            int saving = name.Length - alias.Length;
+            if (saving <= 0)
+                return false;
+            int declarationLength = declaration?.Length ?? ("using ".Length + alias.Length + " = ".Length + name.Length + 1);
+            int needed = (declarationLength + 5) / saving + 1;
+            bool member = name[name.Length - 1] == '.';
+            int next = 0, count = 0;
+            for (int at = Find(name, 0, member, ref next); at >= 0 && ++count < needed;)
+                at = Find(name, at + name.Length, member, ref next);
+            if (count < needed)
+                return false;
+
+            // Merge every match into the ranges, which stay in order.
+            var merged = _merged ?? new List<AliasRange>();
+            merged.Clear();
+            var ranges = Ranges;
+            int old = 0, oldCount = ranges?.Count ?? 0;
+            next = 0;
+            for (int at = Find(name, 0, member, ref next); at >= 0; at = Find(name, at + name.Length, member, ref next))
+            {
+                while (old < oldCount && ranges![old].Start < at)
+                    merged.Add(ranges[old++]);
+                merged.Add(new AliasRange(at, name.Length, alias));
+            }
+
+            while (old < oldCount)
+                merged.Add(ranges![old++]);
+            _merged = ranges;
+            Ranges = merged;
+            declarations.Add(declaration ?? $"using {alias} = {name};");
+            return true;
         }
 
-        sb.Append(body, start, body.Length - start);
-        declarations.Add(declaration ?? $"using {alias} = {name};");
-        return sb.ToString();
+        /// <summary>Writes the ranges aliased as a key of <paramref name="aliases"/> as its value.</summary>
+        public void Rename(Dictionary<string, string> aliases)
+        {
+            var ranges = Ranges!;
+            for (int i = 0; i < ranges.Count; i++)
+                if (aliases.TryGetValue(ranges[i].Alias, out var alias))
+                    ranges[i] = ranges[i] with { Alias = alias };
+        }
+
+        /// <summary>
+        /// The next whole-name match of <paramref name="name"/> at or after <paramref name="start"/> outside the
+        /// ranges; <paramref name="next"/> is the first range that does not end before it, carried between calls.
+        /// </summary>
+        private int Find(string name, int start, bool member, ref int next)
+        {
+            var ranges = Ranges;
+            int count = ranges?.Count ?? 0;
+            int at;
+            while ((at = FindName(text, name, start, member)) >= 0)
+            {
+                while (next < count && ranges![next].Start + ranges[next].Length <= at)
+                    next++;
+                if (next == count || ranges![next].Start >= at + name.Length)
+                    return at;
+                // Inside or across an aliased range: that text is gone.
+                start = ranges[next].Start + ranges[next].Length;
+            }
+
+            return -1;
+        }
     }
 
     private static int FindName(string body, string name, int start, bool member)

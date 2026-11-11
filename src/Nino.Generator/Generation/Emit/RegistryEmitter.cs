@@ -105,7 +105,7 @@ internal static class RegistryEmitter
         w.Line($"internal const {CompilerServices}MethodImplOptions NoInline = {CompilerServices}MethodImplOptions.NoInlining;");
         w.Close();
         var aliases = new List<string>();
-        string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
+        var body = GeneratedCode.WithAliases(w, null, aliases);
         return GeneratedCode.File(preamble.Finish(), aliases, body, fileScoped);
     }
 
@@ -144,7 +144,7 @@ internal static class RegistryEmitter
             w.Line($"[__NinoDynamicDependency(__Fields, typeof({type}))]");
         EmitIdDispatch(w, "internal static", "", cases, mask);
         w.Close();
-        string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
+        var body = GeneratedCode.WithAliases(w, null, aliases);
         return GeneratedCode.File("", aliases, body, fileScoped);
     }
 

@@ -121,4 +121,12 @@ internal sealed class CodeWriter
             _sb.Append('\n');
         return _sb.ToString();
     }
+
+    /// <summary>The source written (see <see cref="Finish()"/>) without the occurrences of <paramref name="omitted"/>.</summary>
+    public string Finish(string omitted)
+    {
+        // In place: no copy of the text before the one that becomes the string.
+        _sb.Replace(omitted, "");
+        return Finish();
+    }
 }

@@ -106,7 +106,7 @@ internal static class DispatchEmitter
         var aliases = new List<string>();
         if (services == CompactServices)
             aliases.Add(GeneratedCode.CompilerServicesDeclaration);
-        string body = GeneratedCode.WithAliases(w.Finish(), null, aliases);
+        var body = GeneratedCode.WithAliases(w, null, aliases);
         return GeneratedCode.File("", GeneratedCode.InlineAliases.Concat(aliases), body, fileScoped);
     }
 
