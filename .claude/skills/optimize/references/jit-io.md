@@ -27,6 +27,12 @@ Rules in short:
   to 1,496 Arm64 bytes and 1,435 x64 cross-JIT bytes (from 1,525), though `ReadRegion` grew from 74 to 143 IL bytes;
   it improved both ordered array sizes straddling 64 KiB in all four local rounds at zero steady allocation; the
   ordered 16-item timing overlapped A/A; wire and generated files matched. Arm64 only; x64 unmeasured.
+  Keep its `#if` body on the fields too: one body for both targets through cursor primitives (a sub-reader and a move
+  given a ref and the bytes left, each target using the one it holds) changed what the keyed callers inline. `ReadRegion`
+  fell from 143 to 115 IL bytes but brought `SubAt` (28), `MoveTo` (20) and the `Avail` / `Cur` getters, and
+  `ProfileV2Formatter.ReadBody` (Workloads) left `ListFormatter<string>.Deserialize` as a call instead of inlining it
+  (2,082 to 1,961 listing lines, `DOTNET_TieredCompilation=0` `asm.py` dumps, AVX-512 and `DOTNET_EnableAVX512=0` alike,
+  every other method identical; Emerald Rapids, round of the core dedupe).
 - Keep `Writer.PatchLength` relative to the writer's buffer start, and inspect the Arm64 pair load before retrying
   this arithmetic rewrite. Why: measuring the distance from the length slot or from the payload start split the Arm64
   pair load of the start and cursor into two separate loads. Evidence: both variants kept the keyed caller at 804

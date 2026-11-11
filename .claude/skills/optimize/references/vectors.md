@@ -31,6 +31,15 @@ proof](#reusing-a-length-proof), [Vector loops](#vector-loops).
 
 - Keep SIMD capabilities and CPU policy in `NinoSimd`; dispatch 512, then 256, then 128, then scalar with foldable
   checks; audit the dispatch with every loop it reaches before calling a width covered.
+- Write a byte-vector kernel once over `INinoVectors<TVector>` (`NinoVectors128/256/512`, `NinoVectors` for
+  `Vector<byte>` in the netstandard builds) and add an operation there only when it is the same per width for every
+  kernel; a kernel whose per-width work is its own (Latin-1 widening compares, bool slots on 16-bit lanes and their
+  `Vector64` / word shapes) keeps its own structs. Why: the masked copy and the flag checks each declared the same
+  load, store, and/or per width. Evidence: merged, with `default(TOps)` instance calls in place of the flag checks'
+  static abstract ones, every one of 1,453 (AVX-512) and 1,442 (`DOTNET_EnableAVX512=0`) Tier1 methods of an `asm.py`
+  dump was identical after normalization, and `NinoMask.Copy`, `CopyVectors`, `CopyFlags` and `ValidFlagBlocks`
+  (which no benchmark case reaches) matched at 512, 256 and 128 bits on x64 and at 128 on the Arm64 cross JIT, `CopyPairs`
+  included (FullOpts, `DOTNET_EnableAVX2=0` for the 128-bit instantiations; Emerald Rapids, round of the core dedupe).
 - Index through a ref to the first element and `Unsafe.Add` behind the one length check that makes it safe; validate a
   pooled array's exact element type through a span before storing through a byref.
 - Reuse a length proof already made (fixed-stride arrays, lists opened at the exact count, the nullable reader,
