@@ -143,6 +143,14 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 4. A loss or a wash is reverted, and its numbers go into the commit message or the report, so nobody tries it again
    blind.
 
+## Upgrading a competitor
+
+- When `Directory.Packages.props` moves MemoryPack, MessagePack or protobuf-net to a new version, update the version
+  the docs site names in the same series: `git grep <old version>` in Nino.Docs (the home page's
+  `src/components/home-sections.tsx`, the benchmark and `vs-*` pages in both languages, `scripts/csharp-check`). Why:
+  the site syncs the numbers from the release body but writes each library's version by hand, so new numbers would
+  sit next to the old version.
+
 ## Adding a case
 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
