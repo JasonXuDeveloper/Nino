@@ -17,12 +17,12 @@ namespace Nino.Burst
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         public delegate int NormalizeBoolSlotsFunction(byte* source, byte* target, int count);
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(NormalizeBoolSlotsFunction))]
         public static int NormalizeBoolSlots(byte* source, byte* target, int count) =>
             NormalizeBoolSlotsAll(source, target, count, true);
 
-        [BurstCompile]
+        [BurstCompile(CompileSynchronously = true)]
         [MonoPInvokeCallback(typeof(NormalizeBoolSlotsFunction))]
         private static int NormalizeBoolSlots128(byte* source, byte* target, int count) =>
             NormalizeBoolSlotsAll(source, target, count, false);
@@ -65,7 +65,7 @@ namespace Nino.Burst
                     var pairs = X86.Sse2.loadu_si128(source + i * 2);
                     var active = X86.Sse2.srai_epi16(X86.Sse2.slli_epi16(pairs, 15), 15);
                     var normalized = X86.Sse2.and_si128(pairs, active);
-                    var invalid = X86.Sse2.and_si128(normalized, X86.Sse2.set1_epi16(unchecked((short)0xFE00)));
+                    var invalid = X86.Sse2.and_si128(normalized, new v128(InvalidBoolSlotBits, InvalidBoolSlotBits));
                     if (X86.Sse2.movemask_epi8(X86.Sse2.cmpeq_epi16(invalid, default)) != 0xFFFF)
                         return i;
                     X86.Sse2.storeu_si128(target + i * 2, normalized);
