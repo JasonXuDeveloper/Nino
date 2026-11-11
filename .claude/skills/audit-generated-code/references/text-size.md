@@ -53,14 +53,16 @@ from local timings that also vary between identical binaries.
   - The Core alias (first `__NC`) replaced the overlapping reader and writer aliases after the compiler-services pass:
     it removed 36,002 bytes across 577 replayed files and saved 0.50 MB of cold allocations. The normalized unit test
     assembly IL matched, timings were flat, and the alias helper grew from 490 to 571 IL bytes.
-  - Share that alias with the streaming namespace writer for usages and interceptors: the unit test replay emitted
-    19,620 fewer bytes and the benchmark 3,102 fewer. Expanding the alias restored the original text. All 1,850
-    normalized generated benchmark methods matched, as did the Arm64 and x64 cross-JIT registration entry sizes.
+  - Share that alias with the usage registrations and interceptors (through `WithAliases`, like every file): the
+    unit test replay emitted 19,620 fewer bytes and the benchmark 3,102 fewer. Expanding the alias restored the
+    original text. All 1,850 normalized generated benchmark methods matched, as did the Arm64 and x64 cross-JIT registration entry sizes.
     Warm registration allocated 0 B and timings varied within the controls.
   - `__SCG` for repeated generic collection names: the unit test replay emitted 18,060 fewer bytes and the benchmark
     2,376 fewer, the original text restored by alias expansion. The shorter threshold can introduce the alias into a
     smaller file, so normalize aliases in assertions about registration content and assert the spelling only in the
     compaction test. Benchmark IL, wire bytes and registration allocations matched, with no repeatable timing change.
+    It is an entry of `WithAliases`' table, so formatter and dispatch files take it where it pays too (15 of 596
+    unit test files when the streamed namespace aliases were merged into `WithAliases`).
   - `__CS` for the shared compiler-services alias (7053428a): with the original substring guard, an alias starting
     with `__NC` made Core fall back to the longer Reader and Writer aliases, and that overlapping candidate grew the
     benchmark output by 2,208 B. The final spelling saved 6,024 B across 104 benchmark files and 23,409 B across 582

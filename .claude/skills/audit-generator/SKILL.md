@@ -127,8 +127,9 @@ binding or identity, the dependency scan, inherited-type discovery, the emission
 - Discover inherited types from the source module's referenced assemblies, after the Nino-reference filter.
 - Index inherited candidates by unique tree path; keep the fixed-point loop and the existing index growth.
 - Defer formatter sort keys to ties; return null from a projection instead of adding a `Where` stage.
-- Compare emitted formatters by a cheap bucket key, then full equality; one weak entry per bucket; keep the by-value
-  text lookup weak (a strong index held closed projects' generated texts).
+- Compare emitted formatters by a cheap bucket key, then full equality; keep one index of weak entries, the latest per
+  key, swept when it doubles, each tied to its text by a `ConditionalWeakTable` (a strong index held closed projects'
+  generated texts).
 
 ### Building models
 
@@ -155,6 +156,8 @@ are in [references/emit-text.md](references/emit-text.md): read it before changi
 
 - Lease the one bounded scratch builder (8,192 characters) per load context; keep oversized text out of it.
 - Write aliases, prologues, case labels and statements directly into the builder; no closures for synchronous blocks.
+- Keep `CodeWriter` general: blocks only through `Open`/`Close`, a line in pieces through `BeginLine`/`EndLine`, and
+  a line shape of one emitter in that emitter.
 - Use value-type scopes for indentation and body modes.
 - Size dictionaries and arrays from counts the emitter already has; count eligible inputs before tuning a rare case.
 - Keep list-backed dispatch buckets, uniform offsets, the separate preamble writer, escaping on the finished range.
@@ -169,11 +172,9 @@ Rules for the interceptor file; reasons, numbers and the trials that lost are in
 its aliases or its location attributes.
 
 - Render each call once per emission through the bounded scratch and group by its text.
-- Write the modern body at its final indentation and finish it in its builder; keep the legacy line-by-line path.
-- Append aliases while writing the slices instead of rewriting the text after.
-- Append signature slices, ordinals and location attributes to the writer, never as substrings; size the body from
-  the counts already known.
-- Keep the whole-name byte-span matcher, both empty-range guards and the separate profitability scans.
+- Emit the file through the general path on every build (write, `WithAliases`, `GeneratedCode.File`); no second
+  path for allocation alone.
+- Append signature slices, ordinals and location attributes to the writer, never as substrings.
 
 ## Measure
 

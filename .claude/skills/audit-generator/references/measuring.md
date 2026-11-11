@@ -50,12 +50,11 @@ reading or writing an entry in `pipeline-and-binding.md`, `model-allocations.md`
   interceptor forwarder reserve, the generic-edit after fixed-layout offsets) did not reproduce against an
   identical-build control.
 - Report allocation and latency separately, and do not claim a build-time gain from an isolated allocation or timing
-  win. Most entries saved bytes with whole-project timings "within the controls" or "varied"; say so (`57d3197e`, the
-  1.17 MB interceptor body result in `emit-interceptors.md`).
+  win. Most entries saved bytes with whole-project timings "within the controls" or "varied"; say so (`57d3197e`).
 - Keep an allocation saving whose whole-project time stayed within the A/A spread only when it adds no complexity
-  (SKILL.md, Measure; the owner's call in the review of codex/nino-audit). Entries here that kept such savings by
-  adding a second mechanism (the namespace aliases beside `WithAliases`, the two interceptor emission paths,
-  `EmittedFormatters`' weak index) are due for simplification; state which criterion a change met.
+  (SKILL.md, Measure; the owner's call in the review of codex/nino-audit); state which criterion a change met. Three
+  mechanisms kept that way were later removed with time on par (the streamed namespace aliases, the second
+  interceptor path, `EmittedFormatters`' generations: `emit-interceptors.md`, Removed).
 - Measure the active-project edit with the prior compilation and driver alive, and measure reopening separately after
   dropping both and collecting. Why: a strong recent-project list kept closed projects' trees alive and masked the
   cost of reopening (`pipeline-and-binding.md`, weak keys).

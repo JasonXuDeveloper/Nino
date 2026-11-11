@@ -189,8 +189,8 @@ are defined in [measuring.md](measuring.md).
 - Keep the by-value formatter text lookup weak: Roslyn can move an equal model to a new slot after a declaration is
   inserted, so reuse its immutable source text while a consumer holds it, then let the model and text collect. An
   index bound by entry count alone still held closed projects' generated texts in the real project GC probe.
-- Store a weak reference directly in a one-entry emission bucket; allocate a list only for hash collisions and compare
-  complete models before reusing text. The real unit test project reopened with 45-60 KB less allocation in four local
-  rounds, without a repeatable timing change. All 577 generated files matched byte for byte, all 572 models were
-  reused on tracked edits, and the old compilation, tree, symbol and generated text were collected after project
-  closure.
+- Keep emitted formatter texts in one index: the latest emission's weak reference per bucket key, swept of collected
+  entries when the index doubles, each emission kept alive by its text through a `ConditionalWeakTable`. It replaced
+  single-or-list buckets and two rotating 2,048-entry generations (three retention mechanisms) whose measured gain was
+  45-60 KB per reopen with timing on par; two live models sharing a key cost a re-emission instead of a slot.
+  `IncrementalGeneratorTests.ShiftedModelsReuseTheirFormatterText` fails when the lookup is disabled.

@@ -308,7 +308,7 @@ byte-identical.
   FullOpts bytes and 375 x64 cross-JIT bytes. Whole-project timing and allocation varied. Both Roslyn builds emitted
   identical files, incremental and collection checks passed, and both targeted suites passed (`91612f39`).
 - Sort the cases once by masked bucket and then by signed ID, and walk the contiguous groups directly to avoid the
-  second case array and offset table; alias counts saturate, so their result is independent of the scan order.
+  second case array and offset table.
   Isolated registry replay saved 12,032 B in both load orders and four cold project runs saved about 20-50 KB. Timings
   varied. The ordering and dispatch methods plus comparer went from 515 to 499 IL bytes, 2,956 to 2,320 Arm64 FullOpts
   bytes, and 1,279 to 900 x64 cross-JIT bytes. Both Roslyn builds matched all 577 generated files, kept registry
