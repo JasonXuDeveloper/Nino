@@ -18,16 +18,27 @@ internal static class ConstructionPlanner
         var known = facts.Symbols;
         string typeName = TypeNames.Global(type);
 
-        // Static methods returning the type: a [NinoFactory] factory, or a [NinoConstructor] one.
-        var factories = type.GetMembers().OfType<IMethodSymbol>().Where(m =>
-            m.IsStatic && m.MethodKind == MethodKind.Ordinary &&
-            SymbolEqualityComparer.Default.Equals(m.ReturnType, type)).ToList();
         var factory = known.FindFactory(type);
         string factoryName = factory == null ? "" : $"{typeName}.{factory.Name}";
 
-        var constructors = type.InstanceConstructors.Where(facts.Visibility.IsVisible).ToList();
-        var marked = type.InstanceConstructors.Concat(factories)
-            .FirstOrDefault(m => NinoSymbols.Has(m, known.Constructor));
+        var constructors = type.InstanceConstructors;
+        // Marked instance constructors take precedence over marked static factories.
+        IMethodSymbol? marked = null;
+        foreach (var ctor in constructors)
+            if (NinoSymbols.Has(ctor, known.Constructor))
+            {
+                marked = ctor;
+                break;
+            }
+        if (marked == null)
+            foreach (var member in type.GetMembers())
+                if (member is IMethodSymbol { IsStatic: true, MethodKind: MethodKind.Ordinary } method &&
+                    SymbolEqualityComparer.Default.Equals(method.ReturnType, type) &&
+                    NinoSymbols.Has(method, known.Constructor))
+                {
+                    marked = method;
+                    break;
+                }
 
         // C# 11 required members: a constructor that is not [SetsRequiredMembers] is only callable with an object
         // initializer setting all of them, which only a re-created instance has.
@@ -37,7 +48,8 @@ internal static class ConstructionPlanner
         // A [NinoFactory] replaces the parameterless constructor, which may then be private (or absent).
         if (marked == null && !members.Any(m => m.ConstructionOnly) &&
             (type.IsValueType || factory != null ||
-             constructors.Any(c => NinoSymbols.CallableWithoutArguments(c) && SetsRequired(c))))
+             constructors.Any(c => facts.Visibility.IsVisible(c) &&
+                                   NinoSymbols.CallableWithoutArguments(c) && SetsRequired(c))))
             return new ConstructionModel(false, $"new {typeName}", EquatableArray<string>.Empty, factoryName);
 
         string Creator(IMethodSymbol m) => m.MethodKind == MethodKind.Constructor
@@ -103,6 +115,8 @@ internal static class ConstructionPlanner
         List<string>? bestArgs = null;
         foreach (var ctor in constructors)
         {
+            if (!facts.Visibility.IsVisible(ctor))
+                continue;
             if (ctor.Parameters.Length == 1 &&
                 SymbolEqualityComparer.Default.Equals(ctor.Parameters[0].Type, type))
                 continue; // record copy constructor
