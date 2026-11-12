@@ -1,0 +1,1 @@
+Performance: `SortedList<TKey, TValue>` of raw keys and values writes its pairs in one vector pass: serializing 1,000 pairs is 15.7 to 17.1x as fast on x64 and 12.3x on Arm64 Neoverse-N2, deserializing 1.9 to 2.8x (GitHub runners, run 43212065213 against the previous main).
