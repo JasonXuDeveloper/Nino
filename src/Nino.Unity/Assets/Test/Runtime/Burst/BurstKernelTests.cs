@@ -2,11 +2,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
+using AOT;
 using Nino.Burst;
 using Nino.Core;
 using NUnit.Framework;
 using Unity.Burst;
+using UnityEngine;
+using UnityEngine.TestTools;
 using Debug = UnityEngine.Debug;
+using Random = System.Random;
 
 namespace Test.Runtime.Burst
 {
@@ -33,6 +38,7 @@ namespace Test.Runtime.Burst
     /// (Burst AOT), and in edit mode through Test.Editor.Burst.BurstKernelsInEditMode. Their speed is measured by
     /// BurstBenchmark, in the release benchmark's player only.
     /// </summary>
+    [BurstCompile]
     public unsafe class BurstKernelTests
     {
         private static readonly int[] Lengths = { 0, 1, 2, 15, 16, 17, 31, 32, 33, 47, 63, 64, 65, 100, 1000 };
@@ -399,6 +405,72 @@ namespace Test.Runtime.Burst
                 Assert.AreEqual(text, NinoDeserializer.Deserialize<string>(latin1), NinoBurst.IsaName);
             }
         }
+
+        // A narrow that claims success and writes every char as 0: what a kernel Burst compiled wrong would do.
+        [BurstCompile(CompileSynchronously = true)]
+        [MonoPInvokeCallback(typeof(NinoBurst.NarrowFunction))]
+        public static int WrongNarrow(ushort* source, byte* destination, int length)
+        {
+            for (int i = 0; i < length; i++)
+                destination[i] = 0;
+            return 1;
+        }
+
+        [Test]
+        public void TheSelfTestLeavesOutAKernelThatWritesOtherBytes()
+        {
+            Assert.IsTrue(NinoBurst.Register());
+            var registered = NinoKernels.Current;
+            var kernels = new NinoKernels
+            {
+                Narrow = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)BurstCompiler
+                    .CompileFunctionPointer<NinoBurst.NarrowFunction>(WrongNarrow).Value,
+                Widen = registered.Widen,
+            };
+            LogAssert.Expect(LogType.Warning, new Regex("Burst kernel Narrow wrote other bytes"));
+            Assert.IsTrue(NinoBurst.SelfTest(kernels, ""), "the widen kernel passes");
+            Assert.IsTrue(kernels.Narrow == null, "the wrong narrow is left out");
+            Assert.IsTrue(kernels.Widen == registered.Widen, "the widen kernel is kept");
+        }
+
+        [Test]
+        public void TheRegisteredKernelsPassTheSelfTest()
+        {
+            Assert.IsTrue(NinoBurst.Register());
+            var registered = NinoKernels.Current;
+            var copy = new NinoKernels
+            {
+                Permute = registered.Permute, Interleave32 = registered.Interleave32,
+                NormalizeBoolSlots = registered.NormalizeBoolSlots, Narrow = registered.Narrow,
+                Widen = registered.Widen, NarrowAscii = registered.NarrowAscii, WidenAscii = registered.WidenAscii,
+            };
+            // Register ran the same test and left out what failed; the setup asserts nothing was left out.
+            Assert.IsTrue(NinoBurst.SelfTest(copy, ""));
+            Assert.IsTrue(copy.Permute != null && copy.Interleave32 != null && copy.NormalizeBoolSlots != null &&
+                          copy.Narrow != null && copy.Widen != null && copy.NarrowAscii != null &&
+                          copy.WidenAscii != null, "a kernel failed its self-test");
+        }
+
+#if UNITY_EDITOR
+        // Burst's JIT turns the throw into a managed exception; in a player it would abort the process.
+        [BurstCompile(CompileSynchronously = true)]
+        [MonoPInvokeCallback(typeof(NinoBurst.WidenFunction))]
+        public static void ThrowingWiden(byte* source, ushort* destination, int length) =>
+            throw new InvalidOperationException("broken kernel");
+
+        [Test]
+        public void TheSelfTestLeavesOutAKernelThatThrows()
+        {
+            var kernels = new NinoKernels
+            {
+                Widen = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, void>)BurstCompiler
+                    .CompileFunctionPointer<NinoBurst.WidenFunction>(ThrowingWiden).Value,
+            };
+            LogAssert.Expect(LogType.Warning, new Regex("Burst kernel Widen threw"));
+            Assert.IsFalse(NinoBurst.SelfTest(kernels, ""), "no kernel is left");
+            Assert.IsTrue(kernels.Widen == null);
+        }
+#endif
 
         [Test]
         public void InvalidBoolsAreRejected()

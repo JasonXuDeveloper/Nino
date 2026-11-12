@@ -18,6 +18,11 @@
             "name": "com.unity.burst",
             "expression": "1.8.0",
             "define": "NINO_BURST"
+        },
+        {
+            "name": "com.unity.burst",
+            "expression": "2.0.0",
+            "define": "NINO_BURST_2"
         }
     ],
     "noEngineReferences": false

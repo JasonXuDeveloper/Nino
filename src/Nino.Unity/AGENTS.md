@@ -22,14 +22,20 @@ Packages/
                              System.Runtime.CompilerServices.Unsafe
     Burst/                   Nino.Burst, one partial class NinoBurst: Burst-compiled NinoKernels (AVX2 / SSSE3 /
                              AArch64 Neon with scalar branches), compiled only with com.unity.burst 1.8+ (NINO_BURST,
-                             versionDefines); Nino.Core calls Burst's function pointers directly (delegate* unmanaged)
+                             versionDefines; NINO_BURST_2 from 2.0, Unity 6000.6's built-in Burst); Nino.Core calls
+                             Burst's function pointers directly (delegate* unmanaged)
       NinoBurst.cs           the platforms and call form (header comment), Register at startup (none registered where
-                             the pointers cannot be called), Isa, InstructionSet
+                             the pointers cannot be called; a kernel that fails the self-test left out), Isa,
+                             InstructionSet
+      NinoBurst.SelfTest.cs  SelfTest: every kernel through its pointer on inputs that take every branch, byte for
+                             byte against Nino.Core's scalar code; one that throws or differs is left out with a warning
+                             naming it and the Burst version
       NinoBurst.Permute.cs   Permute (raw blocks by a byte table; 32-byte AVX2 and 16-byte paths)
       NinoBurst.Text.cs      Narrow, Widen (Latin-1 strings), NarrowAscii, WidenAscii ([NinoUtf8]'s leading ASCII)
       NinoBurst.Interleave.cs  Interleave32 (two int columns written as pairs)
       NinoBurst.BoolSlots.cs NormalizeBoolSlots (nullable bool slots, with a checked prefix return)
-      NinoBurst.Vectors.cs   the 16-byte vector operations the kernels share, one instruction each per ISA
+      NinoBurst.Vectors.cs   the 16-byte vector operations the kernels share, one instruction each per ISA; its header
+                             holds the form every kernel keeps (one instruction set per test, a call and a return)
     WebGL/                   Nino.WebGL (WebGL players only): nino_wasm.c (the kernels in WebAssembly SIMD, a source
                              plugin Emscripten compiles into the player; nino_wasm_kernels hands out their pointers) and
                              NinoWasm.cs, which registers them when the player has SIMD (Unity 6's WebAssembly 2023, or
@@ -54,8 +60,10 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              made only with MakeGenericType, through the boxed API: IL2CPP runs them by full generic
                              sharing), run in play mode and in the IL2CPP player
   Runtime/Burst/             BurstKernelTests (the kernels against the scalar paths, byte for byte; asserts the pointer
-                             calls), BurstBenchmark (only in the release benchmark's player: NINO_UNITY_BENCH) and its
-                             BenchClasses (SimpleClass, as in the .NET suite)
+                             calls, that every kernel passed the self-test, and that the self-test leaves out a wrong
+                             kernel, and in the editor a throwing one), BurstBenchmark (only in the release
+                             benchmark's player: NINO_UNITY_BENCH) and its BenchClasses (SimpleClass, as in the .NET
+                             suite)
   WebGL/                     WebGLBench (the WebGL player's checks of Nino.WebGL, timed with NINO_WEBGL_TIMING; a
                              coroutine, as the WebGL player collects garbage between frames); Editor/WebGLBenchBuild
                              builds that player (-ninoTiming for the timed build)
@@ -68,8 +76,10 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
 - Runs only when what Unity loads changes (Nino.Core, the generator, the code fixes, Nino.UnityTypes, this project,
   the root build files). It builds the four DLLs and copies them into `Packages/com.jasonxudeveloper.nino/Runtime`
   first, so the tests run on the commit's code, not on the committed DLLs.
-- Each job activates the Unity license, which has few seats: the matrix (Unity 2022.3.62f2 and 6000.3.27f1) runs
-  with `max-parallel: 1`, every run shares the concurrency group `unity-license` and is never cancelled while it runs
+- One row per Burst major the package supports: Unity 2022.3.62f2 with Burst 1.8.29 (`Packages/manifest.json`) and
+  6000.6.9f1, whose editor bundles Burst 2.0 as a built-in module (`Editor/Data/Tools/Burst`; the manifest's
+  `com.unity.burst` resolves to the editor's 2.0.0 shim, so the same manifest serves both).
+- Each job activates the Unity license, which has few seats: the matrix runs with `max-parallel: 1`, every run shares the concurrency group `unity-license` and is never cancelled while it runs
   (a cancelled job keeps its seat). Pull requests from forks and Dependabot get no secrets and skip it.
 - Per version: the editor's play mode tests, then its edit mode tests (one step each, `testMode: playmode` and
   `editmode`, never `all`: see `audit-ci`), then an IL2CPP Linux player and its tests (`standalone`). Every Unity
@@ -112,3 +122,7 @@ UnityEngineStub/             UnityEngine.CoreModule.csproj + UnityEngine.cs: a r
   the type to be partial, NINO002).
 - A new Unity test asmdef or Burst path keeps the scalar fallback: the kernels register only where Burst runs and
   the CPU has the instruction set (none on Armv7 or x86 without SSSE3; on WebGL, Nino.WebGL's only with wasm SIMD).
+- Burst versions compile the same C# differently: a kernel keeps the form in `NinoBurst.Vectors.cs`'s header (one
+  instruction set per `if`, never `IsNeonSupported || IsSse2Supported`; the block a call and a return), every kernel
+  is covered by `NinoBurst.SelfTest`, and every Burst major the package supports has a row in unity.yml. A new Burst
+  major gets its row (and green kernel tests) before the package claims it (`platforms`, Unity and Burst).

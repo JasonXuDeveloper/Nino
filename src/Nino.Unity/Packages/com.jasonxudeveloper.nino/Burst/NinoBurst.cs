@@ -9,7 +9,9 @@
 // Calls: Nino.Core keeps each kernel's Burst function pointer (FunctionPointer<T>.Value) in a static field and calls it
 // as a C# 9 function pointer (delegate* unmanaged[Cdecl]), which Mono and IL2CPP compile to a direct call of the native
 // code: no delegate, no object, no virtual call. Register checks that call form once (InstructionSet through the
-// pointer must return what its delegate returns) and registers nothing where it does not hold.
+// pointer must return what its delegate returns) and registers nothing where it does not hold; then it calls every
+// kernel through its pointer against Nino.Core's scalar code and leaves out any that throws or differs
+// (NinoBurst.SelfTest.cs), since Burst versions compile the same code differently (NinoBurst.Vectors.cs).
 //
 // x64 players: Burst AOT compiles each function pointer once per CPU target of the Burst AOT Settings (Burst 1.8.29's
 // default for x64 desktop players: SSE2 and AVX2; SSE4 can be added) and picks the variant the CPU runs at load time.
@@ -21,7 +23,10 @@
 // - Editor (Mono) and Mono players: Burst JIT in the editor (compiled synchronously), Burst AOT in players.
 // - IL2CPP players (Windows, macOS, Linux, Android arm64, iOS): Burst AOT-compiles the function pointers into the
 //   player's Burst library; [MonoPInvokeCallback] keeps the managed fallback callable.
-// - HybridCLR: hot-update code calls the AOT Nino.Core, which calls these kernels; nothing here is interpreted.
+// - HybridCLR: hot-update code calls the AOT Nino.Core, which calls these kernels; nothing here is interpreted. Burst
+//   compiles only AOT assemblies at build time, so a hot-updated Nino.Core (which needs a hot-updated Nino.Burst: an
+//   AOT assembly cannot reference a hot one) has no kernels: Unity runs no [RuntimeInitializeOnLoadMethod] of a hot
+//   assembly, and a call to Register there finds no Burst code for its methods and keeps the scalar paths.
 // - Armv7 (32-bit Android) and x86 targets without SSSE3: Burst's Neon intrinsics are AArch64 only, so the kernels
 //   would take their scalar branch; Register sees that (Isa returns 0) and leaves Nino's own scalar paths in place.
 // - WebGL and any player where Burst does not run (BurstCompiler.IsEnabled false): nothing is registered (WebGL players
@@ -64,6 +69,9 @@ namespace Nino.Burst
         // The best instruction set Burst compiled the kernels for on this CPU.
         private static int _best;
 
+        // Every kernel failed its self-test: Register neither compiles nor tests (nor warns) again.
+        private static bool _failed;
+
         /// <summary>Whether Nino.Core uses these kernels.</summary>
         public static bool Registered => NinoKernels.Current != null &&
                                          (NinoKernels.Current == _kernels || NinoKernels.Current == _kernels16);
@@ -94,7 +102,7 @@ namespace Nino.Burst
         {
             if (_kernels == null)
             {
-                if (!BurstCompiler.IsEnabled)
+                if (_failed || !BurstCompiler.IsEnabled)
                     return false;
                 try
                 {
@@ -133,12 +141,25 @@ namespace Nino.Burst
                         NarrowAscii = (delegate* unmanaged[Cdecl]<ushort*, byte*, int, int>)narrowAscii,
                         WidenAscii = (delegate* unmanaged[Cdecl]<byte*, ushort*, int, int>)widenAscii,
                     };
-                    _kernels = Make(permute, interleave, boolSlots);
-                    _kernels16 = _best == Avx2
+                    var kernels = Make(permute, interleave, boolSlots);
+                    var kernels16 = _best == Avx2
                         ? Make(BurstCompiler.CompileFunctionPointer<PermuteFunction>(Permute16).Value,
                             BurstCompiler.CompileFunctionPointer<Interleave32Function>(Interleave32Narrow).Value,
                             BurstCompiler.CompileFunctionPointer<NormalizeBoolSlotsFunction>(NormalizeBoolSlots128).Value)
-                        : _kernels;
+                        : kernels;
+                    // Every kernel through its pointer against Nino.Core's scalar code (NinoBurst.SelfTest.cs): one
+                    // that throws or differs is left out, the others kept.
+                    bool any = SelfTest(kernels, "");
+                    if (kernels16 != kernels)
+                        any |= SelfTest(kernels16, " (16-byte paths)");
+                    if (!any)
+                    {
+                        _failed = true;
+                        return false;
+                    }
+
+                    _kernels = kernels;
+                    _kernels16 = kernels16;
                 }
                 catch (Exception e)
                 {
