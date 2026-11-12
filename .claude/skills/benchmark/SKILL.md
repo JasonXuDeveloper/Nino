@@ -224,6 +224,13 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 - Never publish a quick, local or A/B number. README.md, docs/v4-benchmarks.md, the chart, the release notes and the
   docs site take them only from `report.yml` (x64 and Arm64 shards, the runtimes and Unity sections, job id
   `ShortRun-.NET 10.0`), through `release_body.py` / `readme.py` and the site's sync.
+- Take the build-time numbers (README's Build row `v3.build`, docs/v4-benchmarks.md's `doc.build.*` tables, the site's
+  build tables) only from the release body's "🏗️ Build: v3 3.3.13 vs v4 (source generator)" section: report.yml's
+  `generator` job runs this commit's `Nino.GeneratorBenchmark --json --no-analyzers` with v3 3.3.13's generator and
+  core (NuGet, PackageDownload) and the tag's, at 330 and 1,100 types on one x64 runner, `generator_report.py` writes
+  the section, and `publish-generator` appends it and runs `readme.py --build` for the newest release. Why: they were
+  typed in from one local run on a 4-core Xeon, which no release refreshed (v4's generated source at 330 types had
+  grown from the published 1.31 MB to 1.53 MB by main's f36cfaff). v3 at 1,100 types takes about 8 minutes a run, so it runs 3 times (2 measured).
 - The headline (README's ranges and chart, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
   every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); the v3 comparison
   stays on SimpleTest. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
