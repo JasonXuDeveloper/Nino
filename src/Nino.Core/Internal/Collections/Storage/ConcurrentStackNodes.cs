@@ -60,9 +60,10 @@ namespace Nino.Core.Internal
         {
             // The version gate is not redundant with the field checks below: they prove the layout, not that popping
             // and clearing only replace the head and leave a published chain intact, which was read in the .NET 8
-            // sources; ConcurrentStack.cs is the same file, byte for byte, in release/8.0 to release/11.0. Add a
-            // version after checking its ConcurrentStack the same way: a later one may reuse or relink nodes.
-            if (!RuntimeFeature.IsDynamicCodeSupported || Environment.Version.Major is < 8 or > 11 ||
+            // sources; ConcurrentStack.cs is the same file, byte for byte, in release/8.0 to release/11.0. Later
+            // versions are trusted to keep that (the owner's call): CI runs the tests that prove it
+            // (ConcurrentStackKeepsTheCapturedChainAcrossPopsAndCompaction) on each new runtime it adds.
+            if (!RuntimeFeature.IsDynamicCodeSupported || Environment.Version.Major < 8 ||
                 Type.GetType("Mono.RuntimeStructs") != null || NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 return false;
 
