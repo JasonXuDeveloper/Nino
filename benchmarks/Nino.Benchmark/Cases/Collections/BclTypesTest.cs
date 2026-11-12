@@ -59,6 +59,9 @@ public class BclTypesTest
     private static readonly Memory<int> MemoryValue = new(Enumerable.Range(0, N).ToArray());
     private static readonly ReadOnlySequence<int> ReadOnlySequenceValue = new(Enumerable.Range(0, N).ToArray());
     private static readonly ReadOnlyCollection<int> ReadOnlyCollectionValue = new(Enumerable.Range(0, N).ToList());
+    // Strings behind an interface: elements written one by one, through ICollection<T> (Nino copies them out from
+    // NinoCollections.CopiedFrom elements on, instead of enumerating).
+    private static readonly IReadOnlyList<string> InterfaceStringsValue = new ReadOnlyCollection<string>(Enumerable.Range(0, N).Select(i => "item" + i).ToList());
     private static readonly ILookup<int, int> LookupValue = Enumerable.Range(0, N).ToLookup(i => i % 10);
     private static readonly BlockingCollection<int> BlockingCollectionValue = MakeBlockingCollection();
     private static readonly ImmutableHashSet<int> ImmutableHashSetValue = ImmutableHashSet.CreateRange(Enumerable.Range(0, N));
@@ -98,6 +101,9 @@ public class BclTypesTest
     private static readonly byte[] NinoReadOnlyCollectionBytes = NinoSerializer.Serialize(ReadOnlyCollectionValue);
     private static readonly byte[] MessagePackReadOnlyCollectionBytes = MessagePackSerializer.Serialize(ReadOnlyCollectionValue);
     private static readonly byte[] MemoryPackReadOnlyCollectionBytes = MemoryPackSerializer.Serialize(ReadOnlyCollectionValue);
+    private static readonly byte[] NinoInterfaceStringsBytes = NinoSerializer.Serialize(InterfaceStringsValue);
+    private static readonly byte[] MessagePackInterfaceStringsBytes = MessagePackSerializer.Serialize(InterfaceStringsValue);
+    private static readonly byte[] MemoryPackInterfaceStringsBytes = MemoryPackSerializer.Serialize(InterfaceStringsValue);
     private static readonly byte[] NinoLookupBytes = NinoSerializer.Serialize(LookupValue);
     private static readonly byte[] MessagePackLookupBytes = MessagePackSerializer.Serialize(LookupValue);
     private static readonly byte[] MemoryPackLookupBytes = MemoryPackSerializer.Serialize(LookupValue);
@@ -153,6 +159,8 @@ public class BclTypesTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeReadOnlySequence), MemoryPackReadOnlySequenceBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeReadOnlyCollection), NinoReadOnlyCollectionBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeReadOnlyCollection), MemoryPackReadOnlyCollectionBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeInterfaceStrings), NinoInterfaceStringsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeInterfaceStrings), MemoryPackInterfaceStringsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLookup), NinoLookupBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeLookup), MemoryPackLookupBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeBlockingCollection), NinoBlockingCollectionBytes.Length);
@@ -179,6 +187,7 @@ public class BclTypesTest
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeMemory), MessagePackMemoryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeReadOnlySequence), MessagePackReadOnlySequenceBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeReadOnlyCollection), MessagePackReadOnlyCollectionBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeInterfaceStrings), MessagePackInterfaceStringsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeLookup), MessagePackLookupBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeImmutableHashSet), MessagePackImmutableHashSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeImmutableHashSet), ProtobufImmutableHashSetBytes.Length);
@@ -447,6 +456,30 @@ public class BclTypesTest
     [Benchmark, BenchmarkCategory("ReadOnlyCollectionDeserialize")]
     public object MemoryPackDeserializeReadOnlyCollection() =>
         MemoryPackSerializer.Deserialize<ReadOnlyCollection<int>>(MemoryPackReadOnlyCollectionBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("InterfaceStringsSerialize")]
+    public int NinoSerializeInterfaceStrings()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(InterfaceStringsValue, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("InterfaceStringsSerialize")]
+    public int MemoryPackSerializeInterfaceStrings()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, InterfaceStringsValue);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("InterfaceStringsDeserialize")]
+    public object NinoDeserializeInterfaceStrings() =>
+        NinoDeserializer.Deserialize<IReadOnlyList<string>>(NinoInterfaceStringsBytes);
+
+    [Benchmark, BenchmarkCategory("InterfaceStringsDeserialize")]
+    public object MemoryPackDeserializeInterfaceStrings() =>
+        MemoryPackSerializer.Deserialize<IReadOnlyList<string>>(MemoryPackInterfaceStringsBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("LookupSerialize")]
     public int NinoSerializeLookup()
@@ -720,6 +753,14 @@ public class BclTypesTest
         return _messagePackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("InterfaceStringsSerialize")]
+    public int MessagePackSerializeInterfaceStrings()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, InterfaceStringsValue);
+        return _messagePackBuffer.WrittenCount;
+    }
+
     [Benchmark, BenchmarkCategory("LookupSerialize")]
     public int MessagePackSerializeLookup()
     {
@@ -764,6 +805,10 @@ public class BclTypesTest
     [Benchmark, BenchmarkCategory("ReadOnlyCollectionDeserialize")]
     public object MessagePackDeserializeReadOnlyCollection() =>
         MessagePackSerializer.Deserialize<ReadOnlyCollection<int>>(MessagePackReadOnlyCollectionBytes);
+
+    [Benchmark, BenchmarkCategory("InterfaceStringsDeserialize")]
+    public object MessagePackDeserializeInterfaceStrings() =>
+        MessagePackSerializer.Deserialize<IReadOnlyList<string>>(MessagePackInterfaceStringsBytes);
 
     [Benchmark, BenchmarkCategory("LookupDeserialize")]
     public object MessagePackDeserializeLookup() =>
