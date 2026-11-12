@@ -842,6 +842,7 @@ jobs:
     if: needs.target.outputs.unity_skip != 'true'
     permissions:
       contents: read
+      checks: write
     uses: ./.github/workflows/unity.yml
     with:
       benchmark: true
