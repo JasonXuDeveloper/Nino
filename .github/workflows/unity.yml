@@ -207,13 +207,20 @@ jobs:
           fi
 
       # Who sends a fatal signal, recorded by the host's kernel for the Unity steps below and printed by "Show the
-      # kernel's kills" when one fails. The 6000.6.9f1 editor was SIGKILLed 1.2 to 1.5 s after launch, each time right
-      # after "Registered in ... seconds." in its first domain reload (runs 43290338104 and 43299892840), with no OOM
-      # in the kernel's log, 14 GB free and /dev/shm at 1025 MB or 2 GB alike: something sent it. The tracepoint
-      # signal:signal_generate names the sender (the task before the colon: its thread name and host PID) and the
-      # target (comm=, pid=), the kernel stack says how (__x64_sys_kill or tgkill from a process, oom_kill_process,
-      # a seccomp or fault path from the kernel) and the user stack, resolved to library and offset, from where in
-      # the sender. Filtered to SIGKILL, SIGABRT, SIGBUS, SIGSEGV and SIGSYS, the buffer holds a handful of lines.
+      # kernel's kills". The 6000.6.9f1 editor was SIGKILLed 1.2 to 1.5 s after launch, each time right after
+      # "Registered in ... seconds." in its first domain reload (runs 43290338104 and 43299892840), with no OOM in the
+      # kernel's log, 14 GB free and /dev/shm at 1025 MB or 2 GB alike: something sent it. The tracepoint
+      # signal:signal_generate names the sender (the task before the colon: its thread name and host PID, then its
+      # process's PID in parentheses: record-tgid) and the target (comm=, pid=), the kernel stack says how
+      # (__x64_sys_kill or tgkill from a process, oom_kill_process, a seccomp or fault path from the kernel) and the
+      # user stack from where in the sender. Filtered to SIGKILL, SIGABRT, SIGBUS, SIGSEGV and SIGSYS, the buffer holds
+      # a handful of lines. Runs 43309471749 and 43316317360 showed the sender of each kill as a thread named "Unity
+      # Main Thread" and targets named like the editor's threads (llvmpipe-2, Unity:disk$0, AssetDatabase.I), not
+      # which process either belonged to: the instance nino-procs records every task's creation (sched_process_fork),
+      # program (sched_process_exec), name changes (task_rename) and end (sched_process_exit) in a buffer of its own,
+      # without user stacks, so the report can name the sender's process, its program and its parents, and each
+      # task's PID inside its container (a container numbers its tasks 1, 2, 3, ... in creation order from the task
+      # runc's [1:CHILD] creates).
       - name: Trace fatal signals
         continue-on-error: true
         run: |
@@ -221,13 +228,25 @@ jobs:
           t=/sys/kernel/tracing
           [ -d "$t/events" ] || mount -t tracefs nodev "$t"
           echo 4096 > "$t/buffer_size_kb"
-          for option in userstacktrace sym-userobj; do echo 1 > "$t/options/$option" || echo "no trace option $option"; done
+          # The header's thread names and process IDs, kept for every task the run creates (record-cmd keeps 128).
+          echo 32768 > "$t/saved_cmdlines_size" || echo "saved_cmdlines_size stays $(cat "$t/saved_cmdlines_size")"
+          for option in record-tgid record-cmd userstacktrace sym-userobj; do
+            echo 1 > "$t/options/$option" || echo "no trace option $option"
+          done
           event=$t/events/signal/signal_generate
           echo 'sig == 9 || sig == 6 || sig == 7 || sig == 11 || sig == 31' > "$event/filter"
           echo 'stacktrace if sig == 9' > "$event/trigger"
           echo 1 > "$event/enable"
           if [ -d "$t/events/oom/mark_victim" ]; then echo 1 > "$t/events/oom/mark_victim/enable"; fi
           echo 1 > "$t/tracing_on"
+          procs=$t/instances/nino-procs
+          mkdir -p "$procs"
+          echo 16384 > "$procs/buffer_size_kb"
+          for option in userstacktrace sym-userobj; do echo 0 > "$procs/options/$option"; done
+          for event in sched/sched_process_fork sched/sched_process_exec sched/sched_process_exit task/task_rename; do
+            echo 1 > "$procs/events/$event/enable"
+          done
+          echo 1 > "$procs/tracing_on"
           EOF
 
       # Unity can hang in batch mode: the 2022.3 editor stopped twice after loading the project, its log ending at
@@ -331,17 +350,73 @@ jobs:
       # host's kernel log tells an OOM kill (the container's cgroup: game-ci passes --memory at 95% of the RAM, and
       # Unity 6000.6's Data Store maps 1 GiB of the container's 1025 MB /dev/shm) from a kill by another process
       # (run 43290338104: the 6000.6.9f1 player step's editor, 1.3 s after launch, in its first domain reload). The
-      # trace started by "Trace fatal signals" names the sender of every SIGKILL; the last dmesg lines prove the
-      # kernel's log was readable when the grep finds nothing.
+      # trace started by "Trace fatal signals" names the sender of every SIGKILL; the script below adds, for each one
+      # sent by a process, the sender thread's creation and names, the sender's process with its program and parents,
+      # the target's, and their PIDs inside the container, and lists every Unity editor and Data Store started with
+      # its PID in its container. Runs on a green job too: a passing launch's Data Store got a SIGKILL at shutdown
+      # from a thread named "Unity Main Thread" (run 43316317360's player step), and a kill that missed the editor
+      # shows only here. The last dmesg
+      # lines prove the kernel's log was readable when the grep finds nothing.
       - name: Show the kernel's kills
-        if: failure()
+        if: always()
         continue-on-error: true
         run: |
           sudo dmesg -T | grep -iE 'out of memory|oom|killed process|segfault|traps:' | tail -n 40 || true
           sudo dmesg -T | tail -n 3
           free -m
-          echo '--- fatal signals (sender-hostpid: signal_generate: sig= ... comm=<target> pid=<target>) ---'
-          sudo grep -v '^#' /sys/kernel/tracing/trace | tail -n 400 || true
+          t=/sys/kernel/tracing
+          echo 0 | sudo tee "$t/tracing_on" "$t/instances/nino-procs/tracing_on" > /dev/null || true
+          sudo python3 -I - "$t/trace" "$t/instances/nino-procs/trace" <<'EOF'
+          import re, sys
+          head = re.compile(r'\s*(?P<comm>.*?)-(?P<tid>\d+)\s+\(\s*(?P<tgid>[\d-]+)\)\s+\[\d+\]\s+\S+\s+[\d.]+:\s+(?P<event>\w+):\s*(?P<rest>.*)')
+          field = re.compile(r'(\w+)=(.*?)(?=\s\w+=|$)')
+          def read(path):
+              try:
+                  with open(path) as f: return [line.rstrip() for line in f if not line.startswith('#')]
+              except OSError as e:
+                  print(f'cannot read {path}: {e}'); return []
+          kills, tasks, nspid, count = [], {}, {}, {}  # tasks: host PID -> its fork (as the child), exec, rename and exit lines
+          for line in read(sys.argv[1]):
+              m = head.match(line)
+              if m and m['event'] in ('signal_generate', 'mark_victim'): kills.append((m, [line]))
+              elif kills: kills[-1][1].append(line)
+          for line in read(sys.argv[2]):
+              if not (m := head.match(line)): continue
+              f = dict(field.findall(m['rest']))
+              pid = int(f.get('child_pid') or f['pid'])
+              tasks.setdefault(pid, []).append((m, f, line))
+              if m['event'] != 'sched_process_fork': continue
+              # A pid namespace numbers its tasks 1, 2, 3, ... in creation order: its init is the task runc's [1:CHILD]
+              # (unshare -fp's child, locally) creates, and every task a task inside creates counts.
+              if f['comm'].startswith('runc:[1:CHILD]') or f['comm'] == 'unshare': nspid[pid] = (pid, 1); count[pid] = 1
+              elif (parent := nspid.get(int(m['tid']))):
+                  count[parent[0]] += 1; nspid[pid] = (parent[0], count[parent[0]])
+          def ns(pid): return f' (PID {nspid[pid][1]} in the container of host PID {nspid[pid][0]})' if pid in nspid else ''
+          def creator(pid):  # the process that created pid
+              return next((int(m['tgid']) for m, f, _ in tasks.get(pid, []) if m['event'] == 'sched_process_fork' and m['tgid'].isdigit()), None)
+          def show(label, pid, seen, walk=True):
+              print(f'  {label} {pid}{ns(pid)}:')
+              while pid and pid not in seen:
+                  seen.add(pid)
+                  for _, _, line in tasks.get(pid, [(None, None, f'{pid}: nothing recorded (started before the trace)')]): print('    ' + line.strip())
+                  pid = creator(pid) if walk else None
+          print('--- Unity editors and Data Stores started (host PID, then PID in its container) ---')
+          for pid, lines in tasks.items():
+              for m, f, line in lines:
+                  if m['event'] == 'sched_process_exec' and re.search(r'/Unity(\.DataStore)?$', f['filename']): print(f'  {line.strip()}{ns(pid)}')
+          print('--- fatal signals (sender thread-host PID (its process), then the target: comm=, pid=) ---')
+          for m, lines in kills:
+              print('\n'.join(lines))
+              if m['event'] != 'signal_generate' or not m['tgid'].isdigit(): continue
+              if any('zap_pid_ns_processes' in line for line in lines):
+                  print('  (the container ending: its init exited and the kernel killed what was left)'); continue
+              tid, tgid, target, seen = int(m['tid']), int(m['tgid']), int(dict(field.findall(m['rest']))['pid']), set()
+              process = next((t['tgid'] for t, _, _ in tasks.get(target, []) if int(t['tid']) == target), '?')
+              print(f'  sender: thread {tid}{ns(tid)} of process {tgid}; target: {target}{ns(target)} of process {process}')
+              if tid != tgid: show('sender thread', tid, seen, walk=False)
+              show('sender process and its parents', tgid, seen)
+              show('target and its parents (those not listed above)', target, seen)
+          EOF
       - name: Save the Unity Library
         if: success() && inputs.tag == '' && steps.library-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
