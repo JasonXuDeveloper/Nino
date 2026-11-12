@@ -15,7 +15,7 @@ name: Unity
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "claude/magical-gauss-7fd7mj" ]
     paths: &paths
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
