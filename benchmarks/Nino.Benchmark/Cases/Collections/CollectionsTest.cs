@@ -20,7 +20,9 @@ namespace Nino.Benchmark;
 /// of key-value pairs, a dictionary of ints, and the hashed, queued, linked, sorted and concurrent collections, whose fast paths depend on
 /// the runtime's collection layouts and on SIMD. Against MemoryPack, MessagePack and protobuf-net. Also a list that
 /// holds itself (<see cref="SelfTree"/>, 5,461 lists), which counts the depth at every level: against MemoryPack only
-/// (MessagePack fails to read it back, protobuf-net has no list of lists).
+/// (MessagePack fails to read it back, protobuf-net has no list of lists). And nullable values with every fifth one null
+/// (<c>long?[]</c>, <c>List&lt;int?&gt;</c>, <c>decimal?[]</c>), which Nino writes as a fixed stride with each absent value
+/// zeroed: against MemoryPack only.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -44,6 +46,12 @@ public class CollectionsTest
         new(Enumerable.Range(0, N).ToDictionary(i => i * 7, i => i));
     private static readonly SortedList<int, int> SortedList = new(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
     private static readonly ConcurrentDictionary<int, int> ConcurrentDictionary = new(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
+
+    // Every fifth element null: the raw nullable stride (spec 6.2), 16 bytes (long?), 8 (int?) and 24 (decimal?).
+    private static readonly long?[] NullableLongs = Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (long?)i * 31).ToArray();
+    private static readonly List<int?> NullableInts = Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (int?)i * 7).ToList();
+    private static readonly decimal?[] NullableDecimals =
+        Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (decimal?)i / 8).ToArray();
 
     private static readonly SelfTree SelfTree = SelfTree.Create(6, 4);
 
@@ -87,6 +95,13 @@ public class CollectionsTest
     private static readonly byte[] MessagePackConcurrentDictionaryBytes = MessagePackSerializer.Serialize(ConcurrentDictionary);
     private static readonly byte[] ProtobufConcurrentDictionaryBytes = ProtobufModel.Serialize(ConcurrentDictionary);
     private static readonly byte[] MemoryPackConcurrentDictionaryBytes = MemoryPackSerializer.Serialize(ConcurrentDictionary);
+
+    private static readonly byte[] NinoNullableLongsBytes = NinoSerializer.Serialize(NullableLongs);
+    private static readonly byte[] MemoryPackNullableLongsBytes = MemoryPackSerializer.Serialize(NullableLongs);
+    private static readonly byte[] NinoNullableIntsBytes = NinoSerializer.Serialize(NullableInts);
+    private static readonly byte[] MemoryPackNullableIntsBytes = MemoryPackSerializer.Serialize(NullableInts);
+    private static readonly byte[] NinoNullableDecimalsBytes = NinoSerializer.Serialize(NullableDecimals);
+    private static readonly byte[] MemoryPackNullableDecimalsBytes = MemoryPackSerializer.Serialize(NullableDecimals);
 
     private static readonly byte[] NinoSelfTreeBytes = NinoSerializer.Serialize(SelfTree);
     private static readonly byte[] MemoryPackSelfTreeBytes = MemoryPackSerializer.Serialize(SelfTree);
@@ -136,6 +151,12 @@ public class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSortedList), ProtobufSortedListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeConcurrentDictionary), MessagePackConcurrentDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeConcurrentDictionary), ProtobufConcurrentDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableLongs), NinoNullableLongsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableLongs), MemoryPackNullableLongsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableInts), NinoNullableIntsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableInts), MemoryPackNullableIntsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableDecimals), NinoNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableDecimals), MemoryPackNullableDecimalsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSelfTree), NinoSelfTreeBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSelfTree), MemoryPackSelfTreeBytes.Length);
     }
@@ -149,6 +170,72 @@ public class CollectionsTest
         _ninoBuffer = new NinoArrayBufferWriter(1 << 16);
         _memoryPackBuffer = new ArrayBufferWriter<byte>(1 << 16);
     }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableLongsSerialize")]
+    public int NinoSerializeNullableLongs()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(NullableLongs, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableLongsSerialize")]
+    public int MemoryPackSerializeNullableLongs()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableLongs);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableLongsDeserialize")]
+    public long?[] NinoDeserializeNullableLongs() => NinoDeserializer.Deserialize<long?[]>(NinoNullableLongsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableLongsDeserialize")]
+    public long?[] MemoryPackDeserializeNullableLongs() => MemoryPackSerializer.Deserialize<long?[]>(MemoryPackNullableLongsBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableIntsSerialize")]
+    public int NinoSerializeNullableInts()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(NullableInts, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableIntsSerialize")]
+    public int MemoryPackSerializeNullableInts()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableInts);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableIntsDeserialize")]
+    public List<int?> NinoDeserializeNullableInts() => NinoDeserializer.Deserialize<List<int?>>(NinoNullableIntsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableIntsDeserialize")]
+    public List<int?> MemoryPackDeserializeNullableInts() => MemoryPackSerializer.Deserialize<List<int?>>(MemoryPackNullableIntsBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableDecimalsSerialize")]
+    public int NinoSerializeNullableDecimals()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(NullableDecimals, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsSerialize")]
+    public int MemoryPackSerializeNullableDecimals()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableDecimals);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableDecimalsDeserialize")]
+    public decimal?[] NinoDeserializeNullableDecimals() => NinoDeserializer.Deserialize<decimal?[]>(NinoNullableDecimalsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
+    public decimal?[] MemoryPackDeserializeNullableDecimals() => MemoryPackSerializer.Deserialize<decimal?[]>(MemoryPackNullableDecimalsBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("TupleListSerialize")]
     public int NinoSerializeTupleList()

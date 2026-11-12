@@ -10,7 +10,7 @@
     {"id": "f", "filters": ["*.BclTypesTest.*ImmutableHashSet", "*.BclTypesTest.*ImmutableSortedSet", "*.BclTypesTest.*ImmutableQueue", "*.BclTypesTest.*ImmutableStack", "*.BclTypesTest.*ImmutableDictionary", "*.BclTypesTest.*BlockingCollection"]},
     {"id": "g", "filters": ["*.BclTypesTest.*ImmutableSortedDictionary", "*.BclTypesTest.*Uri", "*.BclTypesTest.*Version", "*.BclTypesTest.*StringBuilder", "*.BclTypesTest.*Lazy", "*.BclTypesTest.*Memory", "*.BclTypesTest.*ReadOnlySequence"]},
     {"id": "i", "filters": ["*.BclTypesTest.*ReadOnlyCollection", "*.BclTypesTest.*Lookup", "*.CollectionsTest.*TupleList", "*.CollectionsTest.*KeyValuePairs", "*.CollectionsTest.*HashSet", "*.CollectionsTest.*IntDictionary", "*.CollectionsTest.*Queue"]},
-    {"id": "j", "filters": ["*.CollectionsTest.*LinkedList", "*.CollectionsTest.*SortedSet", "*.CollectionsTest.*SortedDictionary", "*.CollectionsTest.*SortedList", "*.CollectionsTest.*ConcurrentDictionary", "*.CollectionsTest.*SelfTree"]},
+    {"id": "j", "filters": ["*.CollectionsTest.*LinkedList", "*.CollectionsTest.*SortedSet", "*.CollectionsTest.*SortedDictionary", "*.CollectionsTest.*SortedList", "*.CollectionsTest.*ConcurrentDictionary", "*.CollectionsTest.*SelfTree", "*.CollectionsTest.*Nullable*"]},
     {"id": "k", "filters": ["*.WorkloadTest.*MediaContent", "*.WorkloadTest.*StackOverflowPage", "*.WorkloadTest.*ProfileCache"]},
     {"id": "l", "filters": ["*.WorkloadTest.*EventStream", "*.WorkloadTest.*LogBatch", "*.WorkloadTest.*StateSnapshot"]},
     {"id": "m", "filters": ["*.WorkloadTest.*LockstepFrames", "*.WorkloadTest.*AoiUpdate", "*.WorkloadTest.*WorldRegion"]},
