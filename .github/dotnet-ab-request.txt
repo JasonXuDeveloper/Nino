@@ -279,4 +279,7 @@
 # ReadOnlyCollection serialize 18.6x, NonGenericBase serialize 1.34x, but GenericIntBase serialize 0.84x (0.89x Arm):
 # the closed generic dispatch was no longer inlined into the array loop. e6f72cd3 marks that dispatch to inline and
 # builds BlockingCollection's queue from a rented run (BlockingCollection deserialize was 0.93x).
-cpu='EPYC|Xeon|Neoverse' 51a7bd18 e6f72cd3 6 *Test.Nino* # review head vs main
+# done (run 43212065213): cpu='EPYC|Xeon|Neoverse' 51a7bd18 e6f72cd3 6 *Test.Nino* (review head vs main; landed as 558b2a59)
+# What zeroing absent Nullable values (a751e6c2, bb63a255) costs: raw nullable collections, structs with padding
+# (NinoMask.Copy gained the absent-value check) and fixed-size types, against the commit before the fix.
+cpu='EPYC|Xeon|Neoverse' 14a2d2df bb63a255 8 *CollectionsTest.Nino*Nullable* *FixedSizeTest.Nino* *SimpleTest.Nino*Struct* *CommonTypesTest.Nino* *CollectionsTest.Nino*Tuple*
