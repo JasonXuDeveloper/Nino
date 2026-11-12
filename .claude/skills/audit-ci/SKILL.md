@@ -104,21 +104,32 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   job's own log prints the editor's log only after the editor exits. A bare `Killed` before that log and
   `Unexpected exit code 137` mean the editor alone got SIGKILL (xvfb-run's dash prints the bare word; the timeout
   sends SIGTERM to the whole group first, and test.sh's bash would print `line N: PID Killed`), so the wrapper is not
-  the cause: read unity.yml's `Show the kernel's kills` step, since the container is gone. Its `dmesg` grep tells an
-  OOM kill (`Memory cgroup out of memory`) from any other; its trace (the host kernel's `signal:signal_generate`
-  tracepoint, which `Trace fatal signals` turns on before the Unity steps, filtered to fatal signals) names the
-  sender of every SIGKILL: the task before the colon is the sending thread and its host PID, `comm=`/`pid=` the
-  target, the kernel stack `__x64_sys_kill`/`tgkill` for a process or an OOM or fault path for the kernel, and the
-  user stack the sender's library and offset. Do not blame memory or `/dev/shm` without that evidence: the
-  6000.6.9f1 editor was SIGKILLed 1.2 to 1.5 s after launch, always right after `Registered in ... seconds.`
-  in its first domain reload (runs 43290338104 and 43299892840), with nothing in `dmesg`, 14 GB available, and
-  the same kills at 2 GiB of `/dev/shm` as at the CLI's 1025m (1025m holds Unity 6000.6's 1 GiB mapping; the
-  2 GiB detour, c6d51102, was reverted). Code coverage is off in the test steps (`GAME_CI_COVERAGE_ENABLED:
-  'false'`, the CLI's `coverageEnabled` option: the action's `coverageEnabled: false` passes `--no-coverageEnabled`,
-  which CLI v0.1.72 rejects): the project has no Code Coverage package, and on it put every editor launch in
-  Debug code optimization with Mono's coverage instrumentation; the kills came right after `Code Coverage is
-  enabled`. Name no variable of your own `GAME_CI_*`: the CLI reads each as an option (yargs `.env("GAME_CI")`
-  under `strict`) and rejects one it does not know.
+  the cause: read unity.yml's `Show the kernel's kills` step (it runs on green jobs too), since the container is
+  gone. Its `dmesg` grep tells an OOM kill (`Memory cgroup out of memory`) from any other; its trace (the host
+  kernel's `signal:signal_generate` tracepoint, which `Trace fatal signals` turns on before the Unity steps,
+  filtered to fatal signals, with `record-tgid`) names the sender of every SIGKILL: before the colon the sending
+  thread's name and host PID, then its process in parentheses; `comm=`/`pid=` the target (a thread's name and ID
+  when the PID killed was a thread's: the whole process dies); the kernel stack `__x64_sys_kill`/`tgkill` for a
+  process, `zap_pid_ns_processes` for the container ending (ignore those), an OOM or fault path for the kernel.
+  A thread's name is not its process: the trace instance `nino-procs` (fork, exec, rename, exit of every task)
+  lets the step's script print the sender's process, program and parents, the target's, and each one's PID inside
+  its container (counted in creation order from the task runc's `[1:CHILD]` creates), and every Unity editor and
+  `Unity.DataStore` started with its container PID. Do not blame memory, `/dev/shm` or a flag without that
+  evidence: the 6000.6.9f1 editor was SIGKILLed 1.2 to 1.5 s after launch, right after `Registered in ...
+  seconds.` in its first domain reload, with nothing in `dmesg`, 14 GB available, the same at 2 GiB of `/dev/shm`
+  as at the CLI's 1025m (the 2 GiB detour, c6d51102, was reverted) and with code coverage off as on (run
+  43316317360). Every kill came over `kill(2)` from a thread named `Unity Main Thread` at tasks named like the
+  editor's threads (`llvmpipe-2`, `Unity:disk$0`, `AssetDatabase.I`; runs 43309471749 and 43316317360), and a
+  passing launch's `Unity.DataStore` (Unity 6000.6's asset store process, state in `Library/DataStore`, which
+  6000.3 does not have) got the same kind of kill at shutdown: the suspect is a Data Store PID kept from a launch
+  in another container, which the Library cache brings back (first launch killed with the cache; with a fresh
+  Library the third). unity.yml therefore lists and deletes `Library/DataStore` before each Unity step (553debd6,
+  the candidate fix) and prints the Data Store's `Editor-UDS.log` from the runner's home (the container's
+  `/root`). Code coverage stays off in the test steps (`GAME_CI_COVERAGE_ENABLED: 'false'`, the CLI's
+  `coverageEnabled` option: the action's `coverageEnabled: false` passes `--no-coverageEnabled`, which CLI v0.1.72
+  rejects): the project has no Code Coverage package, so it only put every editor launch in Debug code
+  optimization with Mono's coverage instrumentation. Name no variable of your own `GAME_CI_*`: the CLI reads each
+  as an option (yargs `.env("GAME_CI")` under `strict`) and rejects one it does not know.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
   `unity.yml` called with `tag`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
