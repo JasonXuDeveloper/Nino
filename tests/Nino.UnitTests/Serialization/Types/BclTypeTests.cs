@@ -583,6 +583,16 @@ public class BclTypeTests
 
         var observed = new ReadOnlyObservableCollection<string>(new ObservableCollection<string> { "x", "y" });
         CollectionAssert.AreEqual(observed, RoundTrip(observed));
+        // A collection of raw elements that can copy them out is written as one block, the bytes of enumerating it.
+        foreach (int n in new[] { 1, 7, 300 })
+        {
+            var values = Enumerable.Range(0, n).ToList();
+            var enumerated = NinoSerializer.Serialize<IEnumerable<int>>(values.Select(i => i));
+            CollectionAssert.AreEqual(enumerated, NinoSerializer.Serialize<IEnumerable<int>>(new ReadOnlyCollection<int>(values)));
+            CollectionAssert.AreEqual(enumerated, NinoSerializer.Serialize(new ReadOnlyCollection<int>(values)));
+            CollectionAssert.AreEqual(enumerated, NinoSerializer.Serialize<ICollection<int>>(new Collection<int>(values)));
+        }
+
         Assert.IsNull(RoundTrip((ReadOnlyCollection<int>)null));
         Assert.IsNull(RoundTrip((ReadOnlyObservableCollection<int>)null));
     }

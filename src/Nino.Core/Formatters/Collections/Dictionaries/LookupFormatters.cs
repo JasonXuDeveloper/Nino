@@ -30,16 +30,17 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            // A grouping that holds its elements (Nino's, and .NET's Lookup, whose groupings are lists) is written
-            // from an array, as an array's elements are (one block copy for raw ones), out of line with the writer by
-            // value: enumerating it took two interface calls per element.
+            // A grouping that holds its elements is written from an array, as an array's elements are, out of line
+            // with the writer by value: enumerating it took two interface calls per element. Nino's own from its
+            // array; one that can copy them out (.NET's Lookup, whose groupings are lists) when they are of a fixed
+            // size (BlockStride, a constant), written as one block, as NinoCollections.WriteEnumerable does.
             if (value is NinoGrouping<TKey, TElement> stored)
             {
                 writer = WriteElements(stored.Key, stored.Elements, writer);
                 return;
             }
 
-            if (value is ICollection<TElement> collection)
+            if (NinoElements.BlockStride<TElement, TElementFormatter>() > 0 && value is ICollection<TElement> collection)
             {
                 writer = WriteCollection(value.Key, collection, writer);
                 return;
@@ -70,16 +71,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteCollection(TKey key, ICollection<TElement> collection, Writer writer)
         {
-            int count = collection.Count;
-            var elements = ArrayPool<TElement>.Shared.Rent(count);
+            var elements = NinoCollections.RentCopied(collection, null, out int count);
             try
             {
-                collection.CopyTo(elements, 0);
                 return WriteElements(key, new ReadOnlySpan<TElement>(elements, 0, count), writer);
             }
             finally
             {
-                ArrayPool<TElement>.Shared.Return(elements, NinoUnsafe.IsReferenceOrContainsReferences<TElement>());
+                NinoCollections.ReturnRented(elements);
             }
         }
 

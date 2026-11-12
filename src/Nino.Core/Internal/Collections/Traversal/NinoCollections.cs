@@ -68,6 +68,14 @@ namespace Nino.Core.Internal
                 return;
             }
 
+            // Elements of a fixed size (BlockStride, a constant) of a collection that can copy them out: as an array,
+            // one block, instead of two interface calls per element (ReadOnlyCollection<int>, Collection<T>, ...).
+            if (NinoElements.BlockStride<T, TFormatter>() > 0 && values is ICollection<T> collection)
+            {
+                WriteCopied<T, TFormatter>(collection, null, ref writer);
+                return;
+            }
+
             if (NinoElements.WritesOnLocal<T>())
                 writer = WriteEnumerated<T, TFormatter>(values, count, writer);
             else
@@ -190,17 +198,29 @@ namespace Nino.Core.Internal
         public static void WriteCopied<T, TFormatter>(ICollection<T> source, object root, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            int count = source.Count;
-            var array = ArrayPool<T>.Shared.Rent(count);
+            var array = RentCopied(source, root, out int count);
             try
             {
-                CopyOut(source, root, array);
                 WriteSpan<T, TFormatter>(new ReadOnlySpan<T>(array, 0, count), ref writer);
             }
             finally
             {
                 ReturnRented(array);
             }
+        }
+
+        /// <summary>
+        /// The elements of <paramref name="source"/> in a rented array (give it back with <see cref="ReturnRented{T}"/>),
+        /// in the order <see cref="ICollection{T}.CopyTo"/> puts them, or copied out of the <see cref="SortedSet{T}"/>
+        /// tree under <paramref name="root"/> when it is not null.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T[] RentCopied<T>(ICollection<T> source, object root, out int count)
+        {
+            count = source.Count;
+            var array = ArrayPool<T>.Shared.Rent(count);
+            CopyOut(source, root, array);
+            return array;
         }
 
         // Out of line: in the caller, the branch keeps the writer in memory.

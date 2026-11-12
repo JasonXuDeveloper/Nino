@@ -106,16 +106,19 @@ Rules in short:
 
 ## Lookups, sorted sets and linked lists
 
-- Write a grouping that holds its elements from an array, out of line with the writer by value: `NinoGrouping` from its
-  own array, any `ICollection<T>` grouping (.NET's `Lookup`, whose groupings are lists) through `CopyTo` into a pooled
-  array, then `NinoElements.Write` (one block copy for raw elements); only a grouping that just enumerates keeps the
-  patched count. Never put such a path behind a `ref writer` call from the lookup's top level. Why: enumeration cost
-  two interface calls per element and an enumerator per grouping, and a NoInlining call taking the writer's address
-  kept every caller's writer in memory. Evidence: 45570cc1's `WriteArray(lookup, ref writer)` served only
-  deserialized lookups, raised the top-level stack accesses from 75 to 127, and the runner A/B of the rc.10 review
-  head measured Lookup serialize (a .NET `Lookup`) at 0.88x on x64; the grouping-level form took the local Lookup
-  serialize (10 groupings of 100 ints) from 1,927 to 539 ns and 320 B to none against main on the same machine
-  (local, Xeon; runner numbers pending).
+- Write a collection Nino can only reach through an interface from an array when it holds raw or fixed-size elements
+  (`BlockStride` > 0, a constant per instantiation, so other element types compile to the old code): copy them out
+  with `NinoCollections.RentCopied` (`ICollection<T>.CopyTo` into a pooled array) and write the span as one block.
+  `NinoCollections.WriteEnumerable` does it for every interface and `Collection<T>`-like formatter, `GroupingFormatter`
+  for groupings (.NET's `Lookup` groupings are lists), out of line with the writer by value; a `NinoGrouping` is
+  written from its own array for any element type. Never put such a path behind a `ref writer` call from a
+  collection's top level, and keep elements that are formatted one by one on the enumerator until a measurement says
+  otherwise (a rent per small collection may cost more than the interface calls it saves). Why: enumeration cost two
+  interface calls per element and an enumerator per collection. Evidence: 45570cc1's `WriteArray(lookup, ref writer)`
+  served only deserialized lookups, raised the top-level stack accesses from 75 to 127, and the runner A/B of the
+  rc.10 review head measured Lookup serialize (a .NET `Lookup`) at 0.88x on x64; the copied form against main on one
+  machine (local Xeon, runner numbers pending): Lookup serialize (10 groupings of 100 ints) 1,868 to 341 ns and 320 B
+  to none, ReadOnlyCollection<int> serialize (1,000) 1,673 to 96 ns and 40 B to none.
 - Batch writes at the typed lookup boundary: dispatch once from the lookup formatter, write the existing group array
   and reuse the span writer for each group, and return after the zero count to avoid both dispatch and enumeration on
   empty lookups. Why: an array branch in the public grouping formatter removed its enumerator allocation but slowed
