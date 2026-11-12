@@ -16,7 +16,7 @@
     <!-- Tools only (Nino.Codegen, Nino.Codegen.Tool): the templates of the code generated for other languages. Shipped
          in the tools' own folders, never a dependency of a package's users. -->
     <ItemGroup>
-        <PackageVersion Include="Scriban" Version="7.6.0"/>
+        <PackageVersion Include="Scriban" Version="7.6.1"/>
     </ItemGroup>
 
     <!-- Roslyn. The generator is compiled against the oldest compiler each of its builds supports: 4.3 here (Unity),
@@ -30,9 +30,9 @@
 
     <!-- Tests. -->
     <ItemGroup>
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0"/>
-        <PackageVersion Include="MSTest.TestAdapter" Version="4.5.2"/>
-        <PackageVersion Include="MSTest.TestFramework" Version="4.5.2"/>
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0"/>
+        <PackageVersion Include="MSTest.TestAdapter" Version="4.5.3"/>
+        <PackageVersion Include="MSTest.TestFramework" Version="4.5.3"/>
         <PackageVersion Include="SharpFuzz" Version="2.3.0"/>
         <PackageVersion Include="coverlet.collector" Version="10.1.0"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4"/>
@@ -52,7 +52,7 @@
     <!-- Benchmarks. -->
     <ItemGroup>
         <PackageVersion Include="BenchmarkDotNet" Version="0.15.8"/>
-        <PackageVersion Include="MemoryPack" Version="1.21.4"/>
+        <PackageVersion Include="MemoryPack" Version="1.22.0"/>
         <PackageVersion Include="MessagePack" Version="3.1.12"/>
         <PackageVersion Include="MessagePackAnalyzer" Version="3.1.12"/>
         <!-- MessagePack's formatters for System.Collections.Immutable (ImmutableCollectionResolver). -->
