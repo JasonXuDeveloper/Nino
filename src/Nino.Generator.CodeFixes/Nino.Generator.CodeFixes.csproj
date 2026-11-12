@@ -27,6 +27,10 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all"/>
+        <!-- Raises the System.Collections.Immutable Roslyn 4.3 resolves (6.0.0) to its patch 6.0.1, which Dependabot asks
+             for. Both have assembly version 6.0.0.0, so the analyzer binds as before inside any compiler that ships 6.x
+             (Unity's); private, so nothing flows to users. -->
+        <PackageReference Include="System.Collections.Immutable" VersionOverride="6.0.1" PrivateAssets="all"/>
     </ItemGroup>
 
 </Project>

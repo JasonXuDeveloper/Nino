@@ -32,11 +32,6 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "System.Reflection.MetadataLoadContext"
         update-types: ["version-update:semver-major"]
-      # The generator and the code fixes take System.Collections.Immutable from the compiler that loads them (6.x for
-      # Roslyn 4.3, Unity's): never reference it from them. Dependabot pinned this transitive dependency at 6.0.1 with a
-      # PackageReference in both projects (#260); ignoring 6.x keeps it from doing so, 10.x updates still come.
-      - dependency-name: "System.Collections.Immutable"
-        versions: ["6.x"]
   # The workflows pin every action to a commit SHA with its version in a comment (uses: owner/repo@<sha> # vX.Y.Z):
   # Dependabot updates both. All action updates in one pull request, so one CI run checks them together.
   # "/" covers .github/workflows only; the composite actions in .github/actions need their own entries.
