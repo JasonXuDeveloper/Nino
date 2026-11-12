@@ -1,11 +1,10 @@
 version: 2
 updates:
+  # The root only: every version is in Directory.Packages.props (central package management), and Nino.slnx lists
+  # the projects. With one entry per project directory, each directory's update job rewrote that one file and the
+  # grouped pull request kept only the last job's edit: #253 described 8 updates and changed PolySharp alone.
   - package-ecosystem: "nuget"
-    directories:
-      - "/src/*"
-      - "/tests/*"
-      - "/benchmarks/Nino.Benchmark"
-      - "/benchmarks/Nino.GeneratorBenchmark"
+    directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
@@ -21,6 +20,15 @@ updates:
       - dependency-name: "Microsoft.CodeAnalysis.CSharp"
       - dependency-name: "Microsoft.CodeAnalysis.CSharp.Workspaces"
       - dependency-name: "Microsoft.CodeAnalysis.Workspaces.Common"
+      # Nino from nuget.org is only the v3 baseline: 3.3.13, the version every v4-vs-v3 number names
+      # (benchmarks/Nino.Benchmark's NINO_BENCH_V3 build, benchmarks/members/v3).
+      - dependency-name: "Nino"
+      # Each major of the System.* packages supports the .NET versions in support when it ships: 11.0.0 warns on
+      # net8.0 (Nino.Codegen, and users of Nino.Immutable on .NET 8). Majors follow the oldest .NET Nino targets.
+      - dependency-name: "System.Collections.Immutable"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "System.Reflection.MetadataLoadContext"
+        update-types: ["version-update:semver-major"]
   # The workflows pin every action to a commit SHA with its version in a comment (uses: owner/repo@<sha> # vX.Y.Z):
   # Dependabot updates both. All action updates in one pull request, so one CI run checks them together.
   # "/" covers .github/workflows only; the composite actions in .github/actions need their own entries.
