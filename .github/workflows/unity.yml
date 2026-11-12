@@ -247,6 +247,14 @@ jobs:
       # and the project has no such package, so that launch did nothing ("Coverage results directory does not exist")
       # but take another 10 seconds and another chance to hang. The edit mode step runs after a failure of the play
       # mode one too, so one run shows both.
+      #
+      # Code coverage off in every step (GAME_CI_COVERAGE_ENABLED, the CLI's coverageEnabled option: the action's own
+      # coverageEnabled: false passes --no-coverageEnabled, which CLI v0.1.72 rejects as an unknown argument, while
+      # the variable reaches the CLI because the action passes no coverage flag at its default). On, the CLI adds
+      # -enableCodeCoverage -debugCodeOptimization -coverageOptions to each editor launch: the project has no Code
+      # Coverage package, so it collected nothing ("Coverage results directory does not exist"), but the editor ran
+      # in Debug code optimization with Mono's coverage instrumentation, slower, and every 6000.6.9f1 SIGKILL
+      # (runs 43290338104, 43299892840) came in the first domain reload right after "Code Coverage is enabled".
       - name: Run the editor's play mode tests
         if: env.BENCHMARK != 'true'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -257,6 +265,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
+          GAME_CI_COVERAGE_ENABLED: 'false'
         with:
           projectPath: ./src/Nino.Unity
           testMode: playmode
@@ -278,6 +287,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
+          GAME_CI_COVERAGE_ENABLED: 'false'
         with:
           projectPath: ./src/Nino.Unity
           testMode: editmode
@@ -292,8 +302,7 @@ jobs:
       # the other, so the job still holds one seat at a time. The player itself runs outside ENGINE_LAUNCH_WRAPPER (under
       # xvfb-run), bounded only by the step's timeout.
       # With the benchmark, -ninoBenchmark builds the player without the Development flag and with the benchmark in it
-      # (Test.Editor.Burst.BenchmarkPlayerBuild). Code coverage stays on: it instruments only the editor's code, but
-      # game-ci CLI v0.1.72 rejects the --no-coverageEnabled that coverageEnabled: false passes to it.
+      # (Test.Editor.Burst.BenchmarkPlayerBuild).
       - name: Run the IL2CPP player's tests
         if: >-
           success() || steps.playmode-tests.conclusion == 'failure' || steps.editmode-tests.conclusion == 'failure'
@@ -306,6 +315,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 20m
+          GAME_CI_COVERAGE_ENABLED: 'false'
         with:
           projectPath: ./src/Nino.Unity
           testMode: standalone
