@@ -30,6 +30,21 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
+            // A grouping that holds its elements (Nino's, and .NET's Lookup, whose groupings are lists) is written
+            // from an array, as an array's elements are (one block copy for raw ones), out of line with the writer by
+            // value: enumerating it took two interface calls per element.
+            if (value is NinoGrouping<TKey, TElement> stored)
+            {
+                writer = WriteElements(stored.Key, stored.Elements, writer);
+                return;
+            }
+
+            if (value is ICollection<TElement> collection)
+            {
+                writer = WriteCollection(value.Key, collection, writer);
+                return;
+            }
+
             // The count first, patched after the elements: a grouping need not know its count.
             int countPos = writer.ReserveInt32();
             default(TKeyFormatter).Serialize(value.Key, ref writer);
@@ -41,6 +56,31 @@ namespace Nino.Core
             }
 
             writer.PatchInt32(countPos, count);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteElements(TKey key, ReadOnlySpan<TElement> elements, Writer writer)
+        {
+            writer.WriteLength(elements.Length);
+            default(TKeyFormatter).Serialize(key, ref writer);
+            NinoElements.Write<TElement, TElementFormatter>(elements, ref writer);
+            return writer;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteCollection(TKey key, ICollection<TElement> collection, Writer writer)
+        {
+            int count = collection.Count;
+            var elements = ArrayPool<TElement>.Shared.Rent(count);
+            try
+            {
+                collection.CopyTo(elements, 0);
+                return WriteElements(key, new ReadOnlySpan<TElement>(elements, 0, count), writer);
+            }
+            finally
+            {
+                ArrayPool<TElement>.Shared.Return(elements, NinoUnsafe.IsReferenceOrContainsReferences<TElement>());
+            }
         }
 
         public void Deserialize(ref Reader reader, ref IGrouping<TKey, TElement> value)
@@ -142,6 +182,9 @@ namespace Nino.Core
         }
 
         public TKey Key { get; }
+
+        /// <summary>The elements, as read.</summary>
+        internal TElement[] Elements => _elements;
 
         public int Count => _elements.Length;
 

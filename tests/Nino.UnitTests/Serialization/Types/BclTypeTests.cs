@@ -614,9 +614,42 @@ public class BclTypeTests
             NinoSerializer.Serialize(g).AsEnumerable())).ToArray();
         Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ILookup<int, int>>(twice));
 
+        // A grouping that only enumerates (the count patched after the elements), .NET's grouping (a list, copied
+        // out) and the grouping Nino reads (its array) write the same bytes, raw and reference elements alike.
+        foreach (var g in Enumerable.Range(0, 300).GroupBy(i => i % 3))
+        {
+            var bytes = NinoSerializer.Serialize<IGrouping<int, int>>(g);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize<IGrouping<int, int>>(new EnumeratedGrouping<int, int>(g)));
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<IGrouping<int, int>>(bytes)));
+        }
+
+        var named = words.Where(w => w != null).GroupBy(w => w.Length > 5).First();
+        var namedBytes = NinoSerializer.Serialize<IGrouping<bool, string>>(named);
+        CollectionAssert.AreEqual(namedBytes,
+            NinoSerializer.Serialize<IGrouping<bool, string>>(new EnumeratedGrouping<bool, string>(named)));
+        CollectionAssert.AreEqual(named.ToArray(), RoundTrip<IGrouping<bool, string>>(named).ToArray());
+
         Assert.IsNull(RoundTrip((ILookup<int, int>)null));
         Assert.IsNull(RoundTrip((IGrouping<int, int>)null));
         Assert.AreEqual(0, RoundTrip(Array.Empty<int>().ToLookup(i => i)).Count);
+    }
+
+    /// <summary>A grouping that only enumerates its elements (no count), as a user's own may.</summary>
+    private sealed class EnumeratedGrouping<TKey, TElement> : IGrouping<TKey, TElement>
+    {
+        private readonly IGrouping<TKey, TElement> _inner;
+
+        public EnumeratedGrouping(IGrouping<TKey, TElement> inner) => _inner = inner;
+
+        public TKey Key => _inner.Key;
+
+        public IEnumerator<TElement> GetEnumerator()
+        {
+            foreach (var element in _inner)
+                yield return element;
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     [TestMethod]

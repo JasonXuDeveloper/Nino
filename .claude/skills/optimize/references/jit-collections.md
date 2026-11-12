@@ -106,11 +106,16 @@ Rules in short:
 
 ## Lookups, sorted sets and linked lists
 
-- Write a `NinoLookup` (a deserialized lookup) through the grouping path like any lookup; a NoInlining fast path that
-  takes `ref writer` makes every lookup write keep the writer in memory. Evidence: 45570cc1's `WriteArray` raised the
-  top-level call's Tier1 stack accesses from 75 to 127, and the runner A/B of the rc.10 review head against main
-  measured Lookup serialize (a .NET `Lookup`, which never took the path) at 0.88x on x64; the writer by value still
-  left 106; reverted.
+- Write a grouping that holds its elements from an array, out of line with the writer by value: `NinoGrouping` from its
+  own array, any `ICollection<T>` grouping (.NET's `Lookup`, whose groupings are lists) through `CopyTo` into a pooled
+  array, then `NinoElements.Write` (one block copy for raw elements); only a grouping that just enumerates keeps the
+  patched count. Never put such a path behind a `ref writer` call from the lookup's top level. Why: enumeration cost
+  two interface calls per element and an enumerator per grouping, and a NoInlining call taking the writer's address
+  kept every caller's writer in memory. Evidence: 45570cc1's `WriteArray(lookup, ref writer)` served only
+  deserialized lookups, raised the top-level stack accesses from 75 to 127, and the runner A/B of the rc.10 review
+  head measured Lookup serialize (a .NET `Lookup`) at 0.88x on x64; the grouping-level form took the local Lookup
+  serialize (10 groupings of 100 ints) from 1,927 to 539 ns and 320 B to none against main on the same machine
+  (local, Xeon; runner numbers pending).
 - Batch writes at the typed lookup boundary: dispatch once from the lookup formatter, write the existing group array
   and reuse the span writer for each group, and return after the zero count to avoid both dispatch and enumeration on
   empty lookups. Why: an array branch in the public grouping formatter removed its enumerator allocation but slowed
