@@ -11,6 +11,16 @@ namespace Nino.Burst
         // method: a player is compiled ahead of time for a baseline (SSE2 on x64, none on Armv7 or WebGL) and
         // rejects an SSSE3 or even SSE2 instruction outside such a test, although the editor, compiling for the
         // machine it runs on, accepts it. The final `default` is never reached.
+        //
+        // Every kernel tests one instruction set per `if` (never `Arm.Neon.IsNeonSupported || X86.Sse2...`), and the
+        // block under each test only calls and returns: no code after it is reached from another test's block. Burst's
+        // check of intrinsics (CheckIntrinsicUsageTransform, the same in Burst 1.8 and 2.0) gives each block the
+        // instruction set of the first test whose edge reaches it and ignores the others (two known sets compare
+        // equal in its visited set), then replaces each block marked with a set the target lacks by a throw. A block
+        // reached by both edges of `Neon || Sse2` kept Neon on x64 under Burst 2.0 (Unity 6000.6): every narrow from
+        // 16 chars threw ("burst_abort" in Narrow), while Burst 1.8.29 passed the same code: which edge comes first
+        // depends on the IL graph each Burst builds. The kernels' vector loops (NarrowVectors, PermuteVectors, ...)
+        // test nothing themselves.
 
         private static v128 Load(byte* at)
         {

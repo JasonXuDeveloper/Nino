@@ -38,14 +38,34 @@ namespace Nino.Burst
         // CPUs (32 values: about 5% slower with AVX2; 1000 and more: up to 3 times faster to read, 1.2 times to write).
         private const int Avx2MinValues = 256;
 
+        // One instruction set per test, its block a call and a return (NinoBurst.Vectors.cs, the header). The AVX2
+        // path runs inside the SSSE3 test: an AVX2 CPU has SSSE3, and PermuteAvx2 tests AVX2 itself.
         private static void PermuteAll(byte* source, int sourceStride, byte* destination, int destinationStride,
             byte* table, int count, bool wide)
         {
-            int i = 0;
-            if (wide && count >= Avx2MinValues && sourceStride <= 16 && destinationStride <= 16)
-                i = PermuteAvx2(source, sourceStride, destination, destinationStride, table, count);
-            if ((Arm.Neon.IsNeonSupported || X86.Ssse3.IsSsse3Supported) && sourceStride <= 64 &&
-                destinationStride <= 64 && i < count)
+            if (Arm.Neon.IsNeonSupported)
+            {
+                PermuteRest(source, sourceStride, destination, destinationStride, table, count, 0, true);
+                return;
+            }
+
+            if (X86.Ssse3.IsSsse3Supported)
+            {
+                int done = wide && count >= Avx2MinValues && sourceStride <= 16 && destinationStride <= 16
+                    ? PermuteAvx2(source, sourceStride, destination, destinationStride, table, count)
+                    : 0;
+                PermuteRest(source, sourceStride, destination, destinationStride, table, count, done, true);
+                return;
+            }
+
+            PermuteRest(source, sourceStride, destination, destinationStride, table, count, 0, false);
+        }
+
+        // The values from i: 16 bytes at a time where vectors are on and the strides allow, then one byte at a time.
+        private static void PermuteRest(byte* source, int sourceStride, byte* destination, int destinationStride,
+            byte* table, int count, int i, bool vectors)
+        {
+            if (vectors && sourceStride <= 64 && destinationStride <= 64 && i < count)
                 i += PermuteVectors(source + (long)i * sourceStride, sourceStride,
                     destination + (long)i * destinationStride, destinationStride, table, count - i);
             for (; i < count; i++)

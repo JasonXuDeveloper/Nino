@@ -29,21 +29,35 @@ namespace Nino.Burst
         [MonoPInvokeCallback(typeof(NarrowFunction))]
         public static int Narrow(ushort* source, byte* destination, int length)
         {
-            if ((Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported) && length >= 16)
+            // One instruction set per test, its block a call and a return (NinoBurst.Vectors.cs, the header).
+            if (length >= 16)
             {
-                int i = 0;
-                while (true)
-                {
-                    v128 a = Load((byte*)(source + i)), b = Load((byte*)(source + i + 8));
-                    if (AboveLatin1(a, b))
-                        return 0;
-                    Store(destination + i, Pack(a, b));
-                    if (i + 16 == length)
-                        return 1;
-                    i = i + 32 <= length ? i + 16 : length - 16;
-                }
+                if (Arm.Neon.IsNeonSupported)
+                    return NarrowVectors(source, destination, length);
+                if (X86.Sse2.IsSse2Supported)
+                    return NarrowVectors(source, destination, length);
             }
 
+            return NarrowChars(source, destination, length);
+        }
+
+        private static int NarrowVectors(ushort* source, byte* destination, int length)
+        {
+            int i = 0;
+            while (true)
+            {
+                v128 a = Load((byte*)(source + i)), b = Load((byte*)(source + i + 8));
+                if (AboveLatin1(a, b))
+                    return 0;
+                Store(destination + i, Pack(a, b));
+                if (i + 16 == length)
+                    return 1;
+                i = i + 32 <= length ? i + 16 : length - 16;
+            }
+        }
+
+        private static int NarrowChars(ushort* source, byte* destination, int length)
+        {
             for (int i = 0; i < length; i++)
             {
                 if (source[i] > 0xFF)
@@ -59,20 +73,40 @@ namespace Nino.Burst
         [MonoPInvokeCallback(typeof(WidenFunction))]
         public static void Widen(byte* source, ushort* destination, int length)
         {
-            if ((Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported) && length >= 16)
+            if (length >= 16)
             {
-                int i = 0;
-                while (true)
+                if (Arm.Neon.IsNeonSupported)
                 {
-                    v128 v = Load(source + i);
-                    Store((byte*)(destination + i), Low(v));
-                    Store((byte*)(destination + i + 8), High(v));
-                    if (i + 16 == length)
-                        return;
-                    i = i + 32 <= length ? i + 16 : length - 16;
+                    WidenVectors(source, destination, length);
+                    return;
+                }
+
+                if (X86.Sse2.IsSse2Supported)
+                {
+                    WidenVectors(source, destination, length);
+                    return;
                 }
             }
 
+            WidenBytes(source, destination, length);
+        }
+
+        private static void WidenVectors(byte* source, ushort* destination, int length)
+        {
+            int i = 0;
+            while (true)
+            {
+                v128 v = Load(source + i);
+                Store((byte*)(destination + i), Low(v));
+                Store((byte*)(destination + i + 8), High(v));
+                if (i + 16 == length)
+                    return;
+                i = i + 32 <= length ? i + 16 : length - 16;
+            }
+        }
+
+        private static void WidenBytes(byte* source, ushort* destination, int length)
+        {
             for (int i = 0; i < length; i++)
                 destination[i] = source[i];
         }
@@ -85,21 +119,35 @@ namespace Nino.Burst
         [MonoPInvokeCallback(typeof(NarrowFunction))]
         public static int NarrowAscii(ushort* source, byte* destination, int length)
         {
-            int i = 0;
-            if ((Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported) && length >= 16)
+            if (length >= 16)
             {
-                while (true)
-                {
-                    v128 a = Load((byte*)(source + i)), b = Load((byte*)(source + i + 8));
-                    if (AboveAscii(a, b))
-                        break;
-                    Store(destination + i, Pack(a, b));
-                    if (i + 16 == length)
-                        return length;
-                    i = i + 32 <= length ? i + 16 : length - 16;
-                }
+                if (Arm.Neon.IsNeonSupported)
+                    return NarrowAsciiChars(source, destination, length, NarrowAsciiVectors(source, destination, length));
+                if (X86.Sse2.IsSse2Supported)
+                    return NarrowAsciiChars(source, destination, length, NarrowAsciiVectors(source, destination, length));
             }
 
+            return NarrowAsciiChars(source, destination, length, 0);
+        }
+
+        // The chars before the first 16 with one above U+007F (length when there is none), written.
+        private static int NarrowAsciiVectors(ushort* source, byte* destination, int length)
+        {
+            int i = 0;
+            while (true)
+            {
+                v128 a = Load((byte*)(source + i)), b = Load((byte*)(source + i + 8));
+                if (AboveAscii(a, b))
+                    return i;
+                Store(destination + i, Pack(a, b));
+                if (i + 16 == length)
+                    return length;
+                i = i + 32 <= length ? i + 16 : length - 16;
+            }
+        }
+
+        private static int NarrowAsciiChars(ushort* source, byte* destination, int length, int i)
+        {
             for (; i < length && source[i] < 0x80; i++)
                 destination[i] = (byte)source[i];
             return i;
@@ -113,22 +161,36 @@ namespace Nino.Burst
         [MonoPInvokeCallback(typeof(WidenAsciiFunction))]
         public static int WidenAscii(byte* source, ushort* destination, int length)
         {
-            int i = 0;
-            if ((Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported) && length >= 16)
+            if (length >= 16)
             {
-                while (true)
-                {
-                    v128 v = Load(source + i);
-                    if (AnyAboveAscii(v))
-                        break;
-                    Store((byte*)(destination + i), Low(v));
-                    Store((byte*)(destination + i + 8), High(v));
-                    if (i + 16 == length)
-                        return length;
-                    i = i + 32 <= length ? i + 16 : length - 16;
-                }
+                if (Arm.Neon.IsNeonSupported)
+                    return WidenAsciiBytes(source, destination, length, WidenAsciiVectors(source, destination, length));
+                if (X86.Sse2.IsSse2Supported)
+                    return WidenAsciiBytes(source, destination, length, WidenAsciiVectors(source, destination, length));
             }
 
+            return WidenAsciiBytes(source, destination, length, 0);
+        }
+
+        // The bytes before the first 16 with one above 0x7F (length when there is none), written.
+        private static int WidenAsciiVectors(byte* source, ushort* destination, int length)
+        {
+            int i = 0;
+            while (true)
+            {
+                v128 v = Load(source + i);
+                if (AnyAboveAscii(v))
+                    return i;
+                Store((byte*)(destination + i), Low(v));
+                Store((byte*)(destination + i + 8), High(v));
+                if (i + 16 == length)
+                    return length;
+                i = i + 32 <= length ? i + 16 : length - 16;
+            }
+        }
+
+        private static int WidenAsciiBytes(byte* source, ushort* destination, int length, int i)
+        {
             for (; i < length && source[i] < 0x80; i++)
                 destination[i] = source[i];
             return i;
