@@ -16,6 +16,7 @@ namespace Nino.Core.Internal
     /// <summary>Shared helpers for collection formatters.</summary>
     internal static class NinoCollections
     {
+
         /// <summary>
         /// Reads <paramref name="length"/> elements into a list, as <see cref="ListFormatter{TList,T,TFormatter}"/>
         /// does, for <see cref="NinoElements.HeavyElements{T,TFormatter}"/> elements: where they do not
@@ -47,6 +48,13 @@ namespace Nino.Core.Internal
             }
         }
 
+        /// <summary>
+        /// The fewest elements of a collection of elements written one by one that are copied out of it before they
+        /// are written (<see cref="RentCopied{T}"/>) rather than enumerated: strings through a ReadOnlyCollection,
+        /// locally against the enumerator, 20% slower at 4 elements, 25% faster at 16, 40% at 1,000.
+        /// </summary>
+        internal const int CopiedFrom = 16;
+
         /// <summary>Writes the count of <paramref name="values"/> (patched afterwards if unknown), then the
         /// elements.</summary>
         public static void WriteEnumerable<T, TFormatter>(IEnumerable<T> values, ref Writer writer)
@@ -68,9 +76,12 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            // Elements of a fixed size (BlockStride, a constant) of a collection that can copy them out: as an array,
-            // one block, instead of two interface calls per element (ReadOnlyCollection<int>, Collection<T>, ...).
-            if (NinoElements.BlockStride<T, TFormatter>() > 0 && values is ICollection<T> collection)
+            // A collection that can copy its elements out is written from a rented array, as an array is, instead of
+            // through two interface calls per element and an enumerator (ReadOnlyCollection<T>, Collection<T>, ...):
+            // always for elements of a fixed size (BlockStride, a constant: one block), from CopiedFrom elements on
+            // for the others, where renting the array costs more than it saves below.
+            if (values is ICollection<T> collection &&
+                (NinoElements.BlockStride<T, TFormatter>() > 0 || count >= CopiedFrom))
             {
                 WriteCopied<T, TFormatter>(collection, null, ref writer);
                 return;

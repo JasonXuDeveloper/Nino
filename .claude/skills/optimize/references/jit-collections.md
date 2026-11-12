@@ -111,9 +111,11 @@ Rules in short:
   with `NinoCollections.RentCopied` (`ICollection<T>.CopyTo` into a pooled array) and write the span as one block.
   `NinoCollections.WriteEnumerable` does it for every interface and `Collection<T>`-like formatter, `GroupingFormatter`
   for groupings (.NET's `Lookup` groupings are lists), out of line with the writer by value; a `NinoGrouping` is
-  written from its own array for any element type. Never put such a path behind a `ref writer` call from a
-  collection's top level, and keep elements that are formatted one by one on the enumerator until a measurement says
-  otherwise (a rent per small collection may cost more than the interface calls it saves). Why: enumeration cost two
+  written from its own array for any element type. Elements formatted one by one take the same path from
+  `NinoCollections.CopiedFrom` (16) elements on: strings through a `ReadOnlyCollection` measured locally 20% slower
+  copied at 4 elements, 25% faster at 16, 35% at 64, 40% at 1,000, and the enumerator's 40 B gone. Never put such a
+  path behind a `ref writer` call from a collection's top level. When timing such a pair in one process, the first
+  case to take a new path reads slow (tiering): repeat it later in the run before believing it. Why: enumeration cost two
   interface calls per element and an enumerator per collection. Evidence: 45570cc1's `WriteArray(lookup, ref writer)`
   served only deserialized lookups, raised the top-level stack accesses from 75 to 127, and the runner A/B of the
   rc.10 review head measured Lookup serialize (a .NET `Lookup`) at 0.88x on x64; the copied form against main on one

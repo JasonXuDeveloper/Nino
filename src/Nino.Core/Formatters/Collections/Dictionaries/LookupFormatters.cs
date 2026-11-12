@@ -32,15 +32,17 @@ namespace Nino.Core
 
             // A grouping that holds its elements is written from an array, as an array's elements are, out of line
             // with the writer by value: enumerating it took two interface calls per element. Nino's own from its
-            // array; one that can copy them out (.NET's Lookup, whose groupings are lists) when they are of a fixed
-            // size (BlockStride, a constant), written as one block, as NinoCollections.WriteEnumerable does.
+            // array; one that can copy them out (.NET's Lookup, whose groupings are lists) under the rule of
+            // NinoCollections.WriteEnumerable (elements of a fixed size, or CopiedFrom elements or more).
             if (value is NinoGrouping<TKey, TElement> stored)
             {
                 writer = WriteElements(stored.Key, stored.Elements, writer);
                 return;
             }
 
-            if (NinoElements.BlockStride<TElement, TElementFormatter>() > 0 && value is ICollection<TElement> collection)
+            if (value is ICollection<TElement> collection &&
+                (NinoElements.BlockStride<TElement, TElementFormatter>() > 0 ||
+                 collection.Count >= NinoCollections.CopiedFrom))
             {
                 writer = WriteCollection(value.Key, collection, writer);
                 return;

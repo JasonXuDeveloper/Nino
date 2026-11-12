@@ -593,6 +593,16 @@ public class BclTypeTests
             CollectionAssert.AreEqual(enumerated, NinoSerializer.Serialize<ICollection<int>>(new Collection<int>(values)));
         }
 
+        // Elements written one by one are copied out from NinoCollections.CopiedFrom on: the same bytes either way.
+        foreach (int n in new[] { 3, 16, 300 })
+        {
+            var names = Enumerable.Range(0, n).Select(i => i % 5 == 0 ? null : "name" + i).ToList();
+            var enumerated = NinoSerializer.Serialize<IEnumerable<string>>(names.Select(x => x));
+            CollectionAssert.AreEqual(enumerated, NinoSerializer.Serialize(new ReadOnlyCollection<string>(names)));
+            CollectionAssert.AreEqual(enumerated, NinoSerializer.Serialize<IList<string>>(new Collection<string>(names)));
+            CollectionAssert.AreEqual(names, RoundTrip(new ReadOnlyCollection<string>(names)).ToList());
+        }
+
         Assert.IsNull(RoundTrip((ReadOnlyCollection<int>)null));
         Assert.IsNull(RoundTrip((ReadOnlyObservableCollection<int>)null));
     }
@@ -632,6 +642,10 @@ public class BclTypeTests
             CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize<IGrouping<int, int>>(new EnumeratedGrouping<int, int>(g)));
             CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<IGrouping<int, int>>(bytes)));
         }
+
+        var many = Enumerable.Range(0, 40).Select(i => "w" + i).GroupBy(w => w.Length).First();
+        CollectionAssert.AreEqual(NinoSerializer.Serialize<IGrouping<int, string>>(new EnumeratedGrouping<int, string>(many)),
+            NinoSerializer.Serialize<IGrouping<int, string>>(many));
 
         var named = words.Where(w => w != null).GroupBy(w => w.Length > 5).First();
         var namedBytes = NinoSerializer.Serialize<IGrouping<bool, string>>(named);
