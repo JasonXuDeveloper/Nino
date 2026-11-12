@@ -507,7 +507,8 @@ jobs:
             docs/assets/benchmark-dark.png
 
       # The docs site reads the "Performance Report" and v3 sections of the latest v4 release at build time: rebuild it.
-      - name: Rebuild the docs site
+      - &rebuild-docs
+        name: Rebuild the docs site
         env:
           DOCS_DEPLOY_HOOK: ${{ secrets.DOCS_DEPLOY_HOOK }}
         run: |
@@ -823,6 +824,9 @@ jobs:
           fi
           .github/scripts/push_main.sh "docs(benchmarks): update build numbers for $TAG_NAME" README.md README.zh.md \
             docs/v4-benchmarks.md
+
+      # The docs site reads the build section too (its build tables): rebuild it once the section is in the body.
+      - *rebuild-docs
 
   # The Burst kernels in a Unity IL2CPP player, each Unity version unity.yml tests: its benchmark run (a release
   # player, the correctness tests and Test.Runtime.Burst.BurstBenchmark), which waits in unity.yml's concurrency group
