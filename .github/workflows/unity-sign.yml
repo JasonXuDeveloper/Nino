@@ -12,7 +12,8 @@ name: Sign the Unity package
 # skipped, so a re-run is safe.
 #
 # A push of this file to the test branch packs and signs the package at that commit and keeps the tarball as a workflow
-# artifact only: a check that the credentials and the CLI work, with no release touched.
+# artifact only: a check that the credentials and the CLI work, with no release touched (retried after the owner set
+# the organization role).
 on:
   workflow_call:
     inputs:
