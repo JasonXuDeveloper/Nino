@@ -186,7 +186,8 @@ for one job, no second emission path, no hand-rolled cache): complexity needs a 
 review of codex/nino-audit). `--generics` adds generic slots, subtypes and closed members, which make the analyzer run
 `WrittenParameters` and its subtype scan; `--layouts` makes the classes version-tolerant and adds a layout baseline of
 every type, so the analyzer checks each against its section (NINO034-NINO037); pass `--generator <base
-Nino.Generator.dll>` for the base side, and `--runs <n>` for a median of warm runs. On runners: runtime-ab's
+Nino.Generator.dll>` for the base side, and `--runs <n>` for a median of runs after the warm-up (`--warmup`; why: `benchmark`, the generator benchmark's
+warm-up). On runners: runtime-ab's
 `generator` lines (`benchmark`). Collect garbage before each timed step (the tool does): without it the analyzers'
 time of the same code read 80 or 330 ms run by run, the previous step's garbage collected inside it. The analyzers'
 own time (Roslyn's telemetry) also holds the binding an analyzer is the first to ask for; the analysis wall time

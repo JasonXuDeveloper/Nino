@@ -231,6 +231,15 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   the section, and `publish-generator` appends it and runs `readme.py --build` for the newest release. Why: they were
   typed in from one local run on a 4-core Xeon, which no release refreshed (v4's generated source at 330 types had
   grown from the published 1.31 MB to 1.53 MB by main's f36cfaff). v3 at 1,100 types takes about 8 minutes a run, so it runs 3 times (2 measured).
+- Time the generator benchmark only after its warm-up (`--warmup`, 60 s by default, at least one run; `--runs` counts
+  the measured runs after it), and never compare a v4 time from a run with a shorter warm-up: Roslyn runs in the
+  harness's process, so a workload of seconds is timed while the JIT still tiers the compiler up and its heap grows.
+  Evidence: a local `--runs 3` (median of runs 1-2) showed v4's emit at 1,100 types at 3.62 s against the published
+  2.1 s (221x to 129x against v3); back to back on the same Xeon, main (9fbcf901) emitted in 4.3, 3.4, 3.3, 3.2,
+  2.8, 2.1 s in runs 0-5 and 1.75-1.85 s from run 6, the published commit (1938da63) in 1.8-2.0 s from run 5: on par.
+  v3's runs take minutes and settle in the first. The 0.7 MB of source added since (5.09 MB against 4.38) is the
+  `[assembly: NinoTypeLayout]` metadata (1.37 MB, from bd6a732b and f76fa0e0) less the later shortening, and costs
+  emit 7 % more allocation (408 MB against 382) and no time beyond the noise.
 - The headline (README's ranges and chart, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
   every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); the v3 comparison
   stays on SimpleTest. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
