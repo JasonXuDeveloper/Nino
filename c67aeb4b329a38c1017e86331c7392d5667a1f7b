@@ -1,0 +1,1 @@
+Performance: Interface collections of 16 or more elements of any type are copied out once, not enumerated: an `IReadOnlyList<string>` of 1,000 strings serializes 1.16 to 1.32x as fast on x64 and 1.17x on Arm64 Neoverse-N2 (GitHub runners, run 43212065213 against the previous main).
