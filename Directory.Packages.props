@@ -38,7 +38,7 @@
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.MSTest" Version="1.1.2"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.MSTest" Version="1.1.2"/>
-        <PackageVersion Include="PolySharp" Version="1.16.0"/>
+        <PackageVersion Include="PolySharp" Version="1.17.0"/>
         <PackageVersion Include="UniTask" Version="2.5.11"/>
         <!-- net10.0; the net8.0 build of Nino.AspNetCore.Tests takes 8.0.33 (VersionOverride). -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14"/>
