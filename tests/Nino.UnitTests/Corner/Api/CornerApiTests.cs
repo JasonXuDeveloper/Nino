@@ -18,6 +18,8 @@ namespace Nino.UnitTests
         private byte[] _current = Array.Empty<byte>();
         public int GetSpanCalls;
         public Action OnGetSpan;
+        /// <summary>Most bytes a span holds, whatever was asked for (a writer that hands out fixed chunks).</summary>
+        public int MaxChunk = int.MaxValue;
 
         public byte[] Written => _written.ToArray();
 
@@ -27,7 +29,7 @@ namespace Nino.UnitTests
         {
             GetSpanCalls++;
             OnGetSpan?.Invoke();
-            _current = new byte[Math.Max(sizeHint, 1)];
+            _current = new byte[Math.Max(Math.Min(sizeHint, MaxChunk), 1)];
             return _current;
         }
 
@@ -84,6 +86,11 @@ namespace Nino.UnitTests
             var stingy = new StingyBufferWriter();
             NinoSerializer.Serialize(Payload(), stingy);
             CollectionAssert.AreEqual(expected, stingy.Written);
+
+            // A writer that hands out less than asked for gets the payload in chunks.
+            var chunked = new StingyBufferWriter { MaxChunk = 7 };
+            NinoSerializer.Serialize(Payload(), chunked);
+            CollectionAssert.AreEqual(expected, chunked.Written);
 
             // Raw values and raw arrays take their own paths.
             var raw = new StingyBufferWriter();
