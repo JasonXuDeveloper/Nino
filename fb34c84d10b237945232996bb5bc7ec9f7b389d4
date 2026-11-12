@@ -1,0 +1,1 @@
+Performance: Polymorphic collections write each subtype inline with the depth checked once per element: `GenericIntBase` and `NonGenericBase` arrays serialize 1.13 to 1.49x as fast on x64 and 1.40 to 1.46x on Arm64 Neoverse-N2 (GitHub runners, run 43212065213 against the previous main).
