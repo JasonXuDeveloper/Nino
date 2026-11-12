@@ -274,4 +274,9 @@
 # StringBuilder, SelfTree, the generic tuple bases and CardBattleLog serialize are back within the floor. Lookup
 # serialize (0.89 on x64) is fixed after it (57d59419); e44fb828 adds the dispatch depth check, copy-out from 16
 # elements and the InterfaceStrings case.
-cpu='EPYC|Xeon|Neoverse' 51a7bd18 e44fb828 6 *Test.Nino* # review head vs main
+# done (run 43174700489): cpu='EPYC|Xeon|Neoverse' 51a7bd18 e44fb828 6 *Test.Nino* # review head vs main
+# Run 43174700489: geomean 1.058 to 1.085 on EPYC 9V74/9V45, 1.066 on Neoverse-N2; Lookup serialize 5.65x,
+# ReadOnlyCollection serialize 18.6x, NonGenericBase serialize 1.34x, but GenericIntBase serialize 0.84x (0.89x Arm):
+# the closed generic dispatch was no longer inlined into the array loop. e6f72cd3 marks that dispatch to inline and
+# builds BlockingCollection's queue from a rented run (BlockingCollection deserialize was 0.93x).
+cpu='EPYC|Xeon|Neoverse' 51a7bd18 e6f72cd3 6 *Test.Nino* # review head vs main
