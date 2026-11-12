@@ -114,6 +114,29 @@ namespace Nino.Core
 
         private static readonly Vector512<byte> Keep2 = Repeat(Keeps(), 128);
 
+        /// <summary>
+        /// For 24 with AVX-512 VBMI, the vpermb / vpermt2b indices that give each byte of the three vectors of a period
+        /// its element's flag: from the first vector, then the first and second, then the second and third.
+        /// </summary>
+        private static readonly Vector512<byte> FlagBytes0 = FlagBytes(0);
+
+        private static readonly Vector512<byte> FlagBytes1 = FlagBytes(1);
+
+        private static readonly Vector512<byte> FlagBytes2 = FlagBytes(2);
+
+        private static Vector512<byte> FlagBytes(int vector)
+        {
+            var bytes = new byte[64];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                int at = 64 * vector + i;
+                // The element's first byte (strides of 24), from the start of the first source vector.
+                bytes[i] = (byte)(at - at % 24 - 64 * Math.Max(vector - 1, 0));
+            }
+
+            return Vector512.Create(bytes);
+        }
+
         private static byte[] Flag()
         {
             var flag = new byte[Stride];
@@ -323,6 +346,19 @@ namespace Nino.Core
                 // vector starts in up to two lanes before it (in the vector before, within the period).
                 var b = Vector512.LoadUnsafe(ref source, offset + 64);
                 var c = Vector512.LoadUnsafe(ref source, offset + 128);
+                if (Avx512Vbmi.IsSupported)
+                {
+                    // Every byte of each 8-byte lane takes its element's flag (vpermb, vpermt2b), so the lanes are
+                    // tested as they are: one op fewer than moving the lanes and isolating the flag.
+                    Present(a, Avx512Vbmi.PermuteVar64x8(a, FlagBytes0), Keep, true)
+                        .StoreUnsafe(ref destination, offset);
+                    Present(b, Avx512Vbmi.PermuteVar64x8x2(a, FlagBytes1, b), Keep1, true)
+                        .StoreUnsafe(ref destination, offset + 64);
+                    Present(c, Avx512Vbmi.PermuteVar64x8x2(b, FlagBytes2, c), Keep2, true)
+                        .StoreUnsafe(ref destination, offset + 128);
+                    return;
+                }
+
                 var a8 = a.AsUInt64();
                 var b8 = b.AsUInt64();
                 Present(a, Avx512F.PermuteVar8x64(a8, Vector512.Create(0UL, 0, 0, 3, 3, 3, 6, 6)).AsByte(), Keep)
@@ -346,23 +382,26 @@ namespace Nino.Core
                 Present(d, Tile(d), Keep).StoreUnsafe(ref destination, offset + 192);
             }
 
-            /// <summary>For a 16-byte stride, each element's first 8 bytes in both its lanes (an in-lane shuffle).</summary>
+            /// <summary>
+            /// For a 16-byte stride, every byte of each element its flag (vpshufb with index 0 in each 16-byte lane),
+            /// tested as it is.
+            /// </summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private static Vector512<byte> Tile(Vector512<byte> value) => Stride != 16
-                ? value
-                : Vector512.Shuffle(value.AsUInt32(),
-                    Vector512.Create(0u, 1, 0, 1, 4, 5, 4, 5, 8, 9, 8, 9, 12, 13, 12, 13)).AsByte();
+            private static Vector512<byte> Tile(Vector512<byte> value) =>
+                Stride != 16 ? value : Avx512BW.Shuffle(value, Vector512<byte>.Zero);
 
             /// <summary>
             /// <paramref name="value"/> & <paramref name="keep"/> in the lanes whose <paramref name="flags"/> (the
-            /// element's flag at <see cref="Flags"/>) are not zero, zero in the others: a test into a mask register
-            /// and a masked AND (vptestm, vpand {k}{z}).
+            /// element's flag at <see cref="Flags"/>, or in every byte when <paramref name="spread"/>; for 16 always)
+            /// are not zero, zero in the others: a test into a mask register and a masked AND (vptestm, vpand {k}{z}).
             /// </summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private static Vector512<byte> Present(Vector512<byte> value, Vector512<byte> flags, Vector512<byte> keep)
+            private static Vector512<byte> Present(Vector512<byte> value, Vector512<byte> flags, Vector512<byte> keep,
+                bool spread = false)
             {
                 var kept = value & keep;
-                flags &= Flags;
+                if (!spread && Stride != 16)
+                    flags &= Flags;
                 return Stride == 2
                     ? Vector512.ConditionalSelect(~Vector512.Equals(flags.AsUInt16(), Vector512<ushort>.Zero),
                         kept.AsUInt16(), Vector512<ushort>.Zero).AsByte()
@@ -429,16 +468,16 @@ namespace Nino.Core
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private static Vector256<byte> Tile(Vector256<byte> value) => Stride != 16
-                ? value
-                : Vector256.Shuffle(value.AsUInt32(), Vector256.Create(0u, 1, 0, 1, 4, 5, 4, 5)).AsByte();
+            private static Vector256<byte> Tile(Vector256<byte> value) =>
+                Stride != 16 ? value : Avx2.Shuffle(value, Vector256<byte>.Zero);
 
             /// <summary>As Lanes512's: a mask register with AVX-512 (VL), else a compare and an AND NOT.</summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private static Vector256<byte> Present(Vector256<byte> value, Vector256<byte> flags, Vector256<byte> keep)
             {
                 var kept = value & keep;
-                flags &= Flags.GetLower();
+                if (Stride != 16)
+                    flags &= Flags.GetLower();
                 if (Avx512F.VL.IsSupported)
                     return Stride == 2
                         ? Vector256.ConditionalSelect(~Vector256.Equals(flags.AsUInt16(), Vector256<ushort>.Zero),
