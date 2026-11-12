@@ -50,6 +50,113 @@ namespace Nino.Core
             return NinoMask.Create(mask);
         }
 
+        /// <summary>
+        /// Zeroes the value of each element written without one: memory a <c>T?</c> was never assigned in (a rented or
+        /// uninitialized array) may hold old bytes behind a cleared flag, and the wire holds zeros there (spec §6.2).
+        /// </summary>
+        // Out of line: a pass over the flags after the block copy, for the strides CopyLanes does not take.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ClearAbsent(ref byte destination, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                ref byte slot = ref Unsafe.Add(ref destination, i * Stride);
+                if (slot == 0)
+                    NinoMask.Zero(ref Unsafe.Add(ref slot, Offset), NinoLayout<T>.WireSize);
+            }
+        }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Strides that tile a vector (2, 4, 8 and 16 bytes: <c>byte?</c> to <c>long?</c>, <c>double?</c>,
+        /// <c>DateTime?</c>), so each element is a lane, or a pair of 8-byte lanes, at a fixed place in every vector.
+        /// </summary>
+        private static readonly bool Lanes = Vector128.IsHardwareAccelerated &&
+                                             (Stride == 2 || Stride == 4 || Stride == 8 || Stride == 16);
+
+        /// <summary>The flag byte of each element, over one vector.</summary>
+        private static readonly Vector256<byte> Flags = Repeat(Flag());
+
+        /// <summary>The bytes a present element keeps: all but the padding (<see cref="Mask"/>), over one vector.</summary>
+        private static readonly Vector256<byte> Keep = Repeat(Keeps());
+
+        private static byte[] Flag()
+        {
+            var flag = new byte[Stride];
+            flag[0] = 0xFF;
+            return flag;
+        }
+
+        private static byte[] Keeps()
+        {
+            var keep = new byte[Stride];
+            keep.AsSpan().Fill(0xFF);
+            if (Mask != null)
+                for (int g = 0; g < Mask.Gaps.Length; g += 2)
+                    keep.AsSpan(Mask.Gaps[g], Mask.Gaps[g + 1]).Clear();
+            return keep;
+        }
+
+        private static Vector256<byte> Repeat(byte[] element)
+        {
+            var bytes = new byte[32];
+            for (int i = 0; i < bytes.Length; i++)
+                bytes[i] = element[i % element.Length];
+            return Vector256.Create(bytes);
+        }
+
+        /// <summary>
+        /// Copies <paramref name="total"/> bytes of elements (a vector or more) as the wire holds them: padding cleared,
+        /// and the value of an element without one cleared with it, in one pass. Each element's flag, compared with
+        /// zero across its lane, gives the bytes it keeps. Vectors start at whole elements; the last one overlaps the
+        /// one before it.
+        /// </summary>
+        // Out of line, as NinoMask.Copy: one call per collection.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CopyLanes(ref byte destination, ref byte source, int total)
+        {
+            nuint i = 0;
+            if (Vector256.IsHardwareAccelerated && total >= Vector256<byte>.Count)
+            {
+                nuint end = (nuint)total - (nuint)Vector256<byte>.Count;
+                for (; i < end; i += (nuint)Vector256<byte>.Count)
+                    Vector256.StoreUnsafe(Present(Vector256.LoadUnsafe(ref source, i)), ref destination, i);
+                Vector256.StoreUnsafe(Present(Vector256.LoadUnsafe(ref source, end)), ref destination, end);
+                return;
+            }
+
+            nuint last = (nuint)total - (nuint)Vector128<byte>.Count;
+            for (; i < last; i += (nuint)Vector128<byte>.Count)
+                Vector128.StoreUnsafe(Present(Vector128.LoadUnsafe(ref source, i)), ref destination, i);
+            Vector128.StoreUnsafe(Present(Vector128.LoadUnsafe(ref source, last)), ref destination, last);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Present(Vector256<byte> value)
+        {
+            var flags = value & Flags;
+            // All ones across each element whose flag is zero (the stride is a constant, so one branch remains).
+            Vector256<byte> absent = Stride == 2 ? Vector256.Equals(flags.AsUInt16(), Vector256<ushort>.Zero).AsByte()
+                : Stride == 4 ? Vector256.Equals(flags.AsUInt32(), Vector256<uint>.Zero).AsByte()
+                : Stride == 8 ? Vector256.Equals(flags.AsUInt64(), Vector256<ulong>.Zero).AsByte()
+                : Vector256.Shuffle(Vector256.Equals(flags.AsUInt64(), Vector256<ulong>.Zero),
+                    Vector256.Create(0UL, 0, 2, 2)).AsByte();
+            return Vector256.AndNot(value & Keep, absent);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Present(Vector128<byte> value)
+        {
+            var flags = value & Flags.GetLower();
+            Vector128<byte> absent = Stride == 2 ? Vector128.Equals(flags.AsUInt16(), Vector128<ushort>.Zero).AsByte()
+                : Stride == 4 ? Vector128.Equals(flags.AsUInt32(), Vector128<uint>.Zero).AsByte()
+                : Stride == 8 ? Vector128.Equals(flags.AsUInt64(), Vector128<ulong>.Zero).AsByte()
+                : Vector128.Shuffle(Vector128.Equals(flags.AsUInt64(), Vector128<ulong>.Zero),
+                    Vector128.Create(0UL, 0)).AsByte();
+            return Vector128.AndNot(value & Keep.GetLower(), absent);
+        }
+#endif
+
         /// <summary>Writes the count and the elements.</summary>
         public static void Write(ReadOnlySpan<T?> values, ref Writer writer)
         {
@@ -60,10 +167,18 @@ namespace Nino.Core
             if (Raw)
             {
                 ref byte src = ref Unsafe.As<T?, byte>(ref item);
+#if NET8_0_OR_GREATER
+                if (Lanes && values.Length * Stride >= Vector128<byte>.Count)
+                {
+                    CopyLanes(ref dst, ref src, values.Length * Stride);
+                    return;
+                }
+#endif
                 if (Mask != null)
                     Mask.Copy(ref dst, ref src, values.Length);
                 else
                     NinoUnsafe.Copy(ref dst, ref src, (uint)(values.Length * Stride));
+                ClearAbsent(ref dst, values.Length);
                 return;
             }
 

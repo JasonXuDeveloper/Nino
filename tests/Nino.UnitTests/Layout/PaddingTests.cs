@@ -26,6 +26,16 @@ namespace Nino.UnitTests
         public Dictionary<int, SubsetPadded> Map;
     }
 
+    [NinoType]
+    public class NullableHolder
+    {
+        public int? Id;
+        public long? Score;
+        public System.DateTimeOffset? When;
+        public long?[] Scores;
+        public List<int?> Ids;
+    }
+
     [StructLayout(LayoutKind.Explicit)]
     public struct ExplicitGap
     {
@@ -138,6 +148,80 @@ namespace Nino.UnitTests
                             Assert.AreEqual((byte)(src[i] & pattern[i % size]), inPlace[i]);
                     }
                 }
+            }
+        }
+
+        // A T? whose padding, and whose value when it has none, hold garbage: MemoryPack copies both as they are
+        // (its 1.22.0 adds SafeNullable<T> for it); Nino writes a presence byte and the value, or the fixed stride
+        // with its padding and an absent value zeroed (spec §6.2, §6.5), so it needs no such type.
+        private static T? DirtyNullable<T>(T? clean) where T : unmanaged
+        {
+            T? value = default;
+            ref byte bytes = ref Unsafe.As<T?, byte>(ref value);
+            Unsafe.InitBlockUnaligned(ref bytes, 0xAB, (uint)Unsafe.SizeOf<T?>());
+            bytes = clean.HasValue ? (byte)1 : (byte)0;
+            if (clean.HasValue)
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref bytes, Unsafe.SizeOf<T?>() - Unsafe.SizeOf<T>()), clean.Value);
+            return value;
+        }
+
+        [TestMethod]
+        public void NullablesFromDirtyMemoryWriteTheBytesOfCleanOnes()
+        {
+            var when = new System.DateTimeOffset(2024, 1, 2, 3, 4, 5, System.TimeSpan.FromMinutes(90));
+            var clean = new NullableHolder
+            {
+                Id = 1, Score = null, When = when, Scores = new long?[] { 2, null, 3 }, Ids = new List<int?> { null, 4 },
+            };
+            var dirty = new NullableHolder
+            {
+                Id = DirtyNullable<int>(1), Score = DirtyNullable<long>(null), When = DirtyNullable<System.DateTimeOffset>(when),
+                Scores = new[] { DirtyNullable<long>(2), DirtyNullable<long>(null), DirtyNullable<long>(3) },
+                Ids = new List<int?> { DirtyNullable<int>(null), DirtyNullable<int>(4) },
+            };
+            Assert.AreEqual((byte)0xAB, Unsafe.Add(ref Unsafe.As<long?, byte>(ref dirty.Scores[1]), 8), "the setup keeps garbage");
+
+            var bytes = NinoSerializer.Serialize(dirty);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(clean), bytes);
+            CollectionAssert.DoesNotContain(bytes, (byte)0xAB);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(clean.Scores), NinoSerializer.Serialize(dirty.Scores));
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(clean.Ids), NinoSerializer.Serialize(dirty.Ids));
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(clean.Id), NinoSerializer.Serialize(dirty.Id));
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(clean.Score), NinoSerializer.Serialize(dirty.Score));
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(clean.When), NinoSerializer.Serialize(dirty.When));
+        }
+            // Every stride (2, 4, 8, 16, 20, 24) and run lengths on both sides of each vector width.
+        [TestMethod]
+        public void RawNullableRunsFromDirtyMemoryWriteZerosForAbsentValues()
+        {
+            AbsentValuesAreZero<byte>(i => (byte)(i + 1));
+            AbsentValuesAreZero<short>(i => (short)(i * 1000 + 1));
+            AbsentValuesAreZero<int>(i => i * 100_000 + 1);
+            AbsentValuesAreZero<long>(i => i * 10_000_000_000L + 1);
+            AbsentValuesAreZero<double>(i => i + 0.5);
+            AbsentValuesAreZero<System.DateTime>(i => new System.DateTime(2024, 1, 1).AddDays(i));
+            AbsentValuesAreZero<System.Guid>(i => new System.Guid(i + 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
+            AbsentValuesAreZero<decimal>(i => i + 0.25m);
+        }
+
+        private static void AbsentValuesAreZero<T>(System.Func<int, T> make) where T : unmanaged
+        {
+            for (int count = 0; count <= 40; count++)
+            for (int pattern = 0; pattern < 3; pattern++)
+            {
+                var clean = new T?[count];
+                var dirty = new T?[count];
+                for (int i = 0; i < count; i++)
+                {
+                    bool has = pattern == 0 ? i % 2 == 0 : pattern == 1 ? i % 3 == 2 : i % 7 != 3;
+                    clean[i] = has ? make(i) : null;
+                    dirty[i] = DirtyNullable(clean[i]);
+                }
+
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(clean), NinoSerializer.Serialize(dirty),
+                    $"{typeof(T).Name}?[{count}], pattern {pattern}");
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(new List<T?>(clean)),
+                    NinoSerializer.Serialize(new List<T?>(dirty)), $"List<{typeof(T).Name}?>({count}), pattern {pattern}");
             }
         }
     }
