@@ -1214,3 +1214,7 @@ rust:blocks 711bb5584539e897da03216260bec56ebd1e73b8 711bb5584539e897da03216260b
 # done (run 42518707231): generator#10 d2fa565f 721a6093 30,8
 # anbench result (run 42518707231): analysis wall time with a baseline 2-6 % longer without the shortcut, on par with
 # it (Neoverse-N2 0.994, n=50); without a baseline on par. No anbench lines left.
+go#12 8f43f731 7e761733 ^BenchmarkDeserialize$/./^Nino$ # 245 go per-read presize budget
+go#12 8f43f731 8f43f731 ^BenchmarkDeserialize$/./^Nino$ # 245 go floor
+typescript fbefd816 dad5bb0a # 245 ts per-read presize budget
+typescript fbefd816 fbefd816 # 245 ts floor
