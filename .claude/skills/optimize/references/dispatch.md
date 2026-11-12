@@ -138,4 +138,10 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   the repeated depth handling saves. Evidence: a70aab2c outlined nesting subtypes in dispatches of four or more; the
   case's code fell from 1,934 to 958 bytes, yet the runner A/B of the rc.10 review head against main measured
   GenericSealedClassTupleBase serialize at 0.78 to 0.86x on Neoverse-N2 (two jobs, not in the floor) with nothing won
-  on x64 beyond the noise; reverted.
+  on x64 beyond the noise; reverted. Keep the dispatch's own size too: it is inlined into collection loops only
+  while the JIT's heuristics accept it, so a check added to `__WriteSubtype` itself costs every element a call.
+  Evidence: 341560ef asked `NinoObject.IsDeep` once at the top and wrote each subtype without its deep path (the
+  deep chain out of line, writer by value); the array loop stopped inlining the dispatch (`NinoElements.Write` 2,489
+  to 153 bytes plus a call) and run 43174700489 measured GenericIntBase serialize at 0.84x on EPYC and 0.89x on
+  Neoverse-N2, the generic tuple bases 0.87x on x64, though NonGenericBase gained 1.34x; `AggressiveInlining` on it
+  kept the loop inline but spilled it and grew PolymorphicClassArray's methods up to 9x. Reverted (02b9a84c).
