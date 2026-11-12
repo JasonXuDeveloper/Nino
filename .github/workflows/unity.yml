@@ -95,9 +95,13 @@ jobs:
       # One version after the other: each run activates the license, holds a seat until its tests end and returns it.
       max-parallel: 1
       matrix:
-        # The oldest Unity the package supports (package.json: 2022.3) at its newest patch outside Extended LTS (later
-        # 2022.3 builds need an Industry or Enterprise license), the project's own version, and the newest Unity 6 LTS.
-        unity: [ '2022.3.62f2', '6000.3.27f1' ]
+        # One row per Burst major the package supports, since Burst versions compile the same kernels differently
+        # (a combined Neon/SSE2 test passed on 1.8 and threw on 2.0): the oldest Unity the package supports
+        # (package.json: 2022.3, the project's own version) at its newest patch outside Extended LTS (later 2022.3
+        # builds need an Industry or Enterprise license) with Burst 1.8.29 (Packages/manifest.json), and Unity
+        # 6000.6, whose editor bundles Burst 2.0 as a built-in module (Editor/Data/Tools/Burst; the manifest's
+        # com.unity.burst resolves to its 2.0.0 shim there). A new Burst major gets a row before the package claims it.
+        unity: [ '2022.3.62f2', '6000.6.9f1' ]
     # Pull requests from forks and from Dependabot get no repository secrets, so they cannot activate the license.
     if: >-
       github.event_name != 'pull_request' ||
@@ -366,7 +370,7 @@ jobs:
         include:
           - unity: '2022.3.62f2'
             il2cpp_args: '--compiler-flags=-msimd128'
-          - unity: '6000.3.27f1'
+          - unity: '6000.6.9f1'
             il2cpp_args: ''
     steps:
       - *check-tag
