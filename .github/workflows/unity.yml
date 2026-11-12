@@ -206,6 +206,30 @@ jobs:
             echo "::warning::pulling $UNITY_IMAGE failed; the test step pulls it again"
           fi
 
+      # Who sends a fatal signal, recorded by the host's kernel for the Unity steps below and printed by "Show the
+      # kernel's kills" when one fails. The 6000.6.9f1 editor was SIGKILLed 1.2 to 1.5 s after launch, each time right
+      # after "Registered in ... seconds." in its first domain reload (runs 43290338104 and 43299892840), with no OOM
+      # in the kernel's log, 14 GB free and /dev/shm at 1025 MB or 2 GB alike: something sent it. The tracepoint
+      # signal:signal_generate names the sender (the task before the colon: its thread name and host PID) and the
+      # target (comm=, pid=), the kernel stack says how (__x64_sys_kill or tgkill from a process, oom_kill_process,
+      # a seccomp or fault path from the kernel) and the user stack, resolved to library and offset, from where in
+      # the sender. Filtered to SIGKILL, SIGABRT, SIGBUS, SIGSEGV and SIGSYS, the buffer holds a handful of lines.
+      - name: Trace fatal signals
+        continue-on-error: true
+        run: |
+          sudo sh -eu <<'EOF'
+          t=/sys/kernel/tracing
+          [ -d "$t/events" ] || mount -t tracefs nodev "$t"
+          echo 4096 > "$t/buffer_size_kb"
+          for option in userstacktrace sym-userobj; do echo 1 > "$t/options/$option" || echo "no trace option $option"; done
+          event=$t/events/signal/signal_generate
+          echo 'sig == 9 || sig == 6 || sig == 7 || sig == 11 || sig == 31' > "$event/filter"
+          echo 'stacktrace if sig == 9' > "$event/trigger"
+          echo 1 > "$event/enable"
+          if [ -d "$t/events/oom/mark_victim" ]; then echo 1 > "$t/events/oom/mark_victim/enable"; fi
+          echo 1 > "$t/tracing_on"
+          EOF
+
       # Unity can hang in batch mode: the 2022.3 editor stopped twice after loading the project, its log ending at
       # "Unloading 3 Unused Serialized files" where a normal launch goes on to "Unloading 45 unused Assets" and quits
       # (runs 41082628657 and 41172149972, each a later launch in its container, licensing already done), and the job
@@ -296,13 +320,18 @@ jobs:
       # code 137 in the step's log, the editor's log ends wherever it was, and the container is gone (--rm): only the
       # host's kernel log tells an OOM kill (the container's cgroup: game-ci passes --memory at 95% of the RAM, and
       # Unity 6000.6's Data Store maps 1 GiB of the container's 1025 MB /dev/shm) from a kill by another process
-      # (run 43290338104: the 6000.6.9f1 player step's editor, 1.3 s after launch, in its first domain reload).
+      # (run 43290338104: the 6000.6.9f1 player step's editor, 1.3 s after launch, in its first domain reload). The
+      # trace started by "Trace fatal signals" names the sender of every SIGKILL; the last dmesg lines prove the
+      # kernel's log was readable when the grep finds nothing.
       - name: Show the kernel's kills
         if: failure()
         continue-on-error: true
         run: |
           sudo dmesg -T | grep -iE 'out of memory|oom|killed process|segfault|traps:' | tail -n 40 || true
+          sudo dmesg -T | tail -n 3
           free -m
+          echo '--- fatal signals (sender-hostpid: signal_generate: sig= ... comm=<target> pid=<target>) ---'
+          sudo grep -v '^#' /sys/kernel/tracing/trace | tail -n 400 || true
       - name: Save the Unity Library
         if: success() && inputs.tag == '' && steps.library-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
