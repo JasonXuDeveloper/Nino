@@ -186,7 +186,7 @@ More: [every .NET case and Arm64](https://nino.xgamedev.net/en/docs/v4/benchmark
 MemoryPack describes itself as "for trusted data only" ([its README](https://github.com/Cysharp/MemoryPack#readme));
 Nino is built for data from network peers and user files.
 
-| | Nino v4 | MemoryPack 1.21.4 |
+| | Nino v4 | MemoryPack 1.22.0 |
 |---|---|---|
 | Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only |
 | Deserialize into existing objects | **0 B** (in place) | clears collections and allocates their elements again |
@@ -194,7 +194,7 @@ Nino is built for data from network peers and user files.
 | Keyed members, reference tracking, object pools | all three | version tolerance and circular references, no pools |
 | Unity | 2022.3+, one OpenUPM package | 2022.3.12f1+, NuGetForUnity plus a git package |
 
-The [full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) covers the three types MemoryPack does not
+The [full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) covers the types MemoryPack does not
 round-trip and how to switch; also [vs MessagePack](https://nino.xgamedev.net/en/docs/v4/vs-messagepack) and
 [vs protobuf-net](https://nino.xgamedev.net/en/docs/v4/vs-protobuf-net).
 

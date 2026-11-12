@@ -155,7 +155,7 @@ npx skills add JasonXuDeveloper/Nino
 
 MemoryPack 的 README 自称"仅用于可信数据"（[其 README](https://github.com/Cysharp/MemoryPack#readme)）；Nino 则是为网络对端发来的消息、用户提供的文件这类数据设计的。
 
-| | Nino v4 | MemoryPack 1.21.4 |
+| | Nino v4 | MemoryPack 1.22.0 |
 |---|---|---|
 | 不可信输入 | **设计目标**：分配和栈用量有上限，只有一种异常 | 仅用于可信数据 |
 | 反序列化到已有对象 | **0 B**（原地复用） | 清空集合后重新创建元素 |
@@ -163,7 +163,7 @@ MemoryPack 的 README 自称"仅用于可信数据"（[其 README](https://githu
 | 键控成员、引用追踪、对象池 | 全部支持 | 有版本容错和循环引用，没有对象池 |
 | Unity | 2022.3+，一个 OpenUPM 包 | 2022.3.12f1+，NuGetForUnity 加一个 git 包 |
 
-[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有 MemoryPack 无法正确往返的三种类型和迁移方法；另有与 [MessagePack](https://nino.xgamedev.net/zh/docs/v4/vs-messagepack) 和 [protobuf-net](https://nino.xgamedev.net/zh/docs/v4/vs-protobuf-net) 的对比。
+[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有 MemoryPack 无法正确往返的类型和迁移方法；另有与 [MessagePack](https://nino.xgamedev.net/zh/docs/v4/vs-messagepack) 和 [protobuf-net](https://nino.xgamedev.net/zh/docs/v4/vs-protobuf-net) 的对比。
 
 ## v4 对比 v3
 

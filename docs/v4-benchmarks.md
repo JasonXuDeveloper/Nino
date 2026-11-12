@@ -1,7 +1,7 @@
 # Nino v4 benchmarks
 
 Why v4: what it costs to build a project that uses Nino, and how fast serialization runs, compared with
-v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.21.4.
+v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.22.0.
 
 The build-time numbers were measured on one machine, an Intel Xeon 2.10 GHz (4 cores, AVX-512, .NET SDK 10.0.402);
 generated code sizes do not depend on the machine. The runtime tables are those of the newest release: its CI run
@@ -50,7 +50,7 @@ about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 ## Runtime
 
 `benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
-GC), every benchmark class, v4 and MemoryPack 1.21.4 side by side, with MessagePack 3.1.12 and protobuf-net
+GC), every benchmark class, v4 and MemoryPack 1.22.0 side by side, with MessagePack 3.1.12 and protobuf-net
 3.4.40 wherever they can write the same data, and in `WorkloadTest` Google.Protobuf 3.36.2 and System.Text.Json (.NET
 10): the release run spreads the classes over twelve runners per architecture
 and keeps every serializer's run of a case on one. v3 is Nino 3.3.13 from nuget.org, running a port of
@@ -217,7 +217,7 @@ first copied to the stack, before the allocation; since 4.0.0-rc.3 it takes `in 
 `InventoryItem` holds one byte of padding per element (an `int`, a `short` and a `bool` in 8 bytes). v4 writes it as
 zero, a masked copy where MemoryPack makes a plain one, which is the extra work in v4's time for that row.
 MemoryPack's output carries whatever the memory held there: two `InventoryItem[2]` of equal values, one built in a
-buffer that had held `0xCD` bytes, serialize to different bytes in MemoryPack 1.21.4 (`CD` in each padding byte)
+buffer that had held `0xCD` bytes, serialize to different bytes in MemoryPack 1.22.0 (`CD` in each padding byte)
 and to the same bytes in v4. Likewise `List<(int, long)>` in `CollectionsTest` is 12 bytes per item in v4 and 16 in
 MemoryPack, which copies the tuple's memory, padding included; that memory is 12 bytes on Windows x86 .NET (see
 `docs/pitfalls.md`), and on Mono the items are in another order.
@@ -373,7 +373,7 @@ dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*'
 dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*'   # some classes only
 ```
 
-The suite has twelve classes, all against MemoryPack 1.21.4, and against MessagePack and protobuf-net wherever they
+The suite has twelve classes, all against MemoryPack 1.22.0, and against MessagePack and protobuf-net wherever they
 can write the same data ([benchmarks/README.md](../benchmarks/README.md#messagepack-and-protobuf-net) lists the cases
 they cannot): `SimpleTest`, `PolymorphicTest`, `GenericPolymorphicTest` (subtypes through a
 non-generic base and through closed instances of a generic base, whose union MemoryPack registers at runtime), `PooledTest` and `PooledGraphTest` (reuse and
