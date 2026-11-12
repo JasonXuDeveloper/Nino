@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -146,6 +147,49 @@ namespace Nino.UnitTests
                 NinoSerializer.Serialize(value, output);
                 CollectionAssert.AreEqual(expected, bytes.AsSpan(0, output.Written).ToArray());
             }
+        }
+
+        // Past 64 bytes the disjoint copy is a forward vector loop, which a destination overlapping the source
+        // (here 2 bytes after it, or 6 before) would overwrite before reading: these sizes must take the overlap-safe
+        // move.
+        [TestMethod]
+        [DataRow(100, 2)]
+        [DataRow(1000, 2)]
+        [DataRow(5000, 2)]
+        [DataRow(1000, -6)]
+        [DataRow(5000, -6)]
+        public void LongRawSlicesCanWriteOverTheirBackingArray(int count, int shift)
+        {
+            Check(count, shift, static (ints, n) => new Memory<int>(ints, 3, n));
+            Check(count, shift, static (ints, n) => new ReadOnlyMemory<int>(ints, 3, n));
+            Check(count, shift, static (ints, n) => new ArraySegment<int>(ints, 3, n));
+            Check(count, shift, static (ints, n) => new ReadOnlySequence<int>(ints, 3, n));
+
+            static void Check<T>(int n, int shift, Func<int[], int, T> slice)
+            {
+                var ints = Enumerable.Range(0, n + 4).Select(i => i * 0x01010101).ToArray();
+                T value = slice(ints, n);
+                byte[] expected = NinoSerializer.Serialize(value);
+                // The slice starts at byte 12; the body follows the 4-byte length, at start + 4 = 12 + shift.
+                int start = 8 + shift;
+                var output = new AliasedIntWriter(ints, start);
+                NinoSerializer.Serialize(value, output);
+                Assert.AreEqual(expected.Length, output.Written);
+                CollectionAssert.AreEqual(expected,
+                    MemoryMarshal.AsBytes(ints.AsSpan()).Slice(start, output.Written).ToArray());
+            }
+        }
+
+        private sealed class AliasedIntWriter : IBufferWriter<byte>
+        {
+            private readonly int[] _ints;
+            private readonly int _start;
+            public int Written { get; private set; }
+
+            public AliasedIntWriter(int[] ints, int start) => (_ints, _start) = (ints, start);
+            public Memory<byte> GetMemory(int sizeHint = 0) => throw new NotSupportedException();
+            public Span<byte> GetSpan(int sizeHint = 0) => MemoryMarshal.AsBytes(_ints.AsSpan()).Slice(_start + Written);
+            public void Advance(int count) => Written += count;
         }
 
         private sealed class AliasedBufferWriter : IBufferWriter<byte>
