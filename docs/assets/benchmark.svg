@@ -1,5 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 888" width="820" height="888" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 928" width="860" height="928" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
 <style>.t{font-size:18px;font-weight:700;fill:#1f2328}.s{font-size:12px;fill:#59636e}.g{font-size:13px;font-weight:600;fill:#1f2328}.l{font-size:12px;fill:#59636e}.v{font-size:12px;font-weight:700;fill:#1f2328}</style>
+<rect width="860" height="928" rx="8" fill="#ffffff"/>
+<g transform="translate(20 20)">
 <text x="0" y="22" class="t">How many times faster Nino v4 is (log scale)</text>
 <text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine; MemoryPack 1.21.4, MessagePack, protobuf-net, Nino v3 3.3.13.</text>
 <text x="112.0" y="74" class="s" text-anchor="middle">1×</text>
@@ -109,4 +111,5 @@
 <text x="102" y="858" class="l" text-anchor="end">vs MemoryPack</text>
 <rect x="112" y="846" width="293.2" height="15" rx="3" fill="#e3a03b"/>
 <text x="413.2" y="858" class="v">9.49×</text>
+</g>
 </svg>

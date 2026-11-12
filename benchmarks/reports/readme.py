@@ -300,9 +300,12 @@ def tables(v4, v3, v3_runs, env, tag):
 # The bar colours of the chart's libraries (OTHERS).
 BAR_COLORS = {"MemoryPack": "#e3a03b", "MessagePack": "#2fa88f", "protobuf-net": "#d9645c", "Google.Protobuf": "#4c8bf5",
               "System.Text.Json": "#9a6dd7"}
-# Text and grid colours of the two themes (README picks one with <picture> and prefers-color-scheme).
-THEMES = {"light": {"text": "#1f2328", "muted": "#59636e", "grid": "#d1d9e0"},
-          "dark": {"text": "#f0f6fc", "muted": "#9198a1", "grid": "#3d444d"}}
+# Colours of the two themes (README picks one with <picture> and prefers-color-scheme). Each image paints its own
+# background (GitHub's page colours): prefers-color-scheme follows the reader's system, not the page, so a dark system
+# shows the dark image on nuget.org's or GitHub's light page, and on a transparent background its light text vanished.
+THEMES = {"light": {"text": "#1f2328", "muted": "#59636e", "grid": "#d1d9e0", "background": "#ffffff"},
+          "dark": {"text": "#f0f6fc", "muted": "#9198a1", "grid": "#3d444d", "background": "#0d1117"}}
+PAD = 20  # the background's margin around the chart
 
 
 def svg(chart, theme="light"):
@@ -335,13 +338,16 @@ def svg(chart, theme="light"):
             out.append(f'<text x="{x(v) + 8:.1f}" y="{by}" class="v">{label}</text>')
             by += 20
         y = by + 18
-    height = y - 8
-    head = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 {height}" width="820" height="{height}" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+    height = y - 8 + 2 * PAD
+    width = 820 + 2 * PAD
+    head = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="{width}" height="{height}" rx="8" fill="{c["background"]}"/>
+<g transform="translate({PAD} {PAD})">
 <style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]}}}.v{{font-size:12px;font-weight:700;fill:{c["text"]}}}</style>
 <text x="0" y="22" class="t">How many times faster Nino v4 is (log scale)</text>
 <text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine; 12 real-world workloads, each library's fastest API.</text>
 '''
-    return head + "\n".join(out) + "\n</svg>\n", height
+    return head + "\n".join(out) + "\n</g>\n</svg>\n", height
 
 
 def fill(path, values, zh):
