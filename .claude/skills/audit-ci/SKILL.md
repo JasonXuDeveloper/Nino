@@ -104,8 +104,21 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   job's own log prints the editor's log only after the editor exits. A bare `Killed` before that log and
   `Unexpected exit code 137` mean the editor alone got SIGKILL (xvfb-run's dash prints the bare word; the timeout
   sends SIGTERM to the whole group first, and test.sh's bash would print `line N: PID Killed`), so the wrapper is not
-  the cause: read unity.yml's `Show the kernel's kills` step (the host's `dmesg`, since the container is gone) to tell
-  an OOM kill from another process's (run 43290338104, the 6000.6.9f1 player step's editor 1.3 s after launch).
+  the cause: read unity.yml's `Show the kernel's kills` step, since the container is gone. Its `dmesg` grep tells an
+  OOM kill (`Memory cgroup out of memory`) from any other; its trace (the host kernel's `signal:signal_generate`
+  tracepoint, which `Trace fatal signals` turns on before the Unity steps, filtered to fatal signals) names the
+  sender of every SIGKILL: the task before the colon is the sending thread and its host PID, `comm=`/`pid=` the
+  target, the kernel stack `__x64_sys_kill`/`tgkill` for a process or an OOM or fault path for the kernel, and the
+  user stack the sender's library and offset. Do not blame memory or `/dev/shm` without that evidence: the
+  6000.6.9f1 editor was SIGKILLed 1.2 to 1.5 s after launch, always right after `Registered in ... seconds.`
+  in its first domain reload (runs 43290338104 and 43299892840), with nothing in `dmesg`, 14 GB available, and
+  the same kills at 2 GiB of `/dev/shm` as at the CLI's 1025m (1025m holds Unity 6000.6's 1 GiB mapping; the
+  2 GiB detour, c6d51102, was reverted). Code coverage is off in the test steps (`GAME_CI_COVERAGE_ENABLED:
+  'false'`, the CLI's `coverageEnabled` option: the action's `coverageEnabled: false` passes `--no-coverageEnabled`,
+  which CLI v0.1.72 rejects): the project has no Code Coverage package, and on it put every editor launch in
+  Debug code optimization with Mono's coverage instrumentation; the kills came right after `Code Coverage is
+  enabled`. Name no variable of your own `GAME_CI_*`: the CLI reads each as an option (yargs `.env("GAME_CI")`
+  under `strict`) and rejects one it does not know.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
   `unity.yml` called with `tag`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
