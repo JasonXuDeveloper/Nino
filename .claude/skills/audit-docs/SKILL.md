@@ -89,6 +89,12 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    the site and README to find every page to rewrite. Why: the owner (rc.10: "一会是我们的stream api，一会是自己封装的
    ... 应该把代码改成最新的，info里说老版本怎么做"); the streams, networking and caching pages kept rc.9's
    ReadOnlySequence and Stream helpers as the main code with an rc.10 note beside them.
+   **State what a release ships without its history.** Outside the changelog and the migration guide, a page never
+   says which release candidate added a feature ("since 4.0.0-rc.6", "measured since rc.8", "needs rc.6 or later"),
+   and a comparison never lists under a competitor's leads what Nino has built in; what earlier releases lack goes
+   in an info Callout at most. Grep `rc\.[0-9]` over the v4 pages in every docs pass. Why: the owner (rc.10:
+   "正式发布时支持的东西就直接写就行，rc里的限制最多就是加个info"); vs-memorypack's "Where MemoryPack Is Ahead" listed
+   the built-in types Nino has "since 4.0.0-rc.5", and nine pages carried such dates (nino.docs 7f3f0cc).
 2. **True to the code**: every API, attribute, option, default, limit and exception named exists today and behaves as
    written; check a doubtful claim with a throwaway test. Names match the code exactly. No API that is not in the
    source (the site's rule).
