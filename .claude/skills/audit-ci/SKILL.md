@@ -105,6 +105,16 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   actions and scripts by their pinned SHA, never `./.github/actions/...` or a script the tag may lack (tags up to
   v4.0.0-rc.7 have no `.github/actions/setup-dotnet`); steps such a workflow repeats across its jobs share one YAML
   anchor instead (`unity.yml`'s `&setup-dotnet` and `&build-dlls`, with the job's `NINO_CONFIG`).
+- **The signed Unity package**: release.yml's `unity` job calls `unity-sign.yml`, which signs the package with
+  Unity's UPM CLI (pinned version; secrets `UPM_SERVICE_ACCOUNT_KEY_ID`, `UPM_SERVICE_ACCOUNT_KEY_SECRET`,
+  `UPM_ORG_ID`: a Unity Cloud service account with the organization-level role "Package Manager Package Signer")
+  and attaches `com.jasonxudeveloper.nino-<version>.tgz` to the Unity tag's release; OpenUPM tracks Nino with
+  `trackingMode: githubRelease` and publishes only that asset, so a release whose `unity` job failed is missing on
+  OpenUPM until it is re-run. A pre-release's `vX.Y.Z-preview.N` release exists only for that asset: report.yml
+  skips it. Check a change to the signing step, or new credentials, by pushing `unity-sign.yml` to the test branch
+  (it signs and keeps an artifact, no release touched). "User does not have permission to sign package" means
+  the service account's role or organization is wrong, not the secrets' presence (run 43286997093; 43287841461
+  signed once the owner fixed the role).
 - **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
   10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` and ci.yml's pull-request benchmark 6 (shards.json),
   `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines). A push to main
