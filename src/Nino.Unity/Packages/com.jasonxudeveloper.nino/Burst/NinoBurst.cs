@@ -114,7 +114,7 @@ namespace Nino.Burst
                     {
                         // Nino.Core calls kernels only through function pointers: a runtime that cannot keeps its own
                         // paths (no Unity the package supports).
-                        Debug.LogWarning("Nino: Burst function pointers cannot be called, using the scalar paths.");
+                        Warn("Burst function pointers cannot be called, using the scalar paths");
                         return false;
                     }
 
@@ -164,7 +164,7 @@ namespace Nino.Burst
                 catch (Exception e)
                 {
                     _kernels = null;
-                    Debug.LogWarning($"Nino: Burst kernels not available, using the scalar paths ({e.Message}).");
+                    Warn($"Burst kernels not available, using the scalar paths ({e.GetType().Name}: {e.Message})");
                     return false;
                 }
             }

@@ -427,7 +427,7 @@ namespace Test.Runtime.Burst
                     .CompileFunctionPointer<NinoBurst.NarrowFunction>(WrongNarrow).Value,
                 Widen = registered.Widen,
             };
-            LogAssert.Expect(LogType.Warning, new Regex("Burst kernel Narrow wrote other bytes"));
+            LogAssert.Expect(LogType.Warning, new Regex("Burst kernel Narrow wrote other bytes.*Burst .*Unity .*Nino/issues"));
             Assert.IsTrue(NinoBurst.SelfTest(kernels, ""), "the widen kernel passes");
             Assert.IsTrue(kernels.Narrow == null, "the wrong narrow is left out");
             Assert.IsTrue(kernels.Widen == registered.Widen, "the widen kernel is kept");

@@ -66,11 +66,15 @@ namespace Nino.Burst
 
             if (failure == null)
                 return true;
-            Debug.LogWarning($"Nino: the Burst kernel {name}{table} {failure} in its self-test (Burst {BurstVersion}, " +
-                             $"Unity {Application.unityVersion}, {SystemInfo.processorType}); Nino uses its scalar " +
-                             "path for this work. Please report it at https://github.com/JasonXuDeveloper/Nino/issues.");
+            Warn($"the Burst kernel {name}{table} {failure} in its self-test; Nino uses its scalar path for this work");
             return false;
         }
+
+        // Every kernel that is left out says so, with what a report needs: the Burst and Unity versions and the CPU.
+        // (In an IL2CPP player a kernel that throws ends the process before this runs: there, CI catches it.)
+        internal static void Warn(string what) =>
+            Debug.LogWarning($"Nino: {what} (Burst {BurstVersion}, Unity {Application.unityVersion}, " +
+                             $"{SystemInfo.processorType}). Please report it at https://github.com/JasonXuDeveloper/Nino/issues.");
 
         // A deterministic byte sequence (xorshift), so a failure repeats.
         private static void Fill(byte[] bytes, uint seed)
