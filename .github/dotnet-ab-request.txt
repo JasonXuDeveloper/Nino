@@ -269,4 +269,9 @@
 # Run 43041103376: the review is 1.6 to 4.2% faster than main by geomean on every CPU (floor 0.99 to 1.01), but
 # StringBuilder serialize (CopyTo), SelfTree serialize (WriteItems not inlined) and GenericSealedClassTupleBase
 # serialize on Neoverse-N2 (outlined dispatch) were slower; 4c72e384 fixes the three. Its floor is that run's line 2.
-cpu='EPYC|Xeon|Neoverse' 51a7bd18 4c72e384 6 *Test.Nino* # review with the three fixes vs main
+# done (run 43151569585): cpu='EPYC|Xeon|Neoverse' 51a7bd18 4c72e384 6 *Test.Nino* # review with the three fixes vs main
+# Run 43151569585: geomean 1.017 to 1.049 on EPYC 7763/9V74/9V45, 1.038 on Neoverse-N2 (floor 1.003 to 1.018, 0.991);
+# StringBuilder, SelfTree, the generic tuple bases and CardBattleLog serialize are back within the floor. Lookup
+# serialize (0.89 on x64) is fixed after it (57d59419); e44fb828 adds the dispatch depth check, copy-out from 16
+# elements and the InterfaceStrings case.
+cpu='EPYC|Xeon|Neoverse' 51a7bd18 e44fb828 6 *Test.Nino* # review head vs main
