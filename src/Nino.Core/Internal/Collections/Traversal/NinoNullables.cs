@@ -47,7 +47,21 @@ namespace Nino.Core
             var value = NinoLayout<T>.Info.Mask;
             for (int i = 0; i < NinoLayout<T>.WireSize; i++)
                 mask[Offset + i] = value == null ? (byte)0xFF : value[i];
-            return NinoMask.Create(mask);
+            // A T holding a Nullable: its own absent values, past the element's flag (the element's own after them).
+            var inner = NinoLayout<T>.Info.Absent;
+            int[] absent = null;
+            if (inner != null)
+            {
+                absent = new int[inner.Length];
+                for (int i = 0; i < inner.Length; i += 3)
+                {
+                    absent[i] = Offset + inner[i];
+                    absent[i + 1] = Offset + inner[i + 1];
+                    absent[i + 2] = inner[i + 2];
+                }
+            }
+
+            return NinoMask.Create(mask, absent);
         }
 
         /// <summary>
@@ -71,7 +85,7 @@ namespace Nino.Core
         /// Strides that tile a vector (2, 4, 8 and 16 bytes: <c>byte?</c> to <c>long?</c>, <c>double?</c>,
         /// <c>DateTime?</c>), so each element is a lane, or a pair of 8-byte lanes, at a fixed place in every vector.
         /// </summary>
-        private static readonly bool Lanes = Vector128.IsHardwareAccelerated &&
+        private static readonly bool Lanes = Vector128.IsHardwareAccelerated && Mask?.ClearsAbsent != true &&
                                              (Stride == 2 || Stride == 4 || Stride == 8 || Stride == 16);
 
         /// <summary>The flag byte of each element, over one vector.</summary>

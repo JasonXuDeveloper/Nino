@@ -36,6 +36,20 @@ namespace Nino.UnitTests
         public List<int?> Ids;
     }
 
+    public struct HoldsNullables
+    {
+        public byte A;
+        public long? B;
+        public int C;
+        public short? D;
+    }
+
+    public struct NestsNullables
+    {
+        public HoldsNullables Inner;
+        public System.DateTime? When;
+    }
+
     [StructLayout(LayoutKind.Explicit)]
     public struct ExplicitGap
     {
@@ -224,5 +238,82 @@ namespace Nino.UnitTests
                     NinoSerializer.Serialize(new List<T?>(dirty)), $"List<{typeof(T).Name}?>({count}), pattern {pattern}");
             }
         }
-    }
+
+        // A Nullable field's value when it has none, in a struct written as its bytes: zeros (spec 6.2), whatever
+        // the memory held. One value, a run of them, a run of T? of them and a dictionary's raw pairs.
+        private static HoldsNullables DirtyHolds(int i, bool hasB, bool hasD)
+        {
+            HoldsNullables value = default;
+            Unsafe.InitBlockUnaligned(ref Unsafe.As<HoldsNullables, byte>(ref value), 0xAB,
+                (uint)Unsafe.SizeOf<HoldsNullables>());
+            value.A = (byte)i;
+            value.C = i * 3;
+            if (hasB)
+                value.B = i * 1000L;
+            else
+                Unsafe.As<long?, byte>(ref value.B) = 0;
+            if (hasD)
+                value.D = (short)-i;
+            else
+                Unsafe.As<short?, byte>(ref value.D) = 0;
+            return value;
+        }
+
+        private static HoldsNullables CleanHolds(int i, bool hasB, bool hasD) => new HoldsNullables
+        {
+            A = (byte)i, C = i * 3, B = hasB ? i * 1000L : null, D = hasD ? (short)-i : null,
+        };
+
+        [TestMethod]
+        public void StructsHoldingNullablesFromDirtyMemoryWriteZerosForAbsentValues()
+        {
+            for (int count = 1; count <= 20; count++)
+            {
+                var clean = new HoldsNullables[count];
+                var dirty = new HoldsNullables[count];
+                var cleanNests = new NestsNullables[count];
+                var dirtyNests = new NestsNullables[count];
+                var cleanOptional = new HoldsNullables?[count];
+                var dirtyOptional = new HoldsNullables?[count];
+                var cleanMap = new Dictionary<int, HoldsNullables>();
+                var dirtyMap = new Dictionary<int, HoldsNullables>();
+                for (int i = 0; i < count; i++)
+                {
+                    bool hasB = i % 3 == 1, hasD = i % 2 == 0;
+                    clean[i] = CleanHolds(i, hasB, hasD);
+                    dirty[i] = DirtyHolds(i, hasB, hasD);
+                    cleanNests[i] = new NestsNullables { Inner = clean[i], When = hasD ? null : new System.DateTime(2024, 1, 1) };
+                    Unsafe.InitBlockUnaligned(ref Unsafe.As<NestsNullables, byte>(ref dirtyNests[i]), 0xAB,
+                        (uint)Unsafe.SizeOf<NestsNullables>());
+                    dirtyNests[i].Inner = dirty[i];
+                    if (hasD)
+                        Unsafe.As<System.DateTime?, byte>(ref dirtyNests[i].When) = 0;
+                    else
+                        dirtyNests[i].When = cleanNests[i].When;
+
+                    cleanOptional[i] = i % 4 == 3 ? null : clean[i];
+                    dirtyOptional[i] = DirtyNullable(cleanOptional[i]);
+                    if (cleanOptional[i].HasValue)
+                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref Unsafe.As<HoldsNullables?, byte>(ref dirtyOptional[i]),
+                            Unsafe.SizeOf<HoldsNullables?>() - Unsafe.SizeOf<HoldsNullables>()), dirty[i]);
+                    cleanMap[i] = clean[i];
+                    dirtyMap[i] = dirty[i];
+                }
+
+                Assert.AreEqual((byte)0xAB, Unsafe.Add(ref Unsafe.As<long?, byte>(ref dirty[0].B), 8), "the setup keeps garbage");
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(clean[0]), NinoSerializer.Serialize(dirty[0]), $"one, {count}");
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(clean), NinoSerializer.Serialize(dirty), $"array of {count}");
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(new List<HoldsNullables>(clean)),
+                    NinoSerializer.Serialize(new List<HoldsNullables>(dirty)), $"list of {count}");
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(cleanNests), NinoSerializer.Serialize(dirtyNests),
+                    $"nested, {count}");
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(cleanOptional), NinoSerializer.Serialize(dirtyOptional),
+                    $"optional, {count}");
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(cleanMap), NinoSerializer.Serialize(dirtyMap),
+                    $"dictionary of {count}");
+                var back = NinoDeserializer.Deserialize<HoldsNullables[]>(NinoSerializer.Serialize(dirty));
+                CollectionAssert.AreEqual(clean, back);
+            }
+        }
+}
 }

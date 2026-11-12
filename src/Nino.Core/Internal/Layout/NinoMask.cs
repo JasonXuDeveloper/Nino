@@ -28,6 +28,7 @@ namespace Nino.Core.Internal
         private readonly int _period512;
 #endif
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
+        private readonly int[] _absent; // NinoLayout.Info.Absent: values cleared when their flag is 0
 #if !NET8_0_OR_GREATER
         // For the registered kernels (NinoKernels.Permute): each byte from itself, padding cleared (0xFF). Zero for
         // elements above 64 bytes.
@@ -37,13 +38,28 @@ namespace Nino.Core.Internal
         /// <summary>(offset, length) of each run of cleared bytes in one element.</summary>
         public int[] Gaps => _gaps;
 
-        /// <summary>Returns a mask, or null when <paramref name="mask"/> keeps every byte.</summary>
-        public static NinoMask Create(byte[] mask) =>
-            Array.IndexOf(mask, (byte)0) < 0 ? null : new NinoMask(mask);
+        /// <summary>Whether values whose flag is 0 are cleared too (<see cref="NinoLayout.Info.Absent"/>).</summary>
+        public bool ClearsAbsent => _absent != null;
 
-        private NinoMask(byte[] mask)
+        /// <summary>
+        /// Returns a mask, or null when <paramref name="mask"/> keeps every byte and there are no
+        /// <paramref name="absent"/> values (<see cref="NinoLayout.Info.Absent"/>) to clear.
+        /// </summary>
+        public static NinoMask Create(byte[] mask, int[] absent = null) =>
+            Array.IndexOf(mask, (byte)0) < 0 && absent == null ? null : new NinoMask(mask, absent);
+
+        /// <summary>A mask of <paramref name="size"/> bytes that keeps every byte.</summary>
+        public static byte[] Whole(int size)
+        {
+            var mask = new byte[size];
+            mask.AsSpan().Fill(0xFF);
+            return mask;
+        }
+
+        private NinoMask(byte[] mask, int[] absent)
         {
             _mask = mask;
+            _absent = absent;
             var gaps = new List<int>();
             for (int i = 0; i < mask.Length; i++)
             {
@@ -123,6 +139,24 @@ namespace Nino.Core.Internal
         // helpers such as Writer.SetBuffer as calls.
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Copy(ref byte destination, ref byte source, int count)
+        {
+            CopyMasked(ref destination, ref source, count);
+            if (_absent != null)
+                ClearAbsent(ref destination, count);
+        }
+
+        /// <summary>
+        /// Zeroes the <c>Nullable</c> values without one in <paramref name="count"/> elements, after their bytes are in
+        /// place: data-dependent, so not part of the mask. Only types that hold a <c>Nullable</c> pay for it.
+        /// </summary>
+        private void ClearAbsent(ref byte destination, int count)
+        {
+            for (int e = 0; e < count; e++)
+                NinoLayout.ClearAbsent(_absent, ref Unsafe.Add(ref destination, e * _mask.Length));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void CopyMasked(ref byte destination, ref byte source, int count)
         {
             int total = checked(count * _mask.Length);
 #if !NET8_0_OR_GREATER
@@ -347,7 +381,8 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Zeroes the padding of <paramref name="count"/> elements in place. Only stores: reading back bytes just
-        /// written by narrower field stores would stall on store forwarding.
+        /// written by narrower field stores would stall on store forwarding (the absent values of types holding a
+        /// <c>Nullable</c>, cleared after, read their flags).
         /// </summary>
         public void Clear(ref byte destination, int count)
         {
@@ -358,6 +393,9 @@ namespace Nino.Core.Internal
                 for (int g = 0; g < gaps.Length; g += 2)
                     Zero(ref Unsafe.Add(ref element, gaps[g]), gaps[g + 1]);
             }
+
+            if (_absent != null)
+                ClearAbsent(ref destination, count);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

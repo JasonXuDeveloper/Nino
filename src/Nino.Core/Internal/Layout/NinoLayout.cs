@@ -256,6 +256,13 @@ namespace Nino.Core.Internal
             public int[] Resized;
 
             /// <summary>
+            /// The <c>Nullable</c> values in the wire layout, nested ones included: (flag offset, value offset, value
+            /// size) triples, outer before inner. A value whose flag is 0 is written as zeros (spec 6.2): memory never
+            /// assigned may hold other bytes there. Null for none.
+            /// </summary>
+            public int[] Absent;
+
+            /// <summary>
             /// Whether the type is or holds <c>Vector&lt;T&gt;</c> (<see cref="NinoReflection.HostSizedVectorIn"/>): not
             /// canonical and of no size, and <see cref="NinoLayout{T}"/> refuses to write or read it.
             /// </summary>
@@ -332,6 +339,10 @@ namespace Nino.Core.Internal
             };
             for (int i = 0; i < wire.Count && info.Canonical; i++)
                 info.Canonical = wire[i].Offset == memory[i].Offset && wire[i].Size == memory[i].Size;
+            // Where the fields cannot be measured, the values are copied as they are (as without a layout).
+            var absent = new List<int>();
+            if (AbsentValues(type, 0, absent) && absent.Count != 0)
+                info.Absent = absent.ToArray();
             if (!info.Canonical)
                 MapLeaves(wire, memory, info);
             return info;
@@ -359,6 +370,45 @@ namespace Nino.Core.Internal
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Adds <see cref="Info.Absent"/>'s triples of <paramref name="type"/> at <paramref name="baseOffset"/> of the
+        /// wire layout, from the canonical offsets of each struct's own fields; false where they cannot be measured.
+        /// </summary>
+        private static bool AbsentValues(Type type, int baseOffset, List<int> absent)
+        {
+            var view = new RuntimeView { Canonical = true };
+            if (view.Leaf(type) != NinoLeaf.None)
+                return true;
+            var fields = new List<KeyValuePair<Type, int>>();
+            var offsets = new List<int>();
+            if (!view.TryGetFields(type, fields, out _, out _, out _) ||
+                !NinoLayoutCore.Measure(view, type, NinoLayoutModel.Canonical, 0, new List<NinoLayoutCore.Leaf>(),
+                    out _, out _, offsets) || offsets.Count != fields.Count)
+                return false;
+            if (Nullable.GetUnderlyingType(type) is { } underlying)
+            {
+                if (fields.Count != 2 || !NinoLayoutCore.Measure(view, underlying, NinoLayoutModel.Canonical, 0,
+                        new List<NinoLayoutCore.Leaf>(), out int size, out _))
+                    return false;
+                absent.Add(baseOffset + offsets[0]);
+                absent.Add(baseOffset + offsets[1]);
+                absent.Add(size);
+            }
+
+            for (int i = 0; i < fields.Count; i++)
+                if (!AbsentValues(fields[i].Key, baseOffset + offsets[i], absent))
+                    return false;
+            return true;
+        }
+
+        /// <summary>Zeroes the values <paramref name="absent"/> (<see cref="Info.Absent"/>) lists whose flag is 0.</summary>
+        internal static void ClearAbsent(int[] absent, ref byte value)
+        {
+            for (int i = 0; i < absent.Length; i += 3)
+                if (Unsafe.Add(ref value, absent[i]) == 0)
+                    NinoMask.Zero(ref Unsafe.Add(ref value, absent[i + 1]), absent[i + 2]);
         }
 
         /// <summary>0xFF for the bytes of <paramref name="wire"/>'s leaves, 0 for padding; null without padding.</summary>
@@ -555,9 +605,15 @@ namespace Nino.Core.Internal
         internal static readonly bool CopiesAsIs = Info.Canonical && typeof(T) != typeof(bool) && Checks == null;
 
 
-        private static readonly NinoMask Mask = Info.Mask == null ? null : NinoMask.Create(Info.Mask);
+        private static readonly NinoMask Mask = Info.Mask == null && Info.Absent == null
+            ? null
+            : NinoMask.Create(Info.Mask ?? NinoMask.Whole(Info.Size), Info.Absent);
 
-        /// <summary>Whether the canonical layout has padding bytes (cleared on write).</summary>
+        /// <summary>
+        /// Whether the canonical layout has bytes cleared on write: padding, or the values of <c>Nullable</c> fields
+        /// without one (<see cref="Info.Absent"/>). Paths that copy values as they lie in memory take the masked copy
+        /// for these types.
+        /// </summary>
         public static readonly bool HasPadding = Mask != null;
 
         /// <summary>Size of a value on the wire.</summary>
@@ -577,7 +633,7 @@ namespace Nino.Core.Internal
             if (!HasPadding)
                 return;
             // A single value with at most two padding runs (the usual case): constant stores, inlined.
-            if (count == 1 && GapCount <= 2)
+            if (count == 1 && GapCount <= 2 && Info.Absent == null)
             {
                 NinoMask.Zero(ref Unsafe.Add(ref destination, Gap0Offset), Gap0Length);
                 if (GapCount == 2)

@@ -31,9 +31,15 @@ namespace Nino.Core.Internal
                     Unsafe.CopyBlockUnaligned(ref m, ref w, (uint)map[i + 2]);
             }
 
-            var resized = info.Resized;
-            if (resized == null)
-                return;
+            if (info.Resized != null)
+                ConvertResized(info.Resized, ref memory, ref wire, toWire);
+            // After every field is in place (a DateTimeOffset's minutes are resized), as NinoMask clears them.
+            if (toWire && info.Absent != null)
+                ClearAbsent(info.Absent, ref wire);
+        }
+
+        private static void ConvertResized(int[] resized, ref byte memory, ref byte wire, bool toWire)
+        {
             for (int i = 0; i < resized.Length; i += 5)
             {
                 ref byte m = ref Unsafe.Add(ref memory, resized[i]);
