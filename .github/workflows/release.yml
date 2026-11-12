@@ -21,6 +21,10 @@ name: Release
 # tag (CONTRIBUTING.md), or by this workflow with an API token (repository secrets CARGO_REGISTRY_TOKEN, NPM_TOKEN,
 # needed only then); then its trusted publisher is added in the registry's settings.
 # The Go module needs no registry: proxy.golang.org serves it from the runtimes/go/vX.Y.Z tag.
+#   unity:   after publish, unity-sign.yml signs the Unity package with the UPM CLI (repository secrets
+#            UPM_SERVICE_ACCOUNT_KEY_ID, UPM_SERVICE_ACCOUNT_KEY_SECRET, UPM_ORG_ID) and attaches the tarball to the
+#            release of the Unity tag (a pre-release's vX.Y.Z-preview.N gets one of its own). OpenUPM tracks Nino with
+#            trackingMode: githubRelease and publishes that asset unchanged; a tag without it is not published there.
 #
 # Unity reads the package from the tag, so the tag must point at the commit that carries the DLLs: both are made
 # by the same job. OpenUPM does not order semantic pre-releases, so a pre-release also gets a vX.Y.Z-preview.N tag
@@ -323,3 +327,13 @@ jobs:
           TAG=latest
           if [[ "$VERSION" == *-* ]]; then TAG=next; fi
           npm publish --access public --tag "$TAG"
+
+  unity:
+    needs: [tag, publish]
+    permissions:
+      contents: write # the Unity tag's release and its asset
+    uses: ./.github/workflows/unity-sign.yml
+    with:
+      version: ${{ inputs.version }}
+      unity_version: ${{ needs.tag.outputs.unity_version }}
+    secrets: inherit

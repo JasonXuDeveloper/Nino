@@ -49,6 +49,9 @@ defaults:
 jobs:
   target:
     name: Pick the release
+    # A pre-release's Unity tag (vX.Y.Z-preview.N) has a release of its own for the signed Unity package
+    # (unity-sign.yml); the numbers belong to the main release, so it starts nothing here.
+    if: ${{ !contains(github.event.release.tag_name || '', '-preview.') }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:

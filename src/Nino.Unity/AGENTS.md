@@ -79,7 +79,9 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
 - Then per version a WebGL player with SIMD (`webgl` job, after the tests, also `max-parallel: 1`), run in headless
   Chrome by `.github/scripts/webgl_run.mjs`: WebGLBench must report the kernels registered and no failure; the
   benchmark's run also times each case (artifact `webgl-<version>`).
-- release.yml copies the Release DLLs into `Runtime/`, bumps `package.json`'s version and tags the OpenUPM release.
+- release.yml copies the Release DLLs into `Runtime/`, bumps `package.json`'s version and tags the OpenUPM release;
+  its `unity` job (`unity-sign.yml`) signs the package with the UPM CLI and attaches the tarball OpenUPM publishes
+  (`audit-ci`, "The signed Unity package").
 
 ## src/Nino.UnityTypes (no AGENTS.md of its own)
 
