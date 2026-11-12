@@ -680,27 +680,6 @@ namespace Nino.Core.Internal
             var destination = buffer.GetSpan(size);
             // An external destination can overlap the source. Publish the header after the payload copy.
             CopyRawExternal(source, destination.Slice(NinoWire.LengthSize, source.Length), count);
-            PublishExternal(buffer, destination, count, size);
-        }
-
-#if NET8_0_OR_GREATER
-        internal static void WriteRawVectorExternal(IBufferWriter<byte> buffer, ref byte first, int count, int size)
-        {
-            int bytes = size - NinoWire.LengthSize;
-            var source = MemoryMarshal.CreateReadOnlySpan(ref first, bytes);
-            var destination = buffer.GetSpan(size);
-            var body = destination.Slice(NinoWire.LengthSize, bytes);
-            if (source.Overlaps(body))
-                source.CopyTo(body);
-            else
-                NinoUnsafe.CopyOver64(ref MemoryMarshal.GetReference(body), ref first, (uint)bytes);
-            PublishExternal(buffer, destination, count, size);
-        }
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void PublishExternal(IBufferWriter<byte> buffer, Span<byte> destination, int count, int size)
-        {
             NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), count);
             buffer.Advance(size);
         }
