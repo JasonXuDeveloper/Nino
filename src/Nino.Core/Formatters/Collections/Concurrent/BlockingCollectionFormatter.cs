@@ -36,26 +36,12 @@ namespace Nino.Core
         public void Deserialize(ref Reader reader, ref BlockingCollection<T> value)
         {
             NinoRecycler.Discard(ref value);
-            if (!reader.TryReadLength(NinoElements.MinWireSize<T, TFormatter>(), out int length))
-                return;
-            value = length <= 1
-                ? ReadSmall(length, ref reader)
-                : new BlockingCollection<T>(
-                    BclCollections<T, TFormatter>.TryCreate<ConcurrentQueue<T>>(length, ref reader));
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static BlockingCollection<T> ReadSmall(int length, ref Reader reader)
-        {
-            var queue = new ConcurrentQueue<T>();
-            if (length != 0)
-            {
-                T item = default;
-                NinoElements.Read<T, TFormatter>(ref item, 1, ref reader);
-                queue.Enqueue(item);
-            }
-
-            return new BlockingCollection<T>(queue);
+            // An exact array (one block copy for raw elements) handed to the queue: renting one and wrapping it in an
+            // ArraySegment instead (89738283) enumerated a boxed segment enumerator and was 7% slower on x64
+            // runners (runs 43041103376 and 43151569585).
+            var items = NinoCollections.ReadArray<T, TFormatter>(ref reader);
+            if (items != null)
+                value = new BlockingCollection<T>(new ConcurrentQueue<T>(items));
         }
     }
 }
