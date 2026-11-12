@@ -145,3 +145,11 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   to 153 bytes plus a call) and run 43174700489 measured GenericIntBase serialize at 0.84x on EPYC and 0.89x on
   Neoverse-N2, the generic tuple bases 0.87x on x64, though NonGenericBase gained 1.34x; `AggressiveInlining` on it
   kept the loop inline but spilled it and grew PolymorphicClassArray's methods up to 9x. Reverted (02b9a84c).
+  Mark `__WriteSubtype` of a closed generic base's `__NinoDispatch<n>` `AggressiveInlining`, and with that the
+  depth asked once does pay: without the mark that dispatch sits one inlining level below the base formatter's
+  selection and the loop calls it per element (the 0.84x above), while the non-generic dispatch stays inline.
+  Evidence: fb34c84d (both loops 1,416 bytes with the dispatch inline, main 2,489; PolymorphicFoo's 20-subtype
+  dispatch 4,696 bytes, main 7,567); run 43212065213 against main (6 rounds, 8 x64 jobs and Neoverse-N2): serialize
+  GenericIntBase 1.27 to 1.46x and NonGenericBase 1.19 to 1.49x on every CPU, PolymorphicClassArray, FooArray and
+  every deserialize on par; GenericSealedClassTupleBase serialize 1.04 to 1.16x except 0.93x on EPYC 9V45 and 9V74,
+  CPUs whose floor reaches 0.87 there. Landed in 558b2a59.
