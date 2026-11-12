@@ -15,6 +15,7 @@ using Microsoft.CodeAnalysis.Text;
 //
 // Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generics] [--calls] [--layouts] [--runs <n>=5]
 //                           [--generator <Nino.Generator.dll>] [--core <Nino.Core.dll>] [--dump <dir>]
+//                           [--no-analyzers] [--json <file>]
 // --generics adds generic [NinoType]s per root: a polymorphic generic base with generic subtypes (one through a
 // constructed argument), a type holding itself over a bigger argument and members closing them, which make the
 // analyzer decide what each closed generic writes (WrittenParameters: the definitions and their subtypes).
@@ -27,12 +28,18 @@ using Microsoft.CodeAnalysis.Text;
 // its section (NINO034-NINO037); without it the check costs one attribute lookup per compilation.
 // --runs sets the number of runs; the last line is the median of the runs after the first (JIT, cold caches).
 // "analyzers" is the analyzers' own time as Roslyn reports it, "wall" the whole analysis with the binding it needs.
+// --no-analyzers skips the analysis (v3's analyzers bind its generated code: at 330 types as long as emitting it).
+// --json writes the medians, the sizes and the machine to a file (report.yml's generator job turns them into the
+// release body's build section with benchmarks/reports/generator_report.py); the printed lines stay as they are
+// (runtime-ab reads the last one).
 // Without --generator/--core it uses the generator and runtime of this repository. To measure another
-// version (e.g. v3), build its Nino.Generator and Nino.Core and pass their paths.
+// version, build its Nino.Generator and Nino.Core and pass their paths. v3 3.3.13's are in the NuGet cache once this
+// project is restored (PackageDownload): nino.generator/3.3.13/analyzers/dotnet/cs/Nino.Generator.dll and
+// nino.serialization/3.3.13/lib/net8.0/Nino.Core.dll.
 
 int roots = 30, depth = 8;
-string generatorPath = null, corePath = null, dump = null;
-bool generics = false, calls = false, layouts = false;
+string generatorPath = null, corePath = null, dump = null, json = null;
+bool generics = false, calls = false, layouts = false, noAnalyzers = false;
 int runs = 5;
 var positional = new List<string>();
 for (int i = 0; i < args.Length; i++)
@@ -46,6 +53,8 @@ for (int i = 0; i < args.Length; i++)
         case "--calls": calls = true; break;
         case "--layouts": layouts = true; break;
         case "--runs": runs = int.Parse(args[++i]); break;
+        case "--no-analyzers": noAnalyzers = true; break;
+        case "--json": json = args[++i]; break;
         default: positional.Add(args[i]); break;
     }
 }
@@ -92,7 +101,7 @@ callSrc.AppendLine("}");
 
 var types = generatorPath == null ? typeof(Nino.Generator.Analysis.NinoAnalyzer).Assembly.GetTypes() : LoadTypes(generatorPath);
 var generators = GeneratorsOf(types);
-var analyzers = types
+var analyzers = noAnalyzers ? ImmutableArray<DiagnosticAnalyzer>.Empty : types
     // Suppressors only run on compiler diagnostics, which emit already produces: not measured here.
     .Where(t => !t.IsAbstract && typeof(DiagnosticAnalyzer).IsAssignableFrom(t) &&
                 !typeof(DiagnosticSuppressor).IsAssignableFrom(t) &&
@@ -157,6 +166,12 @@ Console.WriteLine($"types: {roots * (depth + 3 + (generics ? 6 : 0))} ({roots} r
 var generateRuns = new List<double>();
 var analyzeRuns = new List<double>();
 var wallRuns = new List<double>();
+// For --json: the runs after the first (the only run when there is one), and the sizes, the same in every run.
+var measured = new Dictionary<string, List<double>>
+{
+    ["generate_ms"] = new(), ["emit_ms"] = new(), ["member_edit_ms"] = new(), ["comment_edit_ms"] = new(),
+};
+var sizes = new Dictionary<string, long>();
 for (int iteration = 0; iteration < runs; iteration++)
 {
     GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: parseOptions);
@@ -184,6 +199,7 @@ for (int iteration = 0; iteration < runs; iteration++)
     using var il = new MemoryStream();
     var emit = output.Emit(il);
     long emitMs = sw.ElapsedMilliseconds;
+    double emitTime = sw.Elapsed.TotalMilliseconds;
     int errors = emit.Diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error);
 
     // Analyzers on the compilation a build sees. Their own execution time is reported by Roslyn; the rest of
@@ -212,13 +228,27 @@ for (int iteration = 0; iteration < runs; iteration++)
     sw.Restart();
     driver = driver.RunGenerators(edited);
     long memberMs = sw.ElapsedMilliseconds;
+    double memberTime = sw.Elapsed.TotalMilliseconds;
 
     var text1 = memberEdit.GetText();
     var commentEdit = memberEdit.WithChangedText(text1.WithChanges(new TextChange(new TextSpan(text1.Length, 0), "\n// comment\n")));
     sw.Restart();
     driver.RunGenerators(edited.ReplaceSyntaxTree(memberEdit, commentEdit));
     long commentMs = sw.ElapsedMilliseconds;
+    double commentTime = sw.Elapsed.TotalMilliseconds;
 
+    if (iteration != 0 || runs == 1)
+    {
+        measured["generate_ms"].Add(generate);
+        measured["emit_ms"].Add(emitTime);
+        measured["member_edit_ms"].Add(memberTime);
+        measured["comment_edit_ms"].Add(commentTime);
+    }
+
+    sizes["lines"] = lines;
+    sizes["chars"] = chars;
+    sizes["il_bytes"] = il.Length;
+    sizes["errors"] = errors;
     if (iteration != 0)
     {
         generateRuns.Add(generate);
@@ -234,6 +264,40 @@ for (int iteration = 0; iteration < runs; iteration++)
 if (runs > 1)
     Console.WriteLine($"median of runs 1-{runs - 1}: generate {Median(generateRuns):F2} ms, analyzers {Median(analyzeRuns):F2} ms, " +
                       $"analysis wall {Median(wallRuns):F2} ms");
+
+if (json != null)
+{
+    var generatorName = generatorPath == null
+        ? typeof(Nino.Generator.Analysis.NinoAnalyzer).Assembly.GetName()
+        : System.Reflection.AssemblyName.GetAssemblyName(generatorPath);
+    var report = new Dictionary<string, object>
+    {
+        ["types"] = roots * (depth + 3 + (generics ? 6 : 0)), ["roots"] = roots, ["depth"] = depth,
+        ["runs"] = runs, ["measured"] = measured["emit_ms"].Count,
+        ["generator"] = generatorName.Version?.ToString(),
+        ["cpu"] = CpuName(), ["cores"] = Environment.ProcessorCount,
+        ["runtime"] = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+        ["roslyn"] = typeof(CSharpCompilation).Assembly.GetName().Version?.ToString(),
+        ["os"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+    };
+    foreach (var (key, values) in measured)
+        report[key] = Math.Round(Median(values), 3);
+    foreach (var (key, value) in sizes)
+        report[key] = value;
+    File.WriteAllText(json, System.Text.Json.JsonSerializer.Serialize(report,
+        new System.Text.Json.JsonSerializerOptions { WriteIndented = true }) + "\n");
+}
+
+// The CPU's model name: /proc/cpuinfo on Linux, else what the OS gives.
+static string CpuName()
+{
+    if (File.Exists("/proc/cpuinfo"))
+        foreach (var line in File.ReadLines("/proc/cpuinfo"))
+            if (line.StartsWith("model name", StringComparison.Ordinal))
+                return line.Substring(line.IndexOf(':') + 1).Trim();
+    return Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ??
+           System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString();
+}
 
 static ISourceGenerator[] GeneratorsOf(Type[] types) => types
     .Where(t => !t.IsAbstract && typeof(IIncrementalGenerator).IsAssignableFrom(t) &&

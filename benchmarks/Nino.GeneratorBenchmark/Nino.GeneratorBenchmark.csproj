@@ -12,5 +12,9 @@
     <!-- The layout baseline the layouts option writes, as the code fixes do (internal to the generator). -->
     <Compile Include="../../src/Nino.Generator/Common/LayoutBaseline.cs" Link="Shared/LayoutBaseline.cs" />
     <ProjectReference Include="../../src/Nino.Core/Nino.Core.csproj" SetTargetFramework="TargetFramework=net8.0" />
+    <!-- v3 3.3.13's generator and runtime from nuget.org, into the NuGet cache only (never referenced): the v3 side of
+         the release body's build section (report.yml's generator job passes them with generator and core). -->
+    <PackageDownload Include="Nino.Generator" Version="[3.3.13]" />
+    <PackageDownload Include="Nino.Serialization" Version="[3.3.13]" />
   </ItemGroup>
 </Project>
