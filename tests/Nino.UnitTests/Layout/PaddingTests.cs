@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -204,7 +205,11 @@ namespace Nino.UnitTests
             CollectionAssert.AreEqual(NinoSerializer.Serialize(clean.Score), NinoSerializer.Serialize(dirty.Score));
             CollectionAssert.AreEqual(NinoSerializer.Serialize(clean.When), NinoSerializer.Serialize(dirty.When));
         }
-            // Every stride (2, 4, 8, 16, 20, 24) and run lengths on both sides of each vector width.
+        // Every stride (2, 4, 8, 16, 20, 24) and run lengths on both sides of each vector width, of the four-vector
+        // steps of 64-byte vectors (130 byte? elements: 260 bytes) and of the three-vector periods of decimal?.
+        private static readonly int[] RunLengths =
+            Enumerable.Range(0, 41).Concat(new[] { 63, 64, 65, 127, 128, 129, 130, 131, 257 }).ToArray();
+
         [TestMethod]
         public void RawNullableRunsFromDirtyMemoryWriteZerosForAbsentValues()
         {
@@ -220,7 +225,7 @@ namespace Nino.UnitTests
 
         private static void AbsentValuesAreZero<T>(System.Func<int, T> make) where T : unmanaged
         {
-            for (int count = 0; count <= 40; count++)
+            foreach (int count in RunLengths)
             for (int pattern = 0; pattern < 3; pattern++)
             {
                 var clean = new T?[count];
