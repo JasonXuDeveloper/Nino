@@ -1,0 +1,119 @@
+name: Sign the Unity package
+
+# Packs src/Nino.Unity/Packages/com.jasonxudeveloper.nino with Unity's UPM CLI, signed by the Unity organization
+# UPM_ORG_ID (service account secrets UPM_SERVICE_ACCOUNT_KEY_ID and UPM_SERVICE_ACCOUNT_KEY_SECRET, role "Package
+# Manager Package Signer"), checks the tarball and attaches it to the GitHub release of the Unity tag. OpenUPM
+# (trackingMode: githubRelease) republishes that asset unchanged, so Unity 6.3+ shows the package as signed.
+#
+# release.yml calls it after `publish` with the release's tags. A stable release's Unity tag is its own tag, so the
+# tarball joins that release; a pre-release's Unity tag is vX.Y.Z-preview.N (release.yml), which gets a release of its
+# own, a pre-release that is never "latest" and whose notes only point to the main one (no "Performance Report" in it:
+# nino.docs takes its numbers from the newest v4.* release with that heading). A tag that already has the asset is
+# skipped, so a re-run is safe.
+#
+# A push of this file to the test branch packs and signs the package at that commit and keeps the tarball as a workflow
+# artifact only: a check that the credentials and the CLI work, with no release touched.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'The release version (vX.Y.Z is the main release)'
+        required: true
+        type: string
+      unity_version:
+        description: "The Unity package's version (package.json; vX.Y.Z-preview.N for a pre-release)"
+        required: true
+        type: string
+  push:
+    branches: [claude/zen-goldberg-5qqqcu]
+    paths: [.github/workflows/unity-sign.yml]
+
+permissions:
+  contents: read
+
+env:
+  # The UPM CLI release (https://cdn.packages.unity.com/upm-cli/latest.txt); its installer checks the download's SHA-256.
+  UPM_CLI_VERSION: v9.36.0
+  PACKAGE_DIR: src/Nino.Unity/Packages/com.jasonxudeveloper.nino
+
+jobs:
+  sign:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # the release asset
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.unity_version && format('v{0}', inputs.unity_version) || github.sha }}
+
+      - name: Install the UPM CLI
+        run: |
+          curl -fsSL "https://cdn.packages.unity.com/upm-cli/install.sh" -o "$RUNNER_TEMP/upm-install.sh"
+          bash "$RUNNER_TEMP/upm-install.sh" "$UPM_CLI_VERSION"
+          echo "$HOME/.upm/bin" >> "$GITHUB_PATH"
+
+      - name: Pack and sign
+        env:
+          UPM_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_SECRET: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_SECRET }}
+          UPM_ORG_ID: ${{ secrets.UPM_ORG_ID || vars.UPM_ORG_ID }}
+        run: |
+          if [[ -z $UPM_SERVICE_ACCOUNT_KEY_ID || -z $UPM_SERVICE_ACCOUNT_KEY_SECRET || -z $UPM_ORG_ID ]]; then
+            echo "::error::set the repository secrets UPM_SERVICE_ACCOUNT_KEY_ID, UPM_SERVICE_ACCOUNT_KEY_SECRET and UPM_ORG_ID"
+            exit 1
+          fi
+          upm --version || true
+          mkdir -p "$RUNNER_TEMP/upm"
+          upm pack "$PACKAGE_DIR" --organization-id "$UPM_ORG_ID" --destination "$RUNNER_TEMP/upm"
+          ls -l "$RUNNER_TEMP/upm"
+
+      - name: Check the tarball
+        id: check
+        run: |
+          shopt -s nullglob
+          files=("$RUNNER_TEMP"/upm/*.tgz "$RUNNER_TEMP"/upm/*.tar.gz)
+          if (( ${#files[@]} != 1 )); then echo "::error::expected one tarball, found ${#files[@]}"; exit 1; fi
+          tgz=${files[0]}
+          tar tzf "$tgz" > "$RUNNER_TEMP/contents.txt"
+          grep -qx 'package/package.json' "$RUNNER_TEMP/contents.txt" || { echo "::error::no package/package.json"; exit 1; }
+          grep -qx 'package/.attestation.p7m' "$RUNNER_TEMP/contents.txt" || { echo "::error::not signed: no package/.attestation.p7m"; exit 1; }
+          packed=$(tar xzf "$tgz" -O package/package.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')
+          expected=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$PACKAGE_DIR/package.json")
+          if [[ $packed != "$expected" ]]; then echo "::error::packed version $packed, package.json says $expected"; exit 1; fi
+          if [[ -n "${{ inputs.unity_version }}" && $packed != "${{ inputs.unity_version }}" ]]; then
+            echo "::error::packed version $packed, the release's Unity version is ${{ inputs.unity_version }}"; exit 1
+          fi
+          # One stable name: OpenUPM's githubReleaseAssetName matches the prefix com.jasonxudeveloper.nino-.
+          name="com.jasonxudeveloper.nino-$packed.tgz"
+          [[ $(basename "$tgz") == "$name" ]] || mv "$tgz" "$RUNNER_TEMP/upm/$name"
+          echo "tgz=$RUNNER_TEMP/upm/$name" >> "$GITHUB_OUTPUT"
+          echo "Signed $name ($(wc -l < "$RUNNER_TEMP/contents.txt") files)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the tarball (test branch)
+        if: ${{ !inputs.unity_version }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unity-package-signed
+          path: ${{ steps.check.outputs.tgz }}
+          retention-days: 7
+
+      - name: Attach it to the Unity tag's release
+        if: ${{ inputs.unity_version }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          UNITY_VERSION: ${{ inputs.unity_version }}
+          TGZ: ${{ steps.check.outputs.tgz }}
+        run: |
+          tag="v$UNITY_VERSION"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            # Only a pre-release's Unity tag lacks a release: publish made the main one.
+            gh release create "$tag" --verify-tag --prerelease --latest=false --title "$tag (Unity package)" \
+              --notes "The signed Unity package of [v$VERSION](https://github.com/${{ github.repository }}/releases/tag/v$VERSION), which OpenUPM publishes."
+          fi
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -qx "$(basename "$TGZ")"; then
+            echo "$tag already has $(basename "$TGZ")"; exit 0
+          fi
+          gh release upload "$tag" "$TGZ"
