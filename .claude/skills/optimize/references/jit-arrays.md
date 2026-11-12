@@ -11,13 +11,13 @@ Rules in short:
 
 - Reuse a length or range that was already checked (the `ArraySegment<T>` range, the wide byte count, one payload
   slice) instead of slicing or multiplying again.
-- Use the overlap-safe span move for unpadded raw writes to caller buffers, and the same move plus padding clear for
-  one padded element; keep overlap detection where padding clearing is fused into the copy.
+- Copy raw writes to caller buffers with `CopyToWire` (Nino's copy, or the masked copy) when the destination is
+  disjoint; keep the overlap-safe span move (plus padding clear) for a destination that overlaps the source and for
+  one padded element.
 - Write canonical arrays, lists, array-backed memory and segments, single-segment sequences, fixed-size values and
   canonical multidimensional arrays directly into the external writer's span; keep `MemoryManager` values,
   multi-segment sequences and variable formats on scratch.
-- Measure full arrays and offset slices separately before applying a shared copy threshold; select the medium vector
-  copy at the whole-array adapter.
+- Measure full arrays and offset slices separately, on runners, before applying a shared copy threshold.
 
 ## Raw arrays and segments
 
@@ -130,25 +130,22 @@ Rules in short:
   shape writer was 1,127 bytes and the shared copy went from 878 to 873 bytes. Wire samples matched at offsets zero,
   one and seven, five targeted configurations passed, and all 584 project-generated files matched in each replay phase
   (`0d98165b`). Arm64 only; x64 unmeasured.
-- Keep the overlap-safe span copy for unpadded external payloads, and measure full arrays and offset slices separately
-  before applying a shared copy threshold. Why: the existing Nino vector copy gained on whole arrays but lost on
-  slices. Evidence: the 128-byte through 64 KiB nonoverlap gate slowed the 8,192-int array at offset seven by 25–69%
-  across four M4 pairs; Arm64 used paired vector loads and stores, offline x64 v3 selected the 256-bit kernel and v4
-  could select the 512-bit kernel; the shared method grew from 128 to 205 IL bytes and from 460 to 536 Arm64 Tier 1
-  bytes. Narrowing the range to 256–1,024 bytes and removing the extra forwarding call kept the 512- and 1,024-byte
-  array gains in all four pairs at offsets zero, one and seven, but the 512-byte slice at offset seven still took
-  6–38% longer and list timings varied; that version had 205 IL bytes and a 532-byte Arm64 body. Both variants wrote
-  identical bytes and allocated zero in the timed loop. Arm64 only; x64 unmeasured.
-- Select the medium vector copy at the whole-array adapter: the outlined adapter uses the common hardware policy and
-  selects 512–1,024 bytes, with the overlap test inside the vector writer. Why: a shared eligibility flag grew the
-  external writer from 50 to 137 IL bytes and regressed some 256-byte arrays. Evidence: at offset seven, four M4 pairs
-  moved 512-byte `int[]` from 31.4 to 18.2 ns and `short[]` from 24.7 to 20.1 ns; the 1,024-byte int case also
-  improved in all four pairs; first-call, single-int and 32 KiB controls varied; all warmed cases allocated zero. The
-  array adapter went from 31 to 90 IL bytes and the outlined writer adds 77; Arm64 Tier 1 used 808 bytes for
-  `SerializeOther` (was 716) and 520 for the outlined writer; offline x64 v4 used 142 bytes for the adapter (was 72)
-  and 268 for the writer, while the shared copy stayed at 873 bytes; the x64 v2 adapter had no vector writer call. Wire
-  samples at all three offsets, targeted tests, and each phase of the 584-file replay matched (`a619db65`). Arm64 only;
-  x64 unmeasured.
+- Copy unpadded external payloads with Nino's copy when the destination is disjoint, and keep the span move only where
+  it overlaps the source (`NinoLayout<T>.CopyRawExternal`, e7f15a27; the medium-array second writer of a619db65 went
+  with it, 7fe8eec9). Why: the span move is Memmove at every size, glibc's rep movsb on AMD (2-30 times slower than the
+  loop up to 16 KB, [vectors-copies.md](vectors-copies.md#long-copies-and-writers)). Only writers other than
+  `NinoArrayBufferWriter` reach this copy (`NinoDirect.Serialize` and `NinoSerializer.Serialize` take the Writer for
+  that one); `ExternalBufferTest` times it (`ExternalInts`, `ExternalMemory`), not yet on runners. Two earlier
+  M4-only trials had kept the span move: a 128-byte to 64 KiB gate slowed the 8,192-int array at destination offset
+  seven by 25-69 % on Arm64, and a 256-1,024-byte gate kept a 512-byte slice at offset seven 6-38 % slower. A test
+  writes 100-5,000 ints over their own backing array, 2 bytes after and 6 before the source
+  (`LongRawSlicesCanWriteOverTheirBackingArray`): Nino's copy is no memmove above 64 bytes.
+- Do not blame `CopyRawExternal` for the `BclTypesTest.NinoSerializeMemory` / `NinoSerializeReadOnlySequence` runner
+  results: those cases write into a `NinoArrayBufferWriter` through the Writer and `CopyOver64`. A runner A/B of
+  51a7bd18 against e6f72cd3 (which holds 90efac75 and 752a9c5f) put both 8-15 % slower on Xeon 8370C and EPYC 9V45,
+  9V74 and 7763, but the Tier1 listings of both commits call the same `CopyOver64` (identical normalized listing) and
+  differ only in the inline copy of up to 15 bytes, which 4,000-byte payloads never run (581 against 591 bytes, x64
+  AVX-512, `asm.py dump --ref 51a7bd18 --filter Memory`): same code, so by the A/B rules not a regression of theirs.
 
 The fixed-stride multi-segment `WriteSegments` trials are in [jit-io.md](jit-io.md), "ReadOnlySequence input and
 output".

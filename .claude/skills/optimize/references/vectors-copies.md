@@ -19,8 +19,15 @@ writers](#long-copies-and-writers), [Sequences](#sequences), [Masked copy](#mask
   byte `Memory<T>`, `BitArray`, long Latin-1 strings), never in a shared dispatcher (M4 only). The reads started at
   81 bytes until the review round that unified the six call sites (each had its own range and gate); 65-80-byte
   reads on Arm64 are unmeasured since.
-- Keep the existing copies for raw arrays of zero to two elements, for caller-owned buffers (overlap-safe span copy;
-  skip ClearPadding without padding) and in the raw list writer (M4).
+- Copy every payload of data-dependent size with `NinoUnsafe.Copy`, `CopyOver64` or `CopyToNew`, never a BCL span
+  copy, `Buffer.Memmove`/`BlockCopy`/`MemoryCopy`, `BuffersExtensions.Write` or a variable-size
+  `Unsafe.CopyBlockUnaligned` (Memmove: glibc's rep movsb on AMD lost to the loop 2-30 times up to 16 KB, on GitHub's
+  EPYC runners);
+  keep the BCL move only where source and destination may overlap (Nino's copy is no memmove above 64 bytes; test
+  `Overlaps` first), for at most 64 bytes where a measured caller chose it (`ListFormatter` reads), and where a BCL type
+  hides its storage (`StringBuilder.CopyTo` before .NET 8, `BitArray.CopyTo` before .NET 10).
+- Keep the existing copies for raw arrays of zero to two elements, the overlap-safe span copy where a caller-owned
+  buffer overlaps the source (skip ClearPadding without padding) and the raw list writer (M4).
 - Copy long blocks per vendor and per destination; Ice Lake under Linux takes Memmove from 2,112 bytes to 32 KB
   (runners).
 - Skip the copy of an empty growing writer; copy byte writer results up to 64 bytes inline (M4).
@@ -75,7 +82,9 @@ writers](#long-copies-and-writers), [Sequences](#sequences), [Masked copy](#mask
   The outlined entry and helper were 137 plus 86 IL bytes and 471 plus 71 x64 bytes. All 19 serialized outputs and
   allocation counts matched. First-use differences were comparable to the randomized baseline controls. Withdraw all
   three branches.
-- Keep the overlap-safe span copy for raw arrays written to a caller-owned buffer. Adding the fixed Arm64 head and
+- Keep the overlap-safe span copy for raw arrays written to a caller-owned buffer that overlaps them (since e7f15a27 a
+  disjoint one takes `CopyToWire`, [jit-arrays.md](jit-arrays.md#writing-into-an-external-buffer-writer); the M4
+  result below is why `ExternalBufferTest` needs Arm64 runner lines). Adding the fixed Arm64 head and
   tail behind an overlap test slowed 65–128-byte writes by 7–21%. Replacing the checked destination slice with a
   prefix check plus byref span construction also slowed 64–1,024 bytes. Instead skip the Tier 0 ClearPadding call when
   the layout has no padding. Outlining the remaining padded path slowed a single padded item by about 4%, so keep that
@@ -99,6 +108,9 @@ writers](#long-copies-and-writers), [Sequences](#sequences), [Masked copy](#mask
     no stable change. Fresh allocation matched and reuse allocated 0 B. All ten wire comparisons matched; the
     overlapping-buffer tests covered both endpoints. ReadBits grew from 189 to 234 IL bytes and 616 to 660 Arm64
     FullOpts bytes. Linux x64 offline ReadyToRun stayed at 440 B; it was not timed (`6defca8c`).
+  - Fill a new BitArray of more than 64 bytes with the same copy (9eec0589): its zeroed storage cannot overlap the
+    input, and the span move it took is Memmove (rep movsb on AMD runners). Not timed yet; `BitArrays` round-trips
+    200,005 bits through the vector loop.
   - Use the same kernel on writes after the 64-byte split, and mask the final byte as before. Adding a separate
     unsigned range check before the shared copy slowed the 129-byte control. Dispatching larger Arm64 writes directly
     to CopyOver64 removed the repeatable regression. Four M4 pairs gave 21–37% lower medians for 65–128 bytes with
