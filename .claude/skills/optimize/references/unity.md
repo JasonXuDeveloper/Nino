@@ -5,10 +5,11 @@ of `Narrow`, `Widen`, `Permute`, and `Interleave32`. These operations already
 have `NinoKernels` ABI slots. Bind restricted tables to restricted entry points
 so tests that cap the ISA exercise the intended path. The AVX2 interleave
 takes eight pairs at a time and leaves the final four to the SSE2 loop.
-Keep Burst's ISA guards separate around their own intrinsics. A combined
-NEON/SSE2 guard caused standalone Burst 1.8.21 to emit `burst_abort` for
-Linux x64. Separate guards emitted AVX2 and SSE2 loops and left the Arm64
-listing unchanged (`97f686ff`).
+Test one instruction set per `if`, its block only a call and a return, and
+keep every kernel under `NinoBurst.SelfTest`: a combined NEON/SSE2 guard made
+standalone Burst 1.8.21 emit `burst_abort` for Linux x64 (`97f686ff`) and Burst
+2.0 (Unity 6000.6) abort every `Narrow` from 16 chars on Windows x64. The rule,
+why and the CI rows per Burst major: `platforms`, references/mono-unity.md.
 The locally inspected Burst 1.8.21 compiler lists AVX2, SSE2, and AArch64
 targets and no AVX-512 target. Check the package version in Unity CI before
 using a new intrinsic.

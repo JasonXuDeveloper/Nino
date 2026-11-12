@@ -63,7 +63,10 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   `*branch*` as untrusted; unity.yml's `ref` input raised code scanning alert #7); publishing goes through Trusted Publishing (NuGet, crates.io,
   npm), never a stored key in a file.
 - **Unity**: `unity.yml` runs one Unity version at a time (`max-parallel: 1`) and is never cancelled while running, so
-  CI holds at most one license seat; `report.yml`'s Unity section the same. `unity.yml` also builds a WebGL player per
+  CI holds at most one license seat; `report.yml`'s Unity section the same. Its matrix has one row per Burst major
+  the package supports (2022.3.62f2 for Burst 1.8, 6000.6.9f1 for the editor's built-in Burst 2.0; the owner chose
+  two rows over keeping 6000.3), since Burst versions compile the kernels differently (`platforms`,
+  references/mono-unity.md); a new Burst major gets a row first. `unity.yml` also builds a WebGL player per
   version after the tests (`webgl` job, `max-parallel: 1`) and runs it in headless Chrome (playwright-core with the
   runner's Chrome, `.github/scripts/webgl_run.mjs`, which must exit as soon as the player reports done: a pending
   `setTimeout` kept Node, and with it the run that holds the `unity-license` group, for 40 more minutes). An agent

@@ -47,7 +47,8 @@ tests: `src/Nino.Unity/AGENTS.md`; the kernels' techniques: `optimize`, referenc
   changed), where the layout of no size threw `NullReferenceException` before.
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).
-- WebGL has no Burst: Burst compiles jobs with LLVM into a native library the player calls, and the WebGL player (IL2CPP
+- WebGL had no Burst until Burst 1.8.26 (Web) and Unity 6000.6 (WebAssembly64), which run no kernel of Nino's (next
+  bullet but one): Burst compiles jobs with LLVM into a native library the player calls, and the WebGL player (IL2CPP
   to C++, Emscripten to one wasm module) has no slot for it, so `[BurstCompile]` is ignored there and the code runs as
   IL2CPP output (Unity staff, discussions.unity.com/t/burst-for-webgl/849368, 2021-2024: not on the roadmap). IL2CPP has
   no `System.Runtime.Intrinsics` either. WebGL's kernels are therefore C (`Packages/.../WebGL/nino_wasm.c`, a source
@@ -66,3 +67,21 @@ tests: `src/Nino.Unity/AGENTS.md`; the kernels' techniques: `optimize`, referenc
 - The Burst kernels (`src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Burst/NinoBurst*.cs`) write the same bytes as
   Nino.Core; their golden-bytes tests (`Assets/Test/Runtime/Burst/BurstKernelTests.cs`) change with any wire-format
   change (`wire-format`).
+- Treat every Burst version as a new platform: the same kernel source compiles differently from one Burst to the next,
+  so test each in its own `if` per instruction set whose block only calls and returns (`NinoBurst.Vectors.cs`, the
+  header: never `Arm.Neon.IsNeonSupported || X86.Sse2.IsSse2Supported`, never code after an ISA block that another
+  path reaches), keep every kernel under `NinoBurst.SelfTest` (each one through its pointer against Nino.Core's scalar
+  code at registration; one that throws or differs is left out with a warning naming it and the Burst version), and
+  give each Burst major the package supports a row in unity.yml (`audit-ci`) before the package claims it. Why: Burst's
+  `CheckIntrinsicUsageTransform` (identical in 1.8.29 and 2.0, decompiled from each) marks each block with the
+  instruction set of the first IsXxxSupported edge that reaches it (its visited set compares any two known sets as
+  equal, so a second edge is ignored) and replaces a block marked with a set the target lacks by `throw null`, which
+  surfaces as `burst_abort` / "This Exception was thrown from a function compiled with Burst" (InvalidOperationException,
+  no message). Under Unity 6000.6's built-in Burst 2.0 (`Editor/Data/Tools/Burst`, the compiler now a .NET 8 process
+  `bcl.dll` where 1.8 compiled in the editor's Mono) the vector block of `Narrow`'s `(Neon || Sse2) && length >= 16`
+  kept Neon on Windows x64: every [NinoType] string of 16 chars or more threw (rc.9 user report); Burst 1.8's editor
+  passed the same code, and standalone Burst 1.8.21 had already aborted the old combined Interleave32 guard on Linux
+  x64 (97f686ff). In players Burst aborts the process on a throw, so the self-test catches only wrong bytes there:
+  the form and the CI rows are what keep throws out. Unity 6000.6 also turns Burst on for Web (WebAssembly64) and
+  Burst 1.8.26 for Web players: the kernels' `InstructionSet` returns 0 there and nothing registers, Nino.WebGL's C
+  kernels stay the Web path.
