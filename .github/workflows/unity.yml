@@ -292,7 +292,17 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
-      # After the tests, as actions/cache's own post step saved it: only when they passed.
+      # Who killed a Unity process. A SIGKILL leaves only "Killed" (xvfb-run's dash, for the editor alone) and exit
+      # code 137 in the step's log, the editor's log ends wherever it was, and the container is gone (--rm): only the
+      # host's kernel log tells an OOM kill (the container's cgroup: game-ci passes --memory at 95% of the RAM, and
+      # Unity 6000.6's Data Store maps 1 GiB of the container's 1025 MB /dev/shm) from a kill by another process
+      # (run 43290338104: the 6000.6.9f1 player step's editor, 1.3 s after launch, in its first domain reload).
+      - name: Show the kernel's kills
+        if: failure()
+        continue-on-error: true
+        run: |
+          sudo dmesg -T | grep -iE 'out of memory|oom|killed process|segfault|traps:' | tail -n 40 || true
+          free -m
       - name: Save the Unity Library
         if: success() && inputs.tag == '' && steps.library-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
