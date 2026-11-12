@@ -46,7 +46,7 @@
 dotnet add package Nino --prerelease
 ```
 
-包含运行时和源生成器，支持 .NET Standard 2.0 到 .NET 10、Native AOT 和 Godot 4。v4 还是预发行版：不加 `--prerelease` 时 NuGet 会装上 3.9.x，它读不了 v4 的数据。扩展包：`Nino.Immutable`、`Nino.AspNetCore`，以及 `Nino.Codegen`：每次构建后把你的类型生成为 Go、Rust 或 TypeScript 代码（[指南](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)）。
+包含运行时和源生成器，支持 .NET Standard 2.0 到 .NET 11、Native AOT 和 Godot 4。v4 还是预发行版：不加 `--prerelease` 时 NuGet 会装上 3.9.x，它读不了 v4 的数据。扩展包：`Nino.Immutable`、`Nino.AspNetCore`，以及 `Nino.Codegen`：每次构建后把你的类型生成为 Go、Rust 或 TypeScript 代码（[指南](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)）。
 
 ### Unity
 

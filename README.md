@@ -55,7 +55,7 @@ For .NET, Unity (Mono and IL2CPP), Godot, Native AOT and HybridCLR, with Go, Rus
 dotnet add package Nino --prerelease
 ```
 
-The runtime and the source generator, for .NET Standard 2.0 to .NET 10, Native AOT and Godot 4. v4 is a prerelease:
+The runtime and the source generator, for .NET Standard 2.0 to .NET 11, Native AOT and Godot 4. v4 is a prerelease:
 without `--prerelease` NuGet installs 3.9.x, which cannot read v4 data. Add-ons: `Nino.Immutable`, `Nino.AspNetCore`, and `Nino.Codegen`, which writes your types as Go, Rust or TypeScript
 after each build ([guide](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)).
 
