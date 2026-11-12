@@ -1,0 +1,21 @@
+{
+  "types": 1100,
+  "roots": 100,
+  "depth": 8,
+  "runs": 3,
+  "measured": 2,
+  "generator": "3.3.13.0",
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cores": 4,
+  "runtime": ".NET 10.0.0",
+  "roslyn": "4.3.0.0",
+  "os": "Ubuntu 26.04 LTS",
+  "generate_ms": 4600,
+  "emit_ms": 462000,
+  "member_edit_ms": 3500,
+  "comment_edit_ms": 4000,
+  "lines": 1204143,
+  "chars": 62000000,
+  "il_bytes": 7300000,
+  "errors": 0
+}

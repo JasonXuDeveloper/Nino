@@ -24,7 +24,9 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
                              analyzer, re-generation after edits; --generics adds generic slots and subtypes,
                              --calls top-level calls of Nino and of another serializer, --layouts a layout baseline
-                             of every type (the analyzer's NINO034-NINO037 check), --runs the number of runs
+                             of every type (the analyzer's NINO034-NINO037 check), --runs the number of runs,
+                             --no-analyzers, --json (medians, sizes, machine: report.yml's build section); its restore
+                             downloads v3 3.3.13's generator and runtime (PackageDownload) for --generator/--core
 shards.json                  the classes and the filters of each CI shard: "report" (report.yml, x64 and Arm64) and
                              "ab" (ab-bench.yml)
 compare/                     comparisons of two runs, for development (never published on their own)
@@ -44,23 +46,28 @@ members/                     member-by-member v3 against v4 (run.sh: v3, v4, v3 
 reports/                     what a release publishes: reports of runners into the release body, README and docs
   bdn.py                     the one parser of BenchmarkDotNet github reports, units and FLOOR_NS (1 ns), for every
                              script that reads one (compare/ and members/table.py import it from here); show: the time
-                             format of every release-body table
+                             format of every release-body table; cpu: how tables name the machine
   merge_reports.py           merges the reports of parallel jobs into one report (report.yml)
   compact_report.py          shortens a merged report for a release body (125,000-character limit)
   readme.py                  writes the numbers of README.md / README.zh.md, the chart (docs/assets) and the runtime
-                             tables of docs/v4-benchmarks.md from a joined report
+                             tables of docs/v4-benchmarks.md from a joined report (--v4), and the Build row and build
+                             tables from the release body's build section (--build)
+  generator_report.py        the release body's build section (v3 3.3.13's source generator against the release's)
+                             from Nino.GeneratorBenchmark's --json files, and its parser (readme.py --build)
+  test_generator_report.py   tests of generator_report.py and readme.py --build on fixtures/generator/
   release_body.py            the release body's benchmark sections (Performance Report, v3 comparison, Arm64) for
                              report.yml; the docs site finds them by their headings
   runtimes_report.py         the release body's Go, Rust and TypeScript sections from each benchmark's output
   unity_report.py            the release body's Unity section from the IL2CPP player's results (unity.yml artifacts)
   test_unity_report.py       tests of unity_report.py on fixtures/ (agents.yml runs them)
-  fixtures/                  unity-bench-<version>/ results.xml + build.txt, and unity-bench-empty/, for those tests
+  fixtures/                  unity-bench-<version>/ results.xml + build.txt, and unity-bench-empty/, for those tests;
+                             generator/ v3-<roots>.json and v4-<roots>.json (the old local run's numbers)
 .gitignore                   results/
 ```
 
 ## Rules for these files
 
-- Headings the release body uses (reports/release_body.py, runtimes_report.py, unity_report.py) are read by the docs site
+- Headings the release body uses (reports/release_body.py, runtimes_report.py, unity_report.py, generator_report.py) are read by the docs site
   (Nino.Docs `scripts/sync-benchmarks.ts`): change one only together with its parser there.
 - Program.cs and the Harness files the v3 build lists (`Nino.Benchmark.csproj`, `NinoBenchV3`) compile against Nino
   3.3.13 with only those files: guard what they reach outside them with `#if !NINO_BENCH_V3`, and build

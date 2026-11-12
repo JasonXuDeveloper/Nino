@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""Write the benchmark numbers of README.md / README.zh.md, the README chart and the runtime tables of
-docs/v4-benchmarks.md from BenchmarkDotNet reports.
+"""Write the benchmark numbers of README.md / README.zh.md, the README chart and the runtime and build tables of
+docs/v4-benchmarks.md from BenchmarkDotNet reports and the release body's build section.
 
-usage: python3 benchmarks/reports/readme.py --v4 <joined report-github.md> [--v3 <v3 report-github.md>]... [--tag <tag>]
-                                    [--png-html <file>]
+usage: python3 benchmarks/reports/readme.py [--v4 <joined report-github.md> [--v3 <v3 report-github.md>]...
+                                    [--png-html <file>]] [--build <section.md>] [--tag <tag>]
 
   --v4        the joined report of benchmarks/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
               report.yml produce it
   --v3        a report of the v3 run (Nino 3.3.13, SimpleTest); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.
+  --build     the build-time section of a release body (generator_report.py; the whole body will do): the README's
+              Build row of v4 vs v3 (v3.build) and the build tables of docs/v4-benchmarks.md (doc.build.*)
   --tag       the release the reports belong to (report.yml); without it docs/v4-benchmarks.md names a local run
   --png-html  also write the chart wrapped in an HTML page (and <name>-dark.html for the dark theme), to render
               benchmark.png and benchmark-dark.png from them (report.yml does
               this with headless Chrome: README.md is packed into the NuGet packages, and nuget.org shows no SVG)
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
-carries whole tables between such markers. Everything outside the markers (the build-time numbers among it) is
-written by hand. The headline numbers come from WorkloadTest's workloads: the ranges of how many times faster
+carries whole tables between such markers. Everything outside the markers is written by hand. --v4 and --build fill
+their own markers and leave the others as they are (report.yml runs them in different jobs). The headline numbers come from WorkloadTest's workloads: the ranges of how many times faster
 Nino is than MemoryPack (ser.range, deser.range), MessagePack (msgpack.*), protobuf-net (protobuf.*), Google.Protobuf
 (gprotobuf.*) and System.Text.Json (json.*), and the chart (light and dark), the geometric mean over them of each
 library's time against Nino's. Ratios follow the docs site (nino.docs src/lib/benchmarks.ts): within 5% is "on
@@ -30,7 +32,9 @@ import re
 import sys
 from pathlib import Path
 
+import generator_report
 from bdn import FLOOR_NS, mean_ns, rows
+from bdn import cpu as short_cpu
 
 ROOT = Path(__file__).resolve().parents[2]
 # The headline cases: WorkloadTest's workloads, with their names in the docs table.
@@ -95,9 +99,7 @@ def allocated(row):
 def environment(env):
     """'BenchmarkDotNet 0.15.2, .NET 10.0.13, Intel Xeon 2.10 GHz' from the report header."""
     bdn = next((re.sub(r"^BenchmarkDotNet v?", "", l).split(",")[0] for l in env if l.startswith("BenchmarkDotNet")), "")
-    cpu = env[1].split(",")[0] if len(env) > 1 else ""
-    cpu = re.sub(r"\s*\(R\)|\s*\(TM\)|\s+(?:Processor|CPU)\b|\s+\d+-Core", "", cpu)
-    cpu = re.sub(r"\s*@?\s*([\d.]+)\s*GHz", r" \1 GHz", cpu).strip()
+    cpu = short_cpu(env[1].split(",")[0]) if len(env) > 1 else ""
     runtime = next((m.group(1) for l in env if (m := re.search(r"\[Host\]\s*:\s*(\.NET [\d.]+)", l))), "")
     return bdn, runtime, cpu
 
@@ -297,6 +299,36 @@ def tables(v4, v3, v3_runs, env, tag):
     return out
 
 
+def build(path, tag=None):
+    """The build-time markers from a release body's build section (generator_report.py): the README's Build row of v4
+    vs v3 (from the workload with the most types) and, per workload, docs/v4-benchmarks.md's table and its source."""
+    found = generator_report.parse(Path(path).read_text(encoding="utf-8"))
+    if found is None:
+        sys.exit(f"no build section ({generator_report.HEADING}) in {path}")
+    out = {f"doc.build.{t['roots']}": "\n" + t["table"] + "\n" for t in found["tables"]}
+    source = f"the build section of [{tag}](https://github.com/JasonXuDeveloper/Nino/releases/tag/{tag})" \
+        if tag else "a local run"
+    out["doc.build.source"] = f"{source}: {found['environment']}"
+
+    largest = found["tables"][-1]
+    types = f"{largest['types']:,}"
+    v3_emit, v4_emit, emit = largest["rows"]["emit"]
+    smaller = re.match(r"\*\*([\d.]+)× smaller\*\*$", largest["rows"]["source"][2])
+    faster = re.match(r"\*\*([\d.]+)× faster\*\*$", emit)
+    zh_v3, zh_v4 = (t.replace(" s", " 秒") for t in (v3_emit, v4_emit))
+    if faster:
+        en = [f"generated code compiles **{faster.group(1)}× faster** at {types} types ({v3_emit} → {v4_emit})"]
+        zh = [f"{types} 个类型时生成代码的编译**快 {faster.group(1)} 倍**（{zh_v3} → {zh_v4}）"]
+    else:  # never written as slower
+        en = [f"generated code compiles in {v4_emit} at {types} types (v3: {v3_emit})"]
+        zh = [f"{types} 个类型时生成代码编译用时 {zh_v4}（v3 为 {zh_v3}）"]
+    if smaller:
+        en.append(f"**{smaller.group(1)}× smaller** source")
+        zh.append(f"源码**小 {smaller.group(1)} 倍**")
+    out["v3.build"] = ("; ".join(en), "；".join(zh))
+    return out
+
+
 # The bar colours of the chart's libraries (OTHERS).
 BAR_COLORS = {"MemoryPack": "#e3a03b", "MessagePack": "#2fa88f", "protobuf-net": "#d9645c", "Google.Protobuf": "#4c8bf5",
               "System.Text.Json": "#9a6dd7"}
@@ -371,26 +403,33 @@ def fill(path, values, zh):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--v4", required=True)
+    parser.add_argument("--v4")
     parser.add_argument("--v3", action="append", default=[])
+    parser.add_argument("--build")
     parser.add_argument("--tag")
     parser.add_argument("--png-html")
     args = parser.parse_args()
+    if not args.v4 and not args.build:
+        parser.error("give --v4, --build or both")
 
-    values, chart = numbers(args.v4, args.v3, args.tag)
-    for theme, suffix in (("light", ""), ("dark", "-dark")):
-        image, height = svg(chart, theme)
-        (ROOT / f"docs/assets/benchmark{suffix}.svg").write_text(image, encoding="utf-8")
-        if args.png_html:
-            html = Path(args.png_html)
-            html.with_name(html.stem + suffix + html.suffix).write_text(
-                f'<html><body style="margin:0;background:transparent">{image}</body></html>', encoding="utf-8")
+    values = {}
+    if args.v4:
+        values, chart = numbers(args.v4, args.v3, args.tag)
+        for theme, suffix in (("light", ""), ("dark", "-dark")):
+            image, height = svg(chart, theme)
+            (ROOT / f"docs/assets/benchmark{suffix}.svg").write_text(image, encoding="utf-8")
+            if args.png_html:
+                html = Path(args.png_html)
+                html.with_name(html.stem + suffix + html.suffix).write_text(
+                    f'<html><body style="margin:0;background:transparent">{image}</body></html>', encoding="utf-8")
+        print(f"chart height {height}")
+    if args.build:
+        values.update(build(args.build, args.tag))
     for name, zh in (("README.md", False), ("README.zh.md", True), ("docs/v4-benchmarks.md", False)):
         keys = {k for k in values if k.startswith("doc.") == (name.startswith("docs/"))}
         missing = keys - fill(ROOT / name, {k: values[k] for k in keys}, zh)
         if missing:
             print(f"warning: {name} has no marker for {', '.join(sorted(missing))}", file=sys.stderr)
-    print(f"chart height {height}")
     for key, value in values.items():
         print(f"{key}: {value}")
 

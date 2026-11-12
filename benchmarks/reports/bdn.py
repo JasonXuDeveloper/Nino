@@ -3,7 +3,8 @@ merge_reports.py, compact_report.py, ../compare/ab.py, ../compare/compare_v3.py 
 one unit table and one floor, so the scripts cannot drift apart in how they read a report or which times they call
 too fast to measure.
 `show` is also how runtimes_report.py and unity_report.py print times: every table of the release body writes them
-alike (readme.py keeps the docs site's own format for README and docs)."""
+alike (readme.py keeps the docs site's own format for README and docs); `cpu`, how readme.py and generator_report.py
+name the machine."""
 import re
 
 UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
@@ -61,6 +62,13 @@ def mean_ns(cell):
     if not match or match.group(2) not in UNITS_NS:
         return None
     return float(match.group(1).replace(",", "")) * UNITS_NS[match.group(2)]
+
+
+def cpu(name):
+    """A CPU's model name as README, docs and the build section write it: 'Intel(R) Xeon(R) Processor @ 2.10GHz' ->
+    'Intel Xeon 2.10 GHz', 'AMD EPYC 7763 64-Core Processor' -> 'AMD EPYC 7763'."""
+    name = re.sub(r"\s*\(R\)|\s*\(TM\)|\s+(?:Processor|CPU)\b|\s+\d+-Core", "", name)
+    return re.sub(r"\s*@?\s*([\d.]+)\s*GHz", r" \1 GHz", name).strip()
 
 
 def show(ns):
