@@ -34,7 +34,9 @@ the fallback (the enumerator) out of line.
   Gate it per major version (`Environment.Version.Major`), and add a version only after diffing its
   `ConcurrentStack.cs` against a checked one: field checks prove the layout, not the pop semantics. On .NET 11 the
   gate alone left the snapshot path (`RuntimeTests`: "FAST PATHS MISSING: ConcurrentStackNodes`1.Usable=False", one
-  unit test failing) although `release/11.0`'s file is `release/10.0`'s byte for byte; 11 was added after that diff.
+  unit test failing) although the file is the same byte for byte in `release/8.0` to `release/11.0` (9 had been left
+  out the same way); 8 to 11 are allowed after that diff. Never open the gate to every later version: a version
+  that changes the pop semantics would write wrong elements, not fail a field check.
   Keep the independently obtained node reference in that probe: public enumeration witnesses values and order,
   and the mirror reference slot must be checked before the GC can see it as a reference. On .NET 10 an
   `UnsafeAccessorType` annotation for a private `Node` field rejects the required translated byref return with
