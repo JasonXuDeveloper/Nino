@@ -13,6 +13,9 @@
         <!-- KernelHookTests implements NinoKernels, whose kernels take pointers. -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <TargetFrameworks>net8.0;net10.0;netstandard2.1</TargetFrameworks>
+        <!-- .NET 11 where the SDK can build it (CI's net11 job installs it): Nino.Core's net10.0 build on the .NET 11
+             runtime, which checks that the runtime-internal fast paths (ConcurrentStackNodes) still hold there. -->
+        <TargetFrameworks Condition=" $([MSBuild]::VersionGreaterThanOrEquals('$(NETCoreSdkVersion)', '11.0')) ">$(TargetFrameworks);net11.0</TargetFrameworks>
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
         <ReportAnalyzer>true</ReportAnalyzer>
         <EnableNETAnalyzers>false</EnableNETAnalyzers>

@@ -7,7 +7,8 @@ runtimes outside .NET test themselves (`runtimes/*/AGENTS.md`); the shared corpu
 audits the structure, `audit-security` the fuzzer and the hostile-input tests; the `verify` skill lists the commands.
 
 ```
-Nino.UnitTests/              the main suite (net8.0, net10.0; netstandard2.1 compile-only, as Unity builds it);
+Nino.UnitTests/              the main suite (net8.0, net10.0, and net11.0 with a .NET 11 SDK; netstandard2.1
+                             compile-only, as Unity builds it);
                              its types are marked version tolerant; -p:NinoCoreTfm picks a Nino.Core
                              build; folders below
 Nino.UnitTests.Subset/       netstandard2.1 library of types the main suite needs positional (raw, fixed-size, block
