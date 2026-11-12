@@ -182,3 +182,46 @@ reusing is written down before the task ends, in the same series of commits as t
 - **The owner talks in Chinese**: answer in Chinese; everything committed stays English (docs: English and Chinese).
   Chinese docs (the site, README.zh.md) are written as a Chinese developer would write them, never translated word
   for word (nino.docs `WRITING.md`, Tone: Chinese; `audit-docs`).
+
+## Tracking work (issues, milestones, labels)
+
+Work that outlives the session is tracked on GitHub so a fresh session finds it: open the issue yourself, without
+asking, and give the owner its link.
+
+- **When**: every follow-up not finished now (a measurement still owed, a bug found in passing, a gap between
+  runtimes, a decision for the owner, a user's report), one issue per concern. Search the open issues first and
+  extend a match rather than opening a second (`gh api -X GET search/issues -f q='repo:JasonXuDeveloper/Nino is:issue
+  is:open <words>'`). Several steps toward one goal: a parent issue with sub-issues, or a checklist in one.
+- **Milestone**: the open milestone of the next release, never a name typed from memory: list them
+  (`gh api 'repos/JasonXuDeveloper/Nino/milestones?state=open'`) and take the one whose description covers the
+  work (the owner renames and replaces them; on 2026-11-12 it was `v4.0.0`). An issue has one milestone, so a theme
+  inside a release (.NET 11) is a label, never a second milestone (the owner's choice). Ask only when no open
+  milestone fits.
+- **Type** (issue types, not labels): `Bug` (wrong bytes or behavior, a crash, a regression), `Feature` (a new
+  capability), `Task` (a measurement, decision, cleanup or refactor).
+- **Labels**: one or more `area: <part>` (core, generator, analyzer, codegen, benchmarks, docs, go, rust,
+  typescript, unity, or a theme such as `area: dotnet-11`) and one or more `kind: <work>` (bug, perf, platform,
+  refactor, simd, test). A new label only when none fits, created with a color and a description in the same
+  family (areas: one hue per part, languages in their brand color; kinds: bug red, perf green, simd teal, the rest
+  light). Dependabot's labels (`dependencies`, `.NET`, `github_actions`) stay its own.
+- **Body**: the title is imperative and says what done is ("Measure X on Y", "Fix Z"). The body says what and why
+  with the evidence (commit, run id, per-CPU numbers, stack trace), a checklist of what done means, `Due before
+  rc.N.` when it blocks a release, and ends with the GitHub post footer. A milestone's description says what the
+  release is for, its groups of issues and when it is done; update it when issues move in or out.
+- **Closing**: `Closes #N` in the fixing commit's body, or a comment with the result (runner numbers, the commit)
+  and close with a reason (`completed`, `not_planned`, `duplicate`).
+
+The commands (REST through `gh api`; GraphQL is blocked in cloud sessions; the GitHub MCP `issue_write` takes
+`type`, `milestone` and `labels` too). `R=repos/JasonXuDeveloper/Nino`:
+
+```bash
+gh api $R/issues -f title='...' -f type=Task -F milestone=<number> -f 'labels[]=area: core' -f 'labels[]=kind: perf' -f body="$BODY"
+gh api -X PATCH $R/issues/<n> -f type=Bug -F milestone=<number>                     # retype, move to a milestone
+gh api $R/issues/<n>/labels -f 'labels[]=area: unity'                               # add labels (keeps the others)
+gh api -X PATCH $R/issues/<n> -f state=closed -f state_reason=completed            # close
+gh api $R/labels -f name='area: x' -f color=1f6feb -f description='...'            # new label
+gh api -X PATCH "$R/labels/$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' 'area: x')" -f color=8250df -f description='...'
+gh api $R/milestones -f title='v4.1.0' -f description="$DESC"                       # new milestone
+gh api -X PATCH $R/milestones/<number> -F description=@desc.md                     # edit (title, state, due_on too)
+gh api -X DELETE $R/milestones/<number>                                            # delete (move its issues first)
+```
