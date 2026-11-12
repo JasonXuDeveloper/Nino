@@ -46,6 +46,7 @@
 
     <ItemGroup>
         <PackageReference Include="Scriban"/>
+        <PackageReference Include="System.Collections.Immutable" />
         <PackageReference Include="System.Reflection.MetadataLoadContext"/>
     </ItemGroup>
 
