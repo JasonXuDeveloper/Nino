@@ -14,8 +14,8 @@ using Microsoft.CodeAnalysis.Text;
 // time to compile (emit) it, analyzer time, and re-generation after edits.
 //
 // Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generics] [--calls] [--layouts] [--runs <n>=5]
-//                           [--generator <Nino.Generator.dll>] [--core <Nino.Core.dll>] [--dump <dir>]
-//                           [--no-analyzers] [--json <file>]
+//                           [--warmup <seconds>=60] [--generator <Nino.Generator.dll>] [--core <Nino.Core.dll>]
+//                           [--dump <dir>] [--no-analyzers] [--json <file>]
 // --generics adds generic [NinoType]s per root: a polymorphic generic base with generic subtypes (one through a
 // constructed argument), a type holding itself over a bigger argument and members closing them, which make the
 // analyzer decide what each closed generic writes (WrittenParameters: the definitions and their subtypes).
@@ -26,7 +26,12 @@ using Microsoft.CodeAnalysis.Text;
 // --layouts makes the classes version-tolerant and adds a layout baseline ([assembly: NinoLayouts], NinoLayouts.cs)
 // holding every type's layout as this repository's generator publishes it, so the analyzer checks each type against
 // its section (NINO034-NINO037); without it the check costs one attribute lookup per compilation.
-// --runs sets the number of runs; the last line is the median of the runs after the first (JIT, cold caches).
+// --runs sets the number of measured runs; the last line is their median. Warm-up runs come first and are not
+// measured: at least one, then more until --warmup seconds have passed (0: none, the first run is measured). One
+// warm-up run is not enough for a workload of seconds: the in-process compiler is still being tiered up by the JIT
+// and its heap still growing, so emitting v4's code at 1,100 types took 4.3, 3.4, 3.3, 3.2, 2.8 and 2.1 s in runs 0-5
+// and 1.75-1.85 s from run 6 on (Xeon 2.10 GHz, 4 cores; 1938da63's code: 1.8-2.0 s), and a median
+// of runs 1-2 made it look twice as slow. A run of v3 at that size takes minutes and needs only the first.
 // "analyzers" is the analyzers' own time as Roslyn reports it, "wall" the whole analysis with the binding it needs.
 // --no-analyzers skips the analysis (v3's analyzers bind its generated code: at 330 types as long as emitting it).
 // --json writes the medians, the sizes and the machine to a file (report.yml's generator job turns them into the
@@ -41,6 +46,7 @@ int roots = 30, depth = 8;
 string generatorPath = null, corePath = null, dump = null, json = null;
 bool generics = false, calls = false, layouts = false, noAnalyzers = false;
 int runs = 5;
+double warmupSeconds = 60;
 var positional = new List<string>();
 for (int i = 0; i < args.Length; i++)
 {
@@ -53,6 +59,7 @@ for (int i = 0; i < args.Length; i++)
         case "--calls": calls = true; break;
         case "--layouts": layouts = true; break;
         case "--runs": runs = int.Parse(args[++i]); break;
+        case "--warmup": warmupSeconds = double.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
         case "--no-analyzers": noAnalyzers = true; break;
         case "--json": json = args[++i]; break;
         default: positional.Add(args[i]); break;
@@ -166,14 +173,20 @@ Console.WriteLine($"types: {roots * (depth + 3 + (generics ? 6 : 0))} ({roots} r
 var generateRuns = new List<double>();
 var analyzeRuns = new List<double>();
 var wallRuns = new List<double>();
-// For --json: the runs after the first (the only run when there is one), and the sizes, the same in every run.
+// For --json: the measured runs (after the warm-up), and the sizes, the same in every run.
 var measured = new Dictionary<string, List<double>>
 {
     ["generate_ms"] = new(), ["emit_ms"] = new(), ["member_edit_ms"] = new(), ["comment_edit_ms"] = new(),
 };
 var sizes = new Dictionary<string, long>();
-for (int iteration = 0; iteration < runs; iteration++)
+var warmupClock = Stopwatch.StartNew();
+int warmupRuns = 0;
+for (int iteration = 0; iteration < warmupRuns + runs; iteration++)
 {
+    bool warmup = warmupSeconds > 0 && (iteration == 0 || warmupClock.Elapsed.TotalSeconds < warmupSeconds) &&
+                  iteration == warmupRuns;
+    if (warmup)
+        warmupRuns++;
     GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: parseOptions);
     // A collection before each timed step: else the garbage of the step before it lands in its time (the analyzers
     // took 80 or 330 ms run by run on the same code).
@@ -237,7 +250,7 @@ for (int iteration = 0; iteration < runs; iteration++)
     long commentMs = sw.ElapsedMilliseconds;
     double commentTime = sw.Elapsed.TotalMilliseconds;
 
-    if (iteration != 0 || runs == 1)
+    if (!warmup)
     {
         measured["generate_ms"].Add(generate);
         measured["emit_ms"].Add(emitTime);
@@ -249,20 +262,22 @@ for (int iteration = 0; iteration < runs; iteration++)
     sizes["chars"] = chars;
     sizes["il_bytes"] = il.Length;
     sizes["errors"] = errors;
-    if (iteration != 0)
+    if (!warmup)
     {
         generateRuns.Add(generate);
         analyzeRuns.Add(analyzeMs);
         wallRuns.Add(wallMs);
     }
 
-    Console.WriteLine($"run {iteration}: generate {generate:F1} ms, emit {emitMs} ms, analyzers {analyzeMs:F1} ms " +
+    Console.WriteLine($"run {iteration}{(warmup ? " (warm-up)" : "")}: generate {generate:F1} ms, emit {emitMs} ms, " +
+                      $"analyzers {analyzeMs:F1} ms " +
                       $"({analyzerDiagnostics.Length} diagnostics, wall {wallMs:F0} ms), {lines} lines, {chars} chars, IL {il.Length} bytes, " +
                       $"{errors} errors; member edit {memberMs} ms, comment edit {commentMs} ms");
 }
 
-if (runs > 1)
-    Console.WriteLine($"median of runs 1-{runs - 1}: generate {Median(generateRuns):F2} ms, analyzers {Median(analyzeRuns):F2} ms, " +
+if (runs > 0)
+    Console.WriteLine($"median of runs {warmupRuns}-{warmupRuns + runs - 1}: generate {Median(generateRuns):F2} ms, " +
+                      $"analyzers {Median(analyzeRuns):F2} ms, " +
                       $"analysis wall {Median(wallRuns):F2} ms");
 
 if (json != null)
@@ -273,7 +288,7 @@ if (json != null)
     var report = new Dictionary<string, object>
     {
         ["types"] = roots * (depth + 3 + (generics ? 6 : 0)), ["roots"] = roots, ["depth"] = depth,
-        ["runs"] = runs, ["measured"] = measured["emit_ms"].Count,
+        ["runs"] = warmupRuns + runs, ["warmup"] = warmupRuns, ["measured"] = measured["emit_ms"].Count,
         ["generator"] = generatorName.Version?.ToString(),
         ["cpu"] = CpuName(), ["cores"] = Environment.ProcessorCount,
         ["runtime"] = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,

@@ -16,8 +16,9 @@ leaf and a struct (`N × 11` types). Members are primitives, strings, `List<T>`,
 references to other `[NinoType]`s and private fields. The harness (`benchmarks/Nino.GeneratorBenchmark`, Roslyn
 in process) runs the generator on the compilation, then emits the whole assembly; it also measures re-running the
 generator after an edit. v3's generator and runtime are Nino 3.3.13 from nuget.org, v4's the release's; the two run
-one after the other on one runner, and each time is the median of the runs after the first (the release notes'
-"Build: v3 3.3.13 vs v4" section names how many). Sizes are millions of chars (source) and bytes (IL).
+one after the other on one runner, and each time is the median of the runs after the warm-up runs (at least one,
+and at least 60 s of them; the release notes' "Build: v3 3.3.13 vs v4" section names how many measured). Sizes are
+millions of chars (source) and bytes (IL).
 These tables come from <!--bench:doc.build.source-->a local run on an Intel Xeon 2.10 GHz (4 cores, AVX-512, .NET SDK 10.0.402)<!--/bench-->.
 
 ### 330 types (N = 30)

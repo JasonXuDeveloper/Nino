@@ -98,7 +98,7 @@ def section(tag, v3_runs, v4_runs):
            "`benchmarks/Nino.GeneratorBenchmark` on a synthetic assembly of N abstract root classes, each with a chain "
            f"of {depth} derived classes, a sealed leaf and a struct (N × {depth + 3} types), compiled in process: it "
            "runs the generator, emits the whole assembly, and runs the generator again after adding a member and "
-           "after adding a comment. Each time is the median of the runs after the first (v3: "
+           "after adding a comment. Each time is the median of the runs after warm-up runs (v3: "
            f"{measured([v3 for v3, _ in pairs])}; v4: {measured([v4 for _, v4 in pairs])}); v3 and v4 ran one "
            "after the other on this runner. Sizes are in millions of chars (source) and bytes (IL).", "",
            f"Environment: {environment(pairs[0][1])}", ""]

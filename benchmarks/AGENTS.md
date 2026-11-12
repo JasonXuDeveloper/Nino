@@ -24,7 +24,8 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
                              analyzer, re-generation after edits; --generics adds generic slots and subtypes,
                              --calls top-level calls of Nino and of another serializer, --layouts a layout baseline
-                             of every type (the analyzer's NINO034-NINO037 check), --runs the number of runs,
+                             of every type (the analyzer's NINO034-NINO037 check), --runs the measured runs after
+                             --warmup's (60 s, at least one run),
                              --no-analyzers, --json (medians, sizes, machine: report.yml's build section); its restore
                              downloads v3 3.3.13's generator and runtime (PackageDownload) for --generator/--core
 shards.json                  the classes and the filters of each CI shard: "report" (report.yml, x64 and Arm64) and

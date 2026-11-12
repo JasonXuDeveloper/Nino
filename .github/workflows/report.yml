@@ -739,19 +739,20 @@ jobs:
             echo "V4_CORE=$GITHUB_WORKSPACE/release/src/Nino.Core/bin/Release/net8.0/Nino.Core.dll"
           } >> "$GITHUB_ENV"
 
-      # v3 then v4 at each size, one process each; the median of the runs after the first. Fewer runs for v3 at
-      # 1,100 types (8 minutes each), and no analysis (--no-analyzers): no row of the section reads it, and v3's
-      # analyzers bind its generated code, which doubles its time.
+      # v3 then v4 at each size, one process each; the median of the measured runs, after warm-up runs (the harness's
+      # --warmup: 60 s, at least one run). Fewer runs for v3 at 1,100 types (8 minutes each), and no analysis
+      # (--no-analyzers): no row of the section reads it, and v3's analyzers bind its generated code, which doubles
+      # its time.
       - name: Measure
         run: |
           set -euo pipefail
           OUT="$RUNNER_TEMP/generator"
           mkdir -p "$OUT"
           for roots in 30 100; do
-            v3_runs=4; [[ $roots == 100 ]] && v3_runs=3
+            v3_runs=3; [[ $roots == 100 ]] && v3_runs=2
             dotnet "$HARNESS" "$roots" 8 --runs "$v3_runs" --no-analyzers --json "$OUT/v3-$roots.json" \
               --generator "$V3_GENERATOR" --core "$V3_CORE" < /dev/null
-            dotnet "$HARNESS" "$roots" 8 --runs 6 --no-analyzers --json "$OUT/v4-$roots.json" \
+            dotnet "$HARNESS" "$roots" 8 --runs 5 --no-analyzers --json "$OUT/v4-$roots.json" \
               --generator "$V4_GENERATOR" --core "$V4_CORE" < /dev/null
           done
           python3 workflow/benchmarks/reports/test_generator_report.py
