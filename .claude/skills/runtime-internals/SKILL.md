@@ -31,12 +31,12 @@ the fallback (the enumerator) out of line.
   the mirrors, and retain the public snapshot on other runtimes or with other formatters. The local Arm64
   8,192-element cases went from 98,632 B (`int`) and 393,496 B (`Guid`) to zero warmed allocation. See
   `ConcurrentStackNodes` and the compacting GC regression in `CollectionSerializationTests`.
-  Gate it per major version (`Environment.Version.Major`), and add a version only after diffing its
-  `ConcurrentStack.cs` against a checked one: field checks prove the layout, not the pop semantics. On .NET 11 the
-  gate alone left the snapshot path (`RuntimeTests`: "FAST PATHS MISSING: ConcurrentStackNodes`1.Usable=False", one
-  unit test failing) although the file is the same byte for byte in `release/8.0` to `release/11.0` (9 had been left
-  out the same way); 8 to 11 are allowed after that diff. Never open the gate to every later version: a version
-  that changes the pop semantics would write wrong elements, not fail a field check.
+  Its gate is `Environment.Version.Major >= 8` (the owner's call): field checks prove the layout, not the pop
+  semantics, which were read in the .NET 8 source; `ConcurrentStack.cs` is the same file byte for byte in
+  `release/8.0` to `release/11.0`. A runtime that changes them is caught only by the unit test
+  `ConcurrentStackKeepsTheCapturedChainAcrossPopsAndCompaction` running on it, so a new .NET joins the unit tests'
+  targets when it ships, and its `ConcurrentStack.cs` is diffed against `release/10.0` then. An explicit list of
+  versions (8 or 10) had left .NET 9 and 11 on the allocating snapshot.
   Keep the independently obtained node reference in that probe: public enumeration witnesses values and order,
   and the mirror reference slot must be checked before the GC can see it as a reference. On .NET 10 an
   `UnsafeAccessorType` annotation for a private `Node` field rejects the required translated byref return with
