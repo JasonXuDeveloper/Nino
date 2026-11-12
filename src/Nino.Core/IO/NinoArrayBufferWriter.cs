@@ -156,7 +156,8 @@ namespace Nino.Core
             var old = Buffer;
             int count = Index;
             if (count != 0)
-                old.AsSpan(0, count).CopyTo(newBuffer);
+                NinoUnsafe.CopyToNew(ref NinoUnsafe.GetArrayDataReference(newBuffer),
+                    ref NinoUnsafe.GetArrayDataReference(old), (uint)count);
             Buffer = newBuffer;
             if (old.Length != 0)
                 _pool.Return(old);
