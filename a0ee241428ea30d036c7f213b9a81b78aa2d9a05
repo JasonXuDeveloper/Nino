@@ -1,0 +1,1 @@
+Performance: `BitArray` writes its bits straight into the output: serializing 1,000 bits is 2.0 to 2.2x as fast on x64 and 2.5x on Arm64 Neoverse-N2 (GitHub runners, run 43212065213 against the previous main).
