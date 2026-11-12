@@ -33,6 +33,7 @@
                           NinoPackagePath="analyzers/dotnet/roslyn4.12/cs"/>
     </ItemGroup>
     <ItemGroup>
+        <PackageReference Include="System.Collections.Immutable" VersionOverride="6.0.1" />
         <None Include="$(TargetPath)" Pack="true" PackagePath="analyzers/dotnet/roslyn4.3/cs" Visible="false"/>
         <None Include="build\Nino.Generator.props" Pack="true" PackagePath="build;buildTransitive"/>
     </ItemGroup>
