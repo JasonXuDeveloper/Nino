@@ -206,7 +206,7 @@ v4 rewrote the runtime and the generator; **its binary format is not compatible 
 |---|---|
 | Serialize | <!--bench:v3.ser-->**2.11× faster** (class), **2.49× faster** (class array), **1.37× faster** (struct), on par (struct array)<!--/bench--> |
 | Deserialize | <!--bench:v3.deser-->**1.55× faster** (class), **1.55× faster** (class array), on par (struct), on par (struct array)<!--/bench--> |
-| Build | generated code compiles **221× faster** at 1,100 types (462 s → 2.1 s); **14× smaller** source |
+| Build | <!--bench:v3.build-->generated code compiles **221× faster** at 1,100 types (462 s → 2.1 s); **14× smaller** source<!--/bench--> |
 
 [What's new in v4](https://nino.xgamedev.net/en/docs/v4/whats-new) · [Changelog](https://nino.xgamedev.net/en/docs/v4/changelog) · [Migration guide](https://nino.xgamedev.net/en/docs/v4/migration)
 

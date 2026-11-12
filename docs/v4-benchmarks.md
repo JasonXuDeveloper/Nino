@@ -3,27 +3,29 @@
 Why v4: what it costs to build a project that uses Nino, and how fast serialization runs, compared with
 v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.22.0.
 
-The build-time numbers were measured on one machine, an Intel Xeon 2.10 GHz (4 cores, AVX-512, .NET SDK 10.0.402);
-generated code sizes do not depend on the machine. The runtime tables are those of the newest release: its CI run
-(`report.yml`) benchmarks v4 against MemoryPack, each case's Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest` runners),
-puts the report in the release notes,
-and writes these tables from it (`benchmarks/reports/readme.py`), as it does for the README and the documentation site.
-Absolute times vary between machines; the ratios are what to look at.
+Every table here is the newest release's: its CI run (`report.yml`) benchmarks v4 against MemoryPack, each case's
+Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest` runners), and v3 3.3.13's source generator
+against the release's on one more runner, puts the reports in the release notes, and writes these tables from them
+(`benchmarks/reports/readme.py`), as it does for the README and the documentation site. Generated code sizes do not
+depend on the machine; absolute times vary between machines, and the ratios are what to look at.
 
 ## Build time and generated code
 
 Workload: a synthetic assembly of `N` abstract root classes, each with a chain of 8 derived classes, a sealed
 leaf and a struct (`N × 11` types). Members are primitives, strings, `List<T>`, `Dictionary<int, string>`,
-references to other `[NinoType]`s and private fields. The harness (Roslyn 4.3 in-process) runs the generator
-on the compilation, then emits the whole assembly; it also measures re-running the generator after an edit.
-Times are the median of the last three of five runs (v3 at N = 100: the median of three runs, which took
-7.6 to 7.8 minutes each). v3 and v4 ran on the same machine (Intel Xeon 2.10 GHz, 4 cores), one after the other.
+references to other `[NinoType]`s and private fields. The harness (`benchmarks/Nino.GeneratorBenchmark`, Roslyn
+in process) runs the generator on the compilation, then emits the whole assembly; it also measures re-running the
+generator after an edit. v3's generator and runtime are Nino 3.3.13 from nuget.org, v4's the release's; the two run
+one after the other on one runner, and each time is the median of the runs after the first (the release notes'
+"Build: v3 3.3.13 vs v4" section names how many). Sizes are millions of chars (source) and bytes (IL).
+These tables come from <!--bench:doc.build.source-->a local run on an Intel Xeon 2.10 GHz (4 cores, AVX-512, .NET SDK 10.0.402)<!--/bench-->.
 
 ### 330 types (N = 30)
 
-The generator rows are short (tenths of a second) and move between sessions on this machine, so read them as
-"several times faster" rather than as exact ratios.
+The generator rows are short (tenths of a second) and move between runs, so read them as "several times faster"
+rather than as exact ratios.
 
+<!--bench:doc.build.30-->
 | | v3 (3.3.13) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
 | Generated source | 18.7 MB (363,233 lines) | 1.31 MB (23,215 lines) | **14× smaller** |
@@ -32,9 +34,11 @@ The generator rows are short (tenths of a second) and move between sessions on t
 | Re-generating after editing a member | 1.03 s | 0.12 s | **8.3× faster** |
 | Re-generating after editing a comment | 1.01 s | 0.13 s | **7.8× faster** |
 | IL of the generated code | 2.21 MB | 0.42 MB | **5.3× smaller** |
+<!--/bench-->
 
 ### 1,100 types (N = 100)
 
+<!--bench:doc.build.100-->
 | | v3 (3.3.13) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
 | Generated source | 62.0 MB (1,204,143 lines) | 4.38 MB (77,535 lines) | **14× smaller** |
@@ -43,9 +47,10 @@ The generator rows are short (tenths of a second) and move between sessions on t
 | Re-generating after editing a member | 3.5 s | 0.48 s | **7.4× faster** |
 | Re-generating after editing a comment | 4.0 s | 0.44 s | **9.1× faster** |
 | IL of the generated code | 7.3 MB | 1.50 MB | **4.9× smaller** |
+<!--/bench-->
 
-v3's compile time grows much faster than the number of types (3.3× the types took 11× the compile time); v4 grows
-about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
+v3's compile time grows much faster than the number of types (compare the emit rows: 3.3× the types); v4's grows
+about linearly.
 
 ## Runtime
 
@@ -56,8 +61,8 @@ GC), every benchmark class, v4 and MemoryPack 1.22.0 side by side, with MessageP
 and keeps every serializer's run of a case on one. v3 is Nino 3.3.13 from nuget.org, running a port of
 the same `SimpleTest` (same data, same attributes), each half (serialize, deserialize) on the runner of the same v4 cases
 directly before them; it has no
-polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks. These tables come from
-<!--bench:doc.source-->a local `benchmarks/run.sh` run: BenchmarkDotNet 0.15.8, .NET 10.0.14, Intel Xeon 6973P-C 3.54 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
+polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks.
+These tables come from <!--bench:doc.source-->a local `benchmarks/run.sh` run: BenchmarkDotNet 0.15.8, .NET 10.0.14, Intel Xeon 6973P-C 3.54 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
 
 Differences under 5% are reported as on par: MemoryPack runs in both sessions, and its two times show how much the
 runner moved. A time under 1 ns (about three clock cycles) cannot be told apart from another: reading a 40-byte struct
@@ -359,12 +364,18 @@ dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8      
 # another version: build its Nino.Generator and Nino.Core, then
 dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8 \
     --generator <path>/Nino.Generator.dll --core <path>/Nino.Core.dll
+# v3 3.3.13, as the release run does (the project's restore puts both packages in the NuGet cache)
+dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8 --no-analyzers \
+    --generator ~/.nuget/packages/nino.generator/3.3.13/analyzers/dotnet/cs/Nino.Generator.dll \
+    --core ~/.nuget/packages/nino.serialization/3.3.13/lib/net8.0/Nino.Core.dll
 ```
 
 Arguments are the number of root classes and the depth of each hierarchy; `--dump <dir>` writes the
 generated files; `--layouts` adds a layout baseline of every type (the analyzer then checks each against it);
-`--runs <n>` sets the number of runs (five by default). Each line reports one run, the last the median of the runs
-after the first.
+`--runs <n>` sets the number of runs (five by default); `--no-analyzers` skips the analysis; `--json <file>` writes
+the medians, sizes and machine as JSON (the release run turns them into its build section with
+`benchmarks/reports/generator_report.py`). Each line reports one run, the last the median of the runs after the
+first.
 
 Runtime (`benchmarks/Nino.Benchmark`, BenchmarkDotNet):
 
