@@ -77,28 +77,18 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   an older pending one: a Dependabot pull request's run, whose jobs all skip, cancelled report.yml's waiting Unity
   call for rc.9, so runs that cannot take the license get a group of their own; push nothing that triggers unity.yml
   between a release and its report's Unity jobs starting), and name the branch in the report: the session cannot delete it either (`git push --delete`
-  returned 403). Pin `cliVersion` on every game-ci action that runs the game-ci CLI (unity-builder 6+; the
-  CLI the test steps download, `GAMECI_VERSION` and its `GAMECI_SHA256`, at the same release): its default `latest` asks the GitHub API on every run, and a 403 from the rate
+  returned 403). Pin `cliVersion` on every game-ci action that runs the game-ci CLI (unity-test-runner 4.4+,
+  unity-builder 6+; all to one release): its default `latest` asks the GitHub API on every run, and a 403 from the rate
   limit failed a job. Dependabot bumps the action, never that input: on a game-ci major, read its `action.yml` at the
   new SHA for inputs it ignores (unity-builder 6.0.0's `action.yml` calls `unityVersion` ignored, yet it reaches the
   CLI as `--engineVersion`) and keep the editor chosen by `customImage`; prove it from the job's log
   (`Initialize engine version: 6000.3.27f1` in the 6000.3 WebGL job of 4db6bcc4). Compare the pin with the CLI's newest
-  tag (`git ls-remote --tags https://github.com/game-ci/cli`; v0.1.72 was the newest in round 103). Give every
-  Unity container a 2 GiB `/dev/shm`: unity.yml's test steps run `game-ci test` themselves with
-  `--dockerShmSize=2g` (one script, the YAML anchor `game-ci-test`, with the arguments unity-test-runner 32e57712
-  made from the steps' inputs), and the WebGL build sets `GAME_CI_DOCKER_SHM_SIZE: 2g`. Why: unity-test-runner
-  passes `--dockerShmSize=1025m` with no input (`src/test-args.ts` L102), an explicit flag beats the CLI's
-  `GAME_CI_*` variables, and Unity 6000.6 maps 1 GiB of `/dev/shm` (`Shared memory size: 1073741824` in the editor's
-  log), leaving 1 MB: run 43290338104's 6000.6.9f1 player step had its editor SIGKILLed 1.2 s after launch (exit
-  137) and the rerun 43294335578 passed; the CLI's own message recommends 2g for Unity 6.6+. unity-builder passes no
-  such flag, so the variable reaches the CLI there. Switch the tests back to the action once it has a
-  `dockerShmSize` input (an issue asks game-ci/unity-test-runner for it). Name no variable of your own `GAME_CI_*`:
-  the CLI reads each as an option (yargs `.env("GAME_CI")` under `strict`) and rejects one it does not know.
-  A custom `buildMethod` under unity-builder 6 prints the CLI's build summary (a `# Build results #` banner, `Errors: 0`, then a `Size:` line, as `WebGLBenchBuild` does): the CLI parses the log
+  tag (`git ls-remote --tags https://github.com/game-ci/cli`; v0.1.72 was the newest in round 103). A custom `buildMethod` under unity-builder 6 prints the CLI's build summary
+  (a `# Build results #` banner, `Errors: 0`, then a `Size:` line, as `WebGLBenchBuild` does): the CLI parses the log
   for it and failed the WebGL job of a build Unity reported as succeeded (4.8.2 never looked).
 - **Bound every Unity launch inside its container**, with `ENGINE_LAUNCH_WRAPPER: timeout -k 60 <N>m` in the env
   of each game-ci step (CLI v0.1.72 prefixes every `unity-editor` call of activation, tests and builds with it, read
-  from the step's environment like `UNITY_EMAIL`; the license return is not wrapped), and give each such step a
+  from the action's environment like `UNITY_EMAIL`; the license return is not wrapped), and give each such step a
   `timeout-minutes` above that bound as the backstop. Why: the Unity 2022.3 editor hangs now and then in batch mode
   right after loading the project (its log ends at `Unloading 3 Unused Serialized files`, where a normal launch goes
   on to `Unloading 45 unused Assets` and quits; licensing had connected and resolved, so it waits on nothing
@@ -107,7 +97,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   go on and return the license; a cancelled or timed-out step does not (the script is the container's PID 1 and gets
   no signal it handles). Size bounds from the jobs' step durations (`gh api .../runs/<id>/jobs`, steps'
   `started_at`/`completed_at`) at five to ten times the normal maximum. Run the editor's tests as two steps
-  (`--testPlatforms=playmode`, then `editmode`), never `all` (unity-test-runner's `testMode: all`): `all` adds a third launch, COMBINE_RESULTS (the
+  (`testMode: playmode`, then `editmode`), never `testMode: all`: `all` adds a third launch, COMBINE_RESULTS (the
   editor with `-quit`, for the Code Coverage package to merge results), and the project has no such package, so it
   did nothing ("Coverage results directory does not exist") but give the editor another chance to hang. To see where
   a hung launch stopped, read `<platform>.log` in the job's uploaded `test-results-unity-<version>` artifact: the
