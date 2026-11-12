@@ -1,10 +1,10 @@
 {
-  "classes": ["SimpleTest", "PolymorphicTest", "GenericPolymorphicTest", "PooledTest", "PooledGraphTest", "ReferenceTest", "VersionTolerantTest", "FixedSizeTest", "CommonTypesTest", "CollectionsTest", "BclTypesTest", "ScatteredTest", "UntrustedTest", "WorkloadTest"],
+  "classes": ["SimpleTest", "PolymorphicTest", "GenericPolymorphicTest", "PooledTest", "PooledGraphTest", "ReferenceTest", "VersionTolerantTest", "FixedSizeTest", "CommonTypesTest", "CollectionsTest", "BclTypesTest", "ScatteredTest", "UntrustedTest", "ExternalBufferTest", "WorkloadTest"],
   "report": [
     {"id": "a", "filters": ["*.SimpleTest.NinoSerialize*", "*.SimpleTest.MemoryPackSerialize*", "*.SimpleTest.MessagePackSerialize*", "*.SimpleTest.ProtobufSerialize*", "*.PooledTest.*", "*.ReferenceTest.*", "*.ScatteredTest.*ScatteredItems*"], "v3": ["*SimpleTest.NinoSerialize*", "*SimpleTest.MemoryPackSerialize*"]},
     {"id": "h", "filters": ["*.SimpleTest.NinoDeserialize*", "*.SimpleTest.MemoryPackDeserialize*", "*.SimpleTest.MessagePackDeserialize*", "*.SimpleTest.ProtobufDeserialize*", "*.VersionTolerantTest.*"], "v3": ["*SimpleTest.NinoDeserialize*", "*SimpleTest.MemoryPackDeserialize*"]},
     {"id": "b", "filters": ["*.FixedSizeTest.*", "*.PooledGraphTest.*"]},
-    {"id": "c", "filters": ["*.GenericPolymorphicTest.*", "*.BclTypesTest.*BigInteger", "*.BclTypesTest.*BitArray"]},
+    {"id": "c", "filters": ["*.GenericPolymorphicTest.*", "*.BclTypesTest.*BigInteger", "*.BclTypesTest.*BitArray", "*.ExternalBufferTest.*"]},
     {"id": "d", "filters": ["*.PolymorphicTest.*", "*.ScatteredTest.*ScatteredShapes", "*.ScatteredTest.*InOrderShapes", "*.WorkloadTest.*RpcCall"]},
     {"id": "e", "filters": ["*.CommonTypesTest.*Tree", "*.CommonTypesTest.*Inventory", "*.CommonTypesTest.*Waypoints", "*.CommonTypesTest.*StringDictionary", "*.BclTypesTest.*CultureInfo", "*.BclTypesTest.*TimeZoneInfo", "*.ScatteredTest.*HotShapes", "*.UntrustedTest.*"]},
     {"id": "f", "filters": ["*.BclTypesTest.*ImmutableHashSet", "*.BclTypesTest.*ImmutableSortedSet", "*.BclTypesTest.*ImmutableQueue", "*.BclTypesTest.*ImmutableStack", "*.BclTypesTest.*ImmutableDictionary", "*.BclTypesTest.*BlockingCollection"]},
@@ -20,7 +20,7 @@
     {"id": "a", "filters": ["*.SimpleTest.Nino*", "*.SimpleTest.MemoryPack*", "*.PooledTest.Nino*", "*.PooledTest.MemoryPack*"]},
     {"id": "b", "filters": ["*.CommonTypesTest.Nino*", "*.CommonTypesTest.MemoryPack*", "*.FixedSizeTest.Nino*", "*.FixedSizeTest.MemoryPack*", "*.GenericPolymorphicTest.Nino*", "*.GenericPolymorphicTest.MemoryPack*"]},
     {"id": "c", "filters": ["*.PolymorphicTest.Nino*", "*.PolymorphicTest.MemoryPack*", "*.BclTypesTest.NinoSerialize*", "*.BclTypesTest.MemoryPackSerialize*"]},
-    {"id": "d", "filters": ["*.VersionTolerantTest.Nino*", "*.VersionTolerantTest.MemoryPack*", "*.ReferenceTest.Nino*", "*.ReferenceTest.MemoryPack*", "*.BclTypesTest.NinoDeserialize*", "*.BclTypesTest.MemoryPackDeserialize*"]},
+    {"id": "d", "filters": ["*.VersionTolerantTest.Nino*", "*.VersionTolerantTest.MemoryPack*", "*.ReferenceTest.Nino*", "*.ReferenceTest.MemoryPack*", "*.BclTypesTest.NinoDeserialize*", "*.BclTypesTest.MemoryPackDeserialize*", "*.ExternalBufferTest.Nino*", "*.ExternalBufferTest.MemoryPack*"]},
     {"id": "e", "filters": ["*.CollectionsTest.Nino*", "*.CollectionsTest.MemoryPack*", "*.PooledGraphTest.Nino*", "*.PooledGraphTest.MemoryPack*", "*.ScatteredTest.Nino*", "*.ScatteredTest.MemoryPack*", "*.UntrustedTest.Nino*", "*.UntrustedTest.MemoryPack*"]},
     {"id": "f", "filters": ["*.WorkloadTest.Nino*", "*.WorkloadTest.MemoryPack*"]}
   ]
