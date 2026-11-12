@@ -126,6 +126,13 @@ what you learn"), and its one-line rule here.
   `NinoFormatterCache<T>.TryRegister<F>()` plus `NinoPolymorphic.Register<T, F>(id)`: the registry 38% smaller in the
   unit tests, 32% in the benchmarks (2.3% / 2.0% of all output), its IL 22% smaller, and registration faster once the
   Nino.Core side calls nothing generic over the formatter (`optimize`, references/jit.md, Startup).
+  Attribute strings cost emit time like code: the `[assembly: NinoTypeLayout]` strings (bd6a732b, f76fa0e0; each
+  subtype repeats every inherited member, so a chain grows them quadratically) are 410 KB of GeneratorBenchmark's
+  1.53 MB at 330 types and nearly half its PE (801 KB against 410 KB without them), and were most of its emit going
+  from 0.42-0.44 s (1938da63) to 0.47-0.48 s (#262; local, serial emit of the dumped output, interleaved: 608 ms
+  for 1938da63's text, 619 ms for main's without the layouts, 670 ms with them, 625 ms with each subtype's string cut
+  to its own members). Shortening the published layout text is the owner's call (it is what the analyzer and
+  nino-gen read); measure any new per-type attribute the same way.
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
   (duplicated logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is

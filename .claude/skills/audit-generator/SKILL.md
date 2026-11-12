@@ -188,8 +188,15 @@ review of codex/nino-audit). `--generics` adds generic slots, subtypes and close
 every type, so the analyzer checks each against its section (NINO034-NINO037); pass `--generator <base
 Nino.Generator.dll>` for the base side, and `--runs <n>` for a median of runs after the warm-up (`--warmup`; why: `benchmark`, the generator benchmark's
 warm-up). On runners: runtime-ab's
-`generator` lines (`benchmark`). Collect garbage before each timed step (the tool does): without it the analyzers'
-time of the same code read 80 or 330 ms run by run, the previous step's garbage collected inside it. The analyzers'
+`generator` lines (`benchmark`). Collect garbage before each timed step, the edits included (the tool does): without
+it the analyzers' time of the same code read 80 or 330 ms run by run, the previous step's garbage collected inside
+it, and the edits after emit and the analysis read as a 2x regression that was not one (#262: at 1,100 types main's
+member edit took 0.28-0.34 s and its comment edit 0.56-0.67 s, 1938da63's either 0.29-0.72 s; collected first, both
+sides 0.22-0.34 s, main on par or faster). Before blaming a stage for a slower edit, track the steps
+(`AddingAMemberReEmitsOnlyTheTypesThatHoldIt` is the member edit's assertion): there every collected stage stayed
+Cached, six formatter files of 1,103 were emitted, and the models' rebuild (one file holds all 1,100 types, so every
+model reruns at both commits) was no slower. Track with a Roslyn newer than 4.3 on large inputs: 4.3's
+`RecordStepTree` took over ten minutes recording one edit at 1,100 types. The analyzers'
 own time (Roslyn's telemetry) also holds the binding an analyzer is the first to ask for; the analysis wall time
 holds all of it: read both (`audit-analyzer`, the layout baseline).
 On a real project: `ReportAnalyzer` (set in tests/Nino.UnitTests) prints the generator's and the analyzer's time per
