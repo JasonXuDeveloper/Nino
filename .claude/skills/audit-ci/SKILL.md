@@ -101,7 +101,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   editor with `-quit`, for the Code Coverage package to merge results), and the project has no such package, so it
   did nothing ("Coverage results directory does not exist") but give the editor another chance to hang. To see where
   a hung launch stopped, read `<platform>.log` in the job's uploaded `test-results-unity-<version>` artifact: the
-  job's own log prints the editor's log only after the editor exits.
+  job's own log prints the editor's log only after the editor exits. A bare `Killed` before that log and
+  `Unexpected exit code 137` mean the editor alone got SIGKILL (xvfb-run's dash prints the bare word; the timeout
+  sends SIGTERM to the whole group first, and test.sh's bash would print `line N: PID Killed`), so the wrapper is not
+  the cause: read unity.yml's `Show the kernel's kills` step (the host's `dmesg`, since the container is gone) to tell
+  an OOM kill from another process's (run 43290338104, the 6000.6.9f1 player step's editor 1.3 s after launch).
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
   `unity.yml` called with `tag`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
