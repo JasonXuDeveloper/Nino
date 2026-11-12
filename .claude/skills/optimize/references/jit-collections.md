@@ -59,11 +59,14 @@ Rules in short:
   grew from 205 to 209 IL bytes; the integer caller fell from 3,024 to 3,004 bytes on Arm64 FullOpts and from 2,535 to
   2,445 bytes on x64 cross-JIT; the `DateTimeOffset` caller grew on Arm64 (2,236 to 2,284) and shrank on x64 (1,969 to
   1,934). The wire and 577 generated files matched. Arm64 only; x64 unmeasured.
-- Read a `BlockingCollection<T>` into an exact array and hand it to `new ConcurrentQueue<T>(items)`; never a rented
-  array wrapped in an `ArraySegment<T>`. Why: the queue's constructor enumerates its argument through
-  `IEnumerable<T>`, and a segment's enumerator is a boxed struct; the formatter's inlined read grew from 932 to 2,291
-  bytes and from 3 to 65 stack accesses. Evidence: 89738283 was 0.93x of main on x64 in two runner A/B runs
-  (43041103376, 43151569585; floor 0.98) and on par on Neoverse-N2; restoring main's read gave main's code (909 bytes).
+- Build a `BlockingCollection<T>`'s (and a `ConcurrentQueue<T>`'s) queue from a rented array through
+  `BclCollections.Run`, a sealed `ICollection<T>` that is its own enumerator, out of line with the reader by value;
+  never through an `ArraySegment<T>` of it, nor inlined into the formatter. Why: the queue's constructor enumerates its
+  argument through `IEnumerable<T>`, and a segment's enumerator is a boxed struct that checks its range per item;
+  inlined, the try/finally and the constructor grew every caller. Evidence: 89738283 (segment, inlined) grew the read
+  from 932 to 2,291 bytes and 3 to 65 stack accesses and was 0.93x of main on x64 in runs 43041103376 and
+  43151569585 (floor 0.98), on par on Neoverse-N2; the run form compiles the caller to 284 bytes and allocated
+  8,768 bytes per 1,000 ints where an exact array allocated 12,792 (local, on par in time).
 - Keep the portable stack's reverse-then-write path, and keep any reverse-walk dispatch out of the hot `Serialize`
   entry. Why: walking the rented snapshot backwards for variable-size reference elements saved about a fifth of the
   time for 512 and 2,048 strings in the forced fallback, but grew the raw Tier 0 helper from 356 to 408 Arm64 bytes,
