@@ -205,35 +205,17 @@ internal static class DispatchEmitter
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
     private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services)
     {
-        // value.GetType() == typeof(X) compiles to one method table compare. WriteExactShallow is inlined where the
-        // caller's inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A
-        // non-generic method per subtype, as on read, was measured: it writes 4.5% fewer instructions for an array of
-        // 20 subtypes, but more where the bodies would have been inlined, and one more method per subtype costs about
-        // 2.5% more compile time on a workload of hierarchies; outlining only the subtypes whose bodies nest (a70aab2c)
-        // cost Neoverse-N2 a call per element (GenericSealedClassTupleBase serialize 0.84x). The depth is checked once
-        // here instead: each subtype keeps its write inline without the deep path (a writer copy, or a deferral, per
-        // subtype), and a body too deep goes out of line with the writer by value, so its address reaches no call.
+        // value.GetType() == typeof(X) compiles to one method table compare. WriteExact is inlined where the caller's
+        // inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A non-generic
+        // method per subtype, as on read, was measured: it writes 4.5% fewer instructions for an array of 20
+        // subtypes, but more where the bodies would have been inlined, and one more method per subtype costs about
+        // 2.5% more compile time on a workload of hierarchies.
         if (subtypes is { Count: > 0 and <= MaxWriteChain })
         {
             w.Open(WriteSubtype(t));
-            w.Line($"if ({services}NinoObject.IsDeep(ref writer))");
-            w.Open();
-            w.Line("writer = __WriteSubtypeDeep(value, writer);");
-            w.Line("return;");
-            w.Close();
-            w.Line();
             foreach (var s in subtypes)
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRawShallow" : "WriteExactShallow")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
+                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
             w.Line(WriteOther(t, services) + ";");
-            w.Close();
-
-            w.Line();
-            w.Line($"{GeneratedCode.NoInline} static {Core}Writer __WriteSubtypeDeep({t} value, {Core}Writer writer)");
-            w.Open();
-            foreach (var s in subtypes)
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRaw" : "WriteExact")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return writer; }""");
-            w.Line(WriteOther(t, services) + ";");
-            w.Line("return writer;");
             w.Close();
         }
         else

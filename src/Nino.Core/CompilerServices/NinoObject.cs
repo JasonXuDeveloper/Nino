@@ -12,15 +12,6 @@ namespace Nino.Core.CompilerServices
     public static class NinoObject
     {
         /// <summary>
-        /// Generated subtype dispatch: whether a body opened now is too deep to write in place
-        /// (<see cref="NinoDepth.Inline"/> bodies are open). The dispatch checks it once, then writes its subtypes
-        /// with <see cref="WriteExactShallow{TSub,TFormatter}"/>, and the deep case out of line with
-        /// <see cref="WriteExact{TSub,TFormatter}"/>.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool IsDeep(ref Writer writer) => writer.Depth >= NinoDepth.Inline;
-
-        /// <summary>
         /// Generated subtype dispatch: writes the type id and the body of a value whose runtime type the caller
         /// checked to be exactly <typeparamref name="TSub"/>.
         /// </summary>
@@ -29,37 +20,23 @@ namespace Nino.Core.CompilerServices
             where TSub : class
             where TFormatter : struct, INinoBodyFormatter<TSub>
         {
-            if (writer.Depth >= NinoDepth.Inline)
-            {
-                writer.UnsafeWrite(default(TFormatter).TypeId);
-                WriteDeep<TSub, TFormatter>(Unsafe.As<TSub>(value), ref writer);
-                return;
-            }
-
-            WriteExactShallow<TSub, TFormatter>(value, ref writer);
-        }
-
-        /// <summary>
-        /// <see cref="WriteExact{TSub,TFormatter}"/> where the caller checked that the body is not too deep
-        /// (<see cref="IsDeep"/> is false): the type id and the body, without the deep path, which a dispatch of many
-        /// subtypes would otherwise hold once per subtype.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteExactShallow<TSub, TFormatter>(object value, ref Writer writer)
-            where TSub : class
-            where TFormatter : struct, INinoBodyFormatter<TSub>
-        {
             writer.UnsafeWrite(default(TFormatter).TypeId);
             // WriteBody spelled out: where this is not inlined it is shared code, and an inlined WriteBody (a
             // generic method) would look up its generic context on every call, though only its deep path needs it.
             var sub = Unsafe.As<TSub>(value);
+            int depth = writer.Depth;
+            if (depth >= NinoDepth.Inline)
+            {
+                WriteDeep<TSub, TFormatter>(sub, ref writer);
+                return;
+            }
+
             if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
             {
                 default(TFormatter).WriteBody(sub, ref writer);
                 return;
             }
 
-            int depth = writer.Depth;
             writer.Depth = depth + 1;
             default(TFormatter).WriteBody(sub, ref writer);
             writer.ExitBody(depth);
@@ -86,22 +63,6 @@ namespace Nino.Core.CompilerServices
             }
 
             WriteRawWithId<TSub, TFormatter>(sub, ref writer);
-        }
-
-        /// <summary>
-        /// <see cref="WriteExactRaw{TSub,TFormatter}"/> where the caller checked that the body is not too deep
-        /// (<see cref="IsDeep"/> is false): the type id and the body in one reservation.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteExactRawShallow<TSub, TFormatter>(object value, ref Writer writer)
-            where TSub : class
-            where TFormatter : struct, INinoRawBodyFormatter<TSub>
-        {
-            // WriteRawWithId's body written out, not called, as in WriteExactRaw: one more level of inlining per
-            // subtype used up the inlining budget of PolymorphicTest's dispatch of 20 subtypes (asm.py).
-            ref byte block = ref writer.Reserve(sizeof(int) + default(TFormatter).BodySize);
-            NinoUnsafe.Write(ref block, default(TFormatter).TypeId);
-            default(TFormatter).WriteRawBody(Unsafe.As<TSub>(value), ref block, sizeof(int));
         }
 
         /// <summary>
