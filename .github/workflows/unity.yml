@@ -68,8 +68,6 @@ concurrency:
 
 permissions:
   contents: read
-  # unity-test-runner posts its results as a check run, even without githubToken.
-  checks: write
 
 # Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
 defaults:
@@ -111,6 +109,7 @@ jobs:
     env:
       # The image with the Linux IL2CPP module, which the player step below needs: one image for both steps.
       UNITY_IMAGE: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
+      UNITY_VERSION: ${{ matrix.unity }}
       # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
       NINO_CONFIG: ${{ inputs.benchmark && 'Release' || 'Debug' }}
 
@@ -206,26 +205,57 @@ jobs:
             echo "::warning::pulling $UNITY_IMAGE failed; the test step pulls it again"
           fi
 
+      # The test steps below run the game-ci CLI themselves instead of game-ci/unity-test-runner, which only downloads
+      # that CLI and runs `game-ci test` with arguments made from its inputs: it passes --dockerShmSize=1025m with no
+      # input to change it (https://github.com/game-ci/unity-test-runner/blob/32e57712352b500e17974b245a6dce9e11a73213/src/test-args.ts#L102),
+      # and an explicit flag beats the CLI's GAME_CI_DOCKER_SHM_SIZE. Unity 6000.6 maps 1 GiB of /dev/shm ("Shared
+      # memory size: 1073741824" in the editor's log), which leaves 1 MB of a 1025 MB /dev/shm; the 6000.6.9f1 player
+      # step's editor was SIGKILLed 1.2 s after launch in run 43290338104 and passed on the rerun 43294335578, and the
+      # CLI's own message for a short /dev/shm recommends 2g for Unity 6.6+. Switch back to the action (v4.4.0's
+      # inputs, as the steps had them) once it has a dockerShmSize input.
+      # The release archive, as the action downloads it (the binary and its dist/, which it mounts into the
+      # container), pinned by SHA-256. Not cached: the 40 MB come from GitHub's release storage in about a second.
+      # The variables are not named GAME_CI_*: the CLI reads every GAME_CI_ variable as an option and rejects
+      # those it does not know.
+      - name: Install the game-ci CLI
+        env:
+          GAMECI_VERSION: v0.1.72
+          GAMECI_SHA256: 1de550a620ee92e05e920b6db7d431621440b60b2577f04b4a997dc92a58cb0a
+        run: |
+          archive="$RUNNER_TEMP/game-ci-linux-x64.tar.gz"
+          curl -sSfL --retry 3 -o "$archive" \
+            "https://github.com/game-ci/cli/releases/download/$GAMECI_VERSION/game-ci-linux-x64.tar.gz"
+          echo "$GAMECI_SHA256  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/game-ci"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/game-ci"
+          echo "GAMECI_CLI=$RUNNER_TEMP/game-ci/game-ci" >> "$GITHUB_ENV"
+
       # Unity can hang in batch mode: the 2022.3 editor stopped twice after loading the project, its log ending at
       # "Unloading 3 Unused Serialized files" where a normal launch goes on to "Unloading 45 unused Assets" and quits
       # (runs 41082628657 and 41172149972, each a later launch in its container, licensing already done), and the job
       # held the license seat until its 100-minute timeout. So every Unity launch is bounded inside the container:
       # game-ci CLI v0.1.72 prefixes each `unity-editor` call (activation, tests, builds; not the license return) with
-      # ENGINE_LAUNCH_WRAPPER, read from the action's environment. `timeout` kills the editor's process group (SIGKILL a
+      # ENGINE_LAUNCH_WRAPPER, read from the step's environment. `timeout` kills the editor's process group (SIGKILL a
       # minute after SIGTERM), the step fails, and the container's script still returns the license. The step's own
       # timeout-minutes is only the backstop: a cancelled step never returns the seat (the script in the container
       # runs as PID 1 and gets no signal it handles), and the next step would start Unity beside the hung one. Bounds
       # are some five to ten times the normal durations (run 41169746541 and the nine runs before it: both editor test
       # launches together at most 2.7 minutes, a player step 3.5, a WebGL build 8.5).
       #
-      # Edit mode and play mode tests in the editor (Mono, Burst's JIT), one step each: `testMode: all` adds a third
-      # launch (COMBINE_RESULTS: the editor opened with -quit, for the Code Coverage package to merge its results),
+      # Edit mode and play mode tests in the editor (Mono, Burst's JIT), one step each: `testMode: all` (the action's
+      # input; --testPlatforms=playmode;editmode;COMBINE_RESULTS) adds a third launch (COMBINE_RESULTS: the editor opened with -quit, for the Code Coverage package to merge its results),
       # and the project has no such package, so that launch did nothing ("Coverage results directory does not exist")
       # but take another 10 seconds and another chance to hang. The edit mode step runs after a failure of the play
       # mode one too, so one run shows both.
+      #
+      # Each step runs the same script (the YAML anchor game-ci-test): the arguments unity-test-runner made from the
+      # inputs these steps gave it and its defaults (as its log printed them), with --dockerShmSize=2g. The CLI reads
+      # UNITY_EMAIL, UNITY_PASSWORD, UNITY_SERIAL and ENGINE_LAUNCH_WRAPPER from the step's environment and exits with
+      # 2 when a test failed, 1 or more when the run broke: either fails the step. No check run is posted (the action
+      # posted one through the workflow's token, and a timeout of that API call once failed a run whose tests had all
+      # passed): the results are uploaded below.
       - name: Run the editor's play mode tests
         if: env.BENCHMARK != 'true'
-        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: playmode-tests
         timeout-minutes: 25
         env:
@@ -233,20 +263,26 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
-        with:
-          projectPath: ./src/Nino.Unity
-          testMode: playmode
-          artifactsPath: artifacts/editor
-          customImage: ${{ env.UNITY_IMAGE }}
-          # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
-          # whose tests had all passed. The results are uploaded below, and a failed test still fails this step.
-          unityVersion: ${{ matrix.unity }}
-          # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
-          cliVersion: 'v0.1.72'
+          TEST_MODE: playmode
+          ARTIFACTS: artifacts/editor
+          CUSTOM_PARAMETERS: ''
+        run: &game-ci-test |
+          args=(test --docker --dockerShmSize=2g --engine=unity ./src/Nino.Unity "--testPlatforms=$TEST_MODE"
+            "--engineVersion=$UNITY_VERSION" "--customImage=$UNITY_IMAGE")
+          if [[ -n $CUSTOM_PARAMETERS ]]; then args+=("--customParameters=$CUSTOM_PARAMETERS"); fi
+          args+=('--coverageOptions=generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;dontClear'
+            "--artifactsPath=$ARTIFACTS" --dockerIsolationMode=default --containerRegistryRepository=unityci/editor
+            --containerRegistryImageVersion=3)
+          echo "game-ci ${args[*]}"
+          code=0
+          "$GAMECI_CLI" "${args[@]}" || code=$?
+          if (( code != 0 )); then
+            echo "::error::game-ci test exited with code $code (2: a test failed; other codes: the run itself failed)"
+            exit "$code"
+          fi
 
       - name: Run the editor's edit mode tests
         if: env.BENCHMARK != 'true' && (success() || steps.playmode-tests.conclusion == 'failure')
-        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: editmode-tests
         timeout-minutes: 25
         env:
@@ -254,13 +290,10 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
-        with:
-          projectPath: ./src/Nino.Unity
-          testMode: editmode
-          artifactsPath: artifacts/editor
-          customImage: ${{ env.UNITY_IMAGE }}
-          unityVersion: ${{ matrix.unity }}
-          cliVersion: 'v0.1.72'
+          TEST_MODE: editmode
+          ARTIFACTS: artifacts/editor
+          CUSTOM_PARAMETERS: ''
+        run: *game-ci-test
 
       # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
       # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
@@ -269,11 +302,10 @@ jobs:
       # xvfb-run), bounded only by the step's timeout.
       # With the benchmark, -ninoBenchmark builds the player without the Development flag and with the benchmark in it
       # (Test.Editor.Burst.BenchmarkPlayerBuild). Code coverage stays on: it instruments only the editor's code, but
-      # game-ci CLI v0.1.72 rejects the --no-coverageEnabled that coverageEnabled: false passes to it.
+      # game-ci CLI v0.1.72 rejects --no-coverageEnabled (what the action's coverageEnabled: false passed to it).
       - name: Run the IL2CPP player's tests
         if: >-
           success() || steps.playmode-tests.conclusion == 'failure' || steps.editmode-tests.conclusion == 'failure'
-        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: player-tests
         # The benchmark's run adds a few minutes of timing to the player.
         timeout-minutes: 35
@@ -282,21 +314,17 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 20m
-        with:
-          projectPath: ./src/Nino.Unity
-          testMode: standalone
-          artifactsPath: artifacts/player
-          customImage: ${{ env.UNITY_IMAGE }}
-          customParameters: ${{ env.BENCHMARK == 'true' && '-ninoBenchmark' || '' }}
-          unityVersion: ${{ matrix.unity }}
-          # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
-          cliVersion: 'v0.1.72'
+          TEST_MODE: standalone
+          ARTIFACTS: artifacts/player
+          CUSTOM_PARAMETERS: ${{ env.BENCHMARK == 'true' && '-ninoBenchmark' || '' }}
+        run: *game-ci-test
 
       # Who killed a Unity process. A SIGKILL leaves only "Killed" (xvfb-run's dash, for the editor alone) and exit
       # code 137 in the step's log, the editor's log ends wherever it was, and the container is gone (--rm): only the
       # host's kernel log tells an OOM kill (the container's cgroup: game-ci passes --memory at 95% of the RAM, and
-      # Unity 6000.6's Data Store maps 1 GiB of the container's 1025 MB /dev/shm) from a kill by another process
-      # (run 43290338104: the 6000.6.9f1 player step's editor, 1.3 s after launch, in its first domain reload).
+      # Unity 6000.6's Data Store maps 1 GiB of the container's /dev/shm, 2 GiB since the steps above set it) from a
+      # kill by another process (run 43290338104: the 6000.6.9f1 player step's editor, 1.3 s after launch, in its
+      # first domain reload).
       - name: Show the kernel's kills
         if: failure()
         continue-on-error: true
@@ -318,8 +346,6 @@ jobs:
       - name: Collect the benchmark results
         id: bench
         if: always() && env.BENCHMARK == 'true' && steps.player-tests.conclusion != 'skipped'
-        env:
-          UNITY_VERSION: ${{ matrix.unity }}
         run: |
           set -euo pipefail
           OUT="bench/unity-bench-$UNITY_VERSION"
@@ -403,7 +429,9 @@ jobs:
           sed -i "s|^  additionalIl2CppArgs:.*|  additionalIl2CppArgs: $ARGS|" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
           grep -q "additionalIl2CppArgs: $ARGS" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
 
-      # Each Unity launch bounded, as in unity-tests (ENGINE_LAUNCH_WRAPPER there).
+      # Each Unity launch bounded, as in unity-tests (ENGINE_LAUNCH_WRAPPER there). /dev/shm at 2 GiB too, as the test
+      # steps set it: unity-builder passes no --dockerShmSize, so the CLI takes GAME_CI_DOCKER_SHM_SIZE (every option
+      # is also a GAME_CI_ variable; an explicit flag would win over it) instead of its 1025m default.
       - name: Build the WebGL player
         uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
         timeout-minutes: 40
@@ -412,6 +440,7 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 25m
+          GAME_CI_DOCKER_SHM_SIZE: 2g
         with:
           projectPath: ./src/Nino.Unity
           targetPlatform: WebGL
