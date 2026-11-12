@@ -1,10 +1,14 @@
 name: Set up .NET
 description: >-
-  The .NET 10 SDK (and the .NET 8 one where asked): the runner's own, else through actions/setup-dotnet; and
+  The .NET 10 SDK (and the .NET 8 or 11 one where asked): the runner's own, else through actions/setup-dotnet; and
   where asked the NuGet package cache of one job (~/.nuget/packages).
 inputs:
   net8:
     description: Also install the .NET 8 SDK, for net8.0 builds and tests.
+    default: 'false'
+  net11:
+    description: >-
+      Also install the .NET 11 SDK, for net11.0 tests (global.json rolls forward to it: the job then builds with it).
     default: 'false'
   cache:
     # One cache per job, not one per OS: setup-dotnet's own cache (one key per OS and project files) was saved by
@@ -29,6 +33,7 @@ runs:
         echo "$sdks"
         grep -qE '^(1[0-9]|[2-9][0-9])\.' <<< "$sdks" && echo net10=true >> "$GITHUB_OUTPUT" || echo net10=false >> "$GITHUB_OUTPUT"
         grep -qE '^8\.' <<< "$sdks" && echo net8=true >> "$GITHUB_OUTPUT" || echo net8=false >> "$GITHUB_OUTPUT"
+        grep -qE '^11\.' <<< "$sdks" && echo net11=true >> "$GITHUB_OUTPUT" || echo net11=false >> "$GITHUB_OUTPUT"
 
     - if: steps.have.outputs.net10 != 'true' && (inputs.net8 != 'true' || steps.have.outputs.net8 == 'true')
       uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
@@ -41,6 +46,11 @@ runs:
         dotnet-version: |
           10.0.x
           8.0.x
+
+    - if: inputs.net11 == 'true' && steps.have.outputs.net11 != 'true'
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      with:
+        dotnet-version: 11.0.x
 
     - if: inputs.cache != '' && inputs.cache != 'false'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

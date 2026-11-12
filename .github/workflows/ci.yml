@@ -85,6 +85,12 @@ jobs:
             framework: net10.0
             coverage: true
             vector512: true
+          # The .NET 11 runtime (Nino.Core's net10.0 build): its runtime-internal fast paths (ConcurrentStackNodes)
+          # are proven by tests that run on it, so each new .NET joins here when it ships.
+          - id: net11
+            name: net11.0
+            framework: net11.0
+            net11: true
           # What Unity and older compilers run: Nino.Core netstandard2.1, regular calls instead of interceptors.
           - id: ns21
             name: netstandard2.1 without interceptors
@@ -163,6 +169,7 @@ jobs:
         uses: ./.github/actions/setup-dotnet
         with:
           net8: true
+          net11: ${{ matrix.config.net11 || false }}
           cache: ${{ runner.os == 'Windows' && 'unit-tests' || '' }}
 
       # The build, and a copy of its output per shard next to it (tests find the repository by walking up from it).
