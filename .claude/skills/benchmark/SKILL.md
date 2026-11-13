@@ -325,8 +325,14 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   the port, so older tags still get their v3 section. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
   and the site's `src/lib/benchmarks.ts` and sync in the same series. Prose and markers that name the workloads land
   together with `readme.py`; until a release's report measured them, their markers read "—".
-- Within 5 % is on par and is written so; under the 1 ns floor (`bdn.py`, `FLOOR_NS`) a time is "too fast to
-  measure"; the docs never call Nino slower; v3 means 3.3.13.
+- Within 5 % is on par and is written so; under the 1 ns floor (`bdn.py`, `FLOOR_NS`) a time is "< 1 ns"; Nino v4
+  under it against a measurable time is a lower bound, that time / 1 ns ("> 77×" in a chart, `charts.multiple`;
+  "> 1.40× faster" in a table or the v3 sentence, `bdn.lower_bound`; the docs site the same), never a ratio, which
+  would only reflect noise; both under it are on par; a range (`ser.range`, the v3 median) leaves such a case out,
+  its ends being measured ratios; A/B comparisons (`ab.py`) keep "-". Lower-bound nothing else. Why: the owner
+  asked for a multiple where the charts showed MemoryPack 1.40 ns, MessagePack 77.2 ns and protobuf-net 231 ns
+  beside Nino's "< 1 ns" with none ("这种怎么没写倍数？", rc.10), and "> N×" is true since Nino took less than 1 ns.
+  The docs never call Nino slower; v3 means 3.3.13.
 - Publish an Allocated cell only when the row's GC counts agree with it: BenchmarkDotNet printed "-" (nothing
   allocated) beside a nonzero Gen0 for 31 of 445 rows of v4.0.0-rc.9's x64 report and 6 of its Arm64 one, different
   rows on each (`ProtobufDeserializeNew` allocates 3,544 B per call measured again), and the site showed them as 0 B.
