@@ -1,0 +1,1 @@
+Added: Each release signs the Unity package with Unity's package signing and OpenUPM publishes the signed file, so Unity 6.3 and later shows Nino as signed (#266).
