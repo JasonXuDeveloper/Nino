@@ -454,7 +454,8 @@ jobs:
         run: |
           set -euo pipefail
           LATEST=$(gh release list --limit 50 --json tagName,publishedAt \
-            --jq '[.[] | select(.tagName | startswith("v4."))] | sort_by(.publishedAt) | last | .tagName')
+            --jq '[.[] | select((.tagName | startswith("v4.")) and (.tagName | contains("-preview.") | not))] | sort_by(.publishedAt) | last | .tagName')
+          # The Unity package's own release (vX.Y.Z-preview.N, published with the version's) is not a v4 release here.
           if [[ "$TAG_NAME" != "$LATEST" ]]; then
             echo "⏭️ $TAG_NAME is not the newest v4 release ($LATEST): README left as it is"
             exit 0
@@ -785,7 +786,8 @@ jobs:
         run: |
           set -euo pipefail
           LATEST=$(gh release list --limit 50 --json tagName,publishedAt \
-            --jq '[.[] | select(.tagName | startswith("v4."))] | sort_by(.publishedAt) | last | .tagName')
+            --jq '[.[] | select((.tagName | startswith("v4.")) and (.tagName | contains("-preview.") | not))] | sort_by(.publishedAt) | last | .tagName')
+          # The Unity package's own release (vX.Y.Z-preview.N, published with the version's) is not a v4 release here.
           if [[ "$TAG_NAME" != "$LATEST" ]]; then
             echo "⏭️ $TAG_NAME is not the newest v4 release ($LATEST): README left as it is"
             exit 0
