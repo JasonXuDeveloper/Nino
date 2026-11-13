@@ -112,6 +112,8 @@ public static class SafeNullables
         SafeNullable<long>[] longs => Array.ConvertAll(longs, v => v.ToNullable()),
         SafeNullable<decimal>[] decimals => Array.ConvertAll(decimals, v => v.ToNullable()),
         List<SafeNullable<int>> ints => ints.ConvertAll(v => v.ToNullable()),
+        SafeNullable<SimpleStruct> single => single.ToNullable(),
+        SafeNullable<SimpleStruct>[] structs => Array.ConvertAll(structs, v => v.ToNullable()),
         NullableFieldsMemoryPack one => one.ToNullable(),
         NullableFieldsMemoryPack[] many => Array.ConvertAll(many, v => v.ToNullable()),
         _ => result,

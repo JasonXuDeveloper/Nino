@@ -19,7 +19,7 @@ benchmarks/run.sh /path/to/out             # write the results somewhere else
 QUICK=1 benchmarks/run.sh                  # development run, about 30 to 45 minutes (see below)
 FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs all of its Nino and MemoryPack cases)
 FILTER='*Vectors* *FixedStruct*' benchmarks/run.sh   # several patterns, separated by spaces
-FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (321 of 680 cases)
+FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (337 of 728 cases)
 ```
 
 `QUICK=1` is for trends and regressions while developing: it sets `NINO_BENCH_QUICK=1`, which switches every class's
@@ -127,7 +127,7 @@ attaches as `dotnet-x64.md` (and `dotnet-arm64.md`).
 |---|---|
 | `SimpleTest` | `SimpleClass`, `SimpleClass[100]`, `SimpleStruct`, `SimpleStruct[100]`, `Vector4[10000]`: serialize to a reused buffer writer, deserialize new instances (`SimpleClassSerialize`, ..., `VectorsDeserialize`), against every library |
 | `PolymorphicTest` | Polymorphic class, polymorphic class array, polymorphic `Foo[]` (`PolymorphicClassSerialize`, ...), against every library |
-| `NullableTest` | `NullableFields`, a class of eight nullable members (`int?`, `long?`, `double?`, `bool?`, `DateTime?`, `Guid?`, `decimal?`, an enum), half of them null, alone and as `NullableFields[100]` whose objects alternate which half is null (`NullableClassSerialize`, `NullableClassesSerialize` and the `Deserialize` ones), against every library (see [Nullable values](#nullable-values)) |
+| `NullableTest` | `NullableFields`, a class of eight nullable members (`int?`, `long?`, `double?`, `bool?`, `DateTime?`, `Guid?`, `decimal?`, an enum), half of them null, alone and as `NullableFields[100]` whose objects alternate which half is null (`NullableFieldsSerialize`, `NullableFieldsArraySerialize`); and nullable values on their own: one `SimpleStruct?` with a value (`NullableStructSerialize`), `SimpleStruct?[100]` with every fifth null (`NullableStructsSerialize`), one `SimpleClass` reference that is null (`NullableObjectSerialize`; `SimpleTest`'s `SimpleClass` is its counterpart with a value) and `SimpleClass[100]` with every fifth null (`NullableObjectsSerialize`), and the `Deserialize` ones; against every library (see [Nullable values](#nullable-values)) |
 | `PooledTest` | `SimpleClass`'s members pooled with `[NinoPooled]`, against MemoryPack's overwrite (`PooledDeserialize`) |
 | `PooledGraphTest` | Pooled node and leaves: new, reused in place, pooled elements, against MemoryPack's overwrite (`Plain`, `Node`, `Leaves`) |
 | `ReferenceTest` | A 200-node graph with shared tags, shared peers and cycles: `[NinoType(trackReferences: true)]` against MemoryPack's `GenerateType.CircularReference` (`GraphSerialize`, `GraphDeserialize`) |
@@ -203,15 +203,17 @@ dotnet run -c Release -- --filter '*Copy128Probe*'                      # Arm64
 
 ### Nullable values
 
-`NullableTest` and `CollectionsTest`'s `long?[]`, `List<int?>` and `decimal?[]` (every fifth value null) compare every
-library on the same nullable values, each through the representation its users write for them:
+`NullableTest` (nullable fields, a nullable struct alone and in an array, a null class reference alone and in an array)
+and `CollectionsTest`'s `long?[]`, `List<int?>` and `decimal?[]` (every fifth value null) compare every library on the
+same nullable values, each through the representation its users write for them:
 
 - MemoryPack writes `SafeNullable<T>` (`NullableFieldsMemoryPack`, `SafeNullables` in `Fixtures/NullableBenchmarkData.cs`;
   the owner's choice): its plain `Nullable<T>` of an unmanaged `T` is the value's memory layout (bool, padding, value)
   with the padding left uninitialized, so one value can give different bytes with leftover memory in them; SafeNullable
   writes (hasValue as a `T`, value), with no padding, like Nino's canonical bytes. Its data is copied to SafeNullable
-  outside the timed region, and `--verify` turns its results back (`IReadBack`).
-- MessagePack and System.Text.Json write null natively (nil, `null`).
+  outside the timed region, and `--verify` turns its results back (`IReadBack`). The `SimpleStruct?` cases are
+  `SafeNullable<SimpleStruct>`; a null class reference is MemoryPack's own null.
+- MessagePack and System.Text.Json write null natively (nil, `null`), at the top level too.
 - Protobuf has no null in a repeated field (protobuf-net throws on one), so protobuf-net writes the collections through
   contracts (`NullableLongList`, `NullableIntList`, `NullableDecimalList` in `Fixtures/CaseFormats.cs`) whose elements
   are `[NullWrappedValue]`: a message per element with an optional value, empty for null, protobuf-net's documented way;
@@ -219,7 +221,14 @@ library on the same nullable values, each through the representation its users w
   scalars are `[NullWrappedValue]` too, which at `CompatibilityLevel.Level300` is `google.protobuf.Int32Value` and its
   siblings (Google.Protobuf reads them as `int?`, ...), `DateTime?` a `google.protobuf.Timestamp` (UTC), `Guid?` and
   `decimal?` strings (absent is null), and the enum keeps zero for proto3's "unspecified", which the data never uses
-  (a proto3 enum has no presence). Google.Protobuf reads and writes the messages `cases.proto` has for them.
+  (a proto3 enum has no presence). A null message is an absent field, and protobuf has no top-level null: one
+  `SimpleStruct?` and the null `SimpleClass` are a message with an optional field (`OptionalSimpleStruct`,
+  `OptionalSimpleClass`; the null one is an empty message, 0 bytes); `SimpleClass[100]` with nulls is
+  `[NullWrappedValue]` (`NullableObjectList`). protobuf-net cannot null-wrap a `Nullable<T>` of a message type in a
+  repeated field (it throws "No serializer for type System.Nullable`1[SimpleStruct]"), so `SimpleStruct?[100]` is an
+  array of `OptionalSimpleStruct`, the same bytes the wrapper writes, made outside the timed region as MemoryPack's
+  copies are. Google.Protobuf reads and writes the messages `cases.proto` has for them. `--verify` checks that every
+  library reads the null `SimpleClass` back as null (`[ReadsNull]` on the baseline).
 - v3 3.3.13 runs the Nino and MemoryPack cases of both (`V3/NullableTest.cs`, `V3/CollectionsTest.cs`).
 
 ### Google.Protobuf and System.Text.Json

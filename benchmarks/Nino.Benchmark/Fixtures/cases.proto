@@ -116,11 +116,26 @@ message Wrappedint64 {
 message NullableLongList {
    repeated Wrappedint64 Items = 1;
 }
+message WrappedSimpleClassBase {
+   optional SimpleClassBase value = 1;
+}
+message NullableObjectList {
+   repeated WrappedSimpleClassBase Items = 1;
+}
 enum NullablePriority {
    Unspecified = 0;
    Low = 1;
    Normal = 2;
    High = 3;
+}
+message OptionalSimpleClass {
+   SimpleClassBase Value = 1;
+}
+message OptionalSimpleStruct {
+   SimpleStruct Value = 1;
+}
+message OptionalSimpleStructList {
+   repeated OptionalSimpleStruct Items = 1;
 }
 message PolymorphicClass {
    int32 Id = 1;

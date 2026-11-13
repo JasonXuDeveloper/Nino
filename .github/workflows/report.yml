@@ -195,7 +195,7 @@ jobs:
   # split into its serialize (a) and deserialize (h) cases, and on x64 each half of v3 runs directly before the same
   # half of v4, on its runner, as benchmarks/run.sh does (v3 takes about 10 minutes a half, so these shards have fewer
   # v4 cases); v3's PolymorphicTest runs the same way before v4's, on its shard (d), and v3's NullableTest and nullable
-  # collections before v4's on theirs (o, and j for NullableDecimals), v3's WorkloadTest before each workload shard's
+  # collections before v4's on theirs (o and p, and j for NullableDecimals), v3's WorkloadTest before each workload shard's
   # v4 (d, k to n) and its PooledGraphTest Leaves before v4's (b). The publish job merges the reports into one table (benchmarks/reports/merge_reports.py). The same shards run on
   # Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64 never takes); an Arm64
   # failure leaves that section out and never blocks the x64 report.

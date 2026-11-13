@@ -81,11 +81,11 @@ public static class Verify
             if (expectedFrom == null)
             {
                 (expected, expectedFrom) = (result, method.Name);
-                Check(name + " returns a value", result != null);
+                Check(name + " returns a value", result != null || method.IsDefined(typeof(ReadsNullAttribute)));
                 continue;
             }
 
-            if (bench is IReadBack readBack) result = readBack.ReadBack(result, expected.GetType());
+            if (bench is IReadBack readBack) result = readBack.ReadBack(result, expected?.GetType() ?? method.ReturnType);
             Check($"{name} reads what {expectedFrom} reads", Same(expected, result, new HashSet<(object, object)>()));
         }
     }
@@ -178,3 +178,8 @@ public interface IReadBack
 {
     object ReadBack(object result, Type model);
 }
+
+/// <summary>A baseline case whose value is null (NullableTest's NullableObject): Verify then checks that every other
+/// library reads null too, instead of failing the baseline for returning none.</summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class ReadsNullAttribute : Attribute;

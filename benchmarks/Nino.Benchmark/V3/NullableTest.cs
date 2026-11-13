@@ -10,14 +10,15 @@ using Nino.Core;
 namespace Nino.Benchmark;
 
 // NullableTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project (NINO_BENCH_V3=true), with the same
-// model (Fixtures/NullableBenchmarkData.cs) and data. Only the Nino calls differ, as in V3/SimpleTest.cs:
-// NinoSerializer/NinoDeserializer -> NinoGen.Serializer/NinoGen.Deserializer, NinoArrayBufferWriter ->
-// ArrayBufferWriter<byte>; and the protobuf-net, Google.Protobuf and System.Text.Json cases are left out (the v3 run
-// times Nino and MemoryPack only). Everything else is verbatim.
+// models (Fixtures/NullableBenchmarkData.cs, Fixtures/SimpleBenchmarkData.cs) and data. Only the Nino calls differ, as
+// in V3/SimpleTest.cs: NinoSerializer/NinoDeserializer -> NinoGen.Serializer/NinoGen.Deserializer,
+// NinoArrayBufferWriter -> ArrayBufferWriter<byte>; and the protobuf-net, Google.Protobuf and System.Text.Json cases are
+// left out (the v3 run times Nino and MemoryPack only). Everything else is verbatim.
 
 /// <summary>
-/// A class of eight nullable members of common types, half of them null, alone and in an array of 100. Against
-/// MemoryPack (through <see cref="NullableFieldsMemoryPack"/>: SafeNullable members) and MessagePack.
+/// Nullable values: a class of eight nullable members, half of them null, alone and in an array of 100; one
+/// <c>SimpleStruct?</c> with a value, <c>SimpleStruct?[100]</c> and <c>SimpleClass[100]</c> with every fifth element null,
+/// and one null <c>SimpleClass</c>. Against MemoryPack (SafeNullable for the nullable structs) and MessagePack.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -29,131 +30,306 @@ namespace Nino.Benchmark;
 [MarkdownExporterAttribute.GitHub]
 public class NullableTest : IReadBack
 {
-    private static readonly NullableFields NullableClass;
-    private static readonly NullableFields[] NullableClasses;
-    private static readonly NullableFieldsMemoryPack NullableClassMemoryPack;
-    private static readonly NullableFieldsMemoryPack[] NullableClassesMemoryPack;
+    private static readonly NullableFields Fields;
+    private static readonly NullableFields[] FieldsArray;
+    private static readonly NullableFieldsMemoryPack FieldsMemoryPack;
+    private static readonly NullableFieldsMemoryPack[] FieldsArrayMemoryPack;
+    private static readonly SimpleStruct? Struct;
+    private static readonly SimpleStruct?[] Structs;
+    private static readonly SimpleClass NullObject;
+    private static readonly SimpleClass[] Objects;
+    private static readonly SafeNullable<SimpleStruct> StructMemoryPack;
+    private static readonly SafeNullable<SimpleStruct>[] StructsMemoryPack;
 
     // v3 3.3.13 has no NinoArrayBufferWriter; its IBufferWriter<byte> overload is the reused-buffer path.
     private ArrayBufferWriter<byte> _ninoBuffer;
     private ArrayBufferWriter<byte> _memoryPackBuffer;
     private ArrayBufferWriter<byte> _messagePackBuffer;
 
-    private static readonly byte[][] SerializedNullableClass;
-    private static readonly byte[][] SerializedNullableClasses;
+    private static readonly byte[][] SerializedNullableFields;
+    private static readonly byte[][] SerializedNullableFieldsArray;
+    private static readonly byte[][] SerializedNullableStruct;
+    private static readonly byte[][] SerializedNullableStructs;
+    private static readonly byte[][] SerializedNullableObject;
+    private static readonly byte[][] SerializedNullableObjects;
 
     static NullableTest()
     {
         var random = new Random(20240607);
-        NullableClass = NullableFields.Create(0, random);
-        NullableClasses = Enumerable.Range(0, 100).Select(i => NullableFields.Create(i, random)).ToArray();
-        NullableClassMemoryPack = NullableFieldsMemoryPack.From(NullableClass);
-        NullableClassesMemoryPack = SafeNullables.From(NullableClasses);
+        Fields = NullableFields.Create(0, random);
+        FieldsArray = Enumerable.Range(0, 100).Select(i => NullableFields.Create(i, random)).ToArray();
+        FieldsMemoryPack = NullableFieldsMemoryPack.From(Fields);
+        FieldsArrayMemoryPack = SafeNullables.From(FieldsArray);
+        // Every fifth element null, as CollectionsTest's nullable collections.
+        Struct = SimpleStruct.Create();
+        Structs = Enumerable.Range(0, 100).Select(i => i % 5 == 0 ? null : (SimpleStruct?)SimpleStruct.Create()).ToArray();
+        NullObject = null;
+        Objects = Enumerable.Range(0, 100).Select(i => i % 5 == 0 ? null : SimpleClass.Create()).ToArray();
+        StructMemoryPack = Struct;
+        StructsMemoryPack = SafeNullables.From(Structs);
 
-        SerializedNullableClass = new byte[3][];
-        SerializedNullableClass[0] = MessagePackSerializer.Serialize(NullableClass);
-        SerializedNullableClass[1] = MemoryPackSerializer.Serialize(NullableClassMemoryPack);
-        SerializedNullableClass[2] = NinoGen.Serializer.Serialize(NullableClass);
-
-        SerializedNullableClasses = new byte[3][];
-        SerializedNullableClasses[0] = MessagePackSerializer.Serialize(NullableClasses);
-        SerializedNullableClasses[1] = MemoryPackSerializer.Serialize(NullableClassesMemoryPack);
-        SerializedNullableClasses[2] = NinoGen.Serializer.Serialize(NullableClasses);
+        SerializedNullableFields = [MessagePackSerializer.Serialize(Fields), MemoryPackSerializer.Serialize(FieldsMemoryPack), NinoGen.Serializer.Serialize(Fields)];
+        SerializedNullableFieldsArray = [MessagePackSerializer.Serialize(FieldsArray), MemoryPackSerializer.Serialize(FieldsArrayMemoryPack), NinoGen.Serializer.Serialize(FieldsArray)];
+        SerializedNullableStruct = [MessagePackSerializer.Serialize(Struct), MemoryPackSerializer.Serialize(StructMemoryPack), NinoGen.Serializer.Serialize(Struct)];
+        SerializedNullableStructs = [MessagePackSerializer.Serialize(Structs), MemoryPackSerializer.Serialize(StructsMemoryPack), NinoGen.Serializer.Serialize(Structs)];
+        SerializedNullableObject = [MessagePackSerializer.Serialize(NullObject), MemoryPackSerializer.Serialize(NullObject), NinoGen.Serializer.Serialize(NullObject)];
+        SerializedNullableObjects = [MessagePackSerializer.Serialize(Objects), MemoryPackSerializer.Serialize(Objects), NinoGen.Serializer.Serialize(Objects)];
 
         string[] libraries = ["MessagePack", "MemoryPack", "Nino"];
         for (int i = 0; i < libraries.Length; i++)
         {
-            BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableClass", SerializedNullableClass[i].Length);
-            BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableClasses", SerializedNullableClasses[i].Length);
+            BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableFields", SerializedNullableFields[i].Length);
+            BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableFieldsArray", SerializedNullableFieldsArray[i].Length);
+            BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableStruct", SerializedNullableStruct[i].Length);
+            BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableStructs", SerializedNullableStructs[i].Length);
+            BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableObject", SerializedNullableObject[i].Length);
+            BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableObjects", SerializedNullableObjects[i].Length);
         }
     }
 
     [GlobalSetup]
     public void Setup()
     {
-        _ninoBuffer = new ArrayBufferWriter<byte>(64 * 1024);
-        _memoryPackBuffer = new ArrayBufferWriter<byte>(64 * 1024);
-        _messagePackBuffer = new ArrayBufferWriter<byte>(64 * 1024);
+        _ninoBuffer = new ArrayBufferWriter<byte>(320 * 1024);
+        _memoryPackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
+        _messagePackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
     }
 
-    /// <summary>Verify.cs: MemoryPack's SafeNullable model as <see cref="NullableFields"/>.</summary>
+    /// <summary>Verify.cs: MemoryPack's SafeNullable data as the case's nullable values.</summary>
     public object ReadBack(object result, Type model) => SafeNullables.ReadBack(result);
 
-    [Benchmark(Baseline = true), BenchmarkCategory("NullableClassSerialize")]
-    public int NinoSerializeNullableClass()
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableFieldsSerialize")]
+    public int NinoSerializeNullableFields()
     {
         _ninoBuffer.ResetWrittenCount();
-        NinoGen.Serializer.Serialize(NullableClass, _ninoBuffer);
+        NinoGen.Serializer.Serialize(Fields, _ninoBuffer);
         return _ninoBuffer.WrittenCount;
     }
 
-    [Benchmark, BenchmarkCategory("NullableClassSerialize")]
-    public int MemoryPackSerializeNullableClass()
+    [Benchmark, BenchmarkCategory("NullableFieldsSerialize")]
+    public int MemoryPackSerializeNullableFields()
     {
         _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableClassMemoryPack);
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, FieldsMemoryPack);
         return _memoryPackBuffer.WrittenCount;
     }
 
-    [Benchmark, BenchmarkCategory("NullableClassSerialize")]
-    public int MessagePackSerializeNullableClass()
+    [Benchmark, BenchmarkCategory("NullableFieldsSerialize")]
+    public int MessagePackSerializeNullableFields()
     {
         _messagePackBuffer.ResetWrittenCount();
-        MessagePackSerializer.Serialize(_messagePackBuffer, NullableClass);
+        MessagePackSerializer.Serialize(_messagePackBuffer, Fields);
         return _messagePackBuffer.WrittenCount;
     }
 
-    [Benchmark(Baseline = true), BenchmarkCategory("NullableClassesSerialize")]
-    public int NinoSerializeNullableClasses()
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableFieldsArraySerialize")]
+    public int NinoSerializeNullableFieldsArray()
     {
         _ninoBuffer.ResetWrittenCount();
-        NinoGen.Serializer.Serialize(NullableClasses, _ninoBuffer);
+        NinoGen.Serializer.Serialize(FieldsArray, _ninoBuffer);
         return _ninoBuffer.WrittenCount;
     }
 
-    [Benchmark, BenchmarkCategory("NullableClassesSerialize")]
-    public int MemoryPackSerializeNullableClasses()
+    [Benchmark, BenchmarkCategory("NullableFieldsArraySerialize")]
+    public int MemoryPackSerializeNullableFieldsArray()
     {
         _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableClassesMemoryPack);
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, FieldsArrayMemoryPack);
         return _memoryPackBuffer.WrittenCount;
     }
 
-    [Benchmark, BenchmarkCategory("NullableClassesSerialize")]
-    public int MessagePackSerializeNullableClasses()
+    [Benchmark, BenchmarkCategory("NullableFieldsArraySerialize")]
+    public int MessagePackSerializeNullableFieldsArray()
     {
         _messagePackBuffer.ResetWrittenCount();
-        MessagePackSerializer.Serialize(_messagePackBuffer, NullableClasses);
+        MessagePackSerializer.Serialize(_messagePackBuffer, FieldsArray);
         return _messagePackBuffer.WrittenCount;
     }
 
-    [Benchmark(Baseline = true), BenchmarkCategory("NullableClassDeserialize")]
-    public NullableFields NinoDeserializeNullableClass()
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableStructSerialize")]
+    public int NinoSerializeNullableStruct()
     {
-        NinoGen.Deserializer.Deserialize(SerializedNullableClass[2], out NullableFields ret);
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(Struct, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStructSerialize")]
+    public int MemoryPackSerializeNullableStruct()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, StructMemoryPack);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStructSerialize")]
+    public int MessagePackSerializeNullableStruct()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, Struct);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableStructsSerialize")]
+    public int NinoSerializeNullableStructs()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(Structs, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStructsSerialize")]
+    public int MemoryPackSerializeNullableStructs()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, StructsMemoryPack);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStructsSerialize")]
+    public int MessagePackSerializeNullableStructs()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, Structs);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableObjectSerialize")]
+    public int NinoSerializeNullableObject()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(NullObject, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableObjectSerialize")]
+    public int MemoryPackSerializeNullableObject()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullObject);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableObjectSerialize")]
+    public int MessagePackSerializeNullableObject()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, NullObject);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableObjectsSerialize")]
+    public int NinoSerializeNullableObjects()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(Objects, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableObjectsSerialize")]
+    public int MemoryPackSerializeNullableObjects()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, Objects);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableObjectsSerialize")]
+    public int MessagePackSerializeNullableObjects()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, Objects);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableFieldsDeserialize")]
+    public NullableFields NinoDeserializeNullableFields()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedNullableFields[2], out NullableFields ret);
         return ret;
     }
 
-    [Benchmark, BenchmarkCategory("NullableClassDeserialize")]
-    public NullableFieldsMemoryPack MemoryPackDeserializeNullableClass() =>
-        MemoryPackSerializer.Deserialize<NullableFieldsMemoryPack>(SerializedNullableClass[1]);
+    [Benchmark, BenchmarkCategory("NullableFieldsDeserialize")]
+    public NullableFieldsMemoryPack MemoryPackDeserializeNullableFields() =>
+        MemoryPackSerializer.Deserialize<NullableFieldsMemoryPack>(SerializedNullableFields[1]);
 
-    [Benchmark, BenchmarkCategory("NullableClassDeserialize")]
-    public NullableFields MessagePackDeserializeNullableClass() =>
-        MessagePackSerializer.Deserialize<NullableFields>(SerializedNullableClass[0]);
+    [Benchmark, BenchmarkCategory("NullableFieldsDeserialize")]
+    public NullableFields MessagePackDeserializeNullableFields() =>
+        MessagePackSerializer.Deserialize<NullableFields>(SerializedNullableFields[0]);
 
-    [Benchmark(Baseline = true), BenchmarkCategory("NullableClassesDeserialize")]
-    public NullableFields[] NinoDeserializeNullableClasses()
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableFieldsArrayDeserialize")]
+    public NullableFields[] NinoDeserializeNullableFieldsArray()
     {
-        NinoGen.Deserializer.Deserialize(SerializedNullableClasses[2], out NullableFields[] ret);
+        NinoGen.Deserializer.Deserialize(SerializedNullableFieldsArray[2], out NullableFields[] ret);
         return ret;
     }
 
-    [Benchmark, BenchmarkCategory("NullableClassesDeserialize")]
-    public NullableFieldsMemoryPack[] MemoryPackDeserializeNullableClasses() =>
-        MemoryPackSerializer.Deserialize<NullableFieldsMemoryPack[]>(SerializedNullableClasses[1]);
+    [Benchmark, BenchmarkCategory("NullableFieldsArrayDeserialize")]
+    public NullableFieldsMemoryPack[] MemoryPackDeserializeNullableFieldsArray() =>
+        MemoryPackSerializer.Deserialize<NullableFieldsMemoryPack[]>(SerializedNullableFieldsArray[1]);
 
-    [Benchmark, BenchmarkCategory("NullableClassesDeserialize")]
-    public NullableFields[] MessagePackDeserializeNullableClasses() =>
-        MessagePackSerializer.Deserialize<NullableFields[]>(SerializedNullableClasses[0]);
+    [Benchmark, BenchmarkCategory("NullableFieldsArrayDeserialize")]
+    public NullableFields[] MessagePackDeserializeNullableFieldsArray() =>
+        MessagePackSerializer.Deserialize<NullableFields[]>(SerializedNullableFieldsArray[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableStructDeserialize")]
+    public SimpleStruct? NinoDeserializeNullableStruct()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedNullableStruct[2], out SimpleStruct? ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStructDeserialize")]
+    public SafeNullable<SimpleStruct> MemoryPackDeserializeNullableStruct() =>
+        MemoryPackSerializer.Deserialize<SafeNullable<SimpleStruct>>(SerializedNullableStruct[1]);
+
+    [Benchmark, BenchmarkCategory("NullableStructDeserialize")]
+    public SimpleStruct? MessagePackDeserializeNullableStruct() =>
+        MessagePackSerializer.Deserialize<SimpleStruct?>(SerializedNullableStruct[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableStructsDeserialize")]
+    public SimpleStruct?[] NinoDeserializeNullableStructs()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedNullableStructs[2], out SimpleStruct?[] ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStructsDeserialize")]
+    public SafeNullable<SimpleStruct>[] MemoryPackDeserializeNullableStructs() =>
+        MemoryPackSerializer.Deserialize<SafeNullable<SimpleStruct>[]>(SerializedNullableStructs[1]);
+
+    [Benchmark, BenchmarkCategory("NullableStructsDeserialize")]
+    public SimpleStruct?[] MessagePackDeserializeNullableStructs() =>
+        MessagePackSerializer.Deserialize<SimpleStruct?[]>(SerializedNullableStructs[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableObjectDeserialize")]
+    [ReadsNull]
+    public SimpleClass NinoDeserializeNullableObject()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedNullableObject[2], out SimpleClass ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableObjectDeserialize")]
+    public SimpleClass MemoryPackDeserializeNullableObject() =>
+        MemoryPackSerializer.Deserialize<SimpleClass>(SerializedNullableObject[1]);
+
+    [Benchmark, BenchmarkCategory("NullableObjectDeserialize")]
+    public SimpleClass MessagePackDeserializeNullableObject() =>
+        MessagePackSerializer.Deserialize<SimpleClass>(SerializedNullableObject[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableObjectsDeserialize")]
+    public SimpleClass[] NinoDeserializeNullableObjects()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedNullableObjects[2], out SimpleClass[] ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableObjectsDeserialize")]
+    public SimpleClass[] MemoryPackDeserializeNullableObjects() =>
+        MemoryPackSerializer.Deserialize<SimpleClass[]>(SerializedNullableObjects[1]);
+
+    [Benchmark, BenchmarkCategory("NullableObjectsDeserialize")]
+    public SimpleClass[] MessagePackDeserializeNullableObjects() =>
+        MessagePackSerializer.Deserialize<SimpleClass[]>(SerializedNullableObjects[0]);
 }

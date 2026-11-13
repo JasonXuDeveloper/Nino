@@ -72,12 +72,52 @@ public sealed class NullableDecimalList
     [ProtoMember(1), NullWrappedValue] public decimal?[] Items;
 }
 
+// NullableTest's nullable structs and nullable references. A null message is an absent field, so one nullable struct is
+// a message with an optional SimpleStruct field. protobuf-net cannot wrap a Nullable<T> of a message type in a repeated
+// field ([NullWrappedValue] throws "No serializer for type System.Nullable`1[SimpleStruct]"), so a SimpleStruct?[] is
+// written as an array of that message, the same bytes [NullWrappedValue] writes for a reference: protobuf-net's data is
+// that array, made outside the timed region, as MemoryPack's SafeNullable copies are. A null SimpleClass is wrapped with
+// [NullWrappedValue] (a message per element with an optional value: empty is null).
+
+[ProtoContract]
+public struct OptionalSimpleStruct
+{
+    [ProtoMember(1)] public SimpleStruct? Value;
+
+    public static OptionalSimpleStruct[] From(SimpleStruct?[] values) =>
+        System.Array.ConvertAll(values, v => new OptionalSimpleStruct { Value = v });
+
+    public static SimpleStruct?[] ToNullable(OptionalSimpleStruct[] values) =>
+        System.Array.ConvertAll(values, v => v.Value);
+}
+
+[ProtoContract]
+public sealed class OptionalSimpleStructList
+{
+    [ProtoMember(1)] public OptionalSimpleStruct[] Items;
+}
+
+/// <summary>One nullable SimpleClass: protobuf has no null message at the top level, so it is an optional field (absent: null).</summary>
+[ProtoContract]
+public sealed class OptionalSimpleClass
+{
+    [ProtoMember(1)] public SimpleClass Value;
+}
+
+[ProtoContract]
+public sealed class NullableObjectList
+{
+    [ProtoMember(1), NullWrappedValue] public SimpleClass[] Items;
+}
+
 /// <summary>System.Text.Json's source-generated metadata of the cases (fields included: most members are fields).</summary>
 [JsonSourceGenerationOptions(IncludeFields = true)]
 [JsonSerializable(typeof(SimpleClass))]
 [JsonSerializable(typeof(SimpleClass[]))]
 [JsonSerializable(typeof(SimpleStruct))]
 [JsonSerializable(typeof(SimpleStruct[]))]
+[JsonSerializable(typeof(SimpleStruct?))]
+[JsonSerializable(typeof(SimpleStruct?[]))]
 [JsonSerializable(typeof(Vector4[]))]
 [JsonSerializable(typeof(PolymorphicClassBase))]
 [JsonSerializable(typeof(PolymorphicClassBase[]))]

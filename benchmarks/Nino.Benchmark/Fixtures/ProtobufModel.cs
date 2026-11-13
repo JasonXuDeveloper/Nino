@@ -98,11 +98,14 @@ public sealed class ProtoFile(string path, string package, string csharpNamespac
 {
     /// <summary>SimpleTest's and PolymorphicTest's models, with protobuf-net's default representation of DateTime and
     /// Guid (its bcl.proto, which Fixtures/protobuf-net/bcl.proto holds for protoc), and NullableTest's and
-    /// CollectionsTest's nullable data at Level300 (google.protobuf's wrappers and Timestamp, CaseFormats.cs).</summary>
+    /// CollectionsTest's nullable data (CaseFormats.cs; NullableFields and the collections at Level300, with
+    /// google.protobuf's wrappers and Timestamp).</summary>
     public static readonly ProtoFile Cases = new("Fixtures/cases.proto", "nino.cases", "Nino.Benchmark.Proto",
         "SimpleTest, PolymorphicTest, NullableTest and CollectionsTest models", typeof(SimpleClassList),
         typeof(SimpleStructList), typeof(VectorList), typeof(PolymorphicFooList), typeof(PolymorphicClassList),
-        typeof(NullableFieldsList), typeof(NullableLongList), typeof(NullableIntList), typeof(NullableDecimalList));
+        typeof(NullableFieldsList), typeof(NullableLongList), typeof(NullableIntList), typeof(NullableDecimalList),
+        typeof(OptionalSimpleStruct), typeof(OptionalSimpleStructList), typeof(OptionalSimpleClass),
+        typeof(NullableObjectList));
 
     public static readonly ProtoFile Workloads = new("Workloads/workloads.proto", "nino.workloads",
         "Nino.Benchmark.Workloads.Proto", "workload models", typeof(MediaContent), typeof(StackOverflowPage),

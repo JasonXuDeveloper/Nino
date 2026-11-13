@@ -62,8 +62,9 @@ OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "Messag
           ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"), ("Protobuf", "protobuf", "protobuf-net"),
           ("Json", "json", "System.Text.Json")]
 # Nullable values against every library and v3 (the owner's choice): NullableTest's class with half its members null,
-# 100 of them, and CollectionsTest's long?[] with every fifth element null.
-NULLABLE_CASES = [("NullableClasses", "100 objects with nullable fields"), ("NullableLongs", "long?[] with nulls")]
+# 100 of them, its SimpleStruct?[100] with every fifth null, and CollectionsTest's long?[] with every fifth null.
+NULLABLE_CASES = [("NullableFieldsArray", "100 objects with nullable fields"),
+                  ("NullableStructs", "100 structs?, every fifth null"), ("NullableLongs", "long?[] with nulls")]
 # The chart's groups (the owner's choice), each serialized and deserialized: three workloads, then what Nino is built
 # for: a block of raw structs (one vector copy), a polymorphic array, nullable values, and reading into existing objects.
 CHART_CASES = [("MediaContent", "MediaContent"), ("RpcCall", "RPC call, interface result"),
@@ -224,7 +225,10 @@ SIMPLE_CASES = [("SimpleClass", "`SimpleClass`"), ("SimpleClasses", "`SimpleClas
                 ("PolymorphicClass", "Polymorphic class"), ("PolymorphicClassArray", "Polymorphic class array"),
                 ("PolymorphicFooArray", "Polymorphic `Foo[]`"), ("SimpleStruct", "`SimpleStruct` (`int` + `DateTime`)"),
                 ("SimpleStructs", "`SimpleStruct[100]`"), ("Vectors", "`Vector4[10000]`"),
-                ("NullableClass", "`NullableFields` (half null)"), ("NullableClasses", "`NullableFields[100]`"),
+                ("NullableFields", "`NullableFields` (half null)"), ("NullableFieldsArray", "`NullableFields[100]`"),
+                ("NullableStruct", "`SimpleStruct?`"), ("NullableStructs", "`SimpleStruct?[100]`, every fifth null"),
+                ("NullableObject", "`SimpleClass` reference, null"),
+                ("NullableObjects", "`SimpleClass[100]`, every fifth null"),
                 ("NullableLongs", "`long?[1000]`, every fifth null"), ("NullableInts", "`List<int?>`, 1,000"),
                 ("NullableDecimals", "`decimal?[1000]`")]
 REUSE_CASES = [("Pooled node", "NinoNodeNew", "NinoNodePooled", "MemoryPackNodeNew", "MemoryPackNodeOverwrite"),
