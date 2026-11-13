@@ -3,7 +3,7 @@ name: Agent instructions
 # The AGENTS.md indexes, the CLAUDE.md imports, the skills' metadata and every directory's file map stay current
 # (tools/agents.sh --check). Runs on the paths that can make them stale: the instruction files and skills, and any
 # file added to or removed from a mapped directory.
-# It also checks that README.nuget.md, the NuGet packages' README, is what .github/scripts/nuget_readme.py writes
+# It also checks that src/nuget-readme.md, the NuGet packages' README, is what .github/scripts/nuget_readme.py writes
 # from README.md, and compiles the Python scripts that only report.yml and release.yml run (benchmarks/*/*.py, .github/scripts/*.py)
 # and runs their tests, so a script that breaks fails on its push instead of at the next release.
 on:
@@ -25,7 +25,7 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/agents.yml'
       - 'README.md'
-      - 'README.nuget.md'
+      - 'src/nuget-readme.md'
   pull_request:
     branches: [ "main" ]
     paths: *paths

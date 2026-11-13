@@ -37,5 +37,5 @@
         <Compile Include="..\..\src\Nino.Unity\Assets\Test\Runtime\BclFixtureTypes.cs" Link="BclFixtureTypes.cs"/>
     </ItemGroup>
 
-    <Import Project="..\..\build\UseNinoGenerator.props"/>
+    <Import Project="..\..\tools\UseNinoGenerator.props"/>
 </Project>

@@ -15,7 +15,7 @@ on:
       - 'tools/**'
       - 'runtimes/**'
       - 'conformance/**'
-      - 'build/UseNinoGenerator.props'
+      - 'tools/UseNinoGenerator.props'
       - 'benchmarks/Nino.Benchmark/**'
       - 'benchmarks/Nino.GeneratorBenchmark/**'
       - '.editorconfig'

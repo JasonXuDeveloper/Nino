@@ -13,7 +13,7 @@ on:
       - 'src/Nino.Generator/**'
       - 'src/Nino.Generator.Roslyn4.12/**'
       - 'tests/Nino.Fuzz/**'
-      - 'build/UseNinoGenerator.props'
+      - 'tools/UseNinoGenerator.props'
       - '.editorconfig'
       - 'Directory.Build.props'
       - 'Directory.Build.targets'

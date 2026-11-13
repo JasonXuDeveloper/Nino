@@ -50,7 +50,7 @@ with `NINO_UPDATE_GENERATED=1`).
 ```bash
 actionlint                                  # with .github/actionlint.yaml, after any workflow change
 tools/agents.sh --check                     # indexes, CLAUDE.md = @AGENTS.md, file maps, skill metadata
-python3 .github/scripts/nuget_readme.py --check  # README.nuget.md (the packages' README) matches README.md
+python3 .github/scripts/nuget_readme.py --check  # src/nuget-readme.md (the packages' README) matches README.md
 npx -y skills add . --list                  # lists only `nino-serialization`: every development skill is internal
 ```
 
@@ -80,4 +80,4 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`, and 
 The owner runs Actions → Release on `main` with a version (`.github/scripts/bump_version.py` bumps every package,
 the workflow tags, publishes NuGet, crates, npm and the Go tag through Trusted Publishing, and writes the notes from
 the trailers); `report.yml` then benchmarks the tag on x64 and Arm64 runners, attaches the results to the release as assets
-(`benchmarks-manifest.json`) with a chart per section in the body, and the docs site syncs the assets. CONTRIBUTING.md, "Releasing", has the details. Never trigger a release.
+(`benchmarks-manifest.json`) with a chart per section in the body, and the docs site syncs the assets. .github/CONTRIBUTING.md, "Releasing", has the details. Never trigger a release.

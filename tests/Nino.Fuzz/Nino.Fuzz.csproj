@@ -26,6 +26,6 @@
         <ProjectReference Include="Golden\Nino.Fuzz.Golden.csproj"/>
     </ItemGroup>
 
-    <Import Project="..\..\build\UseNinoGenerator.props"/>
+    <Import Project="..\..\tools\UseNinoGenerator.props"/>
 
 </Project>

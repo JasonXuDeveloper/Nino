@@ -16,5 +16,5 @@
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
     </ItemGroup>
 
-    <Import Project="..\..\build\UseNinoGenerator.props"/>
+    <Import Project="..\..\tools\UseNinoGenerator.props"/>
 </Project>

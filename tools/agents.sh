@@ -2,7 +2,8 @@
 # Keeps the agent instructions indexed and complete:
 #  - the root AGENTS.md lists every directory AGENTS.md (its "> Read when:" line) and every development skill (its
 #    description's "Use when ..." part), between the agents-index / skills-index markers;
-#  - each AGENTS.md has a CLAUDE.md next to it that is the one line @AGENTS.md (Claude Code imports it), and
+#  - each AGENTS.md has a CLAUDE.md next to it that is the one line @AGENTS.md (Claude Code imports it; the root's is
+#    .claude/CLAUDE.md, @../AGENTS.md), and
 #    .agents/skills links to .claude/skills (where Codex, Cursor and other agents look for skills);
 #  - every development skill (.claude/skills) carries metadata.internal: true, so `npx skills add` offers only the
 #    public skills of skills/; every skill's name is its directory's;
@@ -21,10 +22,13 @@ problems = []
 files = subprocess.check_output(["git", "ls-files", "--cached", "--others", "--exclude-standard"], text=True).split()
 present = [f for f in files if os.path.exists(f)]
 dirs = sorted(f for f in present if f.endswith("/AGENTS.md"))
-for f in dirs + ["AGENTS.md"]:
+for f in dirs:
     claude = os.path.join(os.path.dirname(f), "CLAUDE.md")
     if not os.path.isfile(claude) or open(claude).read().strip() != "@AGENTS.md":
         problems.append(f"{claude} must be the one line @AGENTS.md")
+# The root's lives in .claude/ (Claude Code reads it there too), which keeps the repository's root listing short.
+if not os.path.isfile(".claude/CLAUDE.md") or open(".claude/CLAUDE.md").read().strip() != "@../AGENTS.md":
+    problems.append(".claude/CLAUDE.md must be the one line @../AGENTS.md")
 if not (os.path.islink(".agents/skills") and os.readlink(".agents/skills") == "../.claude/skills"):
     problems.append(".agents/skills must be a symbolic link to ../.claude/skills")
 

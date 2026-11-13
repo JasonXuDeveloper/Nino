@@ -77,4 +77,4 @@ What works everywhere so far:
 - CI's "Runtime internals" job runs `tests/Nino.RuntimeTests` on .NET (x64, Arm64, Arm32 under qemu, Windows x86),
   Mono (x64, Arm64) and .NET Framework 4.8 (64-bit and 32-bit): give a new path a case there with known contents, and
   its startup flag a row in its `FastPaths`, so a runtime that falls back to the public API fails. Each runtime must
-  write .NET x64's bytes; locally, diff the outputs (CONTRIBUTING.md).
+  write .NET x64's bytes; locally, diff the outputs (.github/CONTRIBUTING.md).

@@ -91,7 +91,7 @@
         <ProjectReference Include="..\Nino.UnitTests.Subset\Nino.UnitTests.Subset.csproj" />
     </ItemGroup>
 
-    <Import Project="..\..\build\UseNinoGenerator.props"/>
+    <Import Project="..\..\tools\UseNinoGenerator.props"/>
     <Import Project="..\Shared\RepositoryFiles.props"/>
 
     <ItemGroup>

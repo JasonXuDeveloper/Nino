@@ -58,7 +58,7 @@ its own `AGENTS.md` maps every file in it.
   each removal.
 - A move that published packages, OpenUPM or users' builds depend on (`src/Nino.Unity` is published from its path;
   the props and targets in each package's `build/` folder, such as `src/Nino.Generator/build`, are what NuGet imports
-  into users' builds) stays where it is unless the owner agrees. The root `build/` is not one of them: only this
+  into users' builds) stays where it is unless the owner agrees. The root `tools/UseNinoGenerator.props` is not one of them: only this
   repository's projects import it.
 - Run `verify` for what the references touch, `actionlint` for workflows, and `tools/agents.sh` (then `--check`).
 

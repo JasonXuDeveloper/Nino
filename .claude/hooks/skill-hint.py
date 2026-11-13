@@ -41,7 +41,7 @@ AREAS = [  # (path prefix, skills), most specific first; every match applies
     ("skills/", ["audit-docs"]),
     ("docs/", ["audit-docs"]),
     ("README", ["audit-docs"]),
-    ("CONTRIBUTING.md", ["audit-docs"]),
+    (".github/CONTRIBUTING.md", ["audit-docs"]),
     (".claude/", ["audit-layout"]),
     ("AGENTS.md", ["audit-layout"]),
 ]

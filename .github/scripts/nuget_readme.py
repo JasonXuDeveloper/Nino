@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Writes README.nuget.md, the README every NuGet package carries, from README.md.
+"""Writes src/nuget-readme.md, the README every NuGet package carries, from README.md.
 
-    python3 .github/scripts/nuget_readme.py            # rewrite README.nuget.md
-    python3 .github/scripts/nuget_readme.py --check    # fail when README.nuget.md is not what README.md gives (CI)
+    python3 .github/scripts/nuget_readme.py            # rewrite src/nuget-readme.md
+    python3 .github/scripts/nuget_readme.py --check    # fail when src/nuget-readme.md is not what README.md gives (CI)
 
 Why a second file: nuget.org renders a package's README with Markdig and `DisableHtml()` (NuGetGallery,
 src/NuGetGallery/Services/MarkdownService.cs), so every HTML tag of README.md (the centered hero, `<br>`, the
@@ -18,9 +18,9 @@ without a single measured number:
   new number in README.md is never packed by accident;
 - the overview chart is docs/assets/benchmark.png by its raw URL on main, which report.yml redraws for each release.
 
-Edit README.md, never README.nuget.md, and run this script; Directory.Build.props packs README.nuget.md as each
+Edit README.md, never src/nuget-readme.md, and run this script; Directory.Build.props packs src/nuget-readme.md as each
 package's README.md. Since every marker's block is replaced whatever it holds, report.yml's commits that refill the
-markers leave README.nuget.md unchanged.
+markers leave src/nuget-readme.md unchanged.
 """
 
 import argparse
@@ -30,7 +30,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "README.md"
-TARGET = ROOT / "README.nuget.md"
+TARGET = ROOT / "src" / "nuget-readme.md"
 
 GITHUB = "https://github.com/JasonXuDeveloper/Nino"
 CHART = "https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png"
@@ -177,12 +177,12 @@ def check(markdown):
             if not url.startswith(("https://", "#")):
                 problems.append(f"line {n}: a link nuget.org blanks (only https and #anchors work): {url}")
     if problems:
-        raise ReadmeError("README.nuget.md would not render on nuget.org:\n  " + "\n  ".join(problems))
+        raise ReadmeError("src/nuget-readme.md would not render on nuget.org:\n  " + "\n  ".join(problems))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--check", action="store_true", help="fail when README.nuget.md is out of date")
+    parser.add_argument("--check", action="store_true", help="fail when src/nuget-readme.md is out of date")
     args = parser.parse_args()
     try:
         markdown = convert(SOURCE.read_text(encoding="utf-8"))
@@ -193,9 +193,9 @@ def main():
         refilled = re.sub(r"(<!--bench:[\w.]+-->).*?(<!--/bench-->)", r"\1 9.99 \2", SOURCE.read_text(encoding="utf-8"),
                           flags=re.S)
         if convert(refilled) != markdown:
-            sys.exit("nuget_readme.py: README.nuget.md depends on a benchmark marker's contents")
+            sys.exit("nuget_readme.py: src/nuget-readme.md depends on a benchmark marker's contents")
         if not TARGET.exists() or TARGET.read_text(encoding="utf-8") != markdown:
-            sys.exit("README.nuget.md is out of date with README.md: run python3 .github/scripts/nuget_readme.py")
+            sys.exit("src/nuget-readme.md is out of date with README.md: run python3 .github/scripts/nuget_readme.py")
         return
     TARGET.write_text(markdown, encoding="utf-8")
 

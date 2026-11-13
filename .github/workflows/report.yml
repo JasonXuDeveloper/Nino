@@ -446,7 +446,7 @@ jobs:
       # README.md, README.zh.md, their charts and the charts and runtime tables of docs/v4-benchmarks.md show the
       # newest v4 release: regenerate them (benchmarks/reports/readme.py, between the <!--bench:...--> markers) from
       # the assets this run attached and push them to main: a light and a dark SVG per chart group, and the overview
-      # chart, whose PNG readme.py --png renders with Chrome (the NuGet packages' README.nuget.md shows it by its raw
+      # chart, whose PNG readme.py --png renders with Chrome (the NuGet packages' src/nuget-readme.md shows it by its raw
       # URL on main, and nuget.org shows no SVG).
       - name: Update the README benchmark numbers
         env:

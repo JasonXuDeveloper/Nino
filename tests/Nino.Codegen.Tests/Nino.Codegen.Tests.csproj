@@ -38,6 +38,6 @@
         </ItemGroup>
     </Target>
 
-    <Import Project="..\..\build\UseNinoGenerator.props"/>
+    <Import Project="..\..\tools\UseNinoGenerator.props"/>
     <Import Project="..\Shared\RepositoryFiles.props"/>
 </Project>
