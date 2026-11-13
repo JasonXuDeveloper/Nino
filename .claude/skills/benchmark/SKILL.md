@@ -222,6 +222,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 - Publish every result as a release asset listed in `benchmarks-manifest.json`, never as a table in the body:
   `release_body.py publish` (each publish job of report.yml, one after another) attaches the files (merged
   BenchmarkDotNet reports, the runtime, Unity and build sections, their JSON/CSV data), draws one chart per section
+  (the .NET x64 and Arm64 charts are README's, in its groups and order, v3 in the x64 one; v3's section has only
+  its summary and table, the owner's call: "v4 v3 memorypack messagepack ... 统一比较")
   (`charts.py`, the README chart's code; a light and a dark SVG of a few KB each, in a `<picture>` with
   `prefers-color-scheme`) and rewrites the body's benchmark part between its
   markers: a `<details>` per section with a one-line summary, the chart and links to the assets, about 7,000

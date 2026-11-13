@@ -53,7 +53,8 @@ BenchmarkDotNet writes a report of one class without a Type column: `merge_repor
 from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.
 Each of the two `SimpleTest` runners builds the v3 project and runs its half of `SimpleTest` directly before the same
 half of v4, and the `PolymorphicTest` runner its `PolymorphicTest` the same way, with the same settings; the v3
-report, every runner's merged, is attached as `dotnet-v3-x64.md`, and the release notes chart v3 against v4. The
+report, every runner's merged, is attached as `dotnet-v3-x64.md`, and the release notes put v3 in the x64 chart,
+between v4 and the other libraries (n/a where v3 does not run). The
 documentation site takes its v4-vs-v3 ratios from that report and `dotnet-x64.md` of the newest v4 release. A v3
 failure only leaves the v3 results out; re-running the workflow for the tag publishes them all again.
 

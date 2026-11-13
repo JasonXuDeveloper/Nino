@@ -154,11 +154,15 @@ def split_method(method):
     return (lib, method[len(lib):]) if lib else (None, method)
 
 
-def dotnet_chart(path, arch):
+def dotnet_chart(path, arch, v3_path=None):
+    """README's chart: Nino v4, v3 3.3.13 where its report is there (x64 only; n/a in the cases it does not run),
+    then every library, in README's groups."""
     _, v4 = readme.parse(path)
+    v3 = {m: row["mean"] for m, row in readme.parse(v3_path)[1].items()} if v3_path else None
     workloads = all(f"NinoSerialize{k}" in v4 for k in readme.WORKLOAD_KEYS)
-    cases = readme.WORKLOADS if workloads else readme.SIMPLE_CASES
-    chart = readme.chart_groups(v4, None, cases=cases)
+    # README's groups (the owner's choice), so the release and README show one chart; every other case is in the
+    # attached table. Without the workloads (reports before rc.10), SimpleTest and PolymorphicTest.
+    chart = readme.chart_groups(v4, v3, cases=readme.CHART_CASES if workloads else readme.SIMPLE_CASES)
     by_case = {}
     for method, row in v4.items():
         lib, case = split_method(method)
@@ -168,13 +172,13 @@ def dotnet_chart(path, arch):
     ahead = sum(all(ratio_ok(libs["Nino"], t) for lib, t in libs.items() if lib != "Nino") for libs in compared.values())
     summary = (f"Nino v4 fastest or on par in {ahead} of {len(compared)} cases against every library measured "
                f"({len(v4)} rows)")
-    what = "the 12 workloads" if workloads else "SimpleTest and PolymorphicTest"
-    note = (f"BenchmarkDotNet, .NET 10, {arch} GitHub runners; {what}, every library measured; "
-            "N× = N times as long as Nino v4.")
+    run = f"{arch} GitHub runners" + (", v3 3.3.13 directly before v4" if v3 else "")
+    note = f"BenchmarkDotNet, .NET 10, {run}; every case is in the table; N× = N times as long as Nino v4."
     return chart, summary, note
 
 
-def v3_chart(v3_path, x64_path):
+def v3_summary(v3_path, x64_path):
+    """v3's section has no chart of its own (its bars are in the x64 chart, beside every library): its summary."""
     _, v3 = readme.parse(v3_path)
     _, v4 = readme.parse(x64_path)
     keys = [m[len("NinoSerialize"):] for m in v3 if m.startswith("NinoSerialize") and m in v4]
@@ -201,9 +205,7 @@ def v3_chart(v3_path, x64_path):
     summary = f"v4 faster in {faster} of {total} cases" + (f", on par in {par}" if par else "")
     if ratios:
         summary += f" (median {charts.one(statistics.median(ratios))}× faster)"
-    note = ("Nino v3 3.3.13 (NuGet) directly before v4 on the same runners, SimpleTest and PolymorphicTest; "
-            "N× = N times as long as Nino v4.")
-    return chart, summary, note
+    return summary
 
 
 def grid(text):
@@ -316,12 +318,19 @@ def draw(directory, manifest, tag):
             continue
         try:
             if entry["kind"] == "dotnet":
-                chart, summary, note = dotnet_chart(path, "Arm64" if entry["arch"] == "arm64" else "x64")
+                arm64 = entry["arch"] == "arm64"
+                v3 = os.path.join(directory, "dotnet-v3-x64.md")
+                chart, summary, note = dotnet_chart(path, "Arm64" if arm64 else "x64",
+                                                    None if arm64 or not os.path.isfile(v3) else v3)
             elif entry["kind"] == "dotnet-v3":
                 x64 = os.path.join(directory, "dotnet-x64.md")
                 if not os.path.isfile(x64):
                     continue
-                chart, summary, note = v3_chart(path, x64)
+                entry.update(title=title, summary=v3_summary(path, x64))
+                for key in ("chart", "chart_sha", "chart_dark", "chart_dark_sha", "chart_width"):
+                    entry.pop(key, None)
+                print(f"📈 {name}: {entry['summary']}", file=sys.stderr)
+                continue
             elif entry["kind"] == "runtime":
                 chart, summary, note = runtime_chart(path, entry)
             elif entry["kind"] == "unity":
@@ -368,7 +377,8 @@ def publish(args):
     if not added:
         print("⏭️ Nothing to publish", file=sys.stderr)
         return
-    # v3's chart needs the x64 report: a job that adds only one of them draws it once both are there.
+    # v3's bars are in the x64 chart and its summary needs the x64 report: a job that adds only one of them draws
+    # them once both are there.
     images = draw(args.dir, manifest, args.tag)
     rel.push_charts(images)
     release_assets.save(args.dir, manifest)
