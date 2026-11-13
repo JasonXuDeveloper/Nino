@@ -240,6 +240,11 @@ class Groups(unittest.TestCase):
                 for group in pair:
                     self.assertNotIn("Nino v3", [row[0] for row in (group[1] if group else [])])
 
+    def test_cases_with_one_operation_share_a_row(self):
+        # No half row left empty: full pairs first, then the single-operation cases two to a row.
+        self.assertEqual(readme.pack([("a", None), (None, "b"), ("c", "d"), (None, "e")]),
+                         [("c", "d"), ("a", "b"), ("e", None)])
+
     def test_the_markers_and_the_files(self):
         root = readme.ROOT
         readme.ROOT = type(root)(self.tmp.name)
@@ -250,8 +255,10 @@ class Groups(unittest.TestCase):
         finally:
             readme.ROOT = root
         en, zh = values["charts"]
-        self.assertEqual(values["doc.charts"], en)
-        self.assertEqual(en.count("<details open>"), 5)
+        # README opens the first group only, the docs every one; otherwise the same blocks.
+        self.assertEqual(en.count("<details open>"), 1)
+        self.assertEqual(values["doc.charts"].count("<details open>"), 5)
+        self.assertEqual(values["doc.charts"].replace("<details open>", "<details>"), en.replace("<details open>", "<details>"))
         self.assertIn("<summary><b>Basic types and structs</b></summary>", en)
         self.assertIn("<summary><b>可空值</b></summary>", zh)
         self.assertIn('<source media="(prefers-color-scheme: dark)" srcset="'

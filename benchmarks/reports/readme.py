@@ -19,7 +19,7 @@ usage: python3 benchmarks/reports/readme.py (--release <tag> | --assets <dir> | 
   --tag       the release the reports belong to (default with --release/--assets: the manifest's); without one
               docs/v4-benchmarks.md names a local run
   --png       also render the overview chart benchmark.png with headless Chrome (charts.py; the NuGet packages'
-              README, README.nuget.md, shows it by its raw URL on main: nuget.org shows no SVG and no HTML)
+              README, src/nuget-readme.md, shows it by its raw URL on main: nuget.org shows no SVG and no HTML)
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
 carries whole tables between such markers. Everything outside the markers is written by hand. --v4 and --build fill
@@ -284,6 +284,14 @@ def reuse_chart(v4, v3):
     return chart
 
 
+def pack(chart):
+    """A chart's rows with the cases that have one operation two to a row, after the cases with both, so no half of a
+    row is left empty (each panel's title names its operation)."""
+    full = [pair for pair in chart if None not in pair]
+    single = [next(p for p in pair if p is not None) for pair in chart if None in pair]
+    return full + [tuple(single[i:i + 2]) + (None,) * (2 - len(single[i:i + 2])) for i in range(0, len(single), 2)]
+
+
 def chart_groups(v4, v3):
     """The charts of GROUPS -> [(id, title, Chinese title, chart)] (charts.svg), each group with at least one case: per
     case a row of serialize and deserialize (either None when the case has only the other), each the time of Nino v4,
@@ -311,7 +319,7 @@ def chart_groups(v4, v3):
                              for rows in [bars(v4, v3, lambda lib, verb=verb: f"{lib}{verb}{key}")])
                 chart.append(pair)
         if chart:
-            out.append((gid, title, title_zh, chart))
+            out.append((gid, title, title_zh, pack(chart)))
     return out
 
 
@@ -484,27 +492,29 @@ ASSETS = "https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/asse
 def write_charts(overview, groups, render_png=False, chrome=None):
     """Writes docs/assets/benchmark-<group>.svg and -dark.svg per chart group, and the overview chart
     benchmark.svg (and with render_png benchmark.png, the one light image of the NuGet packages' README,
-    README.nuget.md: nuget.org shows no SVG and no HTML). -> the "charts" (README.md, README.zh.md) and "doc.charts"
-    (docs/v4-benchmarks.md) markers: a <details open> per group, its chart a <picture> of both themes (the first
+    src/nuget-readme.md: nuget.org shows no SVG and no HTML). -> the "charts" (README.md, README.zh.md) and "doc.charts"
+    (docs/v4-benchmarks.md) markers: a <details> per group (README opens the first, the docs every one), its chart a <picture> of both themes (the first
     group's fallback image is the overview PNG)."""
     image, _ = svg(overview, "light")
     path = ROOT / "docs/assets/benchmark.svg"
     path.write_text(image, encoding="utf-8")
     if render_png:
         png(str(path), chrome)
-    en, zh = [], []
+    en, zh, doc = [], [], []
     for i, (gid, title, title_zh, chart) in enumerate(groups):
         for theme, suffix in (("light", ""), ("dark", "-dark")):
             image, _ = svg(chart, theme, f"{title}: {README_TITLE[0].lower()}{README_TITLE[1:]}")
             (ROOT / f"docs/assets/benchmark-{gid}{suffix}.svg").write_text(image, encoding="utf-8")
         light, dark = f"{ASSETS}/benchmark-{gid}.svg", f"{ASSETS}/benchmark-{gid}-dark.svg"
         fallback = f"{ASSETS}/benchmark.png" if i == 0 else None
-        en.append(details(title, picture(light, dark, f"{title}: time per operation of Nino v4, v3 and every "
-                                                      "library, serialize and deserialize", fallback), True))
+        alt = f"{title}: time per operation of Nino v4, v3 and every library, serialize and deserialize"
+        # README opens only the first group, so the page stays short; docs/v4-benchmarks.md opens them all.
+        en.append(details(title, picture(light, dark, alt, fallback), i == 0))
+        doc.append(details(title, picture(light, dark, alt, fallback), True))
         zh.append(details(title_zh, picture(light, dark, f"{title_zh}：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化",
-                                            fallback), True))
-    block = ("\n" + "\n\n".join(en) + "\n", "\n" + "\n\n".join(zh) + "\n")
-    return {"charts": block, "doc.charts": block[0]}
+                                            fallback), i == 0))
+    join = lambda parts: "\n" + "\n\n".join(parts) + "\n"
+    return {"charts": (join(en), join(zh)), "doc.charts": join(doc)}
 
 
 def fill(path, values, zh):
