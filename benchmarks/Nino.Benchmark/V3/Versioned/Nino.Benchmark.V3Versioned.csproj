@@ -1,11 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- The v3 run's versioned workloads (ProfileCache, IdleSave): Workloads/VersionedModels.cs against Nino 3.3.13 with
+    <!-- The v3 run's version-tolerant types (WorkloadTest's ProfileCache and IdleSave: Workloads/VersionedModels.cs;
+         VersionTolerantTest's Fixtures/TolerantClass.cs, with CollectionTypes.cs) against Nino 3.3.13 with
          WEAK_VERSION_TOLERANCE, v3's version tolerance. v3 reads that symbol in the code its generator writes, so it
          holds for every type of a project and changes their bytes (a length before each collection element, no
          grouped unmanaged members): this project keeps it away from the other v3 cases, which keep v3's default
          format. Nino.Benchmark references it in its v3 build only (NINO_BENCH_V3=true), and calls the serializers
-         v3 generates here (Nino.Benchmark.V3Versioned.NinoGen). Common.cs comes along for the models' data. -->
+         v3 generates here (Nino.Benchmark.V3Versioned.NinoGen). Common.cs comes along for the workloads' data. -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>disable</ImplicitUsings>
@@ -24,6 +25,6 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <Compile Include="../../Workloads/Common.cs;../../Workloads/VersionedModels.cs"/>
+        <Compile Include="../../Workloads/Common.cs;../../Workloads/VersionedModels.cs;../../Fixtures/TolerantClass.cs;CollectionTypes.cs"/>
     </ItemGroup>
 </Project>

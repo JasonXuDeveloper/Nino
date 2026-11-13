@@ -25,9 +25,11 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              Fixtures/ contains shared models and payloads (ProtobufModel.cs: protobuf-net's model, the
                              .proto files --write-proto generates, the read-back of Google.Protobuf's messages;
                              NullableBenchmarkData.cs: NullableTest's model and MemoryPack's SafeNullable copies).
-                             NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest, PolymorphicTest, NullableTest,
-                             CollectionsTest's nullable collections, WorkloadTest and PooledGraphTest's Leaves (V3/;
-                             V3/Versioned: the versioned workloads' models with WEAK_VERSION_TOLERANCE);
+                             Each class's models live in Fixtures/ (<Class>BenchmarkData.cs and the like), shared
+                             with its v3 port. NINO_BENCH_V3=true: the v3 3.3.13 build of every class's Nino and
+                             MemoryPack cases that 3.3.13 can express (V3/, each file listing what it does
+                             differently and leaves out; V3/Versioned: the version-tolerant models with
+                             WEAK_VERSION_TOLERANCE);
                              -p:NinoBenchLegacy for older refs
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
                              analyzer, re-generation after edits; --generics adds generic slots and subtypes,
@@ -88,13 +90,20 @@ reports/                     what a release publishes: the results of runners as
   runtimes_report.py, unity_report.py, generator_report.py) are read by the docs site (Nino.Docs
   `scripts/sync-benchmarks.ts`), which parses the old sections' headings in the bodies of releases up to
   v4.0.0-rc.9 too: change one only together with its parser there.
-- The workloads' models (`Workloads/*Models.cs`) and `Fixtures/PooledLeaf.cs` compile in the v3 build too: an
-  attribute or member 3.3.13 lacks goes behind `#if NINO_BENCH_V3` (the v3 form first), and a new versioned model goes
-  in `VersionedModels.cs` (the v3 project that tolerates versions, `V3/Versioned`).
+- The models (`Fixtures/*.cs` but `CaseFormats.cs`, `ProtobufModel.cs` and `TolerantClass.cs`, and
+  `Workloads/*Models.cs`) compile in the v3 build too: a class's models go in `Fixtures/`, never in its `Cases/` file,
+  an attribute or member 3.3.13 lacks goes behind `#if NINO_BENCH_V3` (the v3 form first), and a version-tolerant
+  model goes in the v3 project that tolerates versions (`V3/Versioned`: `VersionedModels.cs`, `TolerantClass.cs`; a
+  collection of one that a case reads, such as `TolerantClass[]`, named in its `CollectionTypes.cs`, since v3 writes
+  overloads only for the collection types its project names). A type v3's generator cannot take stays in its v4
+  `Cases/` file, which the v3 build does not compile (CollectionsTest's `SelfTree`).
 - Program.cs and the Harness files the v3 build lists (`Nino.Benchmark.csproj`, `NinoBenchV3`) compile against Nino
   3.3.13 with only those files: guard what they reach outside them with `#if !NINO_BENCH_V3`, and build
-  `NINO_BENCH_V3=true dotnet build -c Release` after changing them. No CI job but report.yml builds it, so a break
-  shows only at a release (51a7bd18's `--write-proto` did, until the rc.10 review).
+  `NINO_BENCH_V3=true dotnet build -c Release` (then `--verify` on `bin/v3`) after changing them or a model. No CI job
+  but report.yml builds it, so a break shows only at a release (51a7bd18's `--write-proto` did, until the rc.10
+  review).
+- A new benchmark case gets its v3 port in the class's `V3/` file and its v3 globs in `shards.json` (Nino and
+  MemoryPack only), or a line in that file saying why 3.3.13 cannot express it.
 - A script that reads BenchmarkDotNet reports does it through `reports/bdn.py` (one parser, one unit table, one floor);
   the 1 ns floor is the docs site's (`src/lib/benchmarks.ts`) too.
 

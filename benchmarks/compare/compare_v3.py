@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare two BenchmarkDotNet *-report-github.md files: Nino v3 3.3.13 vs Nino v4, for every case the v3 report has
-(the classes of benchmarks/Nino.Benchmark/V3: SimpleTest, PolymorphicTest, NullableTest, CollectionsTest's nullable
-collections, WorkloadTest and PooledGraphTest's Leaves; one report of each run, joined or merged).
+(every benchmark class's Nino and MemoryPack cases that 3.3.13 can express, benchmarks/Nino.Benchmark/V3; one report of
+each run, joined or merged).
 
 usage: python3 compare_v3.py <v3 report-github.md> <v4 report-github.md>
 

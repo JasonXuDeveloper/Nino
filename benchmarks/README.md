@@ -2,22 +2,27 @@
 
 `benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
 protobuf-net).
-`V3/` is the same `SimpleTest`, `PolymorphicTest`, `NullableTest`, `CollectionsTest`'s nullable collections,
-`WorkloadTest` and `PooledGraphTest`'s `Leaves` (same data, same models) built against **Nino 3.3.13 from nuget.org**,
-the last v3 release, so v4 can be compared with v3 on the same machine; it compiles v4's `NinoJobAttribute.cs`,
-`SimpleBenchmarkData.cs`, `PolymorphicBenchmarkData.cs`, `NullableBenchmarkData.cs`, `PooledLeaf.cs` and the workloads'
-models (`Workloads/*Models.cs`, their v4-only attributes behind `#if NINO_BENCH_V3`), so the job, the data and the
-models cannot drift apart. The two versioned workloads' models (`Workloads/VersionedModels.cs`, with `Common.cs`) build
-in a project of their own, `V3/Versioned`, which defines `WEAK_VERSION_TOLERANCE`: v3's version tolerance holds for a
-whole project and changes the bytes of every type in it, so the other v3 cases keep v3's default format. What v3
-writes differently in the workloads (shared objects as copies, a new object where v4 reads in place, the removed
-member's slot) is listed in `V3/WorkloadTest.cs`. None of it is part of `Nino.slnx`.
+`V3/` is every benchmark class (same data, same models, same method names) built against **Nino 3.3.13 from
+nuget.org**, the last v3 release, so v4 can be compared with v3 on the same machine: each class's Nino and MemoryPack
+cases, as far as 3.3.13 can express them. It compiles v4's `NinoJobAttribute.cs`, the shared data and models
+(`Fixtures/*.cs` but the protobuf and JSON ones, and the workloads' `Workloads/*Models.cs`, their v4-only attributes
+behind `#if NINO_BENCH_V3`), so the job, the data and the models cannot drift apart. The version-tolerant types
+(`Workloads/VersionedModels.cs` with `Common.cs`, and `Fixtures/TolerantClass.cs`) build in a project of their own,
+`V3/Versioned`, which defines `WEAK_VERSION_TOLERANCE`: v3's version tolerance holds for a whole project and changes the
+bytes of every type in it, so the other v3 cases keep v3's default format. Where v3 has no API for what a case does,
+it takes v3's own way, as MessagePack and protobuf-net take theirs: shared objects as copies, a new object where v4
+reads into an existing one, the removed member's slot kept, a span or an array where v3 writes no overload for the
+type. Each `V3/` file lists what it does differently and what it leaves out, with the reason: pooling (v3 has no pool),
+`ReferenceTest` (its graph has cycles, which v3, writing every reference by value, never finishes), `CollectionsTest`'s
+`SelfTree` (v3's generator overflows the compiler's stack on a list that holds itself), and `BclTypesTest`'s
+`BigInteger`, `Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>` and `ILookup`
+(v3 writes none of them and has no API for a formatter of one's own). None of it is part of `Nino.slnx`.
 
 ```sh
 benchmarks/run.sh                          # v3, then the full v4 suite; about six hours
 benchmarks/run.sh /path/to/out             # write the results somewhere else
 QUICK=1 benchmarks/run.sh                  # development run, about 30 to 45 minutes (see below)
-FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs all of its Nino and MemoryPack cases)
+FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs all of its cases: shards.json's v3 globs)
 FILTER='*Vectors* *FixedStruct*' benchmarks/run.sh   # several patterns, separated by spaces
 FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (337 of 728 cases)
 ```
@@ -30,11 +35,9 @@ and the release notes use the full protocol, which is what supports "x× faster"
 Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
 reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `benchmarks/Nino.Benchmark`: built with
 `NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
-references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs`,
-`V3/PolymorphicTest.cs`, `V3/NullableTest.cs`, `V3/CollectionsTest.cs`, `V3/WorkloadTest.cs` and
-`V3/PooledGraphTest.cs` (the same classes, `CollectionsTest` with its nullable collections only and `PooledGraphTest`
-with its `Leaves` only, ported to v3's API) with the shared data, models, job, columns and checks, references
-`V3/Versioned`, and goes to `bin/v3` and `obj/v3`.
+references Nino 3.3.13 from nuget.org instead of the repository's code, compiles `V3/*.cs` (the same classes ported to
+v3's API) with the shared data, models, job, columns and checks, references `V3/Versioned`, and goes to `bin/v3` and
+`obj/v3`.
 `--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
 `ci.yml`'s integrations job on x64 and its Arm64 runtime-internals job) checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
@@ -61,10 +64,8 @@ blocks of its own) and writes one collapsed section per result with a one-line s
 assets; README, docs and the documentation site read the assets.
 BenchmarkDotNet writes a report of one class without a Type column: `merge_reports.py` then takes the class
 from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.
-Each of the two `SimpleTest` runners builds the v3 project and runs its half of `SimpleTest` directly before the same
-half of v4, the `PolymorphicTest` runner its `PolymorphicTest` the same way, the runners of `NullableTest` and the
-nullable collections theirs, each `WorkloadTest` runner its workloads and the `PooledGraphTest` runner the `Leaves`,
-with the same settings; the v3
+Every runner builds the v3 project and runs its shard's v3 cases (the `v3` globs of `shards.json`: the Nino and
+MemoryPack cases of its classes that `V3/` has) directly before its v4 cases, with the same settings; the v3
 report, every runner's merged, is attached as `dotnet-v3-x64.md`, and the release notes put v3 in the x64 chart,
 between v4 and the other libraries (n/a where v3 does not run). The
 documentation site takes its v4-vs-v3 ratios from that report and `dotnet-x64.md` of the newest v4 release. A v3

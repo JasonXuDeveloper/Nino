@@ -4,7 +4,7 @@ Why v4: what it costs to build a project that uses Nino, and how fast serializat
 v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.22.0.
 
 Every table here is the newest release's: its CI run (`report.yml`) benchmarks v4 against MemoryPack, each case's
-Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest`, `PolymorphicTest`, nullable, workload and `PooledGraphTest` runners), and v3 3.3.13's source generator
+Nino and MemoryPack runs on one runner (v3 3.3.13's port of the case too, directly before), and v3 3.3.13's source generator
 against the release's on one more runner, puts the reports in the release notes, and writes these tables from them
 (`benchmarks/reports/readme.py`), as it does for the README and the documentation site. Generated code sizes do not
 depend on the machine; absolute times vary between machines, and the ratios are what to look at.
@@ -58,11 +58,12 @@ about linearly.
 `benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
 GC), every benchmark class, v4 and MemoryPack 1.22.0 side by side, with MessagePack 3.1.12 and protobuf-net
 3.4.40 wherever they can write the same data, and in `SimpleTest`, `PolymorphicTest`, `NullableTest`, `CollectionsTest`'s nullable
-collections and `WorkloadTest` Google.Protobuf 3.36.2 and System.Text.Json (.NET 10): the release run spreads the classes over twelve runners per architecture
+collections and `WorkloadTest` Google.Protobuf 3.36.2 and System.Text.Json (.NET 10): the release run spreads the classes over seventeen runners per architecture
 and keeps every serializer's run of a case on one. v3 is Nino 3.3.13 from nuget.org, running a port of
-the same `SimpleTest`, `PolymorphicTest`, `NullableTest` and nullable collections (same data, same attributes), each on
-the runner of the same v4 cases directly before them; it has no pooling, reference, version-tolerant or fixed-size
-benchmarks.
+every class (same data, same attributes), each on the runner of the same v4 cases directly before them, as far as
+3.3.13 can express the case: it has no pool, cannot write a graph with a cycle (`ReferenceTest`) or a list that holds
+itself, and has no formatter for `BigInteger`, `Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`,
+`TimeZoneInfo`, `Lazy<T>` or `ILookup`; those cases are n/a for v3.
 These tables come from <!--bench:doc.source-->a local `benchmarks/run.sh` run: BenchmarkDotNet 0.15.8, .NET 10.0.14, Intel Xeon 6973P-C 3.54 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
 
 Differences under 5% are reported as on par: MemoryPack runs in both sessions, and its two times show how much the
@@ -480,16 +481,12 @@ which every other class's data, allocated in order and in the cache, never shows
 [benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from the v3 build of [`benchmarks/Nino.Benchmark`](../benchmarks/Nino.Benchmark)
-(`NINO_BENCH_V3=true`, [`V3/SimpleTest.cs`](../benchmarks/Nino.Benchmark/V3/SimpleTest.cs),
-[`V3/PolymorphicTest.cs`](../benchmarks/Nino.Benchmark/V3/PolymorphicTest.cs),
-[`V3/NullableTest.cs`](../benchmarks/Nino.Benchmark/V3/NullableTest.cs),
-[`V3/CollectionsTest.cs`](../benchmarks/Nino.Benchmark/V3/CollectionsTest.cs),
-[`V3/WorkloadTest.cs`](../benchmarks/Nino.Benchmark/V3/WorkloadTest.cs) and
-[`V3/PooledGraphTest.cs`](../benchmarks/Nino.Benchmark/V3/PooledGraphTest.cs)), the same `SimpleTest`, `PolymorphicTest`,
-`NullableTest`, nullable collections, workloads and pooled leaves built against the `Nino` 3.3.13 package from
-nuget.org, each feature in v3's own way: the workloads that share objects write copies (v3 tracks no references), the
-versioned ones use v3's `WEAK_VERSION_TOLERANCE` in a project of their own, and what v4 reads in place v3 reads anew
-(it reads no object in place; the leaves keep their list and get new elements). [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
+(`NINO_BENCH_V3=true`, [`V3/`](../benchmarks/Nino.Benchmark/V3)), every class built against the `Nino` 3.3.13
+package from nuget.org, each feature in v3's own way: what shares objects writes copies (v3 tracks no references),
+version tolerance is v3's `WEAK_VERSION_TOLERANCE` in a project of its own, what v4 reads in place v3 reads anew (it
+reads no object in place; a list keeps itself and gets new elements), and a type v3 writes no overload for goes
+through one it does (a `Memory<int>` through its span, an immutable collection read as an array and built from it).
+Each port's header lists what it does differently and what it leaves out, and why. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
 suite) and prints v4 against v3. The release workflow runs the same protocol for every release and publishes the
 result in the release notes ("v3 3.3.13 vs v4 (same machine)"), where the documentation site and these tables take
 their v3 ratios from.
