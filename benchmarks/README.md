@@ -99,13 +99,14 @@ The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `compac
 
 `benchmarks/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
 MemoryPack, and with MessagePack and protobuf-net wherever they can write the same data (see
-[MessagePack and protobuf-net](#messagepack-and-protobuf-net)). All of them land in one joined table, which is the
+[MessagePack and protobuf-net](#messagepack-and-protobuf-net)); `SimpleTest`, `PolymorphicTest` and `WorkloadTest`
+also with Google.Protobuf and System.Text.Json (see [Google.Protobuf and System.Text.Json](#googleprotobuf-and-systemtextjson)). All of them land in one joined table, which is the
 Performance Report of each release.
 
 | Class | What it measures |
 |---|---|
-| `SimpleTest` | `SimpleClass`, `SimpleClass[100]`, `SimpleStruct`, `SimpleStruct[100]`, `Vector4[10000]`: serialize to a reused buffer writer, deserialize new instances (`SimpleClassSerialize`, ..., `VectorsDeserialize`) |
-| `PolymorphicTest` | Polymorphic class, polymorphic class array, polymorphic `Foo[]` (`PolymorphicClassSerialize`, ...) |
+| `SimpleTest` | `SimpleClass`, `SimpleClass[100]`, `SimpleStruct`, `SimpleStruct[100]`, `Vector4[10000]`: serialize to a reused buffer writer, deserialize new instances (`SimpleClassSerialize`, ..., `VectorsDeserialize`), against every library |
+| `PolymorphicTest` | Polymorphic class, polymorphic class array, polymorphic `Foo[]` (`PolymorphicClassSerialize`, ...), against every library |
 | `PooledTest` | `SimpleClass`'s members pooled with `[NinoPooled]`, against MemoryPack's overwrite (`PooledDeserialize`) |
 | `PooledGraphTest` | Pooled node and leaves: new, reused in place, pooled elements, against MemoryPack's overwrite (`Plain`, `Node`, `Leaves`) |
 | `ReferenceTest` | A 200-node graph with shared tags, shared peers and cycles: `[NinoType(trackReferences: true)]` against MemoryPack's `GenerateType.CircularReference` (`GraphSerialize`, `GraphDeserialize`) |
@@ -121,7 +122,8 @@ Performance Report of each release.
 
 Method names are unique across classes (`<Serializer><Serialize|Deserialize><Case>`, e.g. `NinoSerializeTolerantClass`,
 `MemoryPackDeserializeGraph`, `ProtobufSerializeStackOverflowPage`; the serializers are `Nino`, `MemoryPack`, `MessagePack`,
-`Protobuf` (protobuf-net), `GoogleProtobuf` and `Json` (System.Text.Json), the last two in `WorkloadTest` only): the documentation site and the `Payload` column key rows by method name
+`Protobuf` (protobuf-net), `GoogleProtobuf` and `Json` (System.Text.Json), the last two in `SimpleTest`, `PolymorphicTest`
+and `WorkloadTest`): the documentation site and the `Payload` column key rows by method name
 alone.
 
 ### MessagePack and protobuf-net
@@ -180,21 +182,29 @@ dotnet run -c Release -- --filter '*Copy128Probe*'                      # Arm64
 
 ### Google.Protobuf and System.Text.Json
 
-`WorkloadTest` also measures the two serializers most .NET services use by default:
+`SimpleTest`, `PolymorphicTest` and `WorkloadTest` also measure the two serializers most .NET services use by
+default, in every case of those classes:
 
-- Google.Protobuf 3 writes and reads its own generated messages, as its users do: `Workloads/workloads.proto`,
-  compiled at build time by the protoc of Grpc.Tools. The file is what protobuf-net's contracts of the workload models
-  generate (`RuntimeTypeModel.GetSchema`, proto3): run `dotnet bin/Release/net10.0/Nino.Benchmark.dll --write-proto`
-  in `benchmarks/Nino.Benchmark` after changing a model, and `WorkloadTest`'s setup fails while the file is stale. The
-  models carry `CompatibilityLevel.Level300` (`DateTime` as `google.protobuf.Timestamp`, `decimal` and `Guid` as
-  strings), so both libraries write the same messages, and Google.Protobuf's data is parsed from protobuf-net's bytes
-  of the same values outside the timed region. It writes with `message.WriteTo(IBufferWriter<byte>)` into a reused
-  `ArrayBufferWriter<byte>` and reads with `Parser.ParseFrom(ReadOnlySpan<byte>)`; `--verify` reads its result back
-  through protobuf-net into the model (`IReadBack`) and compares it with Nino's. A type with subtypes numbers them
-  from 1 and its own members from 20 (a `oneof` before the base's fields): protobuf-net reads the subtype's field
-  before the base's, and Google.Protobuf writes fields in the order of their numbers.
-- System.Text.Json writes UTF-8 through its source generator (`WorkloadJson`, `IncludeFields`, subtypes by
-  `[JsonDerivedType]`), with `JsonSerializer.Serialize(Utf8JsonWriter, value, JsonTypeInfo<T>)` into a reused
+- Google.Protobuf 3 writes and reads its own generated messages, as its users do, compiled at build time by the
+  protoc of Grpc.Tools: `Workloads/workloads.proto` for the workloads, `Fixtures/cases.proto` for `SimpleTest` and
+  `PolymorphicTest`. Each file is what protobuf-net's contracts of the models generate (`RuntimeTypeModel.GetSchema`,
+  proto3; `ProtoFile` in `Fixtures/ProtobufModel.cs`): run `dotnet bin/Release/net10.0/Nino.Benchmark.dll --write-proto`
+  in `benchmarks/Nino.Benchmark` after changing a model, and the setup of a class that uses the file fails while it is
+  stale. So both libraries write the same messages, and Google.Protobuf's data is parsed from protobuf-net's bytes of
+  the same values outside the timed region. The workload models carry `CompatibilityLevel.Level300` (`DateTime` as
+  `google.protobuf.Timestamp`, `decimal` and `Guid` as strings); `SimpleTest`'s and `PolymorphicTest`'s keep
+  protobuf-net's default, so `cases.proto` imports protobuf-net's `bcl.proto` (`Fixtures/protobuf-net/`, for
+  `bcl.DateTime` and `bcl.Guid`), and an array at the top level is the repeated field 1 of a message
+  (`SimpleClassList`, ...: contracts in `Fixtures/CaseFormats.cs` that only name it). Subtypes are a `oneof` per level
+  of the hierarchy, as protobuf-net's `[ProtoInclude]` nests them. It writes with
+  `message.WriteTo(IBufferWriter<byte>)` into a reused `ArrayBufferWriter<byte>` and reads with
+  `Parser.ParseFrom(ReadOnlySpan<byte>)`; `--verify` reads its result back through protobuf-net into the model
+  (`IReadBack`, `ProtobufModel.ReadBack`) and compares it with Nino's. protobuf-net reads the subtype's field before
+  the base's, and Google.Protobuf writes fields in the order of their numbers: a workload type numbers its subtypes
+  from 1 and its own members from 20 (a `oneof` before the base's fields), and the read-back moves every `oneof`
+  field first for the older models, which number their subtypes from 100.
+- System.Text.Json writes UTF-8 through its source generator (`WorkloadJson` and `CaseJson`, `IncludeFields`, subtypes
+  by `[JsonDerivedType]`), with `JsonSerializer.Serialize(Utf8JsonWriter, value, JsonTypeInfo<T>)` into a reused
   `Utf8JsonWriter` (`SkipValidation`, as the serializer's own writers) over an `ArrayBufferWriter<byte>`, and reads with
   `JsonSerializer.Deserialize(ReadOnlySpan<byte>, JsonTypeInfo<T>)`: the same model types as the others. The
   workloads that share objects go through a second context with `ReferenceHandler.Preserve` (`WorkloadReferenceJson`).

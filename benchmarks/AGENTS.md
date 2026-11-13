@@ -13,14 +13,16 @@ README.md                    options of run.sh, the classes, MessagePack / proto
 run.sh                       the published runtime benchmark: v3 3.3.13 then the full v4 suite on one machine (QUICK=1,
                              FILTER=...); writes benchmarks/results/ (ignored)
 Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases/Graphs and Cases/Scenarios compare Nino
-                             against MemoryPack, MessagePack and protobuf-net per class
+                             against MemoryPack, MessagePack and protobuf-net per class (SimpleTest and PolymorphicTest
+                             against Google.Protobuf, through Fixtures/cases.proto, and System.Text.Json too)
                              (SimpleTest, PolymorphicTest, GenericPolymorphicTest, PooledTest, PooledGraphTest,
                              ReferenceTest, VersionTolerantTest, FixedSizeTest, CommonTypesTest, CollectionsTest,
                              BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest), Workloads/ (WorkloadTest: 12 real-world
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
                              Harness/Verify.cs (--verify: every case reads back right), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
-                             Fixtures/ contains shared models and payloads. NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest and PolymorphicTest; -p:NinoBenchLegacy for older refs
+                             Fixtures/ contains shared models and payloads (ProtobufModel.cs: protobuf-net's model, the
+                             .proto files --write-proto generates, the read-back of Google.Protobuf's messages). NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest and PolymorphicTest; -p:NinoBenchLegacy for older refs
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
                              analyzer, re-generation after edits; --generics adds generic slots and subtypes,
                              --calls top-level calls of Nino and of another serializer, --layouts a layout baseline

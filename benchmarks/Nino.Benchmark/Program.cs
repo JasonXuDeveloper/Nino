@@ -14,7 +14,7 @@ namespace Nino.Benchmark
         // as the published report has always shown them: report.yml merges the reports of classes that ran in
         // parallel (benchmarks/reports/merge_reports.py), whose cells then compare as they are.
         // `--verify` checks the cases (Verify.cs) and does not start BenchmarkDotNet; `--write-proto` rewrites the
-        // workloads' .proto from their models (WorkloadTest).
+        // .proto files of Google.Protobuf's messages from the models (ProtoFile).
         public static int Main(string[] args)
         {
             if (args.Contains("--verify"))
@@ -22,7 +22,8 @@ namespace Nino.Benchmark
 #if !NINO_BENCH_V3
             if (args.Contains("--write-proto"))
             {
-                Workloads.WorkloadTest.WriteProto();
+                foreach (var file in ProtoFile.All)
+                    file.Write();
                 return 0;
             }
 #endif

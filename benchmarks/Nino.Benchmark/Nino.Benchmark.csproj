@@ -38,8 +38,12 @@
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
         <Compile Remove="V3/**"/>
         <Protobuf Include="Workloads/workloads.proto" GrpcServices="None"/>
-        <!-- WorkloadTest checks it against what the models' protobuf-net contracts generate (Nino.Benchmark with write-proto). -->
+        <!-- SimpleTest's and PolymorphicTest's messages import protobuf-net's bcl.proto (DateTime, Guid) from Fixtures/. -->
+        <Protobuf Include="Fixtures/cases.proto;Fixtures/protobuf-net/bcl.proto" ProtoRoot="Fixtures" GrpcServices="None"/>
+        <!-- The classes check them against what the models' protobuf-net contracts generate (ProtoFile, Nino.Benchmark
+             with write-proto). -->
         <EmbeddedResource Include="Workloads/workloads.proto" LogicalName="workloads.proto"/>
+        <EmbeddedResource Include="Fixtures/cases.proto" LogicalName="cases.proto"/>
     </ItemGroup>
 
     <!-- The v3 run (NINO_BENCH_V3=true, Directory.Build.props): Nino 3.3.13 from nuget.org and the same SimpleTest

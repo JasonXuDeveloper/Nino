@@ -57,8 +57,8 @@ about linearly.
 
 `benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
 GC), every benchmark class, v4 and MemoryPack 1.22.0 side by side, with MessagePack 3.1.12 and protobuf-net
-3.4.40 wherever they can write the same data, and in `WorkloadTest` Google.Protobuf 3.36.2 and System.Text.Json (.NET
-10): the release run spreads the classes over twelve runners per architecture
+3.4.40 wherever they can write the same data, and in `SimpleTest`, `PolymorphicTest` and `WorkloadTest` Google.Protobuf
+3.36.2 and System.Text.Json (.NET 10): the release run spreads the classes over twelve runners per architecture
 and keeps every serializer's run of a case on one. v3 is Nino 3.3.13 from nuget.org, running a port of
 the same `SimpleTest` (same data, same attributes), each half (serialize, deserialize) on the runner of the same v4 cases
 directly before them; it has no
@@ -72,7 +72,10 @@ v4 under 1 ns against a measurable time is faster, too fast to measure, with no 
 in a "vs" column means the case was not measured there, or v4 is not ahead.
 
 Each library serializes to its own buffer writer: Nino to `NinoArrayBufferWriter`, MemoryPack and MessagePack to
-`ArrayBufferWriter<byte>`, protobuf-net to a `MemoryStream` (its fastest writer). Into any other `IBufferWriter<byte>` Nino writes raw and fixed-size values in place too, and
+`ArrayBufferWriter<byte>`, protobuf-net to a `MemoryStream` (its fastest writer), Google.Protobuf to
+`ArrayBufferWriter<byte>` (its own messages, generated from the schema protobuf-net's contracts produce: the same
+messages, subtypes as a `oneof` per level) and System.Text.Json UTF-8 through its source generator into a reused
+`Utf8JsonWriter`. Into any other `IBufferWriter<byte>` Nino writes raw and fixed-size values in place too, and
 everything else into a pooled buffer that it then copies over, one copy more than these tables measure.
 Before the benchmarks run, `--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`) checks every case: each serialize case writes
 its payload's bytes, and every deserialize case of a category reads back the same value, deep-compared. The data is
@@ -387,7 +390,7 @@ dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*Referenc
 
 The suite has twelve classes, all against MemoryPack 1.22.0, and against MessagePack and protobuf-net wherever they
 can write the same data ([benchmarks/README.md](../benchmarks/README.md#messagepack-and-protobuf-net) lists the cases
-they cannot): `SimpleTest`, `PolymorphicTest`, `GenericPolymorphicTest` (subtypes through a
+they cannot; `SimpleTest`, `PolymorphicTest` and `WorkloadTest` also against Google.Protobuf and System.Text.Json): `SimpleTest`, `PolymorphicTest`, `GenericPolymorphicTest` (subtypes through a
 non-generic base and through closed instances of a generic base, whose union MemoryPack registers at runtime), `PooledTest` and `PooledGraphTest` (reuse and
 pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`

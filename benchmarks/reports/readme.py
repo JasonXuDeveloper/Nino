@@ -268,6 +268,12 @@ def tables(v4, v3, v3_runs, env, tag):
     out["table.workloads.payload"] = table(
         ["Workload"] + head,
         [[label] + [f"{v4[f'{n}Serialize{key}']['payload']}" for n in names] for key, label in WORKLOADS])
+    # The other libraries' times, for reference, in OTHERS' order ("—" where a release did not run one): MemoryPack,
+    # MessagePack and protobuf-net always, Google.Protobuf and System.Text.Json once a report has them in these cases
+    # (earlier releases ran them in WorkloadTest only).
+    simple = [(other, name) for other, _, name in OTHERS
+              if other in ("MemoryPack", "MessagePack", "Protobuf") or
+              any(f"{other}{verb}{key}" in v4 for verb in ("Serialize", "Deserialize") for key, _ in SIMPLE_CASES)]
     for verb in ("Serialize", "Deserialize"):
         rows = []
         for key, label in SIMPLE_CASES:
@@ -275,12 +281,11 @@ def tables(v4, v3, v3_runs, env, tag):
             if nino is None or mp is None:
                 continue
             old = v3.get(f"Nino{verb}{key}")
-            # MessagePack and protobuf-net: their times, for reference ("—" where a release did not run them).
-            rows.append([label, time(nino), time(mp), maybe(f"MessagePack{verb}{key}"), maybe(f"Protobuf{verb}{key}"),
-                         time(old) if old is not None else "—", versus(mp, nino),
+            rows.append([label, time(nino)] + [maybe(f"{other}{verb}{key}") for other, _ in simple] +
+                        [time(old) if old is not None else "—", versus(mp, nino),
                          versus(old, nino) if old is not None else "—"])
-        out[f"table.{verb.lower()}"] = table(["Case", "v4", "MemoryPack", "MessagePack", "protobuf-net", "v3",
-                                              "v4 vs MemoryPack", "v4 vs v3"], rows)
+        out[f"table.{verb.lower()}"] = table(["Case", "v4"] + [name for _, name in simple] +
+                                             ["v3", "v4 vs MemoryPack", "v4 vs v3"], rows)
 
     rows = []
     for label, new, reuse, mp_new, overwrite in REUSE_CASES:

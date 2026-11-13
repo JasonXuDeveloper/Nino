@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json.Serialization;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -17,6 +18,8 @@ namespace Nino.Benchmark;
 [Union(1, typeof(PolymorphicClass))]
 [ProtoContract]
 [ProtoInclude(100, typeof(PolymorphicClass))]
+[JsonPolymorphic]
+[JsonDerivedType(typeof(PolymorphicClass), 1)]
 public abstract partial class PolymorphicClassBase
 {
     [Key(10)] [ProtoMember(1)]
@@ -124,6 +127,28 @@ public sealed partial class PolymorphicClass : PolymorphicClassBase, IPolymorphi
 // protobuf-net: each type names its direct subtypes, one level of nesting per level of the hierarchy.
 [ProtoContract]
 [ProtoInclude(100, typeof(FooA))]
+// System.Text.Json: the base names every subtype, with MemoryPack's numbers as the "$type" discriminator.
+[JsonPolymorphic]
+[JsonDerivedType(typeof(FooA), 1)]
+[JsonDerivedType(typeof(FooB), 2)]
+[JsonDerivedType(typeof(FooC), 3)]
+[JsonDerivedType(typeof(FooD), 4)]
+[JsonDerivedType(typeof(FooE), 5)]
+[JsonDerivedType(typeof(FooF), 6)]
+[JsonDerivedType(typeof(FooG), 7)]
+[JsonDerivedType(typeof(FooH), 8)]
+[JsonDerivedType(typeof(FooI), 9)]
+[JsonDerivedType(typeof(FooJ), 10)]
+[JsonDerivedType(typeof(FooK), 11)]
+[JsonDerivedType(typeof(FooL), 12)]
+[JsonDerivedType(typeof(FooM), 13)]
+[JsonDerivedType(typeof(FooN), 14)]
+[JsonDerivedType(typeof(FooO), 15)]
+[JsonDerivedType(typeof(FooP), 16)]
+[JsonDerivedType(typeof(FooQ), 17)]
+[JsonDerivedType(typeof(FooR), 18)]
+[JsonDerivedType(typeof(FooS), 19)]
+[JsonDerivedType(typeof(FooZ), 20)]
 public abstract partial class PolymorphicFooBase
 {
     [Key(0)] [ProtoMember(1)] public int Id;

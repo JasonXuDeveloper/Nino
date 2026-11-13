@@ -193,8 +193,8 @@ jobs:
           fi
 
   # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), every
-  # serializer's runs of a case (Nino, MemoryPack, MessagePack, protobuf-net, and in WorkloadTest Google.Protobuf and
-  # System.Text.Json) always on one runner. Fourteen shards of 24 to 52 cases (just under a minute each with three
+  # serializer's runs of a case (Nino, MemoryPack, MessagePack, protobuf-net, and in SimpleTest, PolymorphicTest and
+  # WorkloadTest Google.Protobuf and System.Text.Json) always on one runner. Fourteen shards of 24 to 52 cases (just under a minute each with three
   # launches, a million-object ScatteredTest case over one), balanced by the shards' times in the last report
   # (v4.0.0-rc.9's took 34 to 47 minutes); BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest are split by
   # type, ScatteredTest by data. SimpleTest is
