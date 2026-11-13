@@ -282,4 +282,13 @@
 # done (run 43212065213): cpu='EPYC|Xeon|Neoverse' 51a7bd18 e6f72cd3 6 *Test.Nino* (review head vs main; landed as 558b2a59)
 # What zeroing absent Nullable values (a751e6c2, bb63a255) costs: raw nullable collections, structs with padding
 # (NinoMask.Copy gained the absent-value check) and fixed-size types, against the commit before the fix.
-cpu='EPYC|Xeon|Neoverse' 14a2d2df bb63a255 8 *CollectionsTest.Nino*Nullable* *FixedSizeTest.Nino* *SimpleTest.Nino*Struct* *CommonTypesTest.Nino* *CollectionsTest.Nino*Tuple*
+# done (superseded by the lines below): cpu='EPYC|Xeon|Neoverse' 14a2d2df bb63a255 8 *CollectionsTest.Nino*Nullable* *FixedSizeTest.Nino* *SimpleTest.Nino*Struct* *CommonTypesTest.Nino* *CollectionsTest.Nino*Tuple*
+# #261: every payload copy through NinoUnsafe.Copy (04cc1ca1, with ExternalBufferTest); NinoSerializeMemory and
+# NinoSerializeReadOnlySequence compile to identical code on both sides (controls); one floor, one more Arm64 sample.
+cpu='EPYC|Xeon|Neoverse' 52bcc223 04cc1ca1 12 *ExternalBufferTest.Nino* *BclTypesTest.NinoSerializeMemory* *BclTypesTest.NinoSerializeReadOnlySequence* *BclTypesTest.NinoDeserializeBitArray*
+cpu='EPYC|Xeon|Neoverse' 52bcc223 52bcc223 12 *ExternalBufferTest.Nino* *BclTypesTest.NinoSerializeMemory* *BclTypesTest.NinoSerializeReadOnlySequence* *BclTypesTest.NinoDeserializeBitArray*
+cpu='Neoverse' 52bcc223 04cc1ca1 12 *ExternalBufferTest.Nino* *BclTypesTest.NinoDeserializeBitArray*
+# Nullable serialize: absent values cleared in the copy's one pass at full width, flags spread by byte shuffles
+# (04a57a6c) against main (52bcc223, which has the zeroing fix's regression) and against the commit before that fix.
+cpu='EPYC|Xeon|Neoverse' 52bcc223 04a57a6c 5 *CollectionsTest.Nino*Nullable*
+cpu='EPYC|Xeon|Neoverse' 14a2d2df 04a57a6c 5 *CollectionsTest.Nino*Nullable*
