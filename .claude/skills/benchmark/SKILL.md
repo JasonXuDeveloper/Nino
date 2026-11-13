@@ -177,7 +177,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 ## Adding a case
 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
-  MessagePack, protobuf-net; Google.Protobuf and System.Text.Json where the case is a workload), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards): a report
+  MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest` and the
+  workloads, the classes every chart group shows), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards): a report
   shard picked by the minutes each shard's "Run benchmarks" step took in the last report, not by case counts
   (`audit-ci`, Fast and parallel). Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
   ci.yml runs `--verify` on x64 and on Arm64 (`audit-ci`, Scripts only a release runs).
@@ -189,11 +190,16 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 - A competitor that reads into types of its own (Google.Protobuf's generated messages) implements `IReadBack`
   (Verify.cs), which turns its result into the baseline's type outside the timed region. Generate its schema rather
   than writing it: `Workloads/workloads.proto` is protobuf-net's `GetSchema` of the models at
-  `CompatibilityLevel.Level300` (`--write-proto`; the setup fails on a stale file), Google.Protobuf's data is parsed
+  `CompatibilityLevel.Level300`, `Fixtures/cases.proto` that of SimpleTest's and PolymorphicTest's models at
+  protobuf-net's default (importing its `bcl.proto`, vendored in `Fixtures/protobuf-net/`; a top-level array named by a
+  list contract, `Fixtures/CaseFormats.cs`), both through `ProtoFile` (`--write-proto`; the setup fails on a stale file), Google.Protobuf's data is parsed
   from protobuf-net's bytes, and its result reads back through protobuf-net, so no converter is written by hand. Number
   a protobuf type's subtypes from 1 and its own members from 20: protobuf-net reads the subtype field before the
   base's, and Google.Protobuf writes fields in number order, so base fields first made protobuf-net create the
-  abstract base and throw. Two versions of one model (a previous release's bytes read by this one) are sealed types:
+  abstract base and throw. Models whose numbers protobuf-net's published rows already depend on (SimpleTest's and
+  PolymorphicTest's subtypes at 100) keep them: `ProtobufModel.ReadBack` moves every `oneof` field first, at every
+  level, before protobuf-net reads Google.Protobuf's bytes back (without it, `--verify` threw in protobuf-net's
+  `ReadSubType` on every PolymorphicTest case). Two versions of one model (a previous release's bytes read by this one) are sealed types:
   Nino writes a type id for a class that is not sealed, and the two types' ids differ (`ProfileCache` threw "not a
   registered subtype"). Write System.Text.Json through a reused `Utf8JsonWriter` with `SkipValidation`, as the
   serializer's own writers do, its source generator with `IncludeFields` for field-only models.
@@ -257,7 +263,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   rows on each (`ProtobufDeserializeNew` allocates 3,544 B per call measured again), and the site showed them as 0 B.
   `merge_reports.py` writes "?" for such a cell (`unmeasured_allocation`), which the site and `readme.py` show as
   unknown; a claim of 0 B (a reuse row, "no allocation") needs a run where the GC count is zero too. Every table of the
-  site's Benchmarks page names every library that wrote the same data (MemoryPack, MessagePack, protobuf-net; the
-  workloads add Google.Protobuf and System.Text.Json): a new benchmark class gets its case list in the site's
+  site's Benchmarks page names every library that wrote the same data (MemoryPack, MessagePack, protobuf-net;
+  SimpleTest, PolymorphicTest and the workloads add Google.Protobuf and System.Text.Json): a new benchmark class gets its case list in the site's
   `moreCases` or `extraCases`, never only the raw results table (round 130: five classes and the reuse and
   polymorphism tables showed MemoryPack alone).
