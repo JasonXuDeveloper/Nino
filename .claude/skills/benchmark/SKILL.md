@@ -239,12 +239,14 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 - Publish every result as a release asset listed in `benchmarks-manifest.json`, never as a table in the body:
   `release_body.py publish` (each publish job of report.yml, one after another) attaches the files (merged
   BenchmarkDotNet reports, the runtime, Unity and build sections, their JSON/CSV data), draws one chart per section
-  (the .NET x64 and Arm64 charts are README's, in its groups and order, v3 in the x64 one; v3's section has only
-  its summary and table, the owner's call: "v4 v3 memorypack messagepack ... 统一比较")
-  (`charts.py`, the README chart's code; a light and a dark SVG of a few KB each, in a `<picture>` with
-  `prefers-color-scheme`) and rewrites the body's benchmark part between its
-  markers: a `<details>` per section with a one-line summary, the chart and links to the assets, about 7,000
-  characters for everything. Why: the tables grew toward GitHub's 125,000-character limit with every library and
+  (`charts.py`; a light and a dark SVG, in a `<picture>` with `prefers-color-scheme`), except the .NET x64 and Arm64
+  sections, which get README's charts, one per group (`readme.chart_groups`, the same function; v3 in x64's, none in
+  Arm64's; v3's section has only its summary and table, the owner's call: "v4 v3 memorypack messagepack ...
+  统一比较"), each in a collapsed `<details>` inside the section with a plain summary (GitHub does not indent a
+  nested block; bold summaries are the sections'), listed in the manifest entry's `charts`
+  (`charts/<tag>/dotnet-<arch>-<group>.svg` and `-dark.svg`), and rewrites the body's benchmark part between its
+  markers: a `<details>` per section with a one-line summary, the charts and links to the assets, about 12,000
+  characters for the three .NET sections with every group and 20,000 for everything. Why: the tables grew toward GitHub's 125,000-character limit with every library and
   case (v4.0.0-rc.9: x64 and Arm64 took 34k each, the runtime sections 29k, and the 10k Unity section was dropped at
   116,977), and README, docs and the site parsed them back out of the body (#272). A body from before the manifest
   keeps an old section until the manifest has its asset.
