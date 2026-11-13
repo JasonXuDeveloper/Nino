@@ -1,0 +1,1 @@
+Performance: `ConcurrentStack<T>` of raw elements is written without allocating on every .NET from 8 on; .NET 9 and 11 used to enumerate it.
