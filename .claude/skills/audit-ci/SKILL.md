@@ -104,59 +104,32 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   job's own log prints the editor's log only after the editor exits. A bare `Killed` before that log and
   `Unexpected exit code 137` mean the editor alone got SIGKILL (xvfb-run's dash prints the bare word; the timeout
   sends SIGTERM to the whole group first, and test.sh's bash would print `line N: PID Killed`), so the wrapper is not
-  the cause: read unity.yml's `Show the kernel's kills` step (it runs on green jobs too), since the container is
-  gone. Its `dmesg` grep tells an OOM kill (`Memory cgroup out of memory`) from any other; its trace (the host
-  kernel's `signal:signal_generate` tracepoint, which `Trace fatal signals` turns on before the Unity steps,
-  filtered to fatal signals, with `record-tgid`) names the sender of every SIGKILL: before the colon the sending
-  thread's name and host PID, then its process in parentheses; `comm=`/`pid=` the target (a thread's name and ID
-  when the PID killed was a thread's: the whole process dies); the kernel stack `__x64_sys_kill`/`tgkill` for a
-  process, `zap_pid_ns_processes` for the container ending (ignore those), an OOM or fault path for the kernel.
-  A thread's name is not its process: the trace instance `nino-procs` (fork, exec, rename, exit of every task)
-  lets the step's script print the sender's process, program and parents, the target's, and each one's PID inside
-  its container (counted in creation order from the task runc's `[1:CHILD]` creates), and every Unity editor and
-  `Unity.DataStore` started with its container PID. Do not blame memory, `/dev/shm` or a flag without that
-  evidence. Map every target to its PID inside its container before guessing: a fixed container PID across
-  containers means a PID stored by an earlier container, since each container hands out PIDs in the same order.
-  The 6000.6.9f1 editor kills itself: 1.2 to 2 s after launch, right after `Registered in ... seconds.` in its
-  first domain reload, a thread of `/opt/unity/Editor/Unity` calls `kill(2)` with SIGKILL (`code=0`) on container
-  PID 296, every time (all three kills of run 43324567209, all five of 43349362911), whatever holds 296 in that
-  container: another thread of the editor (the whole thread group dies, exit 137) or a thread of its
-  `Unity.DataStore`; where 296 is not yet taken nothing happens, which made it look like one launch in three. The
-  source is `Library/burst.pid`: Burst 2.0's compiler process writes its PID there, and the editor kills that PID
-  as a lingering compiler early in its first domain reload (run 43356711660: the cached file held 296 and the first kill
-  hit 296, then it held 287 and every later kill hit 287); `Library/ilpp.pid`, the first suspect (decompiled
-  `KillLingeringILPPRunner`), held other PIDs. Without a cache the first launch's file reaches the next step (run
-  43290338104 lost its player step so). unity.yml's `Show and clear
-  Unity's stored process IDs` (before every launch) prints each small file in the Library, Temp, UserSettings and
-  the runner's home (game-ci mounts it as `/root`) that holds `296`, only a number or a pid key, or has a PID or
-  lock name, then deletes `Library/burst.pid`, `Library/ilpp.pid`, `Library/MSBuild/buildhost.pid` (Unity.BuildService's host),
-  `Library/EditorInstance.json` and `Temp`, keeping the compiled scripts and imported assets for the cache; its
-  output names the file if a kill still comes. Ruled out, each with the kills going on: memory (nothing in
-  `dmesg`, 14 GB available), `/dev/shm` (2 GiB as at the CLI's 1025m; c6d51102, reverted) and code coverage (off
-  since 56b8bc93). The Data Store's state is not ruled out: 553debd6's step listed `Library/DataStore` with
-  `find | head` under `pipefail`, died of SIGPIPE (exit 141) before its `rm`, and deleted nothing; a listing in a
-  step must never stop the step before its action (`|| echo ::warning::`). A passing launch's editor SIGKILLs its
-  `Unity.DataStore` at shutdown: that is the usual end, not the bug. Burst 2.0 ships only inside 6000.6 (the
-  registry's `com.unity.burst` stops at 1.8.31), so the row cannot move to an older 6000.x. The owner chose a
-  retry as the backstop: each of unity.yml's three `unity-test-runner` steps runs with `continue-on-error`, and its
-  `Did Unity kill itself` step asks for another attempt, up to three in all, only when all hold:
-  `UNITY_SELF_KILL_RETRY` (the job's env, true for `6000.6.*`), no `<mode>-results.xml` in the step's
-  `artifactsPath` (no test ran), and in the signal trace since the last `Mark the signal trace` (a `trace_marker`
-  line, `nino-attempt`, written before every attempt) a SIGKILL with `code=0` from a process that exec'd
-  `/opt/unity/Editor/Unity` to a different thread of that process (the `nino-procs` instance maps each thread to
-  its process). Anything else fails the judge and the job as the step did before: failed tests (their XML
-  exists), a timeout, a crash of Nino's code in the editor (SIGSEGV or SIGABRT, never a self-`kill`), a kill from
-  another process, a trace that could not start. The second attempt runs with `continue-on-error` too and is
-  judged the same way (`Did Unity kill itself again`); a failed third attempt fails the job. A retry prints a
-  `::warning::` naming the bug and the attempt and keeps the killed attempt's log as
-  `<mode>-killed-<attempt>.log` in `test-results-unity-<version>`. The later steps' `if:` read the judges' and the
-  third attempt's `conclusion`, never the first two attempts' (their `continue-on-error` makes it `success`).
-  Switch it off once the kills are gone (no retry warning for a few weeks): `UNITY_SELF_KILL_RETRY` false first,
-  then remove the judge, retry and mark steps. Code coverage stays off in the
-  test steps (`GAME_CI_COVERAGE_ENABLED: 'false'`, the CLI's `coverageEnabled` option: the action's
-  `coverageEnabled: false` passes `--no-coverageEnabled`, which CLI v0.1.72 rejects): the project has no Code Coverage package, so it only put every editor launch in Debug code
-  optimization with Mono's coverage instrumentation. Name no variable of your own `GAME_CI_*`: the CLI reads each
-  as an option (yargs `.env("GAME_CI")` under `strict`) and rejects one it does not know.
+  the cause. Find the sender before blaming memory, `/dev/shm` or a flag: the container is gone once the step ends,
+  so trace the host kernel from a step before the launch (tracefs `signal:signal_generate` filtered to `sig == 9`,
+  with `record-tgid`, `record-cmd` and a stack trigger; a second instance recording `sched_process_fork`,
+  `sched_process_exec`, `task_rename` and `sched_process_exit` maps each thread to its process and to its PID
+  inside its container, counted in creation order from runc's `[1:CHILD]`), print it from an `if: always()` step
+  with `dmesg` (an OOM kill shows as `Memory cgroup out of memory`), and map every target to its container PID: a
+  fixed container PID across containers means a PID stored by an earlier container, since each container hands out
+  PIDs in the same order (unity.yml had these steps from 0a6542e3 and c904dcaf until the cause was found). The
+  6000.6.9f1 editor killed itself that way: about 2 s after launch, right after `Registered in ... seconds.` in its
+  first domain reload, a thread of `/opt/unity/Editor/Unity` called `kill(2)` with SIGKILL (`code=0`) on the PID
+  Burst 2.0's compiler stored in `Library/burst.pid`, taking it for a lingering compiler; the Library cache brought
+  the file back, so the PID was a thread of the editor itself (exit 137) or of its `Unity.DataStore` (runs
+  43324567209, 43349362911; run 43356711660 printed the file: 296 from the cache, then 287, the PID of every kill).
+  `Library/ilpp.pid`, the first suspect (decompiled `KillLingeringILPPRunner`), held other PIDs. Ruled out with the
+  kills going on: memory (nothing in `dmesg`, 14 GB available), `/dev/shm` (2 GiB as at the CLI's 1025m),
+  code coverage and the Data Store's state. unity.yml's `Delete Unity's stored process IDs` runs before every
+  launch: it prints `Library/burst.pid`, `Library/ilpp.pid`, `Library/MSBuild/buildhost.pid` and
+  `Library/EditorInstance.json` and deletes them and `Temp`, keeping the compiled scripts and imported assets for
+  the cache; with it no editor killed itself (run 43361909823, all three launches of 6000.6 green at the first
+  attempt). The owner's call: only that step stays, no retry and no trace (a retry with a kernel-trace judge ran
+  from 0a8cfb6e to 7c6f6a93). A listing in a step must never stop the step before its action: 553debd6's
+  `find | head` under `pipefail` died of SIGPIPE (exit 141) before its `rm`. A passing launch's editor SIGKILLs
+  its `Unity.DataStore` at shutdown, and bash SIGKILLs `UnityAutoQuitte` (`code=128`) at the end of each launch:
+  both are the usual end, not a bug. Burst 2.0 ships only inside 6000.6 (the registry's `com.unity.burst` stops at
+  1.8.31), so the row cannot move to an older 6000.x. Name no variable of your own `GAME_CI_*`: the CLI reads
+  each as an option (yargs `.env("GAME_CI")` under `strict`) and rejects one it does not know.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
   runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
   `unity.yml` called with `tag`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
