@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Tests of release_body.py, release_assets.py and charts.py: a dry run of report.yml's publish jobs against a
-directory standing in for a release (no network, no Chrome: --no-png), the body's benchmark part, the old sections of
+directory standing in for a release (no network, no Chrome), the body's benchmark part, the old sections of
 a release from before the manifest, readme.py --assets, and the PNG crop (run: python3
 benchmarks/reports/test_release_body.py)."""
 import contextlib
@@ -93,7 +93,7 @@ class Publish(unittest.TestCase):
         return os.path.join(self.dir, *parts)
 
     def publish(self, work, *files):
-        args = ["publish", "--tag", TAG, "--dir", self.path(work), "--release-dir", self.release, "--no-png", *files]
+        args = ["publish", "--tag", TAG, "--dir", self.path(work), "--release-dir", self.release, *files]
         with contextlib.redirect_stderr(io.StringIO()):
             sys.argv = ["release_body.py", *args]
             release_body.main()

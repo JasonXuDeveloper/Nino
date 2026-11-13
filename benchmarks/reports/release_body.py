@@ -3,22 +3,22 @@
 each section and writes the benchmark part of the release body from the manifest.
 
 usage:
-  release_body.py publish --tag TAG --dir WORK [--release-dir FAKE] [--chrome PATH] [--no-png]
+  release_body.py publish --tag TAG --dir WORK [--release-dir FAKE]
                           NAME=PATH...
   release_body.py body --tag TAG --body current.md --manifest benchmarks-manifest.json --out new.md
 
 publish: every job of report.yml that has results runs it with its own files (the asset names: release_assets.py).
 It reads the release's manifest into WORK (none yet: a new one), copies each PATH into WORK as NAME and lists it,
-draws the chart of each section whose files are in WORK (charts.py: SVG, then PNG with headless Chrome) and puts the
-PNGs on the release-notes branch (charts/<tag>/), uploads the files and the manifest (--clobber: a re-run replaces
+draws the chart of each section whose files are in WORK (charts.py: an SVG in the light and one in the dark theme) and
+puts them on the release-notes branch (charts/<tag>/), uploads the files and the manifest (--clobber: a re-run replaces
 them), then rewrites the benchmark part of the body. --release-dir runs it against a directory instead of GitHub
-(release_assets.Local: body.md, assets/, release-notes/), for a dry run; --no-png leaves the PNGs out (tests).
+(release_assets.Local: body.md, assets/, release-notes/), for a dry run.
 
 body: the body with its benchmark part rewritten from a manifest (what publish does last).
 
 The body: the release notes (release_notes.py) stay as they are; after them, between the START and END markers, a
 "## 📊 Benchmarks" heading and one collapsed <details> per section in SECTIONS' order: its title and a one-line
-summary, the chart (light theme: a release body has no dark switch), the environment and links to the assets with
+summary, the chart (a <picture> of its light and dark SVG, by the reader's colour scheme), the environment and links to the assets with
 the full tables. A body from before the manifest (v4.0.0-rc.9 and older) has the old sections (tables) instead: each
 is dropped once the manifest has its asset, and kept as it is (after the charts) until then. The part is a few
 thousand characters, far under GitHub's 125,000.
@@ -111,8 +111,12 @@ def section(manifest, entry, tag):
     summary = f"<b>{title}</b>" + (f": {entry['summary']}" if entry.get("summary") else "")
     out = ["<details>", f"<summary>{summary}</summary>", ""]
     if entry.get("chart"):
-        out += [f'<img src="{release_assets.chart_url(entry["chart"], entry.get("chart_sha", ""))}" '
-                f'alt="{title}" width="{entry.get("chart_width", 940)}">', ""]
+        img = (f'<img src="{release_assets.chart_url(entry["chart"], entry.get("chart_sha", ""))}" '
+               f'alt="{title}" width="{entry.get("chart_width", 940)}">')
+        if entry.get("chart_dark"):
+            dark = release_assets.chart_url(entry["chart_dark"], entry.get("chart_dark_sha", ""))
+            img = f'<picture><source media="(prefers-color-scheme: dark)" srcset="{dark}">{img}</picture>'
+        out += [img, ""]
     data = [e["name"] for e in manifest["assets"] if e.get("of") == entry["name"]]
     files = link(tag, entry["name"]) + (" (made from " + ", ".join(link(tag, n) for n in data) + ")" if data else "")
     environment = f"{entry['environment'].rstrip('.')}. " if entry.get("environment") else ""
@@ -301,9 +305,9 @@ def build_chart(path):
     return chart, summary, note
 
 
-def draw(directory, manifest, tag, chrome=None, png=True):
+def draw(directory, manifest, tag):
     """Draws the chart of every section whose files are in the directory; sets its entry's title, summary and chart.
-    -> the PNGs written."""
+    -> the SVGs written."""
     written = []
     for name, title in SECTIONS:
         entry = release_assets.entry(manifest, name)
@@ -329,15 +333,17 @@ def draw(directory, manifest, tag, chrome=None, png=True):
             continue
         heading = f"{title} (shorter is better)" if entry["kind"] == "build" else \
             f"{title}: {charts.README_TITLE[0].lower()}{charts.README_TITLE[1:]}"
-        image, height = charts.svg(chart, "light", heading, note,
-                                   0 if entry["kind"] == "build" else FLOOR_NS)
         stem = os.path.join(directory, name.rsplit(".", 1)[0])
-        with open(stem + ".svg", "w", encoding="utf-8") as f:
-            f.write(image)
-        entry.update(title=title, summary=summary, chart_width=int(re.search(r'width="(\d+)"', image).group(1)))
-        if png:
-            path = charts.png(stem + ".svg", chrome)
-            entry.update(chart=f"charts/{tag}/{os.path.basename(path)}", chart_sha=release_assets.sha(path))
+        entry.update(title=title, summary=summary)
+        # SVG, light and dark: a few KB each, sharp at any zoom, and raw.githubusercontent.com serves it as
+        # image/svg+xml, which GitHub's image proxy shows (PNGs at a readable resolution were about 5 MB a release).
+        for theme, suffix, key in (("light", "", "chart"), ("dark", "-dark", "chart_dark")):
+            image, _ = charts.svg(chart, theme, heading, note, 0 if entry["kind"] == "build" else FLOOR_NS)
+            path = f"{stem}{suffix}.svg"
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(image)
+            entry.update({key: f"charts/{tag}/{os.path.basename(path)}", f"{key}_sha": release_assets.sha(path),
+                          "chart_width": int(re.search(r'width="(\d+)"', image).group(1))})
             written.append(path)
         print(f"📈 {name}: {summary}", file=sys.stderr)
     return written
@@ -363,7 +369,7 @@ def publish(args):
         print("⏭️ Nothing to publish", file=sys.stderr)
         return
     # v3's chart needs the x64 report: a job that adds only one of them draws it once both are there.
-    images = draw(args.dir, manifest, args.tag, args.chrome, not args.no_png)
+    images = draw(args.dir, manifest, args.tag)
     rel.push_charts(images)
     release_assets.save(args.dir, manifest)
     rel.upload([os.path.join(args.dir, n) for n in added] + [os.path.join(args.dir, release_assets.MANIFEST)])
@@ -390,8 +396,6 @@ def main():
     one.add_argument("--tag", required=True)
     one.add_argument("--dir", required=True, help="the working directory: the manifest, the assets, the charts")
     one.add_argument("--release-dir", help="a directory standing in for the release (dry run)")
-    one.add_argument("--chrome", help="Chrome or Chromium (default: $CHROME, google-chrome)")
-    one.add_argument("--no-png", action="store_true")
     one.add_argument("files", nargs="+", metavar="NAME=PATH")
     one.set_defaults(run=publish)
     two = commands.add_parser("body")

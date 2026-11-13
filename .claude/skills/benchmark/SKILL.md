@@ -222,23 +222,27 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 - Publish every result as a release asset listed in `benchmarks-manifest.json`, never as a table in the body:
   `release_body.py publish` (each publish job of report.yml, one after another) attaches the files (merged
   BenchmarkDotNet reports, the runtime, Unity and build sections, their JSON/CSV data), draws one chart per section
-  (`charts.py`, the README chart's code; PNG by headless Chrome) and rewrites the body's benchmark part between its
+  (`charts.py`, the README chart's code; a light and a dark SVG of a few KB each, in a `<picture>` with
+  `prefers-color-scheme`) and rewrites the body's benchmark part between its
   markers: a `<details>` per section with a one-line summary, the chart and links to the assets, about 7,000
   characters for everything. Why: the tables grew toward GitHub's 125,000-character limit with every library and
   case (v4.0.0-rc.9: x64 and Arm64 took 34k each, the runtime sections 29k, and the 10k Unity section was dropped at
   116,977), and README, docs and the site parsed them back out of the body (#272). A body from before the manifest
   keeps an old section until the manifest has its asset.
-- Reference a chart from the body by its raw URL on the release-notes branch (`charts/<tag>/<name>.png?v=<hash>`),
+- Reference a chart from the body by its raw URL on the release-notes branch (`charts/<tag>/<name>.svg?v=<hash>`, `<name>-dark.svg` for the dark theme),
   never by its release-download URL: GitHub serves release assets as `application/octet-stream` with
   `Content-Disposition: attachment` (the download redirect sets `response-content-type=application/octet-stream`),
-  which its image proxy camo does not show, while raw.githubusercontent.com serves `image/png`. Git notes keep
+  which its image proxy camo does not show, while raw.githubusercontent.com serves `image/svg+xml`. Git notes keep
   files whose paths are not commit ids, so the charts share the branch with release_notes.py's notes (the owner's
-  choice: no new branch). Run headless Chrome without `--user-data-dir` in a cloud session: with it, Chromium 1243
-  wrote nothing and never exited.
+  choice: no new branch). Draw SVG, never PNG: PNGs at a
+  readable 2x scale (about 1,880 x 2,220 px each) came to about 5.4 MB a release and needed Chrome, the SVGs are a
+  few KB, sharp at any zoom, and a pair per chart follows the reader's theme (the owner's call). readme.py's
+  `--png` (the README chart for nuget.org, which shows no SVG) still uses headless Chrome: run it without
+  `--user-data-dir` in a cloud session, with which Chromium 1243 wrote nothing and never exited.
 - Dry-run the publish jobs before changing them: `python3 benchmarks/reports/release_body.py publish --tag <tag>
   --dir <work> --release-dir <fake release dir> NAME=PATH...` for each job in report.yml's order (a directory with
-  `body.md` stands in for the release; `CHROME=` names a Chromium), then `readme.py --assets <fake>/assets` in a copy
-  of the tree; `test_release_body.py` runs the same without Chrome.
+  `body.md` stands in for the release), then `readme.py --assets <fake>/assets` in a copy
+  of the tree; `test_release_body.py` runs the same.
 
 ## Publishing
 

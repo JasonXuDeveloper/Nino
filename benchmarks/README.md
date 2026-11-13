@@ -46,8 +46,8 @@ Every result is attached to the release under a fixed name and listed in `benchm
 ([`release_assets.py`](reports/release_assets.py)): `dotnet-x64.md` and `dotnet-arm64.md` (the merged reports),
 `dotnet-v3-x64.md`, `runtime-<lang>-<arch>.md` with their JSON or CSV data, `unity-x64.md`, `build-x64.md` with
 the generator benchmark's JSON. The release notes get no table: [`release_body.py`](reports/release_body.py) draws a
-chart of each section ([`charts.py`](reports/charts.py), the README chart's code, as a PNG on the `release-notes`
-branch, since GitHub shows no image from a release asset) and writes one collapsed section per result with a
+chart of each section ([`charts.py`](reports/charts.py), the README chart's code, as a light and a dark SVG on the
+`release-notes` branch, since GitHub shows no image from a release asset) and writes one collapsed section per result with a
 one-line summary, the chart and links to the assets; README, docs and the documentation site read the assets.
 BenchmarkDotNet writes a report of one class without a Type column: `merge_reports.py` then takes the class
 from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.

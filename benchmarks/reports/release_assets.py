@@ -166,7 +166,7 @@ def download_url(tag, name):
 
 
 def chart_url(path, sha):
-    """A chart on the release-notes branch, through raw.githubusercontent.com (served as image/png); the hash changes
+    """A chart on the release-notes branch, through raw.githubusercontent.com (served as image/svg+xml); the hash changes
     the URL when the image does, so GitHub's image proxy never shows a cached old one."""
     return f"https://raw.githubusercontent.com/{REPO}/{CHARTS_BRANCH}/{path}?v={sha}"
 
@@ -217,7 +217,7 @@ class GitHub:
             os.unlink(f.name)
 
     def push_charts(self, files):
-        """Commits the PNGs as charts/<tag>/<name> onto the release-notes branch (which holds the release notes'
+        """Commits the charts as charts/<tag>/<name> onto the release-notes branch (which holds the release notes'
         git notes too) and pushes it, again on a branch that moved meanwhile."""
         if not files:
             return
