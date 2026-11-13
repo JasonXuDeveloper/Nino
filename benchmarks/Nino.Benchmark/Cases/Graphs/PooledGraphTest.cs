@@ -10,58 +10,6 @@ using ProtoBuf;
 #nullable disable
 namespace Nino.Benchmark;
 
-/// <summary>The same as <see cref="PooledLeaf"/>, not pooled.</summary>
-[NinoType]
-[MemoryPackable]
-[MessagePackObject]
-[ProtoContract]
-public sealed partial class PlainLeaf
-{
-    [Key(0)] [ProtoMember(1)] public int A;
-    [Key(1)] [ProtoMember(2)] public float B;
-    [Key(2)] [ProtoMember(3)] public List<int> Items;
-
-    public static PlainLeaf Create(Random r) =>
-        new() { A = r.Next(), B = r.NextSingle(), Items = Enumerable.Range(0, 8).Select(_ => r.Next()).ToList() };
-}
-
-/// <summary>No strings: primitives, an array, a list, a dictionary, a pooled child and a list of pooled children.</summary>
-[NinoType, NinoPooled]
-[MemoryPackable]
-[MessagePackObject]
-[ProtoContract]
-public sealed partial class PooledNode
-{
-    [Key(0)] [ProtoMember(1)] public int Id;
-    [Key(1)] [ProtoMember(2)] public long Ticks;
-    [Key(2)] [ProtoMember(3)] public double X;
-    [Key(3)] [ProtoMember(4)] public double Y;
-    [Key(4)] [ProtoMember(5)] public bool Flag;
-    [Key(5)] [ProtoMember(6)] public Guid Guid;
-    [Key(6)] [ProtoMember(7)] public int[] Data;
-    [Key(7)] [ProtoMember(8)] public List<long> Values;
-    [Key(8)] [ProtoMember(9)] public Dictionary<int, int> Map;
-    [Key(9)] [ProtoMember(10)] public PooledLeaf Leaf;
-    [Key(10)] [ProtoMember(11)] public List<PooledLeaf> Leaves;
-
-    private static partial IEnumerable<PooledNode> OnNinoPoolWarmup() => null;
-
-    private partial void OnNinoPoolReturn()
-    {
-    }
-
-    public static PooledNode Create(Random r) => new()
-    {
-        Id = r.Next(), Ticks = r.NextInt64(), X = r.NextDouble(), Y = r.NextDouble(), Flag = true,
-        Guid = BenchmarkRandom.NewGuid(),
-        Data = Enumerable.Range(0, 32).Select(_ => r.Next()).ToArray(),
-        Values = Enumerable.Range(0, 16).Select(_ => r.NextInt64()).ToList(),
-        Map = Enumerable.Range(0, 16).ToDictionary(i => i, _ => r.Next()),
-        Leaf = PooledLeaf.Create(r),
-        Leaves = Enumerable.Range(0, 8).Select(_ => PooledLeaf.Create(r)).ToList(),
-    };
-}
-
 /// <summary>
 /// Pooling without strings, so steady state allocates nothing: a pooled graph, and a list of pooled elements.
 /// "New" creates everything; "Pooled" returns what it got so the next call reuses it; MemoryPack overwrites the

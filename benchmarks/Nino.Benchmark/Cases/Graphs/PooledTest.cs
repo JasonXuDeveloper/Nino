@@ -10,42 +10,6 @@ using ProtoBuf;
 #nullable disable
 namespace Nino.Benchmark;
 
-/// <summary>
-/// The same members as <see cref="SimpleClass"/>, pooled by Nino. Kept out of <see cref="SimpleTest"/>: reusing
-/// instances is not what the other serializers are measured doing there, so it gets a table of its own, against
-/// MemoryPack's own overwrite (deserialize into an existing instance). MessagePack and protobuf-net have no overwrite
-/// (protobuf-net's deserialize into an existing instance merges: it appends to lists), so they read new instances only.
-/// </summary>
-[NinoType, NinoPooled]
-[MemoryPackable]
-[MessagePackObject]
-[ProtoContract]
-public sealed partial class PooledSimpleClass
-{
-    [Key(0)] [ProtoMember(1)] public int Id;
-    [Key(1)] [ProtoMember(2)] public bool Tag;
-    [Key(2)] [ProtoMember(3)] public Guid Guid;
-    [Key(3)] [ProtoMember(4)] public DateTime CreateTime;
-    [Key(4)] [ProtoMember(5)] public string Name { get; set; }
-    [Key(5)] [ProtoMember(6)] [NinoUtf8] public string Desc;
-    [Key(6)] [ProtoMember(7)] public int[] Numbers { get; set; }
-    [Key(7)] [ProtoMember(8)] public List<DateTime> Dates { get; set; }
-    [Key(8)] [ProtoMember(9)] public Dictionary<int, string> Map1;
-    [Key(9)] [ProtoMember(10)] public Dictionary<int, int> Map2 { get; set; }
-
-    private static partial IEnumerable<PooledSimpleClass> OnNinoPoolWarmup() => null;
-
-    private partial void OnNinoPoolReturn()
-    {
-    }
-
-    public static PooledSimpleClass From(SimpleClass c) => new()
-    {
-        Id = c.Id, Tag = c.Tag, Guid = c.Guid, CreateTime = c.CreateTime, Name = c.Name, Desc = c.Desc,
-        Numbers = c.Numbers, Dates = c.Dates, Map1 = c.Map1, Map2 = c.Map2,
-    };
-}
-
 [HideColumns("StdDev", "RatioSD", "Error")]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 [NinoJob]

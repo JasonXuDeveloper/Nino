@@ -10,18 +10,6 @@ using ProtoBuf;
 #nullable disable
 namespace Nino.Benchmark;
 
-/// <summary>A small class with a string, for <see cref="ScatteredTest"/>.</summary>
-[NinoType]
-[MemoryPackable]
-[MessagePackObject]
-[ProtoContract]
-public sealed partial class ScatteredItem
-{
-    [Key(0)] [ProtoMember(1)] public int Id;
-    [Key(1)] [ProtoMember(2)] public string Name;
-    [Key(2)] [ProtoMember(3)] public long Value;
-}
-
 /// <summary>
 /// Arrays of a million objects whose order in the array is not their order in memory, as objects created and replaced
 /// over a program's life are: the array is shuffled after its objects were allocated, so each element is a cache miss

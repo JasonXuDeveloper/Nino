@@ -11,15 +11,6 @@ using Nino.Core;
 #nullable disable
 namespace Nino.Benchmark;
 
-/// <summary>A raw struct (no [NinoType]) with fields Untrusted mode checks: a DateTime and a bool.</summary>
-public struct CheckedSample
-{
-    public DateTime At;
-    public double Value;
-    public int Id;
-    public bool Valid;
-}
-
 /// <summary>
 /// Reads in <see cref="NinoSettings.Untrusted"/> mode, which checks every value no constructor makes (a DateTime past
 /// its maximum, a bool other than 0 or 1) before copying raw values: a list of 1,000 raw structs with such fields,
