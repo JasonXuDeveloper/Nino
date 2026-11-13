@@ -22,8 +22,9 @@ dotnet add package Nino.Codegen --prerelease   # development dependency (Private
 ```
 
 - One item per output; the item is the language (`typescript` or `ts`, `go`, `rust`), other metadata are the options
-  in PascalCase (`Out`, `Name`; TS `Names`, `ImportExtension`, `Runtime`; Go `Package`, `Tags`, `TagNames`; Rust
-  `Serde`, `SerdeNames`, `Strings`, `Maps`). Without `Out`: `ts/`, `go/` or `rust/` next to the project.
+  in PascalCase (`Out`, `Name`; TS `Names`, `ImportExtension`, `Runtime`, `NumericArrays`; Go `Package`, `Tags`,
+  `TagNames`; Rust `Serde`, `SerdeNames`, `Strings`, `Maps`). Without `Out`: `ts/`, `go/` or `rust/` next to the
+  project.
 - Properties: `NinoCodegenTargetFramework` (which target framework's build writes, default the first),
   `NinoCodegenEnabled=false` to turn it off.
 - Files are written only when their text changes; stale files listed in `.nino-gen` are deleted.
@@ -37,7 +38,7 @@ nino-gen --assembly bin/Release/net8.0/MyGame.Shared.dll --lang go --out ../serv
 
 ```
 nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [--name <file name>]
-  ts:   [--names camel|keep] [--import-extension <.js|.ts|.mjs|.mts>] [--runtime <module>]
+  ts:   [--names camel|keep] [--import-extension <.js|.ts|.mjs|.mts>] [--runtime <module>] [--numeric-arrays plain|typed]
   go:   [--package <name>] [--tags json,yaml] [--tag-names camel|snake|original]
   rust: [--serde] [--serde-names camel|snake|original] [--strings string|wide] [--maps indexmap|std]
 ```
@@ -67,7 +68,7 @@ there. Positional data cannot be read without the assembly: the bytes carry no n
 
 | Language | Runtime | Use |
 | --- | --- | --- |
-| TypeScript (5.7+, ES2020) | `nino.ts`, written next to the code; or npm `nino-serialization` with `Runtime="nino-serialization"` | `serialize(OrderCodec, order)`, `serializeInto(OrderCodec, order, writer)` (a reused `NinoWriter`, or a `Uint8Array`), `deserialize(OrderCodec, bytes)`, `deserializeExact`, `deserializeInto(OrderCodec, bytes, order)` |
+| TypeScript (5.7+, ES2022) | `nino.ts`, written next to the code; or npm `nino-serialization` with `Runtime="nino-serialization"` | `serialize(OrderCodec, order)`, `serializeInto(OrderCodec, order, writer)` (a reused `NinoWriter`, or a `Uint8Array`), `deserialize(OrderCodec, bytes)`, `deserializeExact`, `deserializeInto(OrderCodec, bytes, order)` |
 | Go (1.22+) | `go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4` (package `nino`, no dependencies) | `nino.Serialize(p, model.WritePlayer)`, `nino.Append(buf[:0], p, model.WritePlayer)`, a reused `*nino.Writer` (`Reset`, `Bytes`), `nino.Deserialize(data, model.ReadPlayer)`, `nino.DeserializeExact`, `nino.DeserializeInto(data, &p, model.ReadPlayerInto)` |
 | Rust (1.88+) | crate `nino-serialization` (library `nino`) with feature `indexmap`, plus `indexmap`; `Maps="std"` needs the crate alone | `nino::serialize(&v)?`, `nino::serialize_into(&v, &mut buf)?` (appends to a reused `Vec`), `nino::deserialize_exact::<T>(&bytes)?`, `nino::deserialize_into(&bytes, &mut v)?` |
 
@@ -113,10 +114,12 @@ mod protocol;
 
 - TypeScript: multi-dimensional arrays, `DateTimeOffset`, `BigInteger`, `Version`, `BitArray`, `TimeZoneInfo`, `Uri`,
   `CultureInfo`, `StringBuilder`, `Memory<T>`, `ReadOnlyMemory<T>`, `ReadOnlySequence<T>`, `PriorityQueue`, `ILookup`,
-  `IGrouping`, tuples over 7 items, and members written by custom formatters, `Nino.Immutable` or the Unity classes.
+  `IGrouping`, tuples over 7 items.
 - Go and Rust: generic types that hold themselves with other type arguments. Go: closed generic types of one
   definition that map to the same Go type, after the first.
-- All: generic types with `trackReferences`; closed generic types nobody names in the assembly.
+- All: members written by a formatter outside Nino.Core (a custom formatter, `Nino.Immutable`, the Unity classes:
+  their bytes have no layout); generic types with `trackReferences`; closed generic types nobody names in the
+  assembly.
 - Rust: maps and sets keyed by `f32`/`f64` (or types containing them), raw tuples with padding, nullable raw values
   outside sequences.
 

@@ -180,9 +180,11 @@ model, so generated code never depends on the runtime's layout.
 A raw copy includes padding. Padding usually stays zero, but code that builds structs in uninitialized
 memory (`SkipLocalsInit`, `stackalloc`, `GC.AllocateUninitializedArray`, native memory) can leave stale
 data there. Copied as is, two equal values could serialize to different bytes, and stale memory would leak
-into the output. Nino clears padding on write. Blocks use a masked copy (SIMD when accelerated) rather
-than a copy followed by masking, which would reload freshly stored bytes and stall on store forwarding.
-Types without padding pay nothing: the check is a JIT-time constant.
+into the output. Nino clears padding on write, and writes zeros for the value of every absent `Nullable` it copies
+(a `T?[]` or `List<T?>` element, a `Nullable` field of a raw struct), which such memory fills with stale bytes just
+as well: a rented or uninitialized `int?[]` holds whatever was there before in the value of each null. Blocks use a
+masked copy (SIMD when accelerated) rather than a copy followed by masking, which would reload freshly stored bytes
+and stall on store forwarding. Types without padding pay nothing: the check is a JIT-time constant.
 
 ### A raw struct's `bool` fields and `Nullable` flags are unchecked by default
 

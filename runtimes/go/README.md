@@ -240,11 +240,11 @@ conformance corpus (`internal/sample/tagged_test.go`: the same values and bytes 
 fuzzed (`FuzzTagged`, `FuzzTaggedDecode`).
 
 A plan is built once per type, under a lock, and cached in a `sync.Map` keyed by `reflect.Type`; after that a call
-walks the plan. Fields of numbers are read and written through their address (`unsafe`), which measured 1.2 to
-1.8 times faster than reflect's setters; both give the same bytes, and the tests run both. A `float32` always
-goes through its bits, as a conversion through `float64` would lose a signaling NaN's payload. Rough local numbers
-(`BenchmarkTagged`, `bench`): marshalling takes 3 to 5 times the generated-style codec's time, unmarshalling
-2 to 3 times; both are still several times faster than `encoding/json`.
+walks the plan. Fields of numbers are read and written through their address (`unsafe`), which measured faster than
+reflect's setters (`go test -run='^$' -bench=Tagged .`); both give the same bytes, and the tests run both. A `float32` always
+goes through its bits, as a conversion through `float64` would lose a signaling NaN's payload. Marshalling and
+unmarshalling take a few times as long as a generated-style codec (`BenchmarkTagged`; `NinoTags` in `bench`), and are
+still faster than `encoding/json`.
 
 ## Tags on generated structs
 

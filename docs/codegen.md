@@ -264,6 +264,7 @@ either).
 ## Benchmarks
 
 Each runtime's benchmark writes machine-readable output (`NINO_BENCH_JSON` for TypeScript, `go test -bench` text,
-criterion's JSON), and the release workflow (`report.yml`) appends one section per language to the release notes
-with `benchmarks/reports/runtimes_report.py`, after the .NET sections: x64, then the same on an Arm64 runner. The site shows
+criterion's JSON), and the release workflow (`report.yml`) turns each into a section per language and architecture
+with `benchmarks/reports/runtimes_report.py`, attached to the release as `runtime-<lang>-<x64|arm64>.md`
+(`benchmarks/reports/release_assets.py`) and charted in its notes. The site shows
 them on [Benchmarks in Other Languages](https://nino.xgamedev.net/en/docs/v4/benchmarks-runtimes).

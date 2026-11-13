@@ -24,7 +24,8 @@ the input (the data may be hostile).
 - Fixed-size bytes of your own: `ref byte b = ref writer.Reserve(n)` / `reader.ReadBlock(n)` (NinoDataException when
   fewer are left), encoded little-endian (`BinaryPrimitives`). Reserved bytes are not cleared, and the `Reserve`
   reference is invalid after the next write; never write through the `ReadBlock` reference.
-- nino-gen leaves members written by custom formatters out of TypeScript (NINOGEN002).
+- nino-gen cannot write what a custom formatter writes: in TypeScript, Go and Rust the type holding such a member is
+  left out, with the types that hold it (NINOGEN002). Keep cross-language types to built-in encodings.
 
 ```csharp
 public struct ZigZagLongFormatter : INinoFormatter<long>

@@ -43,9 +43,11 @@ For .NET, Unity (Mono and IL2CPP), Godot, Native AOT and HybridCLR, with Go, Rus
   no IL emit, no registration; runs on IL2CPP, Native AOT and HybridCLR hot updates. [Platforms](https://nino.xgamedev.net/en/docs/v4/platforms)
 - **The same bytes everywhere.** Every runtime and CPU writes identical bytes, and so do Go, Rust and TypeScript,
   which read and write your types through the code `nino-gen` generates. [Other languages](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)
-- **Rich types that evolve.** Polymorphism without tags, version-tolerant and keyed types, reference tracking, every BCL
-  collection. [Supported types](https://nino.xgamedev.net/en/docs/v4/types)
-- **Mistakes caught as you type.** 33 analyzer diagnostics, many with a one-click fix. [Analyzers](https://nino.xgamedev.net/en/docs/v4/analyzers)
+- **Rich types that evolve.** Polymorphism without tags, version-tolerant and keyed types, reference tracking,
+  serialization callbacks, every BCL collection. [Supported types](https://nino.xgamedev.net/en/docs/v4/types)
+- **Mistakes caught as you type.** 44 analyzer diagnostics, many with a one-click fix, and a
+  [layout baseline](https://nino.xgamedev.net/en/docs/v4/evolving-data#layout-baseline) that flags any change to a saved
+  or sent type that old data or old builds could not read. [Analyzers](https://nino.xgamedev.net/en/docs/v4/analyzers)
 
 ## Install
 
@@ -175,7 +177,7 @@ More: [every .NET case and Arm64](https://nino.xgamedev.net/en/docs/v4/benchmark
 ## Built for
 
 - **[Services & IPC](https://nino.xgamedev.net/en/docs/v4/advanced/high-performance)**: no per-call allocations, safe concurrent use; [ASP.NET Core](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore) bodies as `application/x-nino`.
-- **[RPC & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)**: straight into a `PipeWriter`, pooled messages, and a crafted message throws instead of taking the server down.
+- **[RPC & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)**: straight into a `PipeWriter` and out of a `PipeReader`'s `ReadOnlySequence<byte>`, pooled messages, and a crafted message throws instead of taking the server down.
 - **[Message queues](https://nino.xgamedev.net/en/docs/v4/advanced/message-queues)**, **[caching](https://nino.xgamedev.net/en/docs/v4/advanced/caching)** and **[storage](https://nino.xgamedev.net/en/docs/v4/advanced/persistence)**: polymorphic events, small payloads, fields added, reordered and removed across releases.
 - **[Web, Node, Go & Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)**: types and codecs generated after each build, writing and reading the same bytes as .NET.
 - **[Unity](https://nino.xgamedev.net/en/docs/v4/advanced/unity)**: Mono and IL2CPP, HybridCLR without an init call, Burst SIMD kernels, `AnimationCurve` and `Gradient` built in.

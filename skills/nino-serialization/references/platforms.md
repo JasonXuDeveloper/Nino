@@ -17,8 +17,9 @@ https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore.md
   `[NinoType]`.
 - Burst: install `com.unity.burst` 1.8+ and Nino's Burst SIMD kernels register on their own (`Nino.Burst.NinoBurst`)
   for tuples, padded structs, Latin-1 strings and the ASCII text of `[NinoUtf8]` strings; include SSE4 and AVX2 in
-  Burst AOT Settings for x64 players. Without Burst, IL2CPP and Mono take Nino's scalar paths (the same bytes); WebGL
-  players built with WebAssembly SIMD get the same kernels from `Nino.WebGL` with no setup.
+  Burst AOT Settings for x64 players. Each kernel tests itself against Nino's scalar code at startup; one that throws
+  or writes other bytes on the installed Burst is not used, with a warning naming it. Without Burst, IL2CPP and Mono
+  take Nino's scalar paths (the same bytes); WebGL players built with WebAssembly SIMD get the same kernels from `Nino.WebGL` with no setup.
 - Server on .NET and client in Unity read each other's bytes: raw structs use one canonical layout on every runtime
   (references/types.md). `Vector<T>` is the exception (NINO029).
 

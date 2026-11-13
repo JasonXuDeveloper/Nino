@@ -33,7 +33,7 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `deserialize`, `deserialize_exact` | Read a value. `deserialize_exact` also rejects trailing bytes (`ErrorKind::TrailingData`). |
 | `deserialize_into` | Read a value into an existing one, as `NinoDeserializer.Deserialize(data, ref value)` does: the members of classes and structs are read in place, a `Vec` reuses its buffer and reads its elements into the old ones by index (extra ones dropped), maps, sets and deques are cleared and refilled in their buffers, and a polymorphic slot is read into only when the data holds the same type (else replaced, as are tracked objects and class bodies deeper than 128). On an error the value is still valid: the members read before the error are the new ones, the rest are the old. Every type has it through `NinoRead::read_into`, which the derive and nino-gen write as the one body `read` also uses. |
 | `NinoRead`, `NinoWrite` | A type's whole encoding. Implemented here for the types in the table below, and by generated or derived code for each `[NinoType]`. |
-| `NinoReadBody`, `NinoWriteBody` | A class's body, behind its presence byte or type id. They carry `TYPE_ID` (the type's id, as the derive and nino-gen set it; 0 when it has none, as for a generic type) and `DEFERRABLE` (whether .NET may defer it, spec §10.5). |
+| `NinoReadBody`, `NinoWriteBody` | A class's body, behind its presence byte or type id. They carry `TYPE_ID` (the type's id, as the derive and nino-gen set it; 0 when it has none, as for a generic type) and `DEFERRABLE` (whether .NET may defer it, spec §7.10.1). |
 | `Reader`, `Writer` | What the codecs call: primitives, lengths, the three string encodings, classes (`read_sealed`, `read_sealed_boxed`, `read_class`, `write_sealed`, `write_class`; `sealed_read!` and `sealed_write!` write a sealed class's `NinoRead` and `NinoWrite` methods; `raw_read!` and `raw_write!` write a raw struct's from its `Raw` impl), structs (`enter_struct`/`exit_struct`), version-tolerant and keyed regions (`begin_region`, `end_region`, `end_member`), and deferral (`mark`, `trail`, `Step`, `field!`). |
 | `sum_fixed_sizes`, `decode_member`, `encode_member` | What a struct of fixed-size members (generated or derived) states its `FIXED_SIZE` with, and reads or writes each member from its bytes with, so that a list of it is one block. |
 | `type_id(name)` | The type id of a .NET full name: FNV-1a over its UTF-16 code units, as a `const fn`. |
@@ -337,5 +337,7 @@ the same values, with criterion. Each group covers serialize and deserialize, an
 
 The Nino codecs there are what the templates generate for those types: a class's members read and written one by
 one, a raw struct as one block, and a class held as `Option<Box<_>>` (every serializer gets the same values). Compare
-changes back to back on one machine; local numbers are not published. Each release's notes get a "🦀 Rust runtime benchmark" section from one run of
-this benchmark on a GitHub runner (`report.yml`, `benchmarks/reports/runtimes_report.py`).
+changes back to back on one machine; local numbers are not published. Each release publishes one run of this
+benchmark on GitHub's x64 and Arm64 runners (`report.yml`, `benchmarks/reports/runtimes_report.py`): attached as
+`runtime-rust-x64.md` and `runtime-rust-arm64.md`, charted in the release notes and shown on the site's
+[Benchmarks in Other Languages](https://nino.xgamedev.net/en/docs/v4/benchmarks-runtimes).

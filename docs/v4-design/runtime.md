@@ -36,6 +36,12 @@ and owned by a `NinoArrayBufferWriter`.
 unsigned bounds check plus an unaligned load. Every length read from the payload is validated against the
 remaining bytes before anything is allocated, so malformed or hostile input cannot trigger huge allocations.
 
+* A `ReadOnlySequence<byte>` (`Deserialize<T>(in ReadOnlySequence<byte>)`, also by `ref`), what a `PipeReader` or
+  gRPC hands over, is read through the span overload: one segment in place, several copied once out of line
+  (`NinoSequences`), onto the stack up to 1,024 bytes (`StackBytes`), else into a pooled array; a `byte[]` read
+  from two segments (outside untrusted mode) is copied straight into the array it returns. Every check of the data
+  is the span overload's.
+
 ## Formatters
 
 ```csharp

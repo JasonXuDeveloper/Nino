@@ -35,8 +35,8 @@
 - **热路径零分配。** 序列化到复用的 `IBufferWriter<byte>`，反序列化到已有对象或池化对象；线程安全，热路径上没有锁。[零分配](https://nino.xgamedev.net/zh/docs/v4/advanced/zero-allocation)
 - **一切在编译期完成。** 生成的格式化器直接读写成员，不对成员做反射，没有 IL emit，也无需注册；IL2CPP、Native AOT 和 HybridCLR 热更都能直接用。[平台](https://nino.xgamedev.net/zh/docs/v4/platforms)
 - **处处字节一致。** 不论哪种运行时、哪种 CPU，写出的字节都相同；Go、Rust 和 TypeScript 通过 `nino-gen` 生成的代码读写同样的数据，写出的字节也完全一致。[其他语言](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)
-- **类型丰富，数据可演进。** 多态无需标签，支持版本容错和键控类型、引用追踪，以及全部 BCL 集合。[支持的类型](https://nino.xgamedev.net/zh/docs/v4/types)
-- **写代码时就发现错误。** 33 条分析器诊断，许多带一键修复。[分析器](https://nino.xgamedev.net/zh/docs/v4/analyzers)
+- **类型丰富，数据可演进。** 多态无需标签，支持版本容错和键控类型、引用追踪、序列化回调，以及全部 BCL 集合。[支持的类型](https://nino.xgamedev.net/zh/docs/v4/types)
+- **写代码时就发现错误。** 44 条分析器诊断，许多带一键修复；有了[布局基线](https://nino.xgamedev.net/zh/docs/v4/evolving-data#layout-baseline)，存档或消息类型一旦改得让旧数据、旧版本读不了，马上就会标出来。[分析器](https://nino.xgamedev.net/zh/docs/v4/analyzers)
 
 ## 安装
 
@@ -145,7 +145,7 @@ npx skills add JasonXuDeveloper/Nino
 ## 适用场景
 
 - **[服务与进程间通信](https://nino.xgamedev.net/zh/docs/v4/advanced/high-performance)**：每次调用零分配，可安全并发；[ASP.NET Core](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 以 `application/x-nino` 读写请求体与响应。
-- **[RPC 与网络层](https://nino.xgamedev.net/zh/docs/v4/advanced/networking)**：直接写进 `PipeWriter`，消息可池化复用；伪造的消息只会抛异常，不会让服务端崩溃。
+- **[RPC 与网络层](https://nino.xgamedev.net/zh/docs/v4/advanced/networking)**：直接写进 `PipeWriter`，也能直接从 `PipeReader` 的 `ReadOnlySequence<byte>` 读出，消息可池化复用；伪造的消息只会抛异常，不会让服务端崩溃。
 - **[消息队列](https://nino.xgamedev.net/zh/docs/v4/advanced/message-queues)**、**[缓存](https://nino.xgamedev.net/zh/docs/v4/advanced/caching)**和**[存储](https://nino.xgamedev.net/zh/docs/v4/advanced/persistence)**：多态事件，数据小巧，字段可以跨版本增加、调序和删除。
 - **[网页、Node、Go 与 Rust](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)**：每次构建后生成类型和编解码器，与 .NET 互相读写，字节一致。
 - **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)**：Mono 和 IL2CPP，HybridCLR 无需初始化，Burst SIMD 内核，内置 `AnimationCurve` 和 `Gradient`。
