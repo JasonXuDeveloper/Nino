@@ -1054,7 +1054,9 @@ pub(crate) use map;
 
 map!(
     /// A dictionary: its length, then each key and value. A repeated key is rejected.
-    HashMap, fill_hash_map, Eq + Hash + Clone
+    HashMap,
+    fill_hash_map,
+    Eq + Hash + Clone
 );
 
 /// Reads `count` entries into `map` (empty); a key read twice is an error.

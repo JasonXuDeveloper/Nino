@@ -304,7 +304,9 @@ mod indexmap_impl {
     crate::impls::map!(
         /// A dictionary in wire order (so writing it back gives the same bytes): its length, then each key and
         /// value. A repeated key is rejected.
-        IndexMap, fill_map, Eq + Hash
+        IndexMap,
+        fill_map,
+        Eq + Hash
     );
 
     /// Reads `count` entries into `map` (empty); a key read twice is an error.
