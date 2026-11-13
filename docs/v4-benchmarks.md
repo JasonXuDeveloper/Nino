@@ -68,7 +68,8 @@ These tables come from <!--bench:doc.source-->a local `benchmarks/run.sh` run: B
 Differences under 5% are reported as on par: MemoryPack runs in both sessions, and its two times show how much the
 runner moved. A time under 1 ns (about three clock cycles) cannot be told apart from another: reading a 40-byte struct
 measures anywhere from 0.05 to 0.8 ns in both libraries, once BenchmarkDotNet subtracts its empty-method overhead.
-v4 under 1 ns against a measurable time is faster, too fast to measure, with no ratio; both under it is on par. A dash
+v4 under 1 ns against a measurable time is faster by more than that time / 1 ns ("> 1.40× faster": v4 took less than
+1 ns, so the bound holds); both under it is on par. A dash
 in a "vs" column means the case was not measured there, or v4 is not ahead.
 
 Each library serializes to its own buffer writer: Nino to `NinoArrayBufferWriter`, MemoryPack and MessagePack to

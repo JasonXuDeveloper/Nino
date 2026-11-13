@@ -65,11 +65,12 @@ def time(ns):
 
 
 def multiple(value, first, floor=FLOOR_NS):
-    """" · 2.1×", " · on par", or nothing. Under the floor (FLOOR_NS for times; 0 for sizes and seconds) a time
-    cannot be told apart from an empty method: a first entry under it against a measurable value gets no ratio, and
-    both under it are on par (readme.py's rule)."""
+    """" · 2.1×", " · > 77×" or " · on par". Under the floor (FLOOR_NS for times; 0 for sizes and seconds) a time
+    cannot be told apart from an empty method: a first entry under it against a measurable value gets the lower bound
+    value / floor ("> N×", the first entry took less than the floor), and both under it are on par (readme.py's
+    rule)."""
     if first < floor:
-        return " · on par" if value < floor else ""
+        return " · on par" if value < floor else f" · > {one(value / floor)}×"
     r = value / first
     return " · on par" if on_par(r) else f" · {one(r)}×"
 

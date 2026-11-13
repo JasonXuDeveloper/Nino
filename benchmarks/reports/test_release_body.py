@@ -270,7 +270,21 @@ class Charts(unittest.TestCase):
         self.assertIn("List&lt;int&gt;", image)
         self.assertIn("A&amp;B", image)
         self.assertIn("&lt; 1 ns · on par", image)  # both under the floor
-        self.assertIn(">3.00 ns</text>", image)     # Nino under it against a measurable time: no ratio
+        self.assertIn(">3.00 ns · &gt; 3.0×</text>", image)  # Nino under it against a measurable time: a lower bound
+
+    def test_the_lower_bound_under_the_floor(self):
+        # Nino v4 under 1 ns took less than 1 ns: the other time / 1 ns is how many times as long it is, at least,
+        # written with the precision of every multiple (one(): a decimal below 10, whole numbers from 10).
+        self.assertEqual(charts.multiple(1.40, 0.3), " · > 1.4×")
+        self.assertEqual(charts.multiple(77.2, 0.3), " · > 77×")
+        self.assertEqual(charts.multiple(231, 0.3), " · > 231×")
+        self.assertEqual(charts.multiple(0.9, 0.3), " · on par")  # both under the floor
+        self.assertEqual(charts.multiple(4.2, 2.0), " · 2.1×")    # measured: the ratio, never a bound
+        self.assertEqual(charts.multiple(3.0, 0.5, floor=0), " · 6.0×")  # sizes and seconds have no floor
+        # README and docs tables (v4 against v3 or MemoryPack), with their two decimals.
+        self.assertEqual(readme.versus(1.4, 0.3), "**> 1.40× faster** (v4 under 1 ns)")
+        self.assertEqual(readme.versus(0.8, 0.3), "on par")
+        self.assertEqual(readme.versus(2.2, 1.0), "**2.20× faster**")
 
     def test_crop_keeps_the_first_rows(self):
         width, height = 3, 10

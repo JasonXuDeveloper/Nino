@@ -10,13 +10,14 @@ Prints: case | v3 3.3.13 | v4 | v4 vs v3 | MemoryPack (v4 run) | MemoryPack (v3 
   - "v4 vs v3" = mean(v4) / mean(v3)  (< 1.00x means v4 is faster);
   - the two MemoryPack columns are the same benchmark in each run, so their ratio shows run-to-run drift;
   - a time under FLOOR_NS cannot be told apart from an empty method: v4 under it against a measurable v3 is
-    "faster (v4 too fast to measure)", with no ratio; both under it is "on par".
+    "< F/v3 x (v4 under 1 ns)", the bound v4 took less than the floor gives (bdn.lower_bound, as a share of v3's
+    time); both under it is "on par".
 """
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reports"))
-from bdn import FLOOR_NS, mean_ns, rows, show  # noqa: E402 (benchmarks/reports/bdn.py)
+from bdn import FLOOR_NS, lower_bound, mean_ns, rows, show  # noqa: E402 (benchmarks/reports/bdn.py)
 
 LIBS = ("Nino", "MemoryPack", "MessagePack", "Protobuf")
 
@@ -67,7 +68,8 @@ def main():
         if a is None or b is None:
             ratio = "-"
         elif b < FLOOR_NS:
-            ratio = "on par (both too fast to measure)" if a < FLOOR_NS else "faster (v4 too fast to measure)"
+            ratio = "on par (both too fast to measure)" if a < FLOOR_NS else \
+                f"< {1 / lower_bound(a):.2f}x (v4 under {FLOOR_NS} ns)"
         else:
             ratio = f"{b / a:.2f}x" if a >= FLOOR_NS else "-"
         table.append([case, fmt(a), fmt(b), ratio,

@@ -30,7 +30,9 @@ dark SVG in docs/assets, between the charts and doc.charts markers) show each se
 every case, v3 n/a where it did not run; the overview chart (overview_chart: CHART_CASES) is the image for nuget.org. Ratios follow the docs site (nino.docs src/lib/benchmarks.ts): within 5% is "on
 par", and a case where v4 is slower is left out of a range, never shown as slower.
 A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
-measurable v3 is "faster, too fast to measure" (no ratio: it would only reflect the floor); both under it is on par.
+measurable time is faster by more than that time / FLOOR_NS (bdn.lower_bound: "> 1.40× faster", the charts' "> 1.4×"),
+since v4 took less than the floor; both under it is on par. A range (ser.range, ...) leaves such a case out: its ends
+are measured ratios.
 """
 import argparse
 import math
@@ -42,7 +44,7 @@ from pathlib import Path
 
 import generator_report
 import release_assets
-from bdn import FLOOR_NS, mean_ns, rows
+from bdn import FLOOR_NS, lower_bound, mean_ns, rows
 from bdn import cpu as short_cpu
 from charts import README_TITLE, details, on_par, one, picture, png, svg, time
 
@@ -95,8 +97,8 @@ def ratio(slow, fast):
 
 
 def against(slow, fast):
-    """v3 (slow) against v4 (fast): "unmeasurable" when v4 is under FLOOR_NS and v3 is not, 1.0 when both are, else
-    the ratio."""
+    """v3 (slow) against v4 (fast): "unmeasurable" when v4 is under FLOOR_NS and v3 is not (the callers write the
+    lower bound, lower_bound(slow)), 1.0 when both are, else the ratio."""
     if fast < FLOOR_NS:
         return 1.0 if slow < FLOOR_NS else "unmeasurable"
     return 0.0 if slow < FLOOR_NS else ratio(slow, fast)
@@ -125,8 +127,9 @@ def numbers(v4_path, v3_paths, tag=None):
         return ratio(v4[f"{other}{verb}{key}"]["mean"], v4[f"Nino{verb}{key}"]["mean"])
 
     def wins(verb, other="MemoryPack"):
-        """Ratios of the workloads v4 wins: above 1, and not on par."""
-        return [r for r in (vs(other, verb, k) for k in WORKLOAD_KEYS) if r > 1 and not on_par(r)]
+        """Ratios of the workloads v4 wins: above 1, and not on par; a workload v4 ran under FLOOR_NS has no ratio."""
+        return [r for r in (vs(other, verb, k) for k in WORKLOAD_KEYS if v4[f"Nino{verb}{k}"]["mean"] >= FLOOR_NS)
+                if r > 1 and not on_par(r)]
 
     def win_range(verb, other="MemoryPack"):
         won = wins(verb, other)
@@ -179,8 +182,9 @@ def numbers(v4_path, v3_paths, tag=None):
                     continue
                 r = against(v3[method], v4[method]["mean"])
                 if r == "unmeasurable":
-                    en.append(f"**faster** ({label_en}, too fast to measure: under {FLOOR_NS} ns)")
-                    zh.append(f"{label_zh}**更快**（快到测不出，不到 {FLOOR_NS} ns）")
+                    bound = lower_bound(v3[method])
+                    en.append(f"**> {bound:.2f}× faster** ({label_en}, v4 under {FLOOR_NS} ns)")
+                    zh.append(f"{label_zh}**快 {bound:.2f} 倍以上**（v4 不到 {FLOOR_NS} ns）")
                 elif on_par(r):
                     en.append(f"on par ({label_en})")
                     zh.append(f"{label_zh}持平")
@@ -334,7 +338,7 @@ def versus(other, v4):
     """A table cell: v4 against another time, by the rules above ("—": v4 is not ahead)."""
     r = against(other, v4)
     if r == "unmeasurable":
-        return "**faster** (too fast to measure)"
+        return f"**> {lower_bound(other):.2f}× faster** (v4 under {FLOOR_NS} ns)"
     if on_par(r):
         return "on par"
     return f"**{r:.2f}× faster**" if r > 1 else "—"

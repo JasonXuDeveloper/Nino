@@ -14,6 +14,13 @@ UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
 FLOOR_NS = 1
 
 
+def lower_bound(ns):
+    """How many times as long as a time under FLOOR_NS a measurable time is, at least: ns / FLOOR_NS. A time under the
+    floor is shorter than FLOOR_NS, so "> N×" is true where a ratio would only reflect noise; the docs site writes the
+    same bound (nino.docs src/lib/benchmarks.ts). Only for Nino v4 under the floor against a measurable time."""
+    return ns / FLOOR_NS
+
+
 def cells(line):
     """The cells of a Markdown table line, stripped."""
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
