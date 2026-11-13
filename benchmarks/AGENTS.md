@@ -60,8 +60,9 @@ reports/                     what a release publishes: the results of runners as
   merge_reports.py           merges the reports of parallel jobs into one report (report.yml)
   release_assets.py          the release's benchmark assets: their names (NAMES), benchmarks-manifest.json, the release
                              (GitHub, or a directory in a dry run), fetch, has (report.yml's skip checks)
-  release_body.py            publish: attaches a job's results, draws a chart per section, writes the body's
-                             benchmark part (<details> with summary, chart and links) from the manifest (report.yml)
+  release_body.py            publish: attaches a job's results, draws a chart per section (README's chart groups in
+                             a .NET section), writes the body's benchmark part (<details> with summary, charts and
+                             links) from the manifest (report.yml)
   charts.py                  the charts (README's and the release body's) as SVG (light and dark), the <picture> and
                              <details> that show them, and the overview PNG by headless Chrome (readme.py --png)
   readme.py                  writes the numbers of README.md / README.zh.md, the chart groups (GROUPS, chart_groups;

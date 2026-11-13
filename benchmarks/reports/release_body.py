@@ -18,10 +18,11 @@ body: the body with its benchmark part rewritten from a manifest (what publish d
 
 The body: the release notes (release_notes.py) stay as they are; after them, between the START and END markers, a
 "## 📊 Benchmarks" heading and one collapsed <details> per section in SECTIONS' order: its title and a one-line
-summary, the chart (a <picture> of its light and dark SVG, by the reader's colour scheme), the environment and links to the assets with
-the full tables. A body from before the manifest (v4.0.0-rc.9 and older) has the old sections (tables) instead: each
-is dropped once the manifest has its asset, and kept as it is (after the charts) until then. The part is a few
-thousand characters, far under GitHub's 125,000.
+summary, the chart (a <picture> of its light and dark SVG, by the reader's colour scheme; a .NET section has README's
+charts instead, a collapsed <details> per group of readme.GROUPS, listed in its manifest entry's "charts"), the
+environment and links to the assets with the full tables. A body from before the manifest (v4.0.0-rc.9 and older) has the old sections (tables) instead: each
+is dropped once the manifest has its asset, and kept as it is (after the charts) until then. The part is about
+20,000 characters with every section and group, far under GitHub's 125,000.
 
 The docs site reads the assets, not the body (nino.docs scripts/sync-benchmarks.ts); it parses the old sections of
 releases without a manifest, which is why legacy_sections knows their headings.
@@ -106,17 +107,25 @@ def link(tag, name):
     return f"[{name}]({release_assets.download_url(tag, name)})"
 
 
+def picture(chart, alt):
+    """The <picture> of a chart entry (chart, chart_sha, chart_dark, chart_dark_sha)."""
+    light = release_assets.chart_url(chart["chart"], chart.get("chart_sha", ""))
+    dark = release_assets.chart_url(chart["chart_dark"], chart.get("chart_dark_sha", "")) if chart.get("chart_dark") \
+        else light
+    return charts.picture(light, dark, alt)
+
+
 def section(manifest, entry, tag):
     title = entry.get("title") or TITLES.get(entry["name"], entry["name"])
     summary = f"<b>{title}</b>" + (f": {entry['summary']}" if entry.get("summary") else "")
     out = ["<details>", f"<summary>{summary}</summary>", ""]
-    if entry.get("chart"):
-        img = (f'<img src="{release_assets.chart_url(entry["chart"], entry.get("chart_sha", ""))}" '
-               f'alt="{title}" width="{entry.get("chart_width", 940)}">')
-        if entry.get("chart_dark"):
-            dark = release_assets.chart_url(entry["chart_dark"], entry.get("chart_dark_sha", ""))
-            img = f'<picture><source media="(prefers-color-scheme: dark)" srcset="{dark}">{img}</picture>'
-        out += [img, ""]
+    if entry.get("charts"):
+        # A .NET section: a collapsed <details> per chart group (readme.GROUPS), README's charts.
+        out += [charts.details(group["title"], picture(group, f"{title}, {group['title']}: time per operation"),
+                               bold=False) + "\n"
+                for group in entry["charts"]]
+    elif entry.get("chart"):
+        out += [picture(entry, title), ""]
     data = [e["name"] for e in manifest["assets"] if e.get("of") == entry["name"]]
     files = link(tag, entry["name"]) + (" (made from " + ", ".join(link(tag, n) for n in data) + ")" if data else "")
     environment = f"{entry['environment'].rstrip('.')}. " if entry.get("environment") else ""
@@ -155,14 +164,11 @@ def split_method(method):
 
 
 def dotnet_chart(path, arch, v3_path=None):
-    """README's chart: Nino v4, v3 3.3.13 where its report is there (x64 only; n/a in the cases it does not run),
-    then every library, in README's groups."""
+    """README's charts, one per group (readme.chart_groups): Nino v4, v3 3.3.13 where its report is there (x64 only;
+    n/a in the cases it does not run), then every library with a row, every case of the report."""
     _, v4 = readme.parse(path)
     v3 = {m: row["mean"] for m, row in readme.parse(v3_path)[1].items()} if v3_path else None
-    workloads = all(f"NinoSerialize{k}" in v4 for k in readme.WORKLOAD_KEYS)
-    # README's groups (the owner's choice), so the release and README show one chart; every other case is in the
-    # attached table. Without the workloads (reports before rc.10), SimpleTest and PolymorphicTest.
-    chart = readme.overview_chart(v4, v3, cases=readme.CHART_CASES if workloads else readme.SIMPLE_CASES)
+    groups = readme.chart_groups(v4, v3)
     by_case = {}
     for method, row in v4.items():
         lib, case = split_method(method)
@@ -174,7 +180,7 @@ def dotnet_chart(path, arch, v3_path=None):
                f"({len(v4)} rows)")
     run = f"{arch} GitHub runners" + (", v3 3.3.13 directly before v4" if v3 else "")
     note = f"BenchmarkDotNet, .NET 10, {run}; every case is in the table; N× = N times as long as Nino v4."
-    return chart, summary, note
+    return groups, summary, note
 
 
 def v3_summary(v3_path, x64_path):
@@ -340,21 +346,39 @@ def draw(directory, manifest, tag):
         except (ValueError, KeyError, SystemExit) as error:
             print(f"::warning::no chart for {name}: {error}", file=sys.stderr)
             continue
-        heading = f"{title} (shorter is better)" if entry["kind"] == "build" else \
-            f"{title}: {charts.README_TITLE[0].lower()}{charts.README_TITLE[1:]}"
         stem = os.path.join(directory, name.rsplit(".", 1)[0])
         entry.update(title=title, summary=summary)
-        # SVG, light and dark: a few KB each, sharp at any zoom, and raw.githubusercontent.com serves it as
-        # image/svg+xml, which GitHub's image proxy shows (PNGs at a readable resolution were about 5 MB a release).
-        for theme, suffix, key in (("light", "", "chart"), ("dark", "-dark", "chart_dark")):
-            image, _ = charts.svg(chart, theme, heading, note, 0 if entry["kind"] == "build" else FLOOR_NS)
-            path = f"{stem}{suffix}.svg"
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(image)
-            entry.update({key: f"charts/{tag}/{os.path.basename(path)}", f"{key}_sha": release_assets.sha(path),
-                          "chart_width": int(re.search(r'width="(\d+)"', image).group(1))})
-            written.append(path)
+        lowered = f"{charts.README_TITLE[0].lower()}{charts.README_TITLE[1:]}"
+        if entry["kind"] == "dotnet":
+            # One chart per group, README's (<stem>-<group>.svg); the entry lists them under "charts".
+            for key in ("chart", "chart_sha", "chart_dark", "chart_dark_sha", "chart_width"):
+                entry.pop(key, None)
+            entry["charts"] = []
+            for gid, group_title, _, group_chart in chart:
+                item = {"group": gid, "title": group_title}
+                written += draw_chart(item, group_chart, f"{stem}-{gid}", tag, f"{title}, {group_title}: {lowered}",
+                                      note, FLOOR_NS)
+                entry["charts"].append(item)
+        else:
+            heading = f"{title} (shorter is better)" if entry["kind"] == "build" else f"{title}: {lowered}"
+            written += draw_chart(entry, chart, stem, tag, heading, note, 0 if entry["kind"] == "build" else FLOOR_NS)
         print(f"📈 {name}: {summary}", file=sys.stderr)
+    return written
+
+
+def draw_chart(entry, chart, stem, tag, heading, note, floor):
+    """Writes <stem>.svg and <stem>-dark.svg and sets the entry's chart, chart_sha, chart_dark, chart_dark_sha and
+    chart_width. -> the paths. SVG: a few KB each, sharp at any zoom, and raw.githubusercontent.com serves it as
+    image/svg+xml, which GitHub's image proxy shows (PNGs at a readable resolution were about 5 MB a release)."""
+    written = []
+    for theme, suffix, key in (("light", "", "chart"), ("dark", "-dark", "chart_dark")):
+        image, _ = charts.svg(chart, theme, heading, note, floor)
+        path = f"{stem}{suffix}.svg"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(image)
+        entry.update({key: f"charts/{tag}/{os.path.basename(path)}", f"{key}_sha": release_assets.sha(path),
+                      "chart_width": int(re.search(r'width="(\d+)"', image).group(1))})
+        written.append(path)
     return written
 
 

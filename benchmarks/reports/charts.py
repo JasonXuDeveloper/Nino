@@ -130,10 +130,11 @@ def picture(light, dark, alt, fallback=None):
                       f'  <img src="{fallback or light}" alt="{html.escape(alt)}">', "</picture>"])
 
 
-def details(summary, body, open_=False):
-    """A collapsible block of GitHub Markdown: blank lines around the body, so Markdown inside it renders."""
-    return "\n".join([f"<details{' open' if open_ else ''}>", f"<summary><b>{html.escape(summary)}</b></summary>", "",
-                      body, "", "</details>"])
+def details(summary, body, open_=False, bold=True):
+    """A collapsible block of GitHub Markdown: blank lines around the body, so Markdown inside it renders. A block
+    nested in another (the release body's chart groups) keeps its summary plain: GitHub does not indent it."""
+    title = f"<b>{html.escape(summary)}</b>" if bold else html.escape(summary)
+    return "\n".join([f"<details{' open' if open_ else ''}>", f"<summary>{title}</summary>", "", body, "", "</details>"])
 
 
 def crop_png(data, height):
