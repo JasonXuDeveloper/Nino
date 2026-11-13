@@ -200,7 +200,7 @@ jobs:
   # type, ScatteredTest by data. SimpleTest is
   # split into its serialize (a) and deserialize (h) cases, and on x64 each half of v3 runs directly before the same
   # half of v4, on its runner, as benchmarks/run.sh does (v3 takes about 10 minutes a half, so these shards have fewer
-  # v4 cases). The publish job merges the reports into one table (benchmarks/reports/merge_reports.py). The same shards run on
+  # v4 cases); v3's PolymorphicTest runs the same way before v4's, on its shard (d). The publish job merges the reports into one table (benchmarks/reports/merge_reports.py). The same shards run on
   # Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64 never takes); an Arm64
   # failure leaves that section out and never blocks the x64 report.
   bench:
@@ -256,7 +256,7 @@ jobs:
           # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
           dotnet bin/Release/net10.0/Nino.Benchmark.dll --verify
 
-      # Nino v3 3.3.13 from nuget.org, the same SimpleTest (the benchmark project built with NINO_BENCH_V3=true, into
+      # Nino v3 3.3.13 from nuget.org, the same SimpleTest and PolymorphicTest (the benchmark project built with NINO_BENCH_V3=true, into
       # bin/v3; releases up to rc.8's development kept it in benchmarks/v3, older ones have none). It runs once,
       # directly before the v4 run, as benchmarks/run.sh does; MemoryPack runs in both, so drift of the runner shows.
       # A v3 failure never blocks the Performance Report: the v3 section is then left out.
@@ -284,14 +284,23 @@ jobs:
           sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
           echo "nice limit: $(ulimit -e)"
           # Nino and MemoryPack only: nothing reads v3's MessagePack rows, and they were a third of this step.
-          # This shard's half of SimpleTest (the matrix's v3 globs).
+          # This shard's v3 cases (the matrix's v3 globs: a half of SimpleTest, or PolymorphicTest).
           mapfile -t V3_PATTERNS < <(jq -r '.[]' <<< "$V3_FILTERS")
+          mkdir -p "$OUT/v3-${{ matrix.shard }}"
+          # A release from before a class's v3 port (PolymorphicTest's: v4.0.0-rc.9 and older) has no case these globs
+          # select: a marker in place of the report, so the publish job still makes the v3 section from the other shards.
+          V3_CASES=$(NINO_BENCH_V3=true dotnet "$V3_DLL" --list flat --filter "${V3_PATTERNS[@]}")
+          if [[ -z "$V3_CASES" ]]; then
+            echo "::notice::this release's v3 build has no case for ${V3_PATTERNS[*]}"
+            touch "$OUT/v3-${{ matrix.shard }}/none"
+            exit 0
+          fi
           # NINO_BENCH_V3: the benchmark project's v3 build, which BenchmarkDotNet builds again for its runs.
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
           NINO_BENCH_V3=true dotnet "$V3_DLL" --filter "${V3_PATTERNS[@]}" $BDN_ARGS \
             --artifacts "$V3_OUT"
-          # Under BenchmarkDotNet's own file name, which names the class (benchmarks/reports/bdn.py, class_name).
-          mkdir -p "$OUT/v3-${{ matrix.shard }}"
+          # Under BenchmarkDotNet's own file name, which names the class (benchmarks/reports/bdn.py, class_name): one
+          # report a shard (Program.cs joins the summary when a shard's globs reach several classes).
           cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}/"
 
       - name: Run benchmarks
@@ -361,7 +370,7 @@ jobs:
       TAG_NAME: ${{ needs.target.outputs.tag }}
       # Every benchmark class of benchmarks/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
-      # The shards (per architecture), the x64 shards that run half of v3 each (the v3 section needs every one) and the
+      # The shards (per architecture), the x64 shards that run part of v3 each (the v3 section needs every one) and the
       # benchmark classes: benchmarks/shards.json, read in the Merge the reports step.
 
     steps:
@@ -409,8 +418,9 @@ jobs:
           else
             echo "::warning::${#ARM64[@]} of the $SHARDS Arm64 reports: the Arm64 section is left out"
           fi
-          V3=("$DIR"/v3-*/*-report-github.md)
-          if (( ${#V3[@]} == V3_SHARDS )); then
+          # A shard whose globs select no case of the release's v3 build leaves a marker (v3-<shard>/none) instead.
+          V3=("$DIR"/v3-*/*-report-github.md) V3_NONE=("$DIR"/v3-*/none)
+          if (( ${#V3[@]} && ${#V3[@]} + ${#V3_NONE[@]} == V3_SHARDS )); then
             python3 benchmarks/reports/merge_reports.py "${V3[@]}" > "$RUNNER_TEMP/v3-report.md"
             echo "V3_REPORT=$RUNNER_TEMP/v3-report.md" >> "$GITHUB_ENV"
           elif (( ${#V3[@]} )); then

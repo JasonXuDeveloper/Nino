@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Compare two BenchmarkDotNet *-report-github.md files from SimpleTest: Nino v3 3.3.13 vs Nino v4.
+"""Compare two BenchmarkDotNet *-report-github.md files: Nino v3 3.3.13 vs Nino v4, for every case the v3 report has
+(the classes of benchmarks/Nino.Benchmark/V3: SimpleTest and PolymorphicTest; one report of each run, joined or merged).
 
 usage: python3 compare_v3.py <v3 report-github.md> <v4 report-github.md>
 
@@ -55,7 +56,7 @@ def main():
         # Only cases v3 has: the v4 report may be the whole suite (report.yml passes the merged report).
         if lib == "Nino" and case not in cases and "Nino" + case in v3:
             cases.append(case)
-    # serialize first, then deserialize; same order as the SimpleTest source
+    # serialize first, then deserialize; within each, the order of the v4 report
     cases.sort(key=lambda c: (not c.startswith("Serialize"),))
 
     header = ["case", "v3 3.3.13", "v4", "v4 vs v3", "MemoryPack (v4 run)", "MemoryPack (v3 run)"]

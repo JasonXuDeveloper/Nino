@@ -20,7 +20,7 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
                              Harness/Verify.cs (--verify: every case reads back right), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
-                             Fixtures/ contains shared models and payloads. NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest; -p:NinoBenchLegacy for older refs
+                             Fixtures/ contains shared models and payloads. NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest and PolymorphicTest; -p:NinoBenchLegacy for older refs
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
                              analyzer, re-generation after edits; --generics adds generic slots and subtypes,
                              --calls top-level calls of Nino and of another serializer, --layouts a layout baseline
@@ -33,7 +33,7 @@ shards.json                  the classes and the filters of each CI shard: "repo
 compare/                     comparisons of two runs, for development (never published on their own)
   ab.py                      two github reports of the same benchmarks (base, head): head against base and MemoryPack;
                              head alone (one report): head against MemoryPack (ab-bench.yml)
-  compare_v3.py              v3 3.3.13 against v4 from two SimpleTest reports, with both MemoryPack runs (run.sh, and
+  compare_v3.py              v3 3.3.13 against v4 from a v3 and a v4 report (SimpleTest, PolymorphicTest), with both MemoryPack runs (run.sh, and
                              the release body's v3 section)
 asm/                         the machine code of the cases
   asm.py                     the Tier1 machine code of the cases: dump / diff / compare REF (`compare origin/main`

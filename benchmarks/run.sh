@@ -29,12 +29,15 @@ git -C "$ROOT" rev-parse HEAD > "$OUT/v4-commit.txt"
 (cd "$BENCH" && dotnet "$V4_DLL" --verify) | tee "$OUT/verify_v4.txt"
 
 echo "v3 $(date)"
-(cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --filter '*SimpleTest.Nino*' '*SimpleTest.MemoryPack*' \
-  --artifacts "$OUT/v3" > "$OUT/v3.log")
+# The classes v3 has (V3/): their Nino and MemoryPack cases.
+(cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --filter '*.SimpleTest.Nino*' '*.SimpleTest.MemoryPack*' \
+  '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*' --artifacts "$OUT/v3" > "$OUT/v3.log")
 echo "v4 $(date)"
 (cd "$BENCH" && dotnet "$V4_DLL" --filter "${FILTERS[@]}" --artifacts "$OUT/v4" > "$OUT/v4.log")
 echo "done $(date)"
 
+# One report a run (Program.cs joins the summary of every class it ran).
+V3_REPORT=$(ls "$OUT"/v3/results/*-report-github.md | head -n1)
 V4_REPORT=$(ls "$OUT"/v4/results/*-report-github.md | head -n1)
 echo "== v3 vs v4"
-python3 "$ROOT/benchmarks/compare/compare_v3.py" "$OUT/v3/results/Nino.Benchmark.SimpleTest-report-github.md" "$V4_REPORT"
+python3 "$ROOT/benchmarks/compare/compare_v3.py" "$V3_REPORT" "$V4_REPORT"

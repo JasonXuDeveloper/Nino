@@ -7,7 +7,7 @@ usage: python3 benchmarks/reports/readme.py [--v4 <joined report-github.md> [--v
 
   --v4        the joined report of benchmarks/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
               report.yml produce it
-  --v3        a report of the v3 run (Nino 3.3.13, SimpleTest); repeat it for several runs,
+  --v3        a report of the v3 run (Nino 3.3.13, SimpleTest and PolymorphicTest); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.
   --build     the build-time section of a release body (generator_report.py; the whole body will do): the README's
               Build row of v4 vs v3 (v3.build) and the build tables of docs/v4-benchmarks.md (doc.build.*)
@@ -52,7 +52,8 @@ WORKLOAD_KEYS = [key for key, _ in WORKLOADS]
 OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "MessagePack"),
           ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"), ("Protobuf", "protobuf", "protobuf-net"),
           ("Json", "json", "System.Text.Json")]
-# v3 runs SimpleTest only (3.3.13 cannot express the workloads): the chart's first group, these cases' geometric mean.
+# v3 runs SimpleTest and PolymorphicTest only (3.3.13 cannot express the workloads): the chart's first group, these
+# cases' geometric mean.
 V3_CASES = ["SimpleClass", "SimpleClasses", "SimpleStruct", "SimpleStructs"]
 
 
