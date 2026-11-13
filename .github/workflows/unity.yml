@@ -113,6 +113,9 @@ jobs:
       UNITY_IMAGE: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
       # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
       NINO_CONFIG: ${{ inputs.benchmark && 'Release' || 'Debug' }}
+      # The editors that may kill themselves before the tests run, whose test steps get one more attempt then (see
+      # "Mark the signal trace"); false once Unity fixes it.
+      UNITY_SELF_KILL_RETRY: ${{ startsWith(matrix.unity, '6000.6.') }}
 
     steps:
       - &check-tag
@@ -249,6 +252,23 @@ jobs:
           echo 1 > "$procs/tracing_on"
           EOF
 
+      # Unity 6000.6.9f1's editor kills itself about one launch in three: some 2 s after launch, in its first domain
+      # reload (its log ends at "Registered in ... seconds."), a thread of the editor calls kill(2) with SIGKILL on
+      # another thread ID of its own process, which kills the whole process: exit 137, "Killed" from xvfb-run, no test
+      # run, no results file (run 43324567209: sender process == target's process == /opt/unity/Editor/Unity). Not
+      # memory, /dev/shm, code coverage or the Data Store's state in Library (each ruled out by the trace: audit-ci,
+      # "Bound every Unity launch"). A Unity bug, so each test step below runs once with continue-on-error, "Did Unity
+      # kill itself" judges a failed attempt and only that kill gets a second attempt; any other failure fails the
+      # judge, and with it the job, as the step itself did before. The retry is for the editors listed here: false
+      # switches it off once Unity fixes the bug.
+      - &mark-trace
+        name: Mark the signal trace
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 1
+        # The judge reads only the kills after the last mark, so a kill in an earlier step never counts.
+        run: echo nino-attempt | sudo tee /sys/kernel/tracing/trace_marker > /dev/null
+
       # Unity can hang in batch mode: the 2022.3 editor stopped twice after loading the project, its log ending at
       # "Unloading 3 Unused Serialized files" where a normal launch goes on to "Unloading 45 unused Assets" and quits
       # (runs 41082628657 and 41172149972, each a later launch in its container, licensing already done), and the job
@@ -272,20 +292,21 @@ jobs:
       # the variable reaches the CLI because the action passes no coverage flag at its default). On, the CLI adds
       # -enableCodeCoverage -debugCodeOptimization -coverageOptions to each editor launch: the project has no Code
       # Coverage package, so it collected nothing ("Coverage results directory does not exist"), but the editor ran
-      # in Debug code optimization with Mono's coverage instrumentation, slower, and every 6000.6.9f1 SIGKILL
-      # (runs 43290338104, 43299892840) came in the first domain reload right after "Code Coverage is enabled".
+      # in Debug code optimization with Mono's coverage instrumentation, slower.
       - name: Run the editor's play mode tests
         if: env.BENCHMARK != 'true'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: playmode-tests
+        # Judged by "Did Unity kill itself" below.
+        continue-on-error: true
         timeout-minutes: 25
-        env:
+        env: &editor-env
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
           GAME_CI_COVERAGE_ENABLED: 'false'
-        with:
+        with: &playmode-with
           projectPath: ./src/Nino.Unity
           testMode: playmode
           artifactsPath: artifacts/editor
@@ -296,24 +317,103 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
+      # A failed attempt is retried only when all of these hold: the retry is on for this Unity version, the attempt
+      # left no results file (no test ran), and the kernel's trace since the last mark holds a SIGKILL sent by kill(2)
+      # (code=0) from a process that ran /opt/unity/Editor/Unity to a different thread of that same process. A test
+      # that failed (results file written), a timeout, a crash of Nino's code in the editor (SIGSEGV or SIGABRT, or no
+      # signal at all), a kill from anything else, or a missing trace fails this step and the job. The killed
+      # attempt's editor log is kept beside the retry's as <mode>-killed.log in the uploaded results.
+      - name: Did Unity kill itself (play mode)
+        if: ${{ !cancelled() && steps.playmode-tests.outcome == 'failure' }}
+        id: playmode-killed
+        timeout-minutes: 2
+        env:
+          RESULTS: artifacts/editor/playmode-results.xml
+          UNITY_VERSION: ${{ matrix.unity }}
+        run: &judge-kill |
+          log=${RESULTS%-results.xml}.log
+          t=/sys/kernel/tracing
+          if [[ $UNITY_SELF_KILL_RETRY == true ]] && ! sudo test -e "$RESULTS" &&
+            sudo python3 -I - "$t/trace" "$t/instances/nino-procs/trace" <<'EOF'
+          import re, sys
+          head = re.compile(r'\s*(?P<comm>.*?)-(?P<tid>\d+)\s+\(\s*(?P<tgid>[\d-]+)\)\s+\[\d+\]\s+\S+\s+[\d.]+:\s+(?P<event>\w+):\s*(?P<rest>.*)')
+          field = re.compile(r'(\w+)=(.*?)(?=\s\w+=|$)')
+          def read(path):
+              try:
+                  with open(path) as f: return [line.rstrip() for line in f if not line.startswith('#')]
+              except OSError as e:
+                  print(f'cannot read {path}: {e}'); return []
+          signals, process, editors = read(sys.argv[1]), {}, set()
+          for line in read(sys.argv[2]):
+              if not (m := head.match(line)): continue
+              if m['tgid'].isdigit(): process[int(m['tid'])] = int(m['tgid'])
+              f = dict(field.findall(m['rest']))
+              if m['event'] == 'sched_process_exec' and f.get('filename', '').endswith('/Editor/Unity'): editors.add(int(f['pid']))
+          marks = [i for i, line in enumerate(signals) if 'tracing_mark_write: nino-attempt' in line]
+          if not marks: print('no mark in the trace'); sys.exit(1)
+          found = False
+          for line in signals[marks[-1] + 1:]:
+              if not (m := head.match(line)) or m['event'] != 'signal_generate' or not m['tgid'].isdigit(): continue
+              f, sender = dict(field.findall(m['rest'])), int(m['tgid'])
+              target = int(f['pid'])
+              if f.get('sig') == '9' and f.get('code') == '0' and sender in editors and target != sender and process.get(target) == sender:
+                  print(f'the editor (host PID {sender}) killed its own thread {target}: {line.strip()}'); found = True
+          sys.exit(0 if found else 1)
+          EOF
+          then
+            echo "::warning::Unity $UNITY_VERSION's editor killed itself (kill(2), SIGKILL, on a thread of its own) before any test ran: a Unity bug (audit-ci), not a test result. Running the step once more."
+            sudo cp "$log" "${log%.log}-killed.log" 2> /dev/null || true
+            echo retry=true >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::The step above failed, and not by the Unity editor killing itself before the tests ran: see its log and $RESULTS."
+            exit 1
+          fi
+
+      - name: Run the editor's play mode tests again (Unity killed itself)
+        if: ${{ !cancelled() && steps.playmode-killed.outputs.retry == 'true' }}
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: playmode-retry
+        timeout-minutes: 25
+        env: *editor-env
+        with: *playmode-with
+
+      - *mark-trace
+
       - name: Run the editor's edit mode tests
-        if: env.BENCHMARK != 'true' && (success() || steps.playmode-tests.conclusion == 'failure')
+        if: >-
+          env.BENCHMARK != 'true' && (success() ||
+          steps.playmode-killed.conclusion == 'failure' || steps.playmode-retry.conclusion == 'failure')
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: editmode-tests
+        continue-on-error: true
         timeout-minutes: 25
-        env:
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-          ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
-          GAME_CI_COVERAGE_ENABLED: 'false'
-        with:
+        env: *editor-env
+        with: &editmode-with
           projectPath: ./src/Nino.Unity
           testMode: editmode
           artifactsPath: artifacts/editor
           customImage: ${{ env.UNITY_IMAGE }}
           unityVersion: ${{ matrix.unity }}
           cliVersion: 'v0.1.72'
+
+      - name: Did Unity kill itself (edit mode)
+        if: ${{ !cancelled() && steps.editmode-tests.outcome == 'failure' }}
+        id: editmode-killed
+        timeout-minutes: 2
+        env:
+          RESULTS: artifacts/editor/editmode-results.xml
+          UNITY_VERSION: ${{ matrix.unity }}
+        run: *judge-kill
+
+      - name: Run the editor's edit mode tests again (Unity killed itself)
+        if: ${{ !cancelled() && steps.editmode-killed.outputs.retry == 'true' }}
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: editmode-retry
+        timeout-minutes: 25
+        env: *editor-env
+        with: *editmode-with
+
+      - *mark-trace
 
       # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
       # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
@@ -324,18 +424,21 @@ jobs:
       # (Test.Editor.Burst.BenchmarkPlayerBuild).
       - name: Run the IL2CPP player's tests
         if: >-
-          success() || steps.playmode-tests.conclusion == 'failure' || steps.editmode-tests.conclusion == 'failure'
+          success() ||
+          steps.playmode-killed.conclusion == 'failure' || steps.playmode-retry.conclusion == 'failure' ||
+          steps.editmode-killed.conclusion == 'failure' || steps.editmode-retry.conclusion == 'failure'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: player-tests
+        continue-on-error: true
         # The benchmark's run adds a few minutes of timing to the player.
         timeout-minutes: 35
-        env:
+        env: &player-env
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 20m
           GAME_CI_COVERAGE_ENABLED: 'false'
-        with:
+        with: &player-with
           projectPath: ./src/Nino.Unity
           testMode: standalone
           artifactsPath: artifacts/player
@@ -345,18 +448,34 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
+      - name: Did Unity kill itself (IL2CPP player)
+        if: ${{ !cancelled() && steps.player-tests.outcome == 'failure' }}
+        id: player-killed
+        timeout-minutes: 2
+        env:
+          RESULTS: artifacts/player/standalone-results.xml
+          UNITY_VERSION: ${{ matrix.unity }}
+        run: *judge-kill
+
+      - name: Run the IL2CPP player's tests again (Unity killed itself)
+        if: ${{ !cancelled() && steps.player-killed.outputs.retry == 'true' }}
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: player-retry
+        timeout-minutes: 35
+        env: *player-env
+        with: *player-with
+
       # Who killed a Unity process. A SIGKILL leaves only "Killed" (xvfb-run's dash, for the editor alone) and exit
       # code 137 in the step's log, the editor's log ends wherever it was, and the container is gone (--rm): only the
-      # host's kernel log tells an OOM kill (the container's cgroup: game-ci passes --memory at 95% of the RAM, and
-      # Unity 6000.6's Data Store maps 1 GiB of the container's 1025 MB /dev/shm) from a kill by another process
-      # (run 43290338104: the 6000.6.9f1 player step's editor, 1.3 s after launch, in its first domain reload). The
-      # trace started by "Trace fatal signals" names the sender of every SIGKILL; the script below adds, for each one
-      # sent by a process, the sender thread's creation and names, the sender's process with its program and parents,
-      # the target's, and their PIDs inside the container, and lists every Unity editor and Data Store started with
-      # its PID in its container. Runs on a green job too: a passing launch's Data Store got a SIGKILL at shutdown
-      # from a thread named "Unity Main Thread" (run 43316317360's player step), and a kill that missed the editor
-      # shows only here. The last dmesg
-      # lines prove the kernel's log was readable when the grep finds nothing.
+      # host's kernel log tells an OOM kill (the container's cgroup: game-ci passes --memory at 95% of the RAM) from a
+      # kill by a process (run 43324567209: the 6000.6.9f1 editor killing a thread of its own, in its first domain
+      # reload). The trace started by "Trace fatal signals" names the sender of every SIGKILL; the script below adds,
+      # for each one sent by a process, the sender thread's creation and names, the sender's process with its program
+      # and parents, the target's, and their PIDs inside the container, and lists every Unity editor and Data Store
+      # started with its PID in its container; each "Mark the signal trace" shows as a nino-attempt line. Runs on a
+      # green job too: an editor that passed may still have killed itself on the first attempt, and a passing
+      # launch's editor SIGKILLs its Data Store at shutdown (run 43316317360's player step, the usual end). The last
+      # dmesg lines prove the kernel's log was readable when the grep finds nothing.
       - name: Show the kernel's kills
         if: always()
         continue-on-error: true
@@ -378,7 +497,7 @@ jobs:
           kills, tasks, nspid, count = [], {}, {}, {}  # tasks: host PID -> its fork (as the child), exec, rename and exit lines
           for line in read(sys.argv[1]):
               m = head.match(line)
-              if m and m['event'] in ('signal_generate', 'mark_victim'): kills.append((m, [line]))
+              if m and m['event'] in ('signal_generate', 'mark_victim', 'tracing_mark_write'): kills.append((m, [line]))
               elif kills: kills[-1][1].append(line)
           for line in read(sys.argv[2]):
               if not (m := head.match(line)): continue
