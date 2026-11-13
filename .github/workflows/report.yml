@@ -188,15 +188,12 @@ jobs:
 
   # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), every
   # serializer's runs of a case (Nino, MemoryPack, MessagePack, protobuf-net, and in SimpleTest, PolymorphicTest and
-  # WorkloadTest Google.Protobuf and System.Text.Json) always on one runner. Fourteen shards of 24 to 52 cases (just under a minute each with three
-  # launches, a million-object ScatteredTest case over one), balanced by the shards' times in the last report
-  # (v4.0.0-rc.9's took 34 to 47 minutes); BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest are split by
-  # type, ScatteredTest by data. SimpleTest is
-  # split into its serialize (a) and deserialize (h) cases, and on x64 each half of v3 runs directly before the same
-  # half of v4, on its runner, as benchmarks/run.sh does (v3 takes about 10 minutes a half, so these shards have fewer
-  # v4 cases); v3's PolymorphicTest runs the same way before v4's, on its shard (d), and v3's NullableTest and nullable
-  # collections before v4's on theirs (o and p, and j for NullableDecimals), v3's WorkloadTest before each workload shard's
-  # v4 (d, k to n) and its PooledGraphTest Leaves before v4's (b). The publish job merges the reports into one table (benchmarks/reports/merge_reports.py). The same shards run on
+  # WorkloadTest Google.Protobuf and System.Text.Json) always on one runner. Seventeen shards (benchmarks/shards.json),
+  # each of at most about 70 cases of v4 and v3 together (about 15 minutes a shard plus half a minute a case, a
+  # million-object ScatteredTest case over one); BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest are
+  # split by type, ScatteredTest by data, SimpleTest into its serialize (a) and deserialize (h) cases. On x64 every
+  # shard's v3 cases (its "v3" globs: the Nino and MemoryPack cases of its classes that v3 3.3.13 has, V3/) run directly
+  # before its v4 cases, on its runner, as benchmarks/run.sh does. The publish job merges the reports into one table (benchmarks/reports/merge_reports.py). The same shards run on
   # Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64 never takes); an Arm64
   # failure leaves that section out and never blocks the x64 report.
   bench:
@@ -252,9 +249,9 @@ jobs:
           # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
           dotnet bin/Release/net10.0/Nino.Benchmark.dll --verify
 
-      # Nino v3 3.3.13 from nuget.org, the same SimpleTest, PolymorphicTest, NullableTest, nullable collections,
-      # WorkloadTest and PooledGraphTest's Leaves (the benchmark project built with NINO_BENCH_V3=true, into
-      # bin/v3; releases up to rc.8's development kept it in benchmarks/v3, older ones have none). It runs once,
+      # Nino v3 3.3.13 from nuget.org, the same benchmark classes as far as 3.3.13 can express them (V3/: the benchmark
+      # project built with NINO_BENCH_V3=true, into bin/v3; releases up to rc.8's development kept it in benchmarks/v3,
+      # older ones have none). It runs once,
       # directly before the v4 run, as benchmarks/run.sh does; MemoryPack runs in both, so drift of the runner shows.
       # A v3 failure never blocks the Performance Report: the v3 section is then left out.
       - name: Build v3 benchmark (Nino 3.3.13)
@@ -281,13 +278,11 @@ jobs:
           sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
           echo "nice limit: $(ulimit -e)"
           # Nino and MemoryPack only: nothing reads v3's MessagePack rows, and they were a third of this step.
-          # This shard's v3 cases (the matrix's v3 globs: a half of SimpleTest, PolymorphicTest, the nullable cases,
-          # workloads or the Leaves).
+          # This shard's v3 cases (the matrix's v3 globs).
           mapfile -t V3_PATTERNS < <(jq -r '.[]' <<< "$V3_FILTERS")
           mkdir -p "$OUT/v3-${{ matrix.shard }}"
-          # A release from before a class's v3 port (PolymorphicTest's, NullableTest's, the nullable collections',
-          # WorkloadTest's and the Leaves': v4.0.0-rc.9 and older) has no case these globs
-          # select: a marker in place of the report, so the publish job still makes the v3 section from the other shards.
+          # A release from before a class's v3 port (v4.0.0-rc.9 and older have SimpleTest's only) has no case these
+          # globs select: a marker in place of the report, so the publish job still makes the v3 section from the other shards.
           V3_CASES=$(NINO_BENCH_V3=true dotnet "$V3_DLL" --list flat --filter "${V3_PATTERNS[@]}")
           if [[ -z "$V3_CASES" ]]; then
             echo "::notice::this release's v3 build has no case for ${V3_PATTERNS[*]}"

@@ -29,11 +29,11 @@ git -C "$ROOT" rev-parse HEAD > "$OUT/v4-commit.txt"
 (cd "$BENCH" && dotnet "$V4_DLL" --verify) | tee "$OUT/verify_v4.txt"
 
 echo "v3 $(date)"
-# The classes v3 has (V3/): their Nino and MemoryPack cases.
-(cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --filter '*.SimpleTest.Nino*' '*.SimpleTest.MemoryPack*' \
-  '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*' '*.NullableTest.Nino*' '*.NullableTest.MemoryPack*' \
-  '*.CollectionsTest.Nino*' '*.CollectionsTest.MemoryPack*' '*.WorkloadTest.Nino*' '*.WorkloadTest.MemoryPack*' \
-  '*.PooledGraphTest.Nino*' '*.PooledGraphTest.MemoryPack*' --artifacts "$OUT/v3" > "$OUT/v3.log")
+# v3's cases: the v3 globs of the release report's shards (benchmarks/shards.json), every class's Nino and MemoryPack
+# cases that 3.3.13 can express (V3/).
+V3_GLOBS='import json, sys; [print(g) for s in json.load(open(sys.argv[1]))["report"] for g in s.get("v3", [])]'
+mapfile -t V3_FILTERS < <(python3 -c "$V3_GLOBS" "$ROOT/benchmarks/shards.json")
+(cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --filter "${V3_FILTERS[@]}" --artifacts "$OUT/v3" > "$OUT/v3.log")
 echo "v4 $(date)"
 (cd "$BENCH" && dotnet "$V4_DLL" --filter "${FILTERS[@]}" --artifacts "$OUT/v4" > "$OUT/v4.log")
 echo "done $(date)"
