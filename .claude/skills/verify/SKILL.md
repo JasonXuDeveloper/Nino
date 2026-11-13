@@ -50,6 +50,7 @@ with `NINO_UPDATE_GENERATED=1`).
 ```bash
 actionlint                                  # with .github/actionlint.yaml, after any workflow change
 tools/agents.sh --check                     # indexes, CLAUDE.md = @AGENTS.md, file maps, skill metadata
+python3 .github/scripts/nuget_readme.py --check  # README.nuget.md (the packages' README) matches README.md
 npx -y skills add . --list                  # lists only `nino-serialization`: every development skill is internal
 ```
 

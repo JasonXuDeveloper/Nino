@@ -215,9 +215,18 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   Nino v4 first in the accent colour, v3 in a darker grey (n/a where 3.3.13 did not run the case), every other
   library with a row in one light grey, in the order MemoryPack, MessagePack, Google.Protobuf, protobuf-net,
   System.Text.Json, each bar labelled with its time and its multiple of Nino v4's, serialize and deserialize side by
-  side; the site lists libraries and groups the same way. nuget.org prints every HTML tag as text (its Markdig
-  pipeline calls `DisableHtml`): the overview chart `benchmark.png` (`CHART_CASES`) is the first `<picture>`'s
-  fallback image for the day the packed README turns HTML into Markdown. Why: the owner found the earlier
+  side; the site lists libraries and groups the same way. Never edit `README.nuget.md`, the
+  README every NuGet package carries (Directory.Build.props packs it as `README.md`): `.github/scripts/nuget_readme.py`
+  writes it from README.md, and agents.yml fails when it is stale (`--check`). Why: nuget.org prints every HTML tag
+  as text (NuGetGallery's Markdig pipeline calls `DisableHtml`; rc.9's page showed the hero's `<div>`, `<br>` and
+  every `<details>`/`<picture>`), and a package's README is frozen at pack time while report.yml fills the numbers
+  after the release, so it would show "—" or the previous release's numbers forever. The script turns the hero into
+  Markdown (hard breaks for `<br>`, no logo: nuget.org shows the icon) and replaces each block that holds a
+  `<!--bench:...-->` marker by its `REPLACE` text (the overview chart `benchmark.png` (`CHART_CASES`, redrawn by
+  `readme.py --png`) by its raw URL on main, and links to the site's benchmarks page and README's sections); a new
+  marker, HTML outside code or a relative link fails it. Images only from nuget.org's trusted domains
+  (NuGetGallery `Trusted-Image-Domains.json`: img.shields.io and raw.githubusercontent.com are). Render it as
+  nuget.org does (Markdig with MarkdownService.cs's pipeline, comments stripped first) after changing the script. Why: the owner found the earlier
   "N times faster" log-scale chart unreadable (no Nino bar, a longer bar meant a slower competitor, 1.7x and 45x
   looked alike; rc.10) and one chart of nine cases too few (2026-11-13: every case, grouped),
   a compact "Built for" list, the MemoryPack feature table (no speed rows: the Benchmarks table has them), v4 vs v3,
