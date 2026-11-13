@@ -249,39 +249,6 @@ jobs:
           echo 1 > "$procs/tracing_on"
           EOF
 
-      # Unity 6000.6's Data Store (Unity.DataStore, a process each editor launch starts beside it; "Launching Unity
-      # Data Store", "artifact dir = Library/DataStore" in the editor's log) keeps its state in Library/DataStore, which
-      # the Library cache brings back from another run and every launch leaves for the next step's. 6000.3.27f1 had
-      # none (no Data Store line in its log). Every 6000.6.9f1 kill came from kill(2) by a thread
-      # named "Unity Main Thread", and a passing launch's Data Store gets the same kind of SIGKILL at shutdown: an
-      # editor that kills a Data Store by a PID kept from a launch in another container would hit whatever task holds
-      # that PID now, its own threads included (runs 43309471749 and 43316317360: the targets were named like the
-      # editor's threads). The Library cache's first launch was killed in runs 43299892840 and 43316317360; in
-      # 43290338104, whose Library was built from scratch, the first two launches passed and the third was killed.
-      # So the state is listed (small files printed, for a PID) and deleted before each Unity step: the step is the
-      # candidate fix, and "Show the kernel's kills" shows whether a kill still comes.
-      - &clear-data-store
-        name: Clear the Unity Data Store's state
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          store=src/Nino.Unity/Library/DataStore
-          if sudo test -d "$store"; then
-            sudo find "$store" -maxdepth 3 -printf '%M %10s %TY-%Tm-%Td %TT %p\n' | head -n 80
-            # shellcheck disable=SC2016  # expanded by the inner sh
-            sudo find "$store" -maxdepth 3 -type f -size -1024c -exec sh -c \
-              'for f; do printf "%s: %s\n" "$f" "$(head -c 200 "$f" | tr -c "[:print:]" .)"; done' _ {} +
-            sudo rm -rf "$store"
-          else
-            echo "no $store"
-          fi
-          sudo find src/Nino.Unity/Library -maxdepth 1 -name EditorInstance.json -exec sh -c 'cat "$1"; echo' _ {} \; || true
-          # The container's /root is this runner's home: anything the Data Store keeps there outlives the step, and
-          # its log (Editor-UDS.log, UUM-149968) tells how the last launch's Data Store ended.
-          sudo find "$HOME/.config/unity3d" "$HOME/.local/share/unity3d" "$HOME/.cache" -maxdepth 4 \
-            \( -iname '*datastore*' -o -iname '*data store*' -o -iname '*UDS*.log' \) -print 2> /dev/null || true
-          sudo find "$HOME/.config/unity3d" -maxdepth 2 -iname '*UDS*.log' -exec tail -n 30 {} + 2> /dev/null || true
-
       # Unity can hang in batch mode: the 2022.3 editor stopped twice after loading the project, its log ending at
       # "Unloading 3 Unused Serialized files" where a normal launch goes on to "Unloading 45 unused Assets" and quits
       # (runs 41082628657 and 41172149972, each a later launch in its container, licensing already done), and the job
@@ -329,8 +296,6 @@ jobs:
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
 
-      - *clear-data-store
-
       - name: Run the editor's edit mode tests
         if: env.BENCHMARK != 'true' && (success() || steps.playmode-tests.conclusion == 'failure')
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -349,8 +314,6 @@ jobs:
           customImage: ${{ env.UNITY_IMAGE }}
           unityVersion: ${{ matrix.unity }}
           cliVersion: 'v0.1.72'
-
-      - *clear-data-store
 
       # The play mode tests in a Linux player built with IL2CPP (ProjectSettings: Standalone scripting backend 1) and
       # Burst AOT, where the paths through the runtime's own collections and the Burst function pointers run as they do
@@ -401,8 +364,6 @@ jobs:
           sudo dmesg -T | grep -iE 'out of memory|oom|killed process|segfault|traps:' | tail -n 40 || true
           sudo dmesg -T | tail -n 3
           free -m
-          # The last launch's Data Store log (Unity 6000.6; the container's /root is this runner's home).
-          sudo find "$HOME/.config/unity3d" -maxdepth 2 -iname '*UDS*.log' -exec tail -n 40 {} + 2> /dev/null || true
           t=/sys/kernel/tracing
           echo 0 | sudo tee "$t/tracing_on" "$t/instances/nino-procs/tracing_on" > /dev/null || true
           sudo python3 -I - "$t/trace" "$t/instances/nino-procs/trace" <<'EOF'
