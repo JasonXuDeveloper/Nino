@@ -345,9 +345,16 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   the port, so older tags still get their v3 section. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
   and the site's `src/lib/benchmarks.ts` and sync in the same series. Prose and markers that name the workloads land
   together with `readme.py`; until a release's report measured them, their markers read "—".
+- Write every multiple a reader sees with one decimal below 10 and a whole number from 10, rounded half up from the
+  unrounded ratio ("1.1×", "1.4×", "77×", "231×"; a range "1.1–1.4×", one value when both ends round alike), through
+  `bdn.times` only (charts, README, docs tables, the v3 sentence, the release body's summaries, the build and Unity
+  sections, compare_v3.py; the docs site's `formatRatio` the same). Why: the owner chose one precision (rc.10) after
+  the charts wrote "4.1×", the tables "4.06× faster" and the site "4.06×" for the same case. Within 5 % stays "on par"
+  (`bdn.on_par`), so the first ratio beyond it reads "1.1×", never "1.0×" or "1.05×". Two decimals stay only in the
+  developers' A/B tools (`ab.py`, `members/table.py`), which judge changes against a noise floor of a few percent.
 - Within 5 % is on par and is written so; under the 1 ns floor (`bdn.py`, `FLOOR_NS`) a time is "< 1 ns"; Nino v4
   under it against a measurable time is a lower bound, that time / 1 ns ("> 77×" in a chart, `charts.multiple`;
-  "> 1.40× faster" in a table or the v3 sentence, `bdn.lower_bound`; the docs site the same), never a ratio, which
+  "> 1.4× faster" in a table or the v3 sentence, `bdn.lower_bound`; the docs site the same), never a ratio, which
   would only reflect noise; both under it are on par; a range (`ser.range`, the v3 median) leaves such a case out,
   its ends being measured ratios; A/B comparisons (`ab.py`) keep "-". Lower-bound nothing else. Why: the owner
   asked for a multiple where the charts showed MemoryPack 1.40 ns, MessagePack 77.2 ns and protobuf-net 231 ns
