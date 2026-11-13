@@ -177,8 +177,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 ## Adding a case
 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
-  MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest` and the
-  workloads, the classes every chart group shows), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards): a report
+  MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest`, `NullableTest`,
+  `CollectionsTest`'s nullable collections and the workloads, the classes every chart group shows), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards): a report
   shard picked by the minutes each shard's "Run benchmarks" step took in the last report, not by case counts
   (`audit-ci`, Fast and parallel). Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
   ci.yml runs `--verify` on x64 and on Arm64 (`audit-ci`, Scripts only a release runs).
@@ -203,6 +203,17 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   Nino writes a type id for a class that is not sealed, and the two types' ids differ (`ProfileCache` threw "not a
   registered subtype"). Write System.Text.Json through a reused `Utf8JsonWriter` with `SkipValidation`, as the
   serializer's own writers do, its source generator with `IncludeFields` for field-only models.
+- Write nullable values through each library's own nullable form, never plain `Nullable<T>` for MemoryPack: its
+  `SafeNullable<T>` (the owner's choice, 2026-11-13), because MemoryPack writes a `Nullable<T>` of an unmanaged T as
+  its memory layout and leaves the padding uninitialized (one value, different bytes, leftover memory in them), while
+  SafeNullable writes (hasValue as a T, value) like Nino's canonical bytes; copy the data to SafeNullable outside the
+  timed region and turn results back in `IReadBack` (`SafeNullables`, `Fixtures/NullableBenchmarkData.cs`). Protobuf
+  has no null in a repeated field (protobuf-net throws "An element ... was null"): wrap each element with protobuf-net's
+  `[NullWrappedValue]` (a message with an optional value) on a contract around the collection; nullable scalars take
+  `[NullWrappedValue]` at `CompatibilityLevel.Level300` (`google.protobuf.Int32Value`, ...: Google.Protobuf's `int?`).
+  Keep such contracts at Level300: at the default level `GetSchema` names `decimal?`'s wrapper `Wrapped.bcl.Decimal`,
+  which protoc rejects, and `[NullWrappedValue]` on an enum writes a message while the schema keeps the bare enum
+  (Google.Protobuf would misread it), so a nullable enum stays bare with a zero member the data never uses.
 - In `WorkloadTest` a library that lacks a feature is measured through its usual workaround (copies of shared
   objects, a new instance instead of reading into one; the owner's choice for workloads), said in the model's comment
   and in benchmarks/README.md; the other classes keep "no method rather than other data".
@@ -271,7 +282,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   emit 7 % more allocation (408 MB against 382) and no time beyond the noise.
 - The headline (README's ranges and chart, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
   every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); the v3 comparison
-  stays on what 3.3.13 can express: SimpleTest and, since the owner asked on 2026-11-13, PolymorphicTest. A v3 port
+  stays on what 3.3.13 can express: SimpleTest and, since the owner asked on 2026-11-13, PolymorphicTest,
+  NullableTest and CollectionsTest's nullable collections (`V3/CollectionsTest.cs` holds only those; the README chart
+  shows `NullableClasses` and `NullableLongs` after the polymorphic group, `readme.py`'s `NULLABLE_CASES` in
+  `CHART_CASES`, so the release body's .NET chart, which is README's, shows them too). A v3 port
   (`benchmarks/Nino.Benchmark/V3/<Class>.cs`) keeps the v4 class's name, method names, data and attributes and
   changes only the Nino calls (`NinoGen.Serializer` / `NinoGen.Deserializer`, `ArrayBufferWriter<byte>`), drops the
   protobuf-net cases, joins the csproj's v3 `Compile` list, `run.sh`'s v3 `--filter` and the `"v3"` globs of the
@@ -287,6 +301,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   `merge_reports.py` writes "?" for such a cell (`unmeasured_allocation`), which the site and `readme.py` show as
   unknown; a claim of 0 B (a reuse row, "no allocation") needs a run where the GC count is zero too. Every table of the
   site's Benchmarks page names every library that wrote the same data (MemoryPack, MessagePack, protobuf-net;
-  SimpleTest, PolymorphicTest and the workloads add Google.Protobuf and System.Text.Json): a new benchmark class gets its case list in the site's
+  SimpleTest, PolymorphicTest, NullableTest, the nullable collections and the workloads add Google.Protobuf and
+  System.Text.Json): a new benchmark class gets its case list in the site's
   `moreCases` or `extraCases`, never only the raw results table (round 130: five classes and the reuse and
   polymorphism tables showed MemoryPack alone).
