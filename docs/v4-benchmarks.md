@@ -4,7 +4,7 @@ Why v4: what it costs to build a project that uses Nino, and how fast serializat
 v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.22.0.
 
 Every table here is the newest release's: its CI run (`report.yml`) benchmarks v4 against MemoryPack, each case's
-Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest`, `PolymorphicTest` and nullable runners), and v3 3.3.13's source generator
+Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest`, `PolymorphicTest`, nullable, workload and `PooledGraphTest` runners), and v3 3.3.13's source generator
 against the release's on one more runner, puts the reports in the release notes, and writes these tables from them
 (`benchmarks/reports/readme.py`), as it does for the README and the documentation site. Generated code sizes do not
 depend on the machine; absolute times vary between machines, and the ratios are what to look at.
@@ -407,9 +407,14 @@ which every other class's data, allocated in order and in the cache, never shows
 The v3 numbers come from the v3 build of [`benchmarks/Nino.Benchmark`](../benchmarks/Nino.Benchmark)
 (`NINO_BENCH_V3=true`, [`V3/SimpleTest.cs`](../benchmarks/Nino.Benchmark/V3/SimpleTest.cs),
 [`V3/PolymorphicTest.cs`](../benchmarks/Nino.Benchmark/V3/PolymorphicTest.cs),
-[`V3/NullableTest.cs`](../benchmarks/Nino.Benchmark/V3/NullableTest.cs) and
-[`V3/CollectionsTest.cs`](../benchmarks/Nino.Benchmark/V3/CollectionsTest.cs)), the same `SimpleTest`, `PolymorphicTest`,
-`NullableTest` and nullable collections built against the `Nino` 3.3.13 package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
+[`V3/NullableTest.cs`](../benchmarks/Nino.Benchmark/V3/NullableTest.cs),
+[`V3/CollectionsTest.cs`](../benchmarks/Nino.Benchmark/V3/CollectionsTest.cs),
+[`V3/WorkloadTest.cs`](../benchmarks/Nino.Benchmark/V3/WorkloadTest.cs) and
+[`V3/PooledGraphTest.cs`](../benchmarks/Nino.Benchmark/V3/PooledGraphTest.cs)), the same `SimpleTest`, `PolymorphicTest`,
+`NullableTest`, nullable collections, workloads and pooled leaves built against the `Nino` 3.3.13 package from
+nuget.org, each feature in v3's own way: the workloads that share objects write copies (v3 tracks no references), the
+versioned ones use v3's `WEAK_VERSION_TOLERANCE` in a project of their own, and what v4 reads in place v3 reads anew
+(it reads no object in place; the leaves keep their list and get new elements). [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
 suite) and prints v4 against v3. The release workflow runs the same protocol for every release and publishes the
 result in the release notes ("v3 3.3.13 vs v4 (same machine)"), where the documentation site and these tables take
 their v3 ratios from.

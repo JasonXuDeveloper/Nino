@@ -10,27 +10,6 @@ using ProtoBuf;
 #nullable disable
 namespace Nino.Benchmark;
 
-/// <summary>A pooled leaf: primitives and a list.</summary>
-[NinoType, NinoPooled]
-[MemoryPackable]
-[MessagePackObject]
-[ProtoContract]
-public sealed partial class PooledLeaf
-{
-    [Key(0)] [ProtoMember(1)] public int A;
-    [Key(1)] [ProtoMember(2)] public float B;
-    [Key(2)] [ProtoMember(3)] public List<int> Items;
-
-    private static partial IEnumerable<PooledLeaf> OnNinoPoolWarmup() => null;
-
-    private partial void OnNinoPoolReturn()
-    {
-    }
-
-    public static PooledLeaf Create(Random r) =>
-        new() { A = r.Next(), B = r.NextSingle(), Items = Enumerable.Range(0, 8).Select(_ => r.Next()).ToList() };
-}
-
 /// <summary>The same as <see cref="PooledLeaf"/>, not pooled.</summary>
 [NinoType]
 [MemoryPackable]

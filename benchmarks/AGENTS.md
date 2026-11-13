@@ -25,8 +25,10 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              Fixtures/ contains shared models and payloads (ProtobufModel.cs: protobuf-net's model, the
                              .proto files --write-proto generates, the read-back of Google.Protobuf's messages;
                              NullableBenchmarkData.cs: NullableTest's model and MemoryPack's SafeNullable copies).
-                             NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest, PolymorphicTest, NullableTest and
-                             CollectionsTest's nullable collections (V3/); -p:NinoBenchLegacy for older refs
+                             NINO_BENCH_V3=true: the v3 3.3.13 build of SimpleTest, PolymorphicTest, NullableTest,
+                             CollectionsTest's nullable collections, WorkloadTest and PooledGraphTest's Leaves (V3/;
+                             V3/Versioned: the versioned workloads' models with WEAK_VERSION_TOLERANCE);
+                             -p:NinoBenchLegacy for older refs
 Nino.GeneratorBenchmark/     the source generator on a synthetic workload: generator time, generated size, emit,
                              analyzer, re-generation after edits; --generics adds generic slots and subtypes,
                              --calls top-level calls of Nino and of another serializer, --layouts a layout baseline
@@ -84,6 +86,9 @@ reports/                     what a release publishes: the results of runners as
   runtimes_report.py, unity_report.py, generator_report.py) are read by the docs site (Nino.Docs
   `scripts/sync-benchmarks.ts`), which parses the old sections' headings in the bodies of releases up to
   v4.0.0-rc.9 too: change one only together with its parser there.
+- The workloads' models (`Workloads/*Models.cs`) and `Fixtures/PooledLeaf.cs` compile in the v3 build too: an
+  attribute or member 3.3.13 lacks goes behind `#if NINO_BENCH_V3` (the v3 form first), and a new versioned model goes
+  in `VersionedModels.cs` (the v3 project that tolerates versions, `V3/Versioned`).
 - Program.cs and the Harness files the v3 build lists (`Nino.Benchmark.csproj`, `NinoBenchV3`) compile against Nino
   3.3.13 with only those files: guard what they reach outside them with `#if !NINO_BENCH_V3`, and build
   `NINO_BENCH_V3=true dotnet build -c Release` after changing them. No CI job but report.yml builds it, so a break

@@ -319,7 +319,12 @@ public partial struct Tile
     [Key(2)] [ProtoMember(3)] public int OwnerId;
 }
 
-[NinoType(trackReferences: true), MemoryPackable(GenerateType.CircularReference), MessagePackObject, ProtoContract]
+#if NINO_BENCH_V3
+[NinoType]
+#else
+[NinoType(trackReferences: true)]
+#endif
+[MemoryPackable(GenerateType.CircularReference), MessagePackObject, ProtoContract]
 public sealed partial class Alliance
 {
     [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public int Id;
@@ -415,7 +420,12 @@ public sealed partial class WorldRegion
 
 public enum CardType { Minion, Spell, Weapon }
 
-[NinoType(trackReferences: true), MemoryPackable(GenerateType.CircularReference), MessagePackObject, ProtoContract]
+#if NINO_BENCH_V3
+[NinoType]
+#else
+[NinoType(trackReferences: true)]
+#endif
+[MemoryPackable(GenerateType.CircularReference), MessagePackObject, ProtoContract]
 public sealed partial class CardDef
 {
     [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public int Id;
@@ -552,86 +562,4 @@ public sealed partial class CardBattleLog
             }).ToList(),
         };
     }
-}
-
-// ---------------------------------------------------------------- Idle game: a save written by the previous
-// release (IdleSaveV1) and read by this one (IdleSaveV2 appends prestige members) into the save the game already holds.
-// Nino's version-tolerant format, MemoryPack's; the others tolerate appended members as they are, and read new saves.
-
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
-public sealed partial class Building
-{
-    [Key(0)] [ProtoMember(1)] public short Id;
-    [Key(1)] [ProtoMember(2)] public int Level;
-    [Key(2)] [ProtoMember(3)] public double Multiplier;
-    [Key(3)] [ProtoMember(4)] public DateTime? UpgradeEndsAt;
-}
-
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
-public sealed partial class OfflineState
-{
-    [Key(0)] [ProtoMember(1)] public DateTime LastSeen;
-    [Key(1)] [ProtoMember(2)] public double RatePerSecond;
-    [Key(2)] [ProtoMember(3)] public double CapHours;
-    [Key(3)] [ProtoMember(4)] public double Pending;
-}
-
-[NinoType(format: NinoFormat.VersionTolerant), MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, ProtoContract,
- CompatibilityLevel(CompatibilityLevel.Level300)]
-public sealed partial class IdleSaveV1
-{
-    [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public long PlayerId;
-    [MemoryPackOrder(1)] [Key(1)] [ProtoMember(2)] public DateTime SavedAt;
-    [MemoryPackOrder(2)] [Key(2)] [ProtoMember(3)] public double Gold;
-    [MemoryPackOrder(3)] [Key(3)] [ProtoMember(4)] public double Gems;
-    [MemoryPackOrder(4)] [Key(4)] [ProtoMember(5)] public double LifetimeEarnings;
-    [MemoryPackOrder(5)] [Key(5)] [ProtoMember(6)] public Dictionary<int, double> Resources;
-    [MemoryPackOrder(6)] [Key(6)] [ProtoMember(7)] public List<Building> Buildings;
-    [MemoryPackOrder(7)] [Key(7)] [ProtoMember(8)] public Dictionary<int, byte> Upgrades;
-    [MemoryPackOrder(8)] [Key(8)] [ProtoMember(9)] public OfflineState Offline;
-    [MemoryPackOrder(9)] [Key(9)] [ProtoMember(10)] public Dictionary<int, long> Stats;
-    [MemoryPackOrder(10)] [Key(10)] [ProtoMember(11)] public List<int> Achievements;
-
-    public static IdleSaveV1 Create(Random r) => new()
-    {
-        PlayerId = 4_100_200, SavedAt = Data.Epoch.AddHours(r.Next(1_000)), Gold = 1.234e18 * r.NextDouble(),
-        Gems = r.Next(5_000), LifetimeEarnings = 9.87e21 * r.NextDouble(),
-        Resources = Enumerable.Range(0, 50).ToDictionary(i => i, _ => Math.Pow(10, r.Next(3, 30)) * r.NextDouble()),
-        Buildings = Enumerable.Range(0, 40).Select(i => new Building
-        {
-            Id = (short)i, Level = r.Next(1, 2_000), Multiplier = 1 + r.NextDouble() * 99,
-            UpgradeEndsAt = r.Next(5) == 0 ? Data.Epoch.AddMinutes(r.Next(600)) : null,
-        }).ToList(),
-        Upgrades = Enumerable.Range(0, 120).ToDictionary(i => 5_000 + i, _ => (byte)r.Next(1, 6)),
-        Offline = new OfflineState
-            { LastSeen = Data.Epoch.AddHours(r.Next(1_000)), RatePerSecond = 3.3e9 * r.NextDouble(), CapHours = 8, Pending = 1e12 * r.NextDouble() },
-        Stats = Enumerable.Range(0, 100).ToDictionary(i => i, _ => r.NextInt64(0, long.MaxValue / 1024)),
-        Achievements = Enumerable.Range(0, 60).Select(i => 9_000 + i * 3).ToList(),
-    };
-}
-
-[NinoType(format: NinoFormat.VersionTolerant), MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, ProtoContract,
- CompatibilityLevel(CompatibilityLevel.Level300)]
-public sealed partial class IdleSaveV2
-{
-    [MemoryPackOrder(0)] [Key(0)] [ProtoMember(1)] public long PlayerId;
-    [MemoryPackOrder(1)] [Key(1)] [ProtoMember(2)] public DateTime SavedAt;
-    [MemoryPackOrder(2)] [Key(2)] [ProtoMember(3)] public double Gold;
-    [MemoryPackOrder(3)] [Key(3)] [ProtoMember(4)] public double Gems;
-    [MemoryPackOrder(4)] [Key(4)] [ProtoMember(5)] public double LifetimeEarnings;
-    [MemoryPackOrder(5)] [Key(5)] [ProtoMember(6)] public Dictionary<int, double> Resources;
-    [MemoryPackOrder(6)] [Key(6)] [ProtoMember(7)] public List<Building> Buildings;
-    [MemoryPackOrder(7)] [Key(7)] [ProtoMember(8)] public Dictionary<int, byte> Upgrades;
-    [MemoryPackOrder(8)] [Key(8)] [ProtoMember(9)] public OfflineState Offline;
-    [MemoryPackOrder(9)] [Key(9)] [ProtoMember(10)] public Dictionary<int, long> Stats;
-    [MemoryPackOrder(10)] [Key(10)] [ProtoMember(11)] public List<int> Achievements;
-    [MemoryPackOrder(11)] [Key(11)] [ProtoMember(12)] public int PrestigeCount;
-    [MemoryPackOrder(12)] [Key(12)] [ProtoMember(13)] public double PrestigeMultiplier;
-
-    public static IdleSaveV2 From(IdleSaveV1 v) => new()
-    {
-        PlayerId = v.PlayerId, SavedAt = v.SavedAt, Gold = v.Gold, Gems = v.Gems, LifetimeEarnings = v.LifetimeEarnings,
-        Resources = v.Resources, Buildings = v.Buildings, Upgrades = v.Upgrades, Offline = v.Offline, Stats = v.Stats,
-        Achievements = v.Achievements, PrestigeCount = 3, PrestigeMultiplier = 2.75,
-    };
 }

@@ -32,7 +32,8 @@ echo "v3 $(date)"
 # The classes v3 has (V3/): their Nino and MemoryPack cases.
 (cd "$BENCH" && NINO_BENCH_V3=true dotnet "$V3_DLL" --filter '*.SimpleTest.Nino*' '*.SimpleTest.MemoryPack*' \
   '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*' '*.NullableTest.Nino*' '*.NullableTest.MemoryPack*' \
-  '*.CollectionsTest.Nino*' '*.CollectionsTest.MemoryPack*' --artifacts "$OUT/v3" > "$OUT/v3.log")
+  '*.CollectionsTest.Nino*' '*.CollectionsTest.MemoryPack*' '*.WorkloadTest.Nino*' '*.WorkloadTest.MemoryPack*' \
+  '*.PooledGraphTest.Nino*' '*.PooledGraphTest.MemoryPack*' --artifacts "$OUT/v3" > "$OUT/v3.log")
 echo "v4 $(date)"
 (cd "$BENCH" && dotnet "$V4_DLL" --filter "${FILTERS[@]}" --artifacts "$OUT/v4" > "$OUT/v4.log")
 echo "done $(date)"

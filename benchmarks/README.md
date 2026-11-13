@@ -2,10 +2,16 @@
 
 `benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
 protobuf-net).
-`V3/` is the same `SimpleTest`, `PolymorphicTest`, `NullableTest` and `CollectionsTest`'s nullable collections (same
-data, same attributes) built against **Nino 3.3.13 from nuget.org**, the last v3 release, so v4 can be compared with
-v3 on the same machine; it compiles v4's `NinoJobAttribute.cs`, `SimpleBenchmarkData.cs`, `PolymorphicBenchmarkData.cs`
-and `NullableBenchmarkData.cs`, so the job and the data cannot drift apart. It is not part of `Nino.slnx`.
+`V3/` is the same `SimpleTest`, `PolymorphicTest`, `NullableTest`, `CollectionsTest`'s nullable collections,
+`WorkloadTest` and `PooledGraphTest`'s `Leaves` (same data, same models) built against **Nino 3.3.13 from nuget.org**,
+the last v3 release, so v4 can be compared with v3 on the same machine; it compiles v4's `NinoJobAttribute.cs`,
+`SimpleBenchmarkData.cs`, `PolymorphicBenchmarkData.cs`, `NullableBenchmarkData.cs`, `PooledLeaf.cs` and the workloads'
+models (`Workloads/*Models.cs`, their v4-only attributes behind `#if NINO_BENCH_V3`), so the job, the data and the
+models cannot drift apart. The two versioned workloads' models (`Workloads/VersionedModels.cs`, with `Common.cs`) build
+in a project of their own, `V3/Versioned`, which defines `WEAK_VERSION_TOLERANCE`: v3's version tolerance holds for a
+whole project and changes the bytes of every type in it, so the other v3 cases keep v3's default format. What v3
+writes differently in the workloads (shared objects as copies, a new object where v4 reads in place, the removed
+member's slot) is listed in `V3/WorkloadTest.cs`. None of it is part of `Nino.slnx`.
 
 ```sh
 benchmarks/run.sh                          # v3, then the full v4 suite; about six hours
@@ -24,8 +30,11 @@ and the release notes use the full protocol, which is what supports "x× faster"
 Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
 reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `benchmarks/Nino.Benchmark`: built with
 `NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
-references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs`, `V3/PolymorphicTest.cs`, `V3/NullableTest.cs` and
-`V3/CollectionsTest.cs` (the same classes, the last with its nullable collections only, ported to v3's API) with the shared data, job, columns and checks, and goes to `bin/v3` and `obj/v3`.
+references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs`,
+`V3/PolymorphicTest.cs`, `V3/NullableTest.cs`, `V3/CollectionsTest.cs`, `V3/WorkloadTest.cs` and
+`V3/PooledGraphTest.cs` (the same classes, `CollectionsTest` with its nullable collections only and `PooledGraphTest`
+with its `Leaves` only, ported to v3's API) with the shared data, models, job, columns and checks, references
+`V3/Versioned`, and goes to `bin/v3` and `obj/v3`.
 `--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
 `ci.yml`'s integrations job on x64 and its Arm64 runtime-internals job) checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
@@ -52,8 +61,9 @@ one-line summary, the chart and links to the assets; README, docs and the docume
 BenchmarkDotNet writes a report of one class without a Type column: `merge_reports.py` then takes the class
 from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.
 Each of the two `SimpleTest` runners builds the v3 project and runs its half of `SimpleTest` directly before the same
-half of v4, the `PolymorphicTest` runner its `PolymorphicTest` the same way, and the runners of `NullableTest` and the
-nullable collections theirs, with the same settings; the v3
+half of v4, the `PolymorphicTest` runner its `PolymorphicTest` the same way, the runners of `NullableTest` and the
+nullable collections theirs, each `WorkloadTest` runner its workloads and the `PooledGraphTest` runner the `Leaves`,
+with the same settings; the v3
 report, every runner's merged, is attached as `dotnet-v3-x64.md`, and the release notes put v3 in the x64 chart,
 between v4 and the other libraries (n/a where v3 does not run). The
 documentation site takes its v4-vs-v3 ratios from that report and `dotnet-x64.md` of the newest v4 release. A v3
