@@ -281,14 +281,29 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   `[assembly: NinoTypeLayout]` metadata (1.37 MB, from bd6a732b and f76fa0e0) less the later shortening, and costs
   emit 7 % more allocation (408 MB against 382) and no time beyond the noise.
 - The headline (README's ranges and chart, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
-  every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); the v3 comparison
-  stays on what 3.3.13 can express: SimpleTest and, since the owner asked on 2026-11-13, PolymorphicTest,
-  NullableTest and CollectionsTest's nullable collections (`V3/CollectionsTest.cs` holds only those; the README chart
-  shows `NullableClasses` and `NullableLongs` after the polymorphic group, `readme.py`'s `NULLABLE_CASES` in
-  `CHART_CASES`, so the release body's .NET chart, which is README's, shows them too). A v3 port
+  every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); v3 runs every case
+  3.3.13 can do the job of, in its own way (the owner, 2026-11-13: "v3和v4支持的东西应该一样多"; leave a case out
+  only with proof that v3 cannot do it, the missing API or the generator's code, shown to the owner): SimpleTest,
+  PolymorphicTest, NullableTest, CollectionsTest's nullable collections (`V3/CollectionsTest.cs` holds only those;
+  the README chart shows `NullableClasses` and `NullableLongs` after the polymorphic group, `readme.py`'s
+  `NULLABLE_CASES` in `CHART_CASES`, so the release body's .NET chart, which is README's, shows them too), all 12
+  workloads (`V3/WorkloadTest.cs`) and PooledGraphTest's `Leaves` (`V3/PooledGraphTest.cs`, the chart's "Into existing
+  objects" bar). Find v3's way in the decompiled 3.3.13 (`ilspycmd -p` on `nino.serialization/3.3.13/lib/net8.0/
+  Nino.Core.dll` and `nino.generator/3.3.13/analyzers/dotnet/cs/Nino.Generator.dll`, whose emitters hold the
+  generated code as strings) and the archived v3 docs (nino.docs `content/docs/v3`). What 3.3.13 has, and how the
+  workloads use it: interfaces, abstract classes and generics as `[NinoType]` (every class is written with a type id,
+  a hash of its name); version tolerance only through `WEAK_VERSION_TOLERANCE`, a symbol the generated code reads,
+  so it holds for a whole project and changes every type's bytes (`V3/Versioned` builds the versioned models alone);
+  only appended members (a deleted member keeps its slot: ProfileV2's `AvatarUrl`); `[NinoFormerName]` keeps a type's
+  id across a rename (the V2 types read the V1 types' bytes); no reference tracking (`TypeCollector.Ref` exists, no
+  generated code uses it: shared objects are written as copies, as MessagePack's); no reading into an existing
+  object (the generator writes `Deserialize(out T, ref Reader)` only; collections with `Clear` and `Add` get
+  `Deserialize(TCollection value, ref Reader reader)`, which keeps the list and reads new elements: the v3 Leaves
+  "in place" case); no pool (`[NinoPooled]` is v4's: `NinoLeavesPooledElements` stays v4 only). A v3 port
   (`benchmarks/Nino.Benchmark/V3/<Class>.cs`) keeps the v4 class's name, method names, data and attributes and
-  changes only the Nino calls (`NinoGen.Serializer` / `NinoGen.Deserializer`, `ArrayBufferWriter<byte>`), drops the
-  protobuf-net cases, joins the csproj's v3 `Compile` list, `run.sh`'s v3 `--filter` and the `"v3"` globs of the
+  changes only the Nino calls (`NinoGen.Serializer` / `NinoGen.Deserializer`, `ArrayBufferWriter<byte>`), shares the
+  v4 models (an attribute 3.3.13 lacks behind `#if NINO_BENCH_V3`), drops the protobuf-net, Google.Protobuf and JSON
+  cases, joins the csproj's v3 `Compile` list, `run.sh`'s v3 `--filter` and the `"v3"` globs of the
   `shards.json` shard that runs the v4 class; report.yml leaves a `v3-<shard>/none` marker for a release built before
   the port, so older tags still get their v3 section. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
   and the site's `src/lib/benchmarks.ts` and sync in the same series. Prose and markers that name the workloads land
