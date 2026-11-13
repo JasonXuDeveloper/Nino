@@ -190,7 +190,8 @@ def chart_groups(v4, v3, cases=CHART_CASES, in_place=True):
     """The chart (charts.svg): per case, a row of two groups, serialize and deserialize; a group is (title,
     [(name, ns or None)]): the time of Nino v4, v3 and each library. v3 3.3.13 runs only the cases it can express:
     None (n/a) elsewhere; v3=None leaves its bars out (the release body's .NET charts). A library a case has no row
-    for is left out. in_place adds reading into existing objects (Nino against MemoryPack's overwrite)."""
+    for is left out. in_place adds reading into existing objects (Nino against MemoryPack's overwrite; v3 reads into the
+    list it holds, its elements new: 3.3.13 reads no object in place, V3/PooledGraphTest.cs)."""
     def group(verb, key, title):
         rows = [("Nino v4", v4[f"Nino{verb}{key}"]["mean"])]
         if v3 is not None:
@@ -203,7 +204,8 @@ def chart_groups(v4, v3, cases=CHART_CASES, in_place=True):
     nino, memorypack = v4.get("NinoLeavesInPlace"), v4.get("MemoryPackLeavesOverwrite")
     if in_place and nino and memorypack:
         chart.append((None, (f"Into existing objects · Nino {allocated(nino)}, MemoryPack {allocated(memorypack)}",
-                             [("Nino v4", nino["mean"])] + ([("Nino v3", None)] if v3 is not None else []) +
+                             [("Nino v4", nino["mean"])] +
+                             ([("Nino v3", v3.get("NinoLeavesInPlace"))] if v3 is not None else []) +
                              [("MemoryPack", memorypack["mean"])])))
     return chart
 
