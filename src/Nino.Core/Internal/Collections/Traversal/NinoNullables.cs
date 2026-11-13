@@ -4,6 +4,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
 #endif
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
@@ -82,17 +84,58 @@ namespace Nino.Core
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// Strides that tile a vector (2, 4, 8 and 16 bytes: <c>byte?</c> to <c>long?</c>, <c>double?</c>,
-        /// <c>DateTime?</c>), so each element is a lane, or a pair of 8-byte lanes, at a fixed place in every vector.
+        /// Strides whose elements sit at fixed places in every vector of a period: 2, 4, 8 and 16 bytes (<c>byte?</c>
+        /// to <c>long?</c>, <c>double?</c>, <c>DateTime?</c>) tile a vector, so each element is a lane (or two 8-byte
+        /// lanes); 24 bytes (<c>decimal?</c>, a 16-byte struct with 8-byte alignment) repeats every three vectors of
+        /// any width, each element three 8-byte lanes with its flag in the first.
         /// </summary>
         private static readonly bool Lanes = Vector128.IsHardwareAccelerated && Mask?.ClearsAbsent != true &&
-                                             (Stride == 2 || Stride == 4 || Stride == 8 || Stride == 16);
+                                             (Stride == 2 || Stride == 4 || Stride == 8 || Stride == 16 ||
+                                              Stride == 24);
 
-        /// <summary>The flag byte of each element, over one vector.</summary>
-        private static readonly Vector256<byte> Flags = Repeat(Flag());
+        /// <summary>The bytes one step of <see cref="CopyLanes"/> covers with 16-byte vectors (one period).</summary>
+        private static readonly int LaneStep = Stride == 24 ? 48 : 16;
 
-        /// <summary>The bytes a present element keeps: all but the padding (<see cref="Mask"/>), over one vector.</summary>
-        private static readonly Vector256<byte> Keep = Repeat(Keeps());
+        /// <summary>
+        /// The flag byte of each element over one vector (strides of 2 to 8 bytes); for 16 and 24 the low byte of each
+        /// 8-byte lane, applied after each lane holds its element's first 8 bytes.
+        /// </summary>
+        private static readonly Vector512<byte> Flags =
+            Stride >= 16 ? Vector512.Create(0xFFUL).AsByte() : Repeat(Flag(), 0);
+
+        /// <summary>
+        /// The bytes a present element keeps: all but the padding (<see cref="Mask"/>). One vector for strides that tile
+        /// it; for 24 three, the period of 192 bytes (its first 96 bytes are the period of 32-byte vectors, its first
+        /// 48 that of 16-byte ones).
+        /// </summary>
+        private static readonly Vector512<byte> Keep = Repeat(Keeps(), 0);
+
+        private static readonly Vector512<byte> Keep1 = Repeat(Keeps(), 64);
+
+        private static readonly Vector512<byte> Keep2 = Repeat(Keeps(), 128);
+
+        /// <summary>
+        /// For 24 with AVX-512 VBMI, the vpermb / vpermt2b indices that give each byte of the three vectors of a period
+        /// its element's flag: from the first vector, then the first and second, then the second and third.
+        /// </summary>
+        private static readonly Vector512<byte> FlagBytes0 = FlagBytes(0);
+
+        private static readonly Vector512<byte> FlagBytes1 = FlagBytes(1);
+
+        private static readonly Vector512<byte> FlagBytes2 = FlagBytes(2);
+
+        private static Vector512<byte> FlagBytes(int vector)
+        {
+            var bytes = new byte[64];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                int at = 64 * vector + i;
+                // The element's first byte (strides of 24), from the start of the first source vector.
+                bytes[i] = (byte)(at - at % 24 - 64 * Math.Max(vector - 1, 0));
+            }
+
+            return Vector512.Create(bytes);
+        }
 
         private static byte[] Flag()
         {
@@ -111,63 +154,408 @@ namespace Nino.Core
             return keep;
         }
 
-        private static Vector256<byte> Repeat(byte[] element)
+        /// <summary>The 64 bytes at <paramref name="offset"/> of <paramref name="element"/> repeated.</summary>
+        private static Vector512<byte> Repeat(byte[] element, int offset)
         {
-            var bytes = new byte[32];
+            var bytes = new byte[64];
             for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = element[i % element.Length];
-            return Vector256.Create(bytes);
+                bytes[i] = element[(offset + i) % element.Length];
+            return Vector512.Create(bytes);
         }
 
         /// <summary>
-        /// Copies <paramref name="total"/> bytes of elements (a vector or more) as the wire holds them: padding cleared,
-        /// and the value of an element without one cleared with it, in one pass. Each element's flag, compared with
-        /// zero across its lane, gives the bytes it keeps. Vectors start at whole elements; the last one overlaps the
-        /// one before it.
+        /// Copies <paramref name="total"/> bytes of elements (<see cref="LaneStep"/> or more) as the wire holds them:
+        /// padding cleared, and the value of an element without one cleared with it, in one pass. Each element's
+        /// flag, compared with zero across its lanes, selects the bytes it keeps (on AVX-512 a mask register, so a
+        /// vector costs a test and a masked AND more than the masked copy). Steps start at whole elements; the last one
+        /// overlaps the one before it.
         /// </summary>
-        // Out of line, as NinoMask.Copy: one call per collection.
+        // Out of line, as NinoMask.Copy: one call per collection. The widths as NinoMask's: 64-byte vectors where
+        // NinoSimd.Prefer512, 32-byte ones, else 16-byte ones (Arm64, Wasm, SSE).
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void CopyLanes(ref byte destination, ref byte source, int total)
         {
-            nuint i = 0;
-            if (Vector256.IsHardwareAccelerated && total >= Vector256<byte>.Count)
+            nuint length = (nuint)total;
+#if NET9_0_OR_GREATER
+            if (AdvSimd.Arm64.IsSupported && length >= (nuint)PartStep)
             {
-                nuint end = (nuint)total - (nuint)Vector256<byte>.Count;
-                for (; i < end; i += (nuint)Vector256<byte>.Count)
-                    Vector256.StoreUnsafe(Present(Vector256.LoadUnsafe(ref source, i)), ref destination, i);
-                Vector256.StoreUnsafe(Present(Vector256.LoadUnsafe(ref source, end)), ref destination, end);
+                CopyParts(ref destination, ref source, length);
                 return;
             }
+#endif
+            if (NinoSimd.Prefer512 && length >= 4 * (nuint)LaneStep)
+                CopyLanes<Vector512<byte>, Lanes512>(ref destination, ref source, length);
+            else if (Vector256.IsHardwareAccelerated && length >= 2 * (nuint)LaneStep)
+                CopyLanes<Vector256<byte>, Lanes256>(ref destination, ref source, length);
+            else
+                CopyLanes<Vector128<byte>, Lanes128>(ref destination, ref source, length);
+        }
 
-            nuint last = (nuint)total - (nuint)Vector128<byte>.Count;
-            for (; i < last; i += (nuint)Vector128<byte>.Count)
-                Vector128.StoreUnsafe(Present(Vector128.LoadUnsafe(ref source, i)), ref destination, i);
-            Vector128.StoreUnsafe(Present(Vector128.LoadUnsafe(ref source, last)), ref destination, last);
+#if NET9_0_OR_GREATER
+        /// <summary>
+        /// The width of the parts an Arm64 structure load (ld2, ld3) splits each element into: half the stride, or
+        /// 8 bytes for 24 (three parts). The flag is the low byte of the first part.
+        /// </summary>
+        private static readonly int PartWidth = Stride == 24 ? 8 : Stride / 2;
+
+        /// <summary>The bytes of one structure load: two 16-byte parts, three for 24.</summary>
+        private static readonly int PartStep = Stride == 24 ? 48 : 32;
+
+        /// <summary>The low byte of each lane of <see cref="PartWidth"/>: the flag in the first part.</summary>
+        private static readonly Vector128<byte> PartFlag = Part(Flag(), 0);
+
+        /// <summary>The bytes each part keeps of a present element (<see cref="Keeps"/>), lane by lane.</summary>
+        private static readonly Vector128<byte> PartKeep0 = Part(Keeps(), 0);
+
+        private static readonly Vector128<byte> PartKeep1 = Part(Keeps(), 1);
+
+        private static readonly Vector128<byte> PartKeep2 = Stride == 24 ? Part(Keeps(), 2) : default;
+
+        /// <summary>
+        /// Whether the first part keeps only the flag (its padding clears the rest), which is zero in an absent element,
+        /// and whether the other parts keep every byte: the ANDs these make redundant are left out.
+        /// </summary>
+        private static readonly bool FlagPartOnly = PartKeep0 == PartFlag;
+
+        private static readonly bool WholePart1 = PartKeep1 == Vector128<byte>.AllBitsSet;
+
+        private static readonly bool WholePart2 = PartKeep2 == Vector128<byte>.AllBitsSet;
+
+        private static Vector128<byte> Part(byte[] element, int part)
+        {
+            var bytes = new byte[16];
+            for (int i = 0; i < bytes.Length; i++)
+                bytes[i] = element[part * PartWidth + i % PartWidth];
+            return Vector128.Create(bytes);
+        }
+
+        /// <summary>
+        /// <see cref="CopyLanes"/> on Arm64: 32 bytes a step (48 for 24) loaded as structures, so each register holds
+        /// one part of every element (the flags in the first) and the flag test (cmtst) is one per step with no
+        /// shuffle; stored zipped back (st2, st3). <paramref name="total"/> is at least one step.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe void CopyParts(ref byte destination, ref byte source, nuint total)
+        {
+            nuint step = (nuint)PartStep;
+            nuint end = total - step;
+            var flag = PartFlag;
+            var keep0 = PartKeep0;
+            var keep1 = PartKeep1;
+            var keep2 = PartKeep2;
+            fixed (byte* d = &destination, s = &source)
+            {
+                for (nuint i = 0; i < end; i += step)
+                    CopyPart(d + i, s + i, flag, keep0, keep1, keep2);
+                CopyPart(d + end, s + end, flag, keep0, keep1, keep2);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector256<byte> Present(Vector256<byte> value)
+        private static unsafe void CopyPart(byte* destination, byte* source, Vector128<byte> flag,
+            Vector128<byte> keep0, Vector128<byte> keep1, Vector128<byte> keep2)
         {
-            var flags = value & Flags;
-            // All ones across each element whose flag is zero (the stride is a constant, so one branch remains).
-            Vector256<byte> absent = Stride == 2 ? Vector256.Equals(flags.AsUInt16(), Vector256<ushort>.Zero).AsByte()
-                : Stride == 4 ? Vector256.Equals(flags.AsUInt32(), Vector256<uint>.Zero).AsByte()
-                : Stride == 8 ? Vector256.Equals(flags.AsUInt64(), Vector256<ulong>.Zero).AsByte()
-                : Vector256.Shuffle(Vector256.Equals(flags.AsUInt64(), Vector256<ulong>.Zero),
-                    Vector256.Create(0UL, 0, 2, 2)).AsByte();
-            return Vector256.AndNot(value & Keep, absent);
+            if (Stride == 2)
+            {
+                var (a, b) = AdvSimd.Arm64.Load2xVector128AndUnzip(source);
+                var present = AdvSimd.CompareTest(a, flag);
+                AdvSimd.Arm64.StoreVectorAndZip(destination,
+                    (First(a, keep0, present), Rest(b, keep1, present, WholePart1)));
+            }
+            else if (Stride == 4)
+            {
+                var (a, b) = AdvSimd.Arm64.Load2xVector128AndUnzip((ushort*)source);
+                var present = AdvSimd.CompareTest(a, flag.AsUInt16()).AsByte();
+                AdvSimd.Arm64.StoreVectorAndZip((ushort*)destination, (First(a.AsByte(), keep0, present).AsUInt16(),
+                    Rest(b.AsByte(), keep1, present, WholePart1).AsUInt16()));
+            }
+            else if (Stride == 8)
+            {
+                var (a, b) = AdvSimd.Arm64.Load2xVector128AndUnzip((uint*)source);
+                var present = AdvSimd.CompareTest(a, flag.AsUInt32()).AsByte();
+                AdvSimd.Arm64.StoreVectorAndZip((uint*)destination, (First(a.AsByte(), keep0, present).AsUInt32(),
+                    Rest(b.AsByte(), keep1, present, WholePart1).AsUInt32()));
+            }
+            else if (Stride == 16)
+            {
+                var (a, b) = AdvSimd.Arm64.Load2xVector128AndUnzip((ulong*)source);
+                var present = AdvSimd.Arm64.CompareTest(a, flag.AsUInt64()).AsByte();
+                AdvSimd.Arm64.StoreVectorAndZip((ulong*)destination, (First(a.AsByte(), keep0, present).AsUInt64(),
+                    Rest(b.AsByte(), keep1, present, WholePart1).AsUInt64()));
+            }
+            else
+            {
+                var (a, b, c) = AdvSimd.Arm64.Load3xVector128AndUnzip((ulong*)source);
+                var present = AdvSimd.Arm64.CompareTest(a, flag.AsUInt64()).AsByte();
+                AdvSimd.Arm64.StoreVectorAndZip((ulong*)destination, (First(a.AsByte(), keep0, present).AsUInt64(),
+                    Rest(b.AsByte(), keep1, present, WholePart1).AsUInt64(),
+                    Rest(c.AsByte(), keep2, present, WholePart2).AsUInt64()));
+            }
         }
 
+        /// <summary>The first part of the elements: their flags, and what else it holds where present.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector128<byte> Present(Vector128<byte> value)
+        private static Vector128<byte> First(Vector128<byte> part, Vector128<byte> keep, Vector128<byte> present) =>
+            FlagPartOnly ? part & keep : part & keep & present;
+
+        /// <summary>Another part of the elements: kept where present.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Rest(Vector128<byte> part, Vector128<byte> keep, Vector128<byte> present,
+            bool whole) => whole ? part & present : part & keep & present;
+#endif
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyLanes<TVector, TLanes>(ref byte destination, ref byte source, nuint total)
+            where TVector : struct
+            where TLanes : struct, ILanes
         {
-            var flags = value & Flags.GetLower();
-            Vector128<byte> absent = Stride == 2 ? Vector128.Equals(flags.AsUInt16(), Vector128<ushort>.Zero).AsByte()
-                : Stride == 4 ? Vector128.Equals(flags.AsUInt32(), Vector128<uint>.Zero).AsByte()
-                : Stride == 8 ? Vector128.Equals(flags.AsUInt64(), Vector128<ulong>.Zero).AsByte()
-                : Vector128.Shuffle(Vector128.Equals(flags.AsUInt64(), Vector128<ulong>.Zero),
-                    Vector128.Create(0UL, 0)).AsByte();
-            return Vector128.AndNot(value & Keep.GetLower(), absent);
+            var lanes = default(TLanes);
+            nuint step = (nuint)(LaneStep * Unsafe.SizeOf<TVector>() / 16);
+            nuint end = total - step;
+            nuint i = 0;
+            if (Stride != 24)
+                for (; i + 3 * step < end; i += 4 * step)
+                    lanes.CopyFour(ref destination, ref source, i);
+            for (; i < end; i += step)
+                lanes.Copy(ref destination, ref source, i);
+            lanes.Copy(ref destination, ref source, end);
+        }
+
+        /// <summary>One width of <see cref="CopyLanes"/>: a step (a vector, or the three of a 24-byte period) at a time.</summary>
+        private interface ILanes
+        {
+            void Copy(ref byte destination, ref byte source, nuint offset);
+
+            /// <summary>Four vectors of a stride that tiles one, all loads before the stores.</summary>
+            void CopyFour(ref byte destination, ref byte source, nuint offset);
+        }
+
+        private readonly struct Lanes512 : ILanes
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Copy(ref byte destination, ref byte source, nuint offset)
+            {
+                var a = Vector512.LoadUnsafe(ref source, offset);
+                if (Stride != 24)
+                {
+                    Present(a, Tile(a), Keep).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+
+                // Each 8-byte lane takes the first 8 bytes of its element: elements start every third lane, the one a
+                // vector starts in up to two lanes before it (in the vector before, within the period).
+                var b = Vector512.LoadUnsafe(ref source, offset + 64);
+                var c = Vector512.LoadUnsafe(ref source, offset + 128);
+                if (Avx512Vbmi.IsSupported)
+                {
+                    // Every byte of each 8-byte lane takes its element's flag (vpermb, vpermt2b), so the lanes are
+                    // tested as they are: one op fewer than moving the lanes and isolating the flag.
+                    Present(a, Avx512Vbmi.PermuteVar64x8(a, FlagBytes0), Keep, true)
+                        .StoreUnsafe(ref destination, offset);
+                    Present(b, Avx512Vbmi.PermuteVar64x8x2(a, FlagBytes1, b), Keep1, true)
+                        .StoreUnsafe(ref destination, offset + 64);
+                    Present(c, Avx512Vbmi.PermuteVar64x8x2(b, FlagBytes2, c), Keep2, true)
+                        .StoreUnsafe(ref destination, offset + 128);
+                    return;
+                }
+
+                var a8 = a.AsUInt64();
+                var b8 = b.AsUInt64();
+                Present(a, Avx512F.PermuteVar8x64(a8, Vector512.Create(0UL, 0, 0, 3, 3, 3, 6, 6)).AsByte(), Keep)
+                    .StoreUnsafe(ref destination, offset);
+                Present(b, Avx512F.PermuteVar8x64x2(a8, Vector512.Create(6UL, 9, 9, 9, 12, 12, 12, 15), b8).AsByte(),
+                    Keep1).StoreUnsafe(ref destination, offset + 64);
+                Present(c, Avx512F.PermuteVar8x64x2(b8, Vector512.Create(7UL, 7, 10, 10, 10, 13, 13, 13),
+                    c.AsUInt64()).AsByte(), Keep2).StoreUnsafe(ref destination, offset + 128);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void CopyFour(ref byte destination, ref byte source, nuint offset)
+            {
+                var a = Vector512.LoadUnsafe(ref source, offset);
+                var b = Vector512.LoadUnsafe(ref source, offset + 64);
+                var c = Vector512.LoadUnsafe(ref source, offset + 128);
+                var d = Vector512.LoadUnsafe(ref source, offset + 192);
+                Present(a, Tile(a), Keep).StoreUnsafe(ref destination, offset);
+                Present(b, Tile(b), Keep).StoreUnsafe(ref destination, offset + 64);
+                Present(c, Tile(c), Keep).StoreUnsafe(ref destination, offset + 128);
+                Present(d, Tile(d), Keep).StoreUnsafe(ref destination, offset + 192);
+            }
+
+            /// <summary>
+            /// For a 16-byte stride, every byte of each element its flag (vpshufb with index 0 in each 16-byte lane),
+            /// tested as it is.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector512<byte> Tile(Vector512<byte> value) =>
+                Stride != 16 ? value : Avx512BW.Shuffle(value, Vector512<byte>.Zero);
+
+            /// <summary>
+            /// <paramref name="value"/> & <paramref name="keep"/> in the lanes whose <paramref name="flags"/> (the
+            /// element's flag at <see cref="Flags"/>, or in every byte when <paramref name="spread"/>; for 16 always)
+            /// are not zero, zero in the others: a test into a mask register and a masked AND (vptestm, vpand {k}{z}).
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector512<byte> Present(Vector512<byte> value, Vector512<byte> flags, Vector512<byte> keep,
+                bool spread = false)
+            {
+                var kept = value & keep;
+                if (!spread && Stride != 16)
+                    flags &= Flags;
+                return Stride == 2
+                    ? Vector512.ConditionalSelect(~Vector512.Equals(flags.AsUInt16(), Vector512<ushort>.Zero),
+                        kept.AsUInt16(), Vector512<ushort>.Zero).AsByte()
+                    : Stride == 4
+                        ? Vector512.ConditionalSelect(~Vector512.Equals(flags.AsUInt32(), Vector512<uint>.Zero),
+                            kept.AsUInt32(), Vector512<uint>.Zero).AsByte()
+                        : Vector512.ConditionalSelect(~Vector512.Equals(flags.AsUInt64(), Vector512<ulong>.Zero),
+                            kept.AsUInt64(), Vector512<ulong>.Zero).AsByte();
+            }
+        }
+
+        private readonly struct Lanes256 : ILanes
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Copy(ref byte destination, ref byte source, nuint offset)
+            {
+                var a = Vector256.LoadUnsafe(ref source, offset);
+                if (Stride != 24)
+                {
+                    Present(a, Tile(a), Keep.GetLower()).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+
+                // As Lanes512's: elements start at lanes 0, 3, 6 and 9 of the three vectors (lanes 4 and 5 take lane
+                // 3's, lane 8 lane 6's).
+                var b = Vector256.LoadUnsafe(ref source, offset + 32);
+                var c = Vector256.LoadUnsafe(ref source, offset + 64);
+                var a8 = a.AsUInt64();
+                var b8 = b.AsUInt64();
+                var c8 = c.AsUInt64();
+                Vector256<ulong> fb, fc;
+                if (Avx512F.VL.IsSupported)
+                {
+                    fb = Avx512F.VL.PermuteVar4x64x2(a8, Vector256.Create(3UL, 3, 6, 6), b8);
+                    fc = Avx512F.VL.PermuteVar4x64x2(b8, Vector256.Create(2UL, 5, 5, 5), c8);
+                }
+                else
+                {
+                    var b2 = Vector256.Shuffle(b8, Vector256.Create(2UL, 2, 2, 2));
+                    fb = Vector256.ConditionalSelect(Vector256.Create(ulong.MaxValue, ulong.MaxValue, 0, 0),
+                        Vector256.Shuffle(a8, Vector256.Create(3UL, 3, 3, 3)), b2);
+                    fc = Vector256.ConditionalSelect(Vector256.Create(ulong.MaxValue, 0, 0, 0), b2,
+                        Vector256.Shuffle(c8, Vector256.Create(1UL, 1, 1, 1)));
+                }
+
+                Present(a, Vector256.Shuffle(a8, Vector256.Create(0UL, 0, 0, 3)).AsByte(), Keep.GetLower())
+                    .StoreUnsafe(ref destination, offset);
+                Present(b, fb.AsByte(), Keep.GetUpper()).StoreUnsafe(ref destination, offset + 32);
+                Present(c, fc.AsByte(), Keep1.GetLower()).StoreUnsafe(ref destination, offset + 64);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void CopyFour(ref byte destination, ref byte source, nuint offset)
+            {
+                var keep = Keep.GetLower();
+                var a = Vector256.LoadUnsafe(ref source, offset);
+                var b = Vector256.LoadUnsafe(ref source, offset + 32);
+                var c = Vector256.LoadUnsafe(ref source, offset + 64);
+                var d = Vector256.LoadUnsafe(ref source, offset + 96);
+                Present(a, Tile(a), keep).StoreUnsafe(ref destination, offset);
+                Present(b, Tile(b), keep).StoreUnsafe(ref destination, offset + 32);
+                Present(c, Tile(c), keep).StoreUnsafe(ref destination, offset + 64);
+                Present(d, Tile(d), keep).StoreUnsafe(ref destination, offset + 96);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector256<byte> Tile(Vector256<byte> value) =>
+                Stride != 16 ? value : Avx2.Shuffle(value, Vector256<byte>.Zero);
+
+            /// <summary>As Lanes512's: a mask register with AVX-512 (VL), else a compare and an AND NOT.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector256<byte> Present(Vector256<byte> value, Vector256<byte> flags, Vector256<byte> keep)
+            {
+                var kept = value & keep;
+                if (Stride != 16)
+                    flags &= Flags.GetLower();
+                if (Avx512F.VL.IsSupported)
+                    return Stride == 2
+                        ? Vector256.ConditionalSelect(~Vector256.Equals(flags.AsUInt16(), Vector256<ushort>.Zero),
+                            kept.AsUInt16(), Vector256<ushort>.Zero).AsByte()
+                        : Stride == 4
+                            ? Vector256.ConditionalSelect(~Vector256.Equals(flags.AsUInt32(), Vector256<uint>.Zero),
+                                kept.AsUInt32(), Vector256<uint>.Zero).AsByte()
+                            : Vector256.ConditionalSelect(~Vector256.Equals(flags.AsUInt64(), Vector256<ulong>.Zero),
+                                kept.AsUInt64(), Vector256<ulong>.Zero).AsByte();
+                var absent = Stride == 2 ? Vector256.Equals(flags.AsUInt16(), Vector256<ushort>.Zero).AsByte()
+                    : Stride == 4 ? Vector256.Equals(flags.AsUInt32(), Vector256<uint>.Zero).AsByte()
+                    : Vector256.Equals(flags.AsUInt64(), Vector256<ulong>.Zero).AsByte();
+                return Vector256.AndNot(kept, absent);
+            }
+        }
+
+        private readonly struct Lanes128 : ILanes
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Copy(ref byte destination, ref byte source, nuint offset)
+            {
+                var keep = Keep.GetLower().GetLower();
+                var a = Vector128.LoadUnsafe(ref source, offset);
+                if (Stride != 24)
+                {
+                    (a & Present(Tile(a)) & keep).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+
+                // Two elements: the first in lanes 0 to 2, the second in lanes 3 to 5 of the three vectors.
+                var b = Vector128.LoadUnsafe(ref source, offset + 16);
+                var c = Vector128.LoadUnsafe(ref source, offset + 32);
+                var first = Present(a).AsUInt64();
+                var second = Present(b).AsUInt64();
+                (a & Vector128.Shuffle(first, Vector128.Create(0UL, 0)).AsByte() & keep)
+                    .StoreUnsafe(ref destination, offset);
+                (b & Vector128.ConditionalSelect(Vector128.Create(0, ulong.MaxValue), second, first).AsByte() &
+                 Keep.GetLower().GetUpper()).StoreUnsafe(ref destination, offset + 16);
+                (c & Vector128.Shuffle(second, Vector128.Create(1UL, 1)).AsByte() & Keep.GetUpper().GetLower())
+                    .StoreUnsafe(ref destination, offset + 32);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void CopyFour(ref byte destination, ref byte source, nuint offset)
+            {
+                var keep = Keep.GetLower().GetLower();
+                var a = Vector128.LoadUnsafe(ref source, offset);
+                var b = Vector128.LoadUnsafe(ref source, offset + 16);
+                var c = Vector128.LoadUnsafe(ref source, offset + 32);
+                var d = Vector128.LoadUnsafe(ref source, offset + 48);
+                (a & Present(Tile(a)) & keep).StoreUnsafe(ref destination, offset);
+                (b & Present(Tile(b)) & keep).StoreUnsafe(ref destination, offset + 16);
+                (c & Present(Tile(c)) & keep).StoreUnsafe(ref destination, offset + 32);
+                (d & Present(Tile(d)) & keep).StoreUnsafe(ref destination, offset + 48);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector128<byte> Tile(Vector128<byte> value) => Stride != 16
+                ? value
+                : Vector128.Shuffle(value.AsUInt64(), Vector128.Create(0UL, 0)).AsByte();
+
+            /// <summary>
+            /// All ones in the lanes (of the stride's width; 8 bytes for 16 and 24) whose <see cref="Flags"/> bytes are
+            /// not zero: one cmtst on Arm64.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector128<byte> Present(Vector128<byte> value)
+            {
+                var flags = Flags.GetLower().GetLower();
+                if (AdvSimd.Arm64.IsSupported)
+                    return Stride == 2 ? AdvSimd.CompareTest(value.AsUInt16(), flags.AsUInt16()).AsByte()
+                        : Stride == 4 ? AdvSimd.CompareTest(value.AsUInt32(), flags.AsUInt32()).AsByte()
+                        : AdvSimd.Arm64.CompareTest(value.AsUInt64(), flags.AsUInt64()).AsByte();
+                value &= flags;
+                return Stride == 2 ? ~Vector128.Equals(value.AsUInt16(), Vector128<ushort>.Zero).AsByte()
+                    : Stride == 4 ? ~Vector128.Equals(value.AsUInt32(), Vector128<uint>.Zero).AsByte()
+                    : ~Vector128.Equals(value.AsUInt64(), Vector128<ulong>.Zero).AsByte();
+            }
         }
 #endif
 
@@ -182,7 +570,7 @@ namespace Nino.Core
             {
                 ref byte src = ref Unsafe.As<T?, byte>(ref item);
 #if NET8_0_OR_GREATER
-                if (Lanes && values.Length * Stride >= Vector128<byte>.Count)
+                if (Lanes && values.Length * Stride >= LaneStep)
                 {
                     CopyLanes(ref dst, ref src, values.Length * Stride);
                     return;

@@ -35,6 +35,10 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   general per-element loop on x64 (`InitBlock` plus `NinoLayout.Write` each) and short reads through the converter
   (unmeasured; the netstandard builds keep their loops, where Mono turns unaligned 64-bit loads into memcpy calls).
 
+- Write raw `T?` runs (strides 2, 4, 8, 16, 24) with absent values zeroed in the same single pass as the padding,
+  as wide as the masked copy: AVX-512 test-into-mask plus masked AND, Arm64 structure loads; never a second pass
+  over the elements. Runner A/B 43264755384 showed the first form of this fix 2x slower than the masked copy (Writes).
+
 ## Layout and presence flags
 
 - Check the nullable slot layout before adding type-specific SIMD. The shared Raw path already bulk-copies matching
@@ -146,6 +150,39 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
 
 ## Writes
 
+- Clear the absent values of raw `T?` runs in the copy's one pass, at the masked copy's widths, and read the listing
+  for the uops a vector costs. Why: the first form (a751e6c2, bb63a255) made `NinoSerializeNullableInts`, `...Longs`
+  and `...Decimals` about 2x slower on every runner CPU (A/B 43264755384: 0.29-0.65 of the base's speed) though it
+  meant to add one AND. Its listings showed why: `CopyLanes` stopped at 32-byte vectors with no unroll and spent
+  six vector uops a vector (`vpand`, `vpcmpeqq`, `vshufpd`, a `vpternlogd` NOT, a `vpternlogd` AND, a zeroing
+  `vxorps`) where the masked copy spends one per 64 bytes; on Arm64 a `tbl` plus `cmtst` plus two ANDs per 16 bytes
+  with every constant reloaded (`ldr q, [@RWD]`) inside the loop and no `ldp`/`stp`; and `decimal?` (stride 24) took
+  the masked copy and then a scalar second pass (`ClearAbsent`: a flag load, a branch and a 16-byte store per element).
+  Now: 64-byte vectors where `NinoSimd.Prefer512`, four a step, the present lanes as a mask register
+  (`ConditionalSelect(~Equals(flags & mask, 0), value & keep, 0)` compiles to `vpandd`, `vptestmq`,
+  `vpandq {k}{z}`; an `AndNot` of the compare compiled to `vpmovm2q`/`vpternlogd` instead); for 16 and 24 a byte
+  shuffle that puts the flag in every byte of its element (`vpshufb` with index 0 per 16-byte lane for 16;
+  `vpermb`/`vpermt2b` over the three vectors of a 24-byte period with AVX-512 VBMI, the qword `vpermq`/`vpermt2q`
+  without), so the lanes are tested as they are: three ops a vector instead of four (b0df4364, local QUICK base 14a2d2df /
+  7843090a / b0df4364: `...Decimals` 447 / 559 / 429 ns, `...Longs` 163 / 299 / 266, `...Ints` 90 / 145 / 143; stride 8
+  is unchanged and still trails the masked copy by its two extra ops); 32-byte the same with AVX-512VL (`vpshufb` for 16 with
+  AVX2 alone), a compare and `vpandn` without. On Arm64 (.NET 9+) `Load2xVector128AndUnzip` / `Load3xVector128AndUnzip` put one part of
+  every element in a register (the flags in the first), so a step of 32 bytes (48 for 24) is `ld2`, one `cmtst`,
+  two ANDs (three for 24), `st2`. Local QUICK run (Xeon Emerald Rapids, shared machine; base 14a2d2df / main /
+  this): `NinoSerializeNullableDecimals` 412 / 1,276 / 430 ns, `...Longs` 157 / 379 / 259, `...Ints` 85 / 165 / 147.
+  What remains on x64: unaligned stores (the lanes must start at whole elements, so the destination after a 4-byte
+  count is never aligned and every 64-byte store splits a cache line; aligned, stride 8 took 109 ns for 8,000 bytes
+  against 131-134, the masked copy 77) and the extra uops (port 5 takes `vptestmq` and the shuffle for 16 and 24).
+  Measured and not kept (kernel harness, Xeon Emerald Rapids, diagnosis only): loading the vector 8 bytes earlier
+  instead of the shuffle (a `vpternlogq`, `vptestmq`, the masked AND) is slower (the extra load splits more lines
+  than the shuffle costs); destination-aligned 64-byte stores with the flags from a second load 7 bytes earlier and a
+  `vpcmpud` threshold compare into k is slower (stride 8 145 ns against 111-134, 16 238-316 against 214-295: the
+  second split load costs more than the aligned store saves); element-aligned results realigned to the destination
+  with `vpermt2d` gain nothing (117-136 against 110-137) and need a gap/overrun fix at both ends; a masked AND
+  without the folded memory operand gains nothing. Not worth trying: a keep mask from `vpsllq`/`vpsraq` costs the
+  same uops and reads a flag byte above 1 as absent where the copy reads it as present; masked stores
+  (`vmovdqu8 {k}`) cannot skip absent lanes, the destination holds garbage that must become zeros. The JIT does
+  not fold `Equals(x & m, 0)` into a two-operand `vptestmq x, m`. Arm64 timing: runners only (listings under qemu).
 - Keep the bulk clear for converted nullable writes. Per-slot clearing wrote each slot once but slowed 64 mixed and
   16,384 all-null booleans in four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256 to 1,404 bytes.
 - On Arm64, bypass that converter for nullable bools with the probed two-byte flag/value layout. Expand each 0/1
