@@ -122,7 +122,8 @@ namespace Nino.Core
         /// (flags combine, and a newer version may add members). <see cref="TimeSpan"/>, <see cref="Guid"/>, <c>char</c>
         /// and the numbers have no invalid values.</item>
         /// <item>Bytes after the top-level value (and the bodies deferred after it) are invalid data, for the APIs
-        /// that take the data as a span; reads from a <see cref="Reader"/> leave the rest to the caller.</item>
+        /// that take the whole data (a span, a <c>ReadOnlySequence&lt;byte&gt;</c>, a stream read to its end); reads
+        /// from a <see cref="Reader"/> leave the rest to the caller.</item>
         /// </list>
         /// Off, none of this costs anything: the read paths test it as a constant. <b>Set before first use</b> (see
         /// <see cref="MaxDepth"/>).

@@ -80,7 +80,9 @@ namespace Nino.Core
 
         /// <summary>
         /// Deserializes a new value from data that may span several segments (a <c>PipeReader</c>'s buffer, a gRPC
-        /// payload). One segment is read in place. Two segments can be copied directly into a byte array result.
+        /// payload), as <see cref="Deserialize{T}(ReadOnlySpan{byte})"/> does, with the same checks. One segment is
+        /// read in place; several are copied once, onto the stack up to 1,024 bytes, else into a pooled array (a
+        /// <c>byte[]</c> of two segments straight into the array returned).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(in ReadOnlySequence<byte> data) =>
@@ -88,8 +90,8 @@ namespace Nino.Core
 
         /// <summary>
         /// Deserializes into <paramref name="value"/>, as <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>,
-        /// from data that may span several segments. One segment is read in place. Two segments can be copied
-        /// directly into a byte array result.
+        /// from data that may span several segments: one segment is read in place, several are copied once (see
+        /// <see cref="Deserialize{T}(in ReadOnlySequence{byte})"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(in ReadOnlySequence<byte> data, ref T value)
