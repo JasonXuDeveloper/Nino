@@ -207,7 +207,7 @@ public class BclTypeTests
     [TestMethod]
     public void BitArrays()
     {
-        foreach (int count in new[] { 0, 1, 7, 8, 9, 64, 1001 })
+        foreach (int count in new[] { 0, 1, 7, 8, 9, 64, 1001, 200_005 })
         {
             var bits = new BitArray(count);
             for (int i = 0; i < count; i++)

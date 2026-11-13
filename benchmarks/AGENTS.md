@@ -16,7 +16,7 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              against MemoryPack, MessagePack and protobuf-net per class
                              (SimpleTest, PolymorphicTest, GenericPolymorphicTest, PooledTest, PooledGraphTest,
                              ReferenceTest, VersionTolerantTest, FixedSizeTest, CommonTypesTest, CollectionsTest,
-                             BclTypesTest, ScatteredTest, UntrustedTest), Workloads/ (WorkloadTest: 12 real-world
+                             BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest), Workloads/ (WorkloadTest: 12 real-world
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
                              Harness/Verify.cs (--verify: every case reads back right), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +

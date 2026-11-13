@@ -261,7 +261,7 @@ namespace Nino.Core.Internal
                 if (read <= 0)
                     return read;
 
-                Buffer.BlockCopy(buffer, 0, larger, 0, count);
+                CopyPrefix(buffer, larger, count);
                 keep = true;
                 return read;
             }
@@ -277,6 +277,11 @@ namespace Nino.Core.Internal
             }
         }
 
+        /// <summary>The <paramref name="count"/> bytes read so far, into the larger array that takes them over.</summary>
+        private static void CopyPrefix(byte[] buffer, byte[] larger, int count) =>
+            NinoUnsafe.CopyToNew(ref NinoUnsafe.GetArrayDataReference(larger),
+                ref NinoUnsafe.GetArrayDataReference(buffer), (uint)count);
+
         private static byte[] RentLarger(int capacity, int count)
         {
             if (count >= NinoUnsafe.MaxArrayLength)
@@ -290,7 +295,7 @@ namespace Nino.Core.Internal
         private static byte[] Grow(byte[] buffer, int count)
         {
             byte[] larger = RentLarger(buffer.Length, count);
-            Buffer.BlockCopy(buffer, 0, larger, 0, count);
+            CopyPrefix(buffer, larger, count);
             ArrayPool<byte>.Shared.Return(buffer);
             return larger;
         }

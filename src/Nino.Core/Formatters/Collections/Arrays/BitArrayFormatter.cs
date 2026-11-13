@@ -94,7 +94,7 @@ namespace Nino.Core
             var target = CollectionsMarshal.AsBytes(bits);
             if (bytes.Length > 2)
             {
-                if (bytes.Length > 64 && reuse && !bytes.Overlaps(target))
+                if (bytes.Length > 64 && !(reuse && bytes.Overlaps(target)))
                 {
                     ref byte destination = ref MemoryMarshal.GetReference(target);
                     ref byte source = ref MemoryMarshal.GetReference(bytes);

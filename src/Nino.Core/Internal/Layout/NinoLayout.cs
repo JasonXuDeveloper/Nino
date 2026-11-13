@@ -680,46 +680,30 @@ namespace Nino.Core.Internal
             var destination = buffer.GetSpan(size);
             // An external destination can overlap the source. Publish the header after the payload copy.
             CopyRawExternal(source, destination.Slice(NinoWire.LengthSize, source.Length), count);
-            PublishExternal(buffer, destination, count, size);
-        }
-
-#if NET8_0_OR_GREATER
-        internal static void WriteRawVectorExternal(IBufferWriter<byte> buffer, ref byte first, int count, int size)
-        {
-            int bytes = size - NinoWire.LengthSize;
-            var source = MemoryMarshal.CreateReadOnlySpan(ref first, bytes);
-            var destination = buffer.GetSpan(size);
-            var body = destination.Slice(NinoWire.LengthSize, bytes);
-            if (source.Overlaps(body))
-                source.CopyTo(body);
-            else
-                NinoUnsafe.CopyOver64(ref MemoryMarshal.GetReference(body), ref first, (uint)bytes);
-            PublishExternal(buffer, destination, count, size);
-        }
-#endif
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void PublishExternal(IBufferWriter<byte> buffer, Span<byte> destination, int count, int size)
-        {
             NinoUnsafe.Write(ref MemoryMarshal.GetReference(destination), count);
             buffer.Advance(size);
         }
 
+        /// <summary>
+        /// Copies a canonical block into a caller's buffer: <see cref="CopyToWire"/> (Nino's block copy, or the masked
+        /// copy) where the two are disjoint, the overlap-safe span move (then the padding cleared) where the caller's
+        /// span aliases the source, and for one padded value.
+        /// </summary>
+        // The span move is Memmove at every size: glibc runs it as rep movsb on AMD, 2 to 30 times as slow as Nino's
+        // vector loop up to 16 KB (NinoUnsafe.CopyOver64). Only buffer writers other than NinoArrayBufferWriter come
+        // here (that one is written through the Writer).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void CopyRawExternal(ReadOnlySpan<byte> source, Span<byte> body, int count)
         {
-            if (!source.IsEmpty)
+            if (source.IsEmpty)
+                return;
+            if (HasPadding && count == 1 || source.Overlaps(body))
             {
-                if (!HasPadding)
-                    source.CopyTo(body);
-                else if (count == 1 || source.Overlaps(body))
-                {
-                    source.CopyTo(body);
-                    ClearPadding(ref MemoryMarshal.GetReference(body), count);
-                }
-                else
-                    CopyToWire(ref MemoryMarshal.GetReference(body), ref MemoryMarshal.GetReference(source), count);
+                source.CopyTo(body);
+                ClearPadding(ref MemoryMarshal.GetReference(body), count);
             }
+            else
+                CopyToWire(ref MemoryMarshal.GetReference(body), ref MemoryMarshal.GetReference(source), count);
         }
 
         /// <summary>Writes <paramref name="value"/> in its wire layout (<see cref="Size"/> bytes).</summary>

@@ -10,12 +10,13 @@ Rules in short:
 
 - Advance the reader once per region and share its constructors; keep `Writer.PatchLength` relative to the buffer
   start; keep `ReadSlice`'s cursor update; build raw spans from `ReadBlock` on byref targets only.
-- In `NinoArrayBufferWriter` keep the span copy in `Grow`, return the rented array from it, keep the shared capacity
-  check, the array-backed `WrittenSpan` and the current empty `ToArray`.
+- In `NinoArrayBufferWriter` copy the prefix in `Grow` with `CopyToNew`, return the rented array from it, keep the
+  shared capacity check, the array-backed `WrittenSpan` and the current empty `ToArray`.
 - Short copies: one move for one byte, two overlapping words for two or three, the shared head move for exactly 16.
 - Streams: delay the prefix copy, keep the growth read one call, measure immediate and suspended completions apart.
 - Sequences: copy what spans segments once, out of line, to the stack up to 1,024 bytes; keep the explicit `TryGet`
-  loops, per-segment reservations, `Span.CopyTo`, and local validation; read two-segment byte arrays and split
+  loops, per-segment reservations, `NinoUnsafe.Copy` per segment (the span move where one overlaps), and local
+  validation; read two-segment byte arrays and split
   headers on their own cold paths.
 
 ## Reader and Writer
@@ -54,9 +55,11 @@ Rules in short:
 
 ## NinoArrayBufferWriter and short copies
 
-- Keep the span copy in `NinoArrayBufferWriter.Grow`. Why: switching to `CopyToNew` regressed the 1 KiB growth case in
+- Copy the prefix in `NinoArrayBufferWriter.Grow` with `CopyToNew` (d12d9c16), as every payload copy
+  ([vectors-copies.md](vectors-copies.md#rules)): the span move is Memmove, glibc's rep movsb on AMD runners. An
+  earlier M4-only trial had kept the span move: `CopyToNew` regressed the 1 KiB growth case in
   four local rounds; applying it only from 64 KiB preserved the smaller path but did not produce a repeatable gain
-  across 64 KiB and adjacent inputs. Evidence: the threshold variant grew from 148 to 195 IL bytes and from 233 to 325
+  across 64 KiB and adjacent inputs. Time growth on Arm64 runners before keeping it there. Evidence: the threshold variant grew from 148 to 195 IL bytes and from 233 to 325
   x64 ReadyToRun bytes. Prefix bytes and allocations matched.
 - Return the rented array from `Grow` to the reserve callers. Why: it removes the direct reserve wrapper and the
   writer's buffer reload while keeping the growth boundary out of line. Evidence: the static writer wrapper plus growth
@@ -164,8 +167,10 @@ Why multi-segment input is copied rather than read in place is in [jit.md](jit.m
   reuse `NinoSequences.CopySegments` to check the declared length while copying into the reservation, and match the
   exact formatter type so the JIT removes the generic segment loop. Evidence: the Arm64 entry shrank from 3,020 to 352
   bytes and calls the existing 708-byte copy helper.
-- In `CopySegments` use `TryGet` as the sole loop guard (it already handles the end position) and keep the two span
-  operations (Arm64 folds the destination slice check after `CopyTo`). Why: a separate two-segment branch slowed the
+- In `CopySegments` use `TryGet` as the sole loop guard (it already handles the end position). Since 5d9090e6 each
+  segment is copied with `NinoUnsafe.Copy` after an explicit length check (ArgumentException for a segment longer than
+  the rest), the span move only for a segment overlapping the destination; the M4-only trial below had kept two span
+  operations (Arm64 folded the slice check after `CopyTo`), so time it on Arm64 runners (`ExternalBufferTest.*SegmentedInts`). Why: a separate two-segment branch slowed the
   512-byte write by 22–28% on M4. Evidence: the simpler guard was broadly on par across four default-JIT pairs,
   including two, four and sixteen segments and the cache-boundary controls; all nine wire comparisons matched at 0 B.
   `CopySegments` moved from 87 to 78 IL bytes, 680 to 712 Arm64 FullOpts bytes and 202 to 198 offline x64 bytes. The

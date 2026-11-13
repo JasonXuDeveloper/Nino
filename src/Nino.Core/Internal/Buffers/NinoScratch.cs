@@ -1,6 +1,8 @@
 using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
@@ -49,12 +51,33 @@ namespace Nino.Core.Internal
             try
             {
                 writer.Write(value, buffer);
-                target.Write(buffer.WrittenSpan);
+                CopyWritten(buffer, target);
             }
             finally
             {
                 Return(buffer);
             }
+        }
+
+        /// <summary>
+        /// Copies the bytes written into <paramref name="buffer"/> to <paramref name="target"/> with Nino's block copy
+        /// (BuffersExtensions.Write copies with Memmove: glibc's rep movsb on AMD, see NinoUnsafe.CopyOver64). Out of
+        /// line: one body for every value type.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CopyWritten(NinoArrayBufferWriter buffer, IBufferWriter<byte> target)
+        {
+            var written = buffer.WrittenSpan;
+            var destination = target.GetSpan(written.Length);
+            if (destination.Length >= written.Length && !written.Overlaps(destination))
+            {
+                NinoUnsafe.Copy(ref MemoryMarshal.GetReference(destination), ref MemoryMarshal.GetReference(written),
+                    (uint)written.Length);
+                target.Advance(written.Length);
+            }
+            else
+                // A writer that hands out less than asked for, in chunks; or a span over the scratch buffer.
+                target.Write(written);
         }
 
         // The thread's scratch buffer stays in its slot and is marked in use (a byte store on the instance) instead

@@ -77,11 +77,15 @@ namespace Nino.Core.Internal
             return true;
         }
 
+        // The callers checked that the array does not overlap either span, and that the two fill it. CopyToNew, as the
+        // raw array reads: the array is new (often uninitialized) or one the caller keeps.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CopyPayload(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right, byte[] array)
         {
-            left.CopyTo(array);
-            right.CopyTo(array.AsSpan(left.Length));
+            ref byte destination = ref NinoUnsafe.GetArrayDataReference(array);
+            NinoUnsafe.CopyToNew(ref destination, ref MemoryMarshal.GetReference(left), (uint)left.Length);
+            NinoUnsafe.CopyToNew(ref Unsafe.Add(ref destination, left.Length), ref MemoryMarshal.GetReference(right),
+                (uint)right.Length);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -145,7 +149,14 @@ namespace Nino.Core.Internal
                 var span = segment.Span;
                 if (!span.IsEmpty)
                 {
-                    span.CopyTo(destination);
+                    // A custom segment's links can supply more bytes than its RunningIndex reports, too.
+                    if (span.Length > destination.Length)
+                        InvalidLength();
+                    if (span.Overlaps(destination))
+                        span.CopyTo(destination);
+                    else
+                        NinoUnsafe.Copy(ref MemoryMarshal.GetReference(destination), ref MemoryMarshal.GetReference(span),
+                            (uint)span.Length);
                     destination = destination.Slice(span.Length);
                 }
             }
