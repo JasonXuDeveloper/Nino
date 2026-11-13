@@ -83,7 +83,11 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
   (a cancelled job keeps its seat). Pull requests from forks and Dependabot get no secrets and skip it.
 - Per version: the editor's play mode tests, then its edit mode tests (one step each, `testMode: playmode` and
   `editmode`, never `all`: see `audit-ci`), then an IL2CPP Linux player and its tests (`standalone`). Every Unity
-  launch is bounded by `ENGINE_LAUNCH_WRAPPER` (`timeout`), every Unity step by `timeout-minutes`.
+  launch is bounded by `ENGINE_LAUNCH_WRAPPER` (`timeout`), every Unity step by `timeout-minutes`. Each of those
+  three steps runs once with `continue-on-error`; its `Did Unity kill itself` step runs it a second time only when
+  the 6000.6 editor killed itself before any test ran (a Unity bug: the editor SIGKILLs a thread of its own; no
+  results XML, and the kernel's signal trace shows the kill), and fails the job on any other failure (`audit-ci`,
+  "Bound every Unity launch").
   report.yml calls it with `benchmark: true` for a release: editor tests skipped, the player built as a release
   build with BurstBenchmark, its results uploaded as `unity-bench-<version>` for `benchmarks/reports/unity_report.py`.
 - Then per version a WebGL player with SIMD (`webgl` job, after the tests, also `max-parallel: 1`), run in headless

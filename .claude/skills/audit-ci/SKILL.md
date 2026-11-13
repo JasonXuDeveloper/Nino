@@ -115,19 +115,31 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   lets the step's script print the sender's process, program and parents, the target's, and each one's PID inside
   its container (counted in creation order from the task runc's `[1:CHILD]` creates), and every Unity editor and
   `Unity.DataStore` started with its container PID. Do not blame memory, `/dev/shm` or a flag without that
-  evidence: the 6000.6.9f1 editor was SIGKILLed 1.2 to 1.5 s after launch, right after `Registered in ...
-  seconds.` in its first domain reload, with nothing in `dmesg`, 14 GB available, the same at 2 GiB of `/dev/shm`
-  as at the CLI's 1025m (the 2 GiB detour, c6d51102, was reverted) and with code coverage off as on (run
-  43316317360). Every kill came over `kill(2)` from a thread named `Unity Main Thread` at tasks named like the
-  editor's threads (`llvmpipe-2`, `Unity:disk$0`, `AssetDatabase.I`; runs 43309471749 and 43316317360), and a
-  passing launch's `Unity.DataStore` (Unity 6000.6's asset store process, state in `Library/DataStore`, which
-  6000.3 does not have) got the same kind of kill at shutdown: the suspect is a Data Store PID kept from a launch
-  in another container, which the Library cache brings back (first launch killed with the cache; with a fresh
-  Library the third). unity.yml therefore lists and deletes `Library/DataStore` before each Unity step (553debd6,
-  the candidate fix) and prints the Data Store's `Editor-UDS.log` from the runner's home (the container's
-  `/root`). Code coverage stays off in the test steps (`GAME_CI_COVERAGE_ENABLED: 'false'`, the CLI's
-  `coverageEnabled` option: the action's `coverageEnabled: false` passes `--no-coverageEnabled`, which CLI v0.1.72
-  rejects): the project has no Code Coverage package, so it only put every editor launch in Debug code
+  evidence. The 6000.6.9f1 editor kills itself: about one launch in three, 1.2 to 2 s after launch, right after
+  `Registered in ... seconds.` in its first domain reload, a thread of `/opt/unity/Editor/Unity` calls `kill(2)`
+  with SIGKILL (`code=0`) on another thread ID of the same process, which kills the whole thread group (run
+  43324567209: sender process == target's process == the editor; the thread names `Unity Main Thread`,
+  `llvmpipe-2`, `Unity:disk$0`, `AssetDatabase.I` of runs 43309471749 and 43316317360 were all the editor's own).
+  Ruled out, each with the kills going on: memory (nothing in `dmesg`, 14 GB available), `/dev/shm` (2 GiB as at
+  the CLI's 1025m; c6d51102, reverted), code coverage (off since 56b8bc93) and the Data Store's state (deleting
+  `Library/DataStore` before each launch, 553debd6, reverted). A passing launch's editor SIGKILLs its
+  `Unity.DataStore` at shutdown: that is the usual end, not the bug. Burst 2.0 ships only inside 6000.6 (the
+  registry's `com.unity.burst` stops at 1.8.31), so the row cannot move to an older 6000.x. The owner chose a
+  retry: each of unity.yml's three `unity-test-runner` steps runs with `continue-on-error`, and its `Did Unity kill
+  itself` step asks for one more attempt only when all hold: `UNITY_SELF_KILL_RETRY` (the job's env, true for
+  `6000.6.*`), no `<mode>-results.xml` in the step's `artifactsPath` (no test ran), and in the signal trace since
+  the last `Mark the signal trace` (a `trace_marker` line, `nino-attempt`, written before each first attempt) a
+  SIGKILL with `code=0` from a process that exec'd `/opt/unity/Editor/Unity` to a different thread of that process
+  (the `nino-procs` instance maps each thread to its process). Anything else fails the judge and the job as the
+  step did before: failed tests (their XML exists), a timeout, a crash of Nino's code in the editor (SIGSEGV or
+  SIGABRT, never a self-`kill`), a kill from another process, a trace that could not start. A killed second
+  attempt fails the job. A retry prints a `::warning::` naming the bug and keeps the killed attempt's log as
+  `<mode>-killed.log` in `test-results-unity-<version>`. The later steps' `if:` read the judge's and the retry's
+  `conclusion`, never the first attempt's (its `continue-on-error` makes its conclusion `success`). Switch it off
+  once a Unity patch fixes the kill (the row moved to it and its runs show no retry warning for a few weeks):
+  `UNITY_SELF_KILL_RETRY` false first, then remove the judge, retry and mark steps. Code coverage stays off in the
+  test steps (`GAME_CI_COVERAGE_ENABLED: 'false'`, the CLI's `coverageEnabled` option: the action's
+  `coverageEnabled: false` passes `--no-coverageEnabled`, which CLI v0.1.72 rejects): the project has no Code Coverage package, so it only put every editor launch in Debug code
   optimization with Mono's coverage instrumentation. Name no variable of your own `GAME_CI_*`: the CLI reads each
   as an option (yargs `.env("GAME_CI")` under `strict`) and rejects one it does not know.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
