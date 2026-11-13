@@ -95,8 +95,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    says which release candidate added a feature ("since 4.0.0-rc.6", "measured since rc.8", "needs rc.6 or later"),
    and a comparison never lists under a competitor's leads what Nino has built in; what earlier releases lack goes
    in an info Callout at most; never state a limit and then lift it ("X is not supported ... since rc.N it is"),
-   and never compare with an earlier release in the main text ("the same as before", "copy as before"). Grep
-   `rc\.[0-9]` and `as before` over the v4 pages in every docs pass. Why: the owner (rc.10:
+   and never compare with an earlier release in the main text ("the same as before", "copy as before"). What's New
+   is not a history page: it describes v4 as it is, with no release marks (it carried 25 `*rc.6*` to `*rc.10*` marks
+   until the pre-rc.10 audit). Grep `rc\.[0-9]` and `as before` over the v4 pages in every docs pass. Why: the owner (rc.10:
    "正式发布时支持的东西就直接写就行，rc里的限制最多就是加个info"); vs-memorypack's "Where MemoryPack Is Ahead" listed
    the built-in types Nino has "since 4.0.0-rc.5", and nine pages carried such dates (nino.docs 7f3f0cc).
 2. **True to the code**: every API, attribute, option, default, limit and exception named exists today and behaves as

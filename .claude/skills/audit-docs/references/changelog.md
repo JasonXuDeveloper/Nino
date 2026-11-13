@@ -15,6 +15,11 @@ Read it before writing or checking a changelog entry, a migration row, a highlig
 - **Bring it in line with Nino at the start of any docs work** (nino.docs AGENTS.md has the steps: releases,
   `git log <tag>..origin/main` with the trailers). A user-facing commit without a trailer needs a follow-up commit that
   carries one.
+  Read the highlights as the release body will: fetch the notes (`git fetch origin +release-notes:refs/notes/release`)
+  and, per commit, take its note in `refs/notes/release` when it has one, else its trailers
+  (`git notes --ref=release show <sha>`, `git log -1 --format='%(trailers:key=Added,key=Fixed,...,unfold)' <sha>`),
+  then match every highlight to a changelog entry. Why: the pre-rc.10 audit found the `Fixed:` note of 86158168
+  (a removed assembly kept alive) in no changelog entry; reading trailers alone misses notes that add a highlight.
 - **The migration page's "Upgrading from an Earlier Release Candidate" table follows the same rule**: a row only for a
   name the previous release shipped.
 
