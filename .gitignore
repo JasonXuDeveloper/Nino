@@ -20,8 +20,10 @@ tests/Nino.UnitTests/*.rsp
 __pycache__/
 
 # Local AI agent state (tracked: the development skills in .claude/skills, which .agents/skills links to, and the
-# project's hooks and settings; settings.local.json and worktrees stay local)
+# project's hooks and settings, and CLAUDE.md, the root's import of AGENTS.md; settings.local.json and worktrees stay
+# local)
 .claude/*
+!.claude/CLAUDE.md
 !.claude/skills/
 !.claude/hooks/
 !.claude/settings.json
