@@ -34,9 +34,10 @@ layouts.md                   the layout of every unmanaged BCL struct on every r
                              against the canonical one, from tests/Nino.RuntimeTests' `# layout` lines
 v4-benchmarks.md             build-time and runtime numbers against v3 3.3.13 and MemoryPack; the build and runtime
                              tables are written by benchmarks/reports/readme.py from a release's report
-assets/                      logo.png (README); benchmark.svg and benchmark-dark.svg (the README chart in light and
-                             dark, written by readme.py) and benchmark.png and benchmark-dark.png (rendered from them
-                             by report.yml; the READMEs show the PNGs: nuget.org shows no SVG)
+assets/                      logo.png (README); benchmark-<group>.svg and benchmark-<group>-dark.svg (the charts of
+                             README and v4-benchmarks.md, one per group of cases, written by readme.py); benchmark.svg
+                             and benchmark.png (the overview chart, the image for nuget.org, which shows no SVG; the
+                             PNG rendered from it by report.yml, the first chart's fallback image)
 ```
 
 ## Rules for these files
@@ -44,7 +45,7 @@ assets/                      logo.png (README); benchmark.svg and benchmark-dark
 - A change to the bytes Nino writes updates `spec/wire-format.md`, bumps its version and adds a row to the table in
   `spec/README.md`, in the commit with the `Wire-Format:` trailer. A check every reader must make goes into §9.
 - A new diagnostic gets a `### NINOxxx` section in `diagnostics.md` (its id is the help link's anchor).
-- Never type benchmark numbers into `v4-benchmarks.md`'s build or runtime tables or the chart: `benchmarks/reports/readme.py` writes
+- Never type benchmark numbers into `v4-benchmarks.md`'s build or runtime tables or its charts: `benchmarks/reports/readme.py` writes
   them from a full run (benchmarks/AGENTS.md says which runs count).
 - The website's pages are written from these files and the source (Nino.Docs' CLAUDE.md): a change users see here
   needs the site, and its changelog, brought in line too.

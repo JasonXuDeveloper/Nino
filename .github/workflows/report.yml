@@ -448,10 +448,11 @@ jobs:
             ${ARM64_REPORT:+dotnet-arm64.md="$ARM64_REPORT"}
           echo "✅ Release assets and notes updated with benchmark results"
 
-      # README.md, README.zh.md, the README chart and the runtime tables of docs/v4-benchmarks.md show the newest v4
-      # release: regenerate them (benchmarks/reports/readme.py, between the <!--bench:...--> markers) from the assets
-      # this run attached and push them to main. readme.py --png renders the PNGs (light and dark theme) with Chrome:
-      # README.md goes into the NuGet packages, and nuget.org shows no SVG.
+      # README.md, README.zh.md, their charts and the charts and runtime tables of docs/v4-benchmarks.md show the
+      # newest v4 release: regenerate them (benchmarks/reports/readme.py, between the <!--bench:...--> markers) from
+      # the assets this run attached and push them to main: a light and a dark SVG per chart group, and the overview
+      # chart, whose PNG readme.py --png renders with Chrome (README.md goes into the NuGet packages, and nuget.org
+      # shows no SVG).
       - name: Update the README benchmark numbers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -472,8 +473,7 @@ jobs:
           fi
           # main's script (this checkout), as readme.py above.
           .github/scripts/push_main.sh "docs(benchmarks): update README numbers for $TAG_NAME" README.md README.zh.md \
-            docs/v4-benchmarks.md docs/assets/benchmark.svg docs/assets/benchmark.png docs/assets/benchmark-dark.svg \
-            docs/assets/benchmark-dark.png
+            docs/v4-benchmarks.md docs/assets/benchmark.svg docs/assets/benchmark.png docs/assets/benchmark-*.svg
 
       # The docs site reads the assets of the latest v4 release at build time (benchmarks-manifest.json): rebuild it.
       - &rebuild-docs

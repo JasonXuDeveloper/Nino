@@ -62,9 +62,10 @@ reports/                     what a release publishes: the results of runners as
                              (GitHub, or a directory in a dry run), fetch, has (report.yml's skip checks)
   release_body.py            publish: attaches a job's results, draws a chart per section, writes the body's
                              benchmark part (<details> with summary, chart and links) from the manifest (report.yml)
-  charts.py                  the charts (README's and the release body's) as SVG (light and dark), and README's
-                             PNG by headless Chrome (readme.py --png)
-  readme.py                  writes the numbers of README.md / README.zh.md, the chart (docs/assets) and the runtime
+  charts.py                  the charts (README's and the release body's) as SVG (light and dark), the <picture> and
+                             <details> that show them, and the overview PNG by headless Chrome (readme.py --png)
+  readme.py                  writes the numbers of README.md / README.zh.md, the chart groups (GROUPS, chart_groups;
+                             docs/assets, README and docs/v4-benchmarks.md, the release body's too) and the runtime
                              and build tables of docs/v4-benchmarks.md from a release's assets (--assets, --release)
                              or a joined report (--v4) and a build section (--build)
   generator_report.py        the build section (v3 3.3.13's source generator against the release's) from

@@ -95,12 +95,14 @@ python3 benchmarks/reports/release_body.py publish --tag v4.0.0-rc.10 --dir work
   dotnet-x64.md=x64.md dotnet-v3-x64.md=v3.md dotnet-arm64.md=arm64.md     # fake/body.md, fake/assets/, fake/release-notes/
 ```
 
-The README numbers and chart (`docs/assets/benchmark.svg` and `.png`) and the runtime tables of
-`docs/v4-benchmarks.md` follow the newest v4 release too: for that release, `report.yml` runs
-[`readme.py`](reports/readme.py) on its assets (`--assets`), which rewrites everything between the
-`<!--bench:...-->` markers of `README.md`, `README.zh.md` and `docs/v4-benchmarks.md` and the chart, then pushes them
-to `main`. `--release <tag>` downloads a release's assets and does the same; after a full local run, the same script
-updates them from your reports (`--png` renders the PNGs with headless Chrome, `CHROME=` or `--chrome` names it):
+The README numbers and charts and the charts and runtime tables of `docs/v4-benchmarks.md` follow the newest v4
+release too: for that release, `report.yml` runs [`readme.py`](reports/readme.py) on its assets (`--assets`), which
+rewrites everything between the `<!--bench:...-->` markers of `README.md`, `README.zh.md` and `docs/v4-benchmarks.md`
+and the charts (`docs/assets/benchmark-<group>.svg` and `-dark.svg`, one per group of cases in `readme.py`'s `GROUPS`:
+real workloads, basic types and structs, polymorphism, nullable values, collections and common types, reuse and
+pooling, reference tracking and version tolerance, others; and the overview `benchmark.svg` and `.png`, the image
+for nuget.org), then pushes them to `main`. `--release <tag>` downloads a release's assets and does the same; after a full local run, the same script
+updates them from your reports (`--png` renders the overview PNG with headless Chrome, `CHROME=` or `--chrome` names it):
 
 ```sh
 python3 benchmarks/reports/readme.py --v4 out/v4/results/*-joined-*-report-github.md \

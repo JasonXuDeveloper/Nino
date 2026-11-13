@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests of release_body.py, release_assets.py and charts.py: a dry run of report.yml's publish jobs against a
 directory standing in for a release (no network, no Chrome), the body's benchmark part, the old sections of
-a release from before the manifest, readme.py --assets, and the PNG crop (run: python3
+a release from before the manifest, readme.py --assets, the chart groups, and the PNG crop (run: python3
 benchmarks/reports/test_release_body.py)."""
 import contextlib
 import io
@@ -177,6 +177,80 @@ class Publish(unittest.TestCase):
             release_assets.describe("benchmark-x64-full.md")
         self.assertEqual(release_assets.describe("build-v3-100.json")["of"], "build-x64.md")
         self.assertEqual(release_assets.describe("runtime-typescript-arm64.json")["of"], "runtime-typescript-arm64.md")
+
+
+class Groups(unittest.TestCase):
+    """readme.chart_groups and write_charts: the charts of README, docs/v4-benchmarks.md and the release body."""
+    ROWS = [(cls, f"{lib}{verb}{case}", 100.0 * k)
+            for cls, case in (("SimpleTest", "SimpleClass"), ("CollectionsTest", "HashSet"),
+                              ("CollectionsTest", "NullableLongs"), ("NullableTest", "NullableStruct"),
+                              ("SomeNewTest", "Thing"))
+            for verb in ("Serialize", "Deserialize")
+            for lib, k in (("Nino", 1), ("MemoryPack", 2), ("Json", 3))] + \
+        [("ExternalBufferTest", "NinoSerializeExternalInts", 50.0), ("ExternalBufferTest", "MemoryPackSerializeExternalInts", 60.0),
+         ("PooledGraphTest", "NinoLeavesNew", 900.0), ("PooledGraphTest", "MemoryPackLeavesNew", 1000.0),
+         ("PooledGraphTest", "NinoLeavesInPlace", 300.0), ("PooledGraphTest", "MemoryPackLeavesOverwrite", 800.0)]
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        path = os.path.join(self.tmp.name, "x64.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(report(self.ROWS))
+        self.v4 = readme.parse(path)[1]
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_every_case_in_its_group(self):
+        groups = readme.chart_groups(self.v4, {"NinoSerializeSimpleClass": 250.0})
+        self.assertEqual([g[0] for g in groups], ["basic", "nullable", "collections", "reuse", "others"])
+        charts_of = {gid: chart for gid, _, _, chart in groups}
+        # CollectionsTest's nullable collections are nullable values; README's labels where it has one.
+        self.assertEqual([pair[0][0] for pair in charts_of["nullable"]],
+                         ["Serialize · SimpleStruct?", "Serialize · long?[1000], every fifth null"])
+        # A class no group names lands in "others"; a case with one operation leaves the other side empty.
+        self.assertEqual([(pair[0] or pair[1])[0] for pair in charts_of["others"]],
+                         ["Serialize · Thing", "Serialize · ExternalInts"])
+        self.assertIsNone(charts_of["others"][1][1])
+        # Nino v4, v3 (n/a where it has no row), then the libraries with a row, in OTHERS' order.
+        serialize, deserialize = charts_of["basic"][0]
+        self.assertEqual(serialize[1], [("Nino v4", 100.0), ("Nino v3", 250.0), ("MemoryPack", 200.0),
+                                        ("System.Text.Json", 300.0)])
+        self.assertEqual(deserialize[1][1], ("Nino v3", None))
+        # Reading into existing objects, with what each allocates; MessagePack has no row, so no bar.
+        (new, reuse), = charts_of["reuse"]
+        self.assertEqual(new[0], "New objects · leaves")
+        self.assertEqual(reuse[1][0], ("Nino v4", 300.0, "300 ns, 0 B"))
+        self.assertEqual(reuse[1][2][0], "MemoryPack")
+
+    def test_without_v3_its_bars_are_left_out(self):
+        for _, _, _, chart in readme.chart_groups(self.v4, None):
+            for pair in chart:
+                for group in pair:
+                    self.assertNotIn("Nino v3", [row[0] for row in (group[1] if group else [])])
+
+    def test_the_markers_and_the_files(self):
+        root = readme.ROOT
+        readme.ROOT = type(root)(self.tmp.name)
+        os.makedirs(os.path.join(self.tmp.name, "docs", "assets"))
+        try:
+            values = readme.write_charts(readme.overview_chart(self.v4, None, cases=[], in_place=False),
+                                         readme.chart_groups(self.v4, None))
+        finally:
+            readme.ROOT = root
+        en, zh = values["charts"]
+        self.assertEqual(values["doc.charts"], en)
+        self.assertEqual(en.count("<details open>"), 5)
+        self.assertIn("<summary><b>Basic types and structs</b></summary>", en)
+        self.assertIn("<summary><b>可空值</b></summary>", zh)
+        self.assertIn('<source media="(prefers-color-scheme: dark)" srcset="'
+                      f'{readme.ASSETS}/benchmark-basic-dark.svg">', en)
+        # The first group falls back to the overview PNG (nuget.org), the others to their light SVG.
+        self.assertEqual(en.count(f'<img src="{readme.ASSETS}/benchmark.png"'), 1)
+        self.assertIn(f'<img src="{readme.ASSETS}/benchmark-reuse.svg"', en)
+        files = sorted(os.listdir(os.path.join(self.tmp.name, "docs", "assets")))
+        self.assertEqual(len(files), 11)  # five groups in two themes, the overview
+        self.assertIn("benchmark-nullable-dark.svg", files)
 
 
 class Charts(unittest.TestCase):

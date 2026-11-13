@@ -131,12 +131,73 @@ npx skills add JasonXuDeveloper/Nino
 
 这 12 个场景：jvm-serializers 的 `MediaContent` 和一页 Stack Exchange API 数据（MessagePack、MemoryPack 自己的基准用的就是这套模型）；服务端的结果为接口的 RPC 调用、上个版本写进缓存的用户资料、两层事件继承外加泛型信封的事件流、一批日志；以及游戏真正会发的消息：读进客户端已有对象的状态同步快照、帧同步的输入帧、MMO 的 AOI 增量、共享对象的 SLG 地图区域和卡牌战斗回放，还有上个版本的放置游戏存档。每个库都用它最快的 API（Google.Protobuf 用自己生成的消息类型，System.Text.Json 用源生成器输出 UTF-8），缺的功能就用它常见的绕法（共享对象写成副本、读进已有对象改成新建）。区间只算 Nino 快出 5% 以上的场景，每个场景的耗时见文档。
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-dark.png">
-    <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="12 个真实场景下，Nino v4 的序列化和反序列化比 MemoryPack、MessagePack、protobuf-net、Google.Protobuf 和 System.Text.Json 快多少倍" width="760">
-  </picture>
-</p>
+<!--bench:charts-->
+<details open>
+<summary><b>基础类型与结构体</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="基础类型与结构体：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>多态</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism.svg" alt="多态：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>集合与常用类型</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-collections-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-collections.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-collections.svg" alt="集合与常用类型：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>复用与对象池</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-reuse-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-reuse.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-reuse.svg" alt="复用与对象池：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>引用跟踪与版本容错</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-tracking-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-tracking.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-tracking.svg" alt="引用跟踪与版本容错：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>其他</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-others-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-others.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-others.svg" alt="其他：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+</picture>
+
+</details>
+<!--/bench-->
 
 <sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.14<!--/bench-->，服务器 GC，<!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->，GitHub runner 实测；所有库在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上<!--bench:v3.when-->紧接其前跑一次<!--/bench-->。那页 Stack Exchange 数据的大小：Nino <!--bench:payload.v4-->—<!--/bench--> 字节，MemoryPack <!--bench:payload.memorypack-->—<!--/bench--> 字节，MessagePack <!--bench:payload.msgpack-->—<!--/bench--> 字节，protobuf（两个库相同）<!--bench:payload.protobuf-->—<!--/bench--> 字节，JSON <!--bench:payload.json-->—<!--/bench--> 字节。测试方法与全部用例见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)。</sub>
 

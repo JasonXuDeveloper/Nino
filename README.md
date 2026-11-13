@@ -161,12 +161,73 @@ API (Google.Protobuf its own generated messages, System.Text.Json source-generat
 feature, its usual workaround (copies for shared objects, a new instance instead of reading into one). A range covers
 the workloads Nino wins by more than 5%; every time is in the docs.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-dark.png">
-    <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="How many times faster Nino v4 serializes and deserializes 12 real-world workloads than MemoryPack, MessagePack, protobuf-net, Google.Protobuf and System.Text.Json" width="760">
-  </picture>
-</p>
+<!--bench:charts-->
+<details open>
+<summary><b>Basic types and structs</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Basic types and structs: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>Polymorphism</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism.svg" alt="Polymorphism: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>Collections and common types</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-collections-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-collections.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-collections.svg" alt="Collections and common types: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>Reuse and pooling</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-reuse-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-reuse.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-reuse.svg" alt="Reuse and pooling: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>Reference tracking and version tolerance</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-tracking-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-tracking.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-tracking.svg" alt="Reference tracking and version tolerance: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>Others</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-others-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-others.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-others.svg" alt="Others: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+</picture>
+
+</details>
+<!--/bench-->
 
 <sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.14<!--/bench-->, server GC, <!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->, on GitHub's runners; all libraries in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. The Stack Exchange page takes <!--bench:payload.v4-->—<!--/bench--> bytes in Nino, <!--bench:payload.memorypack-->—<!--/bench--> in MemoryPack, <!--bench:payload.msgpack-->—<!--/bench--> in MessagePack, <!--bench:payload.protobuf-->—<!--/bench--> in protobuf (both libraries) and <!--bench:payload.json-->—<!--/bench--> in JSON. Method and every case: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md).</sub>
 

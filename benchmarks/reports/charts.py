@@ -95,19 +95,18 @@ def svg(chart, theme="light", title=README_TITLE, note=README_NOTE, floor=FLOOR_
             top = max((value for _, value, _ in rows if value), default=0)
             for i, (name, value, label) in enumerate(rows):
                 first = i == 0
-                weight = ' font-weight="700"' if first else ""
-                out.append(f'<text x="{left + x0 - 10}" y="{by}" class="l" text-anchor="end"{weight}>'
-                           f'{html.escape(name)}</text>')
+                bold = " n" if first else ""
+                out.append(f'<text x="{left + x0 - 10}" y="{by}" class="l{bold}">{html.escape(name)}</text>')
                 if value is None:
                     out.append(f'<text x="{left + x0}" y="{by}" class="s">n/a</text>')
                 else:
                     w = max(3.0, width * value / top) if top else 3.0
-                    colour = c["v4"] if first else c["v3"] if name == "Nino v3" else c["other"]
-                    out.append(f'<rect x="{left + x0}" y="{by - 12}" width="{w:.1f}" height="15" rx="3" fill="{colour}"/>')
+                    colour = "a" if first else "b" if name == "Nino v3" else "c"
+                    out.append(f'<rect x="{left + x0}" y="{by - 12}" width="{w:.1f}" height="15" rx="3" class="{colour}"/>')
                     text = label if label is not None else time(value)
                     if not first and nino is not None:
                         text += multiple(value, nino, floor)
-                    out.append(f'<text x="{left + x0 + w + 8:.1f}" y="{by}" class="v"{weight}>{html.escape(text)}</text>')
+                    out.append(f'<text x="{left + x0 + w + 8:.1f}" y="{by}" class="v{bold}">{html.escape(text)}</text>')
                 by += 20
             bottom = max(bottom, by)
         y = bottom + 18
@@ -116,11 +115,25 @@ def svg(chart, theme="light", title=README_TITLE, note=README_NOTE, floor=FLOOR_
     head = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
 <rect width="{width}" height="{height}" rx="8" fill="{c["background"]}"/>
 <g transform="translate({PAD} {PAD})">
-<style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]}}}.v{{font-size:12px;fill:{c["text"]}}}</style>
+<style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]};text-anchor:end}}.v{{font-size:12px;fill:{c["text"]}}}.n{{font-weight:700}}.a{{fill:{c["v4"]}}}.b{{fill:{c["v3"]}}}.c{{fill:{c["other"]}}}</style>
 <text x="0" y="22" class="t">{html.escape(title)}</text>
 <text x="0" y="44" class="s">{html.escape(note)}</text>
 '''
     return head + "\n".join(out) + "\n</g>\n</svg>\n", height
+
+
+def picture(light, dark, alt, fallback=None):
+    """A chart that follows the reader's colour scheme: the dark SVG for a dark scheme, the light one for a light
+    scheme, and `fallback` (default: the light one) where <picture> is not supported."""
+    return "\n".join(["<picture>", f'  <source media="(prefers-color-scheme: dark)" srcset="{dark}">',
+                      f'  <source media="(prefers-color-scheme: light)" srcset="{light}">',
+                      f'  <img src="{fallback or light}" alt="{html.escape(alt)}">', "</picture>"])
+
+
+def details(summary, body, open_=False):
+    """A collapsible block of GitHub Markdown: blank lines around the body, so Markdown inside it renders."""
+    return "\n".join([f"<details{' open' if open_ else ''}>", f"<summary><b>{html.escape(summary)}</b></summary>", "",
+                      body, "", "</details>"])
 
 
 def crop_png(data, height):

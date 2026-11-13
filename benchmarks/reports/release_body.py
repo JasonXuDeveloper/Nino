@@ -162,7 +162,7 @@ def dotnet_chart(path, arch, v3_path=None):
     workloads = all(f"NinoSerialize{k}" in v4 for k in readme.WORKLOAD_KEYS)
     # README's groups (the owner's choice), so the release and README show one chart; every other case is in the
     # attached table. Without the workloads (reports before rc.10), SimpleTest and PolymorphicTest.
-    chart = readme.chart_groups(v4, v3, cases=readme.CHART_CASES if workloads else readme.SIMPLE_CASES)
+    chart = readme.overview_chart(v4, v3, cases=readme.CHART_CASES if workloads else readme.SIMPLE_CASES)
     by_case = {}
     for method, row in v4.items():
         lib, case = split_method(method)
