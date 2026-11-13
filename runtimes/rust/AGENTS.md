@@ -104,6 +104,7 @@ Generated files: `tests/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 do
   wire format cannot express is a compile error naming the field, with a case in `tests/compile_fail/`. Give a new
   attribute a corpus or derive test.
 - Before committing: `cargo fmt --all --check`, `cargo clippy --workspace --all-features --all-targets -- -D warnings`
+- Write a macro call's arguments one per line once they hold a bound (`HashMap,` / `fill_hash_map,` / `Eq + Hash`): the rustfmt in CI's `stable` toolchain (November 2026) splits them, while rustfmt 1.9.0 accepts both forms, so a local check passed and main's Runtimes run failed on `map!` in `impls.rs` and `convert.rs` (5a03c0a5).
   and `cargo test --workspace --all-features` with `NINO_CORPUS` set (the conformance, derive and fuzz tests skip
   without a corpus), then `cargo test -p nino-serialization --lib --test spec --test values` without features, as
   runtimes.yml does: a test there that uses the derive or another feature goes behind `#[cfg(feature = "...")]`
