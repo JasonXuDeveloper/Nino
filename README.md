@@ -51,50 +51,16 @@ For .NET, Unity (Mono and IL2CPP), Godot, Native AOT and HybridCLR, with Go, Rus
 
 ## Install
 
-### .NET and Godot
+| | Command | |
+|---|---|---|
+| .NET, Godot 4 | `dotnet add package Nino --prerelease` | .NET Standard 2.0 to .NET 11, Native AOT; add-ons `Nino.Immutable`, `Nino.AspNetCore`, `Nino.Codegen` |
+| Unity 2022.3+ | `openupm add com.jasonxudeveloper.nino` | Mono, IL2CPP, HybridCLR · [guide](https://nino.xgamedev.net/en/docs/v4/advanced/unity) |
+| Go 1.22+ | `go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4` | generated code or struct tags · [guide](https://nino.xgamedev.net/en/docs/v4/advanced/go) |
+| Rust 1.88+ | `cargo add nino-serialization` | generated code or `--features derive` · [guide](https://nino.xgamedev.net/en/docs/v4/advanced/rust) |
+| TypeScript | `npm install nino-serialization` | Node.js and browsers · [guide](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) |
 
-```bash
-dotnet add package Nino --prerelease
-```
-
-The runtime and the source generator, for .NET Standard 2.0 to .NET 11, Native AOT and Godot 4. v4 is a prerelease:
-without `--prerelease` NuGet installs 3.9.x, which cannot read v4 data. Add-ons: `Nino.Immutable`, `Nino.AspNetCore`, and `Nino.Codegen`, which writes your types as Go, Rust or TypeScript
-after each build ([guide](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)).
-
-### Unity
-
-```bash
-openupm add com.jasonxudeveloper.nino
-```
-
-Unity 2022.3+, Mono and IL2CPP, HybridCLR. [Unity guide](https://nino.xgamedev.net/en/docs/v4/advanced/unity)
-
-### Go
-
-```bash
-go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4
-```
-
-Go 1.22+, no dependencies. Use the code `Nino.Codegen` writes, or map your own structs with struct tags.
-[Go guide](https://nino.xgamedev.net/en/docs/v4/advanced/go)
-
-### Rust
-
-```bash
-cargo add nino-serialization
-```
-
-Rust 1.88+. Use the code `Nino.Codegen` writes, or derive on your own structs with `--features derive`.
-[Rust guide](https://nino.xgamedev.net/en/docs/v4/advanced/rust)
-
-### TypeScript
-
-```bash
-npm install nino-serialization
-```
-
-Node.js and browsers. Optional: `Nino.Codegen` can write the runtime next to the code it generates.
-[TypeScript guide](https://nino.xgamedev.net/en/docs/v4/advanced/typescript)
+v4 is a prerelease: without `--prerelease` NuGet installs 3.9.x, which cannot read v4 data. `Nino.Codegen` writes your
+types as Go, Rust or TypeScript after each build ([guide](https://nino.xgamedev.net/en/docs/v4/advanced/codegen)).
 
 ## Quick start
 
@@ -173,7 +139,7 @@ the workloads Nino wins by more than 5%; every time is in the docs.
 
 </details>
 
-<details open>
+<details>
 <summary><b>Polymorphism</b></summary>
 
 <picture>
@@ -184,7 +150,7 @@ the workloads Nino wins by more than 5%; every time is in the docs.
 
 </details>
 
-<details open>
+<details>
 <summary><b>Collections and common types</b></summary>
 
 <picture>
@@ -195,7 +161,7 @@ the workloads Nino wins by more than 5%; every time is in the docs.
 
 </details>
 
-<details open>
+<details>
 <summary><b>Reuse and pooling</b></summary>
 
 <picture>
@@ -206,7 +172,7 @@ the workloads Nino wins by more than 5%; every time is in the docs.
 
 </details>
 
-<details open>
+<details>
 <summary><b>Reference tracking and version tolerance</b></summary>
 
 <picture>
@@ -217,7 +183,7 @@ the workloads Nino wins by more than 5%; every time is in the docs.
 
 </details>
 
-<details open>
+<details>
 <summary><b>Others</b></summary>
 
 <picture>
@@ -244,22 +210,19 @@ More: [every .NET case and Arm64](https://nino.xgamedev.net/en/docs/v4/benchmark
 - **[Unity](https://nino.xgamedev.net/en/docs/v4/advanced/unity)**: Mono and IL2CPP, HybridCLR without an init call, Burst SIMD kernels, `AnimationCurve` and `Gradient` built in.
 - **[Godot 4 (.NET)](https://nino.xgamedev.net/en/docs/v4/advanced/godot)**: a regular NuGet package; `Vector3`, `Transform3D` and other math structs copied as raw memory.
 
-## Compared with MemoryPack
+## Compared with other serializers
 
-MemoryPack describes itself as "for trusted data only" ([its README](https://github.com/Cysharp/MemoryPack#readme));
-Nino is built for data from network peers and user files.
+| | Nino v4 | MemoryPack | MessagePack | protobuf | System.Text.Json |
+|---|---|---|---|---|---|
+| Format | binary, no per-value tags | binary, memory layout | MessagePack, self-describing | Protocol Buffers, field numbers | JSON text |
+| Untrusted input | **safe by default**, one exception type | "trusted data only" | opt-in `UntrustedData` | depth limit | depth limit |
+| Polymorphism | **automatic**, any base or interface | `[MemoryPackUnion]` tags | `[Union]` keys | `[ProtoInclude]` numbers, `oneof` | `[JsonDerivedType]` per subtype |
+| Shared and circular references | `trackReferences` | circular references | no | no | `ReferenceHandler.Preserve` |
+| Read into existing objects | **in place, 0 B** | clears collections, new elements | no | merges, no overwrite | members only (`Populate`) |
+| Other languages | Go, Rust, TypeScript, generated from your C# | TypeScript | any MessagePack library | every protobuf library | every language |
 
-| | Nino v4 | MemoryPack 1.22.0 |
-|---|---|---|
-| Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only |
-| Deserialize into existing objects | **0 B** (in place) | clears collections and allocates their elements again |
-| Polymorphism | automatic type ids, any base class or interface, generic bases included | `[MemoryPackUnion]` tags you maintain, not on generic types |
-| Keyed members, reference tracking, object pools | all three | version tolerance and circular references, no pools |
-| Unity | 2022.3+, one OpenUPM package | 2022.3.12f1+, NuGetForUnity plus a git package |
-
-The [full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) covers the types MemoryPack does not
-round-trip and how to switch; also [vs MessagePack](https://nino.xgamedev.net/en/docs/v4/vs-messagepack) and
-[vs protobuf-net](https://nino.xgamedev.net/en/docs/v4/vs-protobuf-net).
+protobuf covers protobuf-net and Google.Protobuf. In depth: [vs MemoryPack](https://nino.xgamedev.net/en/docs/v4/vs-memorypack),
+[vs MessagePack](https://nino.xgamedev.net/en/docs/v4/vs-messagepack), [vs protobuf-net](https://nino.xgamedev.net/en/docs/v4/vs-protobuf-net).
 
 ## v4 vs v3
 
@@ -275,8 +238,8 @@ v4 rewrote the runtime and the generator; **its binary format is not compatible 
 
 ## Contributing
 
-Issues and pull requests are welcome; see [CONTRIBUTING.md](https://github.com/JasonXuDeveloper/Nino/blob/main/CONTRIBUTING.md).
-Report security issues privately as [SECURITY.md](https://github.com/JasonXuDeveloper/Nino/blob/main/SECURITY.md) describes.
+Issues and pull requests are welcome; see [CONTRIBUTING.md](https://github.com/JasonXuDeveloper/Nino/blob/main/.github/CONTRIBUTING.md).
+Report security issues privately as [SECURITY.md](https://github.com/JasonXuDeveloper/Nino/blob/main/.github/SECURITY.md) describes.
 
 ## License
 

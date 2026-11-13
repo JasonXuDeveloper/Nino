@@ -40,45 +40,16 @@
 
 ## 安装
 
-### .NET 和 Godot
+| | 命令 | |
+|---|---|---|
+| .NET、Godot 4 | `dotnet add package Nino --prerelease` | .NET Standard 2.0 到 .NET 11、Native AOT；扩展包 `Nino.Immutable`、`Nino.AspNetCore`、`Nino.Codegen` |
+| Unity 2022.3+ | `openupm add com.jasonxudeveloper.nino` | Mono、IL2CPP、HybridCLR · [指南](https://nino.xgamedev.net/zh/docs/v4/advanced/unity) |
+| Go 1.22+ | `go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4` | 生成的代码或 struct tag · [指南](https://nino.xgamedev.net/zh/docs/v4/advanced/go) |
+| Rust 1.88+ | `cargo add nino-serialization` | 生成的代码或 `--features derive` · [指南](https://nino.xgamedev.net/zh/docs/v4/advanced/rust) |
+| TypeScript | `npm install nino-serialization` | Node.js 和浏览器 · [指南](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript) |
 
-```bash
-dotnet add package Nino --prerelease
-```
-
-包含运行时和源生成器，支持 .NET Standard 2.0 到 .NET 11、Native AOT 和 Godot 4。v4 还是预发行版：不加 `--prerelease` 时 NuGet 会装上 3.9.x，它读不了 v4 的数据。扩展包：`Nino.Immutable`、`Nino.AspNetCore`，以及 `Nino.Codegen`：每次构建后把你的类型生成为 Go、Rust 或 TypeScript 代码（[指南](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)）。
-
-### Unity
-
-```bash
-openupm add com.jasonxudeveloper.nino
-```
-
-Unity 2022.3+，支持 Mono、IL2CPP 和 HybridCLR。[Unity 指南](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)
-
-### Go
-
-```bash
-go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4
-```
-
-Go 1.22+，无第三方依赖。可以用 `Nino.Codegen` 生成的代码，也可以用 struct tag 映射自己的结构体。[Go 指南](https://nino.xgamedev.net/zh/docs/v4/advanced/go)
-
-### Rust
-
-```bash
-cargo add nino-serialization
-```
-
-Rust 1.88+。可以用 `Nino.Codegen` 生成的代码，也可以加 `--features derive` 给自己的结构体派生。[Rust 指南](https://nino.xgamedev.net/zh/docs/v4/advanced/rust)
-
-### TypeScript
-
-```bash
-npm install nino-serialization
-```
-
-支持 Node.js 和浏览器。这一步可选：`Nino.Codegen` 也能把运行时直接写到生成代码旁边。[TypeScript 指南](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript)
+v4 还是预发行版，不加 `--prerelease` 时 NuGet 会装上 3.9.x，读不了 v4 的数据。`Nino.Codegen` 会在每次构建后把你的类型生成为
+Go、Rust 或 TypeScript 代码（[指南](https://nino.xgamedev.net/zh/docs/v4/advanced/codegen)）。
 
 ## 快速开始
 
@@ -143,7 +114,7 @@ npx skills add JasonXuDeveloper/Nino
 
 </details>
 
-<details open>
+<details>
 <summary><b>多态</b></summary>
 
 <picture>
@@ -154,7 +125,7 @@ npx skills add JasonXuDeveloper/Nino
 
 </details>
 
-<details open>
+<details>
 <summary><b>集合与常用类型</b></summary>
 
 <picture>
@@ -165,7 +136,7 @@ npx skills add JasonXuDeveloper/Nino
 
 </details>
 
-<details open>
+<details>
 <summary><b>复用与对象池</b></summary>
 
 <picture>
@@ -176,7 +147,7 @@ npx skills add JasonXuDeveloper/Nino
 
 </details>
 
-<details open>
+<details>
 <summary><b>引用跟踪与版本容错</b></summary>
 
 <picture>
@@ -187,7 +158,7 @@ npx skills add JasonXuDeveloper/Nino
 
 </details>
 
-<details open>
+<details>
 <summary><b>其他</b></summary>
 
 <picture>
@@ -212,19 +183,19 @@ npx skills add JasonXuDeveloper/Nino
 - **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)**：Mono 和 IL2CPP，HybridCLR 无需初始化，Burst SIMD 内核，内置 `AnimationCurve` 和 `Gradient`。
 - **[Godot 4（.NET）](https://nino.xgamedev.net/zh/docs/v4/advanced/godot)**：直接引用 NuGet 包；`Vector3`、`Transform3D` 等数学结构体按原始内存拷贝。
 
-## 与 MemoryPack 对比
+## 与其他序列化库对比
 
-MemoryPack 的 README 自称"仅用于可信数据"（[其 README](https://github.com/Cysharp/MemoryPack#readme)）；Nino 则是为网络对端发来的消息、用户提供的文件这类数据设计的。
+| | Nino v4 | MemoryPack | MessagePack | protobuf | System.Text.Json |
+|---|---|---|---|---|---|
+| 格式 | 二进制，值不带标签 | 二进制，内存布局 | MessagePack，自描述 | Protocol Buffers，字段编号 | JSON 文本 |
+| 不可信输入 | **默认安全**，只有一种异常 | "仅用于可信数据" | 需开启 `UntrustedData` | 深度上限 | 深度上限 |
+| 多态 | **自动**，任何基类或接口 | `[MemoryPackUnion]` 标签 | `[Union]` 键 | `[ProtoInclude]` 编号、`oneof` | 每个子类一个 `[JsonDerivedType]` |
+| 共享与循环引用 | `trackReferences` | 循环引用 | 不支持 | 不支持 | `ReferenceHandler.Preserve` |
+| 反序列化到已有对象 | **原地复用，0 B** | 清空集合，重建元素 | 不支持 | 合并，不能覆盖 | 仅成员（`Populate`） |
+| 其他语言 | Go、Rust、TypeScript，从 C# 类型生成 | TypeScript | 任何 MessagePack 库 | 任何 protobuf 库 | 任何语言 |
 
-| | Nino v4 | MemoryPack 1.22.0 |
-|---|---|---|
-| 不可信输入 | **设计目标**：分配和栈用量有上限，只有一种异常 | 仅用于可信数据 |
-| 反序列化到已有对象 | **0 B**（原地复用） | 清空集合后重新创建元素 |
-| 多态 | 自动类型 ID，任何基类或接口，包括泛型基类 | 需要维护 `[MemoryPackUnion]` 标签，不支持泛型类型 |
-| 键控成员、引用追踪、对象池 | 全部支持 | 有版本容错和循环引用，没有对象池 |
-| Unity | 2022.3+，一个 OpenUPM 包 | 2022.3.12f1+，NuGetForUnity 加一个 git 包 |
-
-[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有 MemoryPack 无法正确往返的类型和迁移方法；另有与 [MessagePack](https://nino.xgamedev.net/zh/docs/v4/vs-messagepack) 和 [protobuf-net](https://nino.xgamedev.net/zh/docs/v4/vs-protobuf-net) 的对比。
+protobuf 一列指 protobuf-net 和 Google.Protobuf。详细对比：[MemoryPack](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)、
+[MessagePack](https://nino.xgamedev.net/zh/docs/v4/vs-messagepack)、[protobuf-net](https://nino.xgamedev.net/zh/docs/v4/vs-protobuf-net)。
 
 ## v4 对比 v3
 
@@ -240,7 +211,7 @@ v4 重写了运行时和生成器；**二进制格式与 v3 不兼容。**
 
 ## 参与贡献
 
-欢迎提交 Issue 和 Pull Request，详见 [CONTRIBUTING.md](https://github.com/JasonXuDeveloper/Nino/blob/main/CONTRIBUTING.md)；安全问题请按 [SECURITY.md](https://github.com/JasonXuDeveloper/Nino/blob/main/SECURITY.md) 私下报告。使用问题和交流讨论欢迎加 QQ 群 [1054653934](https://qm.qq.com/q/Octgj3BS8g)。
+欢迎提交 Issue 和 Pull Request，详见 [CONTRIBUTING.md](https://github.com/JasonXuDeveloper/Nino/blob/main/.github/CONTRIBUTING.md)；安全问题请按 [SECURITY.md](https://github.com/JasonXuDeveloper/Nino/blob/main/.github/SECURITY.md) 私下报告。使用问题和交流讨论欢迎加 QQ 群 [1054653934](https://qm.qq.com/q/Octgj3BS8g)。
 
 ## 许可证
 
