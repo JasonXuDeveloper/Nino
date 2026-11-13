@@ -165,6 +165,9 @@ are in [references/emit-text.md](references/emit-text.md): read it before changi
   a file as ranges of one body string and write them with the file (`GeneratedCode.File`), never a rewrite per
   alias; no variadic concatenation.
 - Find dispatch ID collisions with a seen set; walk raw groups as ranges; reuse the planner's constructor matches.
+- Keep each subtype's `[assembly: NinoTypeLayout]` text whole, its inherited members repeated; never propose writing
+  only its own members plus its base. Why: the owner ruled it out (rc.10: "不是说了不考虑这个吗"); it would change the
+  published layout text every baseline and runtime compares, for about 1.2 MB of source at 1,100 types (#262).
 
 ### Emitting interceptors
 
