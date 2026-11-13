@@ -14,7 +14,8 @@ scripts/sync-benchmarks.ts, reads them by these names; change one only together 
 
   benchmarks-manifest.json         the manifest: {"schema": 1, "tag", "assets": [entry...]}
   dotnet-x64.md, dotnet-arm64.md   the merged BenchmarkDotNet report of every class (merge_reports.py), per architecture
-  dotnet-v3-x64.md                 the merged report of v3 3.3.13's SimpleTest and PolymorphicTest (x64, before v4)
+  dotnet-v3-x64.md                 the merged report of v3 3.3.13's SimpleTest, PolymorphicTest, NullableTest and nullable
+                                   collections (x64, before v4)
   runtime-<lang>-<arch>.md         the Go, Rust or TypeScript section (runtimes_report.py), lang go, rust, typescript
   runtime-go-<arch>.csv            benchstat's CSV the Go section is made from
   runtime-typescript-<arch>.json   tinybench's results the TypeScript section is made from

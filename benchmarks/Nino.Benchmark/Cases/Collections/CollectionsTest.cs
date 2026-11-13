@@ -4,12 +4,15 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
+using Google.Protobuf;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
 using ProtoBuf;
+using P = Nino.Benchmark.Proto;
 
 #nullable disable
 namespace Nino.Benchmark;
@@ -22,7 +25,11 @@ namespace Nino.Benchmark;
 /// holds itself (<see cref="SelfTree"/>, 5,461 lists), which counts the depth at every level: against MemoryPack only
 /// (MessagePack fails to read it back, protobuf-net has no list of lists). And nullable values with every fifth one null
 /// (<c>long?[]</c>, <c>List&lt;int?&gt;</c>, <c>decimal?[]</c>), which Nino writes as a fixed stride with each absent value
-/// zeroed: against MemoryPack only.
+/// zeroed: against every library. MemoryPack writes them as <c>SafeNullable&lt;T&gt;</c> (no uninitialized padding in
+/// its bytes, <see cref="NullableFieldsMemoryPack"/>); protobuf, which has no null in a repeated field, as a message per
+/// element with an optional value (protobuf-net's <c>[NullWrappedValue]</c>, the contracts in CaseFormats.cs, whose
+/// messages Google.Protobuf reads, parsed from protobuf-net's bytes outside the timed region); System.Text.Json source
+/// generated, UTF-8.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -32,7 +39,7 @@ namespace Nino.Benchmark;
 [GcServer(true)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
-public class CollectionsTest
+public class CollectionsTest : IReadBack
 {
     private const int N = 1000;
     private static readonly List<(int, long)> TupleList = Enumerable.Range(0, N).Select(i => (i, (long)i * 31)).ToList();
@@ -96,12 +103,35 @@ public class CollectionsTest
     private static readonly byte[] ProtobufConcurrentDictionaryBytes = ProtobufModel.Serialize(ConcurrentDictionary);
     private static readonly byte[] MemoryPackConcurrentDictionaryBytes = MemoryPackSerializer.Serialize(ConcurrentDictionary);
 
+    // MemoryPack's copies (SafeNullable<T>), and protobuf's contracts holding the same collections (CaseFormats.cs).
+    private static readonly SafeNullable<long>[] MemoryPackNullableLongs = SafeNullables.From(NullableLongs);
+    private static readonly List<SafeNullable<int>> MemoryPackNullableInts = SafeNullables.From(NullableInts);
+    private static readonly SafeNullable<decimal>[] MemoryPackNullableDecimals = SafeNullables.From(NullableDecimals);
+    private static readonly NullableLongList ProtobufNullableLongs = new() { Items = NullableLongs };
+    private static readonly NullableIntList ProtobufNullableInts = new() { Items = NullableInts };
+    private static readonly NullableDecimalList ProtobufNullableDecimals = new() { Items = NullableDecimals };
+
     private static readonly byte[] NinoNullableLongsBytes = NinoSerializer.Serialize(NullableLongs);
-    private static readonly byte[] MemoryPackNullableLongsBytes = MemoryPackSerializer.Serialize(NullableLongs);
+    private static readonly byte[] MemoryPackNullableLongsBytes = MemoryPackSerializer.Serialize(MemoryPackNullableLongs);
+    private static readonly byte[] MessagePackNullableLongsBytes = MessagePackSerializer.Serialize(NullableLongs);
+    private static readonly byte[] ProtobufNullableLongsBytes = ProtobufModel.Serialize(ProtobufNullableLongs);
+    private static readonly P.NullableLongList NullableLongsProto = P.NullableLongList.Parser.ParseFrom(ProtobufNullableLongsBytes);
+    private static readonly byte[] GoogleProtobufNullableLongsBytes = NullableLongsProto.ToByteArray();
+    private static readonly byte[] JsonNullableLongsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableLongs, CaseJson.Default.NullableInt64Array);
     private static readonly byte[] NinoNullableIntsBytes = NinoSerializer.Serialize(NullableInts);
-    private static readonly byte[] MemoryPackNullableIntsBytes = MemoryPackSerializer.Serialize(NullableInts);
+    private static readonly byte[] MemoryPackNullableIntsBytes = MemoryPackSerializer.Serialize(MemoryPackNullableInts);
+    private static readonly byte[] MessagePackNullableIntsBytes = MessagePackSerializer.Serialize(NullableInts);
+    private static readonly byte[] ProtobufNullableIntsBytes = ProtobufModel.Serialize(ProtobufNullableInts);
+    private static readonly P.NullableIntList NullableIntsProto = P.NullableIntList.Parser.ParseFrom(ProtobufNullableIntsBytes);
+    private static readonly byte[] GoogleProtobufNullableIntsBytes = NullableIntsProto.ToByteArray();
+    private static readonly byte[] JsonNullableIntsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableInts, CaseJson.Default.ListNullableInt32);
     private static readonly byte[] NinoNullableDecimalsBytes = NinoSerializer.Serialize(NullableDecimals);
-    private static readonly byte[] MemoryPackNullableDecimalsBytes = MemoryPackSerializer.Serialize(NullableDecimals);
+    private static readonly byte[] MemoryPackNullableDecimalsBytes = MemoryPackSerializer.Serialize(MemoryPackNullableDecimals);
+    private static readonly byte[] MessagePackNullableDecimalsBytes = MessagePackSerializer.Serialize(NullableDecimals);
+    private static readonly byte[] ProtobufNullableDecimalsBytes = ProtobufModel.Serialize(ProtobufNullableDecimals);
+    private static readonly P.NullableDecimalList NullableDecimalsProto = P.NullableDecimalList.Parser.ParseFrom(ProtobufNullableDecimalsBytes);
+    private static readonly byte[] GoogleProtobufNullableDecimalsBytes = NullableDecimalsProto.ToByteArray();
+    private static readonly byte[] JsonNullableDecimalsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableDecimals, CaseJson.Default.NullableDecimalArray);
 
     private static readonly byte[] NinoSelfTreeBytes = NinoSerializer.Serialize(SelfTree);
     private static readonly byte[] MemoryPackSelfTreeBytes = MemoryPackSerializer.Serialize(SelfTree);
@@ -153,23 +183,51 @@ public class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeConcurrentDictionary), ProtobufConcurrentDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableLongs), NinoNullableLongsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableLongs), MemoryPackNullableLongsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeNullableLongs), MessagePackNullableLongsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeNullableLongs), ProtobufNullableLongsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeNullableLongs), GoogleProtobufNullableLongsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableLongs), JsonNullableLongsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableInts), NinoNullableIntsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableInts), MemoryPackNullableIntsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeNullableInts), MessagePackNullableIntsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeNullableInts), ProtobufNullableIntsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeNullableInts), GoogleProtobufNullableIntsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableInts), JsonNullableIntsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableDecimals), NinoNullableDecimalsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableDecimals), MemoryPackNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeNullableDecimals), MessagePackNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeNullableDecimals), ProtobufNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeNullableDecimals), GoogleProtobufNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableDecimals), JsonNullableDecimalsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSelfTree), NinoSelfTreeBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSelfTree), MemoryPackSelfTreeBytes.Length);
     }
 
     private readonly ArrayBufferWriter<byte> _messagePackBuffer = new(1 << 16);
     private readonly MemoryStream _protobufStream = new(1 << 16);
+    private readonly ArrayBufferWriter<byte> _googleProtobufBuffer = new(1 << 16);
+    private ArrayBufferWriter<byte> _jsonBuffer;
+    private Utf8JsonWriter _jsonWriter;
 
     [GlobalSetup]
     public void Setup()
     {
         _ninoBuffer = new NinoArrayBufferWriter(1 << 16);
         _memoryPackBuffer = new ArrayBufferWriter<byte>(1 << 16);
+        ProtoFile.Cases.Check();
+        _jsonBuffer = new ArrayBufferWriter<byte>(1 << 16);
+        // What JsonSerializer's own writers use: no validation of the writer's calls.
+        _jsonWriter = new Utf8JsonWriter(_jsonBuffer, new JsonWriterOptions { SkipValidation = true });
     }
+
+    /// <summary>Verify.cs: MemoryPack's SafeNullable collections and Google.Protobuf's messages as the nullable collections.</summary>
+    public object ReadBack(object result, Type model) => result switch
+    {
+        P.NullableLongList => ((NullableLongList)ProtobufModel.ReadBack(result, typeof(NullableLongList))).Items,
+        P.NullableIntList => ((NullableIntList)ProtobufModel.ReadBack(result, typeof(NullableIntList))).Items,
+        P.NullableDecimalList => ((NullableDecimalList)ProtobufModel.ReadBack(result, typeof(NullableDecimalList))).Items,
+        _ => SafeNullables.ReadBack(result),
+    };
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableLongsSerialize")]
     public int NinoSerializeNullableLongs()
@@ -183,15 +241,66 @@ public class CollectionsTest
     public int MemoryPackSerializeNullableLongs()
     {
         _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableLongs);
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, MemoryPackNullableLongs);
         return _memoryPackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableLongsSerialize")]
+    public int MessagePackSerializeNullableLongs()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, NullableLongs);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableLongsSerialize")]
+    public int ProtobufSerializeNullableLongs()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ProtobufNullableLongs);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableLongsSerialize")]
+    public int GoogleProtobufSerializeNullableLongs()
+    {
+        _googleProtobufBuffer.ResetWrittenCount();
+        NullableLongsProto.WriteTo(_googleProtobufBuffer);
+        return _googleProtobufBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableLongsSerialize")]
+    public int JsonSerializeNullableLongs()
+    {
+        _jsonBuffer.ResetWrittenCount();
+        _jsonWriter.Reset(_jsonBuffer);
+        JsonSerializer.Serialize(_jsonWriter, NullableLongs, CaseJson.Default.NullableInt64Array);
+        return _jsonBuffer.WrittenCount;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableLongsDeserialize")]
-    public long?[] NinoDeserializeNullableLongs() => NinoDeserializer.Deserialize<long?[]>(NinoNullableLongsBytes);
+    public long?[] NinoDeserializeNullableLongs() =>
+        NinoDeserializer.Deserialize<long?[]>(NinoNullableLongsBytes);
 
     [Benchmark, BenchmarkCategory("NullableLongsDeserialize")]
-    public long?[] MemoryPackDeserializeNullableLongs() => MemoryPackSerializer.Deserialize<long?[]>(MemoryPackNullableLongsBytes);
+    public SafeNullable<long>[] MemoryPackDeserializeNullableLongs() =>
+        MemoryPackSerializer.Deserialize<SafeNullable<long>[]>(MemoryPackNullableLongsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableLongsDeserialize")]
+    public long?[] MessagePackDeserializeNullableLongs() =>
+        MessagePackSerializer.Deserialize<long?[]>(MessagePackNullableLongsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableLongsDeserialize")]
+    public long?[] ProtobufDeserializeNullableLongs() =>
+        Serializer.Deserialize<NullableLongList>(new ReadOnlySpan<byte>(ProtobufNullableLongsBytes)).Items;
+
+    [Benchmark, BenchmarkCategory("NullableLongsDeserialize")]
+    public P.NullableLongList GoogleProtobufDeserializeNullableLongs() =>
+        P.NullableLongList.Parser.ParseFrom(new ReadOnlySpan<byte>(GoogleProtobufNullableLongsBytes));
+
+    [Benchmark, BenchmarkCategory("NullableLongsDeserialize")]
+    public long?[] JsonDeserializeNullableLongs() =>
+        JsonSerializer.Deserialize(JsonNullableLongsBytes, CaseJson.Default.NullableInt64Array);
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableIntsSerialize")]
     public int NinoSerializeNullableInts()
@@ -205,15 +314,66 @@ public class CollectionsTest
     public int MemoryPackSerializeNullableInts()
     {
         _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableInts);
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, MemoryPackNullableInts);
         return _memoryPackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableIntsSerialize")]
+    public int MessagePackSerializeNullableInts()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, NullableInts);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableIntsSerialize")]
+    public int ProtobufSerializeNullableInts()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ProtobufNullableInts);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableIntsSerialize")]
+    public int GoogleProtobufSerializeNullableInts()
+    {
+        _googleProtobufBuffer.ResetWrittenCount();
+        NullableIntsProto.WriteTo(_googleProtobufBuffer);
+        return _googleProtobufBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableIntsSerialize")]
+    public int JsonSerializeNullableInts()
+    {
+        _jsonBuffer.ResetWrittenCount();
+        _jsonWriter.Reset(_jsonBuffer);
+        JsonSerializer.Serialize(_jsonWriter, NullableInts, CaseJson.Default.ListNullableInt32);
+        return _jsonBuffer.WrittenCount;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableIntsDeserialize")]
-    public List<int?> NinoDeserializeNullableInts() => NinoDeserializer.Deserialize<List<int?>>(NinoNullableIntsBytes);
+    public List<int?> NinoDeserializeNullableInts() =>
+        NinoDeserializer.Deserialize<List<int?>>(NinoNullableIntsBytes);
 
     [Benchmark, BenchmarkCategory("NullableIntsDeserialize")]
-    public List<int?> MemoryPackDeserializeNullableInts() => MemoryPackSerializer.Deserialize<List<int?>>(MemoryPackNullableIntsBytes);
+    public List<SafeNullable<int>> MemoryPackDeserializeNullableInts() =>
+        MemoryPackSerializer.Deserialize<List<SafeNullable<int>>>(MemoryPackNullableIntsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableIntsDeserialize")]
+    public List<int?> MessagePackDeserializeNullableInts() =>
+        MessagePackSerializer.Deserialize<List<int?>>(MessagePackNullableIntsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableIntsDeserialize")]
+    public List<int?> ProtobufDeserializeNullableInts() =>
+        Serializer.Deserialize<NullableIntList>(new ReadOnlySpan<byte>(ProtobufNullableIntsBytes)).Items;
+
+    [Benchmark, BenchmarkCategory("NullableIntsDeserialize")]
+    public P.NullableIntList GoogleProtobufDeserializeNullableInts() =>
+        P.NullableIntList.Parser.ParseFrom(new ReadOnlySpan<byte>(GoogleProtobufNullableIntsBytes));
+
+    [Benchmark, BenchmarkCategory("NullableIntsDeserialize")]
+    public List<int?> JsonDeserializeNullableInts() =>
+        JsonSerializer.Deserialize(JsonNullableIntsBytes, CaseJson.Default.ListNullableInt32);
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableDecimalsSerialize")]
     public int NinoSerializeNullableDecimals()
@@ -227,15 +387,66 @@ public class CollectionsTest
     public int MemoryPackSerializeNullableDecimals()
     {
         _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableDecimals);
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, MemoryPackNullableDecimals);
         return _memoryPackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableDecimalsSerialize")]
+    public int MessagePackSerializeNullableDecimals()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, NullableDecimals);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsSerialize")]
+    public int ProtobufSerializeNullableDecimals()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ProtobufNullableDecimals);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsSerialize")]
+    public int GoogleProtobufSerializeNullableDecimals()
+    {
+        _googleProtobufBuffer.ResetWrittenCount();
+        NullableDecimalsProto.WriteTo(_googleProtobufBuffer);
+        return _googleProtobufBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsSerialize")]
+    public int JsonSerializeNullableDecimals()
+    {
+        _jsonBuffer.ResetWrittenCount();
+        _jsonWriter.Reset(_jsonBuffer);
+        JsonSerializer.Serialize(_jsonWriter, NullableDecimals, CaseJson.Default.NullableDecimalArray);
+        return _jsonBuffer.WrittenCount;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableDecimalsDeserialize")]
-    public decimal?[] NinoDeserializeNullableDecimals() => NinoDeserializer.Deserialize<decimal?[]>(NinoNullableDecimalsBytes);
+    public decimal?[] NinoDeserializeNullableDecimals() =>
+        NinoDeserializer.Deserialize<decimal?[]>(NinoNullableDecimalsBytes);
 
     [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
-    public decimal?[] MemoryPackDeserializeNullableDecimals() => MemoryPackSerializer.Deserialize<decimal?[]>(MemoryPackNullableDecimalsBytes);
+    public SafeNullable<decimal>[] MemoryPackDeserializeNullableDecimals() =>
+        MemoryPackSerializer.Deserialize<SafeNullable<decimal>[]>(MemoryPackNullableDecimalsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
+    public decimal?[] MessagePackDeserializeNullableDecimals() =>
+        MessagePackSerializer.Deserialize<decimal?[]>(MessagePackNullableDecimalsBytes);
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
+    public decimal?[] ProtobufDeserializeNullableDecimals() =>
+        Serializer.Deserialize<NullableDecimalList>(new ReadOnlySpan<byte>(ProtobufNullableDecimalsBytes)).Items;
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
+    public P.NullableDecimalList GoogleProtobufDeserializeNullableDecimals() =>
+        P.NullableDecimalList.Parser.ParseFrom(new ReadOnlySpan<byte>(GoogleProtobufNullableDecimalsBytes));
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
+    public decimal?[] JsonDeserializeNullableDecimals() =>
+        JsonSerializer.Deserialize(JsonNullableDecimalsBytes, CaseJson.Default.NullableDecimalArray);
 
     [Benchmark(Baseline = true), BenchmarkCategory("TupleListSerialize")]
     public int NinoSerializeTupleList()

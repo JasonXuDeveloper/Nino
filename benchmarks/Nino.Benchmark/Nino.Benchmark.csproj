@@ -46,13 +46,13 @@
         <EmbeddedResource Include="Fixtures/cases.proto" LogicalName="cases.proto"/>
     </ItemGroup>
 
-    <!-- The v3 run (NINO_BENCH_V3=true, Directory.Build.props): Nino 3.3.13 from nuget.org and the same SimpleTest
-         and PolymorphicTest ported to its API (V3/), with this project's data, job, columns and checks; the two runs differ
+    <!-- The v3 run (NINO_BENCH_V3=true, Directory.Build.props): Nino 3.3.13 from nuget.org and the same SimpleTest,
+         PolymorphicTest, NullableTest and CollectionsTest's nullable collections ported to its API (V3/), with this project's data, job, columns and checks; the two runs differ
          only in the library they call. One project for both, so BenchmarkDotNet finds one Nino.Benchmark.csproj. -->
     <ItemGroup Condition="'$(NinoBenchV3)' == 'true'">
         <PackageReference Include="Nino" VersionOverride="3.3.13"/>
         <Compile Remove="**/*.cs"/>
-        <Compile Include="Program.cs;Harness/Verify.cs;Harness/PayloadColumn.cs;Harness/NinoJobAttribute.cs;Fixtures/SimpleBenchmarkData.cs;Fixtures/PolymorphicBenchmarkData.cs;V3/SimpleTest.cs;V3/PolymorphicTest.cs"/>
+        <Compile Include="Program.cs;Harness/Verify.cs;Harness/PayloadColumn.cs;Harness/NinoJobAttribute.cs;Fixtures/SimpleBenchmarkData.cs;Fixtures/PolymorphicBenchmarkData.cs;Fixtures/NullableBenchmarkData.cs;V3/SimpleTest.cs;V3/PolymorphicTest.cs;V3/NullableTest.cs;V3/CollectionsTest.cs"/>
     </ItemGroup>
 
     <ItemGroup>

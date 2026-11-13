@@ -1,5 +1,5 @@
 {
-  "classes": ["SimpleTest", "PolymorphicTest", "GenericPolymorphicTest", "PooledTest", "PooledGraphTest", "ReferenceTest", "VersionTolerantTest", "FixedSizeTest", "CommonTypesTest", "CollectionsTest", "BclTypesTest", "ScatteredTest", "UntrustedTest", "ExternalBufferTest", "WorkloadTest"],
+  "classes": ["SimpleTest", "PolymorphicTest", "GenericPolymorphicTest", "PooledTest", "PooledGraphTest", "ReferenceTest", "VersionTolerantTest", "FixedSizeTest", "CommonTypesTest", "CollectionsTest", "BclTypesTest", "ScatteredTest", "UntrustedTest", "ExternalBufferTest", "NullableTest", "WorkloadTest"],
   "report": [
     {"id": "a", "filters": ["*.SimpleTest.NinoSerialize*", "*.SimpleTest.MemoryPackSerialize*", "*.SimpleTest.MessagePackSerialize*", "*.SimpleTest.ProtobufSerialize*", "*.SimpleTest.GoogleProtobufSerialize*", "*.SimpleTest.JsonSerialize*", "*.PooledTest.*", "*.ReferenceTest.*", "*.ScatteredTest.*ScatteredItems*"], "v3": ["*SimpleTest.NinoSerialize*", "*SimpleTest.MemoryPackSerialize*"]},
     {"id": "h", "filters": ["*.SimpleTest.NinoDeserialize*", "*.SimpleTest.MemoryPackDeserialize*", "*.SimpleTest.MessagePackDeserialize*", "*.SimpleTest.ProtobufDeserialize*", "*.SimpleTest.GoogleProtobufDeserialize*", "*.SimpleTest.JsonDeserialize*", "*.VersionTolerantTest.*"], "v3": ["*SimpleTest.NinoDeserialize*", "*SimpleTest.MemoryPackDeserialize*"]},
@@ -10,11 +10,12 @@
     {"id": "f", "filters": ["*.BclTypesTest.*ImmutableHashSet", "*.BclTypesTest.*ImmutableSortedSet", "*.BclTypesTest.*ImmutableQueue", "*.BclTypesTest.*ImmutableStack", "*.BclTypesTest.*ImmutableDictionary", "*.BclTypesTest.*BlockingCollection"]},
     {"id": "g", "filters": ["*.BclTypesTest.*ImmutableSortedDictionary", "*.BclTypesTest.*Uri", "*.BclTypesTest.*Version", "*.BclTypesTest.*StringBuilder", "*.BclTypesTest.*Lazy", "*.BclTypesTest.*Memory", "*.BclTypesTest.*ReadOnlySequence"]},
     {"id": "i", "filters": ["*.BclTypesTest.*ReadOnlyCollection", "*.BclTypesTest.*InterfaceStrings", "*.BclTypesTest.*Lookup", "*.CollectionsTest.*TupleList", "*.CollectionsTest.*KeyValuePairs", "*.CollectionsTest.*HashSet", "*.CollectionsTest.*IntDictionary", "*.CollectionsTest.*Queue"]},
-    {"id": "j", "filters": ["*.CollectionsTest.*LinkedList", "*.CollectionsTest.*SortedSet", "*.CollectionsTest.*SortedDictionary", "*.CollectionsTest.*SortedList", "*.CollectionsTest.*ConcurrentDictionary", "*.CollectionsTest.*SelfTree", "*.CollectionsTest.*Nullable*"]},
+    {"id": "j", "filters": ["*.CollectionsTest.*LinkedList", "*.CollectionsTest.*SortedSet", "*.CollectionsTest.*SortedDictionary", "*.CollectionsTest.*SortedList", "*.CollectionsTest.*ConcurrentDictionary", "*.CollectionsTest.*SelfTree", "*.CollectionsTest.*NullableDecimals"], "v3": ["*.CollectionsTest.Nino*NullableDecimals", "*.CollectionsTest.MemoryPack*NullableDecimals"]},
     {"id": "k", "filters": ["*.WorkloadTest.*MediaContent", "*.WorkloadTest.*StackOverflowPage", "*.WorkloadTest.*ProfileCache"]},
     {"id": "l", "filters": ["*.WorkloadTest.*EventStream", "*.WorkloadTest.*LogBatch", "*.WorkloadTest.*StateSnapshot"]},
     {"id": "m", "filters": ["*.WorkloadTest.*LockstepFrames", "*.WorkloadTest.*AoiUpdate", "*.WorkloadTest.*WorldRegion"]},
-    {"id": "n", "filters": ["*.WorkloadTest.*CardBattleLog", "*.WorkloadTest.*IdleSave"]}
+    {"id": "n", "filters": ["*.WorkloadTest.*CardBattleLog", "*.WorkloadTest.*IdleSave"]},
+    {"id": "o", "filters": ["*.NullableTest.*", "*.CollectionsTest.*NullableLongs", "*.CollectionsTest.*NullableInts"], "v3": ["*.NullableTest.Nino*", "*.NullableTest.MemoryPack*", "*.CollectionsTest.Nino*NullableLongs", "*.CollectionsTest.MemoryPack*NullableLongs", "*.CollectionsTest.Nino*NullableInts", "*.CollectionsTest.MemoryPack*NullableInts"]}
   ],
   "ab": [
     {"id": "a", "filters": ["*.SimpleTest.Nino*", "*.SimpleTest.MemoryPack*", "*.PooledTest.Nino*", "*.PooledTest.MemoryPack*"]},

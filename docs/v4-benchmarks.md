@@ -4,7 +4,7 @@ Why v4: what it costs to build a project that uses Nino, and how fast serializat
 v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.22.0.
 
 Every table here is the newest release's: its CI run (`report.yml`) benchmarks v4 against MemoryPack, each case's
-Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest` and `PolymorphicTest` runners), and v3 3.3.13's source generator
+Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest`, `PolymorphicTest` and nullable runners), and v3 3.3.13's source generator
 against the release's on one more runner, puts the reports in the release notes, and writes these tables from them
 (`benchmarks/reports/readme.py`), as it does for the README and the documentation site. Generated code sizes do not
 depend on the machine; absolute times vary between machines, and the ratios are what to look at.
@@ -57,12 +57,12 @@ about linearly.
 
 `benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
 GC), every benchmark class, v4 and MemoryPack 1.22.0 side by side, with MessagePack 3.1.12 and protobuf-net
-3.4.40 wherever they can write the same data, and in `SimpleTest`, `PolymorphicTest` and `WorkloadTest` Google.Protobuf
-3.36.2 and System.Text.Json (.NET 10): the release run spreads the classes over twelve runners per architecture
+3.4.40 wherever they can write the same data, and in `SimpleTest`, `PolymorphicTest`, `NullableTest`, `CollectionsTest`'s nullable
+collections and `WorkloadTest` Google.Protobuf 3.36.2 and System.Text.Json (.NET 10): the release run spreads the classes over twelve runners per architecture
 and keeps every serializer's run of a case on one. v3 is Nino 3.3.13 from nuget.org, running a port of
-the same `SimpleTest` (same data, same attributes), each half (serialize, deserialize) on the runner of the same v4 cases
-directly before them; it has no
-polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks.
+the same `SimpleTest`, `PolymorphicTest`, `NullableTest` and nullable collections (same data, same attributes), each on
+the runner of the same v4 cases directly before them; it has no pooling, reference, version-tolerant or fixed-size
+benchmarks.
 These tables come from <!--bench:doc.source-->a local `benchmarks/run.sh` run: BenchmarkDotNet 0.15.8, .NET 10.0.14, Intel Xeon 6973P-C 3.54 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
 
 Differences under 5% are reported as on par: MemoryPack runs in both sessions, and its two times show how much the
@@ -390,22 +390,26 @@ dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*Referenc
 
 The suite has twelve classes, all against MemoryPack 1.22.0, and against MessagePack and protobuf-net wherever they
 can write the same data ([benchmarks/README.md](../benchmarks/README.md#messagepack-and-protobuf-net) lists the cases
-they cannot; `SimpleTest`, `PolymorphicTest` and `WorkloadTest` also against Google.Protobuf and System.Text.Json): `SimpleTest`, `PolymorphicTest`, `GenericPolymorphicTest` (subtypes through a
+they cannot; `SimpleTest`, `PolymorphicTest`, `NullableTest`, `CollectionsTest`'s nullable collections and `WorkloadTest`
+also against Google.Protobuf and System.Text.Json): `SimpleTest`, `PolymorphicTest`, `NullableTest` (a class of eight
+nullable members, half of them null, one and 100; MemoryPack through `SafeNullable<T>`), `GenericPolymorphicTest` (subtypes through a
 non-generic base and through closed instances of a generic base, whose union MemoryPack registers at runtime), `PooledTest` and `PooledGraphTest` (reuse and
 pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`
 against MemoryPack's `GenerateType.VersionTolerant`, one and 100) and `FixedSizeTest` (types of fixed size serialized
 to a `byte[]` of exactly that size: an unmanaged struct, a sealed class of the same members and an array of 100 of
 them), `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary), `CollectionsTest`
-(collections of the base class library), `BclTypesTest` (other base class library types and the immutable
+(collections of the base class library, and `long?[]`, `List<int?>` and `decimal?[]` with every fifth value null), `BclTypesTest` (other base class library types and the immutable
 collections) and `ScatteredTest` (arrays of a million objects whose order in the array is not their order in memory,
 which every other class's data, allocated in order and in the cache, never shows).
 [benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from the v3 build of [`benchmarks/Nino.Benchmark`](../benchmarks/Nino.Benchmark)
-(`NINO_BENCH_V3=true`, [`V3/SimpleTest.cs`](../benchmarks/Nino.Benchmark/V3/SimpleTest.cs) and
-[`V3/PolymorphicTest.cs`](../benchmarks/Nino.Benchmark/V3/PolymorphicTest.cs)), the same `SimpleTest` and
-`PolymorphicTest` built against the `Nino` 3.3.13 package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
+(`NINO_BENCH_V3=true`, [`V3/SimpleTest.cs`](../benchmarks/Nino.Benchmark/V3/SimpleTest.cs),
+[`V3/PolymorphicTest.cs`](../benchmarks/Nino.Benchmark/V3/PolymorphicTest.cs),
+[`V3/NullableTest.cs`](../benchmarks/Nino.Benchmark/V3/NullableTest.cs) and
+[`V3/CollectionsTest.cs`](../benchmarks/Nino.Benchmark/V3/CollectionsTest.cs)), the same `SimpleTest`, `PolymorphicTest`,
+`NullableTest` and nullable collections built against the `Nino` 3.3.13 package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
 suite) and prints v4 against v3. The release workflow runs the same protocol for every release and publishes the
 result in the release notes ("v3 3.3.13 vs v4 (same machine)"), where the documentation site and these tables take
 their v3 ratios from.

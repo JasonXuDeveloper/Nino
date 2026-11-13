@@ -2,18 +2,18 @@
 
 `benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
 protobuf-net).
-`V3/` is the same `SimpleTest` and `PolymorphicTest` (same data, same attributes) built against **Nino 3.3.13 from
-nuget.org**, the last v3 release, so v4 can be compared with v3 on the same machine; it compiles v4's
-`NinoJobAttribute.cs`, `SimpleBenchmarkData.cs` and `PolymorphicBenchmarkData.cs`, so the job and the data cannot
-drift apart. It is not part of `Nino.slnx`.
+`V3/` is the same `SimpleTest`, `PolymorphicTest`, `NullableTest` and `CollectionsTest`'s nullable collections (same
+data, same attributes) built against **Nino 3.3.13 from nuget.org**, the last v3 release, so v4 can be compared with
+v3 on the same machine; it compiles v4's `NinoJobAttribute.cs`, `SimpleBenchmarkData.cs`, `PolymorphicBenchmarkData.cs`
+and `NullableBenchmarkData.cs`, so the job and the data cannot drift apart. It is not part of `Nino.slnx`.
 
 ```sh
 benchmarks/run.sh                          # v3, then the full v4 suite; about six hours
 benchmarks/run.sh /path/to/out             # write the results somewhere else
 QUICK=1 benchmarks/run.sh                  # development run, about 30 to 45 minutes (see below)
-FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest's and PolymorphicTest's Nino and MemoryPack cases)
+FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs all of its Nino and MemoryPack cases)
 FILTER='*Vectors* *FixedStruct*' benchmarks/run.sh   # several patterns, separated by spaces
-FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (231 of 413 cases)
+FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (321 of 680 cases)
 ```
 
 `QUICK=1` is for trends and regressions while developing: it sets `NINO_BENCH_QUICK=1`, which switches every class's
@@ -24,8 +24,8 @@ and the release notes use the full protocol, which is what supports "x× faster"
 Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
 reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `benchmarks/Nino.Benchmark`: built with
 `NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
-references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs` and `V3/PolymorphicTest.cs` (the same
-classes, ported to v3's API) with the shared data, job, columns and checks, and goes to `bin/v3` and `obj/v3`.
+references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs`, `V3/PolymorphicTest.cs`, `V3/NullableTest.cs` and
+`V3/CollectionsTest.cs` (the same classes, the last with its nullable collections only, ported to v3's API) with the shared data, job, columns and checks, and goes to `bin/v3` and `obj/v3`.
 `--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
 `ci.yml`'s integrations job on x64 and its Arm64 runtime-internals job) checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
@@ -52,7 +52,8 @@ one-line summary, the chart and links to the assets; README, docs and the docume
 BenchmarkDotNet writes a report of one class without a Type column: `merge_reports.py` then takes the class
 from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.
 Each of the two `SimpleTest` runners builds the v3 project and runs its half of `SimpleTest` directly before the same
-half of v4, and the `PolymorphicTest` runner its `PolymorphicTest` the same way, with the same settings; the v3
+half of v4, the `PolymorphicTest` runner its `PolymorphicTest` the same way, and the runners of `NullableTest` and the
+nullable collections theirs, with the same settings; the v3
 report, every runner's merged, is attached as `dotnet-v3-x64.md`, and the release notes put v3 in the x64 chart,
 between v4 and the other libraries (n/a where v3 does not run). The
 documentation site takes its v4-vs-v3 ratios from that report and `dotnet-x64.md` of the newest v4 release. A v3
@@ -108,14 +109,15 @@ The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `releas
 
 `benchmarks/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
 MemoryPack, and with MessagePack and protobuf-net wherever they can write the same data (see
-[MessagePack and protobuf-net](#messagepack-and-protobuf-net)); `SimpleTest`, `PolymorphicTest` and `WorkloadTest`
-also with Google.Protobuf and System.Text.Json (see [Google.Protobuf and System.Text.Json](#googleprotobuf-and-systemtextjson)). All of them land in one joined table, which each release
+[MessagePack and protobuf-net](#messagepack-and-protobuf-net)); `SimpleTest`, `PolymorphicTest`, `NullableTest`,
+`CollectionsTest`'s nullable collections and `WorkloadTest` also with Google.Protobuf and System.Text.Json (see [Google.Protobuf and System.Text.Json](#googleprotobuf-and-systemtextjson)). All of them land in one joined table, which each release
 attaches as `dotnet-x64.md` (and `dotnet-arm64.md`).
 
 | Class | What it measures |
 |---|---|
 | `SimpleTest` | `SimpleClass`, `SimpleClass[100]`, `SimpleStruct`, `SimpleStruct[100]`, `Vector4[10000]`: serialize to a reused buffer writer, deserialize new instances (`SimpleClassSerialize`, ..., `VectorsDeserialize`), against every library |
 | `PolymorphicTest` | Polymorphic class, polymorphic class array, polymorphic `Foo[]` (`PolymorphicClassSerialize`, ...), against every library |
+| `NullableTest` | `NullableFields`, a class of eight nullable members (`int?`, `long?`, `double?`, `bool?`, `DateTime?`, `Guid?`, `decimal?`, an enum), half of them null, alone and as `NullableFields[100]` whose objects alternate which half is null (`NullableClassSerialize`, `NullableClassesSerialize` and the `Deserialize` ones), against every library (see [Nullable values](#nullable-values)) |
 | `PooledTest` | `SimpleClass`'s members pooled with `[NinoPooled]`, against MemoryPack's overwrite (`PooledDeserialize`) |
 | `PooledGraphTest` | Pooled node and leaves: new, reused in place, pooled elements, against MemoryPack's overwrite (`Plain`, `Node`, `Leaves`) |
 | `ReferenceTest` | A 200-node graph with shared tags, shared peers and cycles: `[NinoType(trackReferences: true)]` against MemoryPack's `GenerateType.CircularReference` (`GraphSerialize`, `GraphDeserialize`) |
@@ -123,7 +125,7 @@ attaches as `dotnet-x64.md` (and `dotnet-arm64.md`).
 | `FixedSizeTest` | Types of fixed size (`NinoSerializer.GetFixedSize<T>()` is not -1), serialized to a new `byte[]` of exactly that size: a 40-byte unmanaged struct, a sealed class of the same members, and an array of 100 of the classes (`FixedStructSerialize`, `FixedClassSerialize`, `FixedClassesSerialize` and the `Deserialize` ones) |
 | `WorkloadTest` | 12 payloads shaped like real workloads (`Workloads/`), to a reused buffer and back, against MemoryPack, MessagePack, protobuf-net, Google.Protobuf and System.Text.Json: jvm-serializers' `MediaContent`, a Stack Exchange API page of 20 questions (the models of Jil's and MessagePack-CSharp's benchmarks), an RPC call with an interface result, a profile cached by the previous version (Nino keyed, MemoryPack version tolerant), an event store page (two-level hierarchies in generic envelopes), 1,000 log events, a state-sync snapshot read into the client's copy, 10 lockstep frames of 8 players, an MMO AOI update, an SLG map region and a card battle replay that share objects (Nino and MemoryPack references, JSON `Preserve`, copies elsewhere), and an idle save of the previous version read in place (`MediaContentSerialize`, ..., `IdleSaveSerialize` and the `Deserialize` ones; docs/v4-benchmarks.md has the table). The README's, the docs site's and the release notes' headline numbers come from it |
 | `CommonTypesTest` | Common type shapes (`CommonTypes.cs`), to a reused buffer writer and into new instances: a `TreeNode` tree (1,365 nodes), `InventoryItem[1000]` (a padded struct), `Waypoint[1000]` (a struct of fixed size that is not raw: a value tuple member) and `Dictionary<string, string>` (1,000) (`TreeSerialize`, `InventorySerialize`, `WaypointsSerialize`, `StringDictionarySerialize` and the `Deserialize` ones) |
-| `CollectionsTest` | Collections of the base class library, 1,000 elements each, to a reused buffer writer and into new instances: `List<(int, long)>`, `KeyValuePair<int, int>[]`, `HashSet<int>`, `Dictionary<int, int>`, `Queue<int>`, `LinkedList<int>`, `SortedSet<int>`, `SortedDictionary<int, int>`, `SortedList<int, int>` and `ConcurrentDictionary<int, int>` (`TupleListSerialize`, `KeyValuePairsSerialize`, `HashSetSerialize`, `IntDictionarySerialize`, `QueueSerialize`, `LinkedListSerialize`, `SortedSetSerialize`, `SortedDictionarySerialize`, `SortedListSerialize`, `ConcurrentDictionarySerialize` and the `Deserialize` ones); `SelfTree`, a class derived from `List<SelfTree>` nested 6 deep, 4 wide (5,461 lists, each level counted; Nino and MemoryPack: `SelfTreeSerialize`, `SelfTreeDeserialize`); and `long?[]`, `List<int?>` and `decimal?[]` with every fifth value null, the raw nullable strides (Nino and MemoryPack: `NullableLongsSerialize`, `NullableIntsSerialize`, `NullableDecimalsSerialize` and the `Deserialize` ones) |
+| `CollectionsTest` | Collections of the base class library, 1,000 elements each, to a reused buffer writer and into new instances: `List<(int, long)>`, `KeyValuePair<int, int>[]`, `HashSet<int>`, `Dictionary<int, int>`, `Queue<int>`, `LinkedList<int>`, `SortedSet<int>`, `SortedDictionary<int, int>`, `SortedList<int, int>` and `ConcurrentDictionary<int, int>` (`TupleListSerialize`, `KeyValuePairsSerialize`, `HashSetSerialize`, `IntDictionarySerialize`, `QueueSerialize`, `LinkedListSerialize`, `SortedSetSerialize`, `SortedDictionarySerialize`, `SortedListSerialize`, `ConcurrentDictionarySerialize` and the `Deserialize` ones); `SelfTree`, a class derived from `List<SelfTree>` nested 6 deep, 4 wide (5,461 lists, each level counted; Nino and MemoryPack: `SelfTreeSerialize`, `SelfTreeDeserialize`); and `long?[]`, `List<int?>` and `decimal?[]` with every fifth value null, the raw nullable strides (against every library, see [Nullable values](#nullable-values): `NullableLongsSerialize`, `NullableIntsSerialize`, `NullableDecimalsSerialize` and the `Deserialize` ones) |
 | `BclTypesTest` | Base class library types beyond the common collections, to a reused buffer writer and into new instances: `BigInteger` (3^1000), `Uri`, `Version`, `StringBuilder` (1,000 chars), `BitArray` (1,000 bits), `CultureInfo`, `TimeZoneInfo`, `Lazy<string>`, and with 1,000 elements `Memory<int>`, `ReadOnlySequence<int>`, `ReadOnlyCollection<int>`, `IReadOnlyList<string>` (a `ReadOnlyCollection<string>`: elements written one by one behind an interface, `InterfaceStrings`), `ILookup<int, int>`, `BlockingCollection<int>` and the immutable collections of Nino.Immutable (`ImmutableHashSet`, `ImmutableSortedSet`, `ImmutableQueue`, `ImmutableStack`, `ImmutableDictionary`, `ImmutableSortedDictionary`) (`BigIntegerSerialize`, ..., `ImmutableSortedDictionarySerialize` and the `Deserialize` ones). Nino only for `BigInteger`: MemoryPack (1.22.0 too) reads back another `BigInteger` than it wrote (up to 255 bytes); `BitArray` against MemoryPack since 1.22.0, which fixed its .NET 10 crash |
 | `ScatteredTest` | Arrays of 1,000,000 objects whose order in the array is not their order in memory (shuffled after allocation), as objects created and replaced over a program's life are: `Shape[]` through the abstract base and `ScatteredItem[]` (an int, a string allocated in an order of its own, a long) to a reused buffer writer, the items read into an existing shuffled array; the same shapes in allocation order, and 8,192 of them in order, which stay in the cache (`ScatteredShapesSerialize`, `InOrderShapesSerialize`, `HotShapesSerialize`, `ScatteredItemsSerialize`, `ScatteredItemsDeserializeInto`). Every other class allocates its objects in order and fits in the cache |
 | `ExternalBufferTest` | The caller's buffers: `int[1000]`, `Memory<int>` of 1,000 and `SimpleClass[100]` written to an `ArrayBufferWriter<byte>` (reset per operation), which Nino fills through its external-writer paths (raw blocks straight into the writer's span, other values through its scratch buffer), and an `int[1000]` read from a `ReadOnlySequence<byte>` of three segments, which Nino copies into one span first (`ExternalIntsSerialize`, `ExternalMemorySerialize`, `ExternalClassesSerialize`, `SegmentedIntsDeserialize`). Every serializer writes to the same writer and reads the same segments, protobuf-net through its `IBufferWriter<byte>` and `ReadOnlySequence<byte>` APIs |
@@ -131,8 +133,8 @@ attaches as `dotnet-x64.md` (and `dotnet-arm64.md`).
 
 Method names are unique across classes (`<Serializer><Serialize|Deserialize><Case>`, e.g. `NinoSerializeTolerantClass`,
 `MemoryPackDeserializeGraph`, `ProtobufSerializeStackOverflowPage`; the serializers are `Nino`, `MemoryPack`, `MessagePack`,
-`Protobuf` (protobuf-net), `GoogleProtobuf` and `Json` (System.Text.Json), the last two in `SimpleTest`, `PolymorphicTest`
-and `WorkloadTest`): the documentation site and the `Payload` column key rows by method name
+`Protobuf` (protobuf-net), `GoogleProtobuf` and `Json` (System.Text.Json), the last two in `SimpleTest`, `PolymorphicTest`,
+`NullableTest`, `CollectionsTest`'s nullable collections and `WorkloadTest`): the documentation site and the `Payload` column key rows by method name
 alone.
 
 ### MessagePack and protobuf-net
@@ -189,14 +191,35 @@ dotnet run -c Release -- --filter '*CopyProbe*' '*NewArrayCopyProbe*'   # x64
 dotnet run -c Release -- --filter '*Copy128Probe*'                      # Arm64
 ```
 
+### Nullable values
+
+`NullableTest` and `CollectionsTest`'s `long?[]`, `List<int?>` and `decimal?[]` (every fifth value null) compare every
+library on the same nullable values, each through the representation its users write for them:
+
+- MemoryPack writes `SafeNullable<T>` (`NullableFieldsMemoryPack`, `SafeNullables` in `Fixtures/NullableBenchmarkData.cs`;
+  the owner's choice): its plain `Nullable<T>` of an unmanaged `T` is the value's memory layout (bool, padding, value)
+  with the padding left uninitialized, so one value can give different bytes with leftover memory in them; SafeNullable
+  writes (hasValue as a `T`, value), with no padding, like Nino's canonical bytes. Its data is copied to SafeNullable
+  outside the timed region, and `--verify` turns its results back (`IReadBack`).
+- MessagePack and System.Text.Json write null natively (nil, `null`).
+- Protobuf has no null in a repeated field (protobuf-net throws on one), so protobuf-net writes the collections through
+  contracts (`NullableLongList`, `NullableIntList`, `NullableDecimalList` in `Fixtures/CaseFormats.cs`) whose elements
+  are `[NullWrappedValue]`: a message per element with an optional value, empty for null, protobuf-net's documented way;
+  the protobuf-net cases serialize the contract around the same collection and return its `Items`. `NullableFields`'s
+  scalars are `[NullWrappedValue]` too, which at `CompatibilityLevel.Level300` is `google.protobuf.Int32Value` and its
+  siblings (Google.Protobuf reads them as `int?`, ...), `DateTime?` a `google.protobuf.Timestamp` (UTC), `Guid?` and
+  `decimal?` strings (absent is null), and the enum keeps zero for proto3's "unspecified", which the data never uses
+  (a proto3 enum has no presence). Google.Protobuf reads and writes the messages `cases.proto` has for them.
+- v3 3.3.13 runs the Nino and MemoryPack cases of both (`V3/NullableTest.cs`, `V3/CollectionsTest.cs`).
+
 ### Google.Protobuf and System.Text.Json
 
-`SimpleTest`, `PolymorphicTest` and `WorkloadTest` also measure the two serializers most .NET services use by
-default, in every case of those classes:
+`SimpleTest`, `PolymorphicTest`, `NullableTest` and `WorkloadTest` also measure the two serializers most .NET services
+use by default, in every case of those classes, and in `CollectionsTest`'s nullable collections:
 
 - Google.Protobuf 3 writes and reads its own generated messages, as its users do, compiled at build time by the
-  protoc of Grpc.Tools: `Workloads/workloads.proto` for the workloads, `Fixtures/cases.proto` for `SimpleTest` and
-  `PolymorphicTest`. Each file is what protobuf-net's contracts of the models generate (`RuntimeTypeModel.GetSchema`,
+  protoc of Grpc.Tools: `Workloads/workloads.proto` for the workloads, `Fixtures/cases.proto` for `SimpleTest`,
+  `PolymorphicTest` and the nullable data (Level300, see [Nullable values](#nullable-values)). Each file is what protobuf-net's contracts of the models generate (`RuntimeTypeModel.GetSchema`,
   proto3; `ProtoFile` in `Fixtures/ProtobufModel.cs`): run `dotnet bin/Release/net10.0/Nino.Benchmark.dll --write-proto`
   in `benchmarks/Nino.Benchmark` after changing a model, and the setup of a class that uses the file fails while it is
   stale. So both libraries write the same messages, and Google.Protobuf's data is parsed from protobuf-net's bytes of

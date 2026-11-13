@@ -11,7 +11,8 @@ usage: python3 benchmarks/reports/readme.py (--release <tag> | --assets <dir> | 
               three is read when the directory has it
   --v4        the joined report of benchmarks/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
               report.yml produce it
-  --v3        a report of the v3 run (Nino 3.3.13, SimpleTest and PolymorphicTest); repeat it for several runs,
+  --v3        a report of the v3 run (Nino 3.3.13: SimpleTest, PolymorphicTest, NullableTest and CollectionsTest's
+              nullable collections); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.
   --build     the build section (generator_report.py, build-x64.md; a release body from before the assets will do):
               the README's Build row of v4 vs v3 (v3.build) and the build tables of docs/v4-benchmarks.md (doc.build.*)
@@ -60,11 +61,14 @@ WORKLOAD_KEYS = [key for key, _ in WORKLOADS]
 OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "MessagePack"),
           ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"), ("Protobuf", "protobuf", "protobuf-net"),
           ("Json", "json", "System.Text.Json")]
+# Nullable values against every library and v3 (the owner's choice): NullableTest's class with half its members null,
+# 100 of them, and CollectionsTest's long?[] with every fifth element null.
+NULLABLE_CASES = [("NullableClasses", "100 objects with nullable fields"), ("NullableLongs", "long?[] with nulls")]
 # The chart's groups (the owner's choice), each serialized and deserialized: three workloads, then what Nino is built
-# for: a block of raw structs (one vector copy), a polymorphic array, and reading into existing objects.
+# for: a block of raw structs (one vector copy), a polymorphic array, nullable values, and reading into existing objects.
 CHART_CASES = [("MediaContent", "MediaContent"), ("RpcCall", "RPC call, interface result"),
                ("LogBatch", "log batch, 1,000 events"), ("SimpleStructs", "100 structs, one block copy"),
-               ("PolymorphicClassArray", "polymorphic class array")]
+               ("PolymorphicClassArray", "polymorphic class array")] + NULLABLE_CASES
 
 
 def parse(path):
@@ -217,7 +221,10 @@ def versus(other, v4):
 SIMPLE_CASES = [("SimpleClass", "`SimpleClass`"), ("SimpleClasses", "`SimpleClass[100]`"),
                 ("PolymorphicClass", "Polymorphic class"), ("PolymorphicClassArray", "Polymorphic class array"),
                 ("PolymorphicFooArray", "Polymorphic `Foo[]`"), ("SimpleStruct", "`SimpleStruct` (`int` + `DateTime`)"),
-                ("SimpleStructs", "`SimpleStruct[100]`"), ("Vectors", "`Vector4[10000]`")]
+                ("SimpleStructs", "`SimpleStruct[100]`"), ("Vectors", "`Vector4[10000]`"),
+                ("NullableClass", "`NullableFields` (half null)"), ("NullableClasses", "`NullableFields[100]`"),
+                ("NullableLongs", "`long?[1000]`, every fifth null"), ("NullableInts", "`List<int?>`, 1,000"),
+                ("NullableDecimals", "`decimal?[1000]`")]
 REUSE_CASES = [("Pooled node", "NinoNodeNew", "NinoNodePooled", "MemoryPackNodeNew", "MemoryPackNodeOverwrite"),
                ("Pooled leaves, in place", "NinoLeavesNew", "NinoLeavesInPlace", "MemoryPackLeavesNew",
                 "MemoryPackLeavesOverwrite"),
