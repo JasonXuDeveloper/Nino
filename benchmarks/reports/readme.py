@@ -18,8 +18,8 @@ usage: python3 benchmarks/reports/readme.py (--release <tag> | --assets <dir> | 
               the README's Build row of v4 vs v3 (v3.build) and the build tables of docs/v4-benchmarks.md (doc.build.*)
   --tag       the release the reports belong to (default with --release/--assets: the manifest's); without one
               docs/v4-benchmarks.md names a local run
-  --png       also render the overview chart benchmark.png with headless Chrome (charts.py; README.md is packed
-              into the NuGet packages, and nuget.org shows no SVG and no HTML: one light image)
+  --png       also render the overview chart benchmark.png with headless Chrome (charts.py; the NuGet packages'
+              README, README.nuget.md, shows it by its raw URL on main: nuget.org shows no SVG and no HTML)
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
 carries whole tables between such markers. Everything outside the markers is written by hand. --v4 and --build fill
@@ -474,8 +474,8 @@ ASSETS = "https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/asse
 
 def write_charts(overview, groups, render_png=False, chrome=None):
     """Writes docs/assets/benchmark-<group>.svg and -dark.svg per chart group, and the overview chart
-    benchmark.svg (and with render_png benchmark.png: README.md is packed into the NuGet packages, nuget.org shows
-    no SVG and no HTML, so it has one light image). -> the "charts" (README.md, README.zh.md) and "doc.charts"
+    benchmark.svg (and with render_png benchmark.png, the one light image of the NuGet packages' README,
+    README.nuget.md: nuget.org shows no SVG and no HTML). -> the "charts" (README.md, README.zh.md) and "doc.charts"
     (docs/v4-benchmarks.md) markers: a <details open> per group, its chart a <picture> of both themes (the first
     group's fallback image is the overview PNG)."""
     image, _ = svg(overview, "light")

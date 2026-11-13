@@ -102,7 +102,9 @@ rewrites everything between the `<!--bench:...-->` markers of `README.md`, `READ
 and the charts (`docs/assets/benchmark-<group>.svg` and `-dark.svg`, one per group of cases in `readme.py`'s `GROUPS`:
 real workloads, basic types and structs, polymorphism, nullable values, collections and common types, reuse and
 pooling, reference tracking and version tolerance, others; and the overview `benchmark.svg` and `.png`, the image
-for nuget.org), then pushes them to `main`. `--release <tag>` downloads a release's assets and does the same; after a full local run, the same script
+the NuGet packages' README shows by its URL on `main`), then pushes them to `main`. That README, `README.nuget.md`, is
+README.md without HTML and without numbers, which `.github/scripts/nuget_readme.py` writes (a package's README is
+frozen when it is packed, before `report.yml` measures it). `--release <tag>` downloads a release's assets and does the same; after a full local run, the same script
 updates them from your reports (`--png` renders the overview PNG with headless Chrome, `CHROME=` or `--chrome` names it):
 
 ```sh

@@ -9,7 +9,7 @@ either of which may be None; a group is (title, [(name, value or None, label or 
 Nino (the accent colour): every other bar is labelled with its multiple of Nino's value. A value of None is drawn as
 "n/a"; a label replaces the default text of a value (time() of nanoseconds). Shorter is better on every chart.
 
-PNG: README.md is packed into the NuGet packages and nuget.org shows no SVG, and a release body shows images only
+PNG: the NuGet packages' README (README.nuget.md) shows the overview chart and nuget.org shows no SVG, and a release body shows images only
 through GitHub's image proxy, so both get PNGs. Headless Chrome paints less than its window: it gets a taller window,
 and the image is cut to the chart's height (the viewBox) afterwards, here in pure Python (a PNG's rows depend only on
 the rows above them, so the first rows of an image are a valid image of their own once the header says so).
