@@ -241,7 +241,11 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   the start of any docs work; a wrong trailer is fixed by a git note. Read it before writing or checking a changelog
   entry, a migration row or a release-notes trailer.
 - **The public skill** (`skills/nino-serialization/SKILL.md`) holds what users' agents need to write correct, fast Nino code: the
-  recommended forms, the fast forms, the pitfalls and the diagnostics, matching the pages.
+  recommended forms, the fast forms, the pitfalls and the diagnostics, matching the pages. Keep its `description` within
+  1,024 characters (the Agent Skills limit; rc.10's terms took it from 987 to 1,018): add a trigger by cutting words
+  elsewhere. Check what it says a language leaves out against nino-gen itself (run `nino-gen --lang go|rust|ts` on a
+  scratch assembly, or read `CodegenModel.Value`, where an encoding without a case, `formatter(...)` among them, is
+  left out in every language): rc.10's pass found custom formatters listed as left out of TypeScript only.
 - Stale names: grep the old names of every rename across both repositories; history pages (changelog, migration,
   v3-vs-v4) keep them on purpose.
 - **Chinese terms**: one per concept, from the glossary in nino.docs' `WRITING.md` (Tone: Chinese); grep the
