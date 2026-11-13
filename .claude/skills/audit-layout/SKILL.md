@@ -44,6 +44,9 @@ its own `AGENTS.md` maps every file in it.
 
 ## Moving files
 
+- Check a moved file is tracked at its new path (`git check-ignore -v <path>`, then `git ls-tree HEAD <path>`), and run
+  `tools/agents.sh --check` in a clean clone of the commit, not the working tree: `.gitignore` ignores `.claude/*` but
+  the folders it lists, so `git mv CLAUDE.md .claude/` staged only the deletion and agents.yml failed on main (e5b1a258).
 - `git mv`, then update every reference: workflows (paths, `paths:` filters, cache keys), solution and project files,
   scripts that call each other, docs and READMEs, AGENTS.md maps, skills, `.gitattributes` and `.gitignore`.
   `git grep -n '<old path>'` must come back empty (history pages excepted).
