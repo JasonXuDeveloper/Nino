@@ -39,7 +39,7 @@ import readme
 import release_assets
 import runtimes_report
 import unity_report
-from bdn import FLOOR_NS, mean_ns
+from bdn import FLOOR_NS, mean_ns, on_par, times
 
 BODY_LIMIT = 125_000  # GitHub's limit for a release body, in characters
 START = ("<!-- nino-benchmarks: written by benchmarks/reports/release_body.py from benchmarks-manifest.json; "
@@ -155,7 +155,7 @@ def ratio_ok(nino, other):
     """Nino ahead or on par: under the floor, or the other time no shorter than Nino's beyond 5%."""
     if nino < FLOOR_NS:
         return True
-    return other >= nino or charts.on_par(other / nino)
+    return other >= nino or on_par(other / nino)
 
 
 def split_method(method):
@@ -200,17 +200,17 @@ def v3_summary(v3_path, x64_path):
             pair.append((f"{verb} · {key}", [("Nino v4", new), ("Nino v3", old)]))
             if new < FLOOR_NS and old < FLOOR_NS:
                 par += 1
-            elif new < FLOOR_NS or (old > new and not charts.on_par(old / new)):
+            elif new < FLOOR_NS or (old > new and not on_par(old / new)):
                 faster += 1
                 if new >= FLOOR_NS:
                     ratios.append(old / new)
-            elif charts.on_par(old / new):
+            elif on_par(old / new):
                 par += 1
         chart.append(tuple(pair))
     total = sum(1 for pair in chart for g in pair if g)
     summary = f"v4 faster in {faster} of {total} cases" + (f", on par in {par}" if par else "")
     if ratios:
-        summary += f" (median {charts.one(statistics.median(ratios))}× faster)"
+        summary += f" (median {times(statistics.median(ratios))}× faster)"
     return summary
 
 
@@ -276,10 +276,10 @@ def unity_chart(path, entry):
         groups.setdefault(case, {})[op] = (f"{op} · {case}", [("With Burst", burst), ("Without Burst", without)])
     chart = [(ops.get("Serialize"), ops.get("Deserialize")) for ops in groups.values()]
     speedups = [without / burst for _, _, without, burst in rows if burst > 0]
-    faster = sum(1 for s in speedups if s > 1 and not charts.on_par(s))
+    faster = sum(1 for s in speedups if s > 1 and not on_par(s))
     summary = f"Unity {version}: the Burst kernels faster in {faster} of {len(rows)} operations"
     if speedups:
-        summary += f", up to {charts.one(max(speedups))}×"
+        summary += f", up to {times(max(speedups))}×"
     note = f"Unity {version}, IL2CPP player, median per call; N× = N times as long as with the Burst kernels."
     return chart, summary, note
 

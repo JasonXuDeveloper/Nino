@@ -113,9 +113,10 @@ python3 benchmarks/reports/readme.py --v4 out/v4/results/*-joined-*-report-githu
   --v3 out/v3/results/*-report-github.md --png
 ```
 
-Within 5% is written as "on par", and a case where v4 is slower is left out of the README's v3 sentence and is a
+Every multiple has one decimal below 10 and is a whole number from 10, rounded half up (`bdn.times`: "1.4×",
+"77×"). Within 5% is written as "on par", and a case where v4 is slower is left out of the README's v3 sentence and is a
 dash in the tables. A time under 1 ns (about three clock cycles) cannot be told apart from another: a v4 time under
-it against a measurable one is faster by more than that time / 1 ns ("> 1.4×" in the charts, "> 1.40× faster" in the
+it against a measurable one is faster by more than that time / 1 ns ("> 1.4×" in the charts, "> 1.4× faster" in the
 tables and the v3 sentence: v4 took less than 1 ns), both under it are on par, and the ranges leave such a case out.
 Build-time numbers and everything outside the markers are edited by hand.
 

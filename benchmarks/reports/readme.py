@@ -30,9 +30,10 @@ dark SVG in docs/assets, between the charts and doc.charts markers) show each se
 every case, v3 n/a where it did not run; the overview chart (overview_chart: CHART_CASES) is the image for nuget.org. Ratios follow the docs site (nino.docs src/lib/benchmarks.ts): within 5% is "on
 par", and a case where v4 is slower is left out of a range, never shown as slower.
 A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
-measurable time is faster by more than that time / FLOOR_NS (bdn.lower_bound: "> 1.40× faster", the charts' "> 1.4×"),
-since v4 took less than the floor; both under it is on par. A range (ser.range, ...) leaves such a case out: its ends
-are measured ratios.
+measurable time is faster by more than that time / FLOOR_NS (bdn.lower_bound: "> 1.4× faster"), since v4 took less
+than the floor; both under it is on par. A range (ser.range, ...) leaves such a case out: its ends are measured ratios.
+Every multiple is written by bdn.times: one decimal below 10, a whole number from 10, rounded half up ("1.1–1.4",
+one value when both ends round alike).
 """
 import argparse
 import math
@@ -44,9 +45,9 @@ from pathlib import Path
 
 import generator_report
 import release_assets
-from bdn import FLOOR_NS, lower_bound, mean_ns, rows
+from bdn import FLOOR_NS, lower_bound, mean_ns, on_par, rows, times
 from bdn import cpu as short_cpu
-from charts import README_TITLE, details, on_par, one, picture, png, svg, time
+from charts import README_TITLE, details, picture, png, svg, time
 
 ROOT = Path(__file__).resolve().parents[2]
 # The headline cases: WorkloadTest's workloads, with their names in the docs table.
@@ -93,7 +94,8 @@ def parse(path):
 
 
 def ratio(slow, fast):
-    return round(slow / fast, 2)
+    """Unrounded: times() rounds once, where a multiple is written."""
+    return slow / fast
 
 
 def against(slow, fast):
@@ -133,11 +135,14 @@ def numbers(v4_path, v3_paths, tag=None):
 
     def win_range(verb, other="MemoryPack"):
         won = wins(verb, other)
-        return f"{one(min(won))}–{one(max(won))}" if won else "—"
+        if not won:
+            return "—"
+        low, high = times(min(won)), times(max(won))
+        return low if low == high else f"{low}–{high}"
 
     bdn, runtime, cpu = environment(env)
     out = {
-        "reuse.inplace": one(ratio(v4["MemoryPackLeavesOverwrite"]["mean"], v4["NinoLeavesInPlace"]["mean"])),
+        "reuse.inplace": times(ratio(v4["MemoryPackLeavesOverwrite"]["mean"], v4["NinoLeavesInPlace"]["mean"])),
         "ser.range": win_range("Serialize"),
         "deser.range": win_range("Deserialize"),
         "env.bdn": bdn,
@@ -183,14 +188,14 @@ def numbers(v4_path, v3_paths, tag=None):
                 r = against(v3[method], v4[method]["mean"])
                 if r == "unmeasurable":
                     bound = lower_bound(v3[method])
-                    en.append(f"**> {bound:.2f}× faster** ({label_en}, v4 under {FLOOR_NS} ns)")
-                    zh.append(f"{label_zh}**快 {bound:.2f} 倍以上**（v4 不到 {FLOOR_NS} ns）")
+                    en.append(f"**> {times(bound)}× faster** ({label_en}, v4 under {FLOOR_NS} ns)")
+                    zh.append(f"{label_zh}**快 {times(bound)} 倍以上**（v4 不到 {FLOOR_NS} ns）")
                 elif on_par(r):
                     en.append(f"on par ({label_en})")
                     zh.append(f"{label_zh}持平")
                 elif r > 1:
-                    en.append(f"**{r:.2f}× faster** ({label_en})")
-                    zh.append(f"{label_zh}**快 {r:.2f} 倍**")
+                    en.append(f"**{times(r)}× faster** ({label_en})")
+                    zh.append(f"{label_zh}**快 {times(r)} 倍**")
             out[f"v3.{op}"] = (", ".join(en), "，".join(zh))
     out.update({f"doc.{k}": v for k, v in tables(v4, v3, len(v3_paths or []), env, tag).items()})
     return out, chart
@@ -338,10 +343,10 @@ def versus(other, v4):
     """A table cell: v4 against another time, by the rules above ("—": v4 is not ahead)."""
     r = against(other, v4)
     if r == "unmeasurable":
-        return f"**> {lower_bound(other):.2f}× faster** (v4 under {FLOOR_NS} ns)"
+        return f"**> {times(lower_bound(other))}× faster** (v4 under {FLOOR_NS} ns)"
     if on_par(r):
         return "on par"
-    return f"**{r:.2f}× faster**" if r > 1 else "—"
+    return f"**{times(r)}× faster**" if r > 1 else "—"
 
 
 SIMPLE_CASES = [("SimpleClass", "`SimpleClass`"), ("SimpleClasses", "`SimpleClass[100]`"),

@@ -25,7 +25,7 @@ import sys
 import tempfile
 import zlib
 
-from bdn import FLOOR_NS
+from bdn import FLOOR_NS, on_par, times
 
 # Nino v4 in its accent colour, v3 in a darker grey, every other library in one lighter grey (the docs site's rule:
 # Nino the accent, everything else neutral). Each image paints its own background (GitHub's page colours):
@@ -41,16 +41,6 @@ SCALE = 2  # PNG pixels per SVG unit
 README_TITLE = "Time per operation (shorter is faster)"
 README_NOTE = ("BenchmarkDotNet, .NET 10, server GC, one run on one machine (v3 3.3.13 directly before v4); "
                "N× = N times as long as Nino v4.")
-
-
-def on_par(r):
-    """Within 5%: the docs site's rule (nino.docs src/lib/benchmarks.ts)."""
-    return round(abs(r - 1) * 100) <= 5
-
-
-def one(r):
-    """One decimal below 10 (7.2), whole numbers from 10 (23)."""
-    return f"{r:.1f}" if r < 10 else f"{r:.0f}"
 
 
 def time(ns):
@@ -70,9 +60,9 @@ def multiple(value, first, floor=FLOOR_NS):
     value / floor ("> N×", the first entry took less than the floor), and both under it are on par (readme.py's
     rule)."""
     if first < floor:
-        return " · on par" if value < floor else f" · > {one(value / floor)}×"
+        return " · on par" if value < floor else f" · > {times(value / floor)}×"
     r = value / first
-    return " · on par" if on_par(r) else f" · {one(r)}×"
+    return " · on par" if on_par(r) else f" · {times(r)}×"
 
 
 def svg(chart, theme="light", title=README_TITLE, note=README_NOTE, floor=FLOOR_NS):

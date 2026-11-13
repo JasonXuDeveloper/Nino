@@ -28,6 +28,7 @@ import re
 import sys
 
 import bdn
+from bdn import on_par, times
 
 HEADING = "## 🏗️ Build: v3 3.3.13 vs v4 (source generator)"
 HEAD = "| | v3 (3.3.13) | v4 | v4 vs v3 |"
@@ -50,16 +51,11 @@ def seconds(ms):
     return f"{s:.2f} s" if s < 10 else f"{s:.1f} s" if s < 100 else f"{s:,.0f} s"
 
 
-def one(r):
-    """As readme.py writes a ratio: one decimal below 10 (7.2), whole numbers from 10 (23)."""
-    return f"{r:.1f}" if r < 10 else f"{r:.0f}"
-
-
 def ratio(v3, v4, word):
     r = v3 / v4 if v4 else float("inf")
-    if round(abs(r - 1) * 100) <= 5:
+    if on_par(r):
         return "on par"
-    return f"**{one(r)}× {word}**" if r > 1 else "—"
+    return f"**{times(r)}× {word}**" if r > 1 else "—"
 
 
 def row(label, field, kind, v3, v4):

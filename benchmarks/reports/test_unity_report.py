@@ -55,12 +55,12 @@ class UnityReportTests(unittest.TestCase):
         lines = text.splitlines()
         self.assertIn("| Case | Operation | Without Burst | With Burst | Speedup |", lines)
         self.assertIn("|---|---|--:|--:|--:|", lines)
-        self.assertIn("| (int, long)[32] | Serialize | 3.28 μs | 835.40 ns | 3.92× |", lines)
+        self.assertIn("| (int, long)[32] | Serialize | 3.28 μs | 835.40 ns | 3.9× |", lines)
         self.assertNotIn("900.1", text)  # the "SSSE3 only" sample group stays out of the section
-        self.assertIn("| (int, long)[1000] | Deserialize | 64.86 μs | 1.16 μs | 55.9× |", lines)
-        self.assertIn("| (int, long)[100000] | Serialize | 8.16 ms | 612.00 μs | 13.3× |", lines)
+        self.assertIn("| (int, long)[1000] | Deserialize | 64.86 μs | 1.16 μs | 56× |", lines)
+        self.assertIn("| (int, long)[100000] | Serialize | 8.16 ms | 612.00 μs | 13× |", lines)
         self.assertIn(
-            "| List&lt;string&gt; of 1000 ASCII strings (8–40 chars) | Deserialize | 0.90 ns | 0.80 ns | 1.12× |", lines)
+            "| List&lt;string&gt; of 1000 ASCII strings (8–40 chars) | Deserialize | 0.90 ns | 0.80 ns | on par |", lines)
         # Each case once, Serialize first, in the order the cases were run (NUnit runs Deserialize's tests first).
         body = [line for line in lines if line.startswith("| (int, long)")]
         self.assertEqual([line.split(" | ")[1] for line in body], ["Serialize", "Deserialize"] * 3)

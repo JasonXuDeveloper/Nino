@@ -6,12 +6,28 @@ too fast to measure.
 alike (readme.py keeps the docs site's own format for README and docs); `cpu`, how readme.py and generator_report.py
 name the machine."""
 import re
+from decimal import ROUND_HALF_UP, Decimal
 
 UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
 # About three clock cycles. Below it, a case cannot be told apart from another: a struct read of 40 bytes measured
 # anywhere from 0.05 to 0.8 ns in Nino and MemoryPack alike, as BenchmarkDotNet subtracts its empty-method overhead.
 # The docs site (nino.docs src/lib/benchmarks.ts) uses the same floor.
 FLOOR_NS = 1
+
+
+def on_par(r):
+    """A ratio within 5% of 1: below the run-to-run noise (the docs site's rule, nino.docs src/lib/benchmarks.ts)."""
+    return round(abs(r - 1) * 100) <= 5
+
+
+def times(r):
+    """How every multiple a reader sees is written (README, docs, charts, the release body's sections): one decimal
+    below 10 ("1.4"), a whole number from 10 ("77"), rounded half up from the unrounded ratio ("×" is the caller's).
+    The owner's rule (rc.10); the docs site's formatRatio writes the same."""
+    d = Decimal(repr(r)).quantize(Decimal("0.1"), ROUND_HALF_UP)
+    if d >= 10:
+        d = Decimal(repr(r)).quantize(Decimal("1"), ROUND_HALF_UP)
+    return str(d)
 
 
 def lower_bound(ns):

@@ -25,7 +25,7 @@ import os
 import sys
 import xml.etree.ElementTree as ElementTree
 
-from bdn import show
+from bdn import FLOOR_NS, lower_bound, show, times
 
 HEADING = "## 🎮 Unity benchmark (Burst, IL2CPP)"
 LEGEND = 'Each time is the median per call; "Speedup" is without Burst divided by with Burst.'
@@ -169,10 +169,12 @@ def environment(run):
 
 
 def speedup(scalar, burst):
+    """Without Burst / with Burst (bdn.times); with Burst under FLOOR_NS: "on par" when both are, else a lower bound."""
     if burst <= 0:
         return ""
-    ratio = scalar / burst
-    return f"{ratio:.2f}×" if ratio < 10 else f"{ratio:.1f}×"
+    if burst < FLOOR_NS:
+        return "on par" if scalar < FLOOR_NS else f"> {times(lower_bound(scalar))}×"
+    return f"{times(scalar / burst)}×"
 
 
 def cell(text):

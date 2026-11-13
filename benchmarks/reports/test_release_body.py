@@ -281,10 +281,22 @@ class Charts(unittest.TestCase):
         self.assertEqual(charts.multiple(0.9, 0.3), " · on par")  # both under the floor
         self.assertEqual(charts.multiple(4.2, 2.0), " · 2.1×")    # measured: the ratio, never a bound
         self.assertEqual(charts.multiple(3.0, 0.5, floor=0), " · 6.0×")  # sizes and seconds have no floor
-        # README and docs tables (v4 against v3 or MemoryPack), with their two decimals.
-        self.assertEqual(readme.versus(1.4, 0.3), "**> 1.40× faster** (v4 under 1 ns)")
+        # README and docs tables (v4 against v3 or MemoryPack), as every multiple.
+        self.assertEqual(readme.versus(1.4, 0.3), "**> 1.4× faster** (v4 under 1 ns)")
         self.assertEqual(readme.versus(0.8, 0.3), "on par")
-        self.assertEqual(readme.versus(2.2, 1.0), "**2.20× faster**")
+        self.assertEqual(readme.versus(2.2, 1.0), "**2.2× faster**")
+
+    def test_one_precision_for_every_multiple(self):
+        # One decimal below 10, a whole number from 10, rounded half up from the unrounded ratio.
+        from bdn import on_par, times
+        self.assertEqual([times(r) for r in (1.07, 1.41, 1.25, 1.35, 9.94, 9.96, 10.5, 77.17, 230.54)],
+                         ["1.1", "1.4", "1.3", "1.4", "9.9", "10", "11", "77", "231"])
+        # The edge: within 5% is on par; the first ratio beyond it is written 1.1, never 1.0 or 1.05.
+        self.assertTrue(on_par(1.0549))
+        self.assertFalse(on_par(1.0551))
+        self.assertEqual(times(1.0551), "1.1")
+        self.assertEqual(charts.multiple(1.0549, 1.0), " · on par")
+        self.assertEqual(charts.multiple(1.0551, 1.0), " · 1.1×")
 
     def test_crop_keeps_the_first_rows(self):
         width, height = 3, 10

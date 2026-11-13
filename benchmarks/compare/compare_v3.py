@@ -5,19 +5,20 @@ each run, joined or merged).
 
 usage: python3 compare_v3.py <v3 report-github.md> <v4 report-github.md>
 
-Prints: case | v3 3.3.13 | v4 | v4 vs v3 | MemoryPack (v4 run) | MemoryPack (v3 run)
+Prints: case | v3 3.3.13 | v4 | v3 / v4 | MemoryPack (v4 run) | MemoryPack (v3 run)
   - all times are the BDN "Mean" column, as measured, no derived values;
-  - "v4 vs v3" = mean(v4) / mean(v3)  (< 1.00x means v4 is faster);
+  - "v3 / v4" = mean(v3) / mean(v4), how many times as long v3 took, written as every multiple (bdn.times: "1.4×",
+    "23×"; above 1 means v4 is faster), "on par" within 5%;
   - the two MemoryPack columns are the same benchmark in each run, so their ratio shows run-to-run drift;
   - a time under FLOOR_NS cannot be told apart from an empty method: v4 under it against a measurable v3 is
-    "< F/v3 x (v4 under 1 ns)", the bound v4 took less than the floor gives (bdn.lower_bound, as a share of v3's
-    time); both under it is "on par".
+    "> 1.4× (v4 under 1 ns)", the bound v4 taking less than the floor gives (bdn.lower_bound); both under it is
+    "on par".
 """
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reports"))
-from bdn import FLOOR_NS, lower_bound, mean_ns, rows, show  # noqa: E402 (benchmarks/reports/bdn.py)
+from bdn import FLOOR_NS, lower_bound, mean_ns, on_par, rows, show, times  # noqa: E402 (benchmarks/reports/bdn.py)
 
 LIBS = ("Nino", "MemoryPack", "MessagePack", "Protobuf")
 
@@ -61,17 +62,19 @@ def main():
     # serialize first, then deserialize; within each, the order of the v4 report
     cases.sort(key=lambda c: (not c.startswith("Serialize"),))
 
-    header = ["case", "v3 3.3.13", "v4", "v4 vs v3", "MemoryPack (v4 run)", "MemoryPack (v3 run)"]
+    header = ["case", "v3 3.3.13", "v4", "v3 / v4", "MemoryPack (v4 run)", "MemoryPack (v3 run)"]
     table = []
     for case in cases:
         a, b = v3.get("Nino" + case), v4.get("Nino" + case)
         if a is None or b is None:
             ratio = "-"
         elif b < FLOOR_NS:
-            ratio = "on par (both too fast to measure)" if a < FLOOR_NS else \
-                f"< {1 / lower_bound(a):.2f}x (v4 under {FLOOR_NS} ns)"
+            ratio = "on par (both under 1 ns)" if a < FLOOR_NS else \
+                f"> {times(lower_bound(a))}× (v4 under {FLOOR_NS} ns)"
+        elif a < FLOOR_NS:
+            ratio = "-"
         else:
-            ratio = f"{b / a:.2f}x" if a >= FLOOR_NS else "-"
+            ratio = "on par" if on_par(a / b) else f"{times(a / b)}×"
         table.append([case, fmt(a), fmt(b), ratio,
                       fmt(v4.get("MemoryPack" + case)), fmt(v3.get("MemoryPack" + case))])
 
