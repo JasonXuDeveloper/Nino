@@ -197,7 +197,14 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   names MemoryPack, MessagePack and protobuf-net: not every reader knows MemoryPack), Install, a short Quick start, an
   "AI coding assistants" section of its own (the skill's install command, what it teaches, llms.txt; owner: not a
   sub-item of Install), Benchmarks (the speed table against MemoryPack, MessagePack and protobuf-net, then the chart: a light and a
-  dark PNG in a `<picture>` with `prefers-color-scheme`, both written by `readme.py` and rendered by `report.yml`),
+  dark PNG in a `<picture>` with `prefers-color-scheme`, both written by `readme.py` and rendered by `report.yml`;
+  it shows time per operation, shorter is faster, on a linear scale per group, Nino v4 first in the accent colour, v3 in
+  a darker grey (n/a where 3.3.13 did not run the case), every other library in one light grey, in the order MemoryPack,
+  MessagePack, Google.Protobuf, protobuf-net, System.Text.Json, each bar labelled with its time and its multiple of
+  Nino v4's: three workloads, a struct block, a polymorphic array and reading into existing objects, serialize and
+  deserialize side by side; the site lists libraries in the same order. Why: the owner found the earlier
+  "N times faster" log-scale chart unreadable (no Nino bar, a longer bar meant a slower competitor, 1.7x and 45x
+  looked alike; rc.10),
   a compact "Built for" list, the MemoryPack feature table (no speed rows: the Benchmarks table has them), v4 vs v3,
   Contributing, License; no callout or long list before Install, README.zh.md the same sections in the same order,
   and links to the site for the rest. No emoji anywhere in either README, in headings, links, tables or lists (owner,
