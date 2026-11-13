@@ -563,7 +563,8 @@ def main():
                                 ["dotnet-x64.md", "dotnet-v3-x64.md", "build-x64.md"]) is None:
             sys.exit(f"{args.release} has no {release_assets.MANIFEST}")
     if args.assets:
-        args.v4, args.v3, args.build, tag = from_assets(args.assets)
+        args.v4, args.v3, build_asset, tag = from_assets(args.assets)
+        args.build = args.build or build_asset  # a --build given beside --assets wins (a section not attached)
         args.tag = args.tag or tag
     if not args.v4 and not args.build:
         parser.error("give --v4, --build, both, or --assets/--release with either")
