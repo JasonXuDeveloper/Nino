@@ -1,0 +1,366 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 1670" width="940" height="1670" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="940" height="1670" rx="8" fill="#ffffff"/>
+<g transform="translate(20 20)">
+<style>.t{font-size:18px;font-weight:700;fill:#1f2328}.s{font-size:12px;fill:#59636e}.g{font-size:13px;font-weight:600;fill:#1f2328}.l{font-size:12px;fill:#59636e;text-anchor:end}.v{font-size:12px;fill:#1f2328}.n{font-weight:700}.a{fill:#3b6fd4}.b{fill:#8b95a5}.c{fill:#cdd2da}</style>
+<text x="0" y="22" class="t">Rust runtime x64: time per operation (shorter is faster)</text>
+<text x="0" y="44" class="s">a GitHub x64 runner; N× = N times as long as nino.</text>
+<text x="0" y="78" class="g">Serialize · f64-10000</text>
+<text x="90" y="100" class="l n">nino</text>
+<rect x="100" y="88" width="3.0" height="15" rx="3" class="a"/>
+<text x="111.0" y="100" class="v n">834 ns</text>
+<text x="90" y="120" class="l">prost</text>
+<rect x="100" y="108" width="4.3" height="15" rx="3" class="c"/>
+<text x="112.3" y="120" class="v">3.54 µs · 4.2×</text>
+<text x="90" y="140" class="l">rmp-serde</text>
+<rect x="100" y="128" width="11.3" height="15" rx="3" class="c"/>
+<text x="119.3" y="140" class="v">9.32 µs · 11×</text>
+<text x="90" y="160" class="l">bincode</text>
+<rect x="100" y="148" width="4.6" height="15" rx="3" class="c"/>
+<text x="112.6" y="160" class="v">3.83 µs · 4.6×</text>
+<text x="90" y="180" class="l">postcard</text>
+<rect x="100" y="168" width="6.8" height="15" rx="3" class="c"/>
+<text x="114.8" y="180" class="v">5.66 µs · 6.8×</text>
+<text x="90" y="200" class="l">serde_json</text>
+<rect x="100" y="188" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="200" class="v">141 µs · 169×</text>
+<text x="450" y="78" class="g">Deserialize · f64-10000</text>
+<text x="540" y="100" class="l n">nino</text>
+<rect x="550" y="88" width="3.0" height="15" rx="3" class="a"/>
+<text x="561.0" y="100" class="v n">887 ns</text>
+<text x="540" y="120" class="l">prost</text>
+<rect x="550" y="108" width="18.2" height="15" rx="3" class="c"/>
+<text x="576.2" y="120" class="v">10.1 µs · 11×</text>
+<text x="540" y="140" class="l">rmp-serde</text>
+<rect x="550" y="128" width="42.6" height="15" rx="3" class="c"/>
+<text x="600.6" y="140" class="v">23.7 µs · 27×</text>
+<text x="540" y="160" class="l">bincode</text>
+<rect x="550" y="148" width="15.0" height="15" rx="3" class="c"/>
+<text x="573.0" y="160" class="v">8.33 µs · 9.4×</text>
+<text x="540" y="180" class="l">postcard</text>
+<rect x="550" y="168" width="11.0" height="15" rx="3" class="c"/>
+<text x="569.0" y="180" class="v">6.13 µs · 6.9×</text>
+<text x="540" y="200" class="l">serde_json</text>
+<rect x="550" y="188" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="200" class="v">94.4 µs · 106×</text>
+<text x="0" y="238" class="g">Serialize · i32-10000</text>
+<text x="90" y="260" class="l n">nino</text>
+<rect x="100" y="248" width="3.0" height="15" rx="3" class="a"/>
+<text x="111.0" y="260" class="v n">467 ns</text>
+<text x="90" y="280" class="l">prost</text>
+<rect x="100" y="268" width="60.6" height="15" rx="3" class="c"/>
+<text x="168.6" y="280" class="v">28.6 µs · 61×</text>
+<text x="90" y="300" class="l">rmp-serde</text>
+<rect x="100" y="288" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="300" class="v">80.2 µs · 172×</text>
+<text x="90" y="320" class="l">bincode</text>
+<rect x="100" y="308" width="25.5" height="15" rx="3" class="c"/>
+<text x="133.5" y="320" class="v">12.0 µs · 26×</text>
+<text x="90" y="340" class="l">postcard</text>
+<rect x="100" y="328" width="101.4" height="15" rx="3" class="c"/>
+<text x="209.4" y="340" class="v">47.8 µs · 102×</text>
+<text x="90" y="360" class="l">serde_json</text>
+<rect x="100" y="348" width="108.5" height="15" rx="3" class="c"/>
+<text x="216.5" y="360" class="v">51.1 µs · 110×</text>
+<text x="450" y="238" class="g">Deserialize · i32-10000</text>
+<text x="540" y="260" class="l n">nino</text>
+<rect x="550" y="248" width="3.0" height="15" rx="3" class="a"/>
+<text x="561.0" y="260" class="v n">450 ns</text>
+<text x="540" y="280" class="l">prost</text>
+<rect x="550" y="268" width="42.5" height="15" rx="3" class="c"/>
+<text x="600.5" y="280" class="v">23.9 µs · 53×</text>
+<text x="540" y="300" class="l">rmp-serde</text>
+<rect x="550" y="288" width="49.7" height="15" rx="3" class="c"/>
+<text x="607.7" y="300" class="v">27.9 µs · 62×</text>
+<text x="540" y="320" class="l">bincode</text>
+<rect x="550" y="308" width="41.9" height="15" rx="3" class="c"/>
+<text x="599.9" y="320" class="v">23.6 µs · 52×</text>
+<text x="540" y="340" class="l">postcard</text>
+<rect x="550" y="328" width="32.1" height="15" rx="3" class="c"/>
+<text x="590.1" y="340" class="v">18.1 µs · 40×</text>
+<text x="540" y="360" class="l">serde_json</text>
+<rect x="550" y="348" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="360" class="v">95.5 µs · 212×</text>
+<text x="0" y="398" class="g">Serialize · int-set-1000</text>
+<text x="90" y="420" class="l n">nino</text>
+<rect x="100" y="408" width="10.1" height="15" rx="3" class="a"/>
+<text x="118.1" y="420" class="v n">476 ns</text>
+<text x="90" y="440" class="l">prost</text>
+<rect x="100" y="428" width="77.9" height="15" rx="3" class="c"/>
+<text x="185.9" y="440" class="v">3.66 µs · 7.7×</text>
+<text x="90" y="460" class="l">rmp-serde</text>
+<rect x="100" y="448" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="460" class="v">7.99 µs · 17×</text>
+<text x="90" y="480" class="l">bincode</text>
+<rect x="100" y="468" width="39.6" height="15" rx="3" class="c"/>
+<text x="147.6" y="480" class="v">1.86 µs · 3.9×</text>
+<text x="90" y="500" class="l">postcard</text>
+<rect x="100" y="488" width="108.9" height="15" rx="3" class="c"/>
+<text x="216.9" y="500" class="v">5.12 µs · 11×</text>
+<text x="90" y="520" class="l">serde_json</text>
+<rect x="100" y="508" width="122.1" height="15" rx="3" class="c"/>
+<text x="230.1" y="520" class="v">5.74 µs · 12×</text>
+<text x="450" y="398" class="g">Deserialize · int-set-1000</text>
+<text x="540" y="420" class="l n">nino</text>
+<rect x="550" y="408" width="45.5" height="15" rx="3" class="a"/>
+<text x="603.5" y="420" class="v n">9.66 µs</text>
+<text x="540" y="440" class="l">prost</text>
+<rect x="550" y="428" width="59.5" height="15" rx="3" class="c"/>
+<text x="617.5" y="440" class="v">12.6 µs · 1.3×</text>
+<text x="540" y="460" class="l">rmp-serde</text>
+<rect x="550" y="448" width="56.6" height="15" rx="3" class="c"/>
+<text x="614.6" y="460" class="v">12.0 µs · 1.2×</text>
+<text x="540" y="480" class="l">bincode</text>
+<rect x="550" y="468" width="50.2" height="15" rx="3" class="c"/>
+<text x="608.2" y="480" class="v">10.7 µs · 1.1×</text>
+<text x="540" y="500" class="l">postcard</text>
+<rect x="550" y="488" width="52.7" height="15" rx="3" class="c"/>
+<text x="610.7" y="500" class="v">11.2 µs · 1.2×</text>
+<text x="540" y="520" class="l">serde_json</text>
+<rect x="550" y="508" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="520" class="v">36.1 µs · 3.7×</text>
+<text x="0" y="558" class="g">Serialize · record</text>
+<text x="90" y="580" class="l n">nino</text>
+<rect x="100" y="568" width="12.9" height="15" rx="3" class="a"/>
+<text x="120.9" y="580" class="v n">10.7 ns</text>
+<text x="90" y="600" class="l">prost</text>
+<rect x="100" y="588" width="64.1" height="15" rx="3" class="c"/>
+<text x="172.1" y="600" class="v">53.2 ns · 5.0×</text>
+<text x="90" y="620" class="l">rmp-serde</text>
+<rect x="100" y="608" width="125.3" height="15" rx="3" class="c"/>
+<text x="233.3" y="620" class="v">104 ns · 9.8×</text>
+<text x="90" y="640" class="l">bincode</text>
+<rect x="100" y="628" width="53.2" height="15" rx="3" class="c"/>
+<text x="161.2" y="640" class="v">44.2 ns · 4.1×</text>
+<text x="90" y="660" class="l">postcard</text>
+<rect x="100" y="648" width="121.0" height="15" rx="3" class="c"/>
+<text x="229.0" y="660" class="v">101 ns · 9.4×</text>
+<text x="90" y="680" class="l">serde_json</text>
+<rect x="100" y="668" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="680" class="v">141 ns · 13×</text>
+<text x="450" y="558" class="g">Deserialize · record</text>
+<text x="540" y="580" class="l n">nino</text>
+<rect x="550" y="568" width="11.3" height="15" rx="3" class="a"/>
+<text x="569.3" y="580" class="v n">22.1 ns</text>
+<text x="540" y="600" class="l">prost</text>
+<rect x="550" y="588" width="58.1" height="15" rx="3" class="c"/>
+<text x="616.1" y="600" class="v">113 ns · 5.1×</text>
+<text x="540" y="620" class="l">rmp-serde</text>
+<rect x="550" y="608" width="48.0" height="15" rx="3" class="c"/>
+<text x="606.0" y="620" class="v">93.7 ns · 4.2×</text>
+<text x="540" y="640" class="l">bincode</text>
+<rect x="550" y="628" width="35.5" height="15" rx="3" class="c"/>
+<text x="593.5" y="640" class="v">69.3 ns · 3.1×</text>
+<text x="540" y="660" class="l">postcard</text>
+<rect x="550" y="648" width="19.5" height="15" rx="3" class="c"/>
+<text x="577.5" y="660" class="v">38.0 ns · 1.7×</text>
+<text x="540" y="680" class="l">serde_json</text>
+<rect x="550" y="668" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="680" class="v">332 ns · 15×</text>
+<text x="0" y="718" class="g">Serialize · records-1000</text>
+<text x="90" y="740" class="l n">nino</text>
+<rect x="100" y="728" width="8.2" height="15" rx="3" class="a"/>
+<text x="116.2" y="740" class="v n">6.28 µs</text>
+<text x="90" y="760" class="l">prost</text>
+<rect x="100" y="748" width="91.0" height="15" rx="3" class="c"/>
+<text x="199.0" y="760" class="v">69.8 µs · 11×</text>
+<text x="90" y="780" class="l">rmp-serde</text>
+<rect x="100" y="768" width="129.5" height="15" rx="3" class="c"/>
+<text x="237.5" y="780" class="v">99.5 µs · 16×</text>
+<text x="90" y="800" class="l">bincode</text>
+<rect x="100" y="788" width="53.7" height="15" rx="3" class="c"/>
+<text x="161.7" y="800" class="v">41.2 µs · 6.6×</text>
+<text x="90" y="820" class="l">postcard</text>
+<rect x="100" y="808" width="69.6" height="15" rx="3" class="c"/>
+<text x="177.6" y="820" class="v">53.4 µs · 8.5×</text>
+<text x="90" y="840" class="l">serde_json</text>
+<rect x="100" y="828" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="840" class="v">131 µs · 21×</text>
+<text x="450" y="718" class="g">Deserialize · records-1000</text>
+<text x="540" y="740" class="l n">nino</text>
+<rect x="550" y="728" width="22.3" height="15" rx="3" class="a"/>
+<text x="580.3" y="740" class="v n">48.8 µs</text>
+<text x="540" y="760" class="l">prost</text>
+<rect x="550" y="748" width="64.2" height="15" rx="3" class="c"/>
+<text x="622.2" y="760" class="v">140 µs · 2.9×</text>
+<text x="540" y="780" class="l">rmp-serde</text>
+<rect x="550" y="768" width="63.0" height="15" rx="3" class="c"/>
+<text x="621.0" y="780" class="v">137 µs · 2.8×</text>
+<text x="540" y="800" class="l">bincode</text>
+<rect x="550" y="788" width="45.4" height="15" rx="3" class="c"/>
+<text x="603.4" y="800" class="v">99.2 µs · 2.0×</text>
+<text x="540" y="820" class="l">postcard</text>
+<rect x="550" y="808" width="33.3" height="15" rx="3" class="c"/>
+<text x="591.3" y="820" class="v">72.6 µs · 1.5×</text>
+<text x="540" y="840" class="l">serde_json</text>
+<rect x="550" y="828" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="840" class="v">371 µs · 7.6×</text>
+<text x="0" y="878" class="g">Serialize · scattered-1m</text>
+<text x="90" y="900" class="l n">nino</text>
+<rect x="100" y="888" width="12.2" height="15" rx="3" class="a"/>
+<text x="120.2" y="900" class="v n">24.0 ms</text>
+<text x="90" y="920" class="l">prost</text>
+<rect x="100" y="908" width="38.8" height="15" rx="3" class="c"/>
+<text x="146.8" y="920" class="v">76.4 ms · 3.2×</text>
+<text x="90" y="940" class="l">rmp-serde</text>
+<rect x="100" y="928" width="132.9" height="15" rx="3" class="c"/>
+<text x="240.9" y="940" class="v">262 ms · 11×</text>
+<text x="90" y="960" class="l">bincode</text>
+<rect x="100" y="948" width="113.8" height="15" rx="3" class="c"/>
+<text x="221.8" y="960" class="v">224 ms · 9.4×</text>
+<text x="90" y="980" class="l">postcard</text>
+<rect x="100" y="968" width="129.1" height="15" rx="3" class="c"/>
+<text x="237.1" y="980" class="v">254 ms · 11×</text>
+<text x="90" y="1000" class="l">serde_json</text>
+<rect x="100" y="988" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="1000" class="v">335 ms · 14×</text>
+<text x="450" y="878" class="g">Deserialize · scattered-1m</text>
+<text x="540" y="900" class="l n">nino</text>
+<rect x="550" y="888" width="39.2" height="15" rx="3" class="a"/>
+<text x="597.2" y="900" class="v n">115 ms</text>
+<text x="540" y="920" class="l">prost</text>
+<rect x="550" y="908" width="70.3" height="15" rx="3" class="c"/>
+<text x="628.3" y="920" class="v">206 ms · 1.8×</text>
+<text x="540" y="940" class="l">rmp-serde</text>
+<rect x="550" y="928" width="76.1" height="15" rx="3" class="c"/>
+<text x="634.1" y="940" class="v">223 ms · 1.9×</text>
+<text x="540" y="960" class="l">bincode</text>
+<rect x="550" y="948" width="59.1" height="15" rx="3" class="c"/>
+<text x="617.1" y="960" class="v">173 ms · 1.5×</text>
+<text x="540" y="980" class="l">postcard</text>
+<rect x="550" y="968" width="53.5" height="15" rx="3" class="c"/>
+<text x="611.5" y="980" class="v">157 ms · 1.4×</text>
+<text x="540" y="1000" class="l">serde_json</text>
+<rect x="550" y="988" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1000" class="v">498 ms · 4.3×</text>
+<text x="0" y="1038" class="g">Serialize · string-set-1000</text>
+<text x="90" y="1060" class="l n">nino</text>
+<rect x="100" y="1048" width="40.1" height="15" rx="3" class="a"/>
+<text x="148.1" y="1060" class="v n">1.37 µs</text>
+<text x="90" y="1080" class="l">prost</text>
+<rect x="100" y="1068" width="116.2" height="15" rx="3" class="c"/>
+<text x="224.2" y="1080" class="v">3.97 µs · 2.9×</text>
+<text x="90" y="1100" class="l">rmp-serde</text>
+<rect x="100" y="1088" width="105.3" height="15" rx="3" class="c"/>
+<text x="213.3" y="1100" class="v">3.60 µs · 2.6×</text>
+<text x="90" y="1120" class="l">bincode</text>
+<rect x="100" y="1108" width="91.6" height="15" rx="3" class="c"/>
+<text x="199.6" y="1120" class="v">3.13 µs · 2.3×</text>
+<text x="90" y="1140" class="l">postcard</text>
+<rect x="100" y="1128" width="118.2" height="15" rx="3" class="c"/>
+<text x="226.2" y="1140" class="v">4.04 µs · 2.9×</text>
+<text x="90" y="1160" class="l">serde_json</text>
+<rect x="100" y="1148" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="1160" class="v">5.81 µs · 4.2×</text>
+<text x="450" y="1038" class="g">Deserialize · string-set-1000</text>
+<text x="540" y="1060" class="l n">nino</text>
+<rect x="550" y="1048" width="97.6" height="15" rx="3" class="a"/>
+<text x="655.6" y="1060" class="v n">34.5 µs</text>
+<text x="540" y="1080" class="l">prost</text>
+<rect x="550" y="1068" width="121.9" height="15" rx="3" class="c"/>
+<text x="679.9" y="1080" class="v">43.1 µs · 1.2×</text>
+<text x="540" y="1100" class="l">rmp-serde</text>
+<rect x="550" y="1088" width="118.3" height="15" rx="3" class="c"/>
+<text x="676.3" y="1100" class="v">41.8 µs · 1.2×</text>
+<text x="540" y="1120" class="l">bincode</text>
+<rect x="550" y="1108" width="140.6" height="15" rx="3" class="c"/>
+<text x="698.6" y="1120" class="v">49.7 µs · 1.4×</text>
+<text x="540" y="1140" class="l">postcard</text>
+<rect x="550" y="1128" width="135.2" height="15" rx="3" class="c"/>
+<text x="693.2" y="1140" class="v">47.8 µs · 1.4×</text>
+<text x="540" y="1160" class="l">serde_json</text>
+<rect x="550" y="1148" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1160" class="v">60.1 µs · 1.7×</text>
+<text x="0" y="1198" class="g">Serialize · strings-1000</text>
+<text x="90" y="1220" class="l n">nino</text>
+<rect x="100" y="1208" width="37.1" height="15" rx="3" class="a"/>
+<text x="145.1" y="1220" class="v n">1.24 µs</text>
+<text x="90" y="1240" class="l">prost</text>
+<rect x="100" y="1228" width="114.6" height="15" rx="3" class="c"/>
+<text x="222.6" y="1240" class="v">3.83 µs · 3.1×</text>
+<text x="90" y="1260" class="l">rmp-serde</text>
+<rect x="100" y="1248" width="98.8" height="15" rx="3" class="c"/>
+<text x="206.8" y="1260" class="v">3.30 µs · 2.7×</text>
+<text x="90" y="1280" class="l">bincode</text>
+<rect x="100" y="1268" width="85.6" height="15" rx="3" class="c"/>
+<text x="193.6" y="1280" class="v">2.86 µs · 2.3×</text>
+<text x="90" y="1300" class="l">postcard</text>
+<rect x="100" y="1288" width="136.2" height="15" rx="3" class="c"/>
+<text x="244.2" y="1300" class="v">4.55 µs · 3.7×</text>
+<text x="90" y="1320" class="l">serde_json</text>
+<rect x="100" y="1308" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="1320" class="v">5.68 µs · 4.6×</text>
+<text x="450" y="1198" class="g">Deserialize · strings-1000</text>
+<text x="540" y="1220" class="l n">nino</text>
+<rect x="550" y="1208" width="87.8" height="15" rx="3" class="a"/>
+<text x="645.8" y="1220" class="v n">16.0 µs</text>
+<text x="540" y="1240" class="l">prost</text>
+<rect x="550" y="1228" width="165.9" height="15" rx="3" class="c"/>
+<text x="723.9" y="1240" class="v">30.3 µs · 1.9×</text>
+<text x="540" y="1260" class="l">rmp-serde</text>
+<rect x="550" y="1248" width="130.2" height="15" rx="3" class="c"/>
+<text x="688.2" y="1260" class="v">23.8 µs · 1.5×</text>
+<text x="540" y="1280" class="l">bincode</text>
+<rect x="550" y="1268" width="138.4" height="15" rx="3" class="c"/>
+<text x="696.4" y="1280" class="v">25.2 µs · 1.6×</text>
+<text x="540" y="1300" class="l">postcard</text>
+<rect x="550" y="1288" width="127.2" height="15" rx="3" class="c"/>
+<text x="685.2" y="1300" class="v">23.2 µs · 1.4×</text>
+<text x="540" y="1320" class="l">serde_json</text>
+<rect x="550" y="1308" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1320" class="v">31.0 µs · 1.9×</text>
+<text x="0" y="1358" class="g">Serialize · strings-mixed-1000</text>
+<text x="90" y="1380" class="l n">nino</text>
+<rect x="100" y="1368" width="71.6" height="15" rx="3" class="a"/>
+<text x="179.6" y="1380" class="v n">2.93 µs</text>
+<text x="90" y="1400" class="l">prost</text>
+<rect x="100" y="1388" width="95.5" height="15" rx="3" class="c"/>
+<text x="203.5" y="1400" class="v">3.91 µs · 1.3×</text>
+<text x="90" y="1420" class="l">rmp-serde</text>
+<rect x="100" y="1408" width="87.7" height="15" rx="3" class="c"/>
+<text x="195.7" y="1420" class="v">3.59 µs · 1.2×</text>
+<text x="90" y="1440" class="l">bincode</text>
+<rect x="100" y="1428" width="73.8" height="15" rx="3" class="c"/>
+<text x="181.8" y="1440" class="v">3.02 µs · on par</text>
+<text x="90" y="1460" class="l">postcard</text>
+<rect x="100" y="1448" width="105.0" height="15" rx="3" class="c"/>
+<text x="213.0" y="1460" class="v">4.30 µs · 1.5×</text>
+<text x="90" y="1480" class="l">serde_json</text>
+<rect x="100" y="1468" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="1480" class="v">6.96 µs · 2.4×</text>
+<text x="450" y="1358" class="g">Deserialize · strings-mixed-1000</text>
+<text x="540" y="1380" class="l n">nino</text>
+<rect x="550" y="1368" width="101.1" height="15" rx="3" class="a"/>
+<text x="659.1" y="1380" class="v n">20.8 µs</text>
+<text x="540" y="1400" class="l">prost</text>
+<rect x="550" y="1388" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1400" class="v">34.9 µs · 1.7×</text>
+<text x="540" y="1420" class="l">rmp-serde</text>
+<rect x="550" y="1408" width="137.9" height="15" rx="3" class="c"/>
+<text x="695.9" y="1420" class="v">28.3 µs · 1.4×</text>
+<text x="540" y="1440" class="l">bincode</text>
+<rect x="550" y="1428" width="137.6" height="15" rx="3" class="c"/>
+<text x="695.6" y="1440" class="v">28.3 µs · 1.4×</text>
+<text x="540" y="1460" class="l">postcard</text>
+<rect x="550" y="1448" width="140.8" height="15" rx="3" class="c"/>
+<text x="698.8" y="1460" class="v">28.9 µs · 1.4×</text>
+<text x="540" y="1480" class="l">serde_json</text>
+<rect x="550" y="1468" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1480" class="v">34.9 µs · 1.7×</text>
+<text x="0" y="1518" class="g">Serialize · strings-mixed-utf8-1000</text>
+<text x="90" y="1540" class="l n">nino</text>
+<rect x="100" y="1528" width="170.0" height="15" rx="3" class="a"/>
+<text x="278.0" y="1540" class="v n">5.74 µs</text>
+<text x="450" y="1518" class="g">Deserialize · strings-mixed-utf8-1000</text>
+<text x="540" y="1540" class="l n">nino</text>
+<rect x="550" y="1528" width="170.0" height="15" rx="3" class="a"/>
+<text x="728.0" y="1540" class="v n">32.8 µs</text>
+<text x="0" y="1578" class="g">Serialize · tracked-1000</text>
+<text x="90" y="1600" class="l n">nino</text>
+<rect x="100" y="1588" width="170.0" height="15" rx="3" class="a"/>
+<text x="278.0" y="1600" class="v n">53.4 µs</text>
+<text x="450" y="1578" class="g">Deserialize · tracked-1000</text>
+<text x="540" y="1600" class="l n">nino</text>
+<rect x="550" y="1588" width="170.0" height="15" rx="3" class="a"/>
+<text x="728.0" y="1600" class="v n">293 µs</text>
+</g>
+</svg>

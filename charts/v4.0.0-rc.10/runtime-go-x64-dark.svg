@@ -1,0 +1,282 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 1290" width="940" height="1290" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="940" height="1290" rx="8" fill="#0d1117"/>
+<g transform="translate(20 20)">
+<style>.t{font-size:18px;font-weight:700;fill:#f0f6fc}.s{font-size:12px;fill:#9198a1}.g{font-size:13px;font-weight:600;fill:#f0f6fc}.l{font-size:12px;fill:#9198a1;text-anchor:end}.v{font-size:12px;fill:#f0f6fc}.n{font-weight:700}.a{fill:#5b8def}.b{fill:#6e7681}.c{fill:#3d444d}</style>
+<text x="0" y="22" class="t">Go runtime x64: time per operation (shorter is faster)</text>
+<text x="0" y="44" class="s">AMD EPYC 9V45, linux/amd64; N× = N times as long as Nino.</text>
+<text x="0" y="78" class="g">Serialize · simple-class</text>
+<text x="90" y="100" class="l n">Nino</text>
+<rect x="100" y="88" width="8.8" height="15" rx="3" class="a"/>
+<text x="116.8" y="100" class="v n">277 ns</text>
+<text x="90" y="120" class="l">NinoTags</text>
+<rect x="100" y="108" width="18.6" height="15" rx="3" class="c"/>
+<text x="126.6" y="120" class="v">584 ns · 2.1×</text>
+<text x="90" y="140" class="l">Protobuf</text>
+<rect x="100" y="128" width="91.5" height="15" rx="3" class="c"/>
+<text x="199.5" y="140" class="v">2.87 µs · 10×</text>
+<text x="90" y="160" class="l">MessagePack</text>
+<rect x="100" y="148" width="118.0" height="15" rx="3" class="c"/>
+<text x="226.0" y="160" class="v">3.70 µs · 13×</text>
+<text x="90" y="180" class="l">JSON</text>
+<rect x="100" y="168" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="180" class="v">5.33 µs · 19×</text>
+<text x="90" y="200" class="l">Gob</text>
+<rect x="100" y="188" width="161.7" height="15" rx="3" class="c"/>
+<text x="269.7" y="200" class="v">5.07 µs · 18×</text>
+<text x="450" y="78" class="g">Deserialize · simple-class</text>
+<text x="540" y="100" class="l n">Nino</text>
+<rect x="550" y="88" width="8.7" height="15" rx="3" class="a"/>
+<text x="566.7" y="100" class="v n">737 ns</text>
+<text x="540" y="120" class="l">NinoTags</text>
+<rect x="550" y="108" width="13.2" height="15" rx="3" class="c"/>
+<text x="571.2" y="120" class="v">1.12 µs · 1.5×</text>
+<text x="540" y="140" class="l">Protobuf</text>
+<rect x="550" y="128" width="44.1" height="15" rx="3" class="c"/>
+<text x="602.1" y="140" class="v">3.73 µs · 5.1×</text>
+<text x="540" y="160" class="l">MessagePack</text>
+<rect x="550" y="148" width="79.7" height="15" rx="3" class="c"/>
+<text x="637.7" y="160" class="v">6.74 µs · 9.1×</text>
+<text x="540" y="180" class="l">JSON</text>
+<rect x="550" y="168" width="114.4" height="15" rx="3" class="c"/>
+<text x="672.4" y="180" class="v">9.68 µs · 13×</text>
+<text x="540" y="200" class="l">Gob</text>
+<rect x="550" y="188" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="200" class="v">14.4 µs · 20×</text>
+<text x="0" y="238" class="g">Serialize · simple-class-100</text>
+<text x="90" y="260" class="l n">Nino</text>
+<rect x="100" y="248" width="8.8" height="15" rx="3" class="a"/>
+<text x="116.8" y="260" class="v n">29.7 µs</text>
+<text x="90" y="280" class="l">NinoTags</text>
+<rect x="100" y="268" width="16.9" height="15" rx="3" class="c"/>
+<text x="124.9" y="280" class="v">57.0 µs · 1.9×</text>
+<text x="90" y="300" class="l">Protobuf</text>
+<rect x="100" y="288" width="85.8" height="15" rx="3" class="c"/>
+<text x="193.8" y="300" class="v">290 µs · 9.8×</text>
+<text x="90" y="320" class="l">MessagePack</text>
+<rect x="100" y="308" width="113.2" height="15" rx="3" class="c"/>
+<text x="221.2" y="320" class="v">383 µs · 13×</text>
+<text x="90" y="340" class="l">JSON</text>
+<rect x="100" y="328" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="340" class="v">575 µs · 19×</text>
+<text x="90" y="360" class="l">Gob</text>
+<rect x="100" y="348" width="76.7" height="15" rx="3" class="c"/>
+<text x="184.7" y="360" class="v">259 µs · 8.7×</text>
+<text x="450" y="238" class="g">Deserialize · simple-class-100</text>
+<text x="540" y="260" class="l n">Nino</text>
+<rect x="550" y="248" width="13.3" height="15" rx="3" class="a"/>
+<text x="571.3" y="260" class="v n">78.4 µs</text>
+<text x="540" y="280" class="l">NinoTags</text>
+<rect x="550" y="268" width="16.9" height="15" rx="3" class="c"/>
+<text x="574.9" y="280" class="v">99.1 µs · 1.3×</text>
+<text x="540" y="300" class="l">Protobuf</text>
+<rect x="550" y="288" width="65.0" height="15" rx="3" class="c"/>
+<text x="623.0" y="300" class="v">383 µs · 4.9×</text>
+<text x="540" y="320" class="l">MessagePack</text>
+<rect x="550" y="308" width="114.5" height="15" rx="3" class="c"/>
+<text x="672.5" y="320" class="v">674 µs · 8.6×</text>
+<text x="540" y="340" class="l">JSON</text>
+<rect x="550" y="328" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="340" class="v">1.00 ms · 13×</text>
+<text x="540" y="360" class="l">Gob</text>
+<rect x="550" y="348" width="50.8" height="15" rx="3" class="c"/>
+<text x="608.8" y="360" class="v">299 µs · 3.8×</text>
+<text x="0" y="398" class="g">Serialize · scattered-1m</text>
+<text x="90" y="420" class="l n">Nino</text>
+<rect x="100" y="408" width="45.0" height="15" rx="3" class="a"/>
+<text x="153.0" y="420" class="v n">164 ms</text>
+<text x="90" y="440" class="l">NinoTags</text>
+<rect x="100" y="428" width="82.1" height="15" rx="3" class="c"/>
+<text x="190.1" y="440" class="v">300 ms · 1.8×</text>
+<text x="90" y="460" class="l">Protobuf</text>
+<rect x="100" y="448" width="111.2" height="15" rx="3" class="c"/>
+<text x="219.2" y="460" class="v">406 ms · 2.5×</text>
+<text x="90" y="480" class="l">MessagePack</text>
+<rect x="100" y="468" width="143.2" height="15" rx="3" class="c"/>
+<text x="251.2" y="480" class="v">523 ms · 3.2×</text>
+<text x="90" y="500" class="l">JSON</text>
+<rect x="100" y="488" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="500" class="v">621 ms · 3.8×</text>
+<text x="90" y="520" class="l">Gob</text>
+<rect x="100" y="508" width="111.5" height="15" rx="3" class="c"/>
+<text x="219.5" y="520" class="v">407 ms · 2.5×</text>
+<text x="450" y="398" class="g">Deserialize · scattered-1m</text>
+<text x="540" y="420" class="l n">Nino</text>
+<rect x="550" y="408" width="19.1" height="15" rx="3" class="a"/>
+<text x="577.1" y="420" class="v n">49.8 ms</text>
+<text x="540" y="440" class="l">NinoTags</text>
+<rect x="550" y="428" width="34.6" height="15" rx="3" class="c"/>
+<text x="592.6" y="440" class="v">90.1 ms · 1.8×</text>
+<text x="540" y="460" class="l">Protobuf</text>
+<rect x="550" y="448" width="54.1" height="15" rx="3" class="c"/>
+<text x="612.1" y="460" class="v">141 ms · 2.8×</text>
+<text x="540" y="480" class="l">MessagePack</text>
+<rect x="550" y="468" width="102.3" height="15" rx="3" class="c"/>
+<text x="660.3" y="480" class="v">266 ms · 5.3×</text>
+<text x="540" y="500" class="l">JSON</text>
+<rect x="550" y="488" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="500" class="v">443 ms · 8.9×</text>
+<text x="540" y="520" class="l">Gob</text>
+<rect x="550" y="508" width="54.0" height="15" rx="3" class="c"/>
+<text x="612.0" y="520" class="v">140 ms · 2.8×</text>
+<text x="0" y="558" class="g">Serialize · int-set-1000</text>
+<text x="90" y="580" class="l n">Nino</text>
+<rect x="100" y="568" width="3.0" height="15" rx="3" class="a"/>
+<text x="111.0" y="580" class="v n">45.7 ns</text>
+<text x="90" y="600" class="l">NinoTags</text>
+<rect x="100" y="588" width="3.0" height="15" rx="3" class="c"/>
+<text x="111.0" y="600" class="v">81.4 ns · 1.8×</text>
+<text x="90" y="620" class="l">Protobuf</text>
+<rect x="100" y="608" width="46.0" height="15" rx="3" class="c"/>
+<text x="154.0" y="620" class="v">5.07 µs · 111×</text>
+<text x="90" y="640" class="l">MessagePack</text>
+<rect x="100" y="628" width="164.8" height="15" rx="3" class="c"/>
+<text x="272.8" y="640" class="v">18.1 µs · 398×</text>
+<text x="90" y="660" class="l">JSON</text>
+<rect x="100" y="648" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="660" class="v">18.7 µs · 410×</text>
+<text x="90" y="680" class="l">Gob</text>
+<rect x="100" y="668" width="73.8" height="15" rx="3" class="c"/>
+<text x="181.8" y="680" class="v">8.13 µs · 178×</text>
+<text x="450" y="558" class="g">Deserialize · int-set-1000</text>
+<text x="540" y="580" class="l n">Nino</text>
+<rect x="550" y="568" width="8.0" height="15" rx="3" class="a"/>
+<text x="566.0" y="580" class="v n">1.98 µs</text>
+<text x="540" y="600" class="l">NinoTags</text>
+<rect x="550" y="588" width="3.1" height="15" rx="3" class="c"/>
+<text x="561.1" y="600" class="v">774 ns · 0.4×</text>
+<text x="540" y="620" class="l">Protobuf</text>
+<rect x="550" y="608" width="23.0" height="15" rx="3" class="c"/>
+<text x="581.0" y="620" class="v">5.72 µs · 2.9×</text>
+<text x="540" y="640" class="l">MessagePack</text>
+<rect x="550" y="628" width="110.3" height="15" rx="3" class="c"/>
+<text x="668.3" y="640" class="v">27.4 µs · 14×</text>
+<text x="540" y="660" class="l">JSON</text>
+<rect x="550" y="648" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="660" class="v">42.2 µs · 21×</text>
+<text x="540" y="680" class="l">Gob</text>
+<rect x="550" y="668" width="48.2" height="15" rx="3" class="c"/>
+<text x="606.2" y="680" class="v">12.0 µs · 6.0×</text>
+<text x="0" y="718" class="g">Serialize · string-set-1000</text>
+<text x="90" y="740" class="l n">Nino</text>
+<rect x="100" y="728" width="9.0" height="15" rx="3" class="a"/>
+<text x="117.0" y="740" class="v n">1.61 µs</text>
+<text x="90" y="760" class="l">NinoTags</text>
+<rect x="100" y="748" width="42.2" height="15" rx="3" class="c"/>
+<text x="150.2" y="760" class="v">7.56 µs · 4.7×</text>
+<text x="90" y="780" class="l">Protobuf</text>
+<rect x="100" y="768" width="49.5" height="15" rx="3" class="c"/>
+<text x="157.5" y="780" class="v">8.86 µs · 5.5×</text>
+<text x="90" y="800" class="l">MessagePack</text>
+<rect x="100" y="788" width="127.1" height="15" rx="3" class="c"/>
+<text x="235.1" y="800" class="v">22.8 µs · 14×</text>
+<text x="90" y="820" class="l">JSON</text>
+<rect x="100" y="808" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="820" class="v">30.4 µs · 19×</text>
+<text x="90" y="840" class="l">Gob</text>
+<rect x="100" y="828" width="101.9" height="15" rx="3" class="c"/>
+<text x="209.9" y="840" class="v">18.3 µs · 11×</text>
+<text x="450" y="718" class="g">Deserialize · string-set-1000</text>
+<text x="540" y="740" class="l n">Nino</text>
+<rect x="550" y="728" width="45.4" height="15" rx="3" class="a"/>
+<text x="603.4" y="740" class="v n">21.7 µs</text>
+<text x="540" y="760" class="l">NinoTags</text>
+<rect x="550" y="748" width="66.8" height="15" rx="3" class="c"/>
+<text x="624.8" y="760" class="v">32.0 µs · 1.5×</text>
+<text x="540" y="780" class="l">Protobuf</text>
+<rect x="550" y="768" width="54.0" height="15" rx="3" class="c"/>
+<text x="612.0" y="780" class="v">25.9 µs · 1.2×</text>
+<text x="540" y="800" class="l">MessagePack</text>
+<rect x="550" y="788" width="145.7" height="15" rx="3" class="c"/>
+<text x="703.7" y="800" class="v">69.8 µs · 3.2×</text>
+<text x="540" y="820" class="l">JSON</text>
+<rect x="550" y="808" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="820" class="v">81.4 µs · 3.7×</text>
+<text x="540" y="840" class="l">Gob</text>
+<rect x="550" y="828" width="114.6" height="15" rx="3" class="c"/>
+<text x="672.6" y="840" class="v">54.9 µs · 2.5×</text>
+<text x="0" y="878" class="g">Serialize · strings-1000</text>
+<text x="90" y="900" class="l n">Nino</text>
+<rect x="100" y="888" width="11.9" height="15" rx="3" class="a"/>
+<text x="119.9" y="900" class="v n">1.47 µs</text>
+<text x="90" y="920" class="l">NinoTags</text>
+<rect x="100" y="908" width="12.9" height="15" rx="3" class="c"/>
+<text x="120.9" y="920" class="v">1.60 µs · 1.1×</text>
+<text x="90" y="940" class="l">Protobuf</text>
+<rect x="100" y="928" width="66.3" height="15" rx="3" class="c"/>
+<text x="174.3" y="940" class="v">8.20 µs · 5.6×</text>
+<text x="90" y="960" class="l">MessagePack</text>
+<rect x="100" y="948" width="61.5" height="15" rx="3" class="c"/>
+<text x="169.5" y="960" class="v">7.60 µs · 5.2×</text>
+<text x="90" y="980" class="l">JSON</text>
+<rect x="100" y="968" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="980" class="v">21.0 µs · 14×</text>
+<text x="90" y="1000" class="l">Gob</text>
+<rect x="100" y="988" width="85.9" height="15" rx="3" class="c"/>
+<text x="193.9" y="1000" class="v">10.6 µs · 7.2×</text>
+<text x="450" y="878" class="g">Deserialize · strings-1000</text>
+<text x="540" y="900" class="l n">Nino</text>
+<rect x="550" y="888" width="24.0" height="15" rx="3" class="a"/>
+<text x="582.0" y="900" class="v n">6.55 µs</text>
+<text x="540" y="920" class="l">NinoTags</text>
+<rect x="550" y="908" width="24.1" height="15" rx="3" class="c"/>
+<text x="582.1" y="920" class="v">6.59 µs · on par</text>
+<text x="540" y="940" class="l">Protobuf</text>
+<rect x="550" y="928" width="89.1" height="15" rx="3" class="c"/>
+<text x="647.1" y="940" class="v">24.4 µs · 3.7×</text>
+<text x="540" y="960" class="l">MessagePack</text>
+<rect x="550" y="948" width="89.8" height="15" rx="3" class="c"/>
+<text x="647.8" y="960" class="v">24.6 µs · 3.7×</text>
+<text x="540" y="980" class="l">JSON</text>
+<rect x="550" y="968" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="980" class="v">46.5 µs · 7.1×</text>
+<text x="540" y="1000" class="l">Gob</text>
+<rect x="550" y="988" width="89.4" height="15" rx="3" class="c"/>
+<text x="647.4" y="1000" class="v">24.4 µs · 3.7×</text>
+<text x="0" y="1038" class="g">Serialize · strings-mixed-1000</text>
+<text x="90" y="1060" class="l n">Nino</text>
+<rect x="100" y="1048" width="18.6" height="15" rx="3" class="a"/>
+<text x="126.6" y="1060" class="v n">3.72 µs</text>
+<text x="90" y="1080" class="l">NinoTags</text>
+<rect x="100" y="1068" width="18.1" height="15" rx="3" class="c"/>
+<text x="126.1" y="1080" class="v">3.62 µs · on par</text>
+<text x="90" y="1100" class="l">Protobuf</text>
+<rect x="100" y="1088" width="82.3" height="15" rx="3" class="c"/>
+<text x="190.3" y="1100" class="v">16.5 µs · 4.4×</text>
+<text x="90" y="1120" class="l">MessagePack</text>
+<rect x="100" y="1108" width="39.7" height="15" rx="3" class="c"/>
+<text x="147.7" y="1120" class="v">7.97 µs · 2.1×</text>
+<text x="90" y="1140" class="l">JSON</text>
+<rect x="100" y="1128" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="1140" class="v">34.1 µs · 9.2×</text>
+<text x="90" y="1160" class="l">Gob</text>
+<rect x="100" y="1148" width="77.5" height="15" rx="3" class="c"/>
+<text x="185.5" y="1160" class="v">15.6 µs · 4.2×</text>
+<text x="450" y="1038" class="g">Deserialize · strings-mixed-1000</text>
+<text x="540" y="1060" class="l n">Nino</text>
+<rect x="550" y="1048" width="33.2" height="15" rx="3" class="a"/>
+<text x="591.2" y="1060" class="v n">15.1 µs</text>
+<text x="540" y="1080" class="l">NinoTags</text>
+<rect x="550" y="1068" width="34.6" height="15" rx="3" class="c"/>
+<text x="592.6" y="1080" class="v">15.7 µs · on par</text>
+<text x="540" y="1100" class="l">Protobuf</text>
+<rect x="550" y="1088" width="73.6" height="15" rx="3" class="c"/>
+<text x="631.6" y="1100" class="v">33.4 µs · 2.2×</text>
+<text x="540" y="1120" class="l">MessagePack</text>
+<rect x="550" y="1108" width="57.8" height="15" rx="3" class="c"/>
+<text x="615.8" y="1120" class="v">26.2 µs · 1.7×</text>
+<text x="540" y="1140" class="l">JSON</text>
+<rect x="550" y="1128" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1140" class="v">77.1 µs · 5.1×</text>
+<text x="540" y="1160" class="l">Gob</text>
+<rect x="550" y="1148" width="59.1" height="15" rx="3" class="c"/>
+<text x="617.1" y="1160" class="v">26.8 µs · 1.8×</text>
+<text x="0" y="1198" class="g">Serialize · strings-mixed-utf8-1000</text>
+<text x="90" y="1220" class="l n">Nino</text>
+<rect x="100" y="1208" width="170.0" height="15" rx="3" class="a"/>
+<text x="278.0" y="1220" class="v n">7.64 µs</text>
+<text x="450" y="1198" class="g">Deserialize · strings-mixed-utf8-1000</text>
+<text x="540" y="1220" class="l n">Nino</text>
+<rect x="550" y="1208" width="170.0" height="15" rx="3" class="a"/>
+<text x="728.0" y="1220" class="v n">14.4 µs</text>
+</g>
+</svg>
