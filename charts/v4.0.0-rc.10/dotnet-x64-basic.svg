@@ -1,0 +1,324 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 1430" width="940" height="1430" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="940" height="1430" rx="8" fill="#ffffff"/>
+<g transform="translate(20 20)">
+<style>.t{font-size:18px;font-weight:700;fill:#1f2328}.s{font-size:12px;fill:#59636e}.g{font-size:13px;font-weight:600;fill:#1f2328}.l{font-size:12px;fill:#59636e;text-anchor:end}.v{font-size:12px;fill:#1f2328}.n{font-weight:700}.a{fill:#3b6fd4}.b{fill:#8b95a5}.c{fill:#cdd2da}</style>
+<text x="0" y="22" class="t">.NET x64, Basic types and structs: time per operation (shorter is faster)</text>
+<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, x64 GitHub runners, v3 3.3.13 directly before v4; every case is in the table; N× = N times as long as Nino v4.</text>
+<text x="0" y="78" class="g">Serialize · SimpleClass</text>
+<text x="90" y="100" class="l n">Nino v4</text>
+<rect x="100" y="88" width="4.8" height="15" rx="3" class="a"/>
+<text x="112.8" y="100" class="v n">75.3 ns</text>
+<text x="90" y="120" class="l">Nino v3</text>
+<rect x="100" y="108" width="9.2" height="15" rx="3" class="b"/>
+<text x="117.2" y="120" class="v">146 ns · 1.9×</text>
+<text x="90" y="140" class="l">MemoryPack</text>
+<rect x="100" y="128" width="20.5" height="15" rx="3" class="c"/>
+<text x="128.5" y="140" class="v">324 ns · 4.3×</text>
+<text x="90" y="160" class="l">MessagePack</text>
+<rect x="100" y="148" width="47.9" height="15" rx="3" class="c"/>
+<text x="155.9" y="160" class="v">759 ns · 10×</text>
+<text x="90" y="180" class="l">Google.Protobuf</text>
+<rect x="100" y="168" width="141.3" height="15" rx="3" class="c"/>
+<text x="249.3" y="180" class="v">2.24 µs · 30×</text>
+<text x="90" y="200" class="l">protobuf-net</text>
+<rect x="100" y="188" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="200" class="v">2.69 µs · 36×</text>
+<text x="90" y="220" class="l">System.Text.Json</text>
+<rect x="100" y="208" width="120.5" height="15" rx="3" class="c"/>
+<text x="228.5" y="220" class="v">1.91 µs · 25×</text>
+<text x="450" y="78" class="g">Deserialize · SimpleClass</text>
+<text x="540" y="100" class="l n">Nino v4</text>
+<rect x="550" y="88" width="7.7" height="15" rx="3" class="a"/>
+<text x="565.7" y="100" class="v n">259 ns</text>
+<text x="540" y="120" class="l">Nino v3</text>
+<rect x="550" y="108" width="11.9" height="15" rx="3" class="b"/>
+<text x="569.9" y="120" class="v">397 ns · 1.5×</text>
+<text x="540" y="140" class="l">MemoryPack</text>
+<rect x="550" y="128" width="15.5" height="15" rx="3" class="c"/>
+<text x="573.5" y="140" class="v">518 ns · 2.0×</text>
+<text x="540" y="160" class="l">MessagePack</text>
+<rect x="550" y="148" width="39.2" height="15" rx="3" class="c"/>
+<text x="597.2" y="160" class="v">1.31 µs · 5.1×</text>
+<text x="540" y="180" class="l">Google.Protobuf</text>
+<rect x="550" y="168" width="79.5" height="15" rx="3" class="c"/>
+<text x="637.5" y="180" class="v">2.66 µs · 10×</text>
+<text x="540" y="200" class="l">protobuf-net</text>
+<rect x="550" y="188" width="137.2" height="15" rx="3" class="c"/>
+<text x="695.2" y="200" class="v">4.59 µs · 18×</text>
+<text x="540" y="220" class="l">System.Text.Json</text>
+<rect x="550" y="208" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="220" class="v">5.69 µs · 22×</text>
+<text x="0" y="258" class="g">Serialize · SimpleClass[100]</text>
+<text x="90" y="280" class="l n">Nino v4</text>
+<rect x="100" y="268" width="4.9" height="15" rx="3" class="a"/>
+<text x="112.9" y="280" class="v n">8.20 µs</text>
+<text x="90" y="300" class="l">Nino v3</text>
+<rect x="100" y="288" width="11.5" height="15" rx="3" class="b"/>
+<text x="119.5" y="300" class="v">19.3 µs · 2.4×</text>
+<text x="90" y="320" class="l">MemoryPack</text>
+<rect x="100" y="308" width="18.5" height="15" rx="3" class="c"/>
+<text x="126.5" y="320" class="v">31.2 µs · 3.8×</text>
+<text x="90" y="340" class="l">MessagePack</text>
+<rect x="100" y="328" width="43.0" height="15" rx="3" class="c"/>
+<text x="151.0" y="340" class="v">72.5 µs · 8.8×</text>
+<text x="90" y="360" class="l">Google.Protobuf</text>
+<rect x="100" y="348" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="360" class="v">286 µs · 35×</text>
+<text x="90" y="380" class="l">protobuf-net</text>
+<rect x="100" y="368" width="151.1" height="15" rx="3" class="c"/>
+<text x="259.1" y="380" class="v">254 µs · 31×</text>
+<text x="90" y="400" class="l">System.Text.Json</text>
+<rect x="100" y="388" width="115.9" height="15" rx="3" class="c"/>
+<text x="223.9" y="400" class="v">195 µs · 24×</text>
+<text x="450" y="258" class="g">Deserialize · SimpleClass[100]</text>
+<text x="540" y="280" class="l n">Nino v4</text>
+<rect x="550" y="268" width="7.2" height="15" rx="3" class="a"/>
+<text x="565.2" y="280" class="v n">27.3 µs</text>
+<text x="540" y="300" class="l">Nino v3</text>
+<rect x="550" y="288" width="11.1" height="15" rx="3" class="b"/>
+<text x="569.1" y="300" class="v">42.2 µs · 1.5×</text>
+<text x="540" y="320" class="l">MemoryPack</text>
+<rect x="550" y="308" width="13.1" height="15" rx="3" class="c"/>
+<text x="571.1" y="320" class="v">49.8 µs · 1.8×</text>
+<text x="540" y="340" class="l">MessagePack</text>
+<rect x="550" y="328" width="37.4" height="15" rx="3" class="c"/>
+<text x="595.4" y="340" class="v">142 µs · 5.2×</text>
+<text x="540" y="360" class="l">Google.Protobuf</text>
+<rect x="550" y="348" width="91.3" height="15" rx="3" class="c"/>
+<text x="649.3" y="360" class="v">346 µs · 13×</text>
+<text x="540" y="380" class="l">protobuf-net</text>
+<rect x="550" y="368" width="122.1" height="15" rx="3" class="c"/>
+<text x="680.1" y="380" class="v">464 µs · 17×</text>
+<text x="540" y="400" class="l">System.Text.Json</text>
+<rect x="550" y="388" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="400" class="v">645 µs · 24×</text>
+<text x="0" y="438" class="g">Serialize · SimpleStruct (int + DateTime)</text>
+<text x="90" y="460" class="l n">Nino v4</text>
+<rect x="100" y="448" width="3.9" height="15" rx="3" class="a"/>
+<text x="111.9" y="460" class="v n">2.50 ns</text>
+<text x="90" y="480" class="l">Nino v3</text>
+<rect x="100" y="468" width="3.8" height="15" rx="3" class="b"/>
+<text x="111.8" y="480" class="v">2.47 ns · on par</text>
+<text x="90" y="500" class="l">MemoryPack</text>
+<rect x="100" y="488" width="6.4" height="15" rx="3" class="c"/>
+<text x="114.4" y="500" class="v">4.09 ns · 1.6×</text>
+<text x="90" y="520" class="l">MessagePack</text>
+<rect x="100" y="508" width="77.0" height="15" rx="3" class="c"/>
+<text x="185.0" y="520" class="v">49.4 ns · 20×</text>
+<text x="90" y="540" class="l">Google.Protobuf</text>
+<rect x="100" y="528" width="54.4" height="15" rx="3" class="c"/>
+<text x="162.4" y="540" class="v">34.9 ns · 14×</text>
+<text x="90" y="560" class="l">protobuf-net</text>
+<rect x="100" y="548" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="560" class="v">109 ns · 44×</text>
+<text x="90" y="580" class="l">System.Text.Json</text>
+<rect x="100" y="568" width="113.1" height="15" rx="3" class="c"/>
+<text x="221.1" y="580" class="v">72.5 ns · 29×</text>
+<text x="450" y="438" class="g">Deserialize · SimpleStruct (int + DateTime)</text>
+<text x="540" y="460" class="l n">Nino v4</text>
+<rect x="550" y="448" width="3.0" height="15" rx="3" class="a"/>
+<text x="561.0" y="460" class="v n">&lt; 1 ns</text>
+<text x="540" y="480" class="l">Nino v3</text>
+<rect x="550" y="468" width="3.0" height="15" rx="3" class="b"/>
+<text x="561.0" y="480" class="v">&lt; 1 ns · on par</text>
+<text x="540" y="500" class="l">MemoryPack</text>
+<rect x="550" y="488" width="3.0" height="15" rx="3" class="c"/>
+<text x="561.0" y="500" class="v">&lt; 1 ns · on par</text>
+<text x="540" y="520" class="l">MessagePack</text>
+<rect x="550" y="508" width="67.0" height="15" rx="3" class="c"/>
+<text x="625.0" y="520" class="v">64.2 ns · &gt; 64×</text>
+<text x="540" y="540" class="l">Google.Protobuf</text>
+<rect x="550" y="528" width="54.5" height="15" rx="3" class="c"/>
+<text x="612.5" y="540" class="v">52.2 ns · &gt; 52×</text>
+<text x="540" y="560" class="l">protobuf-net</text>
+<rect x="550" y="548" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="560" class="v">163 ns · &gt; 163×</text>
+<text x="540" y="580" class="l">System.Text.Json</text>
+<rect x="550" y="568" width="168.8" height="15" rx="3" class="c"/>
+<text x="726.8" y="580" class="v">162 ns · &gt; 162×</text>
+<text x="0" y="618" class="g">Serialize · SimpleStruct[100]</text>
+<text x="90" y="640" class="l n">Nino v4</text>
+<rect x="100" y="628" width="3.0" height="15" rx="3" class="a"/>
+<text x="111.0" y="640" class="v n">20.2 ns</text>
+<text x="90" y="660" class="l">Nino v3</text>
+<rect x="100" y="648" width="3.0" height="15" rx="3" class="b"/>
+<text x="111.0" y="660" class="v">23.6 ns · 1.2×</text>
+<text x="90" y="680" class="l">MemoryPack</text>
+<rect x="100" y="668" width="3.0" height="15" rx="3" class="c"/>
+<text x="111.0" y="680" class="v">24.5 ns · 1.2×</text>
+<text x="90" y="700" class="l">MessagePack</text>
+<rect x="100" y="688" width="70.8" height="15" rx="3" class="c"/>
+<text x="178.8" y="700" class="v">2.86 µs · 142×</text>
+<text x="90" y="720" class="l">Google.Protobuf</text>
+<rect x="100" y="708" width="80.5" height="15" rx="3" class="c"/>
+<text x="188.5" y="720" class="v">3.25 µs · 161×</text>
+<text x="90" y="740" class="l">protobuf-net</text>
+<rect x="100" y="728" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="740" class="v">6.86 µs · 340×</text>
+<text x="90" y="760" class="l">System.Text.Json</text>
+<rect x="100" y="748" width="137.6" height="15" rx="3" class="c"/>
+<text x="245.6" y="760" class="v">5.55 µs · 275×</text>
+<text x="450" y="618" class="g">Deserialize · SimpleStruct[100]</text>
+<text x="540" y="640" class="l n">Nino v4</text>
+<rect x="550" y="628" width="3.0" height="15" rx="3" class="a"/>
+<text x="561.0" y="640" class="v n">61.9 ns</text>
+<text x="540" y="660" class="l">Nino v3</text>
+<rect x="550" y="648" width="3.0" height="15" rx="3" class="b"/>
+<text x="561.0" y="660" class="v">62.3 ns · on par</text>
+<text x="540" y="680" class="l">MemoryPack</text>
+<rect x="550" y="668" width="3.0" height="15" rx="3" class="c"/>
+<text x="561.0" y="680" class="v">76.7 ns · 1.2×</text>
+<text x="540" y="700" class="l">MessagePack</text>
+<rect x="550" y="688" width="27.1" height="15" rx="3" class="c"/>
+<text x="585.1" y="700" class="v">2.63 µs · 43×</text>
+<text x="540" y="720" class="l">Google.Protobuf</text>
+<rect x="550" y="708" width="72.4" height="15" rx="3" class="c"/>
+<text x="630.4" y="720" class="v">7.04 µs · 114×</text>
+<text x="540" y="740" class="l">protobuf-net</text>
+<rect x="550" y="728" width="81.9" height="15" rx="3" class="c"/>
+<text x="639.9" y="740" class="v">7.96 µs · 129×</text>
+<text x="540" y="760" class="l">System.Text.Json</text>
+<rect x="550" y="748" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="760" class="v">16.5 µs · 267×</text>
+<text x="0" y="798" class="g">Serialize · Vector4[10000]</text>
+<text x="90" y="820" class="l n">Nino v4</text>
+<rect x="100" y="808" width="3.0" height="15" rx="3" class="a"/>
+<text x="111.0" y="820" class="v n">2.83 µs</text>
+<text x="90" y="840" class="l">Nino v3</text>
+<rect x="100" y="828" width="3.0" height="15" rx="3" class="b"/>
+<text x="111.0" y="840" class="v">2.83 µs · on par</text>
+<text x="90" y="860" class="l">MemoryPack</text>
+<rect x="100" y="848" width="3.0" height="15" rx="3" class="c"/>
+<text x="111.0" y="860" class="v">2.84 µs · on par</text>
+<text x="90" y="880" class="l">MessagePack</text>
+<rect x="100" y="868" width="7.2" height="15" rx="3" class="c"/>
+<text x="115.2" y="880" class="v">141 µs · 50×</text>
+<text x="90" y="900" class="l">Google.Protobuf</text>
+<rect x="100" y="888" width="7.0" height="15" rx="3" class="c"/>
+<text x="115.0" y="900" class="v">137 µs · 48×</text>
+<text x="90" y="920" class="l">protobuf-net</text>
+<rect x="100" y="908" width="25.7" height="15" rx="3" class="c"/>
+<text x="133.7" y="920" class="v">501 µs · 177×</text>
+<text x="90" y="940" class="l">System.Text.Json</text>
+<rect x="100" y="928" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="940" class="v">3.31 ms · 1170×</text>
+<text x="450" y="798" class="g">Deserialize · Vector4[10000]</text>
+<text x="540" y="820" class="l n">Nino v4</text>
+<rect x="550" y="808" width="4.5" height="15" rx="3" class="a"/>
+<text x="562.5" y="820" class="v n">104 µs</text>
+<text x="540" y="840" class="l">Nino v3</text>
+<rect x="550" y="828" width="4.6" height="15" rx="3" class="b"/>
+<text x="562.6" y="840" class="v">108 µs · on par</text>
+<text x="540" y="860" class="l">MemoryPack</text>
+<rect x="550" y="848" width="4.7" height="15" rx="3" class="c"/>
+<text x="562.7" y="860" class="v">108 µs · on par</text>
+<text x="540" y="880" class="l">MessagePack</text>
+<rect x="550" y="868" width="13.0" height="15" rx="3" class="c"/>
+<text x="571.0" y="880" class="v">301 µs · 2.9×</text>
+<text x="540" y="900" class="l">Google.Protobuf</text>
+<rect x="550" y="888" width="23.4" height="15" rx="3" class="c"/>
+<text x="581.4" y="900" class="v">541 µs · 5.2×</text>
+<text x="540" y="920" class="l">protobuf-net</text>
+<rect x="550" y="908" width="25.8" height="15" rx="3" class="c"/>
+<text x="583.8" y="920" class="v">598 µs · 5.8×</text>
+<text x="540" y="940" class="l">System.Text.Json</text>
+<rect x="550" y="928" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="940" class="v">3.94 ms · 38×</text>
+<text x="0" y="978" class="g">Serialize · FixedStruct</text>
+<text x="90" y="1000" class="l n">Nino v4</text>
+<rect x="100" y="988" width="6.7" height="15" rx="3" class="a"/>
+<text x="114.7" y="1000" class="v n">4.86 ns</text>
+<text x="90" y="1020" class="l">Nino v3</text>
+<rect x="100" y="1008" width="6.8" height="15" rx="3" class="b"/>
+<text x="114.8" y="1020" class="v">4.92 ns · on par</text>
+<text x="90" y="1040" class="l">MemoryPack</text>
+<rect x="100" y="1028" width="6.8" height="15" rx="3" class="c"/>
+<text x="114.8" y="1040" class="v">4.91 ns · on par</text>
+<text x="90" y="1060" class="l">MessagePack</text>
+<rect x="100" y="1048" width="86.1" height="15" rx="3" class="c"/>
+<text x="194.1" y="1060" class="v">62.0 ns · 13×</text>
+<text x="90" y="1080" class="l">protobuf-net</text>
+<rect x="100" y="1068" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="1080" class="v">122 ns · 25×</text>
+<text x="450" y="978" class="g">Deserialize · FixedStruct</text>
+<text x="540" y="1000" class="l n">Nino v4</text>
+<rect x="550" y="988" width="3.0" height="15" rx="3" class="a"/>
+<text x="561.0" y="1000" class="v n">&lt; 1 ns</text>
+<text x="540" y="1020" class="l">Nino v3</text>
+<rect x="550" y="1008" width="3.0" height="15" rx="3" class="b"/>
+<text x="561.0" y="1020" class="v">&lt; 1 ns · on par</text>
+<text x="540" y="1040" class="l">MemoryPack</text>
+<rect x="550" y="1028" width="3.0" height="15" rx="3" class="c"/>
+<text x="561.0" y="1040" class="v">&lt; 1 ns · on par</text>
+<text x="540" y="1060" class="l">MessagePack</text>
+<rect x="550" y="1048" width="115.9" height="15" rx="3" class="c"/>
+<text x="673.9" y="1060" class="v">87.1 ns · &gt; 87×</text>
+<text x="540" y="1080" class="l">protobuf-net</text>
+<rect x="550" y="1068" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1080" class="v">128 ns · &gt; 128×</text>
+<text x="0" y="1118" class="g">Serialize · FixedClass</text>
+<text x="90" y="1140" class="l n">Nino v4</text>
+<rect x="100" y="1128" width="6.4" height="15" rx="3" class="a"/>
+<text x="114.4" y="1140" class="v n">5.04 ns</text>
+<text x="90" y="1160" class="l">Nino v3</text>
+<rect x="100" y="1148" width="23.2" height="15" rx="3" class="b"/>
+<text x="131.2" y="1160" class="v">18.2 ns · 3.6×</text>
+<text x="90" y="1180" class="l">MemoryPack</text>
+<rect x="100" y="1168" width="17.4" height="15" rx="3" class="c"/>
+<text x="125.4" y="1180" class="v">13.7 ns · 2.7×</text>
+<text x="90" y="1200" class="l">MessagePack</text>
+<rect x="100" y="1188" width="78.3" height="15" rx="3" class="c"/>
+<text x="186.3" y="1200" class="v">61.4 ns · 12×</text>
+<text x="90" y="1220" class="l">protobuf-net</text>
+<rect x="100" y="1208" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="1220" class="v">133 ns · 26×</text>
+<text x="450" y="1118" class="g">Deserialize · FixedClass</text>
+<text x="540" y="1140" class="l n">Nino v4</text>
+<rect x="550" y="1128" width="5.7" height="15" rx="3" class="a"/>
+<text x="563.7" y="1140" class="v n">4.48 ns</text>
+<text x="540" y="1160" class="l">Nino v3</text>
+<rect x="550" y="1148" width="5.9" height="15" rx="3" class="b"/>
+<text x="563.9" y="1160" class="v">4.60 ns · on par</text>
+<text x="540" y="1180" class="l">MemoryPack</text>
+<rect x="550" y="1168" width="15.2" height="15" rx="3" class="c"/>
+<text x="573.2" y="1180" class="v">11.9 ns · 2.7×</text>
+<text x="540" y="1200" class="l">MessagePack</text>
+<rect x="550" y="1188" width="105.7" height="15" rx="3" class="c"/>
+<text x="663.7" y="1200" class="v">82.9 ns · 19×</text>
+<text x="540" y="1220" class="l">protobuf-net</text>
+<rect x="550" y="1208" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1220" class="v">133 ns · 30×</text>
+<text x="0" y="1258" class="g">Serialize · FixedClass[100]</text>
+<text x="90" y="1280" class="l n">Nino v4</text>
+<rect x="100" y="1268" width="4.0" height="15" rx="3" class="a"/>
+<text x="112.0" y="1280" class="v n">236 ns</text>
+<text x="90" y="1300" class="l">Nino v3</text>
+<rect x="100" y="1288" width="10.1" height="15" rx="3" class="b"/>
+<text x="118.1" y="1300" class="v">589 ns · 2.5×</text>
+<text x="90" y="1320" class="l">MemoryPack</text>
+<rect x="100" y="1308" width="15.8" height="15" rx="3" class="c"/>
+<text x="123.8" y="1320" class="v">923 ns · 3.9×</text>
+<text x="90" y="1340" class="l">MessagePack</text>
+<rect x="100" y="1328" width="78.8" height="15" rx="3" class="c"/>
+<text x="186.8" y="1340" class="v">4.61 µs · 19×</text>
+<text x="90" y="1360" class="l">protobuf-net</text>
+<rect x="100" y="1348" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="1360" class="v">9.94 µs · 42×</text>
+<text x="450" y="1258" class="g">Deserialize · FixedClass[100]</text>
+<text x="540" y="1280" class="l n">Nino v4</text>
+<rect x="550" y="1268" width="7.9" height="15" rx="3" class="a"/>
+<text x="565.9" y="1280" class="v n">585 ns</text>
+<text x="540" y="1300" class="l">Nino v3</text>
+<rect x="550" y="1288" width="8.9" height="15" rx="3" class="b"/>
+<text x="566.9" y="1300" class="v">663 ns · 1.1×</text>
+<text x="540" y="1320" class="l">MemoryPack</text>
+<rect x="550" y="1308" width="10.6" height="15" rx="3" class="c"/>
+<text x="568.6" y="1320" class="v">792 ns · 1.4×</text>
+<text x="540" y="1340" class="l">MessagePack</text>
+<rect x="550" y="1328" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="1340" class="v">12.7 µs · 22×</text>
+<text x="540" y="1360" class="l">protobuf-net</text>
+<rect x="550" y="1348" width="125.9" height="15" rx="3" class="c"/>
+<text x="683.9" y="1360" class="v">9.38 µs · 16×</text>
+</g>
+</svg>

@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 670" width="940" height="670" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="940" height="670" rx="8" fill="#ffffff"/>
+<g transform="translate(20 20)">
+<style>.t{font-size:18px;font-weight:700;fill:#1f2328}.s{font-size:12px;fill:#59636e}.g{font-size:13px;font-weight:600;fill:#1f2328}.l{font-size:12px;fill:#59636e;text-anchor:end}.v{font-size:12px;fill:#1f2328}.n{font-weight:700}.a{fill:#3b6fd4}.b{fill:#8b95a5}.c{fill:#cdd2da}</style>
+<text x="0" y="22" class="t">.NET x64, Reuse and pooling: time per operation (shorter is faster)</text>
+<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, x64 GitHub runners, v3 3.3.13 directly before v4; every case is in the table; N× = N times as long as Nino v4.</text>
+<text x="0" y="78" class="g">New objects · pooled class</text>
+<text x="90" y="100" class="l n">Nino v4</text>
+<rect x="100" y="88" width="10.0" height="15" rx="3" class="a"/>
+<text x="118.0" y="100" class="v n">259 ns</text>
+<text x="90" y="120" class="l">Nino v3</text>
+<rect x="100" y="108" width="15.1" height="15" rx="3" class="b"/>
+<text x="123.1" y="120" class="v">394 ns · 1.5×</text>
+<text x="90" y="140" class="l">MemoryPack</text>
+<rect x="100" y="128" width="19.9" height="15" rx="3" class="c"/>
+<text x="127.9" y="140" class="v">519 ns · 2.0×</text>
+<text x="90" y="160" class="l">MessagePack</text>
+<rect x="100" y="148" width="50.4" height="15" rx="3" class="c"/>
+<text x="158.4" y="160" class="v">1.31 µs · 5.1×</text>
+<text x="90" y="180" class="l">protobuf-net</text>
+<rect x="100" y="168" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="180" class="v">4.42 µs · 17×</text>
+<text x="450" y="78" class="g">Into existing objects · pooled class</text>
+<text x="540" y="100" class="l n">Nino v4</text>
+<rect x="550" y="88" width="78.2" height="15" rx="3" class="a"/>
+<text x="636.2" y="100" class="v n">190 ns, 0 B</text>
+<text x="540" y="120" class="l">Nino v3</text>
+<text x="550" y="120" class="s">n/a</text>
+<text x="540" y="140" class="l">MemoryPack</text>
+<rect x="550" y="128" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="140" class="v">413 ns, 1,080 B · 2.2×</text>
+<text x="0" y="218" class="g">New objects · pooled node</text>
+<text x="90" y="240" class="l n">Nino v4</text>
+<rect x="100" y="228" width="12.8" height="15" rx="3" class="a"/>
+<text x="120.8" y="240" class="v n">245 ns</text>
+<text x="90" y="260" class="l">Nino v3</text>
+<rect x="100" y="248" width="16.3" height="15" rx="3" class="b"/>
+<text x="124.3" y="260" class="v">311 ns · 1.3×</text>
+<text x="90" y="280" class="l">MemoryPack</text>
+<rect x="100" y="268" width="17.1" height="15" rx="3" class="c"/>
+<text x="125.1" y="280" class="v">326 ns · 1.3×</text>
+<text x="90" y="300" class="l">MessagePack</text>
+<rect x="100" y="288" width="50.5" height="15" rx="3" class="c"/>
+<text x="158.5" y="300" class="v">964 ns · 3.9×</text>
+<text x="90" y="320" class="l">protobuf-net</text>
+<rect x="100" y="308" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="320" class="v">3.24 µs · 13×</text>
+<text x="450" y="218" class="g">Into existing objects · pooled node</text>
+<text x="540" y="240" class="l n">Nino v4</text>
+<rect x="550" y="228" width="44.8" height="15" rx="3" class="a"/>
+<text x="602.8" y="240" class="v n">72.7 ns, 0 B</text>
+<text x="540" y="260" class="l">Nino v3</text>
+<text x="550" y="260" class="s">n/a</text>
+<text x="540" y="280" class="l">MemoryPack</text>
+<rect x="550" y="268" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="280" class="v">276 ns, 272 B · 3.8×</text>
+<text x="0" y="358" class="g">New objects · leaves</text>
+<text x="90" y="380" class="l n">Nino v4</text>
+<rect x="100" y="368" width="19.2" height="15" rx="3" class="a"/>
+<text x="127.2" y="380" class="v n">1.67 µs</text>
+<text x="90" y="400" class="l">Nino v3</text>
+<rect x="100" y="388" width="18.8" height="15" rx="3" class="b"/>
+<text x="126.8" y="400" class="v">1.63 µs · on par</text>
+<text x="90" y="420" class="l">MemoryPack</text>
+<rect x="100" y="408" width="22.7" height="15" rx="3" class="c"/>
+<text x="130.7" y="420" class="v">1.97 µs · 1.2×</text>
+<text x="90" y="440" class="l">MessagePack</text>
+<rect x="100" y="428" width="59.4" height="15" rx="3" class="c"/>
+<text x="167.4" y="440" class="v">5.15 µs · 3.1×</text>
+<text x="90" y="460" class="l">protobuf-net</text>
+<rect x="100" y="448" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="460" class="v">14.7 µs · 8.8×</text>
+<text x="450" y="358" class="g">Into existing objects · leaves</text>
+<text x="540" y="380" class="l n">Nino v4</text>
+<rect x="550" y="368" width="22.5" height="15" rx="3" class="a"/>
+<text x="580.5" y="380" class="v n">260 ns, 0 B</text>
+<text x="540" y="400" class="l">Nino v3</text>
+<rect x="550" y="388" width="145.1" height="15" rx="3" class="b"/>
+<text x="703.1" y="400" class="v">1.68 µs · 6.4×</text>
+<text x="540" y="420" class="l">MemoryPack</text>
+<rect x="550" y="408" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="420" class="v">1.97 µs, 12,800 B · 7.6×</text>
+<text x="0" y="498" class="g">Into existing objects · leaves, pooled elements</text>
+<text x="90" y="520" class="l n">Nino v4</text>
+<rect x="100" y="508" width="126.1" height="15" rx="3" class="a"/>
+<text x="234.1" y="520" class="v n">1.46 µs, ? B</text>
+<text x="90" y="540" class="l">Nino v3</text>
+<text x="100" y="540" class="s">n/a</text>
+<text x="90" y="560" class="l">MemoryPack</text>
+<rect x="100" y="548" width="170.0" height="15" rx="3" class="c"/>
+<text x="278.0" y="560" class="v">1.97 µs, 12,800 B · 1.3×</text>
+<text x="450" y="498" class="g">New objects · plain list</text>
+<text x="540" y="520" class="l n">Nino v4</text>
+<rect x="550" y="508" width="16.9" height="15" rx="3" class="a"/>
+<text x="574.9" y="520" class="v n">1.55 µs</text>
+<text x="540" y="540" class="l">Nino v3</text>
+<rect x="550" y="528" width="17.4" height="15" rx="3" class="b"/>
+<text x="575.4" y="540" class="v">1.59 µs · on par</text>
+<text x="540" y="560" class="l">MemoryPack</text>
+<rect x="550" y="548" width="21.6" height="15" rx="3" class="c"/>
+<text x="579.6" y="560" class="v">1.98 µs · 1.3×</text>
+<text x="540" y="580" class="l">MessagePack</text>
+<rect x="550" y="568" width="58.6" height="15" rx="3" class="c"/>
+<text x="616.6" y="580" class="v">5.38 µs · 3.5×</text>
+<text x="540" y="600" class="l">protobuf-net</text>
+<rect x="550" y="588" width="170.0" height="15" rx="3" class="c"/>
+<text x="728.0" y="600" class="v">15.6 µs · 10×</text>
+</g>
+</svg>
