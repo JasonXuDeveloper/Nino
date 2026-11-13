@@ -770,7 +770,10 @@ jobs:
       - name: Publish the results
         run: |
           set -euo pipefail
-          DIR="$RUNNER_TEMP/generator/generator-section"
+          # download-artifact puts a single artifact a pattern matches either in a folder of its name or directly in
+          # path, depending on its version (v8.0.2 did the latter for rc.10, and the section was left out): find it.
+          SECTION=$(find "$RUNNER_TEMP/generator" -name section.md -print -quit)
+          DIR=$(dirname "${SECTION:-$RUNNER_TEMP/generator/section.md}")
           if [[ ! -s "$DIR/section.md" ]]; then
             echo "::warning::No build section (see the build-time benchmark job): it is left out"
             exit 0
