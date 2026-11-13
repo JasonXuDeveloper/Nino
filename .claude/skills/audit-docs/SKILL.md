@@ -77,7 +77,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    Caught by: the NINO rule, the exception); related pages. Check the anatomy by grepping, not by memory: round 129
    found a "Mistake | What happens | Caught by" table on two pages of 46 (Unity, build configuration), none for the
    rules a release added (NINO030-NINO033), and added them where those rules' features live (defining types, evolving
-   data, untrusted data). A benchmark class Nino adds is described on the benchmarks page and linked from its
+   data, untrusted data). A mistake an Error-severity rule reports reads "The build fails: ..." in What happens,
+   never "it is never called": read the severity in `NinoDiagnostics.cs` (rc.10's audit: the callback rows of NINO038
+   and NINO041-NINO044 said the callback was skipped). A benchmark class Nino adds is described on the benchmarks page and linked from its
    feature's cost section: `UntrustedTest` had synced rows from rc.8 on and no page said what it measured.
    **The newest release's API is the main text; older releases get a Callout.** When a release adds an API that
    replaces hand-written code (a built-in overload, an attribute, a command), rewrite every example and sentence to
@@ -92,7 +94,9 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    **State what a release ships without its history.** Outside the changelog and the migration guide, a page never
    says which release candidate added a feature ("since 4.0.0-rc.6", "measured since rc.8", "needs rc.6 or later"),
    and a comparison never lists under a competitor's leads what Nino has built in; what earlier releases lack goes
-   in an info Callout at most. Grep `rc\.[0-9]` over the v4 pages in every docs pass. Why: the owner (rc.10:
+   in an info Callout at most; never state a limit and then lift it ("X is not supported ... since rc.N it is"),
+   and never compare with an earlier release in the main text ("the same as before", "copy as before"). Grep
+   `rc\.[0-9]` and `as before` over the v4 pages in every docs pass. Why: the owner (rc.10:
    "正式发布时支持的东西就直接写就行，rc里的限制最多就是加个info"); vs-memorypack's "Where MemoryPack Is Ahead" listed
    the built-in types Nino has "since 4.0.0-rc.5", and nine pages carried such dates (nino.docs 7f3f0cc).
 2. **True to the code**: every API, attribute, option, default, limit and exception named exists today and behaves as
