@@ -20,9 +20,9 @@ The README carries each generated number between markers: <!--bench:key-->5.1<!-
 carries whole tables between such markers. Everything outside the markers is written by hand. --v4 and --build fill
 their own markers and leave the others as they are (report.yml runs them in different jobs). The headline numbers come from WorkloadTest's workloads: the ranges of how many times faster
 Nino is than MemoryPack (ser.range, deser.range), MessagePack (msgpack.*), protobuf-net (protobuf.*), Google.Protobuf
-(gprotobuf.*) and System.Text.Json (json.*), and the chart (light and dark), the geometric mean over them of each
-library's time against Nino's. Ratios follow the docs site (nino.docs src/lib/benchmarks.ts): within 5% is "on
-par", and a case where v4 is slower is left out of a range, never shown as slower; a mean within 5% has no bar.
+(gprotobuf.*) and System.Text.Json (json.*). The chart (light and dark) shows each serializer's time per operation in
+CHART_CASES, with v3 where it ran. Ratios follow the docs site (nino.docs src/lib/benchmarks.ts): within 5% is "on
+par", and a case where v4 is slower is left out of a range, never shown as slower.
 A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
 measurable v3 is "faster, too fast to measure" (no ratio: it would only reflect the floor); both under it is on par.
 """
@@ -52,8 +52,11 @@ WORKLOAD_KEYS = [key for key, _ in WORKLOADS]
 OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "MessagePack"),
           ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"), ("Protobuf", "protobuf", "protobuf-net"),
           ("Json", "json", "System.Text.Json")]
-# v3 runs SimpleTest only (3.3.13 cannot express the workloads): the chart's first group, these cases' geometric mean.
-V3_CASES = ["SimpleClass", "SimpleClasses", "SimpleStruct", "SimpleStructs"]
+# The chart's groups (the owner's choice), each serialized and deserialized: three workloads, then what Nino is built
+# for: a block of raw structs (one vector copy), a polymorphic array, and reading into existing objects.
+CHART_CASES = [("MediaContent", "MediaContent"), ("RpcCall", "RPC call, interface result"),
+               ("LogBatch", "log batch, 1,000 events"), ("SimpleStructs", "100 structs, one block copy"),
+               ("PolymorphicClassArray", "polymorphic class array")]
 
 
 def parse(path):
@@ -139,10 +142,6 @@ def numbers(v4_path, v3_paths, tag=None):
     for other, prefix in [("Nino", "v4")] + [(o, p or "memorypack") for o, p, _ in OTHERS if o != "GoogleProtobuf"]:
         out[f"payload.{prefix}"] = v4[f"{other}SerializeStackOverflowPage"]["payload"].replace(" B", "")
 
-    # The chart: how many times faster Nino v4 is, as (title, [(label, colour, times)]): first v3 (an upgrade),
-    # then each library, the geometric mean over the workloads (one Nino does not beat by more than 5% has no bar),
-    # and into existing objects against MemoryPack's overwrite.
-    chart = []
     v3 = {}
     if v3_paths:
         # How v3 ran next to v4 (README's environment line): once before it, or before and after it (older reports).
@@ -152,30 +151,7 @@ def numbers(v4_path, v3_paths, tag=None):
         for method in runs[0]:
             if method.startswith("Nino") and all(method in run for run in runs):
                 v3[method] = sum(run[method]["mean"] for run in runs) / len(runs)
-    upgrade = []
-    for verb in ("Serialize", "Deserialize"):
-        # A case too fast to measure in v4 has no ratio (it would only reflect the floor): left out of the mean.
-        times = [r for k in V3_CASES if f"Nino{verb}{k}" in v3 and f"Nino{verb}{k}" in v4
-                 for r in [against(v3[f"Nino{verb}{k}"], v4[f"Nino{verb}{k}"]["mean"])] if isinstance(r, float) and r > 0]
-        if times:
-            mean = math.exp(sum(map(math.log, times)) / len(times))
-            if mean > 1 and not on_par(mean):
-                upgrade.append((f"{verb.lower()}", "Nino v3", mean))
-    if upgrade:
-        chart.append((f"vs Nino v3 3.3.13 · {len(V3_CASES)} SimpleTest cases (geometric mean)", upgrade))
-    for verb in ("Serialize", "Deserialize"):
-        bars = []
-        for other, _, name in OTHERS:
-            mean = math.exp(sum(math.log(v4[f"{other}{verb}{k}"]["mean"] / v4[f"Nino{verb}{k}"]["mean"])
-                                for k in WORKLOAD_KEYS) / len(WORKLOAD_KEYS))
-            if mean > 1 and not on_par(mean):
-                bars.append((f"vs {name}", name, mean))
-        chart.append((f"{verb} · {len(WORKLOAD_KEYS)} workloads (geometric mean)", bars))
-    for title, nino, memorypack in [("pooled node", "NinoNodePooled", "MemoryPackNodeOverwrite"),
-                                    ("leaves in place", "NinoLeavesInPlace", "MemoryPackLeavesOverwrite")]:
-        chart.append((f"Deserialize into existing objects · {title} (Nino {allocated(v4[nino])}, "
-                      f"MemoryPack {allocated(v4[memorypack])})",
-                      [("vs MemoryPack", "MemoryPack", v4[memorypack]["mean"] / v4[nino]["mean"])]))
+    chart = chart_groups(v4, v3)
 
     if v3:
         cases = {"ser": [("Serialize", "SimpleClass", "class", "类"),
@@ -205,6 +181,24 @@ def numbers(v4_path, v3_paths, tag=None):
             out[f"v3.{op}"] = (", ".join(en), "，".join(zh))
     out.update({f"doc.{k}": v for k, v in tables(v4, v3, len(v3_paths or []), env, tag).items()})
     return out, chart
+
+
+def chart_groups(v4, v3):
+    """The chart: per case, a row of two groups, serialize and deserialize; a group is (title, [(name, ns or None)]):
+    the time of Nino v4, v3 and each library. v3 3.3.13 runs only the cases it can express: None (n/a) elsewhere; a
+    library a case has no row for is left out."""
+    def group(verb, key, title):
+        rows = [("Nino v4", v4[f"Nino{verb}{key}"]["mean"]), ("Nino v3", v3.get(f"Nino{verb}{key}"))]
+        rows += [(name, v4[f"{other}{verb}{key}"]["mean"]) for other, _, name in OTHERS if f"{other}{verb}{key}" in v4]
+        return f"{verb} · {title}", rows
+
+    chart = [tuple(group(verb, key, title) for verb in ("Serialize", "Deserialize"))
+             for key, title in CHART_CASES if f"NinoSerialize{key}" in v4 and f"NinoDeserialize{key}" in v4]
+    nino, memorypack = v4.get("NinoLeavesInPlace"), v4.get("MemoryPackLeavesOverwrite")
+    if nino and memorypack:
+        chart.append((None, (f"Into existing objects · Nino {allocated(nino)}, MemoryPack {allocated(memorypack)}",
+                             [("Nino v4", nino["mean"]), ("Nino v3", None), ("MemoryPack", memorypack["mean"])])))
+    return chart
 
 
 def time(ns):
@@ -345,55 +339,61 @@ def build(path, tag=None):
     return out
 
 
-# The bar colours of the chart's libraries (OTHERS) and of v3.
-BAR_COLORS = {"Nino v3": "#8c96a8", "MemoryPack": "#e3a03b", "MessagePack": "#2fa88f", "Google.Protobuf": "#4c8bf5",
-              "protobuf-net": "#d9645c", "System.Text.Json": "#9a6dd7"}
-# Colours of the two themes (README picks one with <picture> and prefers-color-scheme). Each image paints its own
-# background (GitHub's page colours): prefers-color-scheme follows the reader's system, not the page, so a dark system
-# shows the dark image on nuget.org's or GitHub's light page, and on a transparent background its light text vanished.
-THEMES = {"light": {"text": "#1f2328", "muted": "#59636e", "grid": "#d1d9e0", "background": "#ffffff"},
-          "dark": {"text": "#f0f6fc", "muted": "#9198a1", "grid": "#3d444d", "background": "#0d1117"}}
+# Nino v4 in its accent colour, v3 in a darker grey, every other library in one lighter grey (the docs site's rule:
+# Nino the accent, everything else neutral). Each image paints its own background (GitHub's page colours):
+# prefers-color-scheme follows the reader's system, not the page, so a dark system shows the dark image on nuget.org's
+# or GitHub's light page, and on a transparent background its light text vanished.
+THEMES = {"light": {"text": "#1f2328", "muted": "#59636e", "background": "#ffffff",
+                    "v4": "#3b6fd4", "v3": "#8b95a5", "other": "#cdd2da"},
+          "dark": {"text": "#f0f6fc", "muted": "#9198a1", "background": "#0d1117",
+                   "v4": "#5b8def", "v3": "#6e7681", "other": "#3d444d"}}
 PAD = 20  # the background's margin around the chart
 
 
 def svg(chart, theme="light"):
-    """The chart as SVG: per case, a bar per library, its length the log of how many times faster Nino v4 is."""
+    """The chart as SVG: per case, serialize on the left and deserialize on the right, a bar per serializer, its
+    length its time on a linear scale of that group (shorter is faster), labelled with the time and its multiple of
+    Nino v4's."""
     c = THEMES[theme]
-    top = max(v for _, bars in chart for _, _, v in bars)
-    decades = max(1, math.ceil(math.log10(top) - 1e-9))
-    x0, width = 140, 580  # room for "vs System.Text.Json"
-    scale = width / decades
-
-    def x(v):
-        return x0 + max(3.0, math.log10(v) * scale)
-
-    out, y = [], 96
-    for d in range(decades + 1):  # the scale, once above the first case
-        out.append(f'<text x="{x0 + d * scale:.1f}" y="{y - 22}" class="s" text-anchor="middle">{10 ** d}×</text>')
-    for title, bars in chart:
-        if not bars:
-            continue
-        out.append(f'<text x="0" y="{y}" class="g">{title}</text>')
-        by = y + 22
-        for d in range(decades + 1):  # grid lines behind this case's bars only, never through its title
-            gx = x0 + d * scale
-            out.append(f'<line x1="{gx:.1f}" y1="{by - 16}" x2="{gx:.1f}" y2="{by + 20 * len(bars) - 16}" '
-                       f'stroke="{c["grid"]}" stroke-dasharray="3 3"/>')
-        for label, colour, v in bars:
-            out.append(f'<text x="{x0 - 10}" y="{by}" class="l" text-anchor="end">{label}</text>')
-            out.append(f'<rect x="{x0}" y="{by - 12}" width="{x(v) - x0:.1f}" height="15" rx="3" fill="{BAR_COLORS[colour]}"/>')
-            label = f"{v:.2f}×" if v < 10 else f"{v:.0f}×"
-            out.append(f'<text x="{x(v) + 8:.1f}" y="{by}" class="v">{label}</text>')
-            by += 20
-        y = by + 18
+    column, x0, width = 450, 100, 170
+    out, y = [], 78
+    for pair in chart:
+        bottom = y
+        for side, grp in enumerate(pair):
+            if grp is None:
+                continue
+            title, rows = grp
+            left = side * column
+            out.append(f'<text x="{left}" y="{y}" class="g">{title}</text>')
+            by = y + 22
+            nino = rows[0][1]
+            top = max(ns for _, ns in rows if ns)
+            for name, ns in rows:
+                v4 = name == "Nino v4"
+                weight = ' font-weight="700"' if v4 else ""
+                out.append(f'<text x="{left + x0 - 10}" y="{by}" class="l" text-anchor="end"{weight}>{name}</text>')
+                if ns is None:
+                    out.append(f'<text x="{left + x0}" y="{by}" class="s">n/a</text>')
+                else:
+                    w = max(3.0, width * ns / top)
+                    colour = c["v4"] if v4 else c["v3"] if name == "Nino v3" else c["other"]
+                    out.append(f'<rect x="{left + x0}" y="{by - 12}" width="{w:.1f}" height="15" rx="3" fill="{colour}"/>')
+                    label = time(ns)
+                    if not v4:
+                        r = ns / nino
+                        label += " · on par" if on_par(r) else f" · {one(r)}×"
+                    out.append(f'<text x="{left + x0 + w + 8:.1f}" y="{by}" class="v"{weight}>{label}</text>')
+                by += 20
+            bottom = max(bottom, by)
+        y = bottom + 18
     height = y - 8 + 2 * PAD
-    width = 820 + 2 * PAD
+    width = 2 * column + 2 * PAD
     head = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
 <rect width="{width}" height="{height}" rx="8" fill="{c["background"]}"/>
 <g transform="translate({PAD} {PAD})">
-<style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]}}}.v{{font-size:12px;font-weight:700;fill:{c["text"]}}}</style>
-<text x="0" y="22" class="t">How many times faster Nino v4 is (log scale)</text>
-<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine; 12 real-world workloads, each library's fastest API.</text>
+<style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]}}}.v{{font-size:12px;fill:{c["text"]}}}</style>
+<text x="0" y="22" class="t">Time per operation (shorter is faster)</text>
+<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine (v3 3.3.13 directly before v4); N× = N times as long as Nino v4.</text>
 '''
     return head + "\n".join(out) + "\n</g>\n</svg>\n", height
 
