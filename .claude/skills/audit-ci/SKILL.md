@@ -146,7 +146,12 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   and attaches `com.jasonxudeveloper.nino-<version>.tgz` to the Unity tag's release; OpenUPM tracks Nino with
   `trackingMode: githubRelease` and publishes only that asset, so a release whose `unity` job failed is missing on
   OpenUPM until it is re-run. A pre-release's `vX.Y.Z-preview.N` release exists only for that asset: report.yml
-  skips it. Check a change to the signing step, or new credentials, by pushing `unity-sign.yml` to the test branch
+  skips it, and every "newest v4 release" lookup in report.yml leaves `-preview.` tags out (rc.10's README steps
+  saw preview.210, published after rc.10, as the newest release and skipped the README; 4983c151).
+- **Find a downloaded artifact's files, never assume its folder**: `actions/download-artifact` puts the one artifact
+  a `pattern` matches either in a folder of its name or straight in `path`, by version; locate a file with `find`
+  under `path`. rc.10's build section was produced but report.yml looked in `path/generator-section/`, so the
+  release got no build-x64.md and README no build row (6bc1b819). Check a change to the signing step, or new credentials, by pushing `unity-sign.yml` to the test branch
   (it signs and keeps an artifact, no release touched). "User does not have permission to sign package" means
   the service account's role or organization is wrong, not the secrets' presence (run 43286997093; 43287841461
   signed once the owner fixed the role).
