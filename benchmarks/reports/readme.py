@@ -281,11 +281,12 @@ def tables(v4, v3, v3_runs, env, tag):
             if nino is None or mp is None:
                 continue
             old = v3.get(f"Nino{verb}{key}")
-            rows.append([label, time(nino)] + [maybe(f"{other}{verb}{key}") for other, _ in simple] +
-                        [time(old) if old is not None else "—", versus(mp, nino),
-                         versus(old, nino) if old is not None else "—"])
-        out[f"table.{verb.lower()}"] = table(["Case", "v4"] + [name for _, name in simple] +
-                                             ["v3", "v4 vs MemoryPack", "v4 vs v3"], rows)
+            # v3 right after v4, then the libraries (the owner's order, as in the chart).
+            rows.append([label, time(nino), time(old) if old is not None else "—"] +
+                        [maybe(f"{other}{verb}{key}") for other, _ in simple] +
+                        [versus(old, nino) if old is not None else "—", versus(mp, nino)])
+        out[f"table.{verb.lower()}"] = table(["Case", "v4", "v3"] + [name for _, name in simple] +
+                                             ["v4 vs v3", "v4 vs MemoryPack"], rows)
 
     rows = []
     for label, new, reuse, mp_new, overwrite in REUSE_CASES:
