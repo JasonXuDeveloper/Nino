@@ -29,7 +29,7 @@
 
 ## 为什么选 Nino
 
-- **最快。** 12 个真实业务场景下，序列化比 MemoryPack 快 **<!--bench:ser.range-->—<!--/bench--> 倍**，比 MessagePack 快 **<!--bench:msgpack.ser.range-->—<!--/bench--> 倍**，比 protobuf-net 快 **<!--bench:protobuf.ser.range-->—<!--/bench--> 倍**，比 Google.Protobuf 快 **<!--bench:gprotobuf.ser.range-->—<!--/bench--> 倍**，比 System.Text.Json 快 **<!--bench:json.ser.range-->—<!--/bench--> 倍**。[性能](#性能)
+- **最快。** 12 个真实业务场景下，序列化比 MemoryPack 快 **<!--bench:ser.range-->1.5–5.4<!--/bench--> 倍**，比 MessagePack 快 **<!--bench:msgpack.ser.range-->3.4–18<!--/bench--> 倍**，比 protobuf-net 快 **<!--bench:protobuf.ser.range-->6.4–73<!--/bench--> 倍**，比 Google.Protobuf 快 **<!--bench:gprotobuf.ser.range-->3.9–34<!--/bench--> 倍**，比 System.Text.Json 快 **<!--bench:json.ser.range-->4.3–136<!--/bench--> 倍**。[性能](#性能)
 - **全平台 SIMD，Unity 里用 Burst。** 针对 AVX-512、AVX2、SSSE3、Arm64 和 WebAssembly 手写向量路径，搬运元组、带填充的结构体和字符串；Unity 里用 Burst 内核，Go、Rust 和 TypeScript 也有各自的向量内核，其他平台走可移植代码，写出的字节相同。[SIMD](https://nino.xgamedev.net/zh/docs/v4/simd)
 - **可放心读取不可信数据。** 伪造的字节不会让进程崩溃，不会越界读取，不会分配与输入不成比例的内存，也无法指定要创建的类型；任何无效输入都只抛出 `NinoDataException`。[不可信数据](https://nino.xgamedev.net/zh/docs/v4/security)
 - **热路径零分配。** 序列化到复用的 `IBufferWriter<byte>`，反序列化到已有对象或池化对象；线程安全，热路径上没有锁。[零分配](https://nino.xgamedev.net/zh/docs/v4/advanced/zero-allocation)
@@ -93,23 +93,34 @@ npx skills add JasonXuDeveloper/Nino
 
 | 12 个真实场景 | 序列化 | 反序列化 |
 |---|---|---|
-| 对比 MemoryPack | **快 <!--bench:ser.range-->—<!--/bench--> 倍** | **快 <!--bench:deser.range-->—<!--/bench--> 倍** |
-| 对比 MessagePack | **快 <!--bench:msgpack.ser.range-->—<!--/bench--> 倍** | **快 <!--bench:msgpack.deser.range-->—<!--/bench--> 倍** |
-| 对比 protobuf-net | **快 <!--bench:protobuf.ser.range-->—<!--/bench--> 倍** | **快 <!--bench:protobuf.deser.range-->—<!--/bench--> 倍** |
-| 对比 Google.Protobuf | **快 <!--bench:gprotobuf.ser.range-->—<!--/bench--> 倍** | **快 <!--bench:gprotobuf.deser.range-->—<!--/bench--> 倍** |
-| 对比 System.Text.Json | **快 <!--bench:json.ser.range-->—<!--/bench--> 倍** | **快 <!--bench:json.deser.range-->—<!--/bench--> 倍** |
-| 反序列化到已有对象 | — | **0 B，比 MemoryPack 最多快 <!--bench:reuse.inplace-->9.5<!--/bench--> 倍** |
+| 对比 MemoryPack | **快 <!--bench:ser.range-->1.5–5.4<!--/bench--> 倍** | **快 <!--bench:deser.range-->1.3–3.5<!--/bench--> 倍** |
+| 对比 MessagePack | **快 <!--bench:msgpack.ser.range-->3.4–18<!--/bench--> 倍** | **快 <!--bench:msgpack.deser.range-->2.2–12<!--/bench--> 倍** |
+| 对比 protobuf-net | **快 <!--bench:protobuf.ser.range-->6.4–73<!--/bench--> 倍** | **快 <!--bench:protobuf.deser.range-->3.8–35<!--/bench--> 倍** |
+| 对比 Google.Protobuf | **快 <!--bench:gprotobuf.ser.range-->3.9–34<!--/bench--> 倍** | **快 <!--bench:gprotobuf.deser.range-->2.3–32<!--/bench--> 倍** |
+| 对比 System.Text.Json | **快 <!--bench:json.ser.range-->4.3–136<!--/bench--> 倍** | **快 <!--bench:json.deser.range-->3.7–91<!--/bench--> 倍** |
+| 反序列化到已有对象 | — | **0 B，比 MemoryPack 最多快 <!--bench:reuse.inplace-->7.6<!--/bench--> 倍** |
 
 这 12 个场景：jvm-serializers 的 `MediaContent` 和一页 Stack Exchange API 数据（MessagePack、MemoryPack 自己的基准用的就是这套模型）；服务端的结果为接口的 RPC 调用、上个版本写进缓存的用户资料、两层事件继承外加泛型信封的事件流、一批日志；以及游戏真正会发的消息：读进客户端已有对象的状态同步快照、帧同步的输入帧、MMO 的 AOI 增量、共享对象的 SLG 地图区域和卡牌战斗回放，还有上个版本的放置游戏存档。每个库都用它最快的 API（Google.Protobuf 用自己生成的消息类型，System.Text.Json 用源生成器输出 UTF-8），缺的功能就用它常见的绕法（共享对象写成副本、读进已有对象改成新建）。区间只算 Nino 快出 5% 以上的场景，每个场景的耗时见文档。
 
 <!--bench:charts-->
 <details open>
+<summary><b>真实场景</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-workloads-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-workloads.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="真实场景：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+</picture>
+
+</details>
+
+<details>
 <summary><b>基础类型与结构体</b></summary>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic.svg">
-  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="基础类型与结构体：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic.svg" alt="基础类型与结构体：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
 </picture>
 
 </details>
@@ -121,6 +132,17 @@ npx skills add JasonXuDeveloper/Nino
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism.svg">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism.svg" alt="多态：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
+</picture>
+
+</details>
+
+<details>
+<summary><b>可空值</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-nullable-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-nullable.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-nullable.svg" alt="可空值：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化">
 </picture>
 
 </details>
@@ -170,7 +192,7 @@ npx skills add JasonXuDeveloper/Nino
 </details>
 <!--/bench-->
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.14<!--/bench-->，服务器 GC，<!--bench:env.cpu-->Intel Xeon 6973P-C 3.54 GHz<!--/bench-->，GitHub runner 实测；所有库在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上<!--bench:v3.when-->紧接其前跑一次<!--/bench-->。那页 Stack Exchange 数据的大小：Nino <!--bench:payload.v4-->—<!--/bench--> 字节，MemoryPack <!--bench:payload.memorypack-->—<!--/bench--> 字节，MessagePack <!--bench:payload.msgpack-->—<!--/bench--> 字节，protobuf（两个库相同）<!--bench:payload.protobuf-->—<!--/bench--> 字节，JSON <!--bench:payload.json-->—<!--/bench--> 字节。测试方法与全部用例见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)。</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.15<!--/bench-->，服务器 GC，<!--bench:env.cpu-->AMD EPYC 9V74 3.69 GHz<!--/bench-->，GitHub runner 实测；所有库在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上<!--bench:v3.when-->紧接其前跑一次<!--/bench-->。那页 Stack Exchange 数据的大小：Nino <!--bench:payload.v4-->123,333<!--/bench--> 字节，MemoryPack <!--bench:payload.memorypack-->134,223<!--/bench--> 字节，MessagePack <!--bench:payload.msgpack-->115,778<!--/bench--> 字节，protobuf（两个库相同）<!--bench:payload.protobuf-->118,660<!--/bench--> 字节，JSON <!--bench:payload.json-->208,038<!--/bench--> 字节。测试方法与全部用例见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)。</sub>
 
 更多：[全部 .NET 用例与 Arm64](https://nino.xgamedev.net/zh/docs/v4/benchmarks)、[Unity 与 Burst](https://nino.xgamedev.net/zh/docs/v4/benchmarks-unity)和 [Go、Rust 和 TypeScript](https://nino.xgamedev.net/zh/docs/v4/benchmarks-runtimes)。
 
@@ -203,9 +225,9 @@ v4 重写了运行时和生成器；**二进制格式与 v3 不兼容。**
 
 | v4 对比 v3（3.3.13） | |
 |---|---|
-| 序列化 | <!--bench:v3.ser-->类**快 2.1 倍**，类数组**快 2.5 倍**，结构体**快 1.4 倍**，结构体数组持平<!--/bench--> |
-| 反序列化 | <!--bench:v3.deser-->类**快 1.6 倍**，类数组**快 1.5 倍**，结构体持平，结构体数组持平<!--/bench--> |
-| 构建 | <!--bench:v3.build-->1,100 个类型时生成代码的编译**快 221 倍**（462 秒 → 2.1 秒）；源码**小 14 倍**<!--/bench--> |
+| 序列化 | <!--bench:v3.ser-->类**快 1.9 倍**，类数组**快 2.4 倍**，结构体持平，结构体数组**快 1.2 倍**<!--/bench--> |
+| 反序列化 | <!--bench:v3.deser-->类**快 1.5 倍**，类数组**快 1.5 倍**，结构体持平，结构体数组持平<!--/bench--> |
+| 构建 | <!--bench:v3.build-->1,100 个类型时生成代码的编译**快 188 倍**（193 秒 → 1.03 秒）；源码**小 12 倍**<!--/bench--> |
 
 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new) · [更新日志](https://nino.xgamedev.net/zh/docs/v4/changelog) · [迁移指南](https://nino.xgamedev.net/zh/docs/v4/migration)
 

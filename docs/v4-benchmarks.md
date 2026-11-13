@@ -19,7 +19,7 @@ generator after an edit. v3's generator and runtime are Nino 3.3.13 from nuget.o
 one after the other on one runner, and each time is the median of the runs after the warm-up runs (at least one,
 and at least 60 s of them; the release notes' "Build: v3 3.3.13 vs v4" section names how many measured). Sizes are
 millions of chars (source) and bytes (IL).
-These tables come from <!--bench:doc.build.source-->a local run on an Intel Xeon 2.10 GHz (4 cores, AVX-512, .NET SDK 10.0.402)<!--/bench-->.
+These tables come from <!--bench:doc.build.source-->the build section of [v4.0.0-rc.10](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.10): AMD EPYC 9V45, 4 cores, .NET 10.0.15, Roslyn 4.3.0.0<!--/bench-->.
 
 ### 330 types (N = 30)
 
@@ -29,12 +29,12 @@ rather than as exact ratios.
 <!--bench:doc.build.30-->
 | | v3 (3.3.13) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
-| Generated source | 18.7 MB (363,233 lines) | 1.31 MB (23,215 lines) | **14× smaller** |
-| Compiling the generated code (emit) | 42.9 s | 0.84 s | **51× faster** |
-| Running the generator | 1.01 s | 0.32 s | **3.1× faster** |
-| Re-generating after editing a member | 1.03 s | 0.12 s | **8.3× faster** |
-| Re-generating after editing a comment | 1.01 s | 0.13 s | **7.8× faster** |
-| IL of the generated code | 2.21 MB | 0.42 MB | **5.3× smaller** |
+| Generated source | 18.7 MB (363,325 lines) | 1.53 MB (28,632 lines) | **12× smaller** |
+| Compiling the generated code (emit) | 15.9 s | 0.30 s | **53× faster** |
+| Running the generator | 0.49 s | 0.05 s | **9.9× faster** |
+| Re-generating after editing a member | 0.42 s | 0.04 s | **10× faster** |
+| Re-generating after editing a comment | 0.45 s | 0.04 s | **11× faster** |
+| IL of the generated code | 2.21 MB | 0.80 MB | **2.8× smaller** |
 <!--/bench-->
 
 ### 1,100 types (N = 100)
@@ -42,12 +42,12 @@ rather than as exact ratios.
 <!--bench:doc.build.100-->
 | | v3 (3.3.13) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
-| Generated source | 62.0 MB (1,204,143 lines) | 4.38 MB (77,535 lines) | **14× smaller** |
-| Compiling the generated code (emit) | 462 s | 2.1 s | **221× faster** |
-| Running the generator | 4.6 s | 0.42 s | **11× faster** |
-| Re-generating after editing a member | 3.5 s | 0.48 s | **7.4× faster** |
-| Re-generating after editing a comment | 4.0 s | 0.44 s | **9.1× faster** |
-| IL of the generated code | 7.3 MB | 1.50 MB | **4.9× smaller** |
+| Generated source | 62.0 MB (1,204,235 lines) | 5.09 MB (95,552 lines) | **12× smaller** |
+| Compiling the generated code (emit) | 193 s | 1.03 s | **188× faster** |
+| Running the generator | 1.57 s | 0.19 s | **8.2× faster** |
+| Re-generating after editing a member | 1.28 s | 0.14 s | **8.9× faster** |
+| Re-generating after editing a comment | 1.26 s | 0.14 s | **9.0× faster** |
+| IL of the generated code | 7.34 MB | 2.68 MB | **2.7× smaller** |
 <!--/bench-->
 
 v3's compile time grows much faster than the number of types (compare the emit rows: 3.3× the types); v4's grows
@@ -64,7 +64,7 @@ every class (same data, same attributes), each on the runner of the same v4 case
 3.3.13 can express the case: it has no pool, cannot write a graph with a cycle (`ReferenceTest`) or a list that holds
 itself, and has no formatter for `BigInteger`, `Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`,
 `TimeZoneInfo`, `Lazy<T>` or `ILookup`; those cases are n/a for v3.
-These tables come from <!--bench:doc.source-->the performance report of [v4.0.0-rc.9](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.9): BenchmarkDotNet 0.15.8, .NET 10.0.14, Intel Xeon 6973P-C 3.54 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
+These tables come from <!--bench:doc.source-->the performance report of [v4.0.0-rc.10](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.10): BenchmarkDotNet 0.15.8, .NET 10.0.15, AMD EPYC 9V74 3.69 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
 
 Differences under 5% are reported as on par: MemoryPack runs in both sessions, and its two times show how much the
 runner moved. A time under 1 ns (about three clock cycles) cannot be told apart from another: reading a 40-byte struct
@@ -90,12 +90,23 @@ v3 3.3.13 n/a where it has no port of the case; every number is in the tables be
 
 <!--bench:doc.charts-->
 <details open>
+<summary><b>Real workloads</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-workloads-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-workloads.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Real workloads: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+</picture>
+
+</details>
+
+<details open>
 <summary><b>Basic types and structs</b></summary>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic.svg">
-  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Basic types and structs: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-basic.svg" alt="Basic types and structs: time per operation of Nino v4, v3 and every library, serialize and deserialize">
 </picture>
 
 </details>
@@ -107,6 +118,17 @@ v3 3.3.13 n/a where it has no port of the case; every number is in the tables be
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism.svg">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-polymorphism.svg" alt="Polymorphism: time per operation of Nino v4, v3 and every library, serialize and deserialize">
+</picture>
+
+</details>
+
+<details open>
+<summary><b>Nullable values</b></summary>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-nullable-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-nullable.svg">
+  <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark-nullable.svg" alt="Nullable values: time per operation of Nino v4, v3 and every library, serialize and deserialize">
 </picture>
 
 </details>
@@ -186,31 +208,82 @@ in parentheses is how many times faster Nino is; a dash, that it is not ahead by
 Serialize (to a reused buffer):
 
 <!--bench:doc.table.workloads.serialize-->
+| Workload | Nino | MemoryPack | MessagePack | Google.Protobuf | protobuf-net | System.Text.Json |
+|---|---:|---:|---:|---:|---:|---:|
+| `MediaContent` (jvm-serializers) | 74.1 ns | 187 ns (**2.5× faster**) | 404 ns (**5.5× faster**) | 332 ns (**4.5× faster**) | 753 ns (**10× faster**) | 660 ns (**8.9× faster**) |
+| Stack Exchange API page, 20 questions | 18.1 µs | 28.0 µs (**1.5× faster**) | 91.5 µs (**5.0× faster**) | 139 µs (**7.7× faster**) | 169 µs (**9.3× faster**) | 379 µs (**21× faster**) |
+| RPC call, interface result | 182 ns | 428 ns (**2.3× faster**) | 1.18 µs (**6.5× faster**) | 1.71 µs (**9.4× faster**) | 2.82 µs (**15× faster**) | 1.86 µs (**10× faster**) |
+| Cached profile, previous version | 215 ns | 690 ns (**3.2× faster**) | 733 ns (**3.4× faster**) | 848 ns (**3.9× faster**) | 1.38 µs (**6.4× faster**) | 913 ns (**4.3× faster**) |
+| Event store page, 500 events in generic envelopes | 39.1 µs | 117 µs (**3.0× faster**) | 228 µs (**5.8× faster**) | 395 µs (**10× faster**) | 559 µs (**14× faster**) | 526 µs (**13× faster**) |
+| Log batch, 1,000 events | 70.5 µs | 175 µs (**2.5× faster**) | 258 µs (**3.7× faster**) | 450 µs (**6.4× faster**) | 499 µs (**7.1× faster**) | 428 µs (**6.1× faster**) |
+| State-sync snapshot, in place | 1.11 µs | 5.95 µs (**5.4× faster**) | 13.3 µs (**12× faster**) | 17.1 µs (**15× faster**) | 47.2 µs (**43× faster**) | 145 µs (**131× faster**) |
+| Lockstep, 10 frames of 8 players | 735 ns | 2.66 µs (**3.6× faster**) | 4.14 µs (**5.6× faster**) | 6.06 µs (**8.2× faster**) | 18.0 µs (**24× faster**) | 22.6 µs (**31× faster**) |
+| MMO AOI update, 200 events | 923 ns | 3.53 µs (**3.8× faster**) | 9.35 µs (**10× faster**) | 12.1 µs (**13× faster**) | 37.7 µs (**41× faster**) | 124 µs (**134× faster**) |
+| SLG map region, shared alliances | 3.08 µs | 6.47 µs (**2.1× faster**) | 54.2 µs (**18× faster**) | 106 µs (**34× faster**) | 225 µs (**73× faster**) | 419 µs (**136× faster**) |
+| Card battle replay, shared cards | 4.30 µs | 19.2 µs (**4.5× faster**) | 49.7 µs (**12× faster**) | 54.3 µs (**13× faster**) | 124 µs (**29× faster**) | 144 µs (**33× faster**) |
+| Idle save, previous version, in place | 390 ns | 1.36 µs (**3.5× faster**) | 3.70 µs (**9.5× faster**) | 9.88 µs (**25× faster**) | 18.2 µs (**47× faster**) | 26.5 µs (**68× faster**) |
 <!--/bench-->
 
 Deserialize (new instances):
 
 <!--bench:doc.table.workloads.deserialize-->
+| Workload | Nino | MemoryPack | MessagePack | Google.Protobuf | protobuf-net | System.Text.Json |
+|---|---:|---:|---:|---:|---:|---:|
+| `MediaContent` (jvm-serializers) | 232 ns | 322 ns (**1.4× faster**) | 783 ns (**3.4× faster**) | 542 ns (**2.3× faster**) | 1.28 µs (**5.5× faster**) | 2.10 µs (**9.0× faster**) |
+| Stack Exchange API page, 20 questions | 63.7 µs | 81.1 µs (**1.3× faster**) | 204 µs (**3.2× faster**) | 180 µs (**2.8× faster**) | 244 µs (**3.8× faster**) | 637 µs (**10× faster**) |
+| RPC call, interface result | 463 ns | 785 ns (**1.7× faster**) | 2.30 µs (**5.0× faster**) | 1.98 µs (**4.3× faster**) | 3.78 µs (**8.2× faster**) | 5.35 µs (**12× faster**) |
+| Cached profile, previous version | 644 ns | 1.02 µs (**1.6× faster**) | 1.44 µs (**2.2× faster**) | 1.94 µs (**3.0× faster**) | 2.65 µs (**4.1× faster**) | 2.37 µs (**3.7× faster**) |
+| Event store page, 500 events in generic envelopes | 130 µs | 184 µs (**1.4× faster**) | 565 µs (**4.3× faster**) | 511 µs (**3.9× faster**) | 908 µs (**7.0× faster**) | 911 µs (**7.0× faster**) |
+| Log batch, 1,000 events | 222 µs | 327 µs (**1.5× faster**) | 566 µs (**2.6× faster**) | 703 µs (**3.2× faster**) | 888 µs (**4.0× faster**) | 1.02 ms (**4.6× faster**) |
+| State-sync snapshot, in place | 2.26 µs | 6.22 µs (**2.8× faster**) | 27.8 µs (**12× faster**) | 32.8 µs (**15× faster**) | 79.8 µs (**35× faster**) | 205 µs (**91× faster**) |
+| Lockstep, 10 frames of 8 players | 3.30 µs | 3.30 µs (on par) | 9.17 µs (**2.8× faster**) | 9.28 µs (**2.8× faster**) | 31.7 µs (**9.6× faster**) | 49.0 µs (**15× faster**) |
+| MMO AOI update, 200 events | 3.48 µs | 4.66 µs (**1.3× faster**) | 21.9 µs (**6.3× faster**) | 22.2 µs (**6.4× faster**) | 56.8 µs (**16× faster**) | 168 µs (**48× faster**) |
+| SLG map region, shared alliances | 13.2 µs | 18.7 µs (**1.4× faster**) | 147 µs (**11× faster**) | 254 µs (**19× faster**) | 300 µs (**23× faster**) | 971 µs (**73× faster**) |
+| Card battle replay, shared cards | 8.40 µs | 18.8 µs (**2.2× faster**) | 88.1 µs (**10× faster**) | 95.6 µs (**11× faster**) | 183 µs (**22× faster**) | 287 µs (**34× faster**) |
+| Idle save, previous version, in place | 758 ns | 2.67 µs (**3.5× faster**) | 6.90 µs (**9.1× faster**) | 24.1 µs (**32× faster**) | 26.6 µs (**35× faster**) | 52.0 µs (**69× faster**) |
 <!--/bench-->
 
 Payload (bytes):
 
 <!--bench:doc.table.workloads.payload-->
+| Workload | Nino | MemoryPack | MessagePack | Google.Protobuf | protobuf-net | System.Text.Json |
+|---|---:|---:|---:|---:|---:|---:|
+| `MediaContent` (jvm-serializers) | 267 B | 321 B | 230 B | 235 B | 235 B | 468 B |
+| Stack Exchange API page, 20 questions | 123,333 B | 134,223 B | 115,778 B | 118,660 B | 118,660 B | 208,038 B |
+| RPC call, interface result | 544 B | 621 B | 440 B | 490 B | 490 B | 953 B |
+| Cached profile, previous version | 477 B | 591 B | 328 B | 378 B | 378 B | 612 B |
+| Event store page, 500 events in generic envelopes | 81,058 B | 102,722 B | 89,450 B | 105,247 B | 105,247 B | 196,683 B |
+| Log batch, 1,000 events | 142,317 B | 195,328 B | 137,809 B | 155,531 B | 155,531 B | 230,682 B |
+| State-sync snapshot, in place | 5,172 B | 4,830 B | 5,192 B | 5,153 B | 5,153 B | 22,783 B |
+| Lockstep, 10 frames of 8 players | 1,689 B | 1,441 B | 1,306 B | 2,195 B | 2,195 B | 7,436 B |
+| MMO AOI update, 200 events | 8,237 B | 8,183 B | 7,967 B | 9,144 B | 9,144 B | 33,783 B |
+| SLG map region, shared alliances | 51,697 B | 51,759 B | 35,226 B | 51,184 B | 51,184 B | 213,662 B |
+| Card battle replay, shared cards | 7,099 B | 6,647 B | 19,197 B | 22,677 B | 22,677 B | 32,447 B |
+| Idle save, previous version, in place | 3,446 B | 4,969 B | 2,881 B | 3,738 B | 3,738 B | 8,283 B |
 <!--/bench-->
 
 ### Serialize (to a reused buffer writer)
 
 <!--bench:doc.table.serialize-->
-| Case | v4 | v3 | MemoryPack | MessagePack | protobuf-net | v4 vs v3 | v4 vs MemoryPack |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| `SimpleClass` | 56.8 ns | 120 ns | 231 ns | 555 ns | 2.55 µs | **2.1× faster** | **4.1× faster** |
-| `SimpleClass[100]` | 6.58 µs | 16.4 µs | 23.3 µs | 55.5 µs | 268 µs | **2.5× faster** | **3.5× faster** |
-| Polymorphic class | 3.30 µs | — | 16.1 µs | 75.0 µs | 403 µs | — | **4.9× faster** |
-| Polymorphic class array | 27.0 µs | — | 196 µs | 530 µs | 2.47 ms | — | **7.2× faster** |
-| Polymorphic `Foo[]` | 3.74 µs | — | 15.8 µs | 76.0 µs | 395 µs | — | **4.2× faster** |
-| `SimpleStruct` (`int` + `DateTime`) | 1.16 ns | 1.59 ns | 2.87 ns | 35.0 ns | 92.5 ns | **1.4× faster** | **2.5× faster** |
-| `SimpleStruct[100]` | 11.5 ns | 12.0 ns | 13.5 ns | 2.13 µs | 7.02 µs | on par | **1.2× faster** |
-| `Vector4[10000]` | 3.38 µs | 3.35 µs | 3.31 µs | 90.9 µs | 413 µs | on par | on par |
+| Case | v4 | v3 | MemoryPack | MessagePack | Google.Protobuf | protobuf-net | System.Text.Json | v4 vs v3 | v4 vs MemoryPack |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `SimpleClass` | 75.3 ns | 146 ns | 324 ns | 759 ns | 2.24 µs | 2.69 µs | 1.91 µs | **1.9× faster** | **4.3× faster** |
+| `SimpleClass[100]` | 8.20 µs | 19.3 µs | 31.2 µs | 72.5 µs | 286 µs | 254 µs | 195 µs | **2.4× faster** | **3.8× faster** |
+| Polymorphic class | 4.45 µs | 63.7 µs | 24.1 µs | 106 µs | 295 µs | 633 µs | 984 µs | **14× faster** | **5.4× faster** |
+| Polymorphic class array | 38.3 µs | 414 µs | 239 µs | 767 µs | 2.11 ms | 3.74 ms | 6.02 ms | **11× faster** | **6.2× faster** |
+| Polymorphic `Foo[]` | 4.46 µs | 60.4 µs | 23.8 µs | 104 µs | 250 µs | 628 µs | 973 µs | **14× faster** | **5.3× faster** |
+| `SimpleStruct` (`int` + `DateTime`) | 2.50 ns | 2.47 ns | 4.09 ns | 49.4 ns | 34.9 ns | 109 ns | 72.5 ns | on par | **1.6× faster** |
+| `SimpleStruct[100]` | 20.2 ns | 23.6 ns | 24.5 ns | 2.86 µs | 3.25 µs | 6.86 µs | 5.55 µs | **1.2× faster** | **1.2× faster** |
+| `Vector4[10000]` | 2.83 µs | 2.83 µs | 2.84 µs | 141 µs | 137 µs | 501 µs | 3.31 ms | on par | on par |
+| `NullableFields` (half null) | 32.5 ns | 16.5 ns | 29.8 ns | 161 ns | 70.1 ns | 349 ns | 579 ns | — | — |
+| `NullableFields[100]` | 2.24 µs | 2.44 µs | 1.64 µs | 12.7 µs | 9.26 µs | 23.5 µs | 45.2 µs | **1.1× faster** | — |
+| `SimpleStruct?` | 4.35 ns | 4.22 ns | 5.16 ns | 62.9 ns | 59.5 ns | 209 ns | 167 ns | on par | **1.2× faster** |
+| `SimpleStruct?[100]`, every fifth null | 26.7 ns | 296 ns | 37.9 ns | 3.42 µs | 5.53 µs | 12.2 µs | 14.2 µs | **11× faster** | **1.4× faster** |
+| `SimpleClass` reference, null | 3.50 ns | 2.55 ns | 19.6 ns | 26.1 ns | 4.35 ns | 68.9 ns | 20.7 ns | — | **5.6× faster** |
+| `SimpleClass[100]`, every fifth null | 6.72 µs | 16.5 µs | 28.7 µs | 58.2 µs | 281 µs | 208 µs | 153 µs | **2.5× faster** | **4.3× faster** |
+| `long?[1000]`, every fifth null | 186 ns | 2.07 µs | 216 ns | 3.63 µs | 10.9 µs | 24.6 µs | 22.0 µs | **11× faster** | **1.2× faster** |
+| `List<int?>`, 1,000 | 95.0 ns | 2.21 µs | 117 ns | 3.95 µs | 10.2 µs | 22.9 µs | 22.0 µs | **23× faster** | **1.2× faster** |
+| `decimal?[1000]` | 343 ns | 1.65 µs | 704 ns | 23.2 µs | 12.5 µs | 47.0 µs | 28.4 µs | **4.8× faster** | **2.1× faster** |
 <!--/bench-->
 
 `SimpleStruct` is declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`: 12 bytes, no padding, so every
@@ -223,16 +296,25 @@ earlier run with the padded struct, that masked copy made `SimpleStruct[100]` se
 ### Deserialize (new instances)
 
 <!--bench:doc.table.deserialize-->
-| Case | v4 | v3 | MemoryPack | MessagePack | protobuf-net | v4 vs v3 | v4 vs MemoryPack |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| `SimpleClass` | 340 ns | 528 ns | 706 ns | 1.76 µs | 6.26 µs | **1.6× faster** | **2.1× faster** |
-| `SimpleClass[100]` | 36.0 µs | 55.8 µs | 69.1 µs | 191 µs | 602 µs | **1.5× faster** | **1.9× faster** |
-| Polymorphic class | 9.16 µs | — | 16.5 µs | 118 µs | 483 µs | — | **1.8× faster** |
-| Polymorphic class array | 117 µs | — | 195 µs | 891 µs | 3.18 ms | — | **1.7× faster** |
-| Polymorphic `Foo[]` | 8.52 µs | — | 15.4 µs | 118 µs | 487 µs | — | **1.8× faster** |
-| `SimpleStruct` (`int` + `DateTime`) | < 1 ns | < 1 ns | 1.40 ns | 77.2 ns | 231 ns | on par | **> 1.4× faster** (v4 under 1 ns) |
-| `SimpleStruct[100]` | 81.7 ns | 81.9 ns | 96.5 ns | 3.41 µs | 10.1 µs | on par | **1.2× faster** |
-| `Vector4[10000]` | 120 µs | 118 µs | 119 µs | 373 µs | 719 µs | on par | on par |
+| Case | v4 | v3 | MemoryPack | MessagePack | Google.Protobuf | protobuf-net | System.Text.Json | v4 vs v3 | v4 vs MemoryPack |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `SimpleClass` | 259 ns | 397 ns | 518 ns | 1.31 µs | 2.66 µs | 4.59 µs | 5.69 µs | **1.5× faster** | **2.0× faster** |
+| `SimpleClass[100]` | 27.3 µs | 42.2 µs | 49.8 µs | 142 µs | 346 µs | 464 µs | 645 µs | **1.5× faster** | **1.8× faster** |
+| Polymorphic class | 12.8 µs | 27.8 µs | 24.1 µs | 199 µs | 330 µs | 774 µs | 1.12 ms | **2.2× faster** | **1.9× faster** |
+| Polymorphic class array | 172 µs | 374 µs | 290 µs | 1.45 ms | 2.11 ms | 5.18 ms | 7.77 ms | **2.2× faster** | **1.7× faster** |
+| Polymorphic `Foo[]` | 12.9 µs | 20.3 µs | 22.3 µs | 188 µs | 324 µs | 765 µs | 1.08 ms | **1.6× faster** | **1.7× faster** |
+| `SimpleStruct` (`int` + `DateTime`) | < 1 ns | < 1 ns | < 1 ns | 64.2 ns | 52.2 ns | 163 ns | 162 ns | on par | on par |
+| `SimpleStruct[100]` | 61.9 ns | 62.3 ns | 76.7 ns | 2.63 µs | 7.04 µs | 7.96 µs | 16.5 µs | on par | **1.2× faster** |
+| `Vector4[10000]` | 104 µs | 108 µs | 108 µs | 301 µs | 541 µs | 598 µs | 3.94 ms | on par | on par |
+| `NullableFields` (half null) | 20.8 ns | 17.6 ns | 35.5 ns | 248 ns | 113 ns | 388 ns | 609 ns | — | **1.7× faster** |
+| `NullableFields[100]` | 3.39 µs | 2.13 µs | 2.85 µs | 26.6 µs | 15.4 µs | 24.1 µs | 58.0 µs | — | — |
+| `SimpleStruct?` | 15.8 ns | 14.6 ns | 1.02 ns | 96.2 ns | 84.5 ns | 292 ns | 235 ns | — | — |
+| `SimpleStruct?[100]`, every fifth null | 133 ns | 734 ns | 222 ns | 3.45 µs | 9.91 µs | 14.3 µs | 21.2 µs | **5.5× faster** | **1.7× faster** |
+| `SimpleClass` reference, null | 2.67 ns | < 1 ns | 10.4 ns | 30.4 ns | 9.98 ns | 78.9 ns | 34.4 ns | — | **3.9× faster** |
+| `SimpleClass[100]`, every fifth null | 23.3 µs | 33.6 µs | 39.7 µs | 113 µs | 242 µs | 370 µs | 507 µs | **1.4× faster** | **1.7× faster** |
+| `long?[1000]`, every fifth null | 670 ns | 1.19 µs | 676 ns | 4.31 µs | 27.7 µs | 33.8 µs | 20.3 µs | **1.8× faster** | on par |
+| `List<int?>`, 1,000 | 421 ns | 1.38 µs | 408 ns | 4.34 µs | 21.7 µs | 32.7 µs | 18.9 µs | **3.3× faster** | on par |
+| `decimal?[1000]` | 1.29 µs | 2.06 µs | 1.63 µs | 29.8 µs | 25.7 µs | 47.3 µs | 39.4 µs | **1.6× faster** | **1.3× faster** |
 <!--/bench-->
 
 
@@ -252,10 +334,10 @@ Nino can deserialize into an existing object graph (reuse deserialization) and t
 <!--bench:doc.table.reuse-->
 | Case | Nino new | Nino reusing | MemoryPack new | MemoryPack overwrite | Nino reusing vs overwrite |
 |---|---:|---:|---:|---:|---:|
-| Pooled node | 282 ns | **75.3 ns** (0 B) | 316 ns | 259 ns (1,024 B) | **3.4× faster** |
-| Pooled leaves, in place | 1.76 µs | **273 ns** (0 B) | 2.16 µs | 2.59 µs (12,800 B) | **9.5× faster** |
-| Pooled leaves, pooled elements | 1.76 µs | **1.46 µs** (0 B) | 2.16 µs | 2.59 µs (12,800 B) | **1.8× faster** |
-| Pooled class | 287 ns | **145 ns** (0 B) | 486 ns | 405 ns (1,080 B) | **2.8× faster** |
+| Pooled node | 245 ns | **72.7 ns** (0 B) | 326 ns | 276 ns (272 B) | **3.8× faster** |
+| Pooled leaves, in place | 1.67 µs | **260 ns** (0 B) | 1.97 µs | 1.97 µs (12,800 B) | **7.6× faster** |
+| Pooled leaves, pooled elements | 1.67 µs | **1.46 µs** (? B) | 1.97 µs | 1.97 µs (12,800 B) | **1.3× faster** |
+| Pooled class | 259 ns | **190 ns** (0 B) | 519 ns | 413 ns (1,080 B) | **2.2× faster** |
 <!--/bench-->
 
 The "new" columns allocate the same bytes in both serializers. Reusing is where v4 pulls away: in-place reuse
@@ -281,16 +363,16 @@ MemoryPack writes and parses the zone's whole serialized string on every call.
 <!--bench:doc.table.extra-->
 | Case | Serialize v4 | MemoryPack | v4 vs MemoryPack | Deserialize v4 | MemoryPack | v4 vs MemoryPack |
 |---|---:|---:|---:|---:|---:|---:|
-| Object graph, 200 tracked nodes | 3.49 µs | 18.4 µs | **5.3× faster** | 4.56 µs | 13.8 µs | **3.0× faster** |
-| `TolerantClass` | 99.7 ns | 525 ns | **5.3× faster** | 349 ns | 769 ns | **2.2× faster** |
-| `TolerantClass[100]` | 10.7 µs | 50.2 µs | **4.7× faster** | 37.3 µs | 77.6 µs | **2.1× faster** |
-| `FixedStruct` | 5.08 ns | 5.02 ns | on par | < 1 ns | < 1 ns | on par |
-| `FixedClass` | 4.86 ns | 12.7 ns | **2.6× faster** | 4.83 ns | 10.6 ns | **2.2× faster** |
-| `FixedClass[100]` | 281 ns | 996 ns | **3.5× faster** | 692 ns | 994 ns | **1.4× faster** |
-| `TreeNode`, 1,365 nodes | 6.32 µs | 11.0 µs | **1.7× faster** | 26.5 µs | 33.0 µs | **1.2× faster** |
-| `InventoryItem[1000]` (padded struct) | 38.3 ns | 40.1 ns | on par | 178 ns | 199 ns | **1.1× faster** |
-| `Waypoint[1000]` (fixed size, not raw) | 150 ns | 134 ns | — | 502 ns | 593 ns | **1.2× faster** |
-| `Dictionary<string, string>`, 1,000 | 4.47 µs | 23.4 µs | **5.2× faster** | 17.1 µs | 29.8 µs | **1.7× faster** |
+| Object graph, 200 tracked nodes | 3.88 µs | 22.0 µs | **5.7× faster** | 4.53 µs | 15.6 µs | **3.4× faster** |
+| `TolerantClass` | 79.1 ns | 408 ns | **5.2× faster** | 262 ns | 567 ns | **2.2× faster** |
+| `TolerantClass[100]` | 8.39 µs | 39.7 µs | **4.7× faster** | 28.1 µs | 55.9 µs | **2.0× faster** |
+| `FixedStruct` | 4.86 ns | 4.91 ns | on par | < 1 ns | < 1 ns | on par |
+| `FixedClass` | 5.04 ns | 13.7 ns | **2.7× faster** | 4.48 ns | 11.9 ns | **2.7× faster** |
+| `FixedClass[100]` | 236 ns | 923 ns | **3.9× faster** | 585 ns | 792 ns | **1.4× faster** |
+| `TreeNode`, 1,365 nodes | 13.7 µs | 20.3 µs | **1.5× faster** | 50.8 µs | 68.2 µs | **1.3× faster** |
+| `InventoryItem[1000]` (padded struct) | 87.2 ns | 130 ns | **1.5× faster** | 531 ns | 548 ns | on par |
+| `Waypoint[1000]` (fixed size, not raw) | 329 ns | 354 ns | **1.1× faster** | 1.48 µs | 1.49 µs | on par |
+| `Dictionary<string, string>`, 1,000 | 9.80 µs | 30.4 µs | **3.1× faster** | 39.0 µs | 61.3 µs | **1.6× faster** |
 <!--/bench-->
 
 Deserializing `FixedStruct` is one 40-byte copy, about a clock cycle in both. Serializing it is an allocation
