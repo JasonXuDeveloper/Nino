@@ -15,7 +15,7 @@ name: .NET A/B (test branch)
 # benchmark project. The reports and the ab.py tables go to the log. Numbers are for development only.
 on:
   push:
-    branches: [claude/zen-goldberg-5qqqcu]
+    branches: [bench/ab]
     paths: [.github/dotnet-ab-request.txt]
 
 permissions:

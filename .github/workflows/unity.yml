@@ -15,7 +15,7 @@ name: Unity
 
 on:
   push:
-    branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
+    branches: [ "main", "bench/ab" ]
     paths: &paths
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'

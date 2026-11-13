@@ -2,7 +2,7 @@ name: CI - Build and Test
 
 on:
   push:
-    branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
+    branches: [ "main", "bench/ab" ]
     # Everything a job here builds or runs (the solution, the runtimes the integrations job tests, the scripts).
     paths: &paths
       - 'src/**'

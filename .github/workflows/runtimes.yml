@@ -9,7 +9,7 @@ name: Runtimes
 # ran for every Nino.Core change, which never touched what they test.
 on:
   push:
-    branches: [ "main", "claude/zen-goldberg-5qqqcu" ]
+    branches: [ "main", "bench/ab" ]
     paths: &paths
       - 'runtimes/**'
       - 'conformance/corpus/**'
