@@ -135,8 +135,13 @@ is a finding, and so is a page that teaches a feature before the one it builds o
    64 MB), a custom formatter's capacity allocated unchecked (9 bytes threw OutOfMemoryException), one bad UDP datagram
    or Kafka message ending its receive loop, two caches sharing a key, `TryRegister` of an abstract type, and a stated
    struct layout the generator does not produce. Check for each: is every frame self-delimiting, is every length read
-   from data bounded before anything is allocated for it, does one bad message end only itself, and does the prose
-   (a byte count, a layout, a version) match what running it prints.
+   from data bounded before anything is allocated for it, does one bad message end only itself, does every example
+   do what the page's own advice says (a page that says "treat failures as misses, always" shows the catch), and
+   does the prose (a byte count, a layout, a version) match what running it prints. Test a library's behavior
+   instead of assuming it: rc.10's audit found the WebSocket loop ending on one bad message, and HybridCache 10.11
+   passing a serializer's `NinoDataException` out of `GetOrCreateAsync` instead of treating it as a miss (the page
+   now says to catch it and `RemoveAsync` the key); to test HybridCache's L2, wrap `MemoryDistributedCache` in a
+   class of your own, since HybridCache ignores a `MemoryDistributedCache` as its L2 and nothing is stored there.
    **Measure what a hot-path example allocates** (`GC.GetAllocatedBytesForCurrentThread` around a warmed loop): a page
    that teaches Nino's zero-allocation form must not wrap it in code that allocates per message. Use one-shot static
    APIs over instances that own native handles (`BrotliDecoder.TryDecompress` into a pooled buffer, not
