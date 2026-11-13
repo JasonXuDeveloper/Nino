@@ -180,8 +180,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest`, `NullableTest`,
   `CollectionsTest`'s nullable collections and the workloads), a `Verify.cs` entry, its class in a chart group
   (`readme.py`'s `GROUPS`, the site's `dotnetGroups` in `src/lib/benchmarks.ts`; a class neither names lands in
-  "Others"), the class in `shards.json` (the report and A/B shards): a report
-  shard picked by the minutes each shard's "Run benchmarks" step took in the last report, not by case counts
+  "Others"), its v3 port (below), the class in `shards.json` (the report and A/B shards): a report
+  shard picked by the minutes each shard's "Run benchmarks" step took in the last report, and at most about 70 cases
+  of v4 and v3 together (`--list flat` of both builds with the shard's globs; about 15 minutes a shard plus half a
+  minute a case, under report.yml's 150-minute timeout): a new shard (the next letter) rather than an overfull one
   (`audit-ci`, Fast and parallel). Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
   ci.yml runs `--verify` on x64 and on Arm64 (`audit-ci`, Scripts only a release runs).
 - A case that needs a process-wide setting frozen on first use (`NinoSettings.Untrusted`, `UntrustedTest`) sets it in
@@ -300,14 +302,14 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 - The headline (README's ranges, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
   every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); v3 runs every case
   3.3.13 can do the job of, in its own way (the owner, 2026-11-13: "v3和v4支持的东西应该一样多"; leave a case out
-  only with proof that v3 cannot do it, the missing API or the generator's code, shown to the owner): SimpleTest,
-  PolymorphicTest, NullableTest, CollectionsTest's nullable collections (`V3/CollectionsTest.cs` holds only those;
-  the overview chart shows `NullableFieldsArray`, `NullableStructs` and `NullableLongs` after the polymorphic group,
-  `readme.py`'s `NULLABLE_CASES` in `CHART_CASES`), all 12 workloads (`V3/WorkloadTest.cs`) and PooledGraphTest's
-  `Leaves` (`V3/PooledGraphTest.cs`, the reuse chart's "Into existing objects · leaves" bar). Find v3's way in the decompiled 3.3.13 (`ilspycmd -p` on `nino.serialization/3.3.13/lib/net8.0/
+  only with proof that v3 cannot do it, the missing API or the generator's code, shown to the owner): every class has
+  its port (`V3/<Class>.cs`, whose header lists what it does differently and what it leaves out, with the proof; the
+  overview chart shows `NullableFieldsArray`, `NullableStructs` and `NullableLongs` after the polymorphic group,
+  `readme.py`'s `NULLABLE_CASES` in `CHART_CASES`; PooledGraphTest's `Leaves` are the reuse chart's "Into existing
+  objects · leaves" bar). Find v3's way in the decompiled 3.3.13 (`ilspycmd -p` on `nino.serialization/3.3.13/lib/net8.0/
   Nino.Core.dll` and `nino.generator/3.3.13/analyzers/dotnet/cs/Nino.Generator.dll`, whose emitters hold the
   generated code as strings) and the archived v3 docs (nino.docs `content/docs/v3`). What 3.3.13 has, and how the
-  workloads use it: interfaces, abstract classes and generics as `[NinoType]` (every class is written with a type id,
+  ports use it: interfaces, abstract classes and generics as `[NinoType]` (every class is written with a type id,
   a hash of its name); version tolerance only through `WEAK_VERSION_TOLERANCE`, a symbol the generated code reads,
   so it holds for a whole project and changes every type's bytes (`V3/Versioned` builds the versioned models alone);
   only appended members (a deleted member keeps its slot: ProfileV2's `AvatarUrl`); `[NinoFormerName]` keeps a type's
@@ -315,13 +317,31 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   generated code uses it: shared objects are written as copies, as MessagePack's); no reading into an existing
   object (the generator writes `Deserialize(out T, ref Reader)` only; collections with `Clear` and `Add` get
   `Deserialize(TCollection value, ref Reader reader)`, which keeps the list and reads new elements: the v3 Leaves
-  "in place" case); no pool (`[NinoPooled]` is v4's: `NinoLeavesPooledElements` stays v4 only). Measure v3 through these workarounds, as MessagePack and
+  "in place" case; an array, or a `[NinoType]` object, is read new: ScatteredTest's `Into`, the workloads' in-place
+  reads); no pool (`[NinoPooled]`, `ReturnToPool` and `NinoPool` are v4's: `NinoLeavesPooledElements`,
+  `NinoNodePooled` and `NinoDeserializePooled` stay v4 only); no settings (`NinoSettings.Untrusted` is v4's: v3's
+  UntrustedTest reads unchecked, as MemoryPack does), no `GetFixedSize`; collection overloads only for the collection
+  types its project's source names (its CollectionGenerator collects every generic name, array type and tuple type:
+  `V3/Versioned/CollectionTypes.cs` names `TolerantClass[]`), including `Serialize(Span<T>)` and `ICollection<T>` for
+  unmanaged `T` (BclTypesTest's and ExternalBufferTest's `Memory<int>` and one-segment `ReadOnlySequence<int>` are
+  written through their span, `IReadOnlyList<string>` as the `ICollection<string>` it is); reading only from a
+  `ReadOnlySpan<byte>` (a `ReadOnlySequence<byte>` is copied into one span first) and building a collection only by
+  constructor and `Add` (the immutable collections are read as an array and built with `CreateRange`; v3 writes no
+  `ImmutableQueue` or `ImmutableStack`, so their cases write `ToArray()`). What it cannot do at all, with the proof
+  in the port: anything its generator's selector rejects binds to the generic `Serialize<T>(T) where T : unmanaged`
+  (CS8377) and 3.3.13 has no formatter API (its runtime exports only the attributes, `NinoTuple`, `Reader`, `Writer`
+  and `TypeCollector`): BclTypesTest's `BigInteger`, `Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`,
+  `TimeZoneInfo` and `Lazy<string>` (a hand conversion to a string or bytes would time the conversion; protobuf-net
+  sits these out too); `ILookup` (its generator writes code that does not compile, CS8377 on `IGrouping`); a list
+  that holds itself (CollectionsTest's `SelfTree`: `CollectionSerializerGenerator` recurses until the compiler dies
+  of a stack overflow, so the type stays in the v4 `Cases/` file); a graph with a cycle (ReferenceTest: v3
+  writes every reference by value and overflows the stack). Measure v3 through these workarounds, as MessagePack and
   protobuf-net get theirs, never leave a case out for them (the owner, 2026-11-13: "跟messagepack/pb一样就行"). A v3 port
   (`benchmarks/Nino.Benchmark/V3/<Class>.cs`) keeps the v4 class's name, method names, data and attributes and
   changes only the Nino calls (`NinoGen.Serializer` / `NinoGen.Deserializer`, `ArrayBufferWriter<byte>`), shares the
-  v4 models (an attribute 3.3.13 lacks behind `#if NINO_BENCH_V3`), drops the protobuf-net, Google.Protobuf and JSON
-  cases, joins the csproj's v3 `Compile` list, `run.sh`'s v3 `--filter` and the `"v3"` globs of the
-  `shards.json` shard that runs the v4 class; report.yml leaves a `v3-<shard>/none` marker for a release built before
+  v4 models (in `Fixtures/`; an attribute 3.3.13 lacks behind `#if NINO_BENCH_V3`), drops the MessagePack,
+  protobuf-net, Google.Protobuf and JSON cases (the v3 run times Nino and MemoryPack), and joins the `"v3"` globs of the
+  `shards.json` shard that runs the v4 cases (the csproj compiles `V3/*.cs`, `run.sh` runs every shard's v3 globs); report.yml leaves a `v3-<shard>/none` marker for a release built before
   the port, so older tags still get their v3 section. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
   and the site's `src/lib/benchmarks.ts` and sync in the same series. Prose and markers that name the workloads land
   together with `readme.py`; until a release's report measured them, their markers read "—".
