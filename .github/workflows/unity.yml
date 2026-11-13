@@ -113,8 +113,8 @@ jobs:
       UNITY_IMAGE: unityci/editor:ubuntu-${{ matrix.unity }}-linux-il2cpp-3
       # Debug builds for the tests (their assertions), Release for the benchmark (what the package ships).
       NINO_CONFIG: ${{ inputs.benchmark && 'Release' || 'Debug' }}
-      # The editors that may kill themselves before the tests run, whose test steps get one more attempt then (see
-      # "Mark the signal trace"); false once Unity fixes it.
+      # The editors that may kill themselves before the tests run, whose test steps get up to two more attempts then
+      # (see "Mark the signal trace"); false once Unity fixes it.
       UNITY_SELF_KILL_RETRY: ${{ startsWith(matrix.unity, '6000.6.') }}
 
     steps:
@@ -318,10 +318,11 @@ jobs:
       # run, no results file (run 43324567209: sender process == target's process == /opt/unity/Editor/Unity). Not
       # memory, /dev/shm or code coverage (each ruled out by the trace: audit-ci, "Bound every Unity launch"); the
       # target is always container PID 296, a PID stored by an earlier container ("Show and clear Unity's stored
-      # process IDs"). A Unity bug, so each test step below runs once with continue-on-error, "Did Unity
-      # kill itself" judges a failed attempt and only that kill gets a second attempt; any other failure fails the
-      # judge, and with it the job, as the step itself did before. The retry is for the editors listed here: false
-      # switches it off once Unity fixes the bug.
+      # process IDs"). A Unity bug, so each test step below runs with continue-on-error, "Did Unity kill itself"
+      # judges a failed attempt and only that kill gets another attempt, up to three in all (a backstop: run 43349362911
+      # had five kills in six launches, two in a row in each step); any other failure fails the judge, and with it the
+      # job, as the step itself did before. A mark before every attempt keeps an attempt's kill out of the next
+      # attempt's judge. The retry is for the editors listed here: false switches it off once Unity fixes the bug.
       - &mark-trace
         name: Mark the signal trace
         if: ${{ !cancelled() }}
@@ -382,13 +383,15 @@ jobs:
       # left no results file (no test ran), and the kernel's trace since the last mark holds a SIGKILL sent by kill(2)
       # (code=0) from a process that ran /opt/unity/Editor/Unity to a different thread of that same process. A test
       # that failed (results file written), a timeout, a crash of Nino's code in the editor (SIGSEGV or SIGABRT, or no
-      # signal at all), a kill from anything else, or a missing trace fails this step and the job. The killed
-      # attempt's editor log is kept beside the retry's as <mode>-killed.log in the uploaded results.
+      # signal at all), a kill from anything else, or a missing trace fails this step and the job. Each killed
+      # attempt's editor log is kept beside the last one's as <mode>-killed-<attempt>.log in the uploaded results. The
+      # second attempt is judged the same way and may get a third; a failed third attempt fails the job.
       - name: Did Unity kill itself (play mode)
         if: ${{ !cancelled() && steps.playmode-tests.outcome == 'failure' }}
         id: playmode-killed
         timeout-minutes: 2
         env:
+          ATTEMPT: 1
           RESULTS: artifacts/editor/playmode-results.xml
           UNITY_VERSION: ${{ matrix.unity }}
         run: &judge-kill |
@@ -422,8 +425,8 @@ jobs:
           sys.exit(0 if found else 1)
           EOF
           then
-            echo "::warning::Unity $UNITY_VERSION's editor killed itself (kill(2), SIGKILL, on a thread of its own) before any test ran: a Unity bug (audit-ci), not a test result. Running the step once more."
-            sudo cp "$log" "${log%.log}-killed.log" 2> /dev/null || true
+            echo "::warning::Unity $UNITY_VERSION's editor killed itself (kill(2), SIGKILL, on a thread of its own) before any test ran in attempt $ATTEMPT: a Unity bug (audit-ci), not a test result. Running the step once more."
+            sudo cp "$log" "${log%.log}-killed-$ATTEMPT.log" 2> /dev/null || true
             echo retry=true >> "$GITHUB_OUTPUT"
           else
             echo "::error::The step above failed, and not by the Unity editor killing itself before the tests ran: see its log and $RESULTS."
@@ -432,10 +435,35 @@ jobs:
 
       - *unity-state
 
+      - *mark-trace
+
       - name: Run the editor's play mode tests again (Unity killed itself)
         if: ${{ !cancelled() && steps.playmode-killed.outputs.retry == 'true' }}
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: playmode-retry
+        continue-on-error: true
+        timeout-minutes: 25
+        env: *editor-env
+        with: *playmode-with
+
+      - name: Did Unity kill itself again (play mode)
+        if: ${{ !cancelled() && steps.playmode-retry.outcome == 'failure' }}
+        id: playmode-killed-2
+        timeout-minutes: 2
+        env:
+          ATTEMPT: 2
+          RESULTS: artifacts/editor/playmode-results.xml
+          UNITY_VERSION: ${{ matrix.unity }}
+        run: *judge-kill
+
+      - *unity-state
+
+      - *mark-trace
+
+      - name: Run the editor's play mode tests a third time (Unity killed itself twice)
+        if: ${{ !cancelled() && steps.playmode-killed-2.outputs.retry == 'true' }}
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: playmode-retry-2
         timeout-minutes: 25
         env: *editor-env
         with: *playmode-with
@@ -447,7 +475,8 @@ jobs:
       - name: Run the editor's edit mode tests
         if: >-
           env.BENCHMARK != 'true' && (success() ||
-          steps.playmode-killed.conclusion == 'failure' || steps.playmode-retry.conclusion == 'failure')
+          steps.playmode-killed.conclusion == 'failure' || steps.playmode-killed-2.conclusion == 'failure' ||
+          steps.playmode-retry-2.conclusion == 'failure')
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: editmode-tests
         continue-on-error: true
@@ -466,16 +495,42 @@ jobs:
         id: editmode-killed
         timeout-minutes: 2
         env:
+          ATTEMPT: 1
           RESULTS: artifacts/editor/editmode-results.xml
           UNITY_VERSION: ${{ matrix.unity }}
         run: *judge-kill
 
       - *unity-state
 
+      - *mark-trace
+
       - name: Run the editor's edit mode tests again (Unity killed itself)
         if: ${{ !cancelled() && steps.editmode-killed.outputs.retry == 'true' }}
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: editmode-retry
+        continue-on-error: true
+        timeout-minutes: 25
+        env: *editor-env
+        with: *editmode-with
+
+      - name: Did Unity kill itself again (edit mode)
+        if: ${{ !cancelled() && steps.editmode-retry.outcome == 'failure' }}
+        id: editmode-killed-2
+        timeout-minutes: 2
+        env:
+          ATTEMPT: 2
+          RESULTS: artifacts/editor/editmode-results.xml
+          UNITY_VERSION: ${{ matrix.unity }}
+        run: *judge-kill
+
+      - *unity-state
+
+      - *mark-trace
+
+      - name: Run the editor's edit mode tests a third time (Unity killed itself twice)
+        if: ${{ !cancelled() && steps.editmode-killed-2.outputs.retry == 'true' }}
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: editmode-retry-2
         timeout-minutes: 25
         env: *editor-env
         with: *editmode-with
@@ -494,8 +549,10 @@ jobs:
       - name: Run the IL2CPP player's tests
         if: >-
           success() ||
-          steps.playmode-killed.conclusion == 'failure' || steps.playmode-retry.conclusion == 'failure' ||
-          steps.editmode-killed.conclusion == 'failure' || steps.editmode-retry.conclusion == 'failure'
+          steps.playmode-killed.conclusion == 'failure' || steps.playmode-killed-2.conclusion == 'failure' ||
+          steps.playmode-retry-2.conclusion == 'failure' ||
+          steps.editmode-killed.conclusion == 'failure' || steps.editmode-killed-2.conclusion == 'failure' ||
+          steps.editmode-retry-2.conclusion == 'failure'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: player-tests
         continue-on-error: true
@@ -522,16 +579,42 @@ jobs:
         id: player-killed
         timeout-minutes: 2
         env:
+          ATTEMPT: 1
           RESULTS: artifacts/player/standalone-results.xml
           UNITY_VERSION: ${{ matrix.unity }}
         run: *judge-kill
 
       - *unity-state
 
+      - *mark-trace
+
       - name: Run the IL2CPP player's tests again (Unity killed itself)
         if: ${{ !cancelled() && steps.player-killed.outputs.retry == 'true' }}
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: player-retry
+        continue-on-error: true
+        timeout-minutes: 35
+        env: *player-env
+        with: *player-with
+
+      - name: Did Unity kill itself again (IL2CPP player)
+        if: ${{ !cancelled() && steps.player-retry.outcome == 'failure' }}
+        id: player-killed-2
+        timeout-minutes: 2
+        env:
+          ATTEMPT: 2
+          RESULTS: artifacts/player/standalone-results.xml
+          UNITY_VERSION: ${{ matrix.unity }}
+        run: *judge-kill
+
+      - *unity-state
+
+      - *mark-trace
+
+      - name: Run the IL2CPP player's tests a third time (Unity killed itself twice)
+        if: ${{ !cancelled() && steps.player-killed-2.outputs.retry == 'true' }}
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: player-retry-2
         timeout-minutes: 35
         env: *player-env
         with: *player-with
