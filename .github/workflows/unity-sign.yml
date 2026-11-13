@@ -25,7 +25,7 @@ on:
         required: true
         type: string
   push:
-    branches: [claude/zen-goldberg-5qqqcu]
+    branches: [bench/ab]
     paths: [.github/workflows/unity-sign.yml]
 
 permissions:

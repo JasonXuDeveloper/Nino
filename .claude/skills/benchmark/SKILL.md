@@ -69,7 +69,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Deciding on runners (A/B)
 
-1. Request lines on the test branch `claude/zen-goldberg-5qqqcu`:
+1. Request lines on the test branch `bench/ab`:
    - **Reach the commits** with `git merge -s ours --no-edit <ref>` (history only: the test branch keeps main's code,
      so its CI runs main's code; merging an experiment's code ran CI on it, and a Go test that overflowed `int` on 386
      and a Windows stack test mailed the owner a failure per push).
