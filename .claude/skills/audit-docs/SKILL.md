@@ -201,15 +201,20 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   named, two badge rows, nav links), "Why Nino" as 5 to 8 claims of a line or two (SIMD on every platform among them), each with its link (the first
   names MemoryPack, MessagePack and protobuf-net: not every reader knows MemoryPack), Install, a short Quick start, an
   "AI coding assistants" section of its own (the skill's install command, what it teaches, llms.txt; owner: not a
-  sub-item of Install), Benchmarks (the speed table against MemoryPack, MessagePack and protobuf-net, then the chart: a light and a
-  dark PNG in a `<picture>` with `prefers-color-scheme`, both written by `readme.py` and rendered by `report.yml`;
-  it shows time per operation, shorter is faster, on a linear scale per group, Nino v4 first in the accent colour, v3 in
-  a darker grey (n/a where 3.3.13 did not run the case), every other library in one light grey, in the order MemoryPack,
-  MessagePack, Google.Protobuf, protobuf-net, System.Text.Json, each bar labelled with its time and its multiple of
-  Nino v4's: three workloads, a struct block, a polymorphic array and reading into existing objects, serialize and
-  deserialize side by side; the site lists libraries in the same order. Why: the owner found the earlier
+  sub-item of Install), Benchmarks (the speed table against MemoryPack, MessagePack and protobuf-net, then the
+  charts: one per group of cases, `readme.py`'s `GROUPS` (real workloads, basic types and structs, polymorphism,
+  nullable values, collections and common types, reuse and pooling, reference tracking and version tolerance,
+  others; the owner's, 2026-11-13), each in a `<details open>` with the group in its `<summary>` and a `<picture>` of
+  a light and a dark SVG by `prefers-color-scheme`, all written by `readme.py` between the `charts` marker (the same
+  charts in `docs/v4-benchmarks.md`); each shows time per operation, shorter is faster, on a linear scale per case,
+  Nino v4 first in the accent colour, v3 in a darker grey (n/a where 3.3.13 did not run the case), every other
+  library with a row in one light grey, in the order MemoryPack, MessagePack, Google.Protobuf, protobuf-net,
+  System.Text.Json, each bar labelled with its time and its multiple of Nino v4's, serialize and deserialize side by
+  side; the site lists libraries and groups the same way. nuget.org prints every HTML tag as text (its Markdig
+  pipeline calls `DisableHtml`): the overview chart `benchmark.png` (`CHART_CASES`) is the first `<picture>`'s
+  fallback image for the day the packed README turns HTML into Markdown. Why: the owner found the earlier
   "N times faster" log-scale chart unreadable (no Nino bar, a longer bar meant a slower competitor, 1.7x and 45x
-  looked alike; rc.10),
+  looked alike; rc.10) and one chart of nine cases too few (2026-11-13: every case, grouped),
   a compact "Built for" list, the MemoryPack feature table (no speed rows: the Benchmarks table has them), v4 vs v3,
   Contributing, License; no callout or long list before Install, README.zh.md the same sections in the same order,
   and links to the site for the rest. No emoji anywhere in either README, in headings, links, tables or lists (owner,

@@ -178,7 +178,9 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
   MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest`, `NullableTest`,
-  `CollectionsTest`'s nullable collections and the workloads, the classes every chart group shows), a `Verify.cs` entry, the class in `shards.json` (the report and A/B shards): a report
+  `CollectionsTest`'s nullable collections and the workloads), a `Verify.cs` entry, its class in a chart group
+  (`readme.py`'s `GROUPS`, the site's `dotnetGroups` in `src/lib/benchmarks.ts`; a class neither names lands in
+  "Others"), the class in `shards.json` (the report and A/B shards): a report
   shard picked by the minutes each shard's "Run benchmarks" step took in the last report, not by case counts
   (`audit-ci`, Fast and parallel). Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
   ci.yml runs `--verify` on x64 and on Arm64 (`audit-ci`, Scripts only a release runs).
@@ -254,7 +256,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   choice: no new branch). Draw SVG, never PNG: PNGs at a
   readable 2x scale (about 1,880 x 2,220 px each) came to about 5.4 MB a release and needed Chrome, the SVGs are a
   few KB, sharp at any zoom, and a pair per chart follows the reader's theme (the owner's call). readme.py's
-  `--png` (the README chart for nuget.org, which shows no SVG) still uses headless Chrome: run it without
+  `--png` (the overview chart for nuget.org, which shows no SVG) still uses headless Chrome: run it without
   `--user-data-dir` in a cloud session, with which Chromium 1243 wrote nothing and never exited.
 - Dry-run the publish jobs before changing them: `python3 benchmarks/reports/release_body.py publish --tag <tag>
   --dir <work> --release-dir <fake release dir> NAME=PATH...` for each job in report.yml's order (a directory with
@@ -263,7 +265,16 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Publishing
 
-- Never publish a quick, local or A/B number. README.md, docs/v4-benchmarks.md, the chart, the release notes and the
+- Chart every .NET case, in the group of its class (the owner, 2026-11-13: real workloads, basic types and structs,
+  polymorphism, nullable values, collections and common types, reuse and pooling, reference tracking and version
+  tolerance, others): README, docs/v4-benchmarks.md and the release body draw them with `readme.py`'s `chart_groups`
+  (one function, one order: Nino v4, v3 n/a where 3.3.13 has no port, then each library that has a row), one light
+  and one dark SVG per group (`docs/assets/benchmark-<group>.svg`, a few dozen KB: bars and labels carry CSS classes,
+  not inline styles), each in a `<details>` with the group as its summary and a `<picture>` by
+  `prefers-color-scheme`; the site groups its interactive charts the same way. Check a chart change by rendering it
+  in both themes (`charts.svg` into an HTML page, Playwright's `colorScheme`) and reading the screenshots: a long
+  group title runs past its column (the reuse chart's allocations moved into the bar labels for that).
+- Never publish a quick, local or A/B number. README.md, docs/v4-benchmarks.md, the charts, the release notes and the
   docs site take them only from `report.yml` (x64 and Arm64 shards, the runtimes and Unity sections, job id
   `ShortRun-.NET 10.0`), through the release's assets: `release_body.py` / `readme.py --assets` and the site's sync.
 - Take the build-time numbers (README's Build row `v3.build`, docs/v4-benchmarks.md's `doc.build.*` tables, the site's
@@ -284,16 +295,14 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   v3's runs take minutes and settle in the first. The 0.7 MB of source added since (5.09 MB against 4.38) is the
   `[assembly: NinoTypeLayout]` metadata (1.37 MB, from bd6a732b and f76fa0e0) less the later shortening, and costs
   emit 7 % more allocation (408 MB against 382) and no time beyond the noise.
-- The headline (README's ranges and chart, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
+- The headline (README's ranges, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
   every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); v3 runs every case
   3.3.13 can do the job of, in its own way (the owner, 2026-11-13: "v3和v4支持的东西应该一样多"; leave a case out
   only with proof that v3 cannot do it, the missing API or the generator's code, shown to the owner): SimpleTest,
   PolymorphicTest, NullableTest, CollectionsTest's nullable collections (`V3/CollectionsTest.cs` holds only those;
-  the README chart shows `NullableFieldsArray`,
-  `NullableStructs` and `NullableLongs` after the polymorphic group, `readme.py`'s
-  `NULLABLE_CASES` in `CHART_CASES`, so the release body's .NET chart, which is README's, shows them too), all 12
-  workloads (`V3/WorkloadTest.cs`) and PooledGraphTest's `Leaves` (`V3/PooledGraphTest.cs`, the chart's "Into existing
-  objects" bar). Find v3's way in the decompiled 3.3.13 (`ilspycmd -p` on `nino.serialization/3.3.13/lib/net8.0/
+  the overview chart shows `NullableFieldsArray`, `NullableStructs` and `NullableLongs` after the polymorphic group,
+  `readme.py`'s `NULLABLE_CASES` in `CHART_CASES`), all 12 workloads (`V3/WorkloadTest.cs`) and PooledGraphTest's
+  `Leaves` (`V3/PooledGraphTest.cs`, the reuse chart's "Into existing objects · leaves" bar). Find v3's way in the decompiled 3.3.13 (`ilspycmd -p` on `nino.serialization/3.3.13/lib/net8.0/
   Nino.Core.dll` and `nino.generator/3.3.13/analyzers/dotnet/cs/Nino.Generator.dll`, whose emitters hold the
   generated code as strings) and the archived v3 docs (nino.docs `content/docs/v3`). What 3.3.13 has, and how the
   workloads use it: interfaces, abstract classes and generics as `[NinoType]` (every class is written with a type id,
