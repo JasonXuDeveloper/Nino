@@ -213,7 +213,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   `[NullWrappedValue]` at `CompatibilityLevel.Level300` (`google.protobuf.Int32Value`, ...: Google.Protobuf's `int?`).
   Keep such contracts at Level300: at the default level `GetSchema` names `decimal?`'s wrapper `Wrapped.bcl.Decimal`,
   which protoc rejects, and `[NullWrappedValue]` on an enum writes a message while the schema keeps the bare enum
-  (Google.Protobuf would misread it), so a nullable enum stays bare with a zero member the data never uses.
+  (Google.Protobuf would misread it), so a nullable enum stays bare with a zero member the data never uses. A
+  `Nullable<T>` of a message type cannot be wrapped in a repeated field at all ("No serializer for type
+  System.Nullable`1[SimpleStruct]"): write an array of a contract with one optional field (`OptionalSimpleStruct`,
+  the same bytes), made outside the timed region; a top-level null is such a contract with the field absent. A
+  baseline that reads null (`NullableObject`) carries `[ReadsNull]`, so Verify checks the others read null too.
 - In `WorkloadTest` a library that lacks a feature is measured through its usual workaround (copies of shared
   objects, a new instance instead of reading into one; the owner's choice for workloads), said in the model's comment
   and in benchmarks/README.md; the other classes keep "no method rather than other data".
@@ -285,7 +289,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   3.3.13 can do the job of, in its own way (the owner, 2026-11-13: "v3和v4支持的东西应该一样多"; leave a case out
   only with proof that v3 cannot do it, the missing API or the generator's code, shown to the owner): SimpleTest,
   PolymorphicTest, NullableTest, CollectionsTest's nullable collections (`V3/CollectionsTest.cs` holds only those;
-  the README chart shows `NullableClasses` and `NullableLongs` after the polymorphic group, `readme.py`'s
+  the README chart shows `NullableFieldsArray`,
+  `NullableStructs` and `NullableLongs` after the polymorphic group, `readme.py`'s
   `NULLABLE_CASES` in `CHART_CASES`, so the release body's .NET chart, which is README's, shows them too), all 12
   workloads (`V3/WorkloadTest.cs`) and PooledGraphTest's `Leaves` (`V3/PooledGraphTest.cs`, the chart's "Into existing
   objects" bar). Find v3's way in the decompiled 3.3.13 (`ilspycmd -p` on `nino.serialization/3.3.13/lib/net8.0/
