@@ -85,9 +85,9 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
   `editmode`, never `all`: see `audit-ci`), then an IL2CPP Linux player and its tests (`standalone`). Every Unity
   launch is bounded by `ENGINE_LAUNCH_WRAPPER` (`timeout`), every Unity step by `timeout-minutes`. Before every
   launch, `Show and clear Unity's stored process IDs` prints the small files holding a PID and deletes
-  `Library/ilpp.pid`, `Library/MSBuild/buildhost.pid`, `Library/EditorInstance.json` and `Temp`: the 6000.6 editor
-  kills container PID 296 at startup, a PID stored by an earlier container (likeliest the IL Post Processing
-  runner's, in `Library/ilpp.pid`, which the Library cache brings back). Each of those three steps runs with
+  `Library/burst.pid`, `Library/ilpp.pid`, `Library/MSBuild/buildhost.pid`, `Library/EditorInstance.json` and `Temp`: the 6000.6 editor
+  kills container PID 296 at startup, a PID stored by an earlier container (Burst 2.0's compiler's, in
+  `Library/burst.pid`, which the Library cache brings back). Each of those three steps runs with
   `continue-on-error`; its `Did Unity kill itself` step runs it again, up to three attempts in all, only when the
   6000.6 editor killed itself before any test ran (no results XML, and the kernel's signal trace shows the editor's
   kill(2) on a thread of its own), and fails the job on any other failure (`audit-ci`, "Bound every Unity launch").

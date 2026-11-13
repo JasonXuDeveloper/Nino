@@ -122,15 +122,14 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   PID 296, every time (all three kills of run 43324567209, all five of 43349362911), whatever holds 296 in that
   container: another thread of the editor (the whole thread group dies, exit 137) or a thread of its
   `Unity.DataStore`; where 296 is not yet taken nothing happens, which made it look like one launch in three. The
-  likeliest source is `Library/ilpp.pid`: the IL Post Processing runner (`Unity.ILPP.Runner`) writes its own PID
-  there, the editor reads it back to kill a "lingering" runner when it starts the runner at that moment of startup
-  (`KillLingeringILPPRunner` in UnityEditor.dll; it checks the process name, so how a thread of the editor passes
-  is not proven), the runner starts at the same moment of every launch, so the PID it had in the container that
-  saved the Library cache is the one a new container gives an editor thread then, and without a cache the first
-  launch's file reaches the next step (run 43290338104 lost its player step so). unity.yml's `Show and clear
+  source is `Library/burst.pid`: Burst 2.0's compiler process writes its PID there, and the editor kills that PID
+  as a lingering compiler early in its first domain reload (run 43356711660: the cached file held 296 and the first kill
+  hit 296, then it held 287 and every later kill hit 287); `Library/ilpp.pid`, the first suspect (decompiled
+  `KillLingeringILPPRunner`), held other PIDs. Without a cache the first launch's file reaches the next step (run
+  43290338104 lost its player step so). unity.yml's `Show and clear
   Unity's stored process IDs` (before every launch) prints each small file in the Library, Temp, UserSettings and
   the runner's home (game-ci mounts it as `/root`) that holds `296`, only a number or a pid key, or has a PID or
-  lock name, then deletes `Library/ilpp.pid`, `Library/MSBuild/buildhost.pid` (Unity.BuildService's host),
+  lock name, then deletes `Library/burst.pid`, `Library/ilpp.pid`, `Library/MSBuild/buildhost.pid` (Unity.BuildService's host),
   `Library/EditorInstance.json` and `Temp`, keeping the compiled scripts and imported assets for the cache; its
   output names the file if a kill still comes. Ruled out, each with the kills going on: memory (nothing in
   `dmesg`, 14 GB available), `/dev/shm` (2 GiB as at the CLI's 1025m; c6d51102, reverted) and code coverage (off
