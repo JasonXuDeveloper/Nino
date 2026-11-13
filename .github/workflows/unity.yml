@@ -254,18 +254,31 @@ jobs:
 
       # Unity 6000.6.9f1's editor SIGKILLs container PID 296 some 2 s after launch, in every container, whatever task
       # holds that PID there: a thread of the editor itself (exit 137) or of its Data Store (runs 43324567209 and
-      # 43349362911, six of six kills). Each step runs Unity in a new container, whose PIDs are handed out the same way
+      # 43349362911, all eight kills). Each step runs Unity in a new container, whose PIDs are handed out the same way
       # each time, so the editor kills a PID it read from state that outlives its container: the project's Library
       # (restored from the cache), Temp and UserSettings, or the runner's home, which game-ci mounts as /root. This
       # step names that file before each launch: every small file there that holds the number 296, holds nothing but a
       # number, holds a pid-like key, or is named like a PID or lock file, with its content.
+      #
+      # Then it deletes the files that hold a PID of an earlier container, the likeliest first: Library/ilpp.pid. The IL
+      # Post Processing runner (Tools/BuildPipeline/Compilation/Unity.ILPP.Runner) writes its own PID there, and the
+      # editor reads it back to kill a "lingering" runner when it starts the runner, early in its first domain reload,
+      # where every kill came (KillLingeringILPPRunner in UnityEditor.dll, which the native ILPPExternalProcess calls).
+      # The runner starts at the same moment in every launch, so its PID in the container that saved the Library cache
+      # is the PID that a new container hands to a thread of the editor at that moment; a job without a cache passes
+      # its first launch's runner PID to the next step (run 43290338104 lost its player step so). Also deleted:
+      # Library/MSBuild/buildhost.pid (Unity.BuildService's host, which it kills by that PID when it cannot reach it),
+      # Library/EditorInstance.json (the editor's own PID) and Temp, which only a running editor uses (Unity deletes
+      # it when it quits). The rest of the Library, the compiled scripts and imported assets, stays for the cache.
       - &unity-state
-        name: Show Unity's stored process IDs
+        name: Show and clear Unity's stored process IDs
         if: ${{ !cancelled() }}
         continue-on-error: true
         timeout-minutes: 2
         run: |
-          sudo python3 -I - src/Nino.Unity "$HOME" <<'EOF'
+          # The listing never stops the step before the deletion below (553debd6's listing died of SIGPIPE, exit 141,
+          # before its rm ran).
+          sudo python3 -I - src/Nino.Unity "$HOME" <<'EOF' || echo "::warning::listing Unity's stored process IDs failed"
           import os, re, sys, time
           project, home = sys.argv[1], sys.argv[2]
           roots = [os.path.join(project, d) for d in ('Library', 'Temp', 'UserSettings', 'Logs')]
@@ -296,13 +309,16 @@ jobs:
                       print(body.rstrip()[:1500])
           print(f'{shown} files shown')
           EOF
+          sudo rm -rf src/Nino.Unity/Library/ilpp.pid src/Nino.Unity/Library/MSBuild/buildhost.pid \
+            src/Nino.Unity/Library/EditorInstance.json src/Nino.Unity/Temp
 
       # Unity 6000.6.9f1's editor kills itself about one launch in three: some 2 s after launch, in its first domain
       # reload (its log ends at "Registered in ... seconds."), a thread of the editor calls kill(2) with SIGKILL on
       # another thread ID of its own process, which kills the whole process: exit 137, "Killed" from xvfb-run, no test
       # run, no results file (run 43324567209: sender process == target's process == /opt/unity/Editor/Unity). Not
-      # memory, /dev/shm, code coverage or the Data Store's state in Library (each ruled out by the trace: audit-ci,
-      # "Bound every Unity launch"). A Unity bug, so each test step below runs once with continue-on-error, "Did Unity
+      # memory, /dev/shm or code coverage (each ruled out by the trace: audit-ci, "Bound every Unity launch"); the
+      # target is always container PID 296, a PID stored by an earlier container ("Show and clear Unity's stored
+      # process IDs"). A Unity bug, so each test step below runs once with continue-on-error, "Did Unity
       # kill itself" judges a failed attempt and only that kill gets a second attempt; any other failure fails the
       # judge, and with it the job, as the step itself did before. The retry is for the editors listed here: false
       # switches it off once Unity fixes the bug.
