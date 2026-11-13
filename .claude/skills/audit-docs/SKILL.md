@@ -1,6 +1,6 @@
 ---
 name: audit-docs
-description: "Audit and write all of Nino's docs - the nino.docs site (English and Chinese pages, changelog, benchmark data), README.md and README.zh.md, docs/ in this repository, CONTRIBUTING.md, the runtimes' READMEs and the public skill skills/nino-serialization - so that a reader finds each answer fast and every feature is documented in order with its recommended form, its fast form, its costs and pitfalls, every statement matches the code, nothing is said twice, and English and Chinese agree. Use once the code is final (the docs pass), after a user-facing change lands, and before a release. Triggers: docs, README, *.mdx, nino.docs, changelog, en/zh, llms.txt, the public skill, sidebar, page order, overlap, reader experience, \"docs out of date\", 文档, 网站, 中文文档, 更新日志, 例子, 文档同步, 写得不对, 侧边栏, 页面顺序, 阅读体验, 重叠."
+description: "Audit and write all of Nino's docs - the nino.docs site (English and Chinese pages, changelog, benchmark data), README.md and README.zh.md, docs/ in this repository, .github/CONTRIBUTING.md, the runtimes' READMEs and the public skill skills/nino-serialization - so that a reader finds each answer fast and every feature is documented in order with its recommended form, its fast form, its costs and pitfalls, every statement matches the code, nothing is said twice, and English and Chinese agree. Use once the code is final (the docs pass), after a user-facing change lands, and before a release. Triggers: docs, README, *.mdx, nino.docs, changelog, en/zh, llms.txt, the public skill, sidebar, page order, overlap, reader experience, \"docs out of date\", 文档, 网站, 中文文档, 更新日志, 例子, 文档同步, 写得不对, 侧边栏, 页面顺序, 阅读体验, 重叠."
 metadata:
   internal: true
 ---
@@ -10,7 +10,7 @@ metadata:
 The site is the separate repository JasonXuDeveloper/Nino.Docs (local clone `/workspace/nino.docs`; read its
 AGENTS.md and `WRITING.md` first: page anatomy, tone, numbers, components). This repository holds README.md and
 README.zh.md (the landing page on GitHub and NuGet), `docs/` (design, spec, codegen, diagnostics, pitfalls),
-CONTRIBUTING.md, `runtimes/*/README.md` and the public skill.
+.github/CONTRIBUTING.md, `runtimes/*/README.md` and the public skill.
 
 ## 0. The reader first
 
@@ -204,18 +204,21 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   summaries; about 30 links moved to `wire-format#strings` and `simd#dotnet`).
 - **Keep README a storefront in reading order, short and plain**: hero (tagline, the platforms with Native AOT
   named, two badge rows, nav links), "Why Nino" as 5 to 8 claims of a line or two (SIMD on every platform among them), each with its link (the first
-  names MemoryPack, MessagePack and protobuf-net: not every reader knows MemoryPack), Install, a short Quick start, an
+  names MemoryPack, MessagePack and protobuf-net: not every reader knows MemoryPack), Install as one table (a row per
+  platform: command, requirements, guide), a short Quick start, an
   "AI coding assistants" section of its own (the skill's install command, what it teaches, llms.txt; owner: not a
   sub-item of Install), Benchmarks (the speed table against MemoryPack, MessagePack and protobuf-net, then the
   charts: one per group of cases, `readme.py`'s `GROUPS` (real workloads, basic types and structs, polymorphism,
   nullable values, collections and common types, reuse and pooling, reference tracking and version tolerance,
-  others; the owner's, 2026-11-13), each in a `<details open>` with the group in its `<summary>` and a `<picture>` of
+  others; the owner's, 2026-11-13), each in a `<details>` with the group in its `<summary>` (README opens only the
+  first, `docs/v4-benchmarks.md` all; owner, 2026-11-13: "readme有点长") and a `<picture>` of
   a light and a dark SVG by `prefers-color-scheme`, all written by `readme.py` between the `charts` marker (the same
   charts in `docs/v4-benchmarks.md`); each shows time per operation, shorter is faster, on a linear scale per case,
   Nino v4 first in the accent colour, v3 in a darker grey (n/a where 3.3.13 did not run the case), every other
   library with a row in one light grey, in the order MemoryPack, MessagePack, Google.Protobuf, protobuf-net,
   System.Text.Json, each bar labelled with its time and its multiple of Nino v4's, serialize and deserialize side by
-  side; the site lists libraries and groups the same way. Never edit `README.nuget.md`, the
+  side, a case with one operation paired with the next such case (`pack`: no half row left empty; owner's screenshot,
+  2026-11-13); the site lists libraries and groups the same way. Never edit `src/nuget-readme.md`, the
   README every NuGet package carries (Directory.Build.props packs it as `README.md`): `.github/scripts/nuget_readme.py`
   writes it from README.md, and agents.yml fails when it is stale (`--check`). Why: nuget.org prints every HTML tag
   as text (NuGetGallery's Markdig pipeline calls `DisableHtml`; rc.9's page showed the hero's `<div>`, `<br>` and
@@ -229,12 +232,16 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   nuget.org does (Markdig with MarkdownService.cs's pipeline, comments stripped first) after changing the script. Why: the owner found the earlier
   "N times faster" log-scale chart unreadable (no Nino bar, a longer bar meant a slower competitor, 1.7x and 45x
   looked alike; rc.10) and one chart of nine cases too few (2026-11-13: every case, grouped),
-  a compact "Built for" list, the MemoryPack feature table (no speed rows: the Benchmarks table has them), v4 vs v3,
+  a compact "Built for" list, "Compared with other serializers" (one feature table: Nino v4, MemoryPack, MessagePack,
+  protobuf, System.Text.Json; no speed rows, the Benchmarks table has them; owner, 2026-11-13: "不光对比memorypack";
+  each cell true to the site's vs pages), v4 vs v3,
   Contributing, License; no callout or long list before Install, README.zh.md the same sections in the same order,
   and links to the site for the rest. No emoji anywhere in either README, in headings, links, tables or lists (owner,
   round 130: "AI 味道有点重，emoji 用的也不统一"; ✅ in tables became words). Why: a reader decides in the first two
   screens (round 129, owner: "README 有点乱"; Install sat at 4,300 px of 9,200, now at 850 of 4,800; round 130 cut
-  the English README from 1,240 to 960 words). Badges: every badge `style=for-the-badge` with `logoColor=white`
+  the English README from 1,240 to 960 words). Keep the repository root's listing short too, since GitHub shows README
+  only below it: CONTRIBUTING.md and SECURITY.md live in `.github/` (GitHub still links them), the root CLAUDE.md in
+  `.claude/` (owner, 2026-11-13: "这个文件列表也太长了"). Badges: every badge `style=for-the-badge` with `logoColor=white`
   (owner, round 130: the flat-square second row looked inconsistent): a row of packages (NuGet, OpenUPM, crates.io,
   npm, Go), each in its platform's colours and logo (`labelColor`, `color`), then a row of build, license, docs and
   DeepWiki on a dark `labelColor=24292F`. Every package badge shows the newest version, prereleases included
