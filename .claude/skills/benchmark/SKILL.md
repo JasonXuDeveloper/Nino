@@ -299,7 +299,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   generated code uses it: shared objects are written as copies, as MessagePack's); no reading into an existing
   object (the generator writes `Deserialize(out T, ref Reader)` only; collections with `Clear` and `Add` get
   `Deserialize(TCollection value, ref Reader reader)`, which keeps the list and reads new elements: the v3 Leaves
-  "in place" case); no pool (`[NinoPooled]` is v4's: `NinoLeavesPooledElements` stays v4 only). A v3 port
+  "in place" case); no pool (`[NinoPooled]` is v4's: `NinoLeavesPooledElements` stays v4 only). Measure v3 through these workarounds, as MessagePack and
+  protobuf-net get theirs, never leave a case out for them (the owner, 2026-11-13: "跟messagepack/pb一样就行"). A v3 port
   (`benchmarks/Nino.Benchmark/V3/<Class>.cs`) keeps the v4 class's name, method names, data and attributes and
   changes only the Nino calls (`NinoGen.Serializer` / `NinoGen.Deserializer`, `ArrayBufferWriter<byte>`), shares the
   v4 models (an attribute 3.3.13 lacks behind `#if NINO_BENCH_V3`), drops the protobuf-net, Google.Protobuf and JSON
