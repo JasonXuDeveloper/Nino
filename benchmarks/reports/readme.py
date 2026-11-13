@@ -48,9 +48,12 @@ WORKLOADS = [("MediaContent", "`MediaContent` (jvm-serializers)"),
              ("IdleSave", "Idle save, previous version, in place")]
 WORKLOAD_KEYS = [key for key, _ in WORKLOADS]
 # The other libraries of the headline, as (method prefix, key prefix of the README markers, name).
+# In the chart's order (the owner's): the binary serializers closest to Nino first, then both Protobuf libraries, then JSON.
 OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "MessagePack"),
-          ("Protobuf", "protobuf", "protobuf-net"), ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"),
+          ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"), ("Protobuf", "protobuf", "protobuf-net"),
           ("Json", "json", "System.Text.Json")]
+# v3 runs SimpleTest only (3.3.13 cannot express the workloads): the chart's first group, these cases' geometric mean.
+V3_CASES = ["SimpleClass", "SimpleClasses", "SimpleStruct", "SimpleStructs"]
 
 
 def parse(path):
@@ -136,8 +139,9 @@ def numbers(v4_path, v3_paths, tag=None):
     for other, prefix in [("Nino", "v4")] + [(o, p or "memorypack") for o, p, _ in OTHERS if o != "GoogleProtobuf"]:
         out[f"payload.{prefix}"] = v4[f"{other}SerializeStackOverflowPage"]["payload"].replace(" B", "")
 
-    # The chart: how many times faster Nino v4 is than each library, the geometric mean over the workloads (one
-    # Nino does not beat by more than 5% has no bar), and into existing objects against MemoryPack's overwrite.
+    # The chart: how many times faster Nino v4 is, as (title, [(label, colour, times)]): first v3 (an upgrade),
+    # then each library, the geometric mean over the workloads (one Nino does not beat by more than 5% has no bar),
+    # and into existing objects against MemoryPack's overwrite.
     chart = []
     v3 = {}
     if v3_paths:
@@ -148,18 +152,30 @@ def numbers(v4_path, v3_paths, tag=None):
         for method in runs[0]:
             if method.startswith("Nino") and all(method in run for run in runs):
                 v3[method] = sum(run[method]["mean"] for run in runs) / len(runs)
+    upgrade = []
+    for verb in ("Serialize", "Deserialize"):
+        # A case too fast to measure in v4 has no ratio (it would only reflect the floor): left out of the mean.
+        times = [r for k in V3_CASES if f"Nino{verb}{k}" in v3 and f"Nino{verb}{k}" in v4
+                 for r in [against(v3[f"Nino{verb}{k}"], v4[f"Nino{verb}{k}"]["mean"])] if isinstance(r, float) and r > 0]
+        if times:
+            mean = math.exp(sum(map(math.log, times)) / len(times))
+            if mean > 1 and not on_par(mean):
+                upgrade.append((f"{verb.lower()}", "Nino v3", mean))
+    if upgrade:
+        chart.append((f"vs Nino v3 3.3.13 · {len(V3_CASES)} SimpleTest cases (geometric mean)", upgrade))
     for verb in ("Serialize", "Deserialize"):
         bars = []
         for other, _, name in OTHERS:
             mean = math.exp(sum(math.log(v4[f"{other}{verb}{k}"]["mean"] / v4[f"Nino{verb}{k}"]["mean"])
                                 for k in WORKLOAD_KEYS) / len(WORKLOAD_KEYS))
             if mean > 1 and not on_par(mean):
-                bars.append((name, mean))
+                bars.append((f"vs {name}", name, mean))
         chart.append((f"{verb} · {len(WORKLOAD_KEYS)} workloads (geometric mean)", bars))
     for title, nino, memorypack in [("pooled node", "NinoNodePooled", "MemoryPackNodeOverwrite"),
                                     ("leaves in place", "NinoLeavesInPlace", "MemoryPackLeavesOverwrite")]:
         chart.append((f"Deserialize into existing objects · {title} (Nino {allocated(v4[nino])}, "
-                      f"MemoryPack {allocated(v4[memorypack])})", [("MemoryPack", v4[memorypack]["mean"] / v4[nino]["mean"])]))
+                      f"MemoryPack {allocated(v4[memorypack])})",
+                      [("vs MemoryPack", "MemoryPack", v4[memorypack]["mean"] / v4[nino]["mean"])]))
 
     if v3:
         cases = {"ser": [("Serialize", "SimpleClass", "class", "类"),
@@ -329,9 +345,9 @@ def build(path, tag=None):
     return out
 
 
-# The bar colours of the chart's libraries (OTHERS).
-BAR_COLORS = {"MemoryPack": "#e3a03b", "MessagePack": "#2fa88f", "protobuf-net": "#d9645c", "Google.Protobuf": "#4c8bf5",
-              "System.Text.Json": "#9a6dd7"}
+# The bar colours of the chart's libraries (OTHERS) and of v3.
+BAR_COLORS = {"Nino v3": "#8c96a8", "MemoryPack": "#e3a03b", "MessagePack": "#2fa88f", "Google.Protobuf": "#4c8bf5",
+              "protobuf-net": "#d9645c", "System.Text.Json": "#9a6dd7"}
 # Colours of the two themes (README picks one with <picture> and prefers-color-scheme). Each image paints its own
 # background (GitHub's page colours): prefers-color-scheme follows the reader's system, not the page, so a dark system
 # shows the dark image on nuget.org's or GitHub's light page, and on a transparent background its light text vanished.
@@ -343,7 +359,7 @@ PAD = 20  # the background's margin around the chart
 def svg(chart, theme="light"):
     """The chart as SVG: per case, a bar per library, its length the log of how many times faster Nino v4 is."""
     c = THEMES[theme]
-    top = max(v for _, bars in chart for _, v in bars)
+    top = max(v for _, bars in chart for _, _, v in bars)
     decades = max(1, math.ceil(math.log10(top) - 1e-9))
     x0, width = 140, 580  # room for "vs System.Text.Json"
     scale = width / decades
@@ -363,9 +379,9 @@ def svg(chart, theme="light"):
             gx = x0 + d * scale
             out.append(f'<line x1="{gx:.1f}" y1="{by - 16}" x2="{gx:.1f}" y2="{by + 20 * len(bars) - 16}" '
                        f'stroke="{c["grid"]}" stroke-dasharray="3 3"/>')
-        for name, v in bars:
-            out.append(f'<text x="{x0 - 10}" y="{by}" class="l" text-anchor="end">vs {name}</text>')
-            out.append(f'<rect x="{x0}" y="{by - 12}" width="{x(v) - x0:.1f}" height="15" rx="3" fill="{BAR_COLORS[name]}"/>')
+        for label, colour, v in bars:
+            out.append(f'<text x="{x0 - 10}" y="{by}" class="l" text-anchor="end">{label}</text>')
+            out.append(f'<rect x="{x0}" y="{by - 12}" width="{x(v) - x0:.1f}" height="15" rx="3" fill="{BAR_COLORS[colour]}"/>')
             label = f"{v:.2f}×" if v < 10 else f"{v:.0f}×"
             out.append(f'<text x="{x(v) + 8:.1f}" y="{by}" class="v">{label}</text>')
             by += 20
