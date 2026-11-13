@@ -1,0 +1,1 @@
+Added: .NET 11 support: projects targeting `net11.0` use the `net10.0` build of `Nino.Core` with every fast path, and the unit tests run on the .NET 11 runtime.
