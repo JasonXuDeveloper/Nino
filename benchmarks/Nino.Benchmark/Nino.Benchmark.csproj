@@ -43,12 +43,12 @@
     </ItemGroup>
 
     <!-- The v3 run (NINO_BENCH_V3=true, Directory.Build.props): Nino 3.3.13 from nuget.org and the same SimpleTest
-         ported to its API (V3/SimpleTest.cs), with this project's data, job, columns and checks; the two runs differ
+         and PolymorphicTest ported to its API (V3/), with this project's data, job, columns and checks; the two runs differ
          only in the library they call. One project for both, so BenchmarkDotNet finds one Nino.Benchmark.csproj. -->
     <ItemGroup Condition="'$(NinoBenchV3)' == 'true'">
         <PackageReference Include="Nino" VersionOverride="3.3.13"/>
         <Compile Remove="**/*.cs"/>
-        <Compile Include="Program.cs;Harness/Verify.cs;Harness/PayloadColumn.cs;Harness/NinoJobAttribute.cs;Fixtures/SimpleBenchmarkData.cs;V3/SimpleTest.cs"/>
+        <Compile Include="Program.cs;Harness/Verify.cs;Harness/PayloadColumn.cs;Harness/NinoJobAttribute.cs;Fixtures/SimpleBenchmarkData.cs;Fixtures/PolymorphicBenchmarkData.cs;V3/SimpleTest.cs;V3/PolymorphicTest.cs"/>
     </ItemGroup>
 
     <ItemGroup>

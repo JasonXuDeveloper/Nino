@@ -5,7 +5,7 @@
     {"id": "h", "filters": ["*.SimpleTest.NinoDeserialize*", "*.SimpleTest.MemoryPackDeserialize*", "*.SimpleTest.MessagePackDeserialize*", "*.SimpleTest.ProtobufDeserialize*", "*.VersionTolerantTest.*"], "v3": ["*SimpleTest.NinoDeserialize*", "*SimpleTest.MemoryPackDeserialize*"]},
     {"id": "b", "filters": ["*.FixedSizeTest.*", "*.PooledGraphTest.*"]},
     {"id": "c", "filters": ["*.GenericPolymorphicTest.*", "*.BclTypesTest.*BigInteger", "*.BclTypesTest.*BitArray", "*.ExternalBufferTest.*"]},
-    {"id": "d", "filters": ["*.PolymorphicTest.*", "*.ScatteredTest.*ScatteredShapes", "*.ScatteredTest.*InOrderShapes", "*.WorkloadTest.*RpcCall"]},
+    {"id": "d", "filters": ["*.PolymorphicTest.*", "*.ScatteredTest.*ScatteredShapes", "*.ScatteredTest.*InOrderShapes", "*.WorkloadTest.*RpcCall"], "v3": ["*.PolymorphicTest.Nino*", "*.PolymorphicTest.MemoryPack*"]},
     {"id": "e", "filters": ["*.CommonTypesTest.*Tree", "*.CommonTypesTest.*Inventory", "*.CommonTypesTest.*Waypoints", "*.CommonTypesTest.*StringDictionary", "*.BclTypesTest.*CultureInfo", "*.BclTypesTest.*TimeZoneInfo", "*.ScatteredTest.*HotShapes", "*.UntrustedTest.*"]},
     {"id": "f", "filters": ["*.BclTypesTest.*ImmutableHashSet", "*.BclTypesTest.*ImmutableSortedSet", "*.BclTypesTest.*ImmutableQueue", "*.BclTypesTest.*ImmutableStack", "*.BclTypesTest.*ImmutableDictionary", "*.BclTypesTest.*BlockingCollection"]},
     {"id": "g", "filters": ["*.BclTypesTest.*ImmutableSortedDictionary", "*.BclTypesTest.*Uri", "*.BclTypesTest.*Version", "*.BclTypesTest.*StringBuilder", "*.BclTypesTest.*Lazy", "*.BclTypesTest.*Memory", "*.BclTypesTest.*ReadOnlySequence"]},

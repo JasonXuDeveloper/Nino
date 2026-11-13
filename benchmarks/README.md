@@ -2,15 +2,16 @@
 
 `benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
 protobuf-net).
-`v3/` is the same `SimpleTest` (same data, same attributes) built against **Nino 3.3.13 from nuget.org**, the last v3
-release, so v4 can be compared with v3 on the same machine; it compiles v4's `NinoJobAttribute.cs` and
-`SimpleBenchmarkData.cs`, so the job and the data cannot drift apart. It is not part of `Nino.slnx`.
+`V3/` is the same `SimpleTest` and `PolymorphicTest` (same data, same attributes) built against **Nino 3.3.13 from
+nuget.org**, the last v3 release, so v4 can be compared with v3 on the same machine; it compiles v4's
+`NinoJobAttribute.cs`, `SimpleBenchmarkData.cs` and `PolymorphicBenchmarkData.cs`, so the job and the data cannot
+drift apart. It is not part of `Nino.slnx`.
 
 ```sh
 benchmarks/run.sh                          # v3, then the full v4 suite; about six hours
 benchmarks/run.sh /path/to/out             # write the results somewhere else
 QUICK=1 benchmarks/run.sh                  # development run, about 30 to 45 minutes (see below)
-FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest's Nino and MemoryPack cases)
+FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest's and PolymorphicTest's Nino and MemoryPack cases)
 FILTER='*Vectors* *FixedStruct*' benchmarks/run.sh   # several patterns, separated by spaces
 FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (231 of 413 cases)
 ```
@@ -23,8 +24,8 @@ and the release notes use the full protocol, which is what supports "x× faster"
 Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
 reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `benchmarks/Nino.Benchmark`: built with
 `NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
-references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs` (the same
-`SimpleTest`, ported to v3's API) with the shared data, job, columns and checks, and goes to `bin/v3` and `obj/v3`.
+references Nino 3.3.13 from nuget.org instead of the repository's code, compiles only `V3/SimpleTest.cs` and `V3/PolymorphicTest.cs` (the same
+classes, ported to v3's API) with the shared data, job, columns and checks, and goes to `bin/v3` and `obj/v3`.
 `--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
 `ci.yml`'s integrations job on x64 and its Arm64 runtime-internals job) checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
@@ -46,10 +47,10 @@ Allocated, one table per class), as a release body holds at most 125,000 charact
 to the release, and when the later sections (runtimes, Unity) lack room the Arm64 section becomes a link to its attached
 copy. BenchmarkDotNet writes a report of one class without a Type column: both scripts then take the class
 from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.
-Each of the two `SimpleTest` runners builds `v3/` and runs its half of it directly before the same half of v4, with the
-same settings; the workflow adds a
+Each of the two `SimpleTest` runners builds the v3 project and runs its half of `SimpleTest` directly before the same
+half of v4, and the `PolymorphicTest` runner its `PolymorphicTest` the same way, with the same settings; the workflow adds a
 **📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
-`compare_v3.py` table and the v3 runners (the v3 report, both halves merged, is attached). The documentation site takes its v4-vs-v3 ratios from that
+`compare_v3.py` table and the v3 runners (the v3 report, every runner's merged, is attached). The documentation site takes its v4-vs-v3 ratios from that
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
 adds whichever section is missing.
 

@@ -97,9 +97,10 @@ def v3_section(v3, x64, repo, tag, settings):
         f"<summary>Nino v3 3.3.13 (NuGet) against {tag}, back to back on the same runners</summary>\n",
         "\n",
         # Never write the words "Performance Report" here: parsers find the v4 report by them.
-        "The v3 build of `benchmarks/Nino.Benchmark` (the Nino and MemoryPack cases of the same `SimpleTest`, built "
-        "against Nino 3.3.13 from nuget.org) ran directly before the v4\n",
-        "SimpleTest run below, its serialize and its deserialize cases each on the runner of the same v4 cases, with\n",
+        "The v3 build of `benchmarks/Nino.Benchmark` (the Nino and MemoryPack cases of the same `SimpleTest` and "
+        "`PolymorphicTest`, built against Nino 3.3.13 from nuget.org) ran directly before the v4\n",
+        "runs of those classes below, SimpleTest's serialize and deserialize cases and PolymorphicTest each on the runner "
+        "of the same v4 cases, with\n",
         "the same BenchmarkDotNet settings\n",
         f"(`{settings}`). MemoryPack runs in both, so its two columns show how much the runner moved.\n",
         "\n",

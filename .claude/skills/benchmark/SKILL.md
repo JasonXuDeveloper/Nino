@@ -242,7 +242,12 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   emit 7 % more allocation (408 MB against 382) and no time beyond the noise.
 - The headline (README's ranges and chart, the site's headline) comes from `WorkloadTest`'s 12 workloads, against
   every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); the v3 comparison
-  stays on SimpleTest. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
+  stays on what 3.3.13 can express: SimpleTest and, since the owner asked on 2026-11-13, PolymorphicTest. A v3 port
+  (`benchmarks/Nino.Benchmark/V3/<Class>.cs`) keeps the v4 class's name, method names, data and attributes and
+  changes only the Nino calls (`NinoGen.Serializer` / `NinoGen.Deserializer`, `ArrayBufferWriter<byte>`), drops the
+  protobuf-net cases, joins the csproj's v3 `Compile` list, `run.sh`'s v3 `--filter` and the `"v3"` globs of the
+  `shards.json` shard that runs the v4 class; report.yml leaves a `v3-<shard>/none` marker for a release built before
+  the port, so older tags still get their v3 section. A change of workload, case key or method prefix changes `readme.py`'s `WORKLOADS` / `OTHERS`
   and the site's `src/lib/benchmarks.ts` and sync in the same series. Prose and markers that name the workloads land
   together with `readme.py`; until a release's report measured them, their markers read "—".
 - Within 5 % is on par and is written so; under the 1 ns floor (`bdn.py`, `FLOOR_NS`) a time is "too fast to
