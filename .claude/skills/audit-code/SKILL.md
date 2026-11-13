@@ -56,7 +56,7 @@ Dependencies point one way, and each piece reaches the others through a public s
 | `src/Nino.Generator` (+ CodeFixes, Roslyn builds) | Roslyn only; Nino.Core by metadata names (`NinoNames`) | a reference to the runtime assembly |
 | `src/Nino.Codegen` | the published layouts (`[NinoTypeLayout]`), its IR | the generator's internals |
 | `runtimes/go`, `rust`, `typescript` | nothing (no dependencies; competitors live in their `bench` modules) | each other, .NET |
-| `tests/`, `benchmarks/`, `conformance/` | the projects they exercise | being referenced from `src/` |
+| `tests/`, `benchmarks/`, `tests/conformance/` | the projects they exercise | being referenced from `src/` |
 | scripts (`benchmarks/*.py`, `.github/scripts`) | their inputs' documented formats | another script's internals (share a module instead) |
 
 - `InternalsVisibleTo` is a coupling: allowed for the unit tests; for a package it needs a reason in a comment, and

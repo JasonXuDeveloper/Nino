@@ -4,6 +4,6 @@
 //
 //	NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests
 //
-// (or: nino-gen --assembly conformance/Nino.Conformance/bin/<config>/net10.0/Nino.Conformance.dll --lang go
+// (or: nino-gen --assembly tests/conformance/Nino.Conformance/bin/<config>/net10.0/Nino.Conformance.dll --lang go
 // --out runtimes/go/internal/generated --package generated).
 package generated

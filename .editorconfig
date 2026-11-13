@@ -16,5 +16,5 @@ dotnet_diagnostic.CA1310.severity = error
 dotnet_diagnostic.CA1311.severity = error
 
 # These projects group files by responsibility. Moving a file between folders does not rename its type.
-[{src/Nino.Core,src/Nino.Generator,tests/Nino.UnitTests,tests/Nino.UnitTests.Subset,tests/Nino.Codegen.Tests,tests/Nino.Codegen.Integration.Tests,benchmarks/Nino.Benchmark,conformance/Nino.Conformance}/**.cs]
+[{src/Nino.Core,src/Nino.Generator,tests/Nino.UnitTests,tests/Nino.UnitTests.Subset,tests/Nino.Codegen.Tests,tests/Nino.Codegen.Integration.Tests,benchmarks/Nino.Benchmark,tests/conformance/Nino.Conformance}/**.cs]
 dotnet_style_namespace_match_folder = false

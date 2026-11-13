@@ -112,7 +112,7 @@ type-checks and runs the `node:test` suite in `test/` three times: in Node, then
 evaluated without `Buffer`, `NINO_TEST_RUNTIME=browser`, `test/runtime.ts`), with the WebAssembly module and without
 it (`NINO_WASM=0`). `test/flooding.test.ts` reads sets and maps of keys V8 puts in one bucket. `test/wasm.test.ts` compares the module's paths with the JavaScript ones for every length up to
 256 and longer, with every kind of char at each position. `test/corpus.test.ts` runs the conformance corpus
-(`conformance/corpus`, or the directory in `NINO_CORPUS`) over the code nino-gen generates for its types
+(`tests/conformance/corpus`, or the directory in `NINO_CORPUS`) over the code nino-gen generates for its types
 (`test/generated`, checked by Nino.Codegen.Tests): every valid case read and written back byte for byte, every
 malicious case and every truncated prefix of a valid case rejected with a `NinoError`. After a change to the runtime
 that Nino.Codegen embeds, also run the `Nino.Codegen.Integration.Tests` .NET tests.

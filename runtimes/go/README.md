@@ -335,7 +335,7 @@ go generate ./...                       # rewrite strings_wire_amd64.s and strin
 (cd bench && go test -run TestTiersMatchXSys .)   # the detected tiers match golang.org/x/sys/cpu (amd64)
 ```
 
-The conformance test reads `conformance/corpus` at the repository root, or the directory `NINO_CORPUS` names (as the
+The conformance test reads `tests/conformance/corpus` at the repository root, or the directory `NINO_CORPUS` names (as the
 Rust and TypeScript tests do; `NINO_CONFORMANCE_CORPUS`, its former name, is still read). It runs every case:
 
 - each valid case is read, compared with its JSON, and written back to its exact bytes;

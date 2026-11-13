@@ -4,7 +4,7 @@
 //! multiple of the input, and mutated cases read without a panic. The JSON comparison is `tests/conformance.rs`'s,
 //! over the hand-written codecs; here the bytes written back stand for the value read.
 //!
-//! The corpus is found at `NINO_CORPUS` or at `conformance/corpus` in the repository. Without one the test passes
+//! The corpus is found at `NINO_CORPUS` or at `tests/conformance/corpus` in the repository. Without one the test passes
 //! with a note, unless `NINO_CORPUS_REQUIRED=1`.
 
 #![allow(clippy::unwrap_used)]

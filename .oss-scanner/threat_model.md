@@ -69,7 +69,7 @@ runtime's documented error (Go `error`, Rust `Err`, TypeScript a thrown `NinoErr
   `dotnet test tests/Nino.UnitTests -f net10.0 --filter 'FullyQualifiedName~Untrusted|FullyQualifiedName~HashFlooding|FullyQualifiedName~Strict'`.
 - `tests/Nino.Fuzz` is the .NET fuzzer (`README.md`): `dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- selftest`,
   then `-- fuzz --seconds 300` (guard pages, stale-memory poisoning, allocation and time limits) and `-- probes`.
-- `conformance/corpus` holds valid and malicious cases every runtime must read or reject (`index.json`); `untrusted`
+- `tests/conformance/corpus` holds valid and malicious cases every runtime must read or reject (`index.json`); `untrusted`
   cases are ones .NET's default mode may accept.
 - Platforms in the image: CoreCLR (`DOTNET_EnableHWIntrinsic=0`, `DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`
   select the vector paths), Mono 6.12 (`mono tests/Nino.RuntimeTests/bin/Debug/net472/Nino.RuntimeTests.exe`, the

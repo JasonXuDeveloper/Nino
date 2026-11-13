@@ -1,4 +1,4 @@
-//! Values as the corpus's JSON (conformance/README.md, "The value as JSON").
+//! Values as the corpus's JSON (tests/conformance/README.md, "The value as JSON").
 
 use indexmap::{IndexMap, IndexSet};
 use nino::*;

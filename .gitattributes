@@ -21,7 +21,7 @@
 # tools/CodeGen
 src/Nino.Core/Formatters/TupleFormatters.g.cs linguist-generated
 # The conformance corpus (Nino.Conformance --out) and the Rust types gen.py writes from its layouts.
-conformance/corpus/** linguist-generated
+tests/conformance/corpus/** linguist-generated
 runtimes/rust/tests/conformance/types.rs linguist-generated
 # nino-gen's output for the runtimes' tests.
 runtimes/go/internal/generated/**/nino_types.go linguist-generated

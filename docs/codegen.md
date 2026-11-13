@@ -227,8 +227,8 @@ messages with `tests/Nino.Codegen.Tests/Inspect/*.txt` (`NINO_UPDATE_GENERATED=1
    template needs a change only when the text around a value differs.
 3. **Each runtime.** The helper the targets call exists in each runtime, with its bounds and validation checks
    (`audit-security`), and its README's API lists it.
-4. **A sample.** A member of the new type in `conformance/Nino.Conformance/Types.cs` (the corpus is regenerated:
-   conformance/AGENTS.md), or, for a way of declaring a type the corpus does not cover, a shape in
+4. **A sample.** A member of the new type in `tests/conformance/Nino.Conformance/Types.cs` (the corpus is regenerated:
+   tests/conformance/AGENTS.md), or, for a way of declaring a type the corpus does not cover, a shape in
    `tests/Nino.Codegen.Tests/Shapes.cs`, which every runtime compiles.
 5. **Inspect.** `nino-gen inspect` reads a new `ValueKind` in `Inspect/Inspector.cs` (and a new `PrimitiveKind` in
    `Inspect/Scalars.cs`, with its range checks); the corpus tests fail until it does.

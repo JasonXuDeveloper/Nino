@@ -1,5 +1,5 @@
 // Package sample holds Go counterparts of the types of the conformance corpus (namespace Conformance of
-// conformance/Nino.Conformance/Types.cs), with codecs written by hand in the style a generator would emit: one
+// tests/conformance/Nino.Conformance/Types.cs), with codecs written by hand in the style a generator would emit: one
 // read and one write function per type, raw runs read with one bounds check, polymorphic slots switching over the
 // ids of the types they allow.
 //

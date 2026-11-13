@@ -1,4 +1,4 @@
-// The conformance corpus (conformance/corpus, or NINO_CORPUS) over the code nino-gen generates for its types
+// The conformance corpus (tests/conformance/corpus, or NINO_CORPUS) over the code nino-gen generates for its types
 // (test/generated/Nino.Conformance.ts, and Nino.Conformance.TypedArrays.ts with --numeric-arrays typed; Nino.Codegen.Tests
 // checks they are what nino-gen writes today): every valid case
 // read and written back byte for byte, every malicious case and every strict prefix of a valid case rejected with a
@@ -12,7 +12,7 @@ import { deserialize, deserializeExact, NinoError, serialize, type NinoCodec } f
 import * as generated from "./generated/Nino.Conformance.ts";
 import * as typedArrays from "./generated/Nino.Conformance.TypedArrays.ts";
 
-const corpus = process.env.NINO_CORPUS ?? join(import.meta.dirname, "..", "..", "..", "conformance", "corpus");
+const corpus = process.env.NINO_CORPUS ?? join(import.meta.dirname, "..", "..", "..", "tests", "conformance", "corpus");
 const present = existsSync(join(corpus, "index.json"));
 if (!present && process.env.NINO_CORPUS_REQUIRED === "1")
   throw new Error(`NINO_CORPUS_REQUIRED=1 but no corpus at ${corpus}`);

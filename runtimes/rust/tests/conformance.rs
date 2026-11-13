@@ -1,8 +1,8 @@
-//! The shared conformance corpus (conformance/README.md): every valid case read, compared with its JSON and
+//! The shared conformance corpus (tests/conformance/README.md): every valid case read, compared with its JSON and
 //! written back byte for byte; every malicious case and every truncated valid case rejected, with no panic and
 //! memory bounded by a small multiple of the input.
 //!
-//! The corpus is found at `NINO_CORPUS` or at `conformance/corpus` in the repository. Without one the test passes
+//! The corpus is found at `NINO_CORPUS` or at `tests/conformance/corpus` in the repository. Without one the test passes
 //! with a note, unless `NINO_CORPUS_REQUIRED=1` (CI sets it whenever the repository has a corpus).
 
 #![allow(clippy::unwrap_used)]

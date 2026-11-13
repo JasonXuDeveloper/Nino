@@ -11,7 +11,7 @@ using Nino.Core;
 namespace Conformance
 {
     /// <summary>
-    /// Writes and checks the conformance corpus. See conformance/README.md.
+    /// Writes and checks the conformance corpus. See tests/conformance/README.md.
     /// <code>
     /// --out &lt;dir&gt;      write the corpus (valid and malicious cases, with what .NET does on each)
     /// --verify &lt;dir&gt;   read a committed corpus back with .NET and check every case

@@ -20,7 +20,6 @@ on:
       - 'tests/**'
       - 'benchmarks/**'
       - 'runtimes/**'
-      - 'conformance/**'
       - 'docs/**'
       - '.github/scripts/**'
       - '.github/workflows/agents.yml'

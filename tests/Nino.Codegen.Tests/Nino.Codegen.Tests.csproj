@@ -23,13 +23,13 @@
         <ProjectReference Include="..\..\src\Nino.Codegen\Nino.Codegen.csproj"/>
         <!-- The corpus's types: their generated code is committed under runtimes/ and checked here. Built first, but
              not referenced: Nino's generator would publish their layouts in this assembly too, next to Shapes.cs. -->
-        <ProjectReference Include="..\..\conformance\Nino.Conformance\Nino.Conformance.csproj"
+        <ProjectReference Include="..\..\tests\conformance\Nino.Conformance\Nino.Conformance.csproj"
                           ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
     <!-- The corpus's types as this build built them: their target path (MSBuild's GetTargetPath), for the tests. -->
     <Target Name="NinoConformancePath" BeforeTargets="GetAssemblyAttributes">
-        <MSBuild Projects="..\..\conformance\Nino.Conformance\Nino.Conformance.csproj" Targets="GetTargetPath"
+        <MSBuild Projects="..\..\tests\conformance\Nino.Conformance\Nino.Conformance.csproj" Targets="GetTargetPath"
                  Properties="Configuration=$(Configuration)">
             <Output TaskParameter="TargetOutputs" PropertyName="_NinoConformancePath"/>
         </MSBuild>

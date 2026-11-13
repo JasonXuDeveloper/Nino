@@ -35,7 +35,7 @@ for p in Nino.AspNetCore.Tests Nino.Codegen.Tests Nino.Codegen.Integration.Tests
 - Read or security change: `dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- selftest`, then a timed `fuzz`
   with and without `DOTNET_EnableHWIntrinsic=0` (`audit-security`).
 - Read or write path: `python3 benchmarks/asm/asm.py compare origin/main`, every listed method explained (`optimize`).
-- Bytes: `dotnet run --project conformance/Nino.Conformance -c Release -- --verify conformance/corpus` (`wire-format`).
+- Bytes: `dotnet run --project tests/conformance/Nino.Conformance -c Release -- --verify tests/conformance/corpus` (`wire-format`).
 - Benchmarks or a type a benchmark reads: `dotnet run --project benchmarks/Nino.Benchmark -c Release -- --verify`
   (ci.yml runs it on x64 and Arm64; `benchmark`).
 

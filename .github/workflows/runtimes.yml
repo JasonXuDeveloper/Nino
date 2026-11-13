@@ -1,9 +1,9 @@
 name: Runtimes
 
 # The runtimes of Nino's wire format outside .NET, each tested on its own and against the conformance corpus that
-# .NET writes (conformance/README.md). Each runtime's tests also run the corpus over the code nino-gen
+# .NET writes (tests/conformance/README.md). Each runtime's tests also run the corpus over the code nino-gen
 # (src/Nino.Codegen) generates for the corpus's types, committed under runtimes/ (docs/codegen.md). Every input of
-# these jobs is committed under runtimes/ and conformance/corpus/: a change to Nino.Core, the generator or nino-gen
+# these jobs is committed under runtimes/ and tests/conformance/corpus/: a change to Nino.Core, the generator or nino-gen
 # reaches them only through those files, and ci.yml's integrations job checks that the committed corpus and generated
 # files are what .NET and nino-gen write today. So this workflow runs only when those files change: its 16 jobs once
 # ran for every Nino.Core change, which never touched what they test.
@@ -12,7 +12,7 @@ on:
     branches: [ "main" ]
     paths: &paths
       - 'runtimes/**'
-      - 'conformance/corpus/**'
+      - 'tests/conformance/corpus/**'
       - '.github/workflows/runtimes.yml'
       - '.github/scripts/changed_paths.py'
       - '.github/actions/apt-install/**'
@@ -29,7 +29,7 @@ permissions:
 env:
   # The conformance corpus every runtime's tests read, and a missing one fails them instead of skipping them.
   # (dtolnay/rust-toolchain sets CARGO_INCREMENTAL=0 and CARGO_TERM_COLOR=always.)
-  NINO_CORPUS: ${{ github.workspace }}/conformance/corpus
+  NINO_CORPUS: ${{ github.workspace }}/tests/conformance/corpus
   NINO_CORPUS_REQUIRED: '1'
 
 concurrency:
@@ -74,10 +74,10 @@ jobs:
         run: |
           python3 .github/scripts/changed_paths.py "$BASE" \
             --all-if '^\.github/(workflows/runtimes\.yml|scripts/changed_paths\.py|actions/apt-install/)' \
-            'rust=^runtimes/rust/|^conformance/corpus/' \
+            'rust=^runtimes/rust/|^tests/conformance/corpus/' \
             'miri=^runtimes/rust/(src/|tests/shared\.rs$|build\.rs$|Cargo\.(toml|lock)$)' \
-            'go=^runtimes/go/|^conformance/corpus/' \
-            'typescript=^runtimes/typescript/|^conformance/corpus/' | tee -a "$GITHUB_OUTPUT"
+            'go=^runtimes/go/|^tests/conformance/corpus/' \
+            'typescript=^runtimes/typescript/|^tests/conformance/corpus/' | tee -a "$GITHUB_OUTPUT"
 
   # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
   # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri

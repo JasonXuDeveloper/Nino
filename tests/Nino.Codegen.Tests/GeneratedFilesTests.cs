@@ -24,7 +24,7 @@ namespace Nino.Codegen.Tests
             {
                 string path = typeof(GeneratedFilesTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
                     .Single(a => a.Key == "NinoConformance").Value;
-                Assert.IsTrue(File.Exists(path), path + " is missing: build conformance/Nino.Conformance");
+                Assert.IsTrue(File.Exists(path), path + " is missing: build tests/conformance/Nino.Conformance");
                 return path;
             }
         }

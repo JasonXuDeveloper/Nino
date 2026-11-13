@@ -19,7 +19,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
 - **Path filters** run a workflow only for the paths its jobs read (ci.yml lists them with a YAML anchor shared by
   push and pull_request); a new folder a job reads is added to its filter. A job whose inputs are committed files
   that another workflow checks runs on those files, not on what produces them: runtimes.yml runs on `runtimes/` and
-  `conformance/corpus/` only, because ci.yml's integrations job checks that the corpus and nino-gen's generated files
+  `tests/conformance/corpus/` only, because ci.yml's integrations job checks that the corpus and nino-gen's generated files
   are what .NET writes today (its 16 jobs had run for every Nino.Core change). Inside a workflow, jobs of different
   areas are gated by `.github/scripts/changed_paths.py` (a `changes` job diffing against the push's `before` or the
   pull request's base; everything runs when that is unknown, on a schedule and when the workflow changes):

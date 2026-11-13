@@ -19,7 +19,7 @@
 ## Tests
 - A regression test next to the closest existing one (`tests/Nino.UnitTests/Security` for .NET, asserting the exact
   type with `Assert.ThrowsExactly<NinoDataException>`; the runtime's own tests otherwise).
-- When the bug is about which bytes are accepted, a malicious case in `conformance/` (see `conformance/AGENTS.md`), so
+- When the bug is about which bytes are accepted, a malicious case in `tests/conformance/` (see `tests/conformance/AGENTS.md`), so
   every runtime is checked.
 
 ## Branch and commit message

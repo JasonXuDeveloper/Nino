@@ -1,4 +1,4 @@
-// Package corpustest runs the conformance corpus (conformance/corpus at the repository root, conformance/README.md)
+// Package corpustest runs the conformance corpus (tests/conformance/corpus at the repository root, tests/conformance/README.md)
 // over a set of Go codecs: every valid case is read and compared with its JSON, then written back and compared with
 // its bytes; every malicious case must fail (or, where the corpus allows, return a value) without panicking and
 // within bounded memory; every strict prefix of a valid case must fail.
@@ -24,7 +24,7 @@ import (
 )
 
 // Dir returns the corpus directory: $NINO_CORPUS (as the Rust and TypeScript tests read it, or
-// $NINO_CONFORMANCE_CORPUS, its former name here), or else conformance/corpus at the repository root, relative to
+// $NINO_CONFORMANCE_CORPUS, its former name here), or else tests/conformance/corpus at the repository root, relative to
 // the directory go test runs a package's tests in (a package under runtimes/go/internal). It is "" when the
 // directory holds no index.json.
 func Dir() string {
@@ -33,7 +33,7 @@ func Dir() string {
 		dir = os.Getenv("NINO_CONFORMANCE_CORPUS")
 	}
 	if dir == "" {
-		dir = filepath.Join("..", "..", "..", "..", "conformance", "corpus")
+		dir = filepath.Join("..", "..", "..", "..", "tests", "conformance", "corpus")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "index.json")); err != nil {
 		return ""

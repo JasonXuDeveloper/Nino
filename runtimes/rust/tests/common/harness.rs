@@ -64,14 +64,14 @@ pub fn allowance(size: usize) -> usize {
 
 // ---------------------------------------------------------------------------------------------- the corpus
 
-/// The corpus at `NINO_CORPUS` or at `conformance/corpus` in the repository, or `None` (then the test passes with a
+/// The corpus at `NINO_CORPUS` or at `tests/conformance/corpus` in the repository, or `None` (then the test passes with a
 /// note naming `test`, unless `NINO_CORPUS_REQUIRED=1`).
 pub fn corpus_or_skip(test: &str) -> Option<PathBuf> {
     let dir = corpus();
     if dir.is_none() {
         assert!(
             std::env::var("NINO_CORPUS_REQUIRED").as_deref() != Ok("1"),
-            "NINO_CORPUS_REQUIRED=1 but no corpus at NINO_CORPUS or conformance/corpus"
+            "NINO_CORPUS_REQUIRED=1 but no corpus at NINO_CORPUS or tests/conformance/corpus"
         );
         eprintln!("{test}: no corpus (set NINO_CORPUS); skipped");
     }
@@ -82,7 +82,7 @@ pub fn corpus() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("NINO_CORPUS") {
         return Some(PathBuf::from(dir));
     }
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/corpus");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/conformance/corpus");
     dir.join("index.json").exists().then_some(dir)
 }
 

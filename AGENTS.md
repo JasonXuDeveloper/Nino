@@ -31,7 +31,6 @@ one (CI runs `tools/agents.sh --check`, which also checks that every file is in 
 | Directory | Read its AGENTS.md when |
 |---|---|
 | [`benchmarks/`](benchmarks/AGENTS.md) | adding, changing or running a .NET benchmark, or a script that turns benchmark results into the README, docs or a release body |
-| [`conformance/`](conformance/AGENTS.md) | changing the wire format, a layout, a malicious-input check or a sample type, or making a runtime read the shared conformance corpus |
 | [`docs/`](docs/AGENTS.md) | changing the Markdown documentation in docs/ (the wire format spec, the design, codegen, diagnostics, pitfalls, benchmarks), or deciding where a piece of documentation belongs |
 | [`runtimes/go/`](runtimes/go/AGENTS.md) | reading or changing the Go runtime (runtimes/go, package nino), its string kernels, struct tags, sample codecs or Go benchmark |
 | [`runtimes/rust/`](runtimes/rust/AGENTS.md) | reading or changing the Rust runtime (runtimes/rust: crates nino-serialization and nino-serialization-derive), its SIMD kernels, tests or benchmarks |
@@ -43,6 +42,7 @@ one (CI runs `tools/agents.sh --check`, which also checks that every file is in 
 | [`src/Nino.Immutable/`](src/Nino.Immutable/AGENTS.md) | reading or changing the System.Collections.Immutable formatters (package Nino.Immutable) |
 | [`src/Nino.Unity/`](src/Nino.Unity/AGENTS.md) | changing the Unity package (com.jasonxudeveloper.nino), its Burst kernels, the Unity tests or src/Nino.UnityTypes |
 | [`tests/`](tests/AGENTS.md) | adding or changing a test, or finding where a feature, a platform or hostile input is tested |
+| [`tests/conformance/`](tests/conformance/AGENTS.md) | changing the wire format, a layout, a malicious-input check or a sample type, or making a runtime read the shared conformance corpus |
 <!-- agents-index:end -->
 
 ## Layout
@@ -51,10 +51,10 @@ one (CI runs `tools/agents.sh --check`, which also checks that every file is in 
 src/            the packages: Nino.Core (runtime), Nino.Generator (+ CodeFixes, Roslyn4.8/4.12 builds), Nino.Immutable,
                 Nino.AspNetCore, Nino.Codegen (+ .Tool: nino-gen), Nino.Unity (the Unity project and package),
                 Nino.UnityTypes; src/Nino is the meta package
-tests/          unit, runtime-internals, AOT, fuzz, ASP.NET Core and codegen tests (tests/AGENTS.md)
+tests/          unit, runtime-internals, AOT, fuzz, ASP.NET Core and codegen tests (tests/AGENTS.md), and
+                conformance/: the corpus every runtime reads and writes (valid and malicious cases)
 benchmarks/     BenchmarkDotNet projects and the scripts that run, compare and report them
 runtimes/       go, rust, typescript: the wire format outside .NET
-conformance/    the corpus every runtime reads and writes (valid and malicious cases)
 docs/           design, wire-format spec, codegen, diagnostics, pitfalls, benchmark notes (Markdown in the repository)
 tools/          CodeGen (generated formatter families), agents.sh, UseNinoGenerator.props (the generator from source
                 for this repository's own projects: tests, fuzzing, conformance)

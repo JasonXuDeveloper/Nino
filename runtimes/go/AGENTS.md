@@ -82,7 +82,7 @@ internal/
                              main_test.go checks the committed files are current
   corpustest/                runs the conformance corpus (valid, malicious, truncations) over a set of codecs;
                              render.go: values to the corpus's JSON (reflection, test code only)
-  sample/                    the corpus's types (conformance/Nino.Conformance/Types.cs) with hand-written codecs in the
+  sample/                    the corpus's types (tests/conformance/Nino.Conformance/Types.cs) with hand-written codecs in the
                              style a generator emits (codec_*.go; their collection loops and raw values in loops.go, as
                              the template writes them), their ids, layouts and tags; conformance, deep, registry and
                              tagged tests; FuzzDecode, FuzzTaggedDecode

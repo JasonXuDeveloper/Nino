@@ -28,7 +28,7 @@ AREAS = [  # (path prefix, skills), most specific first; every match applies
     ("runtimes/rust/bench", ["benchmark"]),
     ("runtimes/typescript/bench", ["benchmark"]),
     ("runtimes/", ["audit-runtimes", "optimize-runtimes", "audit-security", "feature"]),
-    ("conformance/", ["wire-format", "audit-security"]),
+    ("tests/conformance/", ["wire-format", "audit-security"]),
     ("docs/spec/", ["wire-format"]),
     ("tests/Nino.RuntimeTests/", ["runtime-internals", "platforms"]),
     ("tests/Nino.Fuzz/", ["audit-security"]),

@@ -642,7 +642,7 @@ fn corpus() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("NINO_CORPUS") {
         return Some(PathBuf::from(dir));
     }
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/corpus");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/conformance/corpus");
     dir.join("index.json").exists().then_some(dir)
 }
 

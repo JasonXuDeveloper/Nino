@@ -143,7 +143,7 @@ namespace Conformance
     }
 
     /// <summary>
-    /// Writes a value as the corpus's lossless JSON (described in conformance/README.md), directed by the members
+    /// Writes a value as the corpus's lossless JSON (described in tests/conformance/README.md), directed by the members
     /// the layouts list.
     /// </summary>
     internal sealed class ValueJson

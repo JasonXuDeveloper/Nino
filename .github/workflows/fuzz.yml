@@ -16,7 +16,7 @@ on:
       - 'tools/UseNinoGenerator.props'
       - '.editorconfig'
       - 'Directory.Build.props'
-      - 'Directory.Build.targets'
+      - 'src/Directory.Build.targets'
       - 'Directory.Packages.props'
       - 'global.json'
       - 'nuget.config'

@@ -4,7 +4,7 @@ after the index of its type in the target's dispatch (the order check.rs's `name
 import json, pathlib, re, sys
 
 here = pathlib.Path(__file__).resolve().parent
-corpus = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else here / "../../../conformance/corpus")
+corpus = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else here / "../../../tests/conformance/corpus")
 targets = {"conformance": ("tests/conformance/types.rs", "pub fn with_type"),
            "generated": ("tests/generated/nino_types.rs", "pub fn with_nino_type")}
 index = json.loads((corpus / "index.json").read_text())

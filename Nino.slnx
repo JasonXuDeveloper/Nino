@@ -34,6 +34,6 @@
     <Project Path="benchmarks/Nino.GeneratorBenchmark/Nino.GeneratorBenchmark.csproj" />
   </Folder>
   <Folder Name="/conformance/">
-    <Project Path="conformance/Nino.Conformance/Nino.Conformance.csproj" />
+    <Project Path="tests/conformance/Nino.Conformance/Nino.Conformance.csproj" />
   </Folder>
 </Solution>

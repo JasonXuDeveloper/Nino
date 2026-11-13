@@ -35,7 +35,7 @@ Nino.Conformance/            the net10.0 program that writes (--out) and checks 
 - Go: `runtimes/go/internal/corpustest` over `internal/sample` and `internal/generated`.
 - Rust: `runtimes/rust/tests/conformance.rs`, `generated.rs`, `derive.rs` (`NINO_CORPUS`; `tests/conformance/gen.py`
   reads the layouts).
-- TypeScript: `runtimes/typescript/test/corpus.test.ts` (`NINO_CORPUS` or `conformance/corpus`).
+- TypeScript: `runtimes/typescript/test/corpus.test.ts` (`NINO_CORPUS` or `tests/conformance/corpus`).
 - CI: the integrations job of `.github/workflows/ci.yml` runs `--verify`, then `--out` to a temporary directory
   compared with `diff -r`, on every .NET change; `.github/workflows/runtimes.yml` runs the runtimes against the
   committed corpus only when it or `runtimes/` change, and sets `NINO_CORPUS`, so a missing corpus fails them.
@@ -44,7 +44,7 @@ Nino.Conformance/            the net10.0 program that writes (--out) and checks 
 
 - The corpus is always what the Nino of the same commit writes: after a change to the bytes, a layout, a sample type
   or how .NET handles a malicious input, regenerate it
-  (`dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus`) and commit it with the
+  (`dotnet run --project tests/conformance/Nino.Conformance -c Release -- --out tests/conformance/corpus`) and commit it with the
   change (a `Wire-Format:` trailer when the bytes change).
 - `--out` is deterministic: an unchanged Nino rewrites identical files. Cases are added freely; a case is renamed or
   removed only with a reason in the commit. `corpusVersion` changes only with an incompatible change of the file

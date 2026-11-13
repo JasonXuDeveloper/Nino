@@ -42,7 +42,7 @@ diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
 
 `runtimes.yml` tests the Go (with and without `-tags purego`), Rust and TypeScript runtimes on x64 and on an Arm64
 runner, and Go also on 386, Arm32 and big-endian s390x (the last two under qemu). It runs for a change under
-`runtimes/` or `conformance/corpus/` only, and only the jobs of the runtimes that changed (all of them for the
+`runtimes/` or `tests/conformance/corpus/` only, and only the jobs of the runtimes that changed (all of them for the
 corpus); `ci.yml` checks that the committed corpus and generated files are what .NET and nino-gen write today. The
 release's `report.yml` benchmarks the three on x64 and Arm64. CodeQL analyzes the languages a push changes, and
 every language weekly. The

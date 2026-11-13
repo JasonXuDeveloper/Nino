@@ -29,7 +29,7 @@ test/
   flooding.test.ts           hash flooding: number and bigint keys V8 puts in one bucket, rejected by NinoKeyGuard
   wasm.test.ts               the kernels against the JavaScript paths; text.wat matches what nino.ts embeds
   into.test.ts               deserializeInto: objects read in place, arrays, maps, polymorphic members, failed reads
-  corpus.test.ts             the conformance corpus (conformance/corpus or NINO_CORPUS) over generated/Nino.Conformance.ts
+  corpus.test.ts             the conformance corpus (tests/conformance/corpus or NINO_CORPUS) over generated/Nino.Conformance.ts
   shapes.test.ts             generated/Nino.Codegen.Tests.ts (Shapes.cs) against bytes .NET writes
   codecs.ts                  codecs written as nino-gen generates them, for the runtime's tests
   runtime.ts                 --import hook: NINO_TEST_RUNTIME=browser (no Buffer), NINO_WASM=0 (no kernels)

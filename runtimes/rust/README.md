@@ -261,7 +261,7 @@ cargo test --workspace --all-features
   - Every valid case of the shared corpus must be read, written back byte for byte, and match its JSON.
   - Every malicious case and every truncated prefix must be rejected, without a panic and within the memory
     ceiling.
-  - The corpus comes from `NINO_CORPUS`, or by default `../../conformance/corpus`. Without a corpus the test is
+  - The corpus comes from `NINO_CORPUS`, or by default `../../tests/conformance/corpus`. Without a corpus the test is
     skipped, unless `NINO_CORPUS_REQUIRED=1` is set, which makes a missing corpus a failure.
   - `tests/conformance/types.rs` holds the codecs, generated from the corpus's layouts:
     `python3 tests/conformance/gen.py <corpus> > tests/conformance/types.rs && cargo fmt`.

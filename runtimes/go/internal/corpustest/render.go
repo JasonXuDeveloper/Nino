@@ -15,7 +15,7 @@ import (
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
-// render converts a decoded value to the corpus's lossless JSON (conformance/README.md, Json.cs), as the values
+// render converts a decoded value to the corpus's lossless JSON (tests/conformance/README.md, Json.cs), as the values
 // encoding/json decodes with UseNumber: nil, bool, string, json.Number, []any, map[string]any. Test code: it uses
 // reflection, which the runtime and the codecs do not.
 //

@@ -23,7 +23,7 @@ on:
       - 'src/Nino.UnityTypes/**'
       - 'src/Nino.Unity/**'
       - 'Directory.Build.props'
-      - 'Directory.Build.targets'
+      - 'src/Directory.Build.targets'
       - 'Directory.Packages.props'
       - 'global.json'
       - 'nuget.config'

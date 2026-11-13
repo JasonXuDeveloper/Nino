@@ -22,7 +22,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     GOPATH=/opt/go-path \
     RUSTUP_HOME=/opt/rustup \
     CARGO_HOME=/opt/cargo \
-    NINO_CORPUS=/src/conformance/corpus
+    NINO_CORPUS=/src/tests/conformance/corpus
 ENV PATH=/opt/dotnet:/opt/go/bin:/opt/go-path/bin:/opt/cargo/bin:/opt/node/bin:$PATH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

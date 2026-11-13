@@ -116,13 +116,13 @@ claim gigabytes in a few bytes. Run them with a timeout and, where the language 
 unchecked default mode runs the case in its untrusted mode; one without (every runtime but .NET today) runs it as is.
 
 A runtime that generates code per type (Go, Rust, TypeScript) generates it from the `layouts`; the type names the
-cases use are those of `conformance/Nino.Conformance/Types.cs`.
+cases use are those of `tests/conformance/Nino.Conformance/Types.cs`.
 
 ## Regenerating and checking
 
 ```
-dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus
-dotnet run --project conformance/Nino.Conformance -c Release -- --verify conformance/corpus
+dotnet run --project tests/conformance/Nino.Conformance -c Release -- --out tests/conformance/corpus
+dotnet run --project tests/conformance/Nino.Conformance -c Release -- --verify tests/conformance/corpus
 ```
 
 `--out` rewrites the whole corpus; it is deterministic, so an unchanged Nino gives identical files. It probes each

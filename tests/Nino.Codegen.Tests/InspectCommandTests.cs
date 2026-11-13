@@ -31,7 +31,7 @@ namespace Nino.Codegen.Tests
         public static void Unload() => _conformance?.Dispose();
 
         private static string Corpus(params string[] parts) =>
-            RepositoryFiles.Of(new[] { "conformance", "corpus" }.Concat(parts).ToArray());
+            RepositoryFiles.Of(new[] { "tests", "conformance", "corpus" }.Concat(parts).ToArray());
 
         private static InspectResult Inspect(CodegenModel model, string typeName, byte[] data)
         {

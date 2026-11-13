@@ -56,7 +56,7 @@ interactive component, or upgrading Fumadocs. How each form is written is nino.d
   NINO007, see a ratio, scan a release, decode a word, see the bytes) and none duplicates the text.
 - **Every byte the site shows is checked against what Nino writes**: nino.docs' `bun run check:bytes` finds each
   `<Bytes>` row and each byte-playground row in a hex dump of `docs/spec/wire-format.md` or in
-  `conformance/corpus/valid/*.bin` and fails on any other. Run it in the docs pass of any wire-format change
+  `tests/conformance/corpus/valid/*.bin` and fails on any other. Run it in the docs pass of any wire-format change
   (`wire-format` lists the docs). Evidence: round 107's first run found four figure rows, in each language, worked
   out from the rules (an evolving-data v1/v2 body, a struct-layouts tuple, polymorphism's sealed Circle) and let
   through as `derived`; round 120 serialized each with Nino (all four were right), put the missing dumps into the

@@ -27,7 +27,7 @@
     </PropertyGroup>
 
     <!-- What every package shares; each project sets only PackageId, Description and PackageTags (Title is the
-         PackageId, see Directory.Build.targets). -->
+         PackageId, see src/Directory.Build.targets). -->
     <PropertyGroup Condition="'$(IsPackable)' == 'true'">
         <Authors>JasonXuDeveloper</Authors>
         <Copyright>JasonXuDeveloper</Copyright>

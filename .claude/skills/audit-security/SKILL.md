@@ -33,7 +33,7 @@ the runtime it targets.
   `if` on the field, with the work out of line, so the default path compiles to what it was; prove it with
   `benchmarks/asm/asm.py compare` (`optimize`).
 - A rule the other runtimes must follow goes into `docs/spec/wire-format.md` §9, with malicious cases in the corpus
-  (`wire-format`). A check only `Untrusted` makes gets `untrusted` cases (`AddUntrusted`, conformance/AGENTS.md):
+  (`wire-format`). A check only `Untrusted` makes gets `untrusted` cases (`AddUntrusted`, tests/conformance/AGENTS.md):
   .NET's default mode may read them, its untrusted mode and every other runtime (they always check) must reject them.
 
 ## Look for
