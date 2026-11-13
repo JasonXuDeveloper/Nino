@@ -115,29 +115,45 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   lets the step's script print the sender's process, program and parents, the target's, and each one's PID inside
   its container (counted in creation order from the task runc's `[1:CHILD]` creates), and every Unity editor and
   `Unity.DataStore` started with its container PID. Do not blame memory, `/dev/shm` or a flag without that
-  evidence. The 6000.6.9f1 editor kills itself: about one launch in three, 1.2 to 2 s after launch, right after
-  `Registered in ... seconds.` in its first domain reload, a thread of `/opt/unity/Editor/Unity` calls `kill(2)`
-  with SIGKILL (`code=0`) on another thread ID of the same process, which kills the whole thread group (run
-  43324567209: sender process == target's process == the editor; the thread names `Unity Main Thread`,
-  `llvmpipe-2`, `Unity:disk$0`, `AssetDatabase.I` of runs 43309471749 and 43316317360 were all the editor's own).
-  Ruled out, each with the kills going on: memory (nothing in `dmesg`, 14 GB available), `/dev/shm` (2 GiB as at
-  the CLI's 1025m; c6d51102, reverted), code coverage (off since 56b8bc93) and the Data Store's state (deleting
-  `Library/DataStore` before each launch, 553debd6, reverted). A passing launch's editor SIGKILLs its
+  evidence. Map every target to its PID inside its container before guessing: a fixed container PID across
+  containers means a PID stored by an earlier container, since each container hands out PIDs in the same order.
+  The 6000.6.9f1 editor kills itself: 1.2 to 2 s after launch, right after `Registered in ... seconds.` in its
+  first domain reload, a thread of `/opt/unity/Editor/Unity` calls `kill(2)` with SIGKILL (`code=0`) on container
+  PID 296, every time (all three kills of run 43324567209, all five of 43349362911), whatever holds 296 in that
+  container: another thread of the editor (the whole thread group dies, exit 137) or a thread of its
+  `Unity.DataStore`; where 296 is not yet taken nothing happens, which made it look like one launch in three. The
+  likeliest source is `Library/ilpp.pid`: the IL Post Processing runner (`Unity.ILPP.Runner`) writes its own PID
+  there, the editor reads it back to kill a "lingering" runner when it starts the runner at that moment of startup
+  (`KillLingeringILPPRunner` in UnityEditor.dll; it checks the process name, so how a thread of the editor passes
+  is not proven), the runner starts at the same moment of every launch, so the PID it had in the container that
+  saved the Library cache is the one a new container gives an editor thread then, and without a cache the first
+  launch's file reaches the next step (run 43290338104 lost its player step so). unity.yml's `Show and clear
+  Unity's stored process IDs` (before every launch) prints each small file in the Library, Temp, UserSettings and
+  the runner's home (game-ci mounts it as `/root`) that holds `296`, only a number or a pid key, or has a PID or
+  lock name, then deletes `Library/ilpp.pid`, `Library/MSBuild/buildhost.pid` (Unity.BuildService's host),
+  `Library/EditorInstance.json` and `Temp`, keeping the compiled scripts and imported assets for the cache; its
+  output names the file if a kill still comes. Ruled out, each with the kills going on: memory (nothing in
+  `dmesg`, 14 GB available), `/dev/shm` (2 GiB as at the CLI's 1025m; c6d51102, reverted) and code coverage (off
+  since 56b8bc93). The Data Store's state is not ruled out: 553debd6's step listed `Library/DataStore` with
+  `find | head` under `pipefail`, died of SIGPIPE (exit 141) before its `rm`, and deleted nothing; a listing in a
+  step must never stop the step before its action (`|| echo ::warning::`). A passing launch's editor SIGKILLs its
   `Unity.DataStore` at shutdown: that is the usual end, not the bug. Burst 2.0 ships only inside 6000.6 (the
   registry's `com.unity.burst` stops at 1.8.31), so the row cannot move to an older 6000.x. The owner chose a
-  retry: each of unity.yml's three `unity-test-runner` steps runs with `continue-on-error`, and its `Did Unity kill
-  itself` step asks for one more attempt only when all hold: `UNITY_SELF_KILL_RETRY` (the job's env, true for
-  `6000.6.*`), no `<mode>-results.xml` in the step's `artifactsPath` (no test ran), and in the signal trace since
-  the last `Mark the signal trace` (a `trace_marker` line, `nino-attempt`, written before each first attempt) a
-  SIGKILL with `code=0` from a process that exec'd `/opt/unity/Editor/Unity` to a different thread of that process
-  (the `nino-procs` instance maps each thread to its process). Anything else fails the judge and the job as the
-  step did before: failed tests (their XML exists), a timeout, a crash of Nino's code in the editor (SIGSEGV or
-  SIGABRT, never a self-`kill`), a kill from another process, a trace that could not start. A killed second
-  attempt fails the job. A retry prints a `::warning::` naming the bug and keeps the killed attempt's log as
-  `<mode>-killed.log` in `test-results-unity-<version>`. The later steps' `if:` read the judge's and the retry's
-  `conclusion`, never the first attempt's (its `continue-on-error` makes its conclusion `success`). Switch it off
-  once a Unity patch fixes the kill (the row moved to it and its runs show no retry warning for a few weeks):
-  `UNITY_SELF_KILL_RETRY` false first, then remove the judge, retry and mark steps. Code coverage stays off in the
+  retry as the backstop: each of unity.yml's three `unity-test-runner` steps runs with `continue-on-error`, and its
+  `Did Unity kill itself` step asks for another attempt, up to three in all, only when all hold:
+  `UNITY_SELF_KILL_RETRY` (the job's env, true for `6000.6.*`), no `<mode>-results.xml` in the step's
+  `artifactsPath` (no test ran), and in the signal trace since the last `Mark the signal trace` (a `trace_marker`
+  line, `nino-attempt`, written before every attempt) a SIGKILL with `code=0` from a process that exec'd
+  `/opt/unity/Editor/Unity` to a different thread of that process (the `nino-procs` instance maps each thread to
+  its process). Anything else fails the judge and the job as the step did before: failed tests (their XML
+  exists), a timeout, a crash of Nino's code in the editor (SIGSEGV or SIGABRT, never a self-`kill`), a kill from
+  another process, a trace that could not start. The second attempt runs with `continue-on-error` too and is
+  judged the same way (`Did Unity kill itself again`); a failed third attempt fails the job. A retry prints a
+  `::warning::` naming the bug and the attempt and keeps the killed attempt's log as
+  `<mode>-killed-<attempt>.log` in `test-results-unity-<version>`. The later steps' `if:` read the judges' and the
+  third attempt's `conclusion`, never the first two attempts' (their `continue-on-error` makes it `success`).
+  Switch it off once the kills are gone (no retry warning for a few weeks): `UNITY_SELF_KILL_RETRY` false first,
+  then remove the judge, retry and mark steps. Code coverage stays off in the
   test steps (`GAME_CI_COVERAGE_ENABLED: 'false'`, the CLI's `coverageEnabled` option: the action's
   `coverageEnabled: false` passes `--no-coverageEnabled`, which CLI v0.1.72 rejects): the project has no Code Coverage package, so it only put every editor launch in Debug code
   optimization with Mono's coverage instrumentation. Name no variable of your own `GAME_CI_*`: the CLI reads each
