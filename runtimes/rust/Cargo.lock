@@ -315,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "nino-serialization"
-version = "4.0.0-rc.9"
+version = "4.0.0-rc.10"
 dependencies = [
  "chrono",
  "indexmap",
@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "nino-serialization-derive"
-version = "4.0.0-rc.9"
+version = "4.0.0-rc.10"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -1,6 +1,6 @@
 {
   "name": "nino-serialization",
-  "version": "4.0.0-rc.9",
+  "version": "4.0.0-rc.10",
   "description": "Nino for TypeScript: reads and writes the same bytes as Nino, the fastest binary serializer for C#, with WebAssembly kernels, for the code nino-gen generates.",
   "license": "MIT",
   "repository": {

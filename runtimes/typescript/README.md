@@ -3,7 +3,7 @@
 `src/nino.ts` is the TypeScript runtime of Nino: it reads and writes the bytes Nino writes in .NET (the format is
 [docs/spec/wire-format.md](../../docs/spec/wire-format.md)). nino-gen writes it next to the classes and codecs it
 generates for a project's `[NinoType]`s; each release also publishes it to npm as `nino-serialization`, with Nino's
-version, which generated code imports instead with `Runtime="nino-serialization"` (`npm install nino-serialization@4.0.0-rc.9`).
+version, which generated code imports instead with `Runtime="nino-serialization"` (`npm install nino-serialization@4.0.0-rc.10`).
 How to generate the code and the options are in the guide's
 [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen); the type mapping, the generated API and
 what untrusted data may do are on its [TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) page. This file is the

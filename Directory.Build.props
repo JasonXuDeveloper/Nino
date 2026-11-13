@@ -3,7 +3,7 @@
         <!-- The version of every Nino package and assembly, the only place it is set: the Release workflow bumps it
              (and the Unity package's). Every assembly gets its x.y.z as AssemblyVersion and
              FileVersion (x.y.z.0) and all of it, with the commit, as its informational version. -->
-        <Version>4.0.0-rc.9</Version>
+        <Version>4.0.0-rc.10</Version>
         <!-- Every project; one that needs an older version sets it and says why (Nino.UnitTests). -->
         <LangVersion>latest</LangVersion>
         <!-- Paths in PDBs and package metadata independent of the machine that built them. -->

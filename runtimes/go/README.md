@@ -7,7 +7,7 @@ reflection; Go structs without generated code can be mapped with struct tags ins
 through a reflection-built plan.
 
 Go 1.22 or later. Its versions are Nino's: each release tags the module `runtimes/go/vX.Y.Z`
-(`go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4@v4.0.0-rc.9`).
+(`go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4@v4.0.0-rc.10`).
 
 How to generate Go code from your `[NinoType]`s and the options are in the guide's
 [TypeScript, Go and Rust](https://nino.xgamedev.net/en/docs/v4/advanced/codegen); what nino-gen writes and how to use it,
