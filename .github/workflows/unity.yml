@@ -260,16 +260,14 @@ jobs:
       # step names that file before each launch: every small file there that holds the number 296, holds nothing but a
       # number, holds a pid-like key, or is named like a PID or lock file, with its content.
       #
-      # Then it deletes the files that hold a PID of an earlier container, the likeliest first: Library/ilpp.pid. The IL
-      # Post Processing runner (Tools/BuildPipeline/Compilation/Unity.ILPP.Runner) writes its own PID there, and the
-      # editor reads it back to kill a "lingering" runner when it starts the runner, early in its first domain reload,
-      # where every kill came (KillLingeringILPPRunner in UnityEditor.dll, which the native ILPPExternalProcess calls).
-      # The runner starts at the same moment in every launch, so its PID in the container that saved the Library cache
-      # is the PID that a new container hands to a thread of the editor at that moment; a job without a cache passes
-      # its first launch's runner PID to the next step (run 43290338104 lost its player step so). Also deleted:
-      # Library/MSBuild/buildhost.pid (Unity.BuildService's host, which it kills by that PID when it cannot reach it),
-      # Library/EditorInstance.json (the editor's own PID) and Temp, which only a running editor uses (Unity deletes
-      # it when it quits). The rest of the Library, the compiled scripts and imported assets, stays for the cache.
+      # Then it deletes the files that hold a PID of an earlier container. The one the editor kills is Library/burst.pid:
+      # Burst 2.0's compiler process (built into 6000.6) writes its PID there, and the editor kills that PID as a
+      # lingering compiler early in its first domain reload. Run 43356711660 proved it: the cached file held 296 and the
+      # first launch's kill hit container PID 296; the file then held 287 and every later kill hit 287. Each container
+      # hands out PIDs in the same order, so the stored PID belongs to one of the editor's own threads by then (exit 137).
+      # Also deleted, being the same kind of state: Library/ilpp.pid (the IL Post Processing runner's), Library/MSBuild/
+      # buildhost.pid (Unity.BuildService's host), Library/EditorInstance.json (the editor's own PID) and Temp, which
+      # only a running editor uses. The rest of the Library, the compiled scripts and imported assets, stays for the cache.
       - &unity-state
         name: Show and clear Unity's stored process IDs
         if: ${{ !cancelled() }}
@@ -309,7 +307,7 @@ jobs:
                       print(body.rstrip()[:1500])
           print(f'{shown} files shown')
           EOF
-          sudo rm -rf src/Nino.Unity/Library/ilpp.pid src/Nino.Unity/Library/MSBuild/buildhost.pid \
+          sudo rm -rf src/Nino.Unity/Library/burst.pid src/Nino.Unity/Library/ilpp.pid src/Nino.Unity/Library/MSBuild/buildhost.pid \
             src/Nino.Unity/Library/EditorInstance.json src/Nino.Unity/Temp
 
       # Unity 6000.6.9f1's editor kills itself about one launch in three: some 2 s after launch, in its first domain
