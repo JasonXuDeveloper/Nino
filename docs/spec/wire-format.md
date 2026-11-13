@@ -1,6 +1,6 @@
 # Nino v4 wire format
 
-**Specification version 4.5 (draft), for Nino 4.0.0-rc.9.**
+**Specification version 4.5 (draft), for Nino 4.0.0-rc.10.**
 
 This document specifies the bytes Nino v4 writes and reads. A reader and a writer built from it, in any language,
 exchange data with the .NET implementation (`Nino.Core` plus the code `Nino.Generator` emits). Every rule here was
