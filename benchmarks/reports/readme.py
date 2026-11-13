@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 """Write the benchmark numbers of README.md / README.zh.md, the README chart and the runtime and build tables of
-docs/v4-benchmarks.md from BenchmarkDotNet reports and the release body's build section.
+docs/v4-benchmarks.md from a release's assets (release_assets.py) or from BenchmarkDotNet reports and a build section.
 
-usage: python3 benchmarks/reports/readme.py [--v4 <joined report-github.md> [--v3 <v3 report-github.md>]...
-                                    [--png-html <file>]] [--build <section.md>] [--tag <tag>]
+usage: python3 benchmarks/reports/readme.py (--release <tag> | --assets <dir> | [--v4 <joined report-github.md>
+                                    [--v3 <v3 report-github.md>]...] [--build <section.md>]) [--tag <tag>]
+                                    [--png [--chrome <path>]]
 
+  --release   download the release's assets (dotnet-x64.md, dotnet-v3-x64.md, build-x64.md; gh) and read them
+  --assets    a directory of release assets and their manifest (report.yml: the files its job adds); each of the
+              three is read when the directory has it
   --v4        the joined report of benchmarks/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
               report.yml produce it
   --v3        a report of the v3 run (Nino 3.3.13, SimpleTest and PolymorphicTest); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.
-  --build     the build-time section of a release body (generator_report.py; the whole body will do): the README's
-              Build row of v4 vs v3 (v3.build) and the build tables of docs/v4-benchmarks.md (doc.build.*)
-  --tag       the release the reports belong to (report.yml); without it docs/v4-benchmarks.md names a local run
-  --png-html  also write the chart wrapped in an HTML page (and <name>-dark.html for the dark theme), to render
-              benchmark.png and benchmark-dark.png from them (report.yml does
-              this with headless Chrome: README.md is packed into the NuGet packages, and nuget.org shows no SVG)
+  --build     the build section (generator_report.py, build-x64.md; a release body from before the assets will do):
+              the README's Build row of v4 vs v3 (v3.build) and the build tables of docs/v4-benchmarks.md (doc.build.*)
+  --tag       the release the reports belong to (default with --release/--assets: the manifest's); without one
+              docs/v4-benchmarks.md names a local run
+  --png       also render benchmark.png and benchmark-dark.png with headless Chrome (charts.py; README.md is packed
+              into the NuGet packages, and nuget.org shows no SVG)
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
 carries whole tables between such markers. Everything outside the markers is written by hand. --v4 and --build fill
@@ -28,13 +32,17 @@ measurable v3 is "faster, too fast to measure" (no ratio: it would only reflect 
 """
 import argparse
 import math
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 import generator_report
+import release_assets
 from bdn import FLOOR_NS, mean_ns, rows
 from bdn import cpu as short_cpu
+from charts import on_par, one, png, svg, time
 
 ROOT = Path(__file__).resolve().parents[2]
 # The headline cases: WorkloadTest's workloads, with their names in the docs table.
@@ -77,21 +85,12 @@ def ratio(slow, fast):
     return round(slow / fast, 2)
 
 
-def on_par(r):
-    return round(abs(r - 1) * 100) <= 5
-
-
 def against(slow, fast):
     """v3 (slow) against v4 (fast): "unmeasurable" when v4 is under FLOOR_NS and v3 is not, 1.0 when both are, else
     the ratio."""
     if fast < FLOOR_NS:
         return 1.0 if slow < FLOOR_NS else "unmeasurable"
     return 0.0 if slow < FLOOR_NS else ratio(slow, fast)
-
-
-def one(r):
-    """One decimal below 10 (7.2), whole numbers from 10 (23)."""
-    return f"{r:.1f}" if r < 10 else f"{r:.0f}"
 
 
 def allocated(row):
@@ -183,33 +182,26 @@ def numbers(v4_path, v3_paths, tag=None):
     return out, chart
 
 
-def chart_groups(v4, v3):
-    """The chart: per case, a row of two groups, serialize and deserialize; a group is (title, [(name, ns or None)]):
-    the time of Nino v4, v3 and each library. v3 3.3.13 runs only the cases it can express: None (n/a) elsewhere; a
-    library a case has no row for is left out."""
+def chart_groups(v4, v3, cases=CHART_CASES, in_place=True):
+    """The chart (charts.svg): per case, a row of two groups, serialize and deserialize; a group is (title,
+    [(name, ns or None)]): the time of Nino v4, v3 and each library. v3 3.3.13 runs only the cases it can express:
+    None (n/a) elsewhere; v3=None leaves its bars out (the release body's .NET charts). A library a case has no row
+    for is left out. in_place adds reading into existing objects (Nino against MemoryPack's overwrite)."""
     def group(verb, key, title):
-        rows = [("Nino v4", v4[f"Nino{verb}{key}"]["mean"]), ("Nino v3", v3.get(f"Nino{verb}{key}"))]
+        rows = [("Nino v4", v4[f"Nino{verb}{key}"]["mean"])]
+        if v3 is not None:
+            rows.append(("Nino v3", v3.get(f"Nino{verb}{key}")))
         rows += [(name, v4[f"{other}{verb}{key}"]["mean"]) for other, _, name in OTHERS if f"{other}{verb}{key}" in v4]
         return f"{verb} · {title}", rows
 
-    chart = [tuple(group(verb, key, title) for verb in ("Serialize", "Deserialize"))
-             for key, title in CHART_CASES if f"NinoSerialize{key}" in v4 and f"NinoDeserialize{key}" in v4]
+    chart = [tuple(group(verb, key, title.replace("`", "")) for verb in ("Serialize", "Deserialize"))
+             for key, title in cases if f"NinoSerialize{key}" in v4 and f"NinoDeserialize{key}" in v4]
     nino, memorypack = v4.get("NinoLeavesInPlace"), v4.get("MemoryPackLeavesOverwrite")
-    if nino and memorypack:
+    if in_place and nino and memorypack:
         chart.append((None, (f"Into existing objects · Nino {allocated(nino)}, MemoryPack {allocated(memorypack)}",
-                             [("Nino v4", nino["mean"]), ("Nino v3", None), ("MemoryPack", memorypack["mean"])])))
+                             [("Nino v4", nino["mean"])] + ([("Nino v3", None)] if v3 is not None else []) +
+                             [("MemoryPack", memorypack["mean"])])))
     return chart
-
-
-def time(ns):
-    """As the docs site writes times: 151 ns, 17.0 µs, 1.23 ms; under FLOOR_NS, "< 1 ns"."""
-    if ns < FLOOR_NS:
-        return f"< {FLOOR_NS} ns"
-    for unit, scale in (("ns", 1), ("µs", 1e3), ("ms", 1e6), ("s", 1e9)):
-        if ns < scale * 1e3 or unit == "s":
-            value = ns / scale
-            text = f"{value:,.0f}" if value >= 100 else f"{value:.1f}" if value >= 10 else f"{value:.2f}"
-            return f"{text} {unit}"
 
 
 def versus(other, v4):
@@ -345,65 +337,6 @@ def build(path, tag=None):
     return out
 
 
-# Nino v4 in its accent colour, v3 in a darker grey, every other library in one lighter grey (the docs site's rule:
-# Nino the accent, everything else neutral). Each image paints its own background (GitHub's page colours):
-# prefers-color-scheme follows the reader's system, not the page, so a dark system shows the dark image on nuget.org's
-# or GitHub's light page, and on a transparent background its light text vanished.
-THEMES = {"light": {"text": "#1f2328", "muted": "#59636e", "background": "#ffffff",
-                    "v4": "#3b6fd4", "v3": "#8b95a5", "other": "#cdd2da"},
-          "dark": {"text": "#f0f6fc", "muted": "#9198a1", "background": "#0d1117",
-                   "v4": "#5b8def", "v3": "#6e7681", "other": "#3d444d"}}
-PAD = 20  # the background's margin around the chart
-
-
-def svg(chart, theme="light"):
-    """The chart as SVG: per case, serialize on the left and deserialize on the right, a bar per serializer, its
-    length its time on a linear scale of that group (shorter is faster), labelled with the time and its multiple of
-    Nino v4's."""
-    c = THEMES[theme]
-    column, x0, width = 450, 100, 170
-    out, y = [], 78
-    for pair in chart:
-        bottom = y
-        for side, grp in enumerate(pair):
-            if grp is None:
-                continue
-            title, rows = grp
-            left = side * column
-            out.append(f'<text x="{left}" y="{y}" class="g">{title}</text>')
-            by = y + 22
-            nino = rows[0][1]
-            top = max(ns for _, ns in rows if ns)
-            for name, ns in rows:
-                v4 = name == "Nino v4"
-                weight = ' font-weight="700"' if v4 else ""
-                out.append(f'<text x="{left + x0 - 10}" y="{by}" class="l" text-anchor="end"{weight}>{name}</text>')
-                if ns is None:
-                    out.append(f'<text x="{left + x0}" y="{by}" class="s">n/a</text>')
-                else:
-                    w = max(3.0, width * ns / top)
-                    colour = c["v4"] if v4 else c["v3"] if name == "Nino v3" else c["other"]
-                    out.append(f'<rect x="{left + x0}" y="{by - 12}" width="{w:.1f}" height="15" rx="3" fill="{colour}"/>')
-                    label = time(ns)
-                    if not v4:
-                        r = ns / nino
-                        label += " · on par" if on_par(r) else f" · {one(r)}×"
-                    out.append(f'<text x="{left + x0 + w + 8:.1f}" y="{by}" class="v"{weight}>{label}</text>')
-                by += 20
-            bottom = max(bottom, by)
-        y = bottom + 18
-    height = y - 8 + 2 * PAD
-    width = 2 * column + 2 * PAD
-    head = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
-<rect width="{width}" height="{height}" rx="8" fill="{c["background"]}"/>
-<g transform="translate({PAD} {PAD})">
-<style>.t{{font-size:18px;font-weight:700;fill:{c["text"]}}}.s{{font-size:12px;fill:{c["muted"]}}}.g{{font-size:13px;font-weight:600;fill:{c["text"]}}}.l{{font-size:12px;fill:{c["muted"]}}}.v{{font-size:12px;fill:{c["text"]}}}</style>
-<text x="0" y="22" class="t">Time per operation (shorter is faster)</text>
-<text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, one run on one machine (v3 3.3.13 directly before v4); N× = N times as long as Nino v4.</text>
-'''
-    return head + "\n".join(out) + "\n</g>\n</svg>\n", height
-
-
 def fill(path, values, zh):
     text = path.read_text(encoding="utf-8")
     seen = set()
@@ -423,27 +356,47 @@ def fill(path, values, zh):
     return seen
 
 
+def from_assets(directory):
+    """The --v4, --v3 and --build files of a directory of release assets (release_assets.py: the manifest and the
+    files it lists), each only when the directory has it: report.yml's jobs hold only the assets they add."""
+    manifest = release_assets.load(directory)
+    present = {e["kind"]: os.path.join(directory, e["name"]) for e in manifest["assets"]
+               if e.get("arch") == "x64" and os.path.isfile(os.path.join(directory, e["name"]))}
+    return present.get("dotnet"), [present["dotnet-v3"]] if "dotnet-v3" in present else [], present.get("build"), \
+        manifest.get("tag")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--v4")
     parser.add_argument("--v3", action="append", default=[])
     parser.add_argument("--build")
+    parser.add_argument("--assets", help="a directory of release assets (release_assets.py) instead of the files")
+    parser.add_argument("--release", help="a release's assets, downloaded (gh) instead of the files")
     parser.add_argument("--tag")
-    parser.add_argument("--png-html")
+    parser.add_argument("--png", action="store_true", help="render benchmark.png and benchmark-dark.png too")
+    parser.add_argument("--chrome", help="Chrome or Chromium for --png (default: $CHROME, google-chrome)")
     args = parser.parse_args()
+    if args.release:
+        args.assets = tempfile.mkdtemp(prefix="nino-assets-")
+        if release_assets.fetch(release_assets.release(args.release), args.assets,
+                                ["dotnet-x64.md", "dotnet-v3-x64.md", "build-x64.md"]) is None:
+            sys.exit(f"{args.release} has no {release_assets.MANIFEST}")
+    if args.assets:
+        args.v4, args.v3, args.build, tag = from_assets(args.assets)
+        args.tag = args.tag or tag
     if not args.v4 and not args.build:
-        parser.error("give --v4, --build or both")
+        parser.error("give --v4, --build, both, or --assets/--release with either")
 
     values = {}
     if args.v4:
         values, chart = numbers(args.v4, args.v3, args.tag)
         for theme, suffix in (("light", ""), ("dark", "-dark")):
             image, height = svg(chart, theme)
-            (ROOT / f"docs/assets/benchmark{suffix}.svg").write_text(image, encoding="utf-8")
-            if args.png_html:
-                html = Path(args.png_html)
-                html.with_name(html.stem + suffix + html.suffix).write_text(
-                    f'<html><body style="margin:0;background:transparent">{image}</body></html>', encoding="utf-8")
+            path = ROOT / f"docs/assets/benchmark{suffix}.svg"
+            path.write_text(image, encoding="utf-8")
+            if args.png:
+                png(str(path), args.chrome)
         print(f"chart height {height}")
     if args.build:
         values.update(build(args.build, args.tag))

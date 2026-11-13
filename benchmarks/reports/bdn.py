@@ -1,8 +1,8 @@
 """Reads BenchmarkDotNet's GitHub Markdown reports (*-report-github.md) for the scripts that compare them: readme.py,
-merge_reports.py, compact_report.py, ../compare/ab.py, ../compare/compare_v3.py and ../members/table.py. One parser,
+merge_reports.py, release_assets.py, ../compare/ab.py, ../compare/compare_v3.py and ../members/table.py. One parser,
 one unit table and one floor, so the scripts cannot drift apart in how they read a report or which times they call
 too fast to measure.
-`show` is also how runtimes_report.py and unity_report.py print times: every table of the release body writes them
+`show` is also how runtimes_report.py and unity_report.py print times: every section's table writes them
 alike (readme.py keeps the docs site's own format for README and docs); `cpu`, how readme.py and generator_report.py
 name the machine."""
 import re
@@ -72,7 +72,7 @@ def cpu(name):
 
 
 def show(ns):
-    """A time for a table of the release body: 1.23 ms, 17.04 μs, 151.20 ns (U+03BC, as BenchmarkDotNet writes it)."""
+    """A time for a section's table: 1.23 ms, 17.04 μs, 151.20 ns (U+03BC, as BenchmarkDotNet writes it)."""
     for unit, scale in (("s", 1e9), ("ms", 1e6), ("μs", 1e3)):
         if ns >= scale:
             return f"{ns / scale:,.2f} {unit}"

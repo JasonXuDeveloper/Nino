@@ -3,9 +3,7 @@
 import contextlib
 import io
 import os
-import subprocess
 import sys
-import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -98,56 +96,6 @@ class UnityReportTests(unittest.TestCase):
         line = unity_report.environment(run)
         self.assertTrue(line.startswith("Unity 6000.3.27f1, IL2CPP player (not a Development build), Linux x64"))
         self.assertNotIn("Burst 1", line)
-
-
-    def test_release_body_appends_the_section_once(self):
-        # publish-unity appends the section with release_body.py append: after the body, then never again.
-        section = report("unity-bench-6000.3.27f1")[0]
-        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "release_body.py")
-        with tempfile.TemporaryDirectory() as folder:
-            body, new, again = (os.path.join(folder, name) for name in ("body.md", "new.md", "again.md"))
-            with open(os.path.join(folder, "section.md"), "w", encoding="utf-8") as f:
-                f.write(section)
-            with open(body, "w", encoding="utf-8") as f:
-                f.write("## 📊 Performance Report\n\nrows\n")
-
-            def append(source, out):
-                subprocess.run([sys.executable, script, "append", "--body", source, "--out", out,
-                                os.path.join(folder, "section.md")], check=True, capture_output=True)
-
-            append(body, new)
-            with open(new, encoding="utf-8") as f:
-                text = f.read()
-            self.assertTrue(text.startswith("## 📊 Performance Report"))
-            self.assertEqual(text.count(unity_report.HEADING), 1)
-            self.assertTrue(text.endswith(section))
-            append(new, again)
-            self.assertFalse(os.path.exists(again))
-
-    def test_arm64_section_gives_way_when_the_body_is_full(self):
-        # v4.0.0-rc.9: the .NET and runtime sections left no room for the Unity section. With --tag, the Arm64
-        # section (attached as arm64-benchmark.md) becomes a link and the Unity section goes in.
-        section = report("unity-bench-6000.3.27f1")[0]
-        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "release_body.py")
-        arm64 = "## 📊 Arm64 benchmark\n\n<details>\n\n### SimpleTest\n\n" + "| row |\n" * 15_000 + "\n</details>"
-        perf = "## 📊 Performance Report\n\nrows"
-        with tempfile.TemporaryDirectory() as folder:
-            body, new = os.path.join(folder, "body.md"), os.path.join(folder, "new.md")
-            with open(os.path.join(folder, "section.md"), "w", encoding="utf-8") as f:
-                f.write(section)
-            with open(body, "w", encoding="utf-8") as f:
-                f.write(f"notes\n\n{arm64}\n\n{perf}\n" + "x" * (124_000 - len(arm64)))
-            subprocess.run([sys.executable, script, "append", "--body", body, "--out", new, "--tag", "v9.9.9",
-                            os.path.join(folder, "section.md")], check=True, capture_output=True,
-                           env={**os.environ, "GITHUB_REPOSITORY": "o/r"})
-            with open(new, encoding="utf-8") as f:
-                text = f.read()
-            self.assertLessEqual(len(text), 125_000)
-            self.assertIn("## 📊 Arm64 benchmark\n\nThe Arm64 report is attached to this release: "
-                          "[arm64-benchmark.md](https://github.com/o/r/releases/download/v9.9.9/arm64-benchmark.md)", text)
-            self.assertNotIn("### SimpleTest", text)
-            self.assertIn(perf, text)
-            self.assertTrue(text.endswith(section))
 
 
 if __name__ == "__main__":

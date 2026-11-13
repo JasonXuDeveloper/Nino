@@ -46,23 +46,28 @@ asm/                         the machine code of the cases
 members/                     member-by-member v3 against v4 (run.sh: v3, v4, v3 in process; DISASM=1 for listings):
                              shared/Parts.cs built as v3/P3.csproj (NuGet 3.3.13) and v4/P4.csproj; table.py,
                              split-asm.py; results/ ignored
-reports/                     what a release publishes: reports of runners into the release body, README and docs
+reports/                     what a release publishes: the results of runners as release assets, the body's charts,
+                             README and docs
   bdn.py                     the one parser of BenchmarkDotNet github reports, units and FLOOR_NS (1 ns), for every
                              script that reads one (compare/ and members/table.py import it from here); show: the time
-                             format of every release-body table; cpu: how tables name the machine
+                             format of every section's table; cpu: how tables name the machine
   merge_reports.py           merges the reports of parallel jobs into one report (report.yml)
-  compact_report.py          shortens a merged report for a release body (125,000-character limit)
+  release_assets.py          the release's benchmark assets: their names (NAMES), benchmarks-manifest.json, the release
+                             (GitHub, or a directory in a dry run), fetch, has (report.yml's skip checks)
+  release_body.py            publish: attaches a job's results, draws a chart per section, writes the body's
+                             benchmark part (<details> with summary, chart and links) from the manifest (report.yml)
+  charts.py                  the charts (README's and the release body's) as SVG, and PNG by headless Chrome
   readme.py                  writes the numbers of README.md / README.zh.md, the chart (docs/assets) and the runtime
-                             tables of docs/v4-benchmarks.md from a joined report (--v4), and the Build row and build
-                             tables from the release body's build section (--build)
-  generator_report.py        the release body's build section (v3 3.3.13's source generator against the release's)
-                             from Nino.GeneratorBenchmark's --json files, and its parser (readme.py --build)
+                             and build tables of docs/v4-benchmarks.md from a release's assets (--assets, --release)
+                             or a joined report (--v4) and a build section (--build)
+  generator_report.py        the build section (v3 3.3.13's source generator against the release's) from
+                             Nino.GeneratorBenchmark's --json files, and its parser (readme.py)
+  runtimes_report.py         the Go, Rust and TypeScript sections from each benchmark's output
+  unity_report.py            the Unity section from the IL2CPP player's results (unity.yml artifacts)
   test_generator_report.py   tests of generator_report.py and readme.py --build on fixtures/generator/
-  release_body.py            the release body's benchmark sections (Performance Report, v3 comparison, Arm64) for
-                             report.yml; the docs site finds them by their headings
-  runtimes_report.py         the release body's Go, Rust and TypeScript sections from each benchmark's output
-  unity_report.py            the release body's Unity section from the IL2CPP player's results (unity.yml artifacts)
-  test_unity_report.py       tests of unity_report.py on fixtures/ (agents.yml runs them)
+  test_unity_report.py       tests of unity_report.py on fixtures/
+  test_release_body.py       a dry run of report.yml's publish jobs (no network, no Chrome), the old sections, the
+                             PNG crop (agents.yml runs every test_*.py)
   fixtures/                  unity-bench-<version>/ results.xml + build.txt, and unity-bench-empty/, for those tests;
                              generator/ v3-<roots>.json and v4-<roots>.json (the old local run's numbers)
 .gitignore                   results/
@@ -70,8 +75,10 @@ reports/                     what a release publishes: reports of runners into t
 
 ## Rules for these files
 
-- Headings the release body uses (reports/release_body.py, runtimes_report.py, unity_report.py, generator_report.py) are read by the docs site
-  (Nino.Docs `scripts/sync-benchmarks.ts`): change one only together with its parser there.
+- The asset names (reports/release_assets.py) and the formats of the assets (the merged reports, the sections of
+  runtimes_report.py, unity_report.py, generator_report.py) are read by the docs site (Nino.Docs
+  `scripts/sync-benchmarks.ts`), which parses the old sections' headings in the bodies of releases up to
+  v4.0.0-rc.9 too: change one only together with its parser there.
 - Program.cs and the Harness files the v3 build lists (`Nino.Benchmark.csproj`, `NinoBenchV3`) compile against Nino
   3.3.13 with only those files: guard what they reach outside them with `#if !NINO_BENCH_V3`, and build
   `NINO_BENCH_V3=true dotnet build -c Release` after changing them. No CI job but report.yml builds it, so a break

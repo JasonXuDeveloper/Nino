@@ -42,29 +42,29 @@ classes in parallel on twelve runners per architecture (SimpleTest split into it
 BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest by type), every serializer's run of a case always on one, every
 case in three processes, and
 [`merge_reports.py`](reports/merge_reports.py) merges their reports into one table, naming each class's runner under it.
-The release notes get the short tables of [`compact_report.py`](reports/compact_report.py) (Method, Mean, Ratio, Payload,
-Allocated, one table per class), as a release body holds at most 125,000 characters; the full reports are attached
-to the release, and when the later sections (runtimes, Unity) lack room the Arm64 section becomes a link to its attached
-copy. BenchmarkDotNet writes a report of one class without a Type column: both scripts then take the class
+Every result is attached to the release under a fixed name and listed in `benchmarks-manifest.json`
+([`release_assets.py`](reports/release_assets.py)): `dotnet-x64.md` and `dotnet-arm64.md` (the merged reports),
+`dotnet-v3-x64.md`, `runtime-<lang>-<arch>.md` with their JSON or CSV data, `unity-x64.md`, `build-x64.md` with
+the generator benchmark's JSON. The release notes get no table: [`release_body.py`](reports/release_body.py) draws a
+chart of each section ([`charts.py`](reports/charts.py), the README chart's code, as a PNG on the `release-notes`
+branch, since GitHub shows no image from a release asset) and writes one collapsed section per result with a
+one-line summary, the chart and links to the assets; README, docs and the documentation site read the assets.
+BenchmarkDotNet writes a report of one class without a Type column: `merge_reports.py` then takes the class
 from the file name (`Nino.Benchmark.SimpleTest-report-github.md`), so keep that name when copying one.
 Each of the two `SimpleTest` runners builds the v3 project and runs its half of `SimpleTest` directly before the same
-half of v4, and the `PolymorphicTest` runner its `PolymorphicTest` the same way, with the same settings; the workflow adds a
-**📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
-`compare_v3.py` table and the v3 runners (the v3 report, every runner's merged, is attached). The documentation site takes its v4-vs-v3 ratios from that
-section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
-adds whichever section is missing.
+half of v4, and the `PolymorphicTest` runner its `PolymorphicTest` the same way, with the same settings; the v3
+report, every runner's merged, is attached as `dotnet-v3-x64.md`, and the release notes chart v3 against v4. The
+documentation site takes its v4-vs-v3 ratios from that report and `dotnet-x64.md` of the newest v4 release. A v3
+failure only leaves the v3 results out; re-running the workflow for the tag publishes them all again.
 
-The runtimes outside .NET get a section each after all of those: **🌐 TypeScript runtime benchmark**
-(`runtimes/typescript/bench`, Node), **🐹 Go runtime benchmark** (`runtimes/go/bench`) and **🦀 Rust runtime
-benchmark** (`runtimes/rust/bench`), each against the serializers of its language, run on one runner from the tag's
-sources and formatted by [`runtimes_report.py`](reports/runtimes_report.py). Their headings and tables have none of the
-words the readers of the .NET sections look for ("Performance Report", "Method", "Mean"), and a language whose
-benchmark fails is left out without touching the rest. The same three run on an Arm64 runner too and follow as
-**🌐 Arm64: TypeScript runtime benchmark**, **🐹 Arm64: Go runtime benchmark** and **🦀 Arm64: Rust runtime
-benchmark** (`runtimes_report.py --arch arm64`: the same tables; no Arm64 heading contains an x64 one, which the docs
-site finds by its first occurrence).
+The runtimes outside .NET get a section each: **🌐 TypeScript runtime benchmark** (`runtimes/typescript/bench`,
+Node), **🐹 Go runtime benchmark** (`runtimes/go/bench`) and **🦀 Rust runtime benchmark** (`runtimes/rust/bench`),
+each against the serializers of its language, run on one runner from the tag's sources and formatted by
+[`runtimes_report.py`](reports/runtimes_report.py) (`runtime-<lang>-x64.md`); a language whose benchmark fails is
+left out without touching the rest. The same three run on an Arm64 runner too (`runtime-<lang>-arm64.md`, headed
+**🌐 Arm64: TypeScript runtime benchmark** and so on: `runtimes_report.py --arch arm64`, the same tables).
 
-The last section, **🎮 Unity benchmark (Burst, IL2CPP)**, times Nino in a Unity IL2CPP player without and with the
+The Unity section (`unity-x64.md`), **🎮 Unity benchmark (Burst, IL2CPP)**, times Nino in a Unity IL2CPP player without and with the
 Burst kernels (`Nino.Burst`), for each Unity version `unity.yml` tests: `report.yml` calls `unity.yml` with
 `benchmark: true` for the tag, which builds the test player without the Development flag
 (`Test.Editor.Burst.BenchmarkPlayerBuild`, from `-ninoBenchmark`) with `Test.Runtime.Burst.BurstBenchmark` in it. The
@@ -76,15 +76,23 @@ record). [`unity_report.py`](reports/unity_report.py) turns them into a line per
 machine and a table per version (tested by `test_unity_report.py` on `fixtures/unity-bench-*/`). It waits for the Unity
 license's seat like every Unity run, and a failure leaves only this section out (the run shows it as failed).
 
+Every publish job runs `release_body.py publish`; a dry run against a directory standing in for the release:
+
+```sh
+python3 benchmarks/reports/release_body.py publish --tag v4.0.0-rc.10 --dir work --release-dir fake \
+  dotnet-x64.md=x64.md dotnet-v3-x64.md=v3.md dotnet-arm64.md=arm64.md     # fake/body.md, fake/assets/, fake/release-notes/
+```
+
 The README numbers and chart (`docs/assets/benchmark.svg` and `.png`) and the runtime tables of
 `docs/v4-benchmarks.md` follow the newest v4 release too: for that release, `report.yml` runs
-[`readme.py`](reports/readme.py) on its reports, which rewrites everything between the `<!--bench:...-->` markers of
-`README.md`, `README.zh.md` and `docs/v4-benchmarks.md` and the chart, then pushes them to `main`. After a full
-local run, the same script updates them from your reports (it writes the SVG; render the PNG from `--png-html`):
+[`readme.py`](reports/readme.py) on its assets (`--assets`), which rewrites everything between the
+`<!--bench:...-->` markers of `README.md`, `README.zh.md` and `docs/v4-benchmarks.md` and the chart, then pushes them
+to `main`. `--release <tag>` downloads a release's assets and does the same; after a full local run, the same script
+updates them from your reports (`--png` renders the PNGs with headless Chrome, `CHROME=` or `--chrome` names it):
 
 ```sh
 python3 benchmarks/reports/readme.py --v4 out/v4/results/*-joined-*-report-github.md \
-  --v3 out/v3/results/*-report-github.md --png-html chart.html
+  --v3 out/v3/results/*-report-github.md --png
 ```
 
 Within 5% is written as "on par", and a case where v4 is slower is left out of the README's v3 sentence and is a
@@ -92,7 +100,7 @@ dash in the tables. A time under 1 ns (about three clock cycles) cannot be told 
 it against a measurable one is "faster (too fast to measure)", with no ratio, and both under it are on par.
 Build-time numbers and everything outside the markers are edited by hand.
 
-The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `compact_report.py`, `compare_v3.py`,
+The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `release_body.py`, `compare_v3.py`,
 `members/table.py`) share one parser, unit table and floor: [`bdn.py`](reports/bdn.py).
 
 ## Benchmark Classes
@@ -100,8 +108,8 @@ The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `compac
 `benchmarks/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
 MemoryPack, and with MessagePack and protobuf-net wherever they can write the same data (see
 [MessagePack and protobuf-net](#messagepack-and-protobuf-net)); `SimpleTest`, `PolymorphicTest` and `WorkloadTest`
-also with Google.Protobuf and System.Text.Json (see [Google.Protobuf and System.Text.Json](#googleprotobuf-and-systemtextjson)). All of them land in one joined table, which is the
-Performance Report of each release.
+also with Google.Protobuf and System.Text.Json (see [Google.Protobuf and System.Text.Json](#googleprotobuf-and-systemtextjson)). All of them land in one joined table, which each release
+attaches as `dotnet-x64.md` (and `dotnet-arm64.md`).
 
 | Class | What it measures |
 |---|---|

@@ -5,7 +5,7 @@
 The repository's own Markdown documentation, read on GitHub and by contributors. The website
 (https://nino.xgamedev.net, Fumadocs, English and Chinese) lives in the separate repository
 `JasonXuDeveloper/Nino.Docs` (local clone `/workspace/nino.docs`, with its own CLAUDE.md); it takes its facts from
-this repository and its numbers from the release body. `audit-docs` audits this directory and the site.
+this repository and its numbers from the release's benchmark assets. `audit-docs` audits this directory and the site.
 
 ```
 spec/
