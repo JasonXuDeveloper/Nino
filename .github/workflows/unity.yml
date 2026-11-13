@@ -252,6 +252,51 @@ jobs:
           echo 1 > "$procs/tracing_on"
           EOF
 
+      # Unity 6000.6.9f1's editor SIGKILLs container PID 296 some 2 s after launch, in every container, whatever task
+      # holds that PID there: a thread of the editor itself (exit 137) or of its Data Store (runs 43324567209 and
+      # 43349362911, six of six kills). Each step runs Unity in a new container, whose PIDs are handed out the same way
+      # each time, so the editor kills a PID it read from state that outlives its container: the project's Library
+      # (restored from the cache), Temp and UserSettings, or the runner's home, which game-ci mounts as /root. This
+      # step names that file before each launch: every small file there that holds the number 296, holds nothing but a
+      # number, holds a pid-like key, or is named like a PID or lock file, with its content.
+      - &unity-state
+        name: Show Unity's stored process IDs
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          sudo python3 -I - src/Nino.Unity "$HOME" <<'EOF'
+          import os, re, sys, time
+          project, home = sys.argv[1], sys.argv[2]
+          roots = [os.path.join(project, d) for d in ('Library', 'Temp', 'UserSettings', 'Logs')]
+          # The runner's home as the container sees it (/root), without the workspace and the package and SDK caches.
+          roots += [os.path.join(home, d) for d in sorted(os.listdir(home)) if d.startswith('.') and d not in
+                    ('.nuget', '.dotnet', '.cargo', '.rustup', '.npm', '.git', '.gradle', '.m2', '.ssh')]
+          skip = {'PackageCache', 'Artifacts', 'ScriptAssemblies', 'artifacts', 'node_modules'}
+          name = re.compile(r'pid|lock|instance|backend|daemon|server|process', re.I)
+          content = re.compile(rb'(?<!\d)296(?!\d)|^\s*\d{1,7}\s*$|(?i:pid|process_?id)["\'\s]*[:=]\s*\d+')
+          shown = 0
+          for root in roots:
+              for path, dirs, files in os.walk(root):
+                  dirs[:] = [d for d in dirs if d not in skip]
+                  for f in files:
+                      p = os.path.join(path, f)
+                      try:
+                          st = os.lstat(p)
+                          if not os.path.isfile(p) or st.st_size >= 4096: continue
+                          with open(p, 'rb') as fh: data = fh.read()
+                      except OSError:
+                          continue
+                      text = b'\0' not in data
+                      if not name.search(f) and not (text and content.search(data)): continue
+                      shown += 1
+                      if shown > 200: print('... more than 200 files, the rest left out'); sys.exit(0)
+                      body = data.decode('utf-8', 'replace') if text else data[:256].hex(' ')
+                      print(f'--- {p} ({st.st_size} B, modified {time.strftime("%H:%M:%S", time.gmtime(st.st_mtime))} UTC)')
+                      print(body.rstrip()[:1500])
+          print(f'{shown} files shown')
+          EOF
+
       # Unity 6000.6.9f1's editor kills itself about one launch in three: some 2 s after launch, in its first domain
       # reload (its log ends at "Registered in ... seconds."), a thread of the editor calls kill(2) with SIGKILL on
       # another thread ID of its own process, which kills the whole process: exit 137, "Killed" from xvfb-run, no test
@@ -369,6 +414,8 @@ jobs:
             exit 1
           fi
 
+      - *unity-state
+
       - name: Run the editor's play mode tests again (Unity killed itself)
         if: ${{ !cancelled() && steps.playmode-killed.outputs.retry == 'true' }}
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -376,6 +423,8 @@ jobs:
         timeout-minutes: 25
         env: *editor-env
         with: *playmode-with
+
+      - *unity-state
 
       - *mark-trace
 
@@ -405,6 +454,8 @@ jobs:
           UNITY_VERSION: ${{ matrix.unity }}
         run: *judge-kill
 
+      - *unity-state
+
       - name: Run the editor's edit mode tests again (Unity killed itself)
         if: ${{ !cancelled() && steps.editmode-killed.outputs.retry == 'true' }}
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
@@ -412,6 +463,8 @@ jobs:
         timeout-minutes: 25
         env: *editor-env
         with: *editmode-with
+
+      - *unity-state
 
       - *mark-trace
 
@@ -456,6 +509,8 @@ jobs:
           RESULTS: artifacts/player/standalone-results.xml
           UNITY_VERSION: ${{ matrix.unity }}
         run: *judge-kill
+
+      - *unity-state
 
       - name: Run the IL2CPP player's tests again (Unity killed itself)
         if: ${{ !cancelled() && steps.player-killed.outputs.retry == 'true' }}
