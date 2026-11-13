@@ -16,7 +16,7 @@ owns the search; measuring is `benchmark`, the code-level techniques are `optimi
 
 1. **Gaps**: every case where Nino is not clearly ahead of MemoryPack (and of MessagePack and protobuf-net where they
    can express the case) on x64 and Arm64; for Go, Rust and TypeScript, the competitors in each `bench` module. List
-   them per CPU from the latest Performance Report and the runtimes' reports.
+   them per CPU from the latest release's assets (`dotnet-x64.md`, `dotnet-arm64.md`, `runtime-*.md`).
 2. **Regressions against the previous main** (a release, or the commit before a wire-format change): nothing gets
    slower than main beyond the floor, and a change that should help must beat it. Diagnosing one case that got slower
    is `optimize` (.NET, Unity: compare the listings first) or `optimize-runtimes`; this skill collects them for the

@@ -171,7 +171,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   (or the benchmark's .NET, which is System.Text.Json's), update the version
   the docs site names in the same series: `git grep <old version>` in Nino.Docs (the home page's
   `src/components/home-sections.tsx`, the benchmark and `vs-*` pages in both languages, `scripts/csharp-check`). Why:
-  the site syncs the numbers from the release body but writes each library's version by hand, so new numbers would
+  the site syncs the numbers from the release's assets but writes each library's version by hand, so new numbers would
   sit next to the old version.
 
 ## Adding a case
@@ -217,24 +217,41 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   a TypeScript number moves without a code change): rotate the inputs of any microbenchmark that parses (K variants,
   round robin, made outside the timed region); keep only the running serializer's data live; read a runtime API newer
   than the bench off the module namespace and skip its task when undefined, judging such a line against a null line.
-- A new section or heading in the release body changes with its parser in Nino.Docs (`scripts/sync-benchmarks.ts`)
-  and the components that show it (`audit-docs`).
-- Budget every section of the release body against GitHub's 125,000 characters (`release_body.py`): the sections
-  appended late (runtimes, Unity) find what the .NET sections left, and `append --tag` makes the Arm64 section (attached
-  as `arm64-benchmark.md`, where the site reads it) give way to a link before it drops one. A section that still does
-  not fit is only a warning in a green job. v4.0.0-rc.9: x64 and Arm64 took 34k each, the six runtime sections 29k,
-  and the 10k Unity section was dropped (body 116,977).
+- A new result, asset name or format changes with its reader in Nino.Docs (`scripts/sync-benchmarks.ts`, which reads
+  the assets by name) and the components that show it (`audit-docs`): the names are `release_assets.py`'s `NAMES`.
+- Publish every result as a release asset listed in `benchmarks-manifest.json`, never as a table in the body:
+  `release_body.py publish` (each publish job of report.yml, one after another) attaches the files (merged
+  BenchmarkDotNet reports, the runtime, Unity and build sections, their JSON/CSV data), draws one chart per section
+  (`charts.py`, the README chart's code; PNG by headless Chrome) and rewrites the body's benchmark part between its
+  markers: a `<details>` per section with a one-line summary, the chart and links to the assets, about 7,000
+  characters for everything. Why: the tables grew toward GitHub's 125,000-character limit with every library and
+  case (v4.0.0-rc.9: x64 and Arm64 took 34k each, the runtime sections 29k, and the 10k Unity section was dropped at
+  116,977), and README, docs and the site parsed them back out of the body (#272). A body from before the manifest
+  keeps an old section until the manifest has its asset.
+- Reference a chart from the body by its raw URL on the release-notes branch (`charts/<tag>/<name>.png?v=<hash>`),
+  never by its release-download URL: GitHub serves release assets as `application/octet-stream` with
+  `Content-Disposition: attachment` (the download redirect sets `response-content-type=application/octet-stream`),
+  which its image proxy camo does not show, while raw.githubusercontent.com serves `image/png`. Git notes keep
+  files whose paths are not commit ids, so the charts share the branch with release_notes.py's notes (the owner's
+  choice: no new branch). Run headless Chrome without `--user-data-dir` in a cloud session: with it, Chromium 1243
+  wrote nothing and never exited.
+- Dry-run the publish jobs before changing them: `python3 benchmarks/reports/release_body.py publish --tag <tag>
+  --dir <work> --release-dir <fake release dir> NAME=PATH...` for each job in report.yml's order (a directory with
+  `body.md` stands in for the release; `CHROME=` names a Chromium), then `readme.py --assets <fake>/assets` in a copy
+  of the tree; `test_release_body.py` runs the same without Chrome.
 
 ## Publishing
 
 - Never publish a quick, local or A/B number. README.md, docs/v4-benchmarks.md, the chart, the release notes and the
   docs site take them only from `report.yml` (x64 and Arm64 shards, the runtimes and Unity sections, job id
-  `ShortRun-.NET 10.0`), through `release_body.py` / `readme.py` and the site's sync.
+  `ShortRun-.NET 10.0`), through the release's assets: `release_body.py` / `readme.py --assets` and the site's sync.
 - Take the build-time numbers (README's Build row `v3.build`, docs/v4-benchmarks.md's `doc.build.*` tables, the site's
-  build tables) only from the release body's "🏗️ Build: v3 3.3.13 vs v4 (source generator)" section: report.yml's
+  build tables) only from the release's `build-x64.md` asset (the "🏗️ Build: v3 3.3.13 vs v4 (source generator)"
+  section): report.yml's
   `generator` job runs this commit's `Nino.GeneratorBenchmark --json --no-analyzers` with v3 3.3.13's generator and
   core (NuGet, PackageDownload) and the tag's, at 330 and 1,100 types on one x64 runner, `generator_report.py` writes
-  the section, and `publish-generator` appends it and runs `readme.py --build` for the newest release. Why: they were
+  the section, and `publish-generator` publishes it (with the --json files) and runs `readme.py --assets` for the
+  newest release. Why: they were
   typed in from one local run on a 4-core Xeon, which no release refreshed (v4's generated source at 330 types had
   grown from the published 1.31 MB to 1.53 MB by main's f36cfaff). v3 at 1,100 types takes about 8 minutes a run, so it runs 3 times (2 measured).
 - Time the generator benchmark only after its warm-up (`--warmup`, 60 s by default, at least one run; `--runs` counts

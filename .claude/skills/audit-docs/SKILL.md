@@ -216,7 +216,7 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   DeepWiki on a dark `labelColor=24292F`. Every package badge shows the newest version, prereleases included
   (`nuget/vpre`, npm's `next` tag); Go has no registry, so its badge links pkg.go.dev. Every speed number in README is
   a `<!--bench:...-->` marker `benchmarks/reports/readme.py` fills from the release run (`ser.range`, `deser.range`,
-  `msgpack.*`, `protobuf.*`, `reuse.inplace`, `v3.*`; `v3.build` from the release body's build section, `benchmark`,
+  `msgpack.*`, `protobuf.*`, `reuse.inplace`, `v3.*`; `v3.build` from the release's build asset, `benchmark`,
   Publishing); a new number gets a key there, never a hand-typed value. Never
   start a line of a paragraph or list item with a marker: a line starting `<!--` opens an HTML block, and the rest
   of the item loses its bold and links (README.zh.md's first bullet, round 129). GitHub renders only pushed content,

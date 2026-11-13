@@ -131,7 +131,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   1.8.31), so the row cannot move to an older 6000.x. Name no variable of your own `GAME_CI_*`: the CLI reads
   each as an option (yargs `.env("GAME_CI")` under `strict`) and rejects one it does not know.
 - **Releases and reports**: `release.yml` and `report.yml` run only on the owner's action or a release; `report.yml`
-  runs only the sections the release's tree has. A job that checks out the release's tag (report.yml's bench jobs,
+  runs only the sections the release's tree has, and skips one whose asset the release already has
+  (`release_assets.py has`: the manifest, or the old body's heading). Its publish jobs (publish, publish-runtimes,
+  publish-generator, publish-unity) run one after another, since each rewrites the manifest and the body, and each
+  checks out this commit with credentials: `release_body.py publish` pushes its charts to the release-notes branch
+  (`benchmark`, Adding a case). A job that checks out the release's tag (report.yml's bench jobs,
   `unity.yml` called with `tag`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
   actions and scripts by their pinned SHA, never `./.github/actions/...` or a script the tag may lack (tags up to
   v4.0.0-rc.7 have no `.github/actions/setup-dotnet`); steps such a workflow repeats across its jobs share one YAML

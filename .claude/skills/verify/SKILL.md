@@ -78,5 +78,5 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`, and 
 
 The owner runs Actions → Release on `main` with a version (`.github/scripts/bump_version.py` bumps every package,
 the workflow tags, publishes NuGet, crates, npm and the Go tag through Trusted Publishing, and writes the notes from
-the trailers); `report.yml` then benchmarks the tag on x64 and Arm64 runners and puts the Performance Report in the
-release body, which the docs site syncs. CONTRIBUTING.md, "Releasing", has the details. Never trigger a release.
+the trailers); `report.yml` then benchmarks the tag on x64 and Arm64 runners, attaches the results to the release as assets
+(`benchmarks-manifest.json`) with a chart per section in the body, and the docs site syncs the assets. CONTRIBUTING.md, "Releasing", has the details. Never trigger a release.
