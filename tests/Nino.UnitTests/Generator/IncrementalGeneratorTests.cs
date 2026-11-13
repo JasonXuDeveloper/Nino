@@ -1008,6 +1008,38 @@ public static class Other { public static int GetFixedSize<T>() => 0; }
         AssertOnlyAddedOutputs(driver.GetRunResult().Results[0], "C1");
     }
 
+    [TestMethod]
+    public void AddingAMemberReEmitsOnlyTheTypesThatHoldIt()
+    {
+        // GeneratorBenchmark's member edit (#262): a member added to a base rebuilds every model of its file (the tree
+        // changed), but only the base's and its subtype's models differ, so only their formatter files are emitted
+        // again; the collected stages (registry, dispatch, usages, names) keep their values and emit nothing.
+        var compilation = Create(
+            ("A.cs", Usings + "[NinoType] public class Base { public int X; }\n" +
+                     "[NinoType] public class Derived : Base { public string Y; }\n" +
+                     "[NinoType] public class Other { public long Z; }\n" +
+                     "[NinoType] public struct Value { public int V; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+        driver = driver.RunGenerators(compilation);
+
+        compilation = Edit(compilation, "A.cs", "public int X;", "public int X; public int Extra;");
+        driver = driver.RunGenerators(compilation);
+        var result = driver.GetRunResult().Results[0];
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join("\n", result.Diagnostics));
+        var models = result.TrackedSteps["NinoType"].SelectMany(s => s.Outputs).ToList();
+        Assert.AreEqual(2, models.Count(o => o.Reason == IncrementalStepRunReason.Modified),
+            string.Join(", ", models.Select(o => o.Reason)));
+        foreach (var name in new[] { "ClashingNames", "Dispatch", "RegistryEntries", "FormatterRegistrations", "LayoutTypes" })
+        foreach (var output in result.TrackedSteps[name].SelectMany(s => s.Outputs))
+            Assert.IsTrue(output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                $"{name}: {output.Reason}");
+        var emitted = result.TrackedOutputSteps.SelectMany(s => s.Value).SelectMany(s => s.Outputs)
+            .Count(o => o.Reason != IncrementalStepRunReason.Cached);
+        Assert.AreEqual(2, emitted);
+        StringAssert.Contains(Output(driver, "Base"), "value.Extra");
+    }
+
     private static void AssertOnlyAddedOutputs(GeneratorRunResult result, string added)
     {
         Assert.AreEqual(0, result.Diagnostics.Length, string.Join("\n", result.Diagnostics));

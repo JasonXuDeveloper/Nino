@@ -238,6 +238,10 @@ for (int iteration = 0; iteration < warmupRuns + runs; iteration++)
     int at = text0.ToString().IndexOf("public int F3;", StringComparison.Ordinal);
     var memberEdit = tree.WithChangedText(text0.WithChanges(new TextChange(new TextSpan(at, 0), "public int Extra; ")));
     var edited = compilation.ReplaceSyntaxTree(tree, memberEdit);
+    // Collected before each edit too: emit and the analysis leave their garbage, and a collection landing in one edit
+    // or the other doubled its time (1,100 types: main's (52bcc223) member and comment edits took 0.28-0.34 and
+    // 0.56-0.67 s, 1938da63's 0.29-0.72 s either, run by run; collected first, 0.22-0.34 s and 0.25-0.31 s; #262).
+    Collect();
     sw.Restart();
     driver = driver.RunGenerators(edited);
     long memberMs = sw.ElapsedMilliseconds;
@@ -245,6 +249,7 @@ for (int iteration = 0; iteration < warmupRuns + runs; iteration++)
 
     var text1 = memberEdit.GetText();
     var commentEdit = memberEdit.WithChangedText(text1.WithChanges(new TextChange(new TextSpan(text1.Length, 0), "\n// comment\n")));
+    Collect();
     sw.Restart();
     driver.RunGenerators(edited.ReplaceSyntaxTree(memberEdit, commentEdit));
     long commentMs = sw.ElapsedMilliseconds;
