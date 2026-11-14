@@ -99,12 +99,25 @@ namespace Nino.Core
                 return;
             }
 
+            // Slots (raw T?): read as one run, as an array of them is, then added.
+            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            {
+                NinoCollections.AddSlots<TStack, T, TFormatter, Adder>(stack, length, ref reader);
+                return;
+            }
+
             for (int i = 0; i < length; i++)
             {
                 T item = default;
                 NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
                 stack.Push(item);
             }
+        }
+
+        private struct Adder : INinoAdder<TStack, T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Add(TStack target, T item) => target.Push(item);
         }
     }
 }
