@@ -34,6 +34,57 @@ namespace Nino.UnitTests
             Assert.IsFalse(NinoNullables<bool>.Raw);
         }
 
+        /// <summary>
+        /// A run written at every position of a cache line: the kernels store whole vectors of the destination where
+        /// whole elements lead there (the first step as it lies, the rest aligned), and the bytes are the same
+        /// wherever the run starts, for runs below and above the length that aligns and with stale memory in the
+        /// padding and in the absent values.
+        /// </summary>
+        [TestMethod]
+        public void RunsAreTheSameBytesAtEveryDestinationOffset()
+        {
+            At<byte>(i => (byte)(i + 1));
+            At<short>(i => (short)(-i - 2));
+            At(i => i * 7 - 3);
+            At(i => i * 10_000_000_000L + 1);
+            At(i => i + 0.5m);
+
+            static void At<T>(Func<int, T> make) where T : unmanaged
+            {
+                int size = Unsafe.SizeOf<T>(), stride = Unsafe.SizeOf<T?>(), offset = stride - size;
+                foreach (int count in new[] { 3, 31, 64, 65, 200, 1031 })
+                {
+                    var values = new T?[count];
+                    var memory = MemoryMarshal.CreateSpan(ref Unsafe.As<T?, byte>(ref values[0]), count * stride);
+                    memory.Fill(0xA5); // padding and absent values hold old bytes
+                    var expected = new byte[4 + count * stride];
+                    BitConverter.TryWriteBytes(expected, count);
+                    for (int i = 0; i < count; i++)
+                    {
+                        values[i] = i % 5 == 0 ? null : make(i);
+                        if (i % 5 == 0)
+                            memory.Slice(i * stride + offset, size).Fill(0x5A);
+                        else
+                        {
+                            expected[4 + i * stride] = 1;
+                            MemoryMarshal.Write(expected.AsSpan(4 + i * stride + offset), make(i));
+                        }
+                    }
+
+                    using var writer = new NinoArrayBufferWriter(64 + expected.Length);
+                    for (int lead = 0; lead < 64; lead++)
+                    {
+                        writer.ResetWrittenCount();
+                        writer.GetSpan(64);
+                        writer.Advance(lead);
+                        NinoSerializer.Serialize(values, writer);
+                        if (!writer.WrittenSpan.Slice(lead).SequenceEqual(expected))
+                            Assert.Fail($"{typeof(T).Name}?[{count}] written {lead} bytes into the buffer");
+                    }
+                }
+            }
+        }
+
         private const string Source = @"
 using System.Collections.Generic;
 using Nino.Core;

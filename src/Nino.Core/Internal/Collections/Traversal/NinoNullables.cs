@@ -519,6 +519,12 @@ namespace Nino.Core
             bool whole) => whole ? part & present : part & keep & present;
 #endif
 
+        /// <summary>
+        /// The steps from which <see cref="CopyLanes{TVector, TLanes}"/> aligns its stores: below, the extra step costs
+        /// more than the split stores.
+        /// </summary>
+        private const int AlignFrom = 8;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CopyLanes<TVector, TLanes>(ref byte destination, ref byte source, nuint total)
             where TVector : struct
@@ -528,6 +534,19 @@ namespace Nino.Core
             nuint step = (nuint)(LaneStep * Unsafe.SizeOf<TVector>() / 16);
             nuint end = total - step;
             nuint i = 0;
+            // Stores at whole vectors of the destination where whole elements lead there: the first step as it lies,
+            // then steps from the first aligned element on, which write its overlap again. A store that is not
+            // aligned to its width straddles two cache lines, and the stores bound this loop.
+            if (Stride != 24 && total >= AlignFrom * step)
+            {
+                nuint head = NinoUnsafe.BytesToAligned(ref destination, step);
+                if (head % (nuint)Stride == 0)
+                {
+                    lanes.Copy(ref destination, ref source, 0);
+                    i = head;
+                }
+            }
+
             if (Stride != 24)
                 for (; i + 3 * step < end; i += 4 * step)
                     lanes.CopyFour(ref destination, ref source, i);
