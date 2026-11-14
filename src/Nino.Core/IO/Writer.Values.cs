@@ -50,6 +50,13 @@ namespace Nino.Core
             }
 
             ref byte dst = ref Reserve(1 + NinoLayout<T>.Size);
+#if NET8_0_OR_GREATER
+            if (NullableWords<T>.Writes)
+            {
+                NullableWords<T>.Write(ref dst, in value);
+                return;
+            }
+#endif
             dst = NinoWire.NotNull;
 #if NET8_0_OR_GREATER
             // Pass the nullable's value directly to the layout writer, which takes it by readonly reference.

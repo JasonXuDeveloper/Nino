@@ -72,6 +72,18 @@ namespace Nino.Core.Internal
         public static void InvalidPresence(int value) =>
             throw new NinoDataException($"Nino: invalid presence byte {value} (only 0, null, and 1, a value).");
 
+        /// <summary>
+        /// A presence byte that is not null where only null fits: the end of the data (no byte, or a value's flag
+        /// with fewer bytes after it than the value takes, <paramref name="presence"/> -1 or 1), else an invalid byte.
+        /// </summary>
+        [MethodImpl(Cold)]
+        public static void NotNull(int presence)
+        {
+            if (presence is -1 or 1)
+                EndOfData();
+            InvalidPresence(presence);
+        }
+
         /// <summary>A collection that changed while it was being written (not invalid data: the caller's object).</summary>
         [MethodImpl(Cold)]
         public static void ModifiedDuringWrite() =>
