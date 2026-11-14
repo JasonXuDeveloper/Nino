@@ -142,6 +142,28 @@ public class LayoutRulesTests
         Breaks(One(Tolerant("[elements]::seq(raw(4))"), Tolerant("[elements]::seq(raw(8))")));
     }
 
+    /// <summary>
+    /// A member changed from <c>T?</c> to <c>NinoNullable&lt;T&gt;</c> (or back) is written the same way: only the type's
+    /// name differs, the encoding (what the rules compare) does not, in any format.
+    /// </summary>
+    [TestMethod]
+    public void NinoNullableInPlaceOfNullableChangesNothing()
+    {
+        const string stride = "seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)})";
+        string Members(string nullable, string key = "") =>
+            $"A:{nullable}<long>:nullable(raw(8)){(key.Length == 0 ? "" : ":key=" + K("A"))};" +
+            $"B:{nullable}<long>[]:{stride}{(key.Length == 0 ? "" : ":key=" + K("B"))};" +
+            $"C:System.Collections.Generic.List<{nullable}<long>>:{stride}{(key.Length == 0 ? "" : ":key=" + K("C"))}";
+        const string old = "System.Nullable", now = "Nino.Core.NinoNullable";
+        None(Positional(Members(old)), Positional(Members(now)));
+        None(Positional(Members(now)), Positional(Members(old)));
+        None(Tolerant(Members(old)), Tolerant(Members(now)));
+        None(Keyed(Members(old, "key")), Keyed(Members(now, "key")));
+        // The same change with another T is a change of the bytes.
+        Breaks(One(Positional("A:System.Nullable<long>:nullable(raw(8))"),
+            Positional("A:Nino.Core.NinoNullable<int>:nullable(raw(4))")), "A");
+    }
+
     [TestMethod]
     public void PositionalAnyChangeBreaks()
     {

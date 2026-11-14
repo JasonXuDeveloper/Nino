@@ -304,6 +304,65 @@ namespace Game
             baseline).RunAsync();
     }
 
+    // NinoNullable<T>
+
+    private const string Nullables = @"
+using System;
+using System.Collections.Generic;
+using Nino.Core;
+
+namespace Game
+{
+    [NinoType(format: NinoFormat.Keyed)]
+    public sealed class Save
+    {
+        public long? Gold;
+        public long?[] Scores;
+        public List<Vec?> Path;
+        public Row Row;
+    }
+
+    [NinoType]
+    public struct Vec
+    {
+        public float X;
+        public float Y;
+    }
+
+    [NinoType]
+    public struct Row
+    {
+        public string Name;
+        public decimal? Price;
+        public Guid?[] Ids;
+    }
+
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public class Settings
+    {
+        public int? Volume;
+        public List<long?> Marks;
+    }
+}";
+
+    /// <summary>
+    /// Every <c>T?</c> member, array and list of keyed, positional and version-tolerant types changed to
+    /// <c>NinoNullable&lt;T&gt;</c>, and back: the layouts' encodings are the same, so the baseline reports nothing.
+    /// </summary>
+    [TestMethod]
+    public async Task NinoNullableInPlaceOfNullableIsNoChange()
+    {
+        string changed = System.Text.RegularExpressions.Regex.Replace(Nullables, @"(\w+)\?", "NinoNullable<$1>");
+        StringAssert.Contains(changed, "public List<NinoNullable<Vec>> Path;");
+        StringAssert.Contains(changed, "public NinoNullable<Guid>[] Ids;");
+        Assert.IsFalse(changed.Contains('?'));
+        await Test(changed, await Baseline(Nullables)).RunAsync();
+        await Test(Nullables, await Baseline(changed)).RunAsync();
+        // The same edit with another T changes the bytes, and is reported.
+        await Test(Edit(changed, "public NinoNullable<int> Volume;", "public NinoNullable<long> {|#0:Volume|};"),
+            await Baseline(Nullables), D("NINO034").WithLocation(0)).RunAsync();
+    }
+
     // Version tolerant
 
     [TestMethod]
