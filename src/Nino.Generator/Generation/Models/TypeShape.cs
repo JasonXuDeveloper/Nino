@@ -25,9 +25,10 @@ internal sealed class TypeShape
         RawStruct = facts.Raw.IsRawStruct(type);
         HasCallbacks = Kind != FormatterKind.Polymorphic && !RawStruct &&
             Callbacks.HasInHierarchy(type, facts.Symbols);
-        if (Kind is not (FormatterKind.Class or FormatterKind.SealedClass))
+        if (Kind == FormatterKind.Polymorphic)
             return;
-        Collection = facts.Resolver.ResolveCollection(type);
+        if (Kind != FormatterKind.Struct)
+            Collection = facts.Resolver.ResolveCollection(type);
         MembersOpenBodies = facts.Members.Of(type, attr).Any(member =>
             facts.Symbols.HasCustomFormatter(member) ||
             MemberCollector.MemberType(member) is { } memberType &&
@@ -74,17 +75,17 @@ internal sealed class TypeShape
     public ResolvedFormatter? Collection { get; }
 
     /// <summary>
-    /// Whether a member of a class is written by a formatter that may open a class body (a custom formatter may,
-    /// see <see cref="ResolvedFormatter.OpensBodies"/>); false for structs, abstract classes and interfaces.
+    /// Whether a member of a class or struct is written by a formatter that may open a class body (a custom
+    /// formatter may, see <see cref="ResolvedFormatter.OpensBodies"/>; so may a <c>[NinoType]</c> member, a struct
+    /// included); false for abstract classes and interfaces.
     /// </summary>
     public bool MembersOpenBodies { get; }
 
     /// <summary>
     /// Whether its body may hold class bodies (<c>NinoBodyTraits.Nests</c>, <see cref="DepthModel.Nests"/>): any type
-    /// but a class whose members and elements open none.
+    /// but a class or struct whose members and elements open none.
     /// </summary>
-    public bool Nests => Kind is not (FormatterKind.Class or FormatterKind.SealedClass) ||
-                         Collection is { OpensBodies: true } || MembersOpenBodies;
+    public bool Nests => Kind == FormatterKind.Polymorphic || Collection is { OpensBodies: true } || MembersOpenBodies;
 }
 
 /// <summary>

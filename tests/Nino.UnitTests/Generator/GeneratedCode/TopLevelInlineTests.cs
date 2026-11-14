@@ -32,6 +32,8 @@ namespace Top
     [NinoType] public sealed class Map { public Dictionary<int, string> A; }
     [NinoType] public struct Pair { public int Id; public string Name; }
     [NinoType] public sealed class Big { public string A, B, C; }
+    [NinoType] public struct Wide { public string A, B, C; }
+    [NinoType] public struct Holder { public int Id; public Text T; }
     [NinoType] public sealed class Nullables { public int? A; public long? B; public Guid? C; public decimal? D; public string E; }
 
     public static class Api
@@ -78,6 +80,32 @@ namespace Top
             catch (NinoDataException) { return ""ok""; }
         }
 
+        // A struct that is not raw, as a value and as T?: alone, in an array with nulls, and read into an existing
+        // array (values kept where the data has them, dropped where it has null).
+        static string CheckStruct<T, TFormatter>(T a, T b) where T : struct where TFormatter : struct, INinoFormatter<T>
+        {
+            byte[] body = NinoDirect.Serialize<T, TFormatter>(a), other = NinoDirect.Serialize<T, TFormatter>(b);
+            var one = NinoDirect.Serialize<T?, NullableFormatter<T, TFormatter>>(a);
+            var none = NinoDirect.Serialize<T?, NullableFormatter<T, TFormatter>>(null);
+            var array = new T?[] { a, null, b };
+            var many = NinoDirect.Serialize<T?[], ArrayFormatter<T?, NullableFormatter<T, TFormatter>>>(array);
+            var expected = new byte[] { 3, 0, 0, 0, 1 }.Concat(body).Append((byte)0).Append((byte)1).Concat(other).ToArray();
+            var read = NinoDirect.Deserialize<T?[], ArrayFormatter<T?, NullableFormatter<T, TFormatter>>>(many);
+            var reused = new T?[] { null, b, a };
+            NinoDirect.Deserialize<T?[], ArrayFormatter<T?, NullableFormatter<T, TFormatter>>>(many, ref reused);
+            T? single = b;
+            NinoDirect.Deserialize<T?, NullableFormatter<T, TFormatter>>(one, ref single);
+            T? gone = a;
+            NinoDirect.Deserialize<T?, NullableFormatter<T, TFormatter>>(none, ref gone);
+            return Hex(one) == ""01"" + Hex(body) && Hex(none) == ""00"" && Hex(many) == Hex(expected) &&
+                   Hex(NinoDirect.Serialize<T?[], ArrayFormatter<T?, NullableFormatter<T, TFormatter>>>(read)) == Hex(expected) &&
+                   Hex(NinoDirect.Serialize<T?[], ArrayFormatter<T?, NullableFormatter<T, TFormatter>>>(reused)) == Hex(expected) &&
+                   !reused[1].HasValue && !gone.HasValue &&
+                   Hex(NinoDirect.Serialize<T, TFormatter>(single.Value)) == Hex(body)
+                ? ""ok""
+                : typeof(T).Name + ""?: "" + Hex(one) + "" / "" + Hex(many) + "" / "" + Hex(expected);
+        }
+
         public static string Run()
         {
             var results = new[]
@@ -103,6 +131,9 @@ namespace Top
                 CheckTop<Text, NinoGen.Top_TextFormatter.__Top, NinoGen.Top_TextFormatter>(null),
                 Throws(() => default(NinoGen.Top_NullablesFormatter.__Top).Read(new byte[] { 2 })),
                 Throws(() => default(NinoGen.Top_NullablesFormatter.__Top).Read(Array.Empty<byte>())),
+                CheckStruct<Pair, NinoGen.Top_PairFormatter>(new Pair { Id = 7, Name = ""é"" }, new Pair { Id = -1 }),
+                CheckStruct<Wide, NinoGen.Top_WideFormatter>(new Wide { A = ""a"", C = new string('ç', 300) }, default),
+                CheckStruct<Holder, NinoGen.Top_HolderFormatter>(new Holder { Id = 3, T = new Text { A = ""a"" } }, new Holder { Id = 4 }),
                 // Top-level collections: the interceptors use the __Top twins of their elements' formatters.
                 Check<Text[], ArrayFormatter<Text, NinoGen.Top_TextFormatter.__Top>, ArrayFormatter<Text, NinoGen.Top_TextFormatter>>(
                     new[] { new Text { A = ""a"", B = ""é"" }, null, new Text() }),
@@ -131,6 +162,18 @@ namespace Top
         StringAssert.Contains(sources["NinoGen.Top_BigFormatter.g.cs"],
             "=> default(Top_BigFormatter).WriteBody(value, ref writer);");
         Assert.IsFalse(sources["NinoGen.Top_PairFormatter.g.cs"].Contains("__Top"));
+        // A struct has no twin, but a body that opens no class body is a class's: out of line on a local copy of the
+        // reader and the writer (Pair, Wide). One holding a class (Holder) passes the reader and writer on, and stays
+        // as it was.
+        string pair = sources["NinoGen.Top_PairFormatter.g.cs"];
+        StringAssert.Contains(pair, "public int Traits => 0;");
+        StringAssert.Contains(pair, "writer.CopyTo(ref __w);");
+        string wide = sources["NinoGen.Top_WideFormatter.g.cs"];
+        StringAssert.Contains(wide, "writer.CopyTo(ref __w);");
+        StringAssert.Contains(wide, "reader.CopyTo(ref __r);");
+        string holder = sources["NinoGen.Top_HolderFormatter.g.cs"];
+        StringAssert.Contains(holder, "public int Traits => 1;");
+        Assert.IsFalse(holder.Contains("CopyTo") || holder.Contains("Inline("), holder);
         // Nullable raw members write through the writer inline (Flat): the body runs on a local copy of the writer.
         // A null value is handled in the twin's inlined Write and Read, the rest out of line.
         string nullables = sources["NinoGen.Top_NullablesFormatter.g.cs"];
