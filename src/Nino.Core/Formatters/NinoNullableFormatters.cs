@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
@@ -6,11 +7,20 @@ using Nino.Core.Internal;
 namespace Nino.Core
 {
     /// <summary>
-    /// <see cref="NinoNullable{T}"/>: the bytes of <c>T?</c> (<see cref="NullableFormatter{T,TFormatter}"/> of a raw
-    /// <typeparamref name="T"/>: a presence byte, then the value when present).
+    /// <see cref="NinoNullable{T}"/>: the bytes of <c>T?</c> (<see cref="RawNullableFormatter{T}"/>: a presence
+    /// byte, then the value when present; as the element of a collection, a slot of a fixed size).
     /// </summary>
-    public struct NinoNullableFormatter<[NinoRaw] T> : INinoFormatter<NinoNullable<T>> where T : unmanaged
+    public struct NinoNullableFormatter<[NinoRaw] T> : INinoFormatter<NinoNullable<T>>,
+        INinoSlotFormatter<NinoNullable<T>> where T : unmanaged
     {
+        int INinoSlotFormatter<NinoNullable<T>>.SlotStride => NinoNullables<T>.Stride;
+
+        void INinoSlotFormatter<NinoNullable<T>>.WriteSlots(ref byte destination,
+            ReadOnlySpan<NinoNullable<T>> values) => NinoNullables<T>.WriteSlots(ref destination, values);
+
+        void INinoSlotFormatter<NinoNullable<T>>.ReadSlots(Span<NinoNullable<T>> values, ref Reader reader) =>
+            NinoNullables<T>.Read(values, ref reader);
+
         // Both read and write the value's memory (presence, then value) as it is: through T? each call built a
         // Nullable from two fields and took it apart again.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

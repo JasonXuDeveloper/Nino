@@ -87,8 +87,8 @@ namespace Nino.Core
         public void Deserialize(ref Reader reader, ref PriorityQueue<TElement, TPriority> value)
         {
             // Each pair takes at least its fewest bytes, which bounds what the queue allocates ahead of them.
-            int minPair = NinoElements.MinWireSize<TElement, TElementFormatter>() +
-                          NinoElements.MinWireSize<TPriority, TPriorityFormatter>();
+            int minPair = NinoElements.MinSingleSize<TElement, TElementFormatter>() +
+                          NinoElements.MinSingleSize<TPriority, TPriorityFormatter>();
             if (!reader.TryReadLengthOrDiscard(ref value, minPair, out int length))
                 return;
 

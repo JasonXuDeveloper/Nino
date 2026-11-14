@@ -39,7 +39,8 @@ internal static class WireEncoding
             "NullableArrayFormatter" or "NullableListFormatter" or "NinoNullableArrayFormatter"
                 or "NinoNullableListFormatter" => $"seq({RawLayout.Describe(compilation
                 .GetSpecialType(SpecialType.System_Nullable_T).Construct(types[types.Length - 1]))})",
-            "NinoNullableFormatter" => $"nullable({RawLayout.Describe(types[types.Length - 1])})",
+            "NinoNullableFormatter" or "RawNullableFormatter" =>
+                $"nullable({RawLayout.Describe(types[types.Length - 1])})",
             "DictionaryFormatter" or "DictionaryLikeFormatter" or "InterfaceDictionaryFormatter" =>
                 $"map({e[0]},{e[1]})",
             "KeyValuePairFormatter" => $"pair({e[0]},{e[1]})",
@@ -62,6 +63,34 @@ internal static class WireEncoding
             _ => null,
         };
     }
+
+    /// <summary>
+    /// The encoding of a raw <c>T?</c> or a <c>NinoNullable&lt;T&gt;</c> as the element of a sequence: a slot of a
+    /// fixed size (the layout of <c>Nullable&lt;T&gt;</c>), where a single value is <c>nullable(...)</c>. Null for
+    /// every other formatter.
+    /// </summary>
+    public static string? SlotOf(string formatter, ITypeSymbol[] types, Compilation compilation) =>
+        formatter is "RawNullableFormatter" or "NinoNullableFormatter"
+            ? RawLayout.Describe(compilation.GetSpecialType(SpecialType.System_Nullable_T)
+                .Construct(types[types.Length - 1]))
+            : null;
+
+    /// <summary>
+    /// Which element formatter of a Nino.Core formatter writes the elements of a sequence (0 or 1, counted among its
+    /// element formatters), which are slots where they have one (<see cref="SlotOf"/>); -1 for a formatter that
+    /// writes single values only (pairs, maps, tuples, nullables).
+    /// </summary>
+    public static int SequenceElement(string formatter) => formatter switch
+    {
+        "ArrayFormatter" or "ArraySegmentFormatter" or "MemoryFormatter" or "ReadOnlyMemoryFormatter"
+            or "ReadOnlySequenceFormatter" or "ListFormatter" or "CollectionFormatter" or "HashSetFormatter"
+            or "QueueFormatter" or "StackFormatter" or "ProducerConsumerFormatter"
+            or "ConcurrentStackFormatter" or "BlockingCollectionFormatter"
+            or "InterfaceListFormatter" or "InterfaceSetFormatter"
+            or "Array2DFormatter" or "Array3DFormatter" or "Array4DFormatter" => 0,
+        "GroupingFormatter" or "LookupFormatter" => 1,
+        _ => -1,
+    };
 
     /// <summary>
     /// The items of a value tuple of eight or more: the seven, then those of its rest (a value tuple), as one tuple of

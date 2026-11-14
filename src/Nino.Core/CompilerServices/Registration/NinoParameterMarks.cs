@@ -63,6 +63,7 @@ namespace Nino.Core.CompilerServices
             marks[typeof(UnmanagedFormatter<>)] = new[] { RawParameter };
             marks[typeof(UnmanagedArrayFormatter<>)] = new[] { RawParameter };
             marks[typeof(NullableArrayFormatter<>)] = new[] { RawParameter };
+            marks[typeof(RawNullableFormatter<>)] = new[] { RawParameter };
             marks[typeof(UnmanagedListFormatter<,>)] = new[] { CreatedParameter, RawParameter };
             marks[typeof(NullableListFormatter<,>)] = new[] { CreatedParameter, RawParameter };
             marks[typeof(NinoNullableFormatter<>)] = new[] { RawParameter };

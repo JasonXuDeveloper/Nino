@@ -70,7 +70,8 @@ internal static class FormatterTraitsOf
                 FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
             "NullableFormatter" when count == 2 && (last & FormatterTraits.PreservesReadContext) != 0 =>
                 FormatterTraits.PreservesReadContext,
-            "NinoNullableFormatter" => FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
+            "NinoNullableFormatter" or "RawNullableFormatter" =>
+                FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
             "NullableArrayFormatter" or "NullableListFormatter" or "NinoNullableArrayFormatter"
                 or "NinoNullableListFormatter" => FormatterTraits.PreservesReadContext,
             "ArrayFormatter" or "MemoryFormatter" or "ReadOnlyMemoryFormatter" or "ArraySegmentFormatter" or

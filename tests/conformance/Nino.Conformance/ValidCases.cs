@@ -721,7 +721,8 @@ namespace Conformance
             // ---------------------------------------------------------- nullables and pairs as type arguments
 
             Add("generic-nullable-arguments", "Nullables and pairs inside the type arguments of a generic type: raw " +
-                                              "nullables in arrays and lists at a fixed stride, item by item elsewhere.",
+                                              "nullables at a fixed stride as the elements of a sequence, item by " +
+                                              "item as a dictionary's value or a pair's item.",
                 new WrappedArgs
                 {
                     NullableArray = new Wrap<int?[]> { Value = new int?[] { 1, null, 3 } },
@@ -735,6 +736,26 @@ namespace Conformance
                     },
                     PairArray = new Wrap<KeyValuePair<string, int?>[]> { Value = new[] { new KeyValuePair<string, int?>("k", null) } },
                 }, "nullable", "seq", "map");
+
+            // ---------------------------------------------------------- raw nullables as the elements of sequences
+
+            Add("nullable-sequences", "Raw nullables as the elements of sets, of a grid and of nested sequences: a " +
+                                      "fixed stride each (spec 6.2), as in an array; as a dictionary's value and a " +
+                                      "pair's item: a presence byte, then the value.",
+                new NullableSequences
+                {
+                    IntSet = new HashSet<int?> { 4, null, int.MinValue },
+                    LongSet = new HashSet<long?> { null, long.MaxValue },
+                    Grid = new int?[,] { { 1, null, 3 }, { null, 5, null } },
+                    PaddedGrid = new Padded?[,] { { new Padded { A = 3, B = 4 }, null } },
+                    Nested = new List<HashSet<int?>> { new HashSet<int?> { 1 }, new HashSet<int?>(), new HashSet<int?> { null } },
+                    Values = new Dictionary<int, long?> { [1] = null, [2] = 7 },
+                    Pairs = new List<KeyValuePair<int, int?>> { new(1, null), new(2, 9) },
+                }, "nullable", "seq", "map", "grid");
+            Add("nullable-sequences-empty", "Empty and null sequences of raw nullables.", new NullableSequences
+            {
+                IntSet = new HashSet<int?>(), Grid = new int?[0, 3], Nested = new List<HashSet<int?>>(),
+            }, "nullable", "seq", "grid");
 
             return cases;
         }

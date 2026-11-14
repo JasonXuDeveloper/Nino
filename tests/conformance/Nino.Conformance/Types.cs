@@ -840,6 +840,27 @@ namespace Conformance
     }
 }
 
+namespace Conformance
+{
+    // ------------------------------------------------------------------ raw nullables as the elements of sequences
+
+    /// <summary>
+    /// Raw nullables as the elements of sequences other than arrays and lists (a fixed stride each, spec 6.2), and
+    /// as single values inside collections (a presence byte, then the value).
+    /// </summary>
+    [NinoType]
+    public sealed class NullableSequences
+    {
+        public HashSet<int?> IntSet;
+        public HashSet<long?> LongSet;
+        public int?[,] Grid;
+        public Padded?[,] PaddedGrid;
+        public List<HashSet<int?>> Nested;
+        public Dictionary<int, long?> Values;
+        public List<KeyValuePair<int, int?>> Pairs;
+    }
+}
+
 // Small roots the malicious cases are forged against: one member each, after the sealed class's null flag.
 namespace Conformance.Targets
 {
@@ -867,4 +888,6 @@ namespace Conformance.Targets
     [NinoType] public sealed class ObjectSlot { public object Value; }
     [NinoType] public sealed class BigSlot { public BigInteger Value; }
     [NinoType] public sealed class VersionSlot { public Version Value; }
+    [NinoType] public sealed class MaybeIntSet { public HashSet<int?> Values; }
+    [NinoType] public sealed class MaybeIntGrid { public int?[,] Values; }
 }

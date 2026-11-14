@@ -99,6 +99,11 @@ namespace Conformance
             Lengths<StringList>("string-list", 0, Concat(V(1), V(0)));
             Lengths<PointList>("point-list", 0, Concat(NotNull, I32(1), I32(2), new byte[] { 0 }));
             Lengths<IntMap>("int-map", 8, Concat(I32(1), I32(2), I32(3), I32(4)));
+            Lengths<MaybeIntSet>("nullable-set", 8, Concat(I32(1), I32(1), I32(1), I32(2)));
+            // The elements a single T? each (a presence byte and the value: the encoding before the fixed stride).
+            Add<MaybeIntSet>("length", "nullable-set-single-values",
+                "HashSet<int?>: two elements written as a presence byte and the value each (10 bytes), not as two " +
+                "slots of 8.", NotNull, I32(2), new byte[] { 1 }, I32(1), new byte[] { 1 }, I32(2));
             Lengths<StringSet>("string-set", 0, Concat(V(3), new byte[] { (byte)'a' }, V(1)));
 
             Control<Grid>("grid", NotNull, I32(2), I32(2), I32(1), I32(2), I32(3), I32(4));
@@ -221,6 +226,8 @@ namespace Conformance
             Control<TextValue>("null-flag", new byte[] { 1 }, V(1));
             Control<MaybeInt>("nullable", NotNull, new byte[] { 1 }, I32(7));
             Control<MaybeIntArray>("nullable-array", NotNull, I32(1), new byte[] { 1, 0, 0, 0 }, I32(7));
+            Control<MaybeIntSet>("nullable-set", NotNull, I32(1), new byte[] { 1, 0, 0, 0 }, I32(7));
+            Control<MaybeIntGrid>("nullable-grid", NotNull, I32(1), I32(1), new byte[] { 1, 0, 0, 0 }, I32(7));
             Control<Integers>("root-null-flag", new byte[] { 1 }, new byte[62]);
             foreach (byte b in new byte[] { 2, 0xFF })
             {
@@ -236,6 +243,12 @@ namespace Conformance
                 Add<MaybeIntArray>("presence", $"nullable-array-flag-{hex}",
                     $"An int?[] element (fixed stride: flag, 3 padding bytes, value) whose flag is 0x{hex}.", NotNull,
                     I32(1), new byte[] { b, 0, 0, 0 }, I32(7));
+                Add<MaybeIntSet>("presence", $"nullable-set-flag-{hex}",
+                    $"A HashSet<int?> element (fixed stride, as an int?[]'s) whose flag is 0x{hex}.", NotNull,
+                    I32(1), new byte[] { b, 0, 0, 0 }, I32(7));
+                Add<MaybeIntGrid>("presence", $"nullable-grid-flag-{hex}",
+                    $"An int?[,] element (fixed stride) whose flag is 0x{hex}.", NotNull,
+                    I32(1), I32(1), new byte[] { b, 0, 0, 0 }, I32(7));
                 Add<Integers>("presence", $"root-null-flag-{hex}", $"The top-level object's null flag of 0x{hex}.",
                     new[] { b }, new byte[62]);
 

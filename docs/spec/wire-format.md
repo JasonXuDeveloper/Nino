@@ -55,7 +55,7 @@ All multi-byte integers and floating-point values are **little-endian**. Nothing
 after the previous one, whatever its size. The .NET implementation refuses to run on big-endian hosts
 (`PlatformNotSupportedException`). Implementations on big-endian hosts MUST byte-swap.
 
-The only padding on the wire is inside raw structs (§5) and inside nullable elements of raw arrays (§6.2). Writers
+The only padding on the wire is inside raw structs (§5) and inside raw nullable elements of sequences (§6.2). Writers
 MUST write that padding as zero bytes.
 
 ### 2.2 No envelope
@@ -461,7 +461,8 @@ This covers:
 - user classes that derive from or implement these collections.
 
 When the elements are raw (§5), the elements follow as one contiguous block of `count × size` bytes. This produces
-the same bytes as writing them one by one.
+the same bytes as writing them one by one. When they are `T?` of a raw `T`, each is a slot of a fixed size (§6.2),
+not the single `T?` of §6.5.
 
 Element order:
 
@@ -490,8 +491,8 @@ Stack<int> push 1, 2      02 00 00 00 01 00 00 00 02 00 00 00
 
 ### 6.2 Raw nullable elements: the fixed stride
 
-A `T?[]` or `List<T?>` (also `Memory`, `ArraySegment` and the like, when the generator binds the formatter), where
-`T` is raw, is written as a count followed by `count` elements of **stride `S = A + size(T)`**. Here `A` is `T`'s
+Every sequence of §6.1 whose element type is `T?` with a raw `T` (also `NinoNullable<T>`, which is written as
+`T?`) is written as a count followed by `count` elements of **stride `S = A + size(T)`**. Here `A` is `T`'s
 canonical alignment and `size(T)` its canonical size. Each element is laid out like this:
 
 ```
@@ -515,10 +516,20 @@ int?[]  {1, null}   02 00 00 00 | 01 00 00 00 01 00 00 00 | 00 00 00 00 00 00 00
 byte?[] {1, null}   02 00 00 00 | 01 01 | 00 00
 ```
 
-This applies only to array-like and list types bound to the nullable-element formatter. A member declared as
-`IList<T?>`, `IEnumerable<T?>` or another interface writes each element as a single `T?` (§6.5), with no padding:
-`IList<int?> {1, null}` → `02 00 00 00 | 01 01 00 00 00 | 00`. The layout metadata tells the two cases apart:
-`seq(raw(S){...})` versus `seq(nullable(...))`. But see §10, items 1 and 2.
+This applies to every sequence, whatever holds it: arrays, lists, sets, queues, stacks, linked lists, the
+concurrent and immutable collections, `Memory` and its relatives, the collection interfaces, the elements of a
+multi-dimensional array (§6.7) and of a lookup's groups (§6.4): `Queue<int?> {1, null}`, `IList<int?> {1, null}` and
+`HashSet<int?> {1, null}` are the bytes of `int?[] {1, null}` above. The layout metadata says so: `seq(raw(S){...})`,
+`grid(r,raw(S){...})`, `group(K,raw(S){...})`.
+
+It does not apply to a `T?` that is not the element of a sequence: a member, a dictionary's key or value, the item
+of a pair or a tuple and the element or priority of a `PriorityQueue` are single values (§6.5), also inside a
+sequence (`Dictionary<int, int?>`, `List<(int, int?)>`, `KeyValuePair<string, int?>[]`). Nor to a `T?` whose `T` is
+not raw (`DateTimeOffset?`, a value tuple, a struct holding a reference): `seq(nullable(...))`. But see §10, items 1
+and 2.
+
+Nino up to 4.0.0-rc.10 wrote the slot only for `T?[]`, `List<T?>` and types derived from it, and a single `T?` per
+element in every other sequence. A reader of this version does not read such data.
 
 ### 6.3 Maps
 
@@ -564,7 +575,8 @@ PriorityQueue {("a",2), ("b",1)}    02 00 00 00 | 03 62 01 00 00 00 | 03 61 02 0
 ### 6.5 Nullable values, `Lazy<T>` and `Tuple<...>`
 
 - `T?` (a nullable value type): a presence byte, then `T` when present. This holds at every place a single `T?`
-  appears, including members and interface-typed collections (§6.2 is the only exception).
+  appears: members, the keys and values of maps, the items of pairs and tuples. The elements of a sequence are the
+  only exception, where `T` is raw (§6.2).
 - `Lazy<T>`: the same as `T?`, holding the lazy's `Value`.
 - `Tuple<T1, ...>` (a class): a presence byte, then the items in order.
 
@@ -1050,8 +1062,8 @@ hexdigit      = digit | "A" | "B" | "C" | "D" | "E" | "F" ;
 A raw struct holding `nint`, `nuint`, pointers, function pointers, `Int128`/`UInt128` or `DateTimeOffset` publishes its fields at their
 canonical offsets (§5.2): `B:System.Int128@16:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}` after a `byte`,
 `B:System.IntPtr@8:raw(8)`, and `DateTimeOffset` as
-`raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}`. A `Nullable<Int128>` element of a fixed-stride
-array is `seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){...}})` (§6.2; corpus cases
+`raw(16){dateTime:System.DateTime@8:raw(8),offsetMinutes:int@0:raw(4)}`. A `Nullable<Int128>` element of a
+sequence is `seq(raw(32){hasValue:bool@0:raw(1),value:System.Int128@16:raw(16){...}})` (§6.2; corpus cases
 `bcl-raw-host`, `bcl-raw-offset`).
 `Vector64<T>` to `Vector512<T>`, and raw structs holding one, are published as the bare `raw`: no target of nino-gen
 expresses them, and it leaves out the types that hold them (NINOGEN002). `Vector<T>` is never published: no type that
@@ -1089,7 +1101,7 @@ checked one product at a time against overflow and the remaining bytes.
 
 A presence byte or a `bool` MUST be `0` or `1`, and readers MUST reject other values: a `bool` read as a value or a
 member, the elements of a `bool[]` or `List<bool>` (and other raw blocks of `bool`), the presence byte of a sealed
-class, `T?`, `Lazy<T>` or `Tuple<...>`, and the presence bytes of a fixed-stride `T?[]` (§6.2). **.NET:** done
+class, `T?`, `Lazy<T>` or `Tuple<...>`, and the presence bytes of the fixed-stride elements of a sequence (§6.2). **.NET:** done
 (`Nino: invalid bool byte`, `Nino: invalid presence byte`); so are the Go, Rust and TypeScript runtimes.
 
 Note: the .NET reader copies a raw struct (§5) as one block, so a `bool` field or a `Nullable` flag inside one is not
@@ -1441,12 +1453,13 @@ FF FF FF FF           reference header: new object #1
 [NinoType] struct RawPoint { int X; byte Y; }      {1, 2}       01 00 00 00 02 00 00 00
 RawPoint[] {(1,2), (3,4)}                          02 00 00 00 | 01 00 00 00 02 00 00 00 | 03 00 00 00 04 00 00 00
 long?[] {1, null}                                  02 00 00 00 | 01 00×7 01 00×7 | 00×16
-sealed class Nulls { int?[] Arr; List<int?> L; IList<int?> IL; int? One; long? LongOne; }
-  = { {1,null}, {1,null}, {1,null}, 7, null }
+sealed class Nulls { int?[] Arr; List<int?> L; IList<int?> IL; Dictionary<int, int?> D; int? One; long? LongOne; }
+  = { {1,null}, {1,null}, {1,null}, {1: 1, 2: null}, 7, null }
 01
 02 00 00 00 01 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00     Arr (stride 8)
 02 00 00 00 01 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00     L   (stride 8)
-02 00 00 00 01 01 00 00 00 00                                    IL  (one T? each)
+02 00 00 00 01 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00     IL  (stride 8)
+02 00 00 00 01 00 00 00 01 01 00 00 00 02 00 00 00 00           D   (a key, then one T? each)
 01 07 00 00 00                                                   One
 00                                                               LongOne
 ```

@@ -76,7 +76,7 @@ namespace Nino.Core
         {
             writer.WriteLength(value.Count);
             foreach (var item in value)
-                default(TFormatter).Serialize(item, ref writer);
+                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
             return writer;
         }
 
@@ -112,7 +112,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref reader, ref item);
+                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
                 queue.Enqueue(item);
             }
         }

@@ -54,7 +54,7 @@ namespace Nino.Core
             int count = 0;
             foreach (var element in value)
             {
-                default(TElementFormatter).Serialize(element, ref writer);
+                NinoElements.WriteOne<TElement, TElementFormatter>(element, ref writer);
                 count++;
             }
 

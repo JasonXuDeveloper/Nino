@@ -18,6 +18,24 @@ namespace Nino.Immutable
             Return(array);
         }
 
+        /// <summary>
+        /// Whether <typeparamref name="T"/> is a nullable value (<c>T?</c>, <see cref="NinoNullable{T}"/>): as the
+        /// element of a collection Nino.Core writes a raw one as a slot of a fixed size, not as its formatter writes
+        /// a single value, so such elements are always written from an array (<see cref="WriteEnumerated{T,TFormatter}"/>),
+        /// never one by one through their formatter.
+        /// </summary>
+        internal static class Slots<T>
+        {
+            public static readonly bool Possible = Nullable.GetUnderlyingType(typeof(T)) != null ||
+                typeof(T).IsGenericType && typeof(T).GetGenericTypeDefinition() == typeof(NinoNullable<>);
+        }
+
+        /// <summary>Writes <paramref name="items"/> as a <c>List&lt;T&gt;</c> of them is written, out of line.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void WriteEnumerated<T, TFormatter>(IEnumerable<T> items, ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T> =>
+            default(ListFormatter<List<T>, T, TFormatter>).Serialize(new List<T>(items), ref writer);
+
         /// <summary>Returns a rented array, cleared if it may hold references (as Nino.Core returns its own).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Return<T>(T[] array) =>

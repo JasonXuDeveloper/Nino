@@ -237,8 +237,9 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
   and read with the same declared type (`Serialize<Base>` then `Deserialize<Base>`).
 - `NinoSettings` changed after the first Nino call throws.
 - Sharing one `NinoArrayBufferWriter` between threads, or using `WrittenSpan` after the next write or reset.
-- `int?[]` / `List<int?>` and `IList<int?>` write different bytes; so do `[NinoUtf8]` and the default; so does a raw
-  struct made `VersionTolerant`.
+- `List<int?>` (a fixed stride per element, as every sequence of `int?`) and `Dictionary<int, int?>` values or
+  `(int, int?)` items (a presence byte, then the value) write `int?` differently; so do `[NinoUtf8]` and the
+  default; so does a raw struct made `VersionTolerant`.
 - v3 code: `Serializer.Serialize` / `Deserializer.Deserialize(data, out v)` are now `NinoSerializer.Serialize` /
   `NinoDeserializer.Deserialize<T>(data)`; `[NinoExplicitOrder]` is gone (`[NinoType(false)]` + `[NinoMember]`). v4
   cannot read v3 data. Beta names: `[NinoRefDeserialization]` is `[NinoFactory]`, `DeserializeRef` is

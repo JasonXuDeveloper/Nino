@@ -106,6 +106,8 @@ public sealed partial class Particle
 
 ## Encodings that differ (changing one changes the bytes)
 
-- `int?[]` / `List<int?>` (fixed stride) and `IList<int?>` / `IEnumerable<int?>` (element by element).
+- `int?` as the element of any sequence (`int?[]`, `List<int?>`, `Queue<int?>`, `IList<int?>`: a fixed stride of
+  8 bytes) and as a single value (`Dictionary<int, int?>` values, `(int, int?)` items, members: a presence byte,
+  then the value).
 - `[NinoUtf8]` and the default string encoding.
 - A raw struct and the same struct made `VersionTolerant`.

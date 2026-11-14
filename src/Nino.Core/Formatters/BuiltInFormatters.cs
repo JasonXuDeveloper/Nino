@@ -20,6 +20,7 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(IntPtrFormatter))]
 [assembly: NinoFormatter(typeof(UIntPtrFormatter))]
 [assembly: NinoFormatter(typeof(DateTimeOffsetFormatter))]
+[assembly: NinoFormatter(typeof(RawNullableFormatter<>), Priority = 1)]
 [assembly: NinoFormatter(typeof(NullableFormatter<,>))]
 [assembly: NinoFormatter(typeof(NinoNullableFormatter<>))]
 [assembly: NinoFormatter(typeof(KeyValuePairFormatter<,,,>))]

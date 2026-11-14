@@ -30,6 +30,12 @@ namespace Nino.Immutable
                 return;
             }
 
+            if (count != 0 && ImmutableCollections.Slots<T>.Possible)
+            {
+                ImmutableCollections.WriteEnumerated<T, TFormatter>(value, ref writer);
+                return;
+            }
+
             // Element by element with its own (struct) enumerator: through IEnumerable<T>, each step is an
             // interface call.
             writer = WriteItems(value, count, writer);
