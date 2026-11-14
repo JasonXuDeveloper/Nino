@@ -481,7 +481,8 @@ jobs:
             echo "DOCS_DEPLOY_HOOK is not set: skipping the docs rebuild"
             exit 0
           fi
-          curl -fsS -X POST "$DOCS_DEPLOY_HOOK" > /dev/null
+          # Cloudflare's deploy hook answers 503 now and then (rc.10's first call): retry it.
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 15 -X POST "$DOCS_DEPLOY_HOOK" > /dev/null
           echo "✅ Docs rebuild started"
 
       # After a failure too, with what failed: the benchmark shards' result and this job's.
