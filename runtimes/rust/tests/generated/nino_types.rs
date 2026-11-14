@@ -3908,6 +3908,93 @@ impl MaybeIntArray {
     nino::type_consts!(0x436A69B2u32 as i32, "Conformance.Targets.MaybeIntArray", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})");
 }
 
+/// `Conformance.Targets.MaybeIntGrid`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct MaybeIntGrid {
+    pub values: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
+}
+
+impl NinoReadBody for MaybeIntGrid {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.values)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for MaybeIntGrid {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.values)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for MaybeIntGrid {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for MaybeIntGrid {
+    nino::sealed_write!();
+}
+
+impl MaybeIntGrid {
+    nino::type_consts!(0xCA7112FBu32 as i32, "Conformance.Targets.MaybeIntGrid", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCA7112FB; deferrable=true; members=Values:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})");
+}
+
+/// `Conformance.Targets.MaybeIntSet`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct MaybeIntSet {
+    pub values: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
+}
+
+impl NinoReadBody for MaybeIntSet {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.values)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for MaybeIntSet {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.values)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for MaybeIntSet {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for MaybeIntSet {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<indexmap::IndexSet<nino::RawNullable<i32>>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.values.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.values.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl MaybeIntSet {
+    nino::type_consts!(0x8BFF9D91u32 as i32, "Conformance.Targets.MaybeIntSet", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8BFF9D91; deferrable=true; members=Values:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})");
+}
+
 /// `Conformance.Middle`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -4155,6 +4242,82 @@ impl NinoWrite for NinoNullables {
 
 impl NinoNullables {
     nino::type_consts!(0x66E9615Au32 as i32, "Conformance.NinoNullables", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x66E9615A; deferrable=true; members=Long:Nino.Core.NinoNullable<long>:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)};Decimal:Nino.Core.NinoNullable<decimal>:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)};Guid:Nino.Core.NinoNullable<System.Guid>:raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)};Padded:Nino.Core.NinoNullable<Conformance.Padded>:raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}};LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:Nino.Core.NinoNullable<decimal>[]:seq(raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});DecimalList:System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>>:seq(raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});GuidArray:Nino.Core.NinoNullable<System.Guid>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});GuidList:System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>>:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});PaddedArray:Nino.Core.NinoNullable<Conformance.Padded>[]:seq(raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>>:seq(raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});GuidQueue:System.Collections.Generic.Queue<Nino.Core.NinoNullable<System.Guid>>:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});DecimalMap:System.Collections.Generic.Dictionary<int, Nino.Core.NinoNullable<decimal>>:map(raw(4),raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});Fields:Conformance.NinoNullableFields:raw(48){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},Price:Nino.Core.NinoNullable<decimal>@16:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)}};FieldsArray:Conformance.NinoNullableFields[]:seq(raw(48){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},Price:Nino.Core.NinoNullable<decimal>@16:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)}})");
+}
+
+/// `Conformance.NullableSequences`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct NullableSequences {
+    pub int_set: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
+    pub long_set: Option<indexmap::IndexSet<nino::RawNullable<i64>>>,
+    pub grid: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
+    pub padded_grid: Option<nino::Grid<nino::RawNullable<Padded>, 2>>,
+    pub nested: Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>,
+    pub values: Option<indexmap::IndexMap<i32, Option<i64>>>,
+    pub pairs: Option<Vec<(i32, Option<i32>)>>,
+}
+
+impl NinoReadBody for NullableSequences {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.int_set)?;
+        r.read_into(&mut self.long_set)?;
+        r.read_into(&mut self.grid)?;
+        r.read_into(&mut self.padded_grid)?;
+        r.read_into(&mut self.nested)?;
+        r.read_into(&mut self.values)?;
+        r.read_into(&mut self.pairs)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for NullableSequences {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.int_set)?;
+        w.write(&self.long_set)?;
+        w.write(&self.grid)?;
+        w.write(&self.padded_grid)?;
+        w.write(&self.nested)?;
+        w.write(&self.values)?;
+        w.write(&self.pairs)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for NullableSequences {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for NullableSequences {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<indexmap::IndexSet<nino::RawNullable<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<nino::RawNullable<i64>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<(i32, Option<i32>)>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.int_set.prefetch();
+        self.long_set.prefetch();
+        self.nested.prefetch();
+        self.pairs.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.int_set.prefetch_members();
+        self.long_set.prefetch_members();
+        self.nested.prefetch_members();
+        self.pairs.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl NullableSequences {
+    nino::type_consts!(0xDB16AFA3u32 as i32, "Conformance.NullableSequences", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xDB16AFA3; deferrable=true; members=IntSet:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongSet:System.Collections.Generic.HashSet<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});Grid:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});PaddedGrid:System.Nullable<Conformance.Padded>[,]:grid(2,raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Nested:System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<int>>>:seq(seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}));Values:System.Collections.Generic.Dictionary<int, System.Nullable<long>>:map(raw(4),nullable(raw(8)));Pairs:System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, System.Nullable<int>>>:seq(pair(raw(4),nullable(raw(4))))");
 }
 
 /// `Conformance.NullableTwins`: Positional, header Presence.
@@ -6337,7 +6500,7 @@ impl<T> Wrap<T> {
 pub struct WrappedArgs {
     pub nullable_array: Option<Box<Wrap<Option<nino::RawNullables<i32>>>>>,
     pub nullable_list: Option<Box<Wrap<Option<nino::RawNullables<i32>>>>>,
-    pub nullable_set: Option<Box<Wrap<Option<indexmap::IndexSet<Option<i32>>>>>>,
+    pub nullable_set: Option<Box<Wrap<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>>,
     pub nullable_structs: Option<Box<Wrap<Option<nino::RawNullables<Vec2>>>>>,
     pub nullable_values: Option<Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>>,
     pub pairs: Option<Box<Wrap<Option<Vec<(i32, Option<nino::WideString>)>>>>>,
@@ -6383,7 +6546,7 @@ impl NinoWrite for WrappedArgs {
     const PREFETCH_BYTES: usize = 0usize
         .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Box<Wrap<Option<indexmap::IndexSet<Option<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Wrap<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<Vec2>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Wrap<Option<Vec<(i32, Option<nino::WideString>)>>>>> as NinoWrite>::PREFETCH_BYTES)
@@ -6689,12 +6852,15 @@ pub enum AnyObject {
     LongList(Box<LongList>),
     MaybeInt(Box<MaybeInt>),
     MaybeIntArray(Box<MaybeIntArray>),
+    MaybeIntGrid(Box<MaybeIntGrid>),
+    MaybeIntSet(Box<MaybeIntSet>),
     Middle(Box<Middle>),
     Mixed(Box<Mixed>),
     Nested(Box<Nested>),
     NinoNullableFields(Box<NinoNullableFields>),
     NinoNullableRuns(Box<NinoNullableRuns>),
     NinoNullables(Box<NinoNullables>),
+    NullableSequences(Box<NullableSequences>),
     NullableTwins(Box<NullableTwins>),
     Nullables(Box<Nullables>),
     ObjectSlot(Box<ObjectSlot>),
@@ -6768,7 +6934,7 @@ pub enum AnyObject {
     /// `Conformance.Wrap<System.Collections.Generic.Dictionary<System.Int32,System.Nullable<System.Double>>>`.
     WrapDictionaryInt32NullableDouble(Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>),
     /// `Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>`.
-    WrapHashSetNullableInt32(Box<Wrap<Option<indexmap::IndexSet<Option<i32>>>>>),
+    WrapHashSetNullableInt32(Box<Wrap<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>),
     /// `Conformance.Wrap<System.Collections.Generic.KeyValuePair<System.String,System.Nullable<System.Int32>>[]>`.
     WrapKeyValuePair(Box<Wrap<Option<Vec<(Option<nino::WideString>, Option<i32>)>>>>),
     /// `Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<System.Int32,System.String>>>`.
@@ -6828,12 +6994,15 @@ impl AnyObject {
             Self::LongList(v) => &mut **v,
             Self::MaybeInt(v) => &mut **v,
             Self::MaybeIntArray(v) => &mut **v,
+            Self::MaybeIntGrid(v) => &mut **v,
+            Self::MaybeIntSet(v) => &mut **v,
             Self::Middle(v) => &mut **v,
             Self::Mixed(v) => &mut **v,
             Self::Nested(v) => &mut **v,
             Self::NinoNullableFields(v) => &mut **v,
             Self::NinoNullableRuns(v) => &mut **v,
             Self::NinoNullables(v) => &mut **v,
+            Self::NullableSequences(v) => &mut **v,
             Self::NullableTwins(v) => &mut **v,
             Self::Nullables(v) => &mut **v,
             Self::ObjectSlot(v) => &mut **v,
@@ -7103,6 +7272,14 @@ impl NinoRead for AnyObject {
                 r.read_class_into(&mut **v)?;
                 true
             }
+            Some(Self::MaybeIntGrid(v)) if id == MaybeIntGrid::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::MaybeIntSet(v)) if id == MaybeIntSet::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
             Some(Self::Middle(v)) if id == Middle::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
@@ -7124,6 +7301,10 @@ impl NinoRead for AnyObject {
                 true
             }
             Some(Self::NinoNullables(v)) if id == NinoNullables::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::NullableSequences(v)) if id == NullableSequences::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -7423,12 +7604,15 @@ impl NinoRead for AnyObject {
                 LongList::NINO_TYPE_ID => Self::LongList(Box::new(r.read_class()?)),
                 MaybeInt::NINO_TYPE_ID => Self::MaybeInt(Box::new(r.read_class()?)),
                 MaybeIntArray::NINO_TYPE_ID => Self::MaybeIntArray(Box::new(r.read_class()?)),
+                MaybeIntGrid::NINO_TYPE_ID => Self::MaybeIntGrid(Box::new(r.read_class()?)),
+                MaybeIntSet::NINO_TYPE_ID => Self::MaybeIntSet(Box::new(r.read_class()?)),
                 Middle::NINO_TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
                 Mixed::NINO_TYPE_ID => Self::Mixed(Box::new(r.read()?)),
                 Nested::NINO_TYPE_ID => Self::Nested(Box::new(r.read()?)),
                 NinoNullableFields::NINO_TYPE_ID => Self::NinoNullableFields(Box::new(r.read()?)),
                 NinoNullableRuns::NINO_TYPE_ID => Self::NinoNullableRuns(Box::new(r.read_class()?)),
                 NinoNullables::NINO_TYPE_ID => Self::NinoNullables(Box::new(r.read_class()?)),
+                NullableSequences::NINO_TYPE_ID => Self::NullableSequences(Box::new(r.read_class()?)),
                 NullableTwins::NINO_TYPE_ID => Self::NullableTwins(Box::new(r.read_class()?)),
                 Nullables::NINO_TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
                 ObjectSlot::NINO_TYPE_ID => Self::ObjectSlot(Box::new(r.read_class()?)),
@@ -7682,6 +7866,14 @@ impl NinoWrite for AnyObject {
                 w.i32(MaybeIntArray::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
+            Self::MaybeIntGrid(v) => {
+                w.i32(MaybeIntGrid::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::MaybeIntSet(v) => {
+                w.i32(MaybeIntSet::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
             Self::Middle(v) => {
                 w.i32(Middle::NINO_TYPE_ID);
                 w.write_class(&**v)
@@ -7704,6 +7896,10 @@ impl NinoWrite for AnyObject {
             }
             Self::NinoNullables(v) => {
                 w.i32(NinoNullables::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::NullableSequences(v) => {
+                w.i32(NullableSequences::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::NullableTwins(v) => {
@@ -9199,6 +9395,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.NinoNullableFields" => f.visit::<NinoNullableFields>(),
         "Conformance.NinoNullableRuns" => f.visit::<Option<Box<NinoNullableRuns>>>(),
         "Conformance.NinoNullables" => f.visit::<Option<Box<NinoNullables>>>(),
+        "Conformance.NullableSequences" => f.visit::<Option<Box<NullableSequences>>>(),
         "Conformance.NullableTwins" => f.visit::<Option<Box<NullableTwins>>>(),
         "Conformance.Nullables" => f.visit::<Option<Box<Nullables>>>(),
         "Conformance.Outer" => f.visit::<Option<Box<Outer>>>(),
@@ -9229,6 +9426,8 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.Targets.LongList" => f.visit::<Option<Box<LongList>>>(),
         "Conformance.Targets.MaybeInt" => f.visit::<Option<Box<MaybeInt>>>(),
         "Conformance.Targets.MaybeIntArray" => f.visit::<Option<Box<MaybeIntArray>>>(),
+        "Conformance.Targets.MaybeIntGrid" => f.visit::<Option<Box<MaybeIntGrid>>>(),
+        "Conformance.Targets.MaybeIntSet" => f.visit::<Option<Box<MaybeIntSet>>>(),
         "Conformance.Targets.ObjectSlot" => f.visit::<Option<Box<ObjectSlot>>>(),
         "Conformance.Targets.PaddedArray" => f.visit::<Option<Box<PaddedArray>>>(),
         "Conformance.Targets.PointList" => f.visit::<Option<Box<PointList>>>(),

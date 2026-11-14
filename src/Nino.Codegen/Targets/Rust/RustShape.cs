@@ -8,7 +8,8 @@ namespace Nino.Codegen.Targets
 {
     /// <summary>
     /// How a value is written in Rust (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>,
-    /// <c>rawnullable</c>: a <c>T?</c> in raw memory, <c>ninonullable</c>: a <c>NinoNullable&lt;T&gt;</c>, <c>tuple</c>,
+    /// <c>rawnullable</c>: a <c>T?</c> in raw memory, <c>rawnullableelement</c>: one as the element of a set or a grid
+    /// (<c>nino::RawNullable&lt;T&gt;</c>), <c>ninonullable</c>: a <c>NinoNullable&lt;T&gt;</c>, <c>tuple</c>,
     /// <c>string</c>, <c>keystring</c>, <c>utf8</c>, <c>keyutf8</c>, <c>object</c>, <c>struct</c>, <c>class</c>,
     /// <c>slot</c>, <c>named</c>, <c>nullable</c>, <c>seq</c>, <c>map</c>, <c>grid</c>, <c>bigint</c>,
     /// <c>version</c>, <c>datetimeoffset</c>, <c>param</c>: a type parameter, <c>generic</c> and <c>genericclass</c>:
@@ -67,7 +68,7 @@ namespace Nino.Codegen.Targets
         /// <summary>A generic type's slot arguments (<c>genslot</c> shapes), after its type arguments.</summary>
         public List<RustShape> Slots { get; internal set; } = new();
 
-        /// <summary>A sequence's Rust type: <c>vec</c>, <c>set</c> (<c>IndexSet</c>) or <c>rawnullables</c>.</summary>
+        /// <summary>A sequence's Rust type: <c>vec</c>, <c>set</c> (<c>IndexSet</c>) or <c>rawnullables</c> (a list of a raw <c>T?</c>).</summary>
         public string? Mode { get; internal set; }
 
         public int Rank { get; internal set; }
