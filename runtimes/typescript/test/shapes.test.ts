@@ -2,7 +2,7 @@
 // writes for it.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deserializeExact, NinoError, serialize } from "../src/nino.ts";
+import { deserializeExact, NinoError, serialize, type NinoNullable } from "../src/nino.ts";
 import {
   Box, Flags, HoldsNinoNullable, HoldsWideNinoNullable, NinoNullableArgs, NinoNullableArgsCodec, NinoNullableRaw,
   NinoNullableRawCodec, NinoNullableRawWide, NinoNullableRawWideCodec, NullableSlots, NullableSlotsCodec, Strides,
@@ -98,6 +98,12 @@ describe("Shapes", () => {
       map: new Map<number, number | null>([[1, 0.5], [2, null]]),
       tuple: [9, "00112233-4455-6677-8899-aabbccddeeff"],
     });
+    // The members are declared with the runtime's alias of T | null: the same values, and nothing at run time.
+    const one: Box<NinoNullable<number>> | null = value.one;
+    const declared: NinoNullable<Flags> = value.enum;
+    const plain: bigint | null = declared;
+    assert.equal(one?.value, 7);
+    assert.equal(plain, value.enum);
     const data = serialize(NinoNullableArgsCodec, value);
     assert.equal(hex(data), want);
     assert.deepEqual(deserializeExact(NinoNullableArgsCodec, data), value);

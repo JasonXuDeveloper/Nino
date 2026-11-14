@@ -85,6 +85,10 @@ func ts(s)
   when "rawstruct"
     ret name(s.struct)
   when "rawnullable", "nullable"
+    # A .NET NinoNullable<T> is spelled with the runtime's alias of `T | null`, which says which bytes it has.
+    if s.clean
+      ret nino_nullable(ts(s.inner))
+    end
     ret ts(s.inner) + " | null"
   when "fixedtuple", "tuple"
     $parts = []
