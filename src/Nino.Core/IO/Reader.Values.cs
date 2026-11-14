@@ -142,6 +142,31 @@ namespace Nino.Core
         public void Read<T>(out T? value) where T : unmanaged => value = ReadNullableRaw<T>();
 
         /// <summary>
+        /// Reads one <see cref="NinoNullable{T}"/> written as a <c>T?</c> of a raw <typeparamref name="T"/> (a presence
+        /// byte, then the value when present): the checks of <see cref="ReadNullableRaw{T}(ref T?)"/>, the value made
+        /// by the type itself.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ReadNinoNullable<T>(ref NinoNullable<T> value) where T : unmanaged
+        {
+            int size = NinoLayout<T>.Size;
+            int avail = Avail;
+            ref byte block = ref Cur;
+            if ((uint)size < (uint)avail && block == NinoWire.NotNull)
+            {
+                Skip(1 + size);
+                value = new NinoNullable<T>(NinoLayout<T>.Read(ref Unsafe.Add(ref block, 1)));
+                return;
+            }
+
+            // Only null is left: no byte, a value without its bytes and a byte other than 0 or 1 throw.
+            if (avail == 0 || block != NinoWire.Null)
+                NinoThrow.NotNull(avail == 0 ? -1 : block);
+            Skip(1);
+            value = default;
+        }
+
+        /// <summary>
         /// Reads what <see cref="Writer.WriteNullableRaw{T}"/> wrote: the presence byte and the value with one bounds
         /// check where both fit in the remaining bytes, else (near the end, where a null takes only its byte) one each.
         /// </summary>

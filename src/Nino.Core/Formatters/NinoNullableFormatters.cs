@@ -11,11 +11,13 @@ namespace Nino.Core
     /// </summary>
     public struct NinoNullableFormatter<[NinoRaw] T> : INinoFormatter<NinoNullable<T>> where T : unmanaged
     {
+        // Both read and write the value's memory (presence, then value) as it is: through T? each call built a
+        // Nullable from two fields and took it apart again.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(NinoNullable<T> value, ref Writer writer) => writer.WriteNullableRaw(value.ToNullable());
+        public void Serialize(NinoNullable<T> value, ref Writer writer) => NinoNullables<T>.WriteOne(ref value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref Reader reader, ref NinoNullable<T> value) => value = reader.ReadNullableRaw<T>();
+        public void Deserialize(ref Reader reader, ref NinoNullable<T> value) => reader.ReadNinoNullable(ref value);
     }
 
     /// <summary>
@@ -38,9 +40,12 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
 
-            // A new array (zeroed) takes the slot before the read, which may still reject the data: it then holds
-            // defaults, never stale memory.
-            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, overwritten: true), ref reader);
+            // A new array is published only after the read, which may still reject the data: it is never seen with
+            // the memory it was allocated over.
+            var current = value;
+            var array = NinoElements.NewOrSame(current, length);
+            NinoNullables<T>.Read(array, ref reader, fresh: array != current);
+            NinoElements.Publish(ref value, current, array);
         }
     }
 

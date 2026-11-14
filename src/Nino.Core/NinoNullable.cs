@@ -30,10 +30,19 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public NinoNullable(T value)
         {
+            _hasValue = Present;
+            _value = value;
+        }
+
+        // The presence of a value: a T whose first byte is 1. Made once per T: written per value (a zero, then the
+        // byte, then the whole T read back) it stalled every construction on a store the load does not cover.
+        private static readonly T Present = MakePresent();
+
+        private static T MakePresent()
+        {
             T present = default;
             Unsafe.As<T, byte>(ref present) = 1;
-            _hasValue = present;
-            _value = value;
+            return present;
         }
 
         /// <summary>Whether it has a value.</summary>
