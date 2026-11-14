@@ -243,7 +243,7 @@ More: [every .NET case and Arm64](https://nino.xgamedev.net/en/docs/v4/benchmark
 | Read into existing objects | **in place, 0 B** | clears collections, new elements | no | merges, no overwrite | members only (`Populate`) |
 | Other languages | Go, Rust, TypeScript, generated from your C# | TypeScript | any MessagePack library | every protobuf library | every language |
 
-protobuf covers protobuf-net and Google.Protobuf. In depth: [vs MemoryPack](https://nino.xgamedev.net/en/docs/v4/vs-memorypack),
+protobuf covers protobuf-net and Google.Protobuf. Which to choose, and Nino's limitations: [Choosing a Serializer](https://nino.xgamedev.net/en/docs/v4/compare). In depth: [vs MemoryPack](https://nino.xgamedev.net/en/docs/v4/vs-memorypack),
 [vs MessagePack](https://nino.xgamedev.net/en/docs/v4/vs-messagepack), [vs protobuf-net](https://nino.xgamedev.net/en/docs/v4/vs-protobuf-net).
 
 ## v4 vs v3

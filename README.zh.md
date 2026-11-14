@@ -216,7 +216,7 @@ npx skills add JasonXuDeveloper/Nino
 | 反序列化到已有对象 | **原地复用，0 B** | 清空集合，重建元素 | 不支持 | 合并，不能覆盖 | 仅成员（`Populate`） |
 | 其他语言 | Go、Rust、TypeScript，从 C# 类型生成 | TypeScript | 任何 MessagePack 库 | 任何 protobuf 库 | 任何语言 |
 
-protobuf 一列指 protobuf-net 和 Google.Protobuf。详细对比：[MemoryPack](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)、
+protobuf 一列指 protobuf-net 和 Google.Protobuf。怎么选、Nino 有哪些局限，见[序列化库选型](https://nino.xgamedev.net/zh/docs/v4/compare)。详细对比：[MemoryPack](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)、
 [MessagePack](https://nino.xgamedev.net/zh/docs/v4/vs-messagepack)、[protobuf-net](https://nino.xgamedev.net/zh/docs/v4/vs-protobuf-net)。
 
 ## v4 对比 v3
