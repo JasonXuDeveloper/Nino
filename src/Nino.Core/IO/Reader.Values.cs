@@ -155,7 +155,10 @@ namespace Nino.Core
             if ((uint)size < (uint)avail && block == NinoWire.NotNull)
             {
                 Skip(1 + size);
-                value = new NinoNullable<T>(NinoLayout<T>.Read(ref Unsafe.Add(ref block, 1)));
+                if (NinoNullables<T>.Wide && !NinoLimits.Untrusted)
+                    NinoNullables<T>.StoreWide(ref value, ref Unsafe.Add(ref block, 1));
+                else
+                    value = new NinoNullable<T>(NinoLayout<T>.Read(ref Unsafe.Add(ref block, 1)));
                 return;
             }
 

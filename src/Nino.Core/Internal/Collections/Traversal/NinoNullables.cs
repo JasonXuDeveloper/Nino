@@ -831,6 +831,93 @@ namespace Nino.Core
                                              Unsafe.SizeOf<T?>() == Stride;
 
         /// <summary>
+        /// Whether a <see cref="NinoNullable{T}"/> of a 16-byte <typeparamref name="T"/> with 8-byte alignment
+        /// (<c>decimal</c>, a struct of two words) is four words in memory and three on the wire (the flag's word,
+        /// then the value's two): a run is then written and read a word at a time, without converting each value.
+        /// </summary>
+#if NET8_0_OR_GREATER
+        internal static readonly bool Wide = Raw && Stride == 24 && Offset == 8 && Unsafe.SizeOf<T>() == 16 &&
+                                            Unsafe.SizeOf<NinoNullable<T>>() == 32;
+
+        /// <summary>The bytes the wire keeps of the two words of a <see cref="Wide"/> value.</summary>
+        private static readonly ulong WideKeep0 = Wide ? BitConverter.ToUInt64(Keeps(), 8) : 0;
+
+        private static readonly ulong WideKeep1 = Wide ? BitConverter.ToUInt64(Keeps(), 16) : 0;
+#else
+        // The netstandard build converts these slot by slot (Unity's Burst kernels take its block copies).
+        internal static bool Wide => false;
+
+        private static ulong WideKeep0 => 0;
+
+        private static ulong WideKeep1 => 0;
+#endif
+
+        /// <summary>
+        /// Writes <paramref name="count"/> <see cref="Wide"/> values: of each four-word slot the first (its presence,
+        /// a flag and zeros), the third and the fourth (the value, without the bytes the wire clears), two slots a
+        /// vector with AVX-512 (one permutation and one AND), one with AVX2. The type keeps an absent value zero.
+        /// </summary>
+        private static void WriteWide(ref byte destination, ref byte source, int count)
+        {
+            int i = 0;
+#if NET8_0_OR_GREATER
+            // A vector store writes past the words it keeps (16 bytes with AVX-512, 8 with AVX2): the last element
+            // is left to the words below, whose 24 bytes cover them.
+            if (Vector512.IsHardwareAccelerated && Avx512F.IsSupported)
+            {
+                var order = Vector512.Create(0UL, 2, 3, 4, 6, 7, 7, 7);
+                var keep = Vector512.Create(0xFFUL, WideKeep0, WideKeep1, 0xFF, WideKeep0, WideKeep1, 0, 0);
+                for (; i + 3 <= count; i += 2)
+                {
+                    var slots = Vector512.LoadUnsafe(ref Unsafe.As<byte, ulong>(ref source), (nuint)i * 4);
+                    (Avx512F.PermuteVar8x64(slots, order) & keep).AsByte()
+                        .StoreUnsafe(ref destination, (nuint)i * 24);
+                }
+            }
+            else if (Avx2.IsSupported)
+            {
+                var keep = Vector256.Create(0xFFUL, WideKeep0, WideKeep1, 0);
+                for (; i + 2 <= count; i++)
+                {
+                    var slot = Vector256.LoadUnsafe(ref Unsafe.As<byte, ulong>(ref source), (nuint)i * 4);
+                    (Avx2.Permute4x64(slot, 0b11_11_10_00) & keep).AsByte().StoreUnsafe(ref destination, (nuint)i * 24);
+                }
+            }
+#endif
+            for (; i < count; i++)
+            {
+                ref byte slot = ref Unsafe.Add(ref source, i * 32);
+                ref byte target = ref Unsafe.Add(ref destination, i * 24);
+                ulong value0 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref slot, 16));
+                ulong value1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref slot, 24));
+                Unsafe.WriteUnaligned(ref target, (ulong)slot);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 8), value0 & WideKeep0);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 16), value1 & WideKeep1);
+            }
+        }
+
+        /// <summary>
+        /// Reads <paramref name="count"/> <see cref="Wide"/> values whose presence bytes were checked (0 or 1): each
+        /// slot's four words stored (presence, zero, the value or zeros where the data has none).
+        /// </summary>
+        private static void ReadWide(ref byte destination, ref byte source, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                ref byte slot = ref Unsafe.Add(ref source, i * 24);
+                ref byte target = ref Unsafe.Add(ref destination, i * 32);
+                ulong flag = slot;
+                ulong present = 0UL - flag;
+                ulong value0 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref slot, 8));
+                ulong value1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref slot, 16));
+                Unsafe.WriteUnaligned(ref target, flag);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 8), 0UL);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 16), value0 & present);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 24), value1 & present);
+            }
+        }
+
+        /// <summary>
         /// Writes the count and the elements of a <see cref="NinoNullable{T}"/> run, the bytes of a <c>T?</c> run: as
         /// one block copy where <see cref="Words"/> (the type keeps its memory clean), else slot by slot.
         /// </summary>
@@ -843,6 +930,12 @@ namespace Nino.Core
             if (Words)
             {
                 NinoUnsafe.Copy(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), (uint)(values.Length * Stride));
+                return;
+            }
+
+            if (Wide)
+            {
+                WriteWide(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), values.Length);
                 return;
             }
 
@@ -887,7 +980,34 @@ namespace Nino.Core
 
             ref byte dst = ref writer.Reserve(1 + NinoLayout<T>.Size);
             dst = NinoWire.NotNull;
+            if (Wide)
+            {
+                // The value's two words, loaded before either is stored.
+                ref byte memory = ref Unsafe.As<NinoNullable<T>, byte>(ref value);
+                ulong value0 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref memory, 16));
+                ulong value1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref memory, 24));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 1), value0 & WideKeep0);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 9), value1 & WideKeep1);
+                return;
+            }
+
             NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), in Unsafe.Add(ref presence, 1));
+        }
+
+        /// <summary>
+        /// Stores a <see cref="Wide"/> value that has one, read from <paramref name="source"/> (its 16 bytes on the
+        /// wire), into <paramref name="value"/>: four words stored, none read back.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void StoreWide(ref NinoNullable<T> value, ref byte source)
+        {
+            ref byte memory = ref Unsafe.As<NinoNullable<T>, byte>(ref value);
+            ulong value0 = Unsafe.ReadUnaligned<ulong>(ref source);
+            ulong value1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, 8));
+            Unsafe.WriteUnaligned(ref memory, 1UL);
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref memory, 8), 0UL);
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref memory, 16), value0);
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref memory, 24), value1);
         }
 
         /// <summary>
@@ -916,6 +1036,12 @@ namespace Nino.Core
                 return;
             NinoChecks.Flags(ref src, destination.Length, Stride);
             ref NinoNullable<T> first = ref MemoryMarshal.GetReference(destination);
+            if (Wide && !NinoLimits.Untrusted)
+            {
+                ReadWide(ref Unsafe.As<NinoNullable<T>, byte>(ref first), ref src, destination.Length);
+                return;
+            }
+
             for (int i = 0; i < destination.Length; i++)
             {
                 ref byte slot = ref Unsafe.Add(ref src, i * Stride);

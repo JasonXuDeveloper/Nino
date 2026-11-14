@@ -25,6 +25,13 @@ namespace Nino.UnitTests
             public long Mark;
         }
 
+        // Two words with padding after the first field: three words a slot on the wire, four in memory.
+        public struct Pair
+        {
+            public int Row;
+            public long Mark;
+        }
+
         [NinoType(format: NinoFormat.VersionTolerant)]
         public sealed class WithNullable
         {
@@ -101,6 +108,8 @@ namespace Nino.UnitTests
             SameBytesAsNullable(i => new Guid(i + 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
             SameBytesAsNullable(i => i + 0.25m);
             SameBytesAsNullable(i => new Cell { Row = i, Mark = -i });
+            // Two words (decimal above, and a struct with padding): a word at a time, two slots a vector.
+            SameBytesAsNullable(i => new Pair { Row = i, Mark = -i });
         }
 
         [TestMethod]
