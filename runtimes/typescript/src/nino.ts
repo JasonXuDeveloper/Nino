@@ -849,6 +849,19 @@ export class NinoReader {
     if (b > 1) throw new NinoError(`invalid presence byte ${b}.`);
     return b === 1;
   }
+  /**
+   * The presence of a .NET `NinoNullable<T>` at `at`, its memory: `size` bytes of presence (0 or 1 in the first, zeros
+   * above), then `size` bytes of value, zeros when absent. True when it has a value; any other presence, and a value
+   * that is not zeros where it has none, is invalid data (as .NET's untrusted mode has it).
+   */
+  ninoNullableAt(at: number, size: number): boolean {
+    const data = this.data;
+    const present = this.presentAt(at);
+    let set = 0;
+    for (let i = at + 1, end = at + (present ? size : 2 * size); i < end; i++) set |= data[i];
+    if (set !== 0) throw new NinoError("invalid NinoNullable: a byte set above its presence or in a value it does not have.");
+    return present;
+  }
   u8(): number { return this.view.getUint8(this.take(1)); }
   i8(): number { return this.view.getInt8(this.take(1)); }
   u16(): number { return this.view.getUint16(this.take(2), true); }
