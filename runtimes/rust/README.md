@@ -40,24 +40,27 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `type_consts!(id, name, layout)` | The `NINO_TYPE_ID`, `NINO_TYPE_NAME` and `NINO_LAYOUT` constants nino-gen declares in each type's impl (`Cat::NINO_TYPE_ID`; the body traits' `TYPE_ID` is set from it), documented once here; a generic type passes no id (`type_consts!(name, layout)`). |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
-How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`,
-`RawNullable<T>`, `NinoNullable<T>`, the value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/rust#types).
-A `T?` of a raw `T` (a number, a date, a raw struct) has two encodings in .NET, and a Rust type for each. A single
-value (a member, a map's key or value, a tuple's item) is an `Option<T>`: a presence byte, then the value when
-present. The element of a sequence is a slot of a fixed size, `T`'s alignment plus its size, the value zeroed when
-absent (`int?` 8 bytes, `long?` 16, `decimal?` 24), in every sequence: `nino::RawNullable<T>`, a wrapper of the
-`Option<T>` it stands for (`.0`, `From` both ways, `Deref`), is that element in any collection
-(`HashSet<RawNullable<i32>>` for a `HashSet<int?>`, `VecDeque<RawNullable<i64>>` for a `Queue<long?>`,
-`Grid<RawNullable<i32>, 2>` for an `int?[,]`), read and written as one block, and `nino::RawNullables<T>` is a list
-of them as a `Vec` of plain `Option`s (`T?[]`, `List<T?>`, `Queue<T?>`). `Queue<int?> {5, null}` is
-`02000000 01000000 05000000 00000000 00000000` either way; `Vec<Option<i32>>` is not those bytes (a presence byte and
-the value an element: what .NET writes for a `T?` whose `T` is not raw).
-.NET's `NinoNullable<T>` is `nino::NinoNullable<T>`, a wrapper of the `Option<T>` it stands for (`.0`, `From` both
-ways, `Deref`), since it has bytes of its own: its memory wherever it is, a presence and a value of a `T` each
-(`2 * size(T)` bytes: `01000000 05000000` for a `NinoNullable<int>` of 5, zeros for `None`), alone, as an element of
-any collection (`Vec<NinoNullable<T>>`) and inside a raw struct, in the code nino-gen writes and with the derive
-alike. `Option<T>`, `RawNullable<T>` and `RawNullables<T>` stay `T?`: the same bytes only for a run of a `T` as large
-as its alignment.
+How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `NullableSlot<T>`,
+`NinoNullable<T>`, the value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/rust#types).
+
+.NET writes a nullable raw `T` (a number, a date, a raw struct) in three ways, and Rust's codecs go by the type, so
+each has a type:
+
+| .NET | Bytes | Rust |
+|---|---|---|
+| `T?`, a single value (a member, a map's key or value, a tuple's item) | a presence byte, then the value when present | `Option<T>` |
+| `T?`, the element of a sequence (`T?[]`, `List<T?>`, `Queue<T?>`, `HashSet<T?>`, `T?[,]`, nested ones) | a slot of `T`'s alignment plus its size: the presence byte, zeros, then the value, zeros when absent (`int?` 8 bytes, `long?` 16, `decimal?` 24) | `nino::NullableSlot<T>` |
+| `NinoNullable<T>`, wherever it is | its memory, `2 * size(T)` bytes: a presence as wide as `T` (0 or 1), then the value, zeros when absent | `nino::NinoNullable<T>` |
+
+`NullableSlot<T>` and `NinoNullable<T>` wrap the `Option<T>` they stand for (`.0`, `From` both ways, `Deref`). The
+slot is the element in every collection: `Vec<NullableSlot<i32>>` for an `int?[]` or a `List<int?>`,
+`VecDeque<NullableSlot<i64>>` for a `Queue<long?>`, `HashSet<NullableSlot<i32>>` for a `HashSet<int?>`,
+`Grid<NullableSlot<i32>, 2>` for an `int?[,]`, each read and written as one block. `Queue<int?> {5, null}` is
+`02000000 01000000 05000000 00000000 00000000`; `Vec<Option<i32>>` is not those bytes (a presence byte and the value
+an element: what .NET writes for a `T?` whose `T` is not raw). A `NinoNullable<int>` of 5 is `01000000 05000000`
+alone, as an element of any collection (`Vec<NinoNullable<T>>`) and inside a raw struct, in the code nino-gen writes
+and with the derive alike: the bytes of a slot only for a `T` as large as its alignment.
+
 A polymorphic declared type (an abstract class, an interface, or a class that is not sealed) becomes a Rust enum with
 one variant per concrete type. The reader rejects any type id that is not one of the variants
 (`ErrorKind::UnknownTypeId`).

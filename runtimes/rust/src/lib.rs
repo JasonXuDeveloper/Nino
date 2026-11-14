@@ -52,8 +52,7 @@ pub use shared::Shared;
 pub use traits::{decode_member, encode_member, sum_fixed_sizes, NinoRead, NinoReadBody, NinoWrite, NinoWriteBody};
 pub use types::{
     BigInteger, BitArray, DateOnly, DateTime, DateTimeKind, DateTimeOffset, Decimal, Grid, Guid, Half, NinoNullable,
-    Raw, RawNullable, RawNullables, Rune, TimeOnly, TimeSpan, Utf8, Version, WideString, MAX_TICKS, TICKS_PER_DAY,
-    UNIX_EPOCH_TICKS,
+    NullableSlot, Raw, Rune, TimeOnly, TimeSpan, Utf8, Version, WideString, MAX_TICKS, TICKS_PER_DAY, UNIX_EPOCH_TICKS,
 };
 pub use writer::Writer;
 

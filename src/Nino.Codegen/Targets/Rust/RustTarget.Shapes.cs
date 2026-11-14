@@ -83,10 +83,6 @@ namespace Nino.Codegen.Targets
                 {
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
-                    // A list of a raw T?: the slots as a Vec of plain Options (a set's are RawNullable elements).
-                    if (!set && IsNullableSlot(value.Element!))
-                        return new RustShape("seq") { Element = Raw(value.Element!).Inner, Mode = "rawnullables" };
-
                     // A set's elements may be null (.NET writes a HashSet<string> holding null), so a string element
                     // is an Option as in a list; only a map's keys are never null.
                     var element = Element(value.Element!);
@@ -134,7 +130,7 @@ namespace Nino.Codegen.Targets
         private static bool IsNullableSlot(ValueModel element) => element.Kind == ValueKind.RawNullable && !element.Clean;
 
         /// <summary>
-        /// The shape of the element of a sequence or a grid: a raw <c>T?</c> is <c>nino::RawNullable&lt;T&gt;</c> there
+        /// The shape of the element of a sequence or a grid: a raw <c>T?</c> is <c>nino::NullableSlot&lt;T&gt;</c> there
         /// (the slot, where an <c>Option&lt;T&gt;</c> is the single value: a presence byte, then the value).
         /// </summary>
         private RustShape Element(ValueModel element)
@@ -142,7 +138,7 @@ namespace Nino.Codegen.Targets
             if (!IsNullableSlot(element))
                 return Shape(element, false);
             var raw = Raw(element);
-            return new RustShape("rawnullableelement")
+            return new RustShape("nullableslot")
                 { Inner = raw.Inner, Size = raw.Size, Align = raw.Align, Hashable = raw.Hashable };
         }
 

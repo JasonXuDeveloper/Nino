@@ -179,21 +179,21 @@ namespace Nino.Codegen.Tests
 
         /// <summary>
         /// A raw <c>T?</c> as the element of a sequence is a slot of a fixed size in every language, whatever the
-        /// sequence (TypeScript <c>T | null</c> and Go <c>*T</c> read at the slot's offsets; Rust a list of them as
-        /// <c>nino::RawNullables&lt;T&gt;</c>, and <c>nino::RawNullable&lt;T&gt;</c> as the element of a set or a grid,
-        /// since <c>Option&lt;T&gt;</c> is the single value), and stays a single value in a dictionary and a tuple.
+        /// sequence (TypeScript <c>T | null</c> and Go <c>*T</c> read at the slot's offsets; Rust
+        /// <c>nino::NullableSlot&lt;T&gt;</c> as the element of a list, a set or a grid alike, since
+        /// <c>Option&lt;T&gt;</c> is the single value), and stays a single value in a dictionary and a tuple.
         /// </summary>
         [TestMethod]
         public void RawNullableSlotsAreGeneratedInEveryLanguage()
         {
             var (rust, rustOutput) = Run("rust", "nino_types.rs");
-            StringAssert.Contains(rust, "    pub queue: Option<nino::RawNullables<i32>>,\n    pub stack: Option<nino::RawNullables<i64>>,");
-            StringAssert.Contains(rust, "    pub sorted: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,");
-            StringAssert.Contains(rust, "    pub nested: Option<Vec<Option<nino::RawNullables<i32>>>>,");
-            StringAssert.Contains(rust, "    pub boxed_nested: Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i64>>>>>>>>,");
+            StringAssert.Contains(rust, "    pub queue: Option<Vec<nino::NullableSlot<i32>>>,\n    pub stack: Option<Vec<nino::NullableSlot<i64>>>,");
+            StringAssert.Contains(rust, "    pub sorted: Option<indexmap::IndexSet<nino::NullableSlot<i32>>>,");
+            StringAssert.Contains(rust, "    pub nested: Option<Vec<Option<Vec<nino::NullableSlot<i32>>>>>,");
+            StringAssert.Contains(rust, "    pub boxed_nested: Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::NullableSlot<i64>>>>>>>>,");
             StringAssert.Contains(rust, "    pub map: Option<indexmap::IndexMap<i32, Option<i64>>>,");
             StringAssert.Contains(rust, "    pub tuples: Option<Vec<(i32, Option<i32>)>>,");
-            StringAssert.Contains(rust, "    pub grid: Option<nino::Grid<nino::RawNullable<i32>, 2>>,\n    pub cube: Option<nino::Grid<nino::RawNullable<i64>, 3>>,");
+            StringAssert.Contains(rust, "    pub grid: Option<nino::Grid<nino::NullableSlot<i32>, 2>>,\n    pub cube: Option<nino::Grid<nino::NullableSlot<i64>, 3>>,");
             var (ts, tsOutput) = Run("ts", "Nino.Codegen.Tests.ts");
             StringAssert.Contains(ts, "  queue: (number | null)[] | null = null;\n  stack: (bigint | null)[] | null = null;");
             StringAssert.Contains(ts, "  sorted: Set<number | null> | null = null;");
