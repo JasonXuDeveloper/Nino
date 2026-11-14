@@ -1,3 +1,4 @@
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
@@ -241,6 +242,240 @@ namespace Nino.UnitTests
                     $"{typeof(T).Name}?[{count}], pattern {pattern}");
                 CollectionAssert.AreEqual(NinoSerializer.Serialize(new List<T?>(clean)),
                     NinoSerializer.Serialize(new List<T?>(dirty)), $"List<{typeof(T).Name}?>({count}), pattern {pattern}");
+            }
+        }
+
+        // Structs whose T? has every stride the vector paths split by: below a 16-byte vector (3, 6, 10, 12), one
+        // vector (16), between 16 and 32 bytes (18, 20, 24, 28), 32 and above in pieces (32, 40, 48, 64, 72), with
+        // padding inside the value (the last three) and a flag padded to 16 bytes (Int128).
+        public struct Stride3 { public byte A, B; }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        public struct Stride6 { public int A; public byte B; }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 2)]
+        public struct Stride10 { public long A; }
+
+        public struct Stride12 { public float X, Y; }
+
+        public struct Stride16 { public int A, B, C; }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 2)]
+        public struct Stride18 { public long A, B; }
+
+        public struct Stride20 { public int A, B, C, D; }
+
+        public struct Stride24 { public long A, B; }
+
+        public struct Stride28 { public int A, B, C, D, E, F; }
+
+        public struct Stride32 { public long A, B, C; }
+
+        public struct Stride40 { public long A, B, C, D; }
+
+        public struct Stride48 { public long A, B, C, D, E; }
+
+        public struct Stride64 { public long A, B, C, D, E, F, G; }
+
+        public struct Stride72 { public long A, B, C, D, E, F, G, H; }
+
+        public struct Flag16 { public Int128 A, B; }
+
+        public struct Gap24 { public int A; public long B; }
+
+        public struct Gap32 { public int A; public long B, C; }
+
+        public struct Gap40 { public long A, B, C; public int D; }
+
+        // A value whose padding holds garbage too (its fields assigned over 0xAB bytes).
+        private static T DirtyValue<T>(T clean, System.Action<T, System.IntPtr> assign) where T : unmanaged
+        {
+            T value = default;
+            unsafe
+            {
+                Unsafe.InitBlockUnaligned(&value, 0xAB, (uint)sizeof(T));
+                assign(clean, (System.IntPtr)(&value));
+            }
+
+            return value;
+        }
+
+        // The bytes of a T?[] written slot by slot: the count, then per element the flag, zeros up to T's alignment and
+        // T's bytes, or zeros when it has none. T? in memory is that slot on 64-bit little-endian CoreCLR.
+        private static byte[] SlotBySlot<T>(T?[] clean) where T : unmanaged
+        {
+            int size = Unsafe.SizeOf<T>(), stride = Unsafe.SizeOf<T?>();
+            var bytes = new byte[4 + clean.Length * stride];
+            System.BitConverter.TryWriteBytes(bytes, clean.Length);
+            for (int i = 0; i < clean.Length; i++)
+            {
+                if (!clean[i].HasValue)
+                    continue;
+                bytes[4 + i * stride] = 1;
+                T value = clean[i].Value;
+                MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref value, 1))
+                    .CopyTo(bytes.AsSpan(4 + i * stride + stride - size));
+            }
+
+            return bytes;
+        }
+
+        private static void EveryRunIsSlotBySlot<T>(Func<int, T> make, Func<T, T> dirtyValue = null)
+            where T : unmanaged
+        {
+            foreach (int count in RunLengths)
+            for (int pattern = 0; pattern < 4; pattern++)
+            {
+                var clean = new T?[count];
+                var dirty = new T?[count];
+                for (int i = 0; i < count; i++)
+                {
+                    bool has = pattern == 0 ? i % 2 == 0 : pattern == 1 ? i % 3 == 2 : pattern == 2 ? i % 7 != 3 : i % 5 == 4;
+                    clean[i] = has ? make(i) : null;
+                    dirty[i] = DirtyNullable(has && dirtyValue != null ? dirtyValue(make(i)) : clean[i]);
+                }
+
+                string what = $"{typeof(T).Name}?[{count}], pattern {pattern}";
+                byte[] bytes = NinoSerializer.Serialize(dirty);
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(clean), bytes, what);
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(new List<T?>(clean)),
+                    NinoSerializer.Serialize(new List<T?>(dirty)), "List of " + what);
+                if (System.Environment.Is64BitProcess && System.BitConverter.IsLittleEndian && dirtyValue == null)
+                    CollectionAssert.AreEqual(SlotBySlot(clean), bytes, "slot by slot, " + what);
+                CollectionAssert.AreEqual(clean, NinoDeserializer.Deserialize<T?[]>(bytes), "read back, " + what);
+            }
+        }
+
+        [TestMethod]
+        public void RawNullableRunsOfEveryStrideFromDirtyMemoryWriteTheSlotBySlotBytes()
+        {
+            EveryRunIsSlotBySlot(i => new Stride3 { A = (byte)(i + 1), B = (byte)(i * 3) });
+            EveryRunIsSlotBySlot(i => new Stride6 { A = i * 100_000 + 1, B = (byte)i });
+            EveryRunIsSlotBySlot(i => new Stride10 { A = i * 10_000_000_000L + 1 });
+            EveryRunIsSlotBySlot(i => new Stride12 { X = i + 0.5f, Y = -i });
+            EveryRunIsSlotBySlot(i => new Stride16 { A = i + 1, B = -i, C = i * 77 });
+            EveryRunIsSlotBySlot(i => new Stride18 { A = i + 1, B = -i * 10_000_000_000L });
+            EveryRunIsSlotBySlot(i => new Stride20 { A = i + 1, B = -i, C = i * 77, D = int.MaxValue - i });
+            EveryRunIsSlotBySlot(i => new Stride24 { A = i + 1, B = -i * 10_000_000_000L });
+            EveryRunIsSlotBySlot(i => new Stride28 { A = i + 1, B = -i, C = i * 77, D = int.MaxValue - i, E = i, F = ~i });
+            EveryRunIsSlotBySlot(i => new Stride32 { A = i + 1, B = -i, C = long.MaxValue - i });
+            EveryRunIsSlotBySlot(i => new Stride40 { A = i + 1, B = -i, C = long.MaxValue - i, D = i * 3 });
+            EveryRunIsSlotBySlot(i => new Stride48 { A = i + 1, B = -i, C = long.MaxValue - i, D = i * 3, E = ~i });
+            EveryRunIsSlotBySlot(i => new Stride64 { A = i + 1, B = -i, C = i * 3, D = ~i, E = i * 5, F = -7, G = i });
+            EveryRunIsSlotBySlot(i => new Stride72 { A = i + 1, B = -i, C = i * 3, D = ~i, E = i * 5, F = -7, G = i, H = 9 });
+            EveryRunIsSlotBySlot(i => (System.Int128)i * long.MaxValue + 1);
+            EveryRunIsSlotBySlot(i => new Flag16 { A = i + 1, B = -i });
+            EveryRunIsSlotBySlot(i => new System.Guid(i + 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
+            EveryRunIsSlotBySlot(i => i + 0.25m);
+
+            // Padding inside the value, holding garbage as well.
+            unsafe
+            {
+                EveryRunIsSlotBySlot(i => new Gap24 { A = i + 1, B = -i }, clean => DirtyValue(clean, (c, p) =>
+                {
+                    ((Gap24*)p)->A = c.A;
+                    ((Gap24*)p)->B = c.B;
+                }));
+                EveryRunIsSlotBySlot(i => new Gap32 { A = i + 1, B = -i, C = i * 3 }, clean => DirtyValue(clean, (c, p) =>
+                {
+                    ((Gap32*)p)->A = c.A;
+                    ((Gap32*)p)->B = c.B;
+                    ((Gap32*)p)->C = c.C;
+                }));
+                EveryRunIsSlotBySlot(i => new Gap40 { A = i + 1, B = -i, C = i * 3, D = ~i }, clean => DirtyValue(clean, (c, p) =>
+                {
+                    ((Gap40*)p)->A = c.A;
+                    ((Gap40*)p)->B = c.B;
+                    ((Gap40*)p)->C = c.C;
+                    ((Gap40*)p)->D = c.D;
+                }));
+            }
+        }
+
+        // NinoNullable<T> runs of every shape the vector paths split by (T larger than its alignment: slots of 4, 8
+        // and 16 bytes a shuffle packs, 24 and 32 bytes, and longer ones moved in pieces): the bytes of the T? run,
+        // from values whose own padding holds garbage too, and read back into clean memory.
+        public struct Slot4 { public byte A, B; }
+
+        public struct Slot8 { public short A, B; }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        public struct Slot24 { public int A; public long B; }
+
+        private static void EveryNinoNullableRunIsTheNullableRun<T>(Func<int, T> make, Func<T, T> dirtyValue = null)
+            where T : unmanaged
+        {
+            foreach (int count in RunLengths)
+            for (int pattern = 0; pattern < 3; pattern++)
+            {
+                var clean = new T?[count];
+                var ninos = new NinoNullable<T>[count];
+                var expected = new NinoNullable<T>[count];
+                for (int i = 0; i < count; i++)
+                {
+                    bool has = pattern == 0 ? i % 2 == 0 : pattern == 1 ? i % 3 == 2 : i % 5 != 0;
+                    clean[i] = has ? make(i) : null;
+                    expected[i] = clean[i];
+                    ninos[i] = has ? new NinoNullable<T>(dirtyValue != null ? dirtyValue(make(i)) : make(i)) : default;
+                }
+
+                string what = $"NinoNullable<{typeof(T).Name}>[{count}], pattern {pattern}";
+                byte[] bytes = NinoSerializer.Serialize(clean);
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(ninos), what);
+                CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(new List<NinoNullable<T>>(ninos)), "List of " + what);
+
+                // Read into new memory and into memory that held other values: the bytes a clean value has.
+                var read = NinoDeserializer.Deserialize<NinoNullable<T>[]>(bytes);
+                CollectionAssert.AreEqual(MemoryMarshal.AsBytes(expected.AsSpan()).ToArray(),
+                    MemoryMarshal.AsBytes(read.AsSpan()).ToArray(), "read, " + what);
+                var into = new NinoNullable<T>[count];
+                MemoryMarshal.AsBytes(into.AsSpan()).Fill(0xAB);
+                NinoDeserializer.Deserialize(bytes, ref into);
+                CollectionAssert.AreEqual(MemoryMarshal.AsBytes(expected.AsSpan()).ToArray(),
+                    MemoryMarshal.AsBytes(into.AsSpan()).ToArray(), "read into, " + what);
+                CollectionAssert.AreEqual(clean, NinoDeserializer.Deserialize<T?[]>(NinoSerializer.Serialize(ninos)), what);
+            }
+        }
+
+        [TestMethod]
+        public void NinoNullableRunsOfEveryShapeWriteTheBytesOfNullableRuns()
+        {
+            EveryNinoNullableRunIsTheNullableRun(i => new Slot4 { A = (byte)(i + 1), B = (byte)(i * 3) });
+            EveryNinoNullableRunIsTheNullableRun(i => new Slot8 { A = (short)(i + 1), B = (short)-i });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride6 { A = i * 100_000 + 1, B = (byte)i });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride12 { X = i + 0.5f, Y = -i });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride16 { A = i + 1, B = -i, C = i * 77 });
+            EveryNinoNullableRunIsTheNullableRun(i => new Slot24 { A = i + 1, B = -i * 10_000_000_000L });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride18 { A = i + 1, B = -i * 10_000_000_000L });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride20 { A = i + 1, B = -i, C = i * 77, D = int.MaxValue - i });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride24 { A = i + 1, B = -i * 10_000_000_000L });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride28 { A = i + 1, B = -i, C = i * 77, D = int.MaxValue - i, E = i, F = ~i });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride32 { A = i + 1, B = -i, C = long.MaxValue - i });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride40 { A = i + 1, B = -i, C = long.MaxValue - i, D = i * 3 });
+            EveryNinoNullableRunIsTheNullableRun(i => new Stride72 { A = i + 1, B = -i, C = i * 3, D = ~i, E = i * 5, F = -7, G = i, H = 9 });
+            EveryNinoNullableRunIsTheNullableRun(i => new Flag16 { A = i + 1, B = -i });
+            EveryNinoNullableRunIsTheNullableRun(i => new Guid(i + 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11));
+            EveryNinoNullableRunIsTheNullableRun(i => i + 0.25m);
+            unsafe
+            {
+                EveryNinoNullableRunIsTheNullableRun(i => new Gap24 { A = i + 1, B = -i }, clean => DirtyValue(clean, (c, p) =>
+                {
+                    ((Gap24*)p)->A = c.A;
+                    ((Gap24*)p)->B = c.B;
+                }));
+                EveryNinoNullableRunIsTheNullableRun(i => new Gap32 { A = i + 1, B = -i, C = i * 3 }, clean => DirtyValue(clean, (c, p) =>
+                {
+                    ((Gap32*)p)->A = c.A;
+                    ((Gap32*)p)->B = c.B;
+                    ((Gap32*)p)->C = c.C;
+                }));
+                EveryNinoNullableRunIsTheNullableRun(i => new Gap40 { A = i + 1, B = -i, C = i * 3, D = ~i }, clean => DirtyValue(clean, (c, p) =>
+                {
+                    ((Gap40*)p)->A = c.A;
+                    ((Gap40*)p)->B = c.B;
+                    ((Gap40*)p)->C = c.C;
+                    ((Gap40*)p)->D = c.D;
+                }));
             }
         }
 
