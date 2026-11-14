@@ -34,8 +34,8 @@ internal enum FormatterTraits
 
     /// <summary>
     /// Reads and writes without a loop over elements in the generated body, and never passes the reader's or writer's
-    /// address to a call that is not inlined: strings, raw arrays and lists, and dictionaries of raw keys and raw or
-    /// UTF-16 string values.
+    /// address to a call that is not inlined: strings, nullable raw values, raw arrays and lists, and dictionaries of
+    /// raw keys and raw or UTF-16 string values.
     /// </summary>
     Flat = 1 << 6,
 
@@ -64,8 +64,11 @@ internal static class FormatterTraitsOf
             "ObjectFormatter" => FormatterTraits.Object,
             "CachedFormatter" => FormatterTraits.Cached,
             "UnmanagedArrayFormatter" or "UnmanagedListFormatter" => FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
-            "NullableFormatter" when count == 2 &&
-                                     (last & (FormatterTraits.Raw | FormatterTraits.PreservesReadContext)) != 0 =>
+            // A raw value's presence byte and bytes in one reservation (Writer.WriteNullableRaw, Reader.ReadNullableRaw),
+            // inlined as a raw member is: the body can keep a local writer (TypeModel.LocalWriter).
+            "NullableFormatter" when count == 2 && (last & FormatterTraits.Raw) != 0 =>
+                FormatterTraits.Flat | FormatterTraits.PreservesReadContext,
+            "NullableFormatter" when count == 2 && (last & FormatterTraits.PreservesReadContext) != 0 =>
                 FormatterTraits.PreservesReadContext,
             "NullableArrayFormatter" or "NullableListFormatter" => FormatterTraits.PreservesReadContext,
             "ArrayFormatter" or "MemoryFormatter" or "ReadOnlyMemoryFormatter" or "ArraySegmentFormatter" or
