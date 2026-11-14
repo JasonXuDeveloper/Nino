@@ -152,6 +152,30 @@ func (r *Reader) BoolAt(b byte) bool {
 	return b == 1
 }
 
+// NinoNullableAt reads the presence of a .NET NinoNullable<T> from its memory: presence, a whole T (0 or 1 in its
+// first byte, zeros above), then value, another T. It fails on any other presence and on a value that is not zeros
+// where the presence is 0, as .NET's untrusted mode does.
+func (r *Reader) NinoNullableAt(presence, value []byte) bool {
+	if len(presence) == 0 {
+		return false
+	}
+	present := r.BoolAt(presence[0])
+	var set byte
+	for _, b := range presence[1:] {
+		set |= b
+	}
+	if !present {
+		for _, b := range value {
+			set |= b
+		}
+	}
+	if set != 0 {
+		r.Fail(CodeInvalidData, "invalid NinoNullable: a byte set above its presence or in a value it does not have")
+		return false
+	}
+	return present
+}
+
 // U8 reads a byte.
 func (r *Reader) U8() uint8 {
 	b := r.buf

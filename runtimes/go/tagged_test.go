@@ -617,6 +617,69 @@ func (badTolerantGap) NinoLayout() string {
 }
 func (badElements) NinoLayout() string { return "members=[elements]::seq(raw(4));A:int:raw(4)" }
 
+// .NET's NinoNullable<T>, which the layout names: each *T of such a member is its memory (a presence and a value
+// of a T each), where the same Go type under a T? is a presence byte and the value (Plain).
+type tagNinoNullableFields struct {
+	Tag   uint8  `nino:"0"`
+	Count *int32 `nino:"1"`
+}
+
+func (tagNinoNullableFields) NinoLayout() string {
+	return "header=None; raw=true; members=raw(12){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}"
+}
+
+type tagNinoNullables struct {
+	One    *int32                `nino:"0"`
+	Wide   *Decimal              `nino:"1"`
+	Run    []*int32              `nino:"2"`
+	Map    map[int32]*int64      `nino:"3"`
+	Fields tagNinoNullableFields `nino:"4"`
+	Plain  *int32                `nino:"5"`
+}
+
+func (tagNinoNullables) NinoLayout() string {
+	return "format=Positional; header=Presence; members=" +
+		"One:Nino.Core.NinoNullable<int>:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)};" +
+		"Wide:Nino.Core.NinoNullable<decimal>:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)};" +
+		"Run:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});" +
+		"Map:System.Collections.Generic.Dictionary<int, Nino.Core.NinoNullable<long>>:map(raw(4),raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});" +
+		"Fields:Test.Fields:raw(12){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}};" +
+		"Plain:System.Nullable<int>:nullable(raw(4))"
+}
+
+func TestTagNinoNullable(t *testing.T) {
+	bothModes(t, func(t *testing.T) {
+		seven, five, three, nine := int32(7), int32(5), int32(3), int32(9)
+		v := &tagNinoNullables{
+			One: &seven, Run: []*int32{&five, nil}, Map: map[int32]*int64{1: nil},
+			Fields: tagNinoNullableFields{Tag: 2, Count: &three}, Plain: &nine,
+		}
+		const want = "01 0100000007000000 0000000000000000000000000000000000000000000000000000000000000000" +
+			" 02000000 0100000005000000 0000000000000000 01000000 01000000 00000000000000000000000000000000" +
+			" 02000000 0100000003000000 01 09000000"
+		got, err := Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, mustHex(t, want)) {
+			t.Fatalf("got %X\nwant %s", got, want)
+		}
+		var back *tagNinoNullables
+		if err := UnmarshalExact(got, &back); err != nil || !reflect.DeepEqual(back, v) {
+			t.Fatalf("read back: %v, %+v", err, back)
+		}
+		// What .NET's untrusted mode rejects: a presence other than 0 or 1, a byte above its first, and a byte in a
+		// value that is absent (One, One, Wide, the second of Run, Map's value, Fields.Count).
+		for _, at := range []int{1, 2, 9 + 20, 45 + 8 + 4, 65 + 9, 77 + 5} {
+			bad := bytes.Clone(got)
+			bad[at] |= 2
+			if err := UnmarshalExact(bad, &back); err == nil {
+				t.Fatalf("a byte set at %d was read", at)
+			}
+		}
+	})
+}
+
 func TestTagErrors(t *testing.T) {
 	for _, c := range []struct {
 		v     any

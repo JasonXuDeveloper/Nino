@@ -34,7 +34,12 @@ func (b *builder) slice(c *codec, variant uint8) error {
 		return nil
 	}
 	// []*T of a raw T: the fixed stride, unless the layout says each element is a single T?.
-	if et.Kind() == reflect.Pointer && variant != variantElementNullable && et.Elem().Kind() != reflect.String {
+	// What the layout says of the member's nullable values holds for its elements.
+	elemVariant := variantDefault
+	if variant == variantNinoNullable {
+		elemVariant = variant
+	}
+	if et.Kind() == reflect.Pointer && variant == variantDefault && et.Elem().Kind() != reflect.String {
 		pe, err := b.codec(et, variantDefault, nil)
 		if err != nil {
 			return err
@@ -43,7 +48,7 @@ func (b *builder) slice(c *codec, variant uint8) error {
 			return b.stride(c, pe.elem)
 		}
 	}
-	e, err := b.codec(et, variantDefault, nil)
+	e, err := b.codec(et, elemVariant, nil)
 	if err != nil {
 		return err
 	}
@@ -197,9 +202,12 @@ func (b *builder) stride(c *codec, e *codec) error {
 	return nil
 }
 
-func (b *builder) mapCodec(c *codec) error {
+func (b *builder) mapCodec(c *codec, variant uint8) error {
 	t := c.typ
-	kc, err := b.codec(t.Key(), variantDefault, nil)
+	if variant != variantNinoNullable {
+		variant = variantDefault
+	}
+	kc, err := b.codec(t.Key(), variant, nil)
 	if err != nil {
 		return err
 	}
@@ -208,7 +216,7 @@ func (b *builder) mapCodec(c *codec) error {
 	set := vt.Kind() == reflect.Struct && vt.NumField() == 0
 	var vc *codec
 	if !set {
-		if vc, err = b.codec(vt, variantDefault, nil); err != nil {
+		if vc, err = b.codec(vt, variant, nil); err != nil {
 			return err
 		}
 		c.elem = vc
@@ -222,7 +230,7 @@ func (b *builder) mapCodec(c *codec) error {
 		pairMin += vc.min
 		slot += int(vt.Size())
 	}
-	if f, ok := fastMaps[t]; ok && b.fast && !c.enter {
+	if f, ok := fastMaps[t]; ok && b.fast && !c.enter && variant == variantDefault {
 		c.read, c.write = f.codecs(pairMin)
 		return nil
 	}

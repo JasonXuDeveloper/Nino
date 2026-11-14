@@ -151,9 +151,9 @@ func (b *builder) fill(c *codec, variant uint8) error {
 	case reflect.Slice:
 		return b.slice(c, variant)
 	case reflect.Map:
-		return b.mapCodec(c)
+		return b.mapCodec(c, variant)
 	case reflect.Struct:
-		p, err := b.plan(t)
+		p, err := b.planIn(t, variant)
 		if err != nil {
 			return err
 		}
@@ -268,6 +268,15 @@ func numberAccess(kind codecKind, size int, fast bool) (func(*Reader, reflect.Va
 func (b *builder) pointer(c *codec, variant uint8) error {
 	t := c.typ
 	et := t.Elem()
+	if variant == variantNinoNullable {
+		e, err := b.codec(et, variantDefault, nil)
+		if err != nil {
+			return err
+		}
+		if e.rawCapable() && e.kind != kDTO {
+			return b.ninoNullable(c, e)
+		}
+	}
 	switch {
 	case et.Kind() == reflect.String:
 		c.kind, c.min, c.utf8 = kStringPtr, 1, variant == variantUTF8
@@ -385,6 +394,45 @@ func (b *builder) nullable(c *codec) error {
 		} else {
 			e.write(w, v.Elem())
 		}
+	}
+	return nil
+}
+
+// ninoNullable: .NET's NinoNullable<T> of a raw T (e), its memory wherever it is: the presence, a whole T (0 or 1
+// in its first byte, zeros above), then the value, zeros when absent. Reading checks all of it (NinoNullableAt).
+func (b *builder) ninoNullable(c *codec, e *codec) error {
+	size := e.size
+	c.kind, c.elem, c.size, c.align, c.min = kNinoNullable, e, 2*size, e.align, 2*size
+	et := c.typ.Elem()
+	c.read = func(r *Reader, v reflect.Value) {
+		if len(r.buf) < 2*size {
+			r.eof()
+			return
+		}
+		present := r.NinoNullableAt(r.buf[:size], r.buf[size:2*size])
+		if r.err != nil {
+			return
+		}
+		r.Skip(size)
+		if !present {
+			r.Skip(size)
+			v.SetZero()
+			return
+		}
+		p := reflect.New(et)
+		e.read(r, p.Elem())
+		if r.err == nil {
+			v.Set(p)
+		}
+	}
+	c.write = func(w *Writer, v reflect.Value) {
+		if v.IsNil() {
+			w.ExtendZero(2 * size)
+			return
+		}
+		w.U8(1)
+		w.ExtendZero(size - 1)
+		e.write(w, v.Elem())
 	}
 	return nil
 }
