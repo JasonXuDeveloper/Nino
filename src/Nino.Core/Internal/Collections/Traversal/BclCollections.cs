@@ -50,6 +50,13 @@ namespace Nino.Core
 #endif
                     WriteLinked(linked, ref writer);
                     return true;
+                case System.Collections.ObjectModel.Collection<T> wrapper:
+                    // The list it wraps, written as a list is (a subclass too: reading its items runs none of its
+                    // code). Through ICollection it was enumerated or copied out, an element at a time.
+                    if (!CollectionViews.Collection || CollectionFields.List(wrapper) is not { } wrapped)
+                        return false;
+                    NinoCollections.WriteSpan<T, TFormatter>(ListAccess.AsSpan<T>(wrapped), ref writer);
+                    return true;
                 default:
                     return false;
             }

@@ -58,6 +58,14 @@ namespace Nino.Core.Internal
             return items[4] == 104 && items[36] == 36 && list.Count == 30 && list[29] == 29;
         }
 
+        private static bool CheckCollection(CollectionOffsets at)
+        {
+            var list = new List<int> { 7, 8 };
+            var array = new[] { 9 };
+            return ObjectFields.Holds(new System.Collections.ObjectModel.Collection<int>(list), at.Items, list) &&
+                   ObjectFields.Holds(new System.Collections.ObjectModel.Collection<int>(array), at.Items, array);
+        }
+
         private static bool CheckStack(ListOffsets at)
         {
             var source = new Source(37);
