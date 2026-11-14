@@ -1003,12 +1003,15 @@ namespace Nino.Core
         private static readonly int Offset = NullableLayout<T>.ValueOffset;
 
         /// <summary>
-        /// Whether <see cref="Read"/> applies: a little-endian runtime with the flag first, T copied as it is, and
+        /// Whether <c>T?</c> is two words in the wire's order: a little-endian runtime with the flag first, and
         /// <c>T?</c> 16 bytes, T filling it from its alignment on (so the wire's 17 - Offset bytes cover both words).
         /// </summary>
-        public static readonly bool Applies = BitConverter.IsLittleEndian && Unsafe.SizeOf<T?>() == 16 &&
-                                              NinoLayout<T>.CopiesAsIs && NullableLayout<T>.HasValueOffset == 0 &&
-                                              Offset is > 0 and <= 8 && Unsafe.SizeOf<T>() == 16 - Offset;
+        private static readonly bool Fits = BitConverter.IsLittleEndian && Unsafe.SizeOf<T?>() == 16 &&
+                                            NullableLayout<T>.HasValueOffset == 0 && Offset is > 0 and <= 8 &&
+                                            Unsafe.SizeOf<T>() == 16 - Offset;
+
+        /// <summary>Whether <see cref="Read"/> applies: <see cref="Fits"/>, T read as its bytes.</summary>
+        public static readonly bool Applies = Fits && NinoLayout<T>.CopiesAsIs;
 
         /// <summary>
         /// Stores the value whose present flag <paramref name="flag"/> is (checked by the caller), and T after it, as two
@@ -1025,13 +1028,10 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Whether <see cref="Write"/> applies: as <see cref="Applies"/>, T written as it lies in memory (canonical, no
+        /// Whether <see cref="Write"/> applies: <see cref="Fits"/>, T written as it lies in memory (canonical, no
         /// padding to clear).
         /// </summary>
-        public static readonly bool Writes = BitConverter.IsLittleEndian && Unsafe.SizeOf<T?>() == 16 &&
-                                             NinoLayout<T>.IsCanonical && !NinoLayout<T>.HasPadding &&
-                                             NullableLayout<T>.HasValueOffset == 0 && Offset is > 0 and <= 8 &&
-                                             Unsafe.SizeOf<T>() == 16 - Offset;
+        public static readonly bool Writes = Fits && NinoLayout<T>.IsCanonical && !NinoLayout<T>.HasPadding;
 
         /// <summary>
         /// Writes the present <paramref name="value"/> as the wire holds it (the presence byte, then T) from its two
