@@ -28,6 +28,7 @@ var (
 	innerClass             nino.Class[Inner]
 	collectionsClass       nino.Class[Collections]
 	nullablesClass         nino.Class[Nullables]
+	nullableSequencesClass nino.Class[NullableSequences]
 	ninoNullablesClass     nino.Class[NinoNullables]
 	ninoNullableRunsClass  nino.Class[NinoNullableRuns]
 	emptyClass             nino.Class[Empty]
@@ -51,6 +52,7 @@ func init() {
 	innerClass = nino.Class[Inner]{Read: readInnerBody, Write: writeInnerBody, Deferrable: true}
 	collectionsClass = nino.Class[Collections]{Read: readCollectionsBody, Write: writeCollectionsBody, Deferrable: true}
 	nullablesClass = nino.Class[Nullables]{Read: readNullablesBody, Write: writeNullablesBody, Deferrable: true}
+	nullableSequencesClass = nino.Class[NullableSequences]{Read: readNullableSequencesBody, Write: writeNullableSequencesBody, Deferrable: true}
 	ninoNullablesClass = nino.Class[NinoNullables]{Read: readNinoNullablesBody, Write: writeNinoNullablesBody, Deferrable: true}
 	ninoNullableRunsClass = nino.Class[NinoNullableRuns]{Read: readNinoNullableRunsBody, Write: writeNinoNullableRunsBody, Deferrable: true}
 	emptyClass = nino.Class[Empty]{Read: func(*nino.Reader, *Empty) {}, Write: func(*nino.Writer, *Empty) {}, Deferrable: true}
@@ -99,6 +101,13 @@ func ReadEmpty(r *nino.Reader) *Empty                 { return nino.ReadSealed(r
 func WriteEmpty(w *nino.Writer, v *Empty)             { nino.WriteSealed(w, v, &emptyClass) }
 func ReadEmpties(r *nino.Reader) *Empties             { return nino.ReadSealed(r, &emptiesClass) }
 func WriteEmpties(w *nino.Writer, v *Empties)         { nino.WriteSealed(w, v, &emptiesClass) }
+
+func ReadNullableSequences(r *nino.Reader) *NullableSequences {
+	return nino.ReadSealed(r, &nullableSequencesClass)
+}
+func WriteNullableSequences(w *nino.Writer, v *NullableSequences) {
+	nino.WriteSealed(w, v, &nullableSequencesClass)
+}
 
 func ReadNinoNullables(r *nino.Reader) *NinoNullables { return nino.ReadSealed(r, &ninoNullablesClass) }
 func WriteNinoNullables(w *nino.Writer, v *NinoNullables) {
@@ -634,8 +643,23 @@ func writeNullableInt32(w *nino.Writer, v *int32) {
 	}
 }
 
-// Arrays and lists of a raw T? use the fixed stride (spec §6.2): the flag, padding up to T's alignment, then T
-// (zeros when null).
+func readNullableInt64(r *nino.Reader) *int64 {
+	if !r.Present() {
+		return nil
+	}
+	x := r.I64()
+	return &x
+}
+
+func writeNullableInt64(w *nino.Writer, v *int64) {
+	w.Present(v != nil)
+	if v != nil {
+		w.I64(*v)
+	}
+}
+
+// A raw T? as the element of any sequence (an array, a list, a set, a grid, nested ones) is a slot of a fixed size
+// (spec §6.2): the flag, padding up to T's alignment, then T (zeros when null).
 
 func decodeStrideInt32(r *nino.Reader, b []byte) *int32 {
 	_ = b[7]
@@ -758,6 +782,115 @@ func writeNullablesBody(w *nino.Writer, v *Nullables) {
 	writeStrideInt64s(w, v.LongList)
 	writeStridePaddeds(w, v.PaddedArray)
 	writeI32NullableInt32Entries(w, v.Map)
+}
+
+// Sets of a raw T? are the slots of an array of them (readStrideInt32s); a grid's elements are the same slots, read
+// one after another as every grid's elements are.
+
+func readStrideInt64(r *nino.Reader) *int64 {
+	var v *int64
+	if b := r.Take(16); len(b) == 16 {
+		v = decodeStrideInt64(r, b)
+	}
+	return v
+}
+
+func writeStrideInt64(w *nino.Writer, v *int64) {
+	if b := w.ExtendZero(16); len(b) == 16 {
+		encodeStrideInt64(b, v)
+	}
+}
+
+func readStrideInt32(r *nino.Reader) *int32 {
+	var v *int32
+	if b := r.Take(8); len(b) == 8 {
+		v = decodeStrideInt32(r, b)
+	}
+	return v
+}
+
+func writeStrideInt32(w *nino.Writer, v *int32) {
+	if b := w.ExtendZero(8); len(b) == 8 {
+		encodeStrideInt32(b, v)
+	}
+}
+
+func readStridePadded(r *nino.Reader) *Padded {
+	var v *Padded
+	if b := r.Take(24); len(b) == 24 {
+		v = decodeStridePadded(r, b)
+	}
+	return v
+}
+
+func writeStridePadded(w *nino.Writer, v *Padded) {
+	if b := w.ExtendZero(24); len(b) == 24 {
+		encodeStridePadded(b, v)
+	}
+}
+
+func readStrideInt32Grid(r *nino.Reader) *Grid[*int32] {
+	g := readGrid[*int32](r, 8)
+	if g == nil {
+		return nil
+	}
+	for i := range g.Items {
+		g.Items[i] = readStrideInt32(r)
+		if r.Failed() {
+			return nil
+		}
+	}
+	return g
+}
+
+func writeStrideInt32Grid(w *nino.Writer, g *Grid[*int32]) {
+	if writeGrid(w, g) {
+		for _, e := range g.Items {
+			writeStrideInt32(w, e)
+		}
+	}
+}
+
+func readStridePaddedGrid(r *nino.Reader) *Grid[*Padded] {
+	g := readGrid[*Padded](r, 24)
+	if g == nil {
+		return nil
+	}
+	for i := range g.Items {
+		g.Items[i] = readStridePadded(r)
+		if r.Failed() {
+			return nil
+		}
+	}
+	return g
+}
+
+func writeStridePaddedGrid(w *nino.Writer, g *Grid[*Padded]) {
+	if writeGrid(w, g) {
+		for _, e := range g.Items {
+			writeStridePadded(w, e)
+		}
+	}
+}
+
+func readNullableSequencesBody(r *nino.Reader, v *NullableSequences) {
+	v.IntSet = readStrideInt32s(r)
+	v.LongSet = readStrideInt64s(r)
+	v.Grid = readStrideInt32Grid(r)
+	v.PaddedGrid = readStridePaddedGrid(r)
+	v.Nested = readStrideInt32Lists(r)
+	v.Values = readI32NullableInt64Entries(r)
+	v.Pairs = readI32NullableInt32Pairs(r)
+}
+
+func writeNullableSequencesBody(w *nino.Writer, v *NullableSequences) {
+	writeStrideInt32s(w, v.IntSet)
+	writeStrideInt64s(w, v.LongSet)
+	writeStrideInt32Grid(w, v.Grid)
+	writeStridePaddedGrid(w, v.PaddedGrid)
+	writeStrideInt32Lists(w, v.Nested)
+	writeI32NullableInt64Entries(w, v.Values)
+	writeI32NullableInt32Entries(w, v.Pairs)
 }
 
 // ---------------------------------------------------------------- NinoNullable<T>: its memory, a raw struct

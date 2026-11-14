@@ -37,6 +37,7 @@ const (
 	idNinoNullableFields int32 = -18485656   // Conformance.NinoNullableFields, 0xFEE5EE68
 	idNinoNullableRuns   int32 = -1745896621 // Conformance.NinoNullableRuns, 0x97EFBB53
 	idNinoNullables      int32 = 1726570842  // Conformance.NinoNullables, 0x66E9615A
+	idNullableSequences  int32 = -619270237  // Conformance.NullableSequences, 0xDB16AFA3
 	idNullables          int32 = 958404412   // Conformance.Nullables, 0x3920173C
 	idOuter              int32 = 1062789439  // Conformance.Outer, 0x3F58E13F
 	idPacked             int32 = -282809690  // Conformance.Packed, 0xEF24AAA6
@@ -106,6 +107,7 @@ var typeNames = map[int32]string{
 	idNinoNullableFields: "Conformance.NinoNullableFields",
 	idNinoNullableRuns:   "Conformance.NinoNullableRuns",
 	idNinoNullables:      "Conformance.NinoNullables",
+	idNullableSequences:  "Conformance.NullableSequences",
 	idNullables:          "Conformance.Nullables",
 	idOuter:              "Conformance.Outer",
 	idPacked:             "Conformance.Packed",
