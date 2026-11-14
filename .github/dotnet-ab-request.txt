@@ -317,7 +317,14 @@
 # as fast as MemoryPack's SafeNullable on all four CPUs, its single values and non-block arrays 1.3-10x slower than T?.
 # 16-byte nullable elements cleared by a GF(2^8) multiplication (24a43490, GFNI: Intel and Zen 4+) against its
 # parent, and the parent against itself.
-cpu='EPYC|Xeon' b4fd0910 24a43490 6 *CollectionsTest.Nino*NullableLongs* *NullableTest.Nino*NullableFieldsArray*
-cpu='EPYC|Xeon' b4fd0910 b4fd0910 4 *CollectionsTest.Nino*NullableLongs* *NullableTest.Nino*NullableFieldsArray*
+# done (run 43581721720): cpu='EPYC|Xeon' b4fd0910 24a43490 6 *CollectionsTest.Nino*NullableLongs* *NullableTest.Nino*NullableFieldsArray*
+# done (run 43581721720): cpu='EPYC|Xeon' b4fd0910 b4fd0910 4 *CollectionsTest.Nino*NullableLongs* *NullableTest.Nino*NullableFieldsArray*
 # The nullable forms again after NinoNullable<T> reads and writes its own memory (6652c50a), one report per CPU.
-cpu='EPYC|Xeon|Neoverse' 24a43490 24a43490 3 *NullableTest.Nino*Struct* *NullableTest.Nino*Fields* *NullableTest.MemoryPack*Struct* *NullableTest.MemoryPack*Fields* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# done (run 43581721720): cpu='EPYC|Xeon|Neoverse' 24a43490 24a43490 3 *NullableTest.Nino*Struct* *NullableTest.Nino*Fields* *NullableTest.MemoryPack*Struct* *NullableTest.MemoryPack*Fields* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# Run 43581721720: the GFNI clear moved no case beyond the floor; NinoNullable<T> of a T wider than its alignment was
+# 1.6-4x slower than T? (its conversion to T?'s bytes). Main 606e8d09 against df0d2b17: the GF(2^8) clear for any
+# stride and the vpermb pack (ee3456d4), structs that open no class body on a local reader and writer, inlined
+# (30df6106, 80c18c90); the floor; and the nullable forms beside MemoryPack on the head.
+cpu='EPYC|Xeon|Neoverse' df0d2b17 606e8d09 3 *NullableTest.Nino* *CollectionsTest.Nino*Nullable*
+cpu='EPYC|Xeon|Neoverse' df0d2b17 df0d2b17 3 *NullableTest.Nino* *CollectionsTest.Nino*Nullable*
+cpu='EPYC|Xeon|Neoverse' 606e8d09 606e8d09 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
