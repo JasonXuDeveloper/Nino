@@ -215,6 +215,11 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   and for the elements of a built-in collection of it (`List<Small>`, `Small[]`, `Dictionary<int, Small>`): no class
   body is open around those either, and the twin writes the same bytes wherever none is. A collection then reads and
   writes each element inline in its loop, instead of calling the element's body.
+* A struct that is not raw (it holds a string, say) follows the same rule for its body, without a twin: where the
+  body opens no class body it reads and writes on a local copy of the reader and writer, and a small one (the limits
+  above) is inlined wherever the formatter is used, so a loop over `Small[]`, `Small?[]` or `List<Small?>` reads and
+  writes each element, and the presence byte of a `Small?`, with its position in registers. A struct holding a
+  class, another `[NinoType]` or a member with a custom formatter keeps its body out of line.
 * The top-level calls that create their writer (`Serialize(T)` to `byte[]`, to an `IBufferWriter<byte>` that is a
   `NinoArrayBufferWriter`) create it in a method of the formatter (`INinoTopFormatter<T>.Write(value, buffer)`) rather
   than taking the address of a writer created by the caller. For a twin whose body is not inlined
