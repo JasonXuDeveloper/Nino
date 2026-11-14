@@ -40,12 +40,8 @@ namespace Nino.Core
 
         internal static void WriteRawTo(IBufferWriter<byte> buffer, ReadOnlySpan<T> values, int length, int size)
         {
-#if NETSTANDARD2_0
-            var source = MemoryMarshal.AsBytes(values);
-#else
             var source = MemoryMarshal.CreateReadOnlySpan(
                 ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), size - NinoWire.LengthSize);
-#endif
             NinoLayout<T>.WriteRawExternal(buffer, source, length, size);
         }
 

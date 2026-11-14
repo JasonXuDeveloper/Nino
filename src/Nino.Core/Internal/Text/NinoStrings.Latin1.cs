@@ -59,7 +59,7 @@ namespace Nino.Core.Internal
         private static unsafe bool NarrowWords(ref char source, ref byte destination, nuint n)
         {
 #if !NET8_0_OR_GREATER
-            // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for long text; else
+            // The netstandard2.1 build (Unity, Mono): the registered kernels (NinoKernels), for long text; else
             // Vector<T> where it is fast (TextVectors).
             if (n >= (uint)NinoKernelHook.MinNarrow)
             {

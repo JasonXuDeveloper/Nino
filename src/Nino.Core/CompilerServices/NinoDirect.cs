@@ -6,10 +6,8 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.Internal;
-#if !NETSTANDARD2_0
 using System.Threading;
 using System.Threading.Tasks;
-#endif
 
 namespace Nino.Core.CompilerServices
 {
@@ -404,7 +402,7 @@ namespace Nino.Core.CompilerServices
 
         // The Stream forms of the writes and reads above: the I/O is NinoStreams' (shared with the regular calls), out
         // of line; what the interceptor inlines is the call, with the writer or reader struct that names the formatter.
-        // The asynchronous forms keep their state machines there too, and are not in the netstandard2.0 build.
+        // The asynchronous forms keep their state machines there too.
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T, TFormatter>(in T value, Stream stream)
@@ -467,7 +465,6 @@ namespace Nino.Core.CompilerServices
             where TFormatter : struct, INinoFormatter<T> =>
             NinoStreams.Read(stream, ref value, default(PrefetchListReader<T, TFormatter>));
 
-#if !NETSTANDARD2_0
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ValueTask SerializeAsync<T, TFormatter>(T value, Stream stream,
             CancellationToken cancellationToken = default)
@@ -479,7 +476,6 @@ namespace Nino.Core.CompilerServices
             CancellationToken cancellationToken = default)
             where TFormatter : struct, INinoFormatter<T> =>
             NinoStreams.ReadAsync<T, DirectReader<T, TFormatter>>(stream, default, cancellationToken);
-#endif
 
         /// <summary>Reads with <typeparamref name="TFormatter"/> (<see cref="NinoStreams"/>).</summary>
         private readonly struct DirectReader<T, TFormatter> : INinoStreamReader<T>

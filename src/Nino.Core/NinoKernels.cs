@@ -5,9 +5,8 @@ using System.Threading;
 namespace Nino.Core
 {
     /// <summary>
-    /// Native kernels for the netstandard builds of Nino.Core, which have no hardware intrinsics: Unity (Mono, IL2CPP,
-    /// HybridCLR) and .NET Framework take scalar code for the work below unless kernels are registered (.NET Framework
-    /// narrows and widens long text with <c>System.Numerics.Vector&lt;T&gt;</c> where its JIT accelerates it). Unity's
+    /// Native kernels for the netstandard2.1 build of Nino.Core, which has no hardware intrinsics: Unity (Mono, IL2CPP,
+    /// HybridCLR) and Mono take scalar code for the work below unless kernels are registered. Unity's
     /// package registers Burst-compiled ones (its Nino.Burst assembly, compiled when com.unity.burst is installed) and,
     /// in WebGL players built with SIMD, WebAssembly ones (Nino.WebGL) at startup; without any, nothing changes. The
     /// .NET 8 and later builds use their own vector paths: the type is there too, so code built against any of

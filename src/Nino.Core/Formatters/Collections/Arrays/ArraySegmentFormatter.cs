@@ -9,16 +9,12 @@ namespace Nino.Core
 {
     /// <summary><c>ArraySegment&lt;T&gt;</c>: written like an array; read into a new array.</summary>
     public struct ArraySegmentFormatter<T, TFormatter> : INinoFormatter<ArraySegment<T>>
-#if !NETSTANDARD2_0
         , INinoExternalFormatter<ArraySegment<T>>
-#endif
         where TFormatter : struct, INinoFormatter<T>
     {
-#if !NETSTANDARD2_0
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool INinoExternalFormatter<ArraySegment<T>>.TryWriteExternal(ArraySegment<T> value, IBufferWriter<byte> buffer) =>
             NinoCollections.TryWriteRawExternal<T, TFormatter>(value, buffer);
-#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ArraySegment<T> value, ref Writer writer)

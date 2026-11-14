@@ -39,7 +39,7 @@ namespace Nino.Core
         /// without bound (200,000 names such as "en-x0001", 160 MB). So only the cultures the runtime ships read back
         /// there (GetCultureInfo's predefinedOnly, a bounded set), and only by names without a singleton subtag: with
         /// one ("en-US-u-ca-buddhist", "en-US-x-anything"), even predefinedOnly accepts and keeps every distinct name.
-        /// Custom cultures and names with such extensions are invalid data. The other builds (.NET Framework, Mono,
+        /// Custom cultures and names with such extensions are invalid data. The netstandard2.1 build (Mono,
         /// Unity) know only the cultures of their own tables, and keep their own checks.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]

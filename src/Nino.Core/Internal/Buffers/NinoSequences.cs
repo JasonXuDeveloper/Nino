@@ -99,13 +99,16 @@ namespace Nino.Core.Internal
             var right = second.Span;
             int rest = NinoWire.LengthSize - first.Length;
             var left = first.Span;
-            // The two spans were checked to contain the full header.
+            // The two spans were checked to contain the full header. Bytes through references, not left[i]: Mono 6.8's
+            // ReadOnlySpan indexer lacks the modreq netstandard2.1 compiles its calls with.
+            ref byte l = ref MemoryMarshal.GetReference(left);
+            ref byte r = ref MemoryMarshal.GetReference(right);
             int count = first.Length switch
             {
                 0 => BinaryPrimitives.ReadInt32LittleEndian(right),
-                1 => left[0] | BinaryPrimitives.ReadUInt16LittleEndian(right) << 8 | right[2] << 24,
+                1 => l | BinaryPrimitives.ReadUInt16LittleEndian(right) << 8 | Unsafe.Add(ref r, 2) << 24,
                 2 => BinaryPrimitives.ReadUInt16LittleEndian(left) | BinaryPrimitives.ReadUInt16LittleEndian(right) << 16,
-                _ => BinaryPrimitives.ReadUInt16LittleEndian(left) | left[2] << 16 | right[0] << 24,
+                _ => BinaryPrimitives.ReadUInt16LittleEndian(left) | Unsafe.Add(ref l, 2) << 16 | r << 24,
             };
             if (!BitConverter.IsLittleEndian)
                 count = BinaryPrimitives.ReverseEndianness(count);

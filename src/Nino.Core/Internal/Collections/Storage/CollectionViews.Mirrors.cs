@@ -200,7 +200,7 @@ namespace Nino.Core.Internal
         /// type parameter only through an open one, so those would throw on every start there. Not for
         /// <see cref="SortedSet{T}"/>, <see cref="SortedDictionary{TKey,TValue}"/>, <see cref="HashSet{T}"/> and
         /// <see cref="Dictionary{TKey,TValue}"/>, whose root, set or entries are of a private type. Every other
-        /// runtime (the netstandard builds: .NET Framework, Mono, Unity, IL2CPP) uses the mirrors alone.
+        /// runtime (the netstandard2.1 build: Mono, Unity, IL2CPP) uses the mirrors alone.
         /// </summary>
         private static class Fields<T>
         {

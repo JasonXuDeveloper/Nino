@@ -11,7 +11,7 @@ namespace Nino.Core.CompilerServices
         /// <summary>
         /// Prefetches the object <paramref name="member"/> refers to (null: nothing) and returns what
         /// <see cref="INinoPrefetchFormatter.PrefetchMembers"/> sums: 0 on x64, the byte loaded on Arm64 (see
-        /// <see cref="NinoPrefetch"/>), nothing in the netstandard builds.
+        /// <see cref="NinoPrefetch"/>), nothing in the netstandard2.1 build.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int At(object member) => NinoPrefetch.At(member);

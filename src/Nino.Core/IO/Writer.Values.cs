@@ -119,8 +119,11 @@ namespace Nino.Core
         {
             if (!NinoLayout<T>.IsCanonical)
             {
-                foreach (var item in values)
-                    WriteValue(item);
+                // Not foreach or values[i]: Mono 6.8's ReadOnlySpan indexer lacks the modreq netstandard2.1 compiles
+                // its calls with (MissingMethodException; the platforms skill, Mono).
+                ref T item = ref MemoryMarshal.GetReference(values);
+                for (int i = 0; i < values.Length; i++)
+                    WriteValue(Unsafe.Add(ref item, i));
                 return;
             }
 

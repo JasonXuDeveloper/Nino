@@ -212,20 +212,7 @@ namespace Nino.Core.Internal
         public static void Write<T, TFormatter>(ref T first, int count, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-#if NETSTANDARD2_0
-            // No span over a reference: raw elements as one block, the others one by one.
-            if (RawFormatter.Is<T, TFormatter>())
-            {
-                NinoLayout<T>.CopyToWire(ref writer.ReserveElements(count, Unsafe.SizeOf<T>()),
-                    ref Unsafe.As<T, byte>(ref first), count);
-                return;
-            }
-
-            for (int i = 0; i < count; i++)
-                default(TFormatter).Serialize(Unsafe.Add(ref first, i), ref writer);
-#else
             Write<T, TFormatter>(MemoryMarshal.CreateReadOnlySpan(ref first, count), ref writer);
-#endif
         }
 
         /// <summary>
@@ -236,20 +223,7 @@ namespace Nino.Core.Internal
         public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader, bool prechecked = false)
             where TFormatter : struct, INinoFormatter<T>
         {
-#if NETSTANDARD2_0
-            // Bools one by one (checked, NinoLayout<T>.CopiesAsIs).
-            if (RawFormatter.Is<T, TFormatter>() && NinoLayout<T>.CopiesAsIs)
-            {
-                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first),
-                    ref TakeElements(ref reader, count, Unsafe.SizeOf<T>(), prechecked), (uint)count * (uint)Unsafe.SizeOf<T>());
-                return;
-            }
-
-            for (int i = 0; i < count; i++)
-                default(TFormatter).Deserialize(ref reader, ref Unsafe.Add(ref first, i));
-#else
             Read<T, TFormatter>(MemoryMarshal.CreateSpan(ref first, count), ref reader, prechecked);
-#endif
         }
 
         /// <summary>Writes the elements of a span.</summary>

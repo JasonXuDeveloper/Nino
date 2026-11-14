@@ -231,7 +231,7 @@ namespace Nino.Core
             }
             else
             {
-                added = NinoCollections.TryAdd(_byKey, grouping.Key, grouping);
+                added = _byKey.TryAdd(grouping.Key, grouping);
                 if (added)
                     Internal.HashTables.Added(_byKey, grouping.Key);
             }

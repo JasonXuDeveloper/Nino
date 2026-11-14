@@ -146,24 +146,11 @@ namespace Nino.Core.Internal
             WriteEnumerable<T, TFormatter>(value, ref writer);
         }
 
-        /// <summary><c>Dictionary.TryAdd</c>, which netstandard2.0 lacks.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool TryAdd<TKey, TValue>(Dictionary<TKey, TValue> dictionary, TKey key, TValue value)
-        {
-#if NETSTANDARD2_0
-            int before = dictionary.Count;
-            dictionary[key] = value;
-            return dictionary.Count != before;
-#else
-            return dictionary.TryAdd(key, value);
-#endif
-        }
-
         /// <summary>Adds a pair; a key the data repeats (under the dictionary's comparer) is invalid data.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AddUnique<TKey, TValue>(Dictionary<TKey, TValue> dictionary, TKey key, TValue value)
         {
-            if (!TryAdd(dictionary, key, value))
+            if (!dictionary.TryAdd(key, value))
                 NinoThrow.DuplicateKey(dictionary.GetType());
         }
 
@@ -350,7 +337,6 @@ namespace Nino.Core.Internal
             NinoElements.Write<T, TFormatter>(values, ref writer);
         }
 
-#if !NETSTANDARD2_0
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool TryWriteRawExternal<T, TFormatter>(ReadOnlyMemory<T> value, IBufferWriter<byte> buffer)
             where TFormatter : struct, INinoFormatter<T> =>
@@ -378,7 +364,6 @@ namespace Nino.Core.Internal
             NinoLayout<T>.WriteRawExternal(buffer, source, count, (int)size);
             return true;
         }
-#endif
 
         /// <summary>Reads a new <c>T[]</c> (null for a null length).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

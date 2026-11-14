@@ -55,17 +55,8 @@ namespace Nino.Core
             }
 
             CopyChunks(value, length, ref body);
-#elif !NETSTANDARD2_0
-            value.CopyTo(0, MemoryMarshal.CreateSpan(ref Unsafe.As<byte, char>(ref body), length), length);
 #else
-            if (length >= 4096)
-            {
-                CopyPooled(value, length, ref body);
-                return;
-            }
-
-            var chars = MemoryMarshal.AsBytes(value.ToString().AsSpan());
-            NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(chars), (uint)chars.Length);
+            value.CopyTo(0, MemoryMarshal.CreateSpan(ref Unsafe.As<byte, char>(ref body), length), length);
 #endif
         }
 
@@ -89,24 +80,6 @@ namespace Nino.Core
                 var bytes = MemoryMarshal.AsBytes(chunk.Span);
                 NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
                 body = ref Unsafe.Add(ref body, bytes.Length);
-            }
-        }
-#endif
-
-#if NETSTANDARD2_0
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void CopyPooled(StringBuilder value, int length, ref byte body)
-        {
-            var chars = ArrayPool<char>.Shared.Rent(length);
-            try
-            {
-                value.CopyTo(0, chars, 0, length);
-                ref byte source = ref Unsafe.As<char, byte>(ref chars[0]);
-                NinoUnsafe.Copy(ref body, ref source, (uint)length * sizeof(char));
-            }
-            finally
-            {
-                ArrayPool<char>.Shared.Return(chars);
             }
         }
 #endif

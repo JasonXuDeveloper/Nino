@@ -197,12 +197,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ReadOnlySpan<byte> Prefix(ReadOnlySpan<byte> data, int end)
         {
-#if NETSTANDARD2_0
-            return data.Slice(0, end);
-#else
             // No second bounds check: the caller compared the end with the data.
             return MemoryMarshal.CreateReadOnlySpan(ref MemoryMarshal.GetReference(data), end);
-#endif
         }
     }
 }

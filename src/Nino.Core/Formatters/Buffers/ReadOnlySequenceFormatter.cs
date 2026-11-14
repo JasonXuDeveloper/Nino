@@ -21,16 +21,12 @@ namespace Nino.Core
     /// after another. Read back as one segment.
     /// </summary>
     public struct ReadOnlySequenceFormatter<T, TFormatter> : INinoFormatter<ReadOnlySequence<T>>
-#if !NETSTANDARD2_0
         , INinoExternalFormatter<ReadOnlySequence<T>>
-#endif
         where TFormatter : struct, INinoFormatter<T>
     {
-#if !NETSTANDARD2_0
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool INinoExternalFormatter<ReadOnlySequence<T>>.TryWriteExternal(ReadOnlySequence<T> value, IBufferWriter<byte> buffer) =>
             value.IsSingleSegment && NinoCollections.TryWriteRawExternal<T, TFormatter>(value.First, buffer);
-#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ReadOnlySequence<T> value, ref Writer writer)
@@ -49,14 +45,12 @@ namespace Nino.Core
         private static Writer WriteSegments(ReadOnlySequence<T> value, Writer writer)
         {
             int length = checked((int)value.Length);
-#if !NETSTANDARD2_0
             if (typeof(TFormatter) == typeof(UnmanagedFormatter<byte>))
             {
                 var destination = MemoryMarshal.CreateSpan(ref writer.ReserveCounted(length, 1), length);
                 NinoSequences.CopySegments(in Unsafe.As<ReadOnlySequence<T>, ReadOnlySequence<byte>>(ref value), destination);
                 return writer;
             }
-#endif
             writer.WriteLength(length);
             foreach (var segment in value)
                 NinoElements.Write<T, TFormatter>(segment.Span, ref writer);

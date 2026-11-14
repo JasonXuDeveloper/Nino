@@ -11,10 +11,10 @@ namespace Nino.Core.Internal
     /// The byte-vector operations every width shares, so a kernel is written once over <typeparamref name="TVector"/>
     /// and called per width: <see cref="NinoVectors128"/>, <see cref="NinoVectors256"/> and
     /// <see cref="NinoVectors512"/> on .NET 8+, <see cref="NinoVectors"/> (<see cref="Vector{T}"/> of bytes) in the
-    /// netstandard builds. The masked copy (<see cref="NinoMask"/>) and the flag checks (<see cref="NinoChecks"/>) use
+    /// netstandard2.1 build. The masked copy (<see cref="NinoMask"/>) and the flag checks (<see cref="NinoChecks"/>) use
     /// it; a kernel whose per-width work is its own (widening Latin-1 compares, bool slots on 16-bit lanes) keeps its
     /// own structs. Empty structs called through <c>default(TOps)</c>, so every call is direct and inlined; instance
-    /// members, not static abstract ones, which the netstandard builds cannot declare.
+    /// members, not static abstract ones, which the netstandard2.1 build cannot declare.
     /// </summary>
     internal interface INinoVectors<TVector> where TVector : struct
     {
@@ -38,13 +38,13 @@ namespace Nino.Core.Internal
     }
 
 #if !NET8_0_OR_GREATER
-    /// <summary><see cref="Vector{T}"/> of bytes, the netstandard builds' one width.</summary>
+    /// <summary><see cref="Vector{T}"/> of bytes, the netstandard2.1 build's one width.</summary>
     internal readonly struct NinoVectors : INinoVectors<Vector<byte>>
     {
         // Plain ldobj / stobj (Unsafe.As), not Unsafe.ReadUnaligned / WriteUnaligned: classic Mono compiles their
         // unaligned. prefix on a 16-byte struct to a call to memcpy through a stack slot (mini_emit_memory_load in
         // mono/mini/memory-access.c), and plain ones to movups. RyuJIT never assumes a vector aligned: NinoMask's
-        // machine code on .NET 10 is the same with either form (netstandard2.0 and net10.0 builds).
+        // machine code on .NET 10 is the same with either form (netstandard and net10.0 builds).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Vector<byte> Load(ref byte at, nuint offset) =>
             Unsafe.As<byte, Vector<byte>>(ref Unsafe.Add(ref at, offset));

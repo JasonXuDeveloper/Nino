@@ -5,10 +5,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
 using Nino.Core.Internal;
-#if !NETSTANDARD2_0
 using System.Threading;
 using System.Threading.Tasks;
-#endif
 
 namespace Nino.Core
 {
@@ -164,18 +162,15 @@ namespace Nino.Core
         public static void Deserialize<T>(Stream stream, ref T value) =>
             NinoStreams.Read(stream, ref value, default(SpanReader<T>));
 
-#if !NETSTANDARD2_0
         /// <summary>
         /// <see cref="Deserialize{T}(Stream)"/> with the stream's asynchronous reads. Reads that complete at once (a
         /// <see cref="MemoryStream"/>) allocate nothing but the value. There is no form that reads into an existing
         /// instance (an async method takes no <c>ref</c>): for that, read the bytes yourself and call
-        /// <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>. Not in the netstandard2.0 build (no
-        /// <see cref="ValueTask{TResult}"/> there).
+        /// <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>.
         /// </summary>
         /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
         public static ValueTask<T> DeserializeAsync<T>(Stream stream, CancellationToken cancellationToken = default) =>
             NinoStreams.ReadAsync<T, SpanReader<T>>(stream, default, cancellationToken);
-#endif
 
         /// <summary>Reads with <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/> (the Stream overloads, <see cref="NinoStreams"/>).</summary>
         private readonly struct SpanReader<T> : INinoStreamReader<T>
@@ -307,10 +302,9 @@ namespace Nino.Core
             NinoStreams.Read(stream, ref value, new BoxedReader(type));
         }
 
-#if !NETSTANDARD2_0
         /// <summary>
         /// <see cref="DeserializeBoxed(Stream, Type)"/> with the stream's asynchronous reads, as
-        /// <see cref="DeserializeAsync{T}"/>. Not in the netstandard2.0 build.
+        /// <see cref="DeserializeAsync{T}"/>.
         /// </summary>
         public static ValueTask<object> DeserializeBoxedAsync(Stream stream, Type type,
             CancellationToken cancellationToken = default)
@@ -319,7 +313,6 @@ namespace Nino.Core
                 throw new ArgumentNullException(nameof(type));
             return NinoStreams.ReadAsync<object, BoxedReader>(stream, new BoxedReader(type), cancellationToken);
         }
-#endif
 
         /// <summary>Reads with <see cref="DeserializeBoxed(ReadOnlySpan{byte}, ref object, Type)"/> (the Stream overloads).</summary>
         private readonly struct BoxedReader : INinoStreamReader<object>

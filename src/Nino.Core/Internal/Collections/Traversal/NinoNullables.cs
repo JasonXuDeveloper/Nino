@@ -988,7 +988,7 @@ namespace Nino.Core
         /// <summary>
         /// <see cref="ReadPrechecked(Span{T?}, ref Reader)"/> of <paramref name="count"/> elements from
         /// <paramref name="item"/>: also what reads a <see cref="NinoNullable{T}"/> run in place, its memory taken as
-        /// <c>T?</c> (<see cref="Words"/>), on every build (netstandard2.0 has no span over a reference).
+        /// <c>T?</c> (<see cref="Words"/>).
         /// </summary>
         private static void ReadPrechecked(ref T? item, int count, ref Reader reader)
         {

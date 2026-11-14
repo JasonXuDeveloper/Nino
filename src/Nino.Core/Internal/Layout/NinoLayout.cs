@@ -118,7 +118,7 @@ namespace Nino.Core.Internal
 
         private static int ProbeInt128Align() => Unsafe.SizeOf<Int128Probe>() - 16;
 #else
-        // The netstandard builds name no Int128 (it exists from .NET 7): the probe struct is made for the runtime's own.
+        // The netstandard2.1 build names no Int128 (it exists from .NET 7): the probe struct is made for the runtime's own.
         private struct Int128Probe<T>
         {
 #pragma warning disable CS0649
@@ -171,7 +171,7 @@ namespace Nino.Core.Internal
 #else
         private static readonly int[] IntrinsicAligns = ProbeIntrinsicAligns();
 
-        // The netstandard builds name none of them (they exist from .NET Core 3.0, .NET 8 for Vector512).
+        // The netstandard2.1 build names none of them (they exist from .NET Core 3.0, .NET 8 for Vector512).
         private static int[] ProbeIntrinsicAligns()
         {
             var aligns = new int[4];
@@ -273,13 +273,7 @@ namespace Nino.Core.Internal
         public static Info Get(Type type, int runtimeSize) =>
             runtimeSize < 0 ? Create(type, runtimeSize) : GetCached(type, runtimeSize);
 
-#if NETSTANDARD2_0
-        // This target lacks the GetOrAdd overload with factory state. Compute only on a miss without capturing the size.
-        private static Info GetCached(Type type, int runtimeSize) =>
-            Cache.TryGetValue(type, out var info) ? info : Cache.GetOrAdd(type, Create(type, runtimeSize));
-#else
         private static Info GetCached(Type type, int runtimeSize) => Cache.GetOrAdd(type, Create, runtimeSize);
-#endif
 
         private static Info Create(Type type, int runtimeSize)
         {
@@ -510,7 +504,7 @@ namespace Nino.Core.Internal
                     return NinoLeaf.Pointer;
                 if (VectorIndex(type) >= 0)
                     return NinoLeaf.Vector;
-                // By name: the netstandard builds name no Int128. Without a known alignment (the probe failed), its
+                // By name: the netstandard2.1 build names no Int128. Without a known alignment (the probe failed), its
                 // two ulongs (8-byte aligned), as before.
                 if (Int128Align > 0 && type.Assembly == typeof(object).Assembly &&
                     (type.FullName == "System.Int128" || type.FullName == "System.UInt128"))

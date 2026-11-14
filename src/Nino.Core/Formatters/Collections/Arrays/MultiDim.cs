@@ -144,13 +144,11 @@ namespace Nino.Core
         /// </summary>
         public static void Fill<T>(T[] items, ref T first)
         {
-#if !NETSTANDARD2_0
             if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
             {
                 items.AsSpan().CopyTo(MemoryMarshal.CreateSpan(ref first, items.Length));
                 return;
             }
-#endif
 
             for (int i = 0; i < items.Length; i++)
                 Unsafe.Add(ref first, i) = items[i];

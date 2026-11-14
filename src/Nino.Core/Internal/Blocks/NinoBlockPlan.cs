@@ -115,7 +115,7 @@ namespace Nino.Core.Internal
 
 #if !NET8_0_OR_GREATER
         /// <summary>
-        /// Whether values are moved by the registered kernels (<see cref="NinoKernels"/>, netstandard builds only):
+        /// Whether values are moved by the registered kernels (<see cref="NinoKernels"/>, the netstandard2.1 build only):
         /// blocks not laid out as in memory, both at most 64 bytes.
         /// </summary>
         public static readonly bool Kernel = Map != null && !IsMemory && NinoBlockCollections.FixedSize<T, TFormatter>() <= 64 &&

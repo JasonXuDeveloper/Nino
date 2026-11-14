@@ -198,7 +198,7 @@ namespace Nino.Core
 
         /// <summary>
         /// <c>() =&gt; new T()</c> compiled, where the runtime compiles dynamic code (CoreCLR, Mono JIT): as fast as the
-        /// generated creator. Null elsewhere (IL2CPP, NativeAOT, netstandard2.0), where
+        /// generated creator. Null elsewhere (IL2CPP, NativeAOT), where
         /// <c>Activator.CreateInstance&lt;T&gt;</c> is what <c>new T()</c> in generic code always was.
         /// </summary>
         private static Func<T> Compile<T>(ConstructorInfo constructor)

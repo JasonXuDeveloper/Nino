@@ -44,19 +44,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static bool StackLeft()
         {
-#if NETSTANDARD2_0
-            try
-            {
-                RuntimeHelpers.EnsureSufficientExecutionStack();
-                return true;
-            }
-            catch (InsufficientExecutionStackException)
-            {
-                return false;
-            }
-#else
             return RuntimeHelpers.TryEnsureSufficientExecutionStack();
-#endif
         }
     }
 }

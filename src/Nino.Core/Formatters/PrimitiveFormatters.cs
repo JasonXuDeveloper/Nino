@@ -188,7 +188,7 @@ namespace Nino.Core
         /// <see cref="RawFormatter.Is{T,TFormatter}"/> (a field read in an inlined call) the other path was imported
         /// too, and its reads and writes of the nullable's fields made the JIT split <c>T?</c> locals into their fields
         /// and join them again through the stack (NullableTest.NinoDeserializeNullableStruct: a store-forwarding stall
-        /// per read). The netstandard builds read the field, which Mono and IL2CPP do without boxing.
+        /// per read). The netstandard2.1 build reads the field, which Mono and IL2CPP do without boxing.
         /// </summary>
         private static bool IsRaw
         {

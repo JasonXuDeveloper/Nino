@@ -456,14 +456,7 @@ namespace Nino.Core.Internal
                 return value;
             }
 #endif
-#if NETSTANDARD2_0
-            fixed (byte* p = &chars)
-            {
-                return new string((char*)p, 0, length);
-            }
-#else
             return new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref chars), length));
-#endif
         }
 
 #if NET8_0_OR_GREATER

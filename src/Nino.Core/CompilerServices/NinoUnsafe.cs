@@ -110,8 +110,8 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// Whether <c>Vector.Narrow</c> and <c>Vector.Widen</c> (with <c>Vector.EqualsAll</c>, the text kernels) are
-        /// worth using: the JIT accelerates <c>Vector&lt;T&gt;</c> and, in the netstandard builds, the runtime is .NET
-        /// Framework or .NET (Core), whose descriptions start with ".NET". Never on Mono or Unity: classic Mono's JIT
+        /// worth using: the JIT accelerates <c>Vector&lt;T&gt;</c> and, in the netstandard2.1 build, the runtime is .NET
+        /// (Core), whose description start with ".NET". Never on Mono or Unity: classic Mono's JIT
         /// (mono/mono 6.x, and Unity's fork) accelerates only <c>Vector&lt;T&gt;</c>'s own operators, constructors,
         /// <c>Equals</c> and <c>CopyTo</c> (<c>vector_t_intrinsics</c> in mono/mini/simd-intrinsics.c), and runs
         /// <c>Vector.Narrow</c> and <c>Widen</c> in the package's software form (element by element through a stack
@@ -156,7 +156,7 @@ namespace Nino.Core.CompilerServices
 
 #if !NET8_0_OR_GREATER
         /// <summary>
-        /// <see cref="NumericVectors"/> and <see cref="VectorMasks"/> in the netstandard builds (a class of its own,
+        /// <see cref="NumericVectors"/> and <see cref="VectorMasks"/> in the netstandard2.1 build (a class of its own,
         /// see <see cref="WideAccess"/>).
         /// </summary>
         private static class NumericVectorProbe
@@ -383,28 +383,17 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// Whether <typeparamref name="T"/> is a reference type or contains references (i.e. is not unmanaged).
-        /// Constant-folded by the JIT on .NET Core and .NET Standard 2.1.
+        /// Constant-folded by the JIT.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsReferenceOrContainsReferences<T>()
         {
-#if NETSTANDARD2_0
-            return TypeInfo<T>.IsReferenceOrContainsReferences;
-#else
             return RuntimeHelpers.IsReferenceOrContainsReferences<T>();
-#endif
         }
-
-#if NETSTANDARD2_0
-        private static class TypeInfo<T>
-        {
-            public static readonly bool IsReferenceOrContainsReferences = !IsUnmanaged(typeof(T));
-        }
-#endif
 
         /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its
         /// layout).</summary>
-        // Reached from the runtime resolver (dynamic code only) and the netstandard2.0 build.
+        // Reached from the runtime resolver (dynamic code only) and reflection over layouts.
         [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
             Justification = NinoLayout.FieldsJustification)]
         public static bool IsUnmanaged(Type type)

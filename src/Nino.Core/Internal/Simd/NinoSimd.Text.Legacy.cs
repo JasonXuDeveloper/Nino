@@ -8,11 +8,11 @@ namespace Nino.Core.Internal
     internal static partial class NinoSimd
     {
         /// <summary>
-        /// The netstandard builds' narrowing and widening of long text with <see cref="Vector{T}"/>, where it is fast
-        /// (<see cref="NinoUnsafe.NumericVectors"/>: .NET Framework and .NET Core, never Mono or Unity, which take
-        /// their Burst kernels, tested first). Measured with the netstandard2.0 build on .NET 10 (the only runtime
-        /// here that accelerates it; .NET Framework is not measured): 1,024 chars written in 200 ns instead of 450 to
-        /// 770, read in 310 instead of 530 to 780. The same bytes as the scalar loops.
+        /// The netstandard2.1 build's narrowing and widening of long text with <see cref="Vector{T}"/>, where it is
+        /// fast (<see cref="NinoUnsafe.NumericVectors"/>: .NET Core, never Mono or Unity, which take their Burst
+        /// kernels, tested first). Measured with the then netstandard2.0 build on .NET 10 (the only runtime here that
+        /// accelerates it): 1,024 chars written in 200 ns instead of 450 to 770, read in 310 instead of 530 to 780.
+        /// The same bytes as the scalar loops.
         /// </summary>
         internal static class TextVectors
         {

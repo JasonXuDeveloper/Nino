@@ -142,7 +142,7 @@ namespace Nino.Core.Internal
                 }
             }
 #else
-            // The netstandard builds (Unity, .NET Framework): the registered kernels (NinoKernels), for runs long
+            // The netstandard2.1 build (Unity, Mono): the registered kernels (NinoKernels), for runs long
             // enough to pay for the call; without any, one load and a compare that fails.
             if (NinoBlockPlan<T, TFormatter>.Kernel && count >= NinoKernelHook.MinBlocks &&
                 NinoKernelHook.TryPermute(ref Unsafe.As<T, byte>(ref first), Unsafe.SizeOf<T>(), ref destination, size,

@@ -92,7 +92,7 @@ namespace Nino.Core
         /// assembly, so a collectible <c>AssemblyLoadContext</c> that loaded it can unload.
         /// <para>
         /// In the .NET 8 and later builds of Nino.Core (what .NET 8+ apps get) this runs on its own when the
-        /// collectible context of an assembly with generated Nino code starts unloading. The netstandard builds
+        /// collectible context of an assembly with generated Nino code starts unloading. The netstandard2.1 build
         /// cannot see <c>AssemblyLoadContext</c>: there, and to be sure it has run, call it yourself before
         /// unloading. Call it once nothing serializes or deserializes the assembly's types any more: the assembly cannot
         /// be used with Nino afterwards. Formatters it registered for types declared outside it (an

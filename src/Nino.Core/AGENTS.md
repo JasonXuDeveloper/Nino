@@ -2,8 +2,8 @@
 
 > Read when: reading or changing anything in `src/Nino.Core` (the runtime: the public API, formatters, Reader/Writer, settings, polymorphism, pooling, the internal fast paths).
 
-The runtime every generated formatter calls, packed as `Nino.Serialization`; netstandard2.0, netstandard2.1 (Unity,
-.NET Framework: no hardware intrinsics), net8.0 and net10.0 (trimmable, NativeAOT compatible).
+The runtime every generated formatter calls, packed as `Nino.Serialization`; netstandard2.1 (Unity and
+Mono: no hardware intrinsics), net8.0 and net10.0 (trimmable, NativeAOT compatible).
 `audit-core` audits this directory, `audit-security` its read paths, `optimize` their machine code.
 
 When you add, rename or delete a file here, update its line (`tools/agents.sh --check` fails on a `.cs` file it does
@@ -13,18 +13,18 @@ not find named here).
 
 ```
 NinoSerializer.cs            the public Serialize<T> / SerializeBoxed (to a byte[], an IBufferWriter<byte>, a Writer or
-                             a Stream; SerializeAsync / SerializeBoxedAsync but in the netstandard2.0 build),
+                             a Stream; SerializeAsync / SerializeBoxedAsync),
                              GetFixedSize<T>, IsSupported; byte[] results go through the scratch buffer (NinoScratch)
 NinoDeserializer.cs          the public Deserialize<T> (a new value, or into an existing one by ref) / DeserializeBoxed,
                              from a span, a ReadOnlySequence<byte>, a Reader or a Stream (read to its end;
-                             DeserializeAsync / DeserializeBoxedAsync but in the netstandard2.0 build)
+                             DeserializeAsync / DeserializeBoxedAsync)
 NinoSettings.cs              every process-wide setting (MaxDepth, MaxCollectionLength, MaxHashCollisions, Untrusted,
                              pool sizes, SetRecycler<T>), plain fields frozen on first use (NinoLimits)
 NinoDataException.cs         the exception every check of the data throws (an InvalidOperationException)
 NinoNullable.cs              NinoNullable<T>: a nullable value whose memory is always clean (its presence a whole T), written
                              as T?; its arrays and lists are block copies where T is as large as its alignment
 NinoKernels.cs               NinoKernels: native Permute / Interleave32 / NormalizeBoolSlots / Narrow / Widen /
-                             NarrowAscii / WidenAscii function pointers the netstandard builds call when registered (Unity's Burst and WebGL
+                             NarrowAscii / WidenAscii function pointers the netstandard2.1 build calls when registered (Unity's Burst and WebGL
                              kernels), with their scalar forms
 Properties.cs                [module: SkipLocalsInit]
 ```
@@ -237,7 +237,7 @@ NinoBlockCollections.Groups.cs     AVX-512: groups by two-source permutes, align
 NinoBlockCollections.Lanes.cs      groups moved as 16-byte lanes (AVX2, SSSE3, Arm64, Wasm), as LanePlan describes
 NinoBlockCollections.Permute64.cs  values moved by one 64-byte permute each step (AVX-512 VBMI, Arm64 table lookups)
 NinoBlockPlan.cs             NinoBlockPlan<T, TFormatter>: the per-type block plan, its flags and tables as static
-                             fields in initialization order (KernelTables in the netstandard builds)
+                             fields in initialization order (KernelTables in the netstandard2.1 build)
 NinoBlockPlan.Groups.cs      its AVX-512 group tables (Aligned, ReadPlan, GroupReads)
 NinoBlockPlan.Lanes.cs       its lane plan (LanePlan)
 NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte lanes (SSSE3, AVX2, Arm64, Wasm)
@@ -249,7 +249,7 @@ NinoLanes.cs                 how LanePlan moves a group: shuffles within 16-byte
 NinoLayout.cs                canonical (64-bit CoreCLR) layout of raw structs, BCL structs inside them included (tuples,
                              DateTimeOffset, nint): the runtime's probes, Info, padding masks; NinoLayout<T>
 NinoLayout.Checks.cs         the fields of a raw type Untrusted mode checks (ValueChecks)
-NinoLayout.Convert.cs        conversion field by field where the runtime differs (x86, Mono, IL2CPP, .NET Framework)
+NinoLayout.Convert.cs        conversion field by field where the runtime differs (x86, Mono, IL2CPP)
 NinoLayout.Measure.cs        offsets read from an instance (MeasureMemory)
 NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
                              (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
@@ -265,10 +265,10 @@ ValueViews.cs                where value types' fields are on this runtime (Date
 ```
 NinoSimd.cs                  managed SIMD CPU policy (HasArm64, Prefer512, AMD and Ice Lake) and shared vector helpers
 NinoSimd.Text.cs             managed Latin-1 narrowing, widening, and comparison kernels
-NinoSimd.Text.Legacy.cs      netstandard numeric-vector text kernels
+NinoSimd.Text.Legacy.cs      netstandard2.1 numeric-vector text kernels
 NinoSimd.Pairs.cs            packed pair interleave, deinterleave and ordering checks, including the Burst hook
 NinoVectors.cs               INinoVectors: the byte-vector operations of each width (128, 256, 512; Vector<byte> in the
-                             netstandard builds) that the masked copy (NinoMask) and the flag checks (NinoChecks) share
+                             netstandard2.1 build) that the masked copy (NinoMask) and the flag checks (NinoChecks) share
 NinoKernelHook.cs            registered native function pointers and call thresholds for Burst and WebGL
 ```
 

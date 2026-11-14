@@ -160,7 +160,7 @@ namespace Nino.Core.Internal
         {
             int total = checked(count * _mask.Length);
 #if !NET8_0_OR_GREATER
-            // The netstandard builds (Unity, .NET Framework): the registered kernels, for runs long enough.
+            // The netstandard2.1 build (Unity, Mono): the registered kernels, for runs long enough.
             if (count >= NinoKernelHook.MinCopies && _kernelTable != IntPtr.Zero &&
                 NinoKernelHook.TryPermute(ref source, _mask.Length, ref destination, _mask.Length, _kernelTable, count))
                 return;
@@ -193,13 +193,13 @@ namespace Nino.Core.Internal
             int words = _words.Length;
             int maskWord = 0;
             ref ulong word = ref NinoUnsafe.GetArrayDataReference(_words);
-            // The platform fast path of hosts without vector masks. In the netstandard builds, runs of
+            // The platform fast path of hosts without vector masks. In the netstandard2.1 build, runs of
             // NinoKernelHook.MinCopies elements or more (CopyFloor, 16, at least) went to the registered Permute kernel
             // first (Burst on Unity, a native or wasm kernel elsewhere), so on Unity with Burst these unrolls copy only
-            // the shorter runs; they copy every run on hosts without a registered kernel (.NET Framework, Armv7, Unity
+            // the shorter runs; they copy every run on hosts without a registered kernel (Mono, Armv7, Unity
             // with Burst off). IL2CPP does not accelerate Vector<T>, so no vector path above runs there either. On
             // .NET 8+ they serve hosts without SIMD. Where vectors run, a total of one vector or more took a vector
-            // path above (16 bytes on .NET 8+, Vector<byte>.Count in the netstandard builds), so only shorter totals
+            // path above (16 bytes on .NET 8+, Vector<byte>.Count in the netstandard2.1 build), so only shorter totals
             // get here. Periods of one to three words, unrolled with every mask word in a register, all loads before
             // the stores (Arm64 pairs them as ldp / stp); the shared word loop below wraps the mask index per word.
             // Measured with SIMD disabled on an Apple M4 (.NET 10, not on Mono or IL2CPP): 12-byte elements 38-56%

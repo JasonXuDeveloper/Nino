@@ -33,19 +33,12 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref Lazy<T> value)
         {
-            // Keep the netstandard2.0 factory capture inside the present branch.
             if (reader.TryReadPresent(ref value))
             {
                 // A Lazy is immutable once created, as a tuple: the value is read into a local and the Lazy replaced.
                 T item = default;
                 default(TFormatter).Deserialize(ref reader, ref item);
-#if NETSTANDARD2_0
-                // No constructor takes the value: create it here, so the Lazy reads back created on every target.
-                var created = new Lazy<T>(() => item);
-                _ = created.Value;
-#else
                 var created = new Lazy<T>(item);
-#endif
                 NinoRecycler.Replace(ref value, created);
             }
         }

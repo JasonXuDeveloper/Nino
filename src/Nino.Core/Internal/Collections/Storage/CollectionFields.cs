@@ -39,7 +39,7 @@ namespace Nino.Core.Internal
         /// The raw value of a <see cref="SetEntry{T}"/> as a block (<see cref="INinoBlockFormatter{T}"/>), so that a
         /// set's entries are written by <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>: several entries at
         /// a time, their values packed out of the strided entries by vector permutes (or the registered kernels in the
-        /// netstandard builds), one at a time where there are none or the value has padding. Writes only.
+        /// netstandard2.1 build), one at a time where there are none or the value has padding. Writes only.
         /// </summary>
         internal struct SetEntryBlock<T> : INinoFormatter<SetEntry<T>>, INinoBlockFormatter<SetEntry<T>>
         {

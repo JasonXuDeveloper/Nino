@@ -5,10 +5,8 @@ using System.IO.MemoryMappedFiles;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Nino.Core.CompilerServices;
-#if !NETSTANDARD2_0
 using System.Threading;
 using System.Threading.Tasks;
-#endif
 
 namespace Nino.Core.Internal
 {
@@ -31,8 +29,6 @@ namespace Nino.Core.Internal
     /// that exact type, or a memory-mapped view), then deserializes it as the span overloads do. The initial rental
     /// uses a capped length hint, then the array doubles when full. All span checks apply, including
     /// <see cref="NinoSettings.Untrusted"/>. The caller bounds streams from untrusted peers (a length limit, a frame).
-    /// The asynchronous forms are not in the
-    /// netstandard2.0 build, which has no <c>ValueTask</c> without a package.
     /// </summary>
     internal static class NinoStreams
     {
@@ -290,7 +286,6 @@ namespace Nino.Core.Internal
             return ArrayPool<byte>.Shared.Rent(size);
         }
 
-#if !NETSTANDARD2_0
         /// <summary>An array twice as large holding the <paramref name="count"/> bytes read; the old one goes back to the pool.</summary>
         private static byte[] Grow(byte[] buffer, int count)
         {
@@ -416,6 +411,5 @@ namespace Nino.Core.Internal
 
             return (buffer, count);
         }
-#endif
     }
 }

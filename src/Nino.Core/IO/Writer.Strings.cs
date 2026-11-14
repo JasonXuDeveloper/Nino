@@ -119,7 +119,7 @@ namespace Nino.Core
             fixed (byte* dst = &destination)
             {
                 int length = value.Length, ascii = 0;
-                // The netstandard builds (Unity, .NET Framework): the registered kernel writes the leading ASCII chars
+                // The netstandard2.1 build (Unity, Mono): the registered kernel writes the leading ASCII chars
                 // (a byte each, their UTF-8), the encoder the rest from the first other char, which is the start of a
                 // char's bytes: the same bytes as the encoder's alone.
                 if (length >= NinoKernelHook.MinNarrowAscii && capacity >= length)

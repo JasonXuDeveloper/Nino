@@ -36,8 +36,8 @@ namespace Nino.Core.Internal
     /// </para>
     /// <para>
     /// x64 on .NET 8+ prefetches with <c>prefetcht0</c>; Arm64, which .NET gives no scalar prefetch (only SVE's), loads
-    /// the object's first bytes instead and sums them into <see cref="Sink"/>. The netstandard builds (Unity, IL2CPP,
-    /// .NET Framework) do not prefetch.
+    /// the object's first bytes instead and sums them into <see cref="Sink"/>. The netstandard2.1 build (Unity, IL2CPP,
+    /// Mono) does not prefetch.
     /// </para>
     /// </summary>
     internal static class NinoPrefetch
@@ -430,7 +430,7 @@ namespace Nino.Core.Internal
         }
 
 #if NET8_0_OR_GREATER
-        // .NET 8+ only: the netstandard builds run under IL2CPP too, where a P/Invoke of a library the player does not
+        // .NET 8+ only: the netstandard2.1 build runs under IL2CPP too, where a P/Invoke of a library the player does not
         // have can fail its build (WebGL).
         [DllImport("kernel32", SetLastError = true)]
         private static extern unsafe bool GetLogicalProcessorInformationEx(int relationship, byte* buffer,

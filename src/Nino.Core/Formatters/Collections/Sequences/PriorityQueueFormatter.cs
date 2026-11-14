@@ -9,7 +9,7 @@ namespace Nino.Core
     /// <summary>
     /// <c>PriorityQueue&lt;TElement, TPriority&gt;</c>: count (-1 = null), then (element, priority) pairs in the
     /// queue's unordered (heap) order. An existing queue is cleared and refilled. Only on .NET 6+ builds of Nino.Core
-    /// (the netstandard builds, used by Unity, have no <c>PriorityQueue</c>).
+    /// (the netstandard2.1 build, used by Unity, has no <c>PriorityQueue</c>).
     /// </summary>
     public struct PriorityQueueFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>
         : INinoFormatter<PriorityQueue<TElement, TPriority>>

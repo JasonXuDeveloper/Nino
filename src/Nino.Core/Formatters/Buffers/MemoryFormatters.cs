@@ -22,16 +22,12 @@ namespace Nino.Core
     /// array's null reads as empty memory.
     /// </summary>
     public struct MemoryFormatter<T, TFormatter> : INinoFormatter<Memory<T>>
-#if !NETSTANDARD2_0
         , INinoExternalFormatter<Memory<T>>
-#endif
         where TFormatter : struct, INinoFormatter<T>
     {
-#if !NETSTANDARD2_0
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool INinoExternalFormatter<Memory<T>>.TryWriteExternal(Memory<T> value, IBufferWriter<byte> buffer) =>
             NinoCollections.TryWriteRawExternal<T, TFormatter>((ReadOnlyMemory<T>)value, buffer);
-#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(Memory<T> value, ref Writer writer) =>
@@ -68,16 +64,12 @@ namespace Nino.Core
     /// (its memory is not the reader's to overwrite).
     /// </summary>
     public struct ReadOnlyMemoryFormatter<T, TFormatter> : INinoFormatter<ReadOnlyMemory<T>>
-#if !NETSTANDARD2_0
         , INinoExternalFormatter<ReadOnlyMemory<T>>
-#endif
         where TFormatter : struct, INinoFormatter<T>
     {
-#if !NETSTANDARD2_0
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         bool INinoExternalFormatter<ReadOnlyMemory<T>>.TryWriteExternal(ReadOnlyMemory<T> value, IBufferWriter<byte> buffer) =>
             NinoCollections.TryWriteRawExternal<T, TFormatter>(value, buffer);
-#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ReadOnlyMemory<T> value, ref Writer writer) =>
