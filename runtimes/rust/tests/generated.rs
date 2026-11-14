@@ -333,6 +333,65 @@ fn nullable_strides_as_dotnet_writes_them() {
     assert_eq!(nino::deserialize_exact::<Option<Box<Strides>>>(&expected).unwrap(), Some(Box::new(strides)));
 }
 
+/// `NinoNullable<T>` inside a raw struct, where .NET holds it: the presence a whole `T` (1 in its first byte), then
+/// the value. For a `T` as large as its alignment that is the layout of `T?`, which `Option<T>` in raw memory reads;
+/// nino-gen leaves a wider one (a decimal) out of the Rust it writes. The bytes .NET writes for the value of
+/// tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex).
+#[test]
+fn nino_nullable_inside_raw_structs_as_dotnet_writes_it() {
+    use shapes::{HoldsNinoNullable, NinoNullableRaw};
+    let value = NinoNullableRaw {
+        one: HoldsNinoNullable { a: 1, b: Some(7) },
+        many: Some(vec![HoldsNinoNullable { a: 2, b: None }, HoldsNinoNullable { a: 3, b: Some(-1) }]),
+    };
+    let text = "01010000000100000007000000020000000200000000000000000000000300000001000000ffffffff";
+    let mut expected: Vec<u8> =
+        (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap()).collect();
+    assert_eq!(nino::serialize(&Some(Box::new(value.clone()))).unwrap(), expected);
+    assert_eq!(nino::deserialize_exact::<Option<Box<NinoNullableRaw>>>(&expected).unwrap(), Some(Box::new(value)));
+    // A presence byte other than 0 or 1 is rejected there too.
+    expected[1 + 4] = 2;
+    assert!(nino::deserialize_exact::<Option<Box<NinoNullableRaw>>>(&expected).is_err());
+}
+
+/// The bytes .NET writes for the NinoNullableArgs (and the NullableArgs, the same type declared with `T?`) of
+/// tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex: `NinoNullable<T>` is read and written as `T?`,
+/// inside type arguments too.
+const NINO_NULLABLE_ARGS: &str = "0101000000000001000002000000010000000000000001000000000000000000000000000000000000000000000001010700000001020000000000 \
+    00000000000000000000000000000100000001000000000000000000000001020000000100000000000000ffffffffffffffff0000000000000000 \
+    000000000000000002000000010400000000020000000100000001000000000000e03f0200000000";
+
+#[test]
+fn nino_nullable_as_dotnet_writes_it() {
+    use shapes::{BoxType, NinoNullableArgs, NullableArgs, TupleCell};
+    let cell = TupleCell { a: 1, ..Default::default() };
+    let value = NinoNullableArgs {
+        r#enum: Some(1 << 40),
+        enums: Some(nino::RawNullables(vec![Some(1), None])),
+        one: Some(Box::new(BoxType { value: Some(7) })),
+        array: Some(Box::new(BoxType { value: Some(nino::RawNullables(vec![None, Some(cell)])) })),
+        list: Some(Box::new(BoxType { value: Some(nino::RawNullables(vec![Some(-1), None])) })),
+        set: Some([Some(4), None].into_iter().collect()),
+        map: Some([(1, Some(0.5)), (2, None)].into_iter().collect()),
+    };
+    let expected: Vec<u8> = NINO_NULLABLE_ARGS
+        .split_whitespace()
+        .flat_map(|w| (0..w.len()).step_by(2).map(move |i| u8::from_str_radix(&w[i..i + 2], 16).unwrap()))
+        .collect();
+    assert_eq!(nino::serialize(&Some(Box::new(value.clone()))).unwrap(), expected);
+    assert_eq!(
+        nino::deserialize_exact::<Option<Box<NinoNullableArgs>>>(&expected).unwrap(),
+        Some(Box::new(value.clone()))
+    );
+    // The same type declared with T?: the same fields, read from these bytes and written back to them.
+    let twin = nino::deserialize_exact::<Option<Box<NullableArgs>>>(&expected).unwrap().unwrap();
+    assert_eq!(
+        (&twin.r#enum, &twin.enums, &twin.one, &twin.array, &twin.list, &twin.set, &twin.map),
+        (&value.r#enum, &value.enums, &value.one, &value.array, &value.list, &value.set, &value.map)
+    );
+    assert_eq!(nino::serialize(&Some(twin)).unwrap(), expected);
+}
+
 #[test]
 fn generated_fuzz() {
     on_large_stack(fuzz);

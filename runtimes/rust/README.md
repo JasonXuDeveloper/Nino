@@ -42,6 +42,11 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 
 How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`, the
 value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/rust#types).
+.NET's `NinoNullable<T>` is `T?` on the wire and in the layouts, so it maps to the same Rust types: `Option<T>` alone,
+and `RawNullables<T>` (the fixed stride) for `NinoNullable<T>[]` and `List<NinoNullable<T>>`, in the code nino-gen
+writes and with the derive alike. Inside a plain struct copied as raw memory .NET holds its presence as a whole `T`:
+that is the layout of `T?` (an `Option<T>` field) for a `T` as large as its alignment, and nino-gen leaves a type
+holding a wider one there (a decimal, a Guid) out of the Rust it writes (NINOGEN002).
 A polymorphic declared type (an abstract class, an interface, or a class that is not sealed) becomes a Rust enum with
 one variant per concrete type. The reader rejects any type id that is not one of the variants
 (`ErrorKind::UnknownTypeId`).
