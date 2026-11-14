@@ -67,7 +67,7 @@ namespace Nino.UnitTests
                         else
                         {
                             expected[4 + i * stride] = 1;
-                            MemoryMarshal.Write(expected.AsSpan(4 + i * stride + offset), make(i));
+                            Unsafe.WriteUnaligned(ref expected[4 + i * stride + offset], make(i));
                         }
                     }
 

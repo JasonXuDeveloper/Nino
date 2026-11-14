@@ -111,7 +111,7 @@ namespace Nino.Core.Internal
             int written = 0;
             foreach (var item in values)
             {
-                default(TFormatter).Serialize(item, ref writer);
+                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
                 written++;
             }
 

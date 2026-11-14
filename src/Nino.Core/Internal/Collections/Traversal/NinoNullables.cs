@@ -835,6 +835,15 @@ namespace Nino.Core
             ref byte dst = ref writer.ReserveCounted(values.Length, Stride);
             if (values.IsEmpty)
                 return;
+            WriteSlots(ref dst, values);
+        }
+
+        /// <summary>
+        /// Writes the elements (at least one) into the <see cref="Stride"/> bytes each at <paramref name="dst"/>,
+        /// which the caller reserved: what any collection of them writes (NinoElements.WriteBlock).
+        /// </summary>
+        internal static void WriteSlots(ref byte dst, ReadOnlySpan<T?> values)
+        {
             ref T? item = ref MemoryMarshal.GetReference(values);
             if (Raw)
             {
@@ -1102,7 +1111,7 @@ namespace Nino.Core
         /// <see cref="ReadPrechecked(Span{T?}, ref Reader)"/> of <paramref name="count"/> elements from
         /// <paramref name="item"/>.
         /// </summary>
-        private static void ReadPrechecked(ref T? item, int count, ref Reader reader)
+        internal static void ReadPrechecked(ref T? item, int count, ref Reader reader)
         {
             int bytes = count * Stride;
             ref byte src = ref reader.UnsafeAdvance(bytes);

@@ -48,6 +48,13 @@ namespace Nino.Core
                 return;
             }
 
+            // Slots (raw T?): copied out and written as one block, as an array of them is.
+            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            {
+                WriteSlots(value, ref writer);
+                return;
+            }
+
             // Elements with references through the writer parameter, which their formatters' calls take anyway: a copy
             // in and out of WriteEach for each set cost more (NinoElements.WritesOnLocal).
             if (NinoElements.WritesOnLocal<T>())
@@ -55,6 +62,11 @@ namespace Nino.Core
             else
                 WriteEach(value, ref writer);
         }
+
+        /// <summary>The count and the elements from a rented copy (CopyTo: enumeration order), out of line.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteSlots(TSet value, ref Writer writer) =>
+            NinoCollections.WriteCopied<T, TFormatter>(value, null, ref writer);
 
         /// <summary>The <paramref name="count"/> raw elements of a set with free entries, in enumeration
         /// order.</summary>
@@ -93,7 +105,7 @@ namespace Nino.Core
         {
             writer.WriteLength(value.Count);
             foreach (var item in value)
-                default(TFormatter).Serialize(item, ref writer);
+                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref TSet value)
@@ -143,7 +155,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref reader, ref item);
+                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
                 if (!set.Add(item))
                     NinoThrow.DuplicateKey(set.GetType());
             }
@@ -165,7 +177,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref reader, ref item);
+                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
                 if (insert)
                 {
                     HashTables.Insert(set, item);
