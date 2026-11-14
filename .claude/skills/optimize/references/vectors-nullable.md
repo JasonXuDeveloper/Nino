@@ -189,7 +189,18 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   Xeon (Emerald Rapids), clean data: `NinoSerializeNullableLongs` 336 against 283 ns, `...Ints` 154 against 139 (four
   alternated in-process rounds). The pass costs as much as the copy's own ALU work. What bounds the one pass there is
   three 512-bit ALU uops a vector on ports 0 and 5 (`vpandd`, `vptestmq`, `vpandq {k}{z}`) against the copy's one
-  store a cycle; .NET 10 exposes no intrinsic for the two-operand `vptestmq x, m` that would make it two.
+  store a cycle; .NET 10 exposes no intrinsic for the two-operand `vptestmq x, m` that would make it two, and the
+  JIT folds the AND into it in no form (`~Equals(x & m, 0)`, swapped `ConditionalSelect` arms, `CompareNotEqual`,
+  `GreaterThan`, `BlendVariable`, the mask in a register or a parameter: always `vpandq` then `vptestmq k, z, z`).
+  The test can be one uop without it: load the run again 7 bytes earlier (15 for a 16-byte stride, whose flag-only
+  word takes a threshold of 0), so each lane's top byte is its element's flag, and compare unsigned against 2^56
+  (`Vector512.GreaterThanOrEqual`, `vpcmpuq` into k). Not landed: it measured 3-8 % faster than the three-uop pass
+  (`int?` 1,000: 110-114 against 113-123 ns; `long?` 218-230 against 219-233; kernel harness, Xeon Emerald Rapids,
+  destination 4 bytes past a 64-byte boundary as after a count, memcpy 65 and 106-114 ns), and slower with an aligned
+  destination (110 against 89 ns): its second load splits cache lines too, so loads bound it. What does bound the
+  one pass is the destination: 64-byte aligned, the three-uop pass took 89 and 175 ns against 113-123 and 219-233,
+  but after a 4-byte count the elements never start on a line, and realigning in registers costs the uop it saves
+  (`valignq`; the realignment bullet above).
 - Keep the bulk clear for converted nullable writes. Per-slot clearing wrote each slot once but slowed 64 mixed and
   16,384 all-null booleans in four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256 to 1,404 bytes.
 - On Arm64, bypass that converter for nullable bools with the probed two-byte flag/value layout. Expand each 0/1
