@@ -201,6 +201,18 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   one pass is the destination: 64-byte aligned, the three-uop pass took 89 and 175 ns against 113-123 and 219-233,
   but after a 4-byte count the elements never start on a line, and realigning in registers costs the uop it saves
   (`valignq`; the realignment bullet above).
+- Do not change raw `T?[]`'s wire to a presence bitmap for speed: in L1-sized runs it barely moves. Kernel harness,
+  Xeon Emerald Rapids, 1,000 values, every fifth null, against the slot wire (each slot whole, absent and padding
+  zero): a bitmap then every value (absent zero; flags and values gathered by `vpermt2q`/`vpermt2d`, the test's mask
+  the bitmap byte) wrote `long?` in 228-237 ns against 242-247 and `int?` in 102-110 against 124, and read them in
+  203-220 against 193-215 and 99-106 against 92-105; a bitmap then present values only (`CompressStore`, or a
+  256-entry permute table) wrote in 223-262 and 106-120 ns and read 30 % slower (257-273, 128-135: `ExpandLoad`
+  per group), and `vpcompress` to memory is microcoded on Zen 4. memcpy of the slots (MemoryPack's SafeNullable)
+  took 117-125 and 64-79 ns. The bytes halve (`long?` 16 KB to 8.2 KB or 6.6 KB) but the time is the work per
+  element: on Intel the compares and cross-lane permutes run only on port 5 (`long?` needs two of them a vector in
+  every form), and the slots after a count are never aligned. A bitmap is worth considering for size alone (the
+  owner's call, a wire-format change); for Nino class elements and nullable managed structs, whose bodies vary in
+  length, the presence byte costs a byte and a branch beside the body and stays.
 - Keep the bulk clear for converted nullable writes. Per-slot clearing wrote each slot once but slowed 64 mixed and
   16,384 all-null booleans in four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256 to 1,404 bytes.
 - On Arm64, bypass that converter for nullable bools with the probed two-byte flag/value layout. Expand each 0/1
