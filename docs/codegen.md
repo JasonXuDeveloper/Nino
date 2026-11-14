@@ -114,9 +114,9 @@ dictionary's key or value, a pair's or a tuple's item) it is a presence byte and
 `ValueKind.Nullable`. `Queue<int?> {5, null}` is `02000000 01000000 05000000 00000000 00000000`;
 `Dictionary<int, long?> {1: null, 2: 7}` is `02000000 01000000 00 02000000 01 0700000000000000`. TypeScript holds both
 as `T | null` and Go as `*T` (a set and a queue of slots are a `Set<T | null>` and a `[]*T`); Rust's codecs go by the
-type, so a single value is an `Option<T>`, a list of slots a `nino::RawNullables<T>` (a `Vec<Option<T>>`), and the
-elements of a set or a grid `nino::RawNullable<T>` (`IndexSet<nino::RawNullable<i32>>`,
-`nino::Grid<nino::RawNullable<i32>, 2>`). Every reader rejects a slot whose presence byte is not 0 or 1
+type, so a single value is an `Option<T>` and a slot a `nino::NullableSlot<T>`, the element of every container
+(`Vec<nino::NullableSlot<i32>>`, `IndexSet<nino::NullableSlot<i32>>`, `nino::Grid<nino::NullableSlot<i32>, 2>`).
+Every reader rejects a slot whose presence byte is not 0 or 1
 (`ModelTests.RawNullablesAreSlotsInEverySequenceAndSingleValuesElsewhere`,
 `TargetTests.RawNullableSlotsAreGeneratedInEveryLanguage`; the corpus's `nullable-sequences`, `presence-nullable-set-*`
 and `presence-nullable-grid-*` cases).
@@ -129,13 +129,22 @@ IR gives it that encoding too (`CodegenModel.RawArgument`). The IR reads it as a
 value at those offsets (`ValueKind.RawNullable`), marked `Clean`: the generated readers reject a presence other than 0
 or 1, a byte set above it and a value that is not zeros where it is absent, as .NET does with `NinoSettings.Untrusted`
 (a `T?` in raw memory is checked for its flag only: .NET copies its padding and an absent value from memory as they
-are). It is each language's nullable value: `T | null` in TypeScript and `*T` in Go, whose codecs read any offsets,
-and `nino::NinoNullable<T>` in Rust, a wrapper of `Option<T>` with those bytes, since Rust's codecs go by the type
-and `Option<T>` is a `T?` (`ModelTests.NinoNullableIsItsMemoryWhereverItIs`,
-`TargetTests.NinoNullableIsGeneratedInEveryLanguage`; the corpus's `ninonullables-*` cases). A run of a `T` as large
+are). Each language names it apart from a `T?`: Go's `nino.NinoNullable[T]`, a value (`HasValue`, `Value`) whose slices
+hold no pointer and are one block for a number (`nino.ReadNinoNullables`); Rust's `nino::NinoNullable<T>`, a wrapper
+of `Option<T>` with those bytes; and TypeScript's `NinoNullable<T>`, an alias of `T | null` that only names the
+encoding (`ModelTests.NinoNullableIsItsMemoryWhereverItIs`, `TargetTests.NinoNullableIsGeneratedInEveryLanguage`; the
+corpus's `ninonullables-*` cases). A run of a `T` as large
 as its alignment has the bytes of a `T?[]` run, which the corpus writes as one and reads as the other
 (`ninonullable-runs-from-nullable`); a wider `T` (a decimal, a Guid, a struct of several fields) and a single value
 never do.
+
+The three encodings of a nullable raw `T` and how each target spells them:
+
+| .NET | Bytes | TypeScript | Go | Rust |
+|---|---|---|---|---|
+| `T?`, a single value | a presence byte, then `T` when present | `T \| null` | `*T` | `Option<T>` |
+| `T?`, the element of a sequence or a grid | a slot: `align(T) + size(T)` bytes | `T \| null` | `*T` (`[]*T`) | `nino::NullableSlot<T>` |
+| `NinoNullable<T>`, wherever it is | its memory: `2 * size(T)` bytes, checked | `NinoNullable<T>` (an alias of `T \| null`) | `nino.NinoNullable[T]` | `nino::NinoNullable<T>` |
 
 A generic type that holds itself with other arguments (`Nest<T>` holding `Nest<List<T>>`) needs a new instantiation for
 every level of the data. TypeScript builds the codec of the next level when it first reads or writes one. Go and Rust
