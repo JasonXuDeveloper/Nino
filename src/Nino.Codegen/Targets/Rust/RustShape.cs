@@ -7,7 +7,8 @@ using Nino.Codegen.Model;
 namespace Nino.Codegen.Targets
 {
     /// <summary>
-    /// How a value is written in Rust (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>, <c>tuple</c>,
+    /// How a value is written in Rust (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>,
+    /// <c>rawnullable</c>: a <c>T?</c> in raw memory, <c>ninonullable</c>: a <c>NinoNullable&lt;T&gt;</c>, <c>tuple</c>,
     /// <c>string</c>, <c>keystring</c>, <c>utf8</c>, <c>keyutf8</c>, <c>object</c>, <c>struct</c>, <c>class</c>,
     /// <c>slot</c>, <c>named</c>, <c>nullable</c>, <c>seq</c>, <c>map</c>, <c>grid</c>, <c>bigint</c>,
     /// <c>version</c>, <c>datetimeoffset</c>, <c>param</c>: a type parameter, <c>generic</c> and <c>genericclass</c>:

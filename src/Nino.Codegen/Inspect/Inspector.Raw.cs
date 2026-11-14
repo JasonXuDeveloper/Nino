@@ -56,6 +56,17 @@ namespace Nino.Codegen.Inspect
                     byte flag = data[at + v.FlagOffset];
                     if (flag > 1)
                         throw WireReader.Fail(at + v.FlagOffset, $"invalid presence byte {flag}");
+                    if (v.Clean)
+                    {
+                        // A NinoNullable<T>: zeros above its presence's first byte, and for a value that is absent.
+                        int from = at + v.FlagOffset + 1, to = at + (flag == 0 ? v.Size : v.ValueOffset);
+                        int set = data.Slice(from, to - from).IndexOfAnyExcept((byte)0);
+                        if (set >= 0)
+                            throw WireReader.Fail(from + set, from + set < at + v.ValueOffset
+                                ? $"byte {data[from + set]} in the presence of a NinoNullable (zeros follow its first byte)"
+                                : $"byte {data[from + set]} in the value of a NinoNullable that has none");
+                    }
+
                     if (flag == 0)
                         node.SetNull();
                     else

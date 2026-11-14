@@ -139,7 +139,9 @@ func helper_body(h)
   if h.mode == "decode"
     $o = "func " + $n + "(r *nino.Reader, b []byte) " + $t + " {\n\t_ = b[" + ($s.size - 1) + "]\n"
     if $s.kind == "rawnullable"
-      ret $o + "\tif !r.BoolAt(b[" + $s.flag_offset + "]) {\n\t\treturn nil\n\t}\n\tx := " + decode($s.inner, $s.value_offset) + "\n\treturn &x\n}\n"
+      # A NinoNullable<T>: its whole presence and an absent value are checked. A T?: its flag.
+      $present = $s.clean ? "r.NinoNullableAt(b[" + $s.flag_offset + ":" + $s.value_offset + "], b[" + $s.value_offset + ":" + $s.size + "])" : "r.BoolAt(b[" + $s.flag_offset + "])"
+      ret $o + "\tif !" + $present + " {\n\t\treturn nil\n\t}\n\tx := " + decode($s.inner, $s.value_offset) + "\n\treturn &x\n}\n"
     end
     $o = $o + "\tvar v " + $t + "\n"
     for $i in $s.items

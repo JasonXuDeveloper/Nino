@@ -98,6 +98,9 @@ namespace Nino.Codegen.Targets
 
         public int ValueOffset { get; internal set; }
 
+        /// <summary>A <c>rawnullable</c> that is a <c>NinoNullable&lt;T&gt;</c> (<see cref="ValueModel.Clean"/>).</summary>
+        public bool Clean { get; internal set; }
+
         public int Rank { get; internal set; }
 
         internal string Identity => _key ??= Kind + "(" + string.Join(",", Parts()) + ")";
@@ -115,7 +118,7 @@ namespace Nino.Codegen.Targets
             yield return Named?.FullName ?? "";
             yield return Mode ?? "";
             yield return Pair ? "pair" : "";
-            yield return FlagOffset + "/" + ValueOffset + "/" + Rank;
+            yield return FlagOffset + "/" + ValueOffset + "/" + Rank + (Clean ? "/clean" : "");
             yield return string.Join("/", Offsets);
             yield return Slot?.Name ?? "";
             yield return Field ?? "";

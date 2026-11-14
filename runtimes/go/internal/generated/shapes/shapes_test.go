@@ -214,22 +214,28 @@ func TestNullableStridesAsDotNetWritesThem(t *testing.T) {
 	}
 }
 
-// NinoNullable<T> is read and written as T?, inside type arguments too: the bytes .NET writes for the NinoNullableArgs
-// (and the NullableArgs, the same type declared with T?) of tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex.
+// NinoNullable<T> is its memory wherever it is (a presence and a value of a T each), inside type arguments too: the
+// bytes .NET writes for the NinoNullableArgs of tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex.
 func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
-	const want = "0101000000000001000002000000010000000000000001000000000000000000000000000000000000000000000001010700000001020000000000" +
-		"00000000000000000000000000000100000001000000000000000000000001020000000100000000000000ffffffffffffffff0000000000000000" +
-		"000000000000000002000000010400000000020000000100000001000000000000e03f0200000000"
+	const want = "0101000000000000000000000000010000020000000100000000000000010000000000000000000000000000000000000000000000010000000000" +
+		"000000000000010000000000000000000000010100000007000000010100000000000000000000000000000000000100000000000f000000000000" +
+		"0001020000000000000000000000000000000000000000000000000000000100000000000000000000000100000000000000000000000102000000" +
+		"0100000000000000ffffffffffffffff00000000000000000000000000000000020000000100000004000000000000000000000002000000010000" +
+		"000100000000000000000000000000e03f020000000000000000000000000000000000000009010000000000000000000000000000003322110055" +
+		"4477668899aabbccddeeff"
 	ptr := func(v int32) *int32 { return &v }
 	a, b, minusOne, half := FlagsA, FlagsB, int64(-1), 0.5
 	value := &NinoNullableArgsType{
 		Enum:  &b,
 		Enums: []*Flags{&a, nil},
+		Cell:  &TupleCell{A: 1},
 		One:   &Box[*int32]{Value: ptr(7)},
+		Wide:  &Box[*nino.Decimal]{Value: &nino.Decimal{Flags: 1 << 16, Lo: 15}},
 		Array: &Box[[]*TupleCell]{Value: []*TupleCell{nil, {A: 1}}},
 		List:  &Box[[]*int64]{Value: []*int64{&minusOne, nil}},
 		Set:   []*int32{ptr(4), nil},
 		Map:   []nino.Entry[int32, *float64]{{Key: 1, Value: &half}, {Key: 2}},
+		Tuple: NinoTuple2[uint8, *nino.Guid]{Item1: 9, Item2: &nino.Guid{0x33, 0x22, 0x11, 0x00, 0x55, 0x44, 0x77, 0x66, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}},
 	}
 	data, err := nino.Serialize(value, WriteNinoNullableArgsType)
 	if err != nil {
@@ -242,19 +248,19 @@ func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(back, value) {
 		t.Fatalf("read back: %v, %+v", err, back)
 	}
-	// The same type declared with T?: it reads these bytes to the same fields and writes them back.
-	twin, err := nino.DeserializeExact(data, ReadNullableArgs)
-	if err != nil || !reflect.DeepEqual(*twin, NullableArgs(*value)) {
-		t.Fatalf("read as T?: %v, %+v", err, twin)
-	}
-	again, err := nino.Serialize(twin, WriteNullableArgs)
-	if err != nil || hex.EncodeToString(again) != want {
-		t.Fatalf("wrote as T?: %v\n %x", err, again)
+	// What .NET's untrusted mode rejects: a byte above the presence's first (One, a type argument, at 78), and a
+	// byte in a value that is absent (the second of Enums, at 37).
+	for _, at := range []int{78 + 3, 37 + 8} {
+		bad := append([]byte(nil), data...)
+		bad[at] = 1
+		if _, err := nino.DeserializeExact(bad, ReadNinoNullableArgsType); err == nil {
+			t.Fatalf("a byte set at %d was read", at)
+		}
 	}
 }
 
-// NinoNullable<T> inside a raw struct, where .NET holds it: the presence a whole T (1 in its first byte), then the
-// value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
+// NinoNullable<T> inside a raw struct, its memory there as everywhere: the presence a whole T (1 in its first byte),
+// then the value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
 // tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
 func TestNinoNullableInsideRawStructsAsDotNetWritesIt(t *testing.T) {
 	seven, minusOne := int32(7), int32(-1)

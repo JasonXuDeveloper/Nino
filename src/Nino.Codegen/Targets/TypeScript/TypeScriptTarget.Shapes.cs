@@ -298,12 +298,13 @@ namespace Nino.Codegen.Targets
                     throw new UnsupportedException($"{value.ClrName} ({value.Encoding}) has no TypeScript form");
                 case ValueKind.RawNullable:
                 {
-                    // T? in the canonical Nullable<T> layout: the flag, then the value at its offset (zeroed when absent).
+                    // T? in the canonical Nullable<T> layout, or a NinoNullable<T>: the flag, then the value at its
+                    // offset (zeroed when absent).
                     var inner = RawShape(value.Element!);
                     return new TsShape("rawnullable")
                     {
                         Inner = inner, FlagOffset = value.FlagOffset, ValueOffset = value.ValueOffset,
-                        Size = value.Size, Zeroed = true,
+                        Clean = value.Clean, Size = value.Size, Zeroed = true,
                     };
                 }
                 case ValueKind.RawTuple:

@@ -54,6 +54,8 @@ func rtype(s)
     ret name(s.struct)
   when "rawnullable"
     ret "Option<" + rtype(s.inner) + ">"
+  when "ninonullable"
+    ret "nino::NinoNullable<" + rtype(s.inner) + ">"
   when "tuple"
     $parts = []
     for $i in s.items

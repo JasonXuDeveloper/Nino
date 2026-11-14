@@ -333,63 +333,88 @@ fn nullable_strides_as_dotnet_writes_them() {
     assert_eq!(nino::deserialize_exact::<Option<Box<Strides>>>(&expected).unwrap(), Some(Box::new(strides)));
 }
 
-/// `NinoNullable<T>` inside a raw struct, where .NET holds it: the presence a whole `T` (1 in its first byte), then
-/// the value. For a `T` as large as its alignment that is the layout of `T?`, which `Option<T>` in raw memory reads;
-/// nino-gen leaves a wider one (a decimal) out of the Rust it writes. The bytes .NET writes for the value of
-/// tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex).
+fn unhex(text: &str) -> Vec<u8> {
+    let text: String = text.split_whitespace().collect();
+    (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap()).collect()
+}
+
+/// `NinoNullable<T>` inside a raw struct, its memory there as everywhere: the presence a whole `T` (1 in its first
+/// byte), then the value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
+/// tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
 #[test]
 fn nino_nullable_inside_raw_structs_as_dotnet_writes_it() {
-    use shapes::{HoldsNinoNullable, NinoNullableRaw};
+    use shapes::{HoldsNinoNullable, HoldsWideNinoNullable, NinoNullableRaw, NinoNullableRawWide};
     let value = NinoNullableRaw {
-        one: HoldsNinoNullable { a: 1, b: Some(7) },
-        many: Some(vec![HoldsNinoNullable { a: 2, b: None }, HoldsNinoNullable { a: 3, b: Some(-1) }]),
+        one: HoldsNinoNullable { a: 1, b: Some(7).into() },
+        many: Some(vec![HoldsNinoNullable { a: 2, b: None.into() }, HoldsNinoNullable { a: 3, b: Some(-1).into() }]),
     };
-    let text = "01010000000100000007000000020000000200000000000000000000000300000001000000ffffffff";
-    let mut expected: Vec<u8> =
-        (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap()).collect();
+    let mut expected = unhex("01010000000100000007000000020000000200000000000000000000000300000001000000ffffffff");
     assert_eq!(nino::serialize(&Some(Box::new(value.clone()))).unwrap(), expected);
     assert_eq!(nino::deserialize_exact::<Option<Box<NinoNullableRaw>>>(&expected).unwrap(), Some(Box::new(value)));
     // A presence byte other than 0 or 1 is rejected there too.
     expected[1 + 4] = 2;
     assert!(nino::deserialize_exact::<Option<Box<NinoNullableRaw>>>(&expected).is_err());
+
+    let wide = NinoNullableRawWide {
+        one: HoldsWideNinoNullable { a: 1, b: Some(nino::Decimal { flags: 1 << 16, hi: 0, lo: 15 }).into() },
+        many: Some(vec![HoldsWideNinoNullable { a: 2, b: None.into() }]),
+    };
+    let expected = unhex(
+        "0101000000000000000100000000000000000000000000000000000100000000000f000000000000000100 \
+         000002000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    );
+    assert_eq!(nino::serialize(&Some(Box::new(wide.clone()))).unwrap(), expected);
+    assert_eq!(nino::deserialize_exact::<Option<Box<NinoNullableRawWide>>>(&expected).unwrap(), Some(Box::new(wide)));
+    // What .NET's untrusted mode rejects: a byte above the presence's first, and a byte in a value that is absent
+    // (One.B's presence at 9, the value of Many[0].B at 45 + 8 + 16).
+    for at in [9 + 15, 45 + 8 + 16 + 4] {
+        let mut bad = expected.clone();
+        bad[at] = 1;
+        assert!(nino::deserialize_exact::<Option<Box<NinoNullableRawWide>>>(&bad).is_err(), "byte {at}");
+    }
 }
 
-/// The bytes .NET writes for the NinoNullableArgs (and the NullableArgs, the same type declared with `T?`) of
-/// tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex: `NinoNullable<T>` is read and written as `T?`,
-/// inside type arguments too.
-const NINO_NULLABLE_ARGS: &str = "0101000000000001000002000000010000000000000001000000000000000000000000000000000000000000000001010700000001020000000000 \
-    00000000000000000000000000000100000001000000000000000000000001020000000100000000000000ffffffffffffffff0000000000000000 \
-    000000000000000002000000010400000000020000000100000001000000000000e03f0200000000";
+/// The bytes .NET writes for the NinoNullableArgs of tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex:
+/// `NinoNullable<T>` is its memory wherever it is (a presence and a value of a `T` each), inside type arguments too.
+const NINO_NULLABLE_ARGS: &str = "0101000000000000000000000000010000020000000100000000000000010000000000000000000000000000000000000000000000010000000000 \
+    000000000000010000000000000000000000010100000007000000010100000000000000000000000000000000000100000000000f000000000000 \
+    0001020000000000000000000000000000000000000000000000000000000100000000000000000000000100000000000000000000000102000000 \
+    0100000000000000ffffffffffffffff00000000000000000000000000000000020000000100000004000000000000000000000002000000010000 \
+    000100000000000000000000000000e03f020000000000000000000000000000000000000009010000000000000000000000000000003322110055 \
+    4477668899aabbccddeeff";
 
 #[test]
 fn nino_nullable_as_dotnet_writes_it() {
-    use shapes::{BoxType, NinoNullableArgs, NullableArgs, TupleCell};
+    use shapes::{BoxType, NinoNullableArgs, TupleCell};
     let cell = TupleCell { a: 1, ..Default::default() };
     let value = NinoNullableArgs {
-        r#enum: Some(1 << 40),
-        enums: Some(nino::RawNullables(vec![Some(1), None])),
-        one: Some(Box::new(BoxType { value: Some(7) })),
-        array: Some(Box::new(BoxType { value: Some(nino::RawNullables(vec![None, Some(cell)])) })),
-        list: Some(Box::new(BoxType { value: Some(nino::RawNullables(vec![Some(-1), None])) })),
-        set: Some([Some(4), None].into_iter().collect()),
-        map: Some([(1, Some(0.5)), (2, None)].into_iter().collect()),
+        r#enum: Some(1 << 40).into(),
+        enums: Some(vec![Some(1).into(), None.into()]),
+        cell: Some(cell).into(),
+        one: Some(Box::new(BoxType { value: Some(7).into() })),
+        wide: Some(Box::new(BoxType { value: Some(nino::Decimal { flags: 1 << 16, hi: 0, lo: 15 }).into() })),
+        array: Some(Box::new(BoxType { value: Some(vec![None.into(), Some(cell).into()]) })),
+        list: Some(Box::new(BoxType { value: Some(vec![Some(-1).into(), None.into()]) })),
+        set: Some([Some(4).into(), None.into()].into_iter().collect()),
+        map: Some([(1, Some(0.5).into()), (2, None.into())].into_iter().collect()),
+        tuple: (
+            9,
+            Some(nino::Guid([
+                0x33, 0x22, 0x11, 0, 0x55, 0x44, 0x77, 0x66, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+            ]))
+            .into(),
+        ),
     };
-    let expected: Vec<u8> = NINO_NULLABLE_ARGS
-        .split_whitespace()
-        .flat_map(|w| (0..w.len()).step_by(2).map(move |i| u8::from_str_radix(&w[i..i + 2], 16).unwrap()))
-        .collect();
+    let expected = unhex(NINO_NULLABLE_ARGS);
     assert_eq!(nino::serialize(&Some(Box::new(value.clone()))).unwrap(), expected);
-    assert_eq!(
-        nino::deserialize_exact::<Option<Box<NinoNullableArgs>>>(&expected).unwrap(),
-        Some(Box::new(value.clone()))
-    );
-    // The same type declared with T?: the same fields, read from these bytes and written back to them.
-    let twin = nino::deserialize_exact::<Option<Box<NullableArgs>>>(&expected).unwrap().unwrap();
-    assert_eq!(
-        (&twin.r#enum, &twin.enums, &twin.one, &twin.array, &twin.list, &twin.set, &twin.map),
-        (&value.r#enum, &value.enums, &value.one, &value.array, &value.list, &value.set, &value.map)
-    );
-    assert_eq!(nino::serialize(&Some(twin)).unwrap(), expected);
+    assert_eq!(nino::deserialize_exact::<Option<Box<NinoNullableArgs>>>(&expected).unwrap(), Some(Box::new(value)));
+    // What .NET's untrusted mode rejects: a byte above the presence's first (One, a type argument, at 78), and a
+    // byte in a value that is absent (the second of Enums, at 37).
+    for at in [78 + 3, 37 + 8] {
+        let mut bad = expected.clone();
+        bad[at] = 1;
+        assert!(nino::deserialize_exact::<Option<Box<NinoNullableArgs>>>(&bad).is_err(), "byte {at}");
+    }
 }
 
 #[test]
