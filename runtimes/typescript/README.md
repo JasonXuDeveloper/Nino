@@ -22,10 +22,11 @@ const back = deserialize(PlayerCodec, bytes);
 ```
 
 A C# member is the TypeScript type the guide's [Type Mapping](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#type-mapping)
-lists. .NET's `NinoNullable<T>` is `T?` on the wire and in the layouts, so it maps to the same types: `T | null` alone,
-and `(T | null)[]` (read and written at the fixed stride of `T?[]`) for `NinoNullable<T>[]` and
-`List<NinoNullable<T>>`. Inside a plain struct copied as raw memory, where .NET holds its presence as a whole `T`,
-it is `T | null` too, the value read at the offset the layout gives.
+lists. .NET's `NinoNullable<T>` is `T | null` wherever it is declared, as `T?` is, with bytes of its own: its memory,
+a presence and a value of a `T` each (`2 * size(T)` bytes: `01000000 05000000` for a `NinoNullable<int>` of 5, zeros
+for none), alone, as an element of any collection and inside a raw struct. Reading rejects a presence other than 0 or
+1, a byte set above it and a value that is not zeros where it is absent (`NinoReader.ninoNullableAt`), as .NET does
+with `NinoSettings.Untrusted`.
 
 `deserialize` reads one value and leaves any bytes after it unread; `deserializeExact` also throws a `NinoError`
 when bytes follow the value (Go's `DeserializeExact`, Rust's `deserialize_exact`).
