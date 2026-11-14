@@ -389,12 +389,25 @@ namespace Conformance
         public Dictionary<int, int?> Map;
     }
 
-    // ------------------------------------------------------------------ NinoNullable<T>: the bytes of T?
+    // ------------------------------------------------------------------ NinoNullable<T>: its memory, a raw struct
 
     /// <summary>
-    /// <see cref="NinoNullable{T}"/> alone, in arrays and in lists: a T as large as its alignment (long), larger than
-    /// it (decimal, Guid: 16 bytes aligned to 4) and a raw struct with padding. Its layout and bytes are those of
-    /// <see cref="NullableTwins"/>, the same members as <c>T?</c>.
+    /// A raw struct holding <see cref="NinoNullable{T}"/> fields: each is its memory at its offset (a presence and a
+    /// value of a T each), so 48 bytes: Tag, 3 padding bytes, Count (8), Price (32).
+    /// </summary>
+    [NinoType]
+    public struct NinoNullableFields
+    {
+        public byte Tag;
+        public NinoNullable<int> Count;
+        public NinoNullable<decimal> Price;
+    }
+
+    /// <summary>
+    /// <see cref="NinoNullable{T}"/> alone, in arrays, lists, a queue, a dictionary and a raw struct: a T as large as
+    /// its alignment (long), larger than it (decimal, Guid: 16 bytes aligned to 4) and a raw struct with padding.
+    /// Every one is 2 x size(T) bytes: the presence (a whole T: 0 or 1 in its first byte, zeros above), then the
+    /// value (zeros when absent).
     /// </summary>
     [NinoType]
     public sealed class NinoNullables
@@ -411,24 +424,33 @@ namespace Conformance
         public List<NinoNullable<Guid>> GuidList;
         public NinoNullable<Padded>[] PaddedArray;
         public List<NinoNullable<Padded>> PaddedList;
+        public Queue<NinoNullable<Guid>> GuidQueue;
+        public Dictionary<int, NinoNullable<decimal>> DecimalMap;
+        public NinoNullableFields Fields;
+        public NinoNullableFields[] FieldsArray;
     }
 
-    /// <summary><see cref="NinoNullables"/> declared with <c>T?</c>: either reads the other's data.</summary>
+    /// <summary>
+    /// Runs of <see cref="NinoNullable{T}"/> of a T as large as its alignment: the bytes of the <c>T?</c> runs of
+    /// <see cref="NullableTwins"/> (a T?[] element is the presence byte, zeros up to T's alignment, then T).
+    /// </summary>
+    [NinoType]
+    public sealed class NinoNullableRuns
+    {
+        public NinoNullable<long>[] LongArray;
+        public List<NinoNullable<long>> LongList;
+        public NinoNullable<int>[] IntArray;
+        public List<NinoNullable<byte>> ByteList;
+    }
+
+    /// <summary><see cref="NinoNullableRuns"/> declared with <c>T?</c>: either reads the other's data.</summary>
     [NinoType]
     public sealed class NullableTwins
     {
-        public long? Long;
-        public decimal? Decimal;
-        public Guid? Guid;
-        public Padded? Padded;
         public long?[] LongArray;
         public List<long?> LongList;
-        public decimal?[] DecimalArray;
-        public List<decimal?> DecimalList;
-        public Guid?[] GuidArray;
-        public List<Guid?> GuidList;
-        public Padded?[] PaddedArray;
-        public List<Padded?> PaddedList;
+        public int?[] IntArray;
+        public List<byte?> ByteList;
     }
 
     // ------------------------------------------------------------------ version tolerance and keyed members
