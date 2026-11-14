@@ -93,6 +93,53 @@ namespace Nino.Core
                                              (Stride == 2 || Stride == 4 || Stride == 8 || Stride == 16 ||
                                               Stride == 24);
 
+#if NET10_0_OR_GREATER
+        /// <summary>
+        /// For a stride of 16 bytes, the shuffle (pshufb, within each 16-byte lane, so within each element) that gives
+        /// every byte a present element keeps its element's flag, and zero (an index with the top bit) to the padding:
+        /// what <see cref="Kept(Vector512{byte})"/> multiplies the element by.
+        /// </summary>
+        private static readonly Vector512<byte> FlagOfByte = Stride == 16 ? FlagOfBytes() : default;
+
+        private static Vector512<byte> FlagOfBytes()
+        {
+            var keep = Keeps();
+            var bytes = new byte[64];
+            for (int i = 0; i < bytes.Length; i++)
+                bytes[i] = keep[i % Stride] != 0 ? (byte)0 : (byte)0x80;
+            return Vector512.Create(bytes);
+        }
+
+        /// <summary>
+        /// Whether a 16-byte element is cleared by a multiplication (GFNI): its bytes are kept whole or cleared whole
+        /// (no byte keeps only some of its bits).
+        /// </summary>
+        private static readonly bool Multiplies = Stride == 16 && Gfni.IsSupported && KeepsWholeBytes();
+
+        private static bool KeepsWholeBytes()
+        {
+            foreach (byte keep in Keeps())
+                if (keep != 0 && keep != 0xFF)
+                    return false;
+            return true;
+        }
+
+        /// <summary>
+        /// The elements of a 16-byte stride as the wire holds them, in two operations: every byte multiplied in GF(2^8)
+        /// by its element's flag (gf2p8mulb: times 1 it is kept, times 0 cleared), the padding by 0. A test into a
+        /// mask register and a masked AND after the shuffle are three, two of them on port 5 of an Intel core. A flag
+        /// is 0 or 1 in every <c>Nullable</c> the runtime makes; any other value is invalid data to every reader.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector512<byte> Kept(Vector512<byte> value) =>
+            Gfni.V512.GaloisFieldMultiply(value, Avx512BW.Shuffle(value, FlagOfByte));
+
+        /// <summary><see cref="Kept(Vector512{byte})"/> for 32-byte vectors.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Kept(Vector256<byte> value) =>
+            Gfni.V256.GaloisFieldMultiply(value, Avx2.Shuffle(value, FlagOfByte.GetLower()));
+#endif
+
         /// <summary>The bytes one step of <see cref="CopyLanes"/> covers with 16-byte vectors (one period).</summary>
         private static readonly int LaneStep = Stride == 24 ? 48 : 16;
 
@@ -447,6 +494,14 @@ namespace Nino.Core
             public void Copy(ref byte destination, ref byte source, nuint offset)
             {
                 var a = Vector512.LoadUnsafe(ref source, offset);
+#if NET10_0_OR_GREATER
+                if (Multiplies && Gfni.V512.IsSupported)
+                {
+                    Kept(a).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+#endif
+
                 if (Stride != 24)
                 {
                     Present(a, Tile(a), Keep).StoreUnsafe(ref destination, offset);
@@ -487,6 +542,16 @@ namespace Nino.Core
                 var b = Vector512.LoadUnsafe(ref source, offset + 64);
                 var c = Vector512.LoadUnsafe(ref source, offset + 128);
                 var d = Vector512.LoadUnsafe(ref source, offset + 192);
+#if NET10_0_OR_GREATER
+                if (Multiplies && Gfni.V512.IsSupported)
+                {
+                    Kept(a).StoreUnsafe(ref destination, offset);
+                    Kept(b).StoreUnsafe(ref destination, offset + 64);
+                    Kept(c).StoreUnsafe(ref destination, offset + 128);
+                    Kept(d).StoreUnsafe(ref destination, offset + 192);
+                    return;
+                }
+#endif
                 Present(a, Tile(a), Keep).StoreUnsafe(ref destination, offset);
                 Present(b, Tile(b), Keep).StoreUnsafe(ref destination, offset + 64);
                 Present(c, Tile(c), Keep).StoreUnsafe(ref destination, offset + 128);
@@ -530,6 +595,14 @@ namespace Nino.Core
             public void Copy(ref byte destination, ref byte source, nuint offset)
             {
                 var a = Vector256.LoadUnsafe(ref source, offset);
+#if NET10_0_OR_GREATER
+                if (Multiplies && Gfni.V256.IsSupported)
+                {
+                    Kept(a).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+#endif
+
                 if (Stride != 24)
                 {
                     Present(a, Tile(a), Keep.GetLower()).StoreUnsafe(ref destination, offset);
@@ -572,6 +645,16 @@ namespace Nino.Core
                 var b = Vector256.LoadUnsafe(ref source, offset + 32);
                 var c = Vector256.LoadUnsafe(ref source, offset + 64);
                 var d = Vector256.LoadUnsafe(ref source, offset + 96);
+#if NET10_0_OR_GREATER
+                if (Multiplies && Gfni.V256.IsSupported)
+                {
+                    Kept(a).StoreUnsafe(ref destination, offset);
+                    Kept(b).StoreUnsafe(ref destination, offset + 32);
+                    Kept(c).StoreUnsafe(ref destination, offset + 64);
+                    Kept(d).StoreUnsafe(ref destination, offset + 96);
+                    return;
+                }
+#endif
                 Present(a, Tile(a), keep).StoreUnsafe(ref destination, offset);
                 Present(b, Tile(b), keep).StoreUnsafe(ref destination, offset + 32);
                 Present(c, Tile(c), keep).StoreUnsafe(ref destination, offset + 64);
