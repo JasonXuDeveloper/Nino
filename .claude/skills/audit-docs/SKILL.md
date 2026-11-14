@@ -60,8 +60,8 @@ they now live on simd#registering-kernels, custom-formatters#built-in-formatters
 platforms#checking-registration.
 
 Then the reading order: the sidebar (`content/docs/v4/meta.json`) is the reader's path, three learning tracks first
-(Basics: Get Started, Define Types, Before You Ship; Performance; Advanced Features), then Guides (the collapsed
-`advanced/` folder), Compare, Reference, Under the Hood and Project (nino.docs `WRITING.md`, Order). Walk each track by
+(Basics: Get Started, Define Types, Before You Ship; Performance; Advanced Features), then Guides (the `advanced/`
+pages, no folders: Guides Overview, Use Cases, Engines and Browsers, Other Languages), Compare, Reference, Under the Hood and Project (nino.docs `WRITING.md`, Order). Walk each track by
 its first Next Steps card from Quick Start: it must reach Guides without a dead end or a page twice (round 130: 16
 pages, Quick Start to Streams and Compression). Every inventory item has one owning page and a place in that order; an item without one
 is a finding, and so is a page that teaches a feature before the one it builds on.
