@@ -313,3 +313,30 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   the batch despite the warm gain. The extracted x64 audit kernels stayed at 178/181/207 B for 128/256/512 bits with
   the Arm64 guard folded. All 27 wire outputs matched. The candidate passed the .NET 8/10, scalar, and netstandard
   2.0/2.1 targeted suites, including first-invalid-value order across the two halves and overlapping tails.
+- Do not chase 64-byte-aligned stores for the raw `T?` run on x64, and model an Arm64 kernel with llvm-mca before
+  writing it. What bounds the copy, measured for `long?[1000]` (16,000 bytes; local Xeon with AVX-512, decisions
+  only; runner numbers from run 43573480826):
+  - x64: the kernel (vpshufb, vptestmq, masked vpandq) is 180 ns when source and destination are both 64-byte
+    aligned, 193 ns with split loads only, 245 ns with split stores only (the destination is 4 bytes into the buffer,
+    after the count, so every 64-byte store crosses a cache line) and 270 ns with both. Three kernels that store
+    aligned all lost the gain elsewhere: two more shifted loads for the presence (340 ns: every extra 64-byte load
+    splits too), cleaning as before and moving the result to the destination's phase with vpermt2d (255 to 277 ns: a
+    third port-5 operation a vector), and loading at the destination's phase with one vpermt2d gathering each
+    dword's flag (230 ns with split loads, 187 ns without: four operations, because the JIT does not fold
+    `Equals(x & mask, Zero)` into a two-operand vptestm and emits the AND on its own). Source and destination are
+    64-byte aligned relative to each other in one case of eight, and Nino controls neither address.
+  - Arm64: one 16-byte vector is one element of a 16-byte stride, and its three operations (tbl, cmtst, and) wait
+    for the two vector pipes of a Neoverse core: llvm-mca (`-mcpu=neoverse-n2`) gives 4.0 cycles for two elements,
+    the structure loads (ld2, st2) 3.5 and a 32-byte copy 1.0, and the runner agreed (the tbl kernel against the
+    structure loads: 1.00 in every case over 8 rounds; `long?[1000]` 752 ns against MemoryPack's block copy of
+    SafeNullable at 268 ns). Words in general-purpose registers with a conditional select model at 1.9 cycles, but
+    the JIT compiles a ternary in a loop to a branch per element, and its branchless form (cmp, cset, zero-extend,
+    neg, and) models at 4.5 cycles on Neoverse-N2 and 9.0 on Apple M1 against the vector kernel's 4.0 and 2.5.
+  A run that must clear each element cannot reach a block copy; `NinoNullable<T>` (memory that is already the
+  wire) is the form that does: its `long` and `int` arrays wrote 1.1 to 1.8 times as fast as MemoryPack's
+  SafeNullable on all four runner CPUs.
+- Never build a value by writing part of a local and reading the whole back (`T present = default;
+  Unsafe.As<T, byte>(ref present) = 1; field = present;`): the load is not covered by one store, so it waits for
+  both to retire (a store-forwarding stall for every value). `NinoNullable<T>`'s constructor did, and its single
+  values and non-block arrays took 1.3 to 10 times as long as `T?` on the runners; keep such a constant in a
+  `static readonly` field per `T`, and fill arrays with stores into the destination, never through a local.
