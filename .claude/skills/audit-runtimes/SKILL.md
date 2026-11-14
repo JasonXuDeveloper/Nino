@@ -25,7 +25,7 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   a round trip, which agrees with itself.
 - Teach nino-gen every .NET type that is given an existing encoding, and prove it against bytes .NET writes:
   nino-gen resolves an encoding against the member's .NET type by name (`CodegenModel.Value` for `nullable`,
-  `CodegenModel.Raw` for a nullable in raw memory, `ArgumentEncoding`, `RawArgument` and `NullableStride` for type
+  `CodegenModel.Raw` for a nullable in raw memory, `ArgumentEncoding`, `RawArgument` and `NullableSlot` for type
   arguments, which no layout describes), and so do Rust's `tests/conformance/gen.py` and Go's struct tags
   (`ninoNullableName`), so the same encoding under a new type name has no form there, or the wrong one. Why:
   `NinoNullable<T>` was first published as `T?`, and nino-gen left every type holding one out of all three
@@ -41,6 +41,24 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   where no layout describes the type arguments), the corpus's `ninonullables-*` cases with their `untrusted` ones,
   and a twin for the part that is the same bytes: runs of a narrow `T` declared both ways (`NinoNullableRuns` and
   `NullableTwins`, `ninonullable-runs-from-nullable`).
+- Give an encoding that depends on where a value sits a form for each place, in the IR and in every runtime, and
+  pin each place against bytes .NET writes: a raw `T?` is a slot of a fixed size (`T`'s alignment plus its size) as
+  the element of every sequence, grids and nested ones included, and a presence byte with the value when present
+  as a single value (a member, a map's key or value, a pair's or a tuple's item: spec §6.2, §6.5). The layout says
+  which (`seq(raw(8){hasValue...})`, `grid(2,raw(8){...})` against `nullable(raw(4))`); inside a type argument
+  nino-gen works it out (`CodegenModel.ElementEncoding`, `NullableSlot`), and Rust, whose codecs go by the type,
+  needs a type for each: `Option<T>` the single value, `nino::RawNullable<T>` the element of a set or a grid,
+  `nino::RawNullables<T>` a list of them. Why: when .NET made every sequence write slots (#295), `T?[]` and
+  `List<T?>` were the only containers with the slot here: nino-gen read a `Box<HashSet<int?>>` as single values
+  (`generic-nullable-arguments` failed in `nino-gen inspect`), and its Rust wrote a `HashSet<int?>` as a
+  `RawNullables` (a `Vec`: no repeated element rejected) and an `int?[,]` as `Grid<Option<i32>, 2>`, single values
+  where .NET writes slots. The proof is the IR (`ModelTests.RawNullablesAreSlotsInEverySequenceAndSingleValuesElsewhere`),
+  .NET's bytes pinned in each runtime's shapes test (`NullableSlotsHex`, `NullableGridsHex`: a queue, a stack, a
+  linked list, a sorted set, an interface, nested, a set inside type arguments, grids of ranks 2 and 3), the
+  integration harnesses (`Samples.Slots`) and the corpus's `nullable-sequences`, `presence-nullable-set-*`,
+  `presence-nullable-grid-*` and `length-nullable-set-single-values`. A shape added for one container kind can show
+  a bug the corpus never reached: `List<Queue<int?>>` was the first list of lists read into in TypeScript, whose
+  `readInto` did not compile (`values[i]` is not narrowed by a null check as `v.items` is: shapes.sbn `read_into`).
 - Resolve a raw field's type from the layout when the name it publishes is canonical rather than declared:
   `DateTimeOffset` publishes `offsetMinutes` (an int at 0) and `dateTime` (at 8), which no runtime declares (.NET 10
   `_offsetMinutes`, .NET 8 a short), so reflection found nothing and nino-gen left every type holding one out
