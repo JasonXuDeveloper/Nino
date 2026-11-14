@@ -63,10 +63,32 @@ namespace Nino.Core
                 WriteEach(value, ref writer);
         }
 
-        /// <summary>The count and the elements from a rented copy (CopyTo: enumeration order), out of line.</summary>
+        /// <summary>
+        /// The count and the slots, out of line. Where a run of slots can be written over itself
+        /// (<see cref="INinoSlotFormatter{T}.SlotsWriteInPlace"/>) and the set has no free entry, the values are
+        /// packed out of the entries as raw elements are (<see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>),
+        /// then written over themselves as slots, which clears their padding and absent values (1,000 <c>int?</c>:
+        /// 227 ns against 1,140 from a rented copy, local); else from a rented copy (CopyTo: enumeration order).
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteSlots(TSet value, ref Writer writer) =>
-            NinoCollections.WriteCopied<T, TFormatter>(value, null, ref writer);
+        private static void WriteSlots(TSet value, ref Writer writer)
+        {
+            var slots = NinoSlots<T, TFormatter>.Formatter;
+            int count = value.Count;
+            var entries = slots.SlotsWriteInPlace && CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
+            if (entries == null || count > entries.Length)
+            {
+                NinoCollections.WriteCopied<T, TFormatter>(value, null, ref writer);
+                return;
+            }
+
+            int size = Unsafe.SizeOf<T>();
+            ref byte elements = ref writer.ReserveCounted(count, size);
+            NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBytes<T>>(ref elements,
+                ref entries[0], count, size);
+            slots.WriteSlots(ref elements,
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, T>(ref elements), count));
+        }
 
         /// <summary>The <paramref name="count"/> raw elements of a set with free entries, in enumeration
         /// order.</summary>
@@ -144,10 +166,10 @@ namespace Nino.Core
                 return;
             }
 
-            // Slots (raw T?): read as one run, as an array of them is, then added.
+            // Slots (raw T?), out of line.
             if (NinoElements.SlotStride<T, TFormatter>() > 0)
             {
-                AddSlots(set, length, ref reader);
+                ReadSlots(set, length, created, ref reader);
                 return;
             }
 
@@ -208,6 +230,36 @@ namespace Nino.Core
                 NinoThrow.DuplicateKey(set.GetType());
             if (walk)
                 HashTables.Walk(set, item);
+        }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> slots (raw <c>T?</c>). Where a slot is its value's memory they are checked
+        /// in the data and added from it as raw elements are, the entries of a new set filled directly where they
+        /// can be (<see cref="HashTables"/>); else <see cref="AddSlots"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadSlots(TSet set, int length, bool created, ref Reader reader)
+        {
+            var slots = NinoSlots<T, TFormatter>.Formatter;
+            if (!slots.SlotsAreMemory)
+            {
+                AddSlots(set, length, ref reader);
+                return;
+            }
+
+            int size = Unsafe.SizeOf<T>();
+            ref byte src = ref reader.ReadElements(length, size);
+            slots.CheckSlots(ref src, length);
+            if (created && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
+                return;
+            // An existing set: each added as AddEach adds it, from the data.
+            bool insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
+            bool walk = HashTables.Plan<T>.Walks;
+            for (int i = 0; i < length; i++)
+            {
+                Add(set, NinoUnsafe.Read<T>(ref src), insert, walk);
+                src = ref Unsafe.Add(ref src, size);
+            }
         }
 
         /// <summary>

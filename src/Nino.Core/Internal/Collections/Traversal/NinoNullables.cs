@@ -40,6 +40,15 @@ namespace Nino.Core
                                                        NullableLayout<T>.ValueOffset == 1 &&
                                                        Unsafe.SizeOf<T?>() == 2 && Stride == 2 && Offset == 1;
 
+        /// <summary>
+        /// Whether a run may be written over itself (<see cref="WriteSlots(ref byte, ReadOnlySpan{T?})"/> with the
+        /// destination its own source): the slots are the values' memory and tile every vector (2, 4, 8 or 16
+        /// bytes), so each step reads exactly the bytes it writes and writing a step twice changes nothing. The
+        /// kernels of other strides store whole vectors past their last whole element and read those bytes again
+        /// from the source in the next step.
+        /// </summary>
+        internal static readonly bool InPlace = Raw && Stride is 2 or 4 or 8 or 16;
+
         private static readonly NinoMask Mask = BuildMask();
 
         private static NinoMask BuildMask()
