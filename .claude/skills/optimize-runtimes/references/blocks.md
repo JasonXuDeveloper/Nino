@@ -24,6 +24,20 @@ value check in a runtime or a template.
   40868354821). Keep tuples on their own macro and `bool::decode_fixed` as `match`: routing tuples through
   `decode_member` and testing a bool as `b <= 1` made `(i64, bool)` reads 2-29 % slower (Xeon 8573C +29 %, EPYC 7763
   +11 %, run 40829803604); with both kept, tuples were on par.
+- Store a fixed-size value's bytes into `encode_fixed` / `encode_raw`'s slice a register at a time (`store_words` in
+  `types.rs`: eight bytes a copy), never as one copy wider than a register, and test the bytes that must be zero by
+  ORing each run whole, never through `iter().chain().any()`. `extend_fixed` encodes each element into a buffer on
+  the stack and copies it out; LLVM drops the buffer only when every store into it is a legal integer, so a `Guid`
+  (`[u8; 16]`, one 16-byte copy) at offset 4 of a `Guid?` slot or 16 of a `NinoNullable<Guid>` stayed in memory and
+  the copy out, split at other offsets, waited on store forwarding for every element (the listing: `movups %xmm,
+  3(%rsp)` then `movaps (%rsp)` and `movl 15(%rsp)`). Local Xeon, 10,000 elements, `--bench blocks` (a decision
+  only, never published): writing `Vec<NullableSlot<Guid>>` 75 µs to 10.2 µs, `Vec<NinoNullable<Guid>>` 75 µs to
+  13.4 µs, plain `Vec<Guid>` unchanged; reading `Vec<NinoNullable<Guid>>` 68 µs to 24 µs and
+  `Vec<NinoNullable<i32>>` 20 µs to 11.7 µs with the ORed check. Zeroing each element in place instead of the stack
+  buffer (`write_bytes`, then encode into the room) fixed the Guid but wrote `NullableSlot<i32>` 30 %,
+  `NullableSlot<i64>` 43 % and `NullableSlot<Decimal>` 64 % slower: not kept. This is what let `RawNullables<T>` go:
+  `Vec<NullableSlot<T>>` on the block path reads i32, i64 and Guid slots 1.5, 2.3 and 5 times as fast as its
+  per-element loop did and writes them as fast or faster.
 
 ## Checking blocks in Go
 
