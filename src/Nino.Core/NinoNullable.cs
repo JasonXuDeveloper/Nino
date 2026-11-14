@@ -8,16 +8,20 @@ namespace Nino.Core
     /// <summary>
     /// A nullable value whose memory is always what Nino writes: its presence is a whole <typeparamref name="T"/>
     /// (1 in its first byte when it has a value, zero otherwise) and its value is zero when it has none, so it holds no
-    /// padding and no stale bytes. Nino writes it exactly as <c>T?</c> (either reads the other's data). An array or a
-    /// <see cref="List{T}"/> of it is written and read as one block copy where <typeparamref name="T"/> is as large as
-    /// its alignment (the primitives, enums, <see cref="DateTime"/>, <see cref="TimeSpan"/>), where <c>T?[]</c> clears the
-    /// padding and the absent values of each element on the way. Use it for collections of nullable values written
-    /// often; <c>T?</c> writes the same bytes everywhere else.
+    /// padding and no stale bytes. Nino writes that memory everywhere, as it writes any raw struct: a member, an
+    /// element of any collection and a field of a raw struct are one copy, with nothing to clear on the way (a
+    /// <c>T?</c> run clears the padding and the absent value of each element). It takes two <typeparamref name="T"/>
+    /// a value: the bytes of a <c>T?</c> run where <typeparamref name="T"/> is as large as its alignment (the
+    /// primitives, enums, <see cref="DateTime"/>, <see cref="TimeSpan"/>), more where it is wider (a
+    /// <see cref="decimal"/> takes 32 bytes, a <c>decimal?</c> element 24), and never the bytes of a single
+    /// <c>T?</c> (a presence byte, then the value when present): convert between the two with
+    /// <see cref="ToNullable"/> and the constructor.
     /// </summary>
     /// <remarks>
     /// A value is clean when it is made by this type's constructors, conversions or <c>default</c>. Memory it was never
     /// assigned in (<see cref="GC.AllocateUninitializedArray{T}"/>, a struct built through <c>Unsafe</c>) is written as
-    /// it is. <typeparamref name="T"/> is written as its bytes (a primitive, an enum or a raw struct).
+    /// it is. <typeparamref name="T"/> is written as its bytes (a primitive, an enum or a raw struct). Data read in
+    /// <see cref="NinoSettings.Untrusted"/> mode is checked: a presence of 0 or 1, an absent value of zeros.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     public readonly struct NinoNullable<T> : IEquatable<NinoNullable<T>> where T : unmanaged

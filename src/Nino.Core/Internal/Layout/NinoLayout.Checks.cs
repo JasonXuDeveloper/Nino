@@ -14,7 +14,8 @@ namespace Nino.Core.Internal
         /// <summary>
         /// The fields of <paramref name="type"/> (an unmanaged struct, or one of the types below itself) that can
         /// hold bytes no constructor makes, as pairs of their offset in memory on this runtime and kind: <c>bool</c>,
-        /// <see cref="DateTime"/>, <c>decimal</c>, <c>DateOnly</c>, <c>TimeOnly</c>, at any depth of nested structs.
+        /// <see cref="DateTime"/>, <c>decimal</c>, <c>DateOnly</c>, <c>TimeOnly</c>, a <see cref="NinoNullable{T}"/>'s
+        /// presence, at any depth of nested structs.
         /// Values are checked once read (in memory): where the wire layout is the memory layout, also before. Null for
         /// none, or when the fields cannot be read (then nothing is checked, as nothing is converted: see
         /// <see cref="Create"/>).
@@ -32,8 +33,23 @@ namespace Nino.Core.Internal
                 var values = MeasureMemory(type, size);
                 if (values == null)
                     return null;
-                foreach (var value in values)
+                for (int i = 0; i < values.Count; i++)
                 {
+                    var value = values[i];
+                    if (IsNinoNullable(value.Key))
+                    {
+                        // Its presence follows (a T at its own offset, with T's values), then its value, the next T:
+                        // the presence is checked as one, and never as a T.
+                        var of = value.Key.GetGenericArguments()[0];
+                        int next = i + 2;
+                        while (values[next].Key != of || values[next].Value == value.Value)
+                            next++;
+                        checks.Add(value.Value);
+                        checks.Add(NinoValueChecks.Presence | values[next].Value - value.Value << NinoValueChecks.KindBits);
+                        i = next - 1;
+                        continue;
+                    }
+
                     int kind = CheckOf(value.Key);
                     if (kind == 0)
                         continue;
@@ -71,11 +87,23 @@ namespace Nino.Core.Internal
             var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (fields.Length != offsets.Count)
                 return false;
-            for (int i = 0; i < fields.Length; i++)
+            // A NinoNullable<T>: its presence (a T, checked as a presence and never as a T), then its value.
+            int first = 0;
+            if (IsNinoNullable(type))
+            {
+                checks.Add(offset);
+                checks.Add(NinoValueChecks.Presence | offsets[1] << NinoValueChecks.KindBits);
+                first = 1;
+            }
+
+            for (int i = first; i < fields.Length; i++)
                 if (!AddChecks(NinoReflection.LayoutFieldType(fields[i]), offset + offsets[i], checks))
                     return false;
             return true;
         }
+
+        private static bool IsNinoNullable(Type type) =>
+            type.IsGenericType && type.GetGenericTypeDefinition() == typeof(NinoNullable<>);
 
         private static int CheckOf(Type type)
         {

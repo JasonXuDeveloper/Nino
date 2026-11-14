@@ -79,12 +79,17 @@ internal static class RawLayout
         if (int128)
             offsets = new List<int> { 0, 8 };
         sb.Append('{');
-        for (int i = 0; i < fields.Count; i++)
+        // NinoNullable<T> keeps its presence in a whole T (the first byte 0 or 1, the others zero): published as
+        // Nullable<T> is, a bool and the value, so where T is as large as its alignment the two read the same.
+        bool ninoNullable = type is INamedTypeSymbol named && TypeNames.HasMetadataName(named.OriginalDefinition, NinoNames.NinoNullable);
+        if (ninoNullable)
+            sb.Append("hasValue:bool@0:raw(1)");
+        for (int i = ninoNullable ? 1 : 0; i < fields.Count; i++)
         {
             if (i != 0)
                 sb.Append(',');
             var field = fields[i];
-            sb.Append(field.Name).Append(':')
+            sb.Append(ninoNullable ? "value" : field.Name).Append(':')
                 .Append(TypeNames.Plain(TypeNames.Global(field.Type))).Append('@')
                 .Append(offsets[i].ToString(CultureInfo.InvariantCulture)).Append(':');
             if (!Describe(field.Type, sb))
