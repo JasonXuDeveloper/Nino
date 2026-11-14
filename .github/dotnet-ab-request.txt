@@ -294,5 +294,11 @@
 # Nullable serialize: absent values cleared in the copy's one pass at full width, flags spread by byte shuffles
 # (04a57a6c) against main (52bcc223, which has the zeroing fix's regression) and against the commit before that fix.
 # done (run 43356639791) cpu='EPYC|Xeon|Neoverse' 52bcc223 04a57a6c 5 *CollectionsTest.Nino*Nullable*
-cpu='EPYC|Xeon|Neoverse' 14a2d2df 04a57a6c 5 *CollectionsTest.Nino*Nullable*
-cpu='EPYC|Xeon|Neoverse' 52bcc223 52bcc223 5 *CollectionsTest.Nino*Nullable*
+# done (run 43363428223) cpu='EPYC|Xeon|Neoverse' 14a2d2df 04a57a6c 5 *CollectionsTest.Nino*Nullable*
+# done (run 43363428223) cpu='EPYC|Xeon|Neoverse' 52bcc223 52bcc223 5 *CollectionsTest.Nino*Nullable*
+# Nullable values (#275, #276): 16-byte T? read and written as two words, the nullable path folded at import,
+# nullable raw members on a local writer, null top-level classes without a reader or writer (claude/sleepy-sagan-oeorb1
+# 30f2ab1) against main 6b69761, twice (filters reordered, two Arm64 jobs), and main against itself (floor).
+cpu='EPYC|Xeon|Neoverse' 6b69761 30f2ab1 5 *NullableTest.Nino* *CollectionsTest.Nino*Nullable* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache*
+cpu='EPYC|Xeon|Neoverse' 6b69761 30f2ab1 5 *CollectionsTest.Nino*Nullable* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache* *NullableTest.Nino* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize*
+cpu='EPYC|Xeon|Neoverse' 6b69761 6b69761 5 *NullableTest.Nino* *CollectionsTest.Nino*Nullable* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache*
