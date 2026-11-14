@@ -33,7 +33,8 @@ func (b *builder) slice(c *codec, variant uint8) error {
 		}
 		return nil
 	}
-	// []*T of a raw T: the fixed stride, unless the layout says each element is a single T?.
+	// []*T of a raw T: a slot of a fixed size each (the elements of any sequence of T?: an array, a list, a set, a
+	// queue), unless the layout says each element is a single T?.
 	// What the layout says of the member's nullable values holds for its elements.
 	elemVariant := variantDefault
 	if variant == variantNinoNullable {
@@ -149,7 +150,8 @@ func (b *builder) slice(c *codec, variant uint8) error {
 	return nil
 }
 
-// stride: T?[] of a raw T (spec §6.2): hasValue, padding to T's alignment, then T (zero when absent).
+// stride: a sequence of T? of a raw T (spec §6.2: T?[], List<T?>, HashSet<T?>, Queue<T?>, ...): a slot of a fixed
+// size each, hasValue, padding to T's alignment, then T (zero when absent).
 func (b *builder) stride(c *codec, e *codec) error {
 	t := c.typ
 	if e.align == 0 {

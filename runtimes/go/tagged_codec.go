@@ -31,7 +31,7 @@ const (
 	kBytes
 	kPrimSlice // slice of fixed-size numbers: one block
 	kSlice
-	kStride // slice of nullable raw values: the fixed stride (spec §6.2)
+	kStride // slice of nullable raw values (any sequence of T?): a slot of a fixed size each (spec §6.2)
 	kSet
 	kMap
 	kNullable

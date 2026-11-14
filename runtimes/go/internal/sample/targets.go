@@ -67,6 +67,10 @@ func WriteMaybeIntArray(w *nino.Writer, v []*int32) {
 	writeStrideInt32s(w, v)
 }
 
+func ReadMaybeIntGrid(r *nino.Reader) *Grid[*int32] { return readStrideInt32Grid(r) }
+
+func WriteMaybeIntGrid(w *nino.Writer, v *Grid[*int32]) { writeStrideInt32Grid(w, v) }
+
 func ReadMaybeInt(r *nino.Reader) *int32 { return readNullableInt32(r) }
 
 func WriteMaybeInt(w *nino.Writer, v *int32) { writeNullableInt32(w, v) }

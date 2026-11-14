@@ -249,6 +249,19 @@ type Nullables struct {
 	Map         []nino.Entry[int32, *int32] `nino:"12" json:"map" yaml:"map"`
 }
 
+// NullableSequences is raw nullables as the elements of sets, grids and nested sequences (a slot of a fixed size each,
+// spec §6.2, as in an array), and as a dictionary's value and a pair's item (single values: a presence byte, then
+// the value).
+type NullableSequences struct {
+	IntSet     []*int32                    `nino:"0" json:"intSet" yaml:"intSet"`
+	LongSet    []*int64                    `nino:"1" json:"longSet" yaml:"longSet"`
+	Grid       *Grid[*int32]               `nino:"2" json:"grid" yaml:"grid"`
+	PaddedGrid *Grid[*Padded]              `nino:"3" json:"paddedGrid" yaml:"paddedGrid"`
+	Nested     [][]*int32                  `nino:"4" json:"nested" yaml:"nested"`
+	Values     []nino.Entry[int32, *int64] `nino:"5" json:"values" yaml:"values"`
+	Pairs      []nino.Entry[int32, *int32] `nino:"6" json:"pairs" yaml:"pairs"`
+}
+
 // NinoNullableFields is a raw struct holding .NET's NinoNullable<T>: each field its memory at its offset.
 type NinoNullableFields struct {
 	Tag   uint8         `nino:"0" json:"tag" yaml:"tag"`

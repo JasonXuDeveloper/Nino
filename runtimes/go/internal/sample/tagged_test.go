@@ -31,6 +31,7 @@ var tagRoots = map[string]reflect.Type{
 	"Conformance.Outer":             reflect.TypeFor[*Outer](),
 	"Conformance.Collections":       nil, // int[,]: grid encodings are not supported by struct tags
 	"Conformance.Nullables":         reflect.TypeFor[*Nullables](),
+	"Conformance.NullableSequences": nil, // int?[,]: grid encodings are not supported by struct tags
 	"Conformance.NinoNullables":     reflect.TypeFor[*NinoNullables](),
 	"Conformance.NinoNullableRuns":  reflect.TypeFor[*NinoNullableRuns](),
 	"Conformance.Empties":           reflect.TypeFor[*Empties](),
@@ -70,6 +71,8 @@ var tagRoots = map[string]reflect.Type{
 	"Conformance.Targets.LongList":      reflect.TypeFor[*tagValues[[]int64]](),
 	"Conformance.Targets.MaybeInt":      reflect.TypeFor[*tagValue[*int32]](),
 	"Conformance.Targets.MaybeIntArray": reflect.TypeFor[*tagValues[[]*int32]](),
+	"Conformance.Targets.MaybeIntGrid":  nil,
+	"Conformance.Targets.MaybeIntSet":   reflect.TypeFor[*tagValues[[]*int32]](), // the slots of an int?[]
 	"Conformance.Targets.ObjectSlot":    reflect.TypeFor[*tagValue[nino.Typed]](),
 	"Conformance.Targets.PaddedArray":   reflect.TypeFor[*tagValues[[]Padded]](),
 	"Conformance.Targets.PointList":     reflect.TypeFor[*tagValues[[]*Point]](),

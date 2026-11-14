@@ -80,6 +80,11 @@ func readI32I32Entries(r *nino.Reader) []nino.Entry[int32, int32] {
 }
 
 func readI32NullableInt32Entries(r *nino.Reader) []nino.Entry[int32, *int32] {
+	return nino.CheckUniqueKeys(r, readI32NullableInt32Pairs(r))
+}
+
+// readI32NullableInt32Pairs reads a list of pairs: the entries of a dictionary without the check of its keys.
+func readI32NullableInt32Pairs(r *nino.Reader) []nino.Entry[int32, *int32] {
 	n := r.Length(5)
 	if n < 0 {
 		return nil
@@ -89,6 +94,24 @@ func readI32NullableInt32Entries(r *nino.Reader) []nino.Entry[int32, *int32] {
 	for range n {
 		k := r.I32()
 		e = nino.Entry[int32, *int32]{Key: k, Value: readNullableInt32(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return v
+}
+
+func readI32NullableInt64Entries(r *nino.Reader) []nino.Entry[int32, *int64] {
+	n := r.Length(5)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[int32, *int64]
+	v := make([]nino.Entry[int32, *int64], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := r.I32()
+		e = nino.Entry[int32, *int64]{Key: k, Value: readNullableInt64(r)}
 		if r.Failed() {
 			return nil
 		}
@@ -215,6 +238,23 @@ func readInt32Lists(r *nino.Reader) [][]int32 {
 	v := make([][]int32, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for range n {
 		e = nino.ReadPrimitives[int32](r)
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return v
+}
+
+func readStrideInt32Lists(r *nino.Reader) [][]*int32 {
+	n := r.Length(4)
+	if n < 0 {
+		return nil
+	}
+	var e []*int32
+	v := make([][]*int32, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		e = readStrideInt32s(r)
 		if r.Failed() {
 			return nil
 		}
@@ -504,6 +544,18 @@ func writeI32NullableInt32Entries(w *nino.Writer, v []nino.Entry[int32, *int32])
 	}
 }
 
+func writeI32NullableInt64Entries(w *nino.Writer, v []nino.Entry[int32, *int64]) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		w.I32(e.Key)
+		writeNullableInt64(w, e.Value)
+	}
+}
+
 func writeI32StringListEntries(w *nino.Writer, v []nino.Entry[int32, []*string]) {
 	if v == nil {
 		w.NullLength()
@@ -601,6 +653,17 @@ func writeInt32Lists(w *nino.Writer, v [][]int32) {
 	w.Length(len(v))
 	for _, e := range v {
 		nino.WritePrimitives(w, e)
+	}
+}
+
+func writeStrideInt32Lists(w *nino.Writer, v [][]*int32) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		writeStrideInt32s(w, e)
 	}
 }
 

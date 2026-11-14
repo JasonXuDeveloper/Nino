@@ -210,7 +210,7 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 | `nino.DateTimeOffset`, `*big.Int`, `*nino.Version` | `datetimeoffset`, `bigint`, `version` |
 | `string`, `*string` | `string` (or `utf8`); a `string` reads null as `""`, a `*string` keeps it |
 | `[]byte`, `[]T` | `seq(...)`; nil is null; numbers are one block copy |
-| `[]*T` of a fixed-size `T` | `T?[]`: the fixed stride (§6.2); `seq(nullable(...))` in the layout selects one `T?` per element |
+| `[]*T` of a fixed-size `T` | a sequence of `T?` (`T?[]`, `List<T?>`, `HashSet<T?>`, `Queue<T?>`, any other, also nested): a slot of a fixed size an element, `T`'s alignment plus its size (§6.2: `int?` 8 bytes, `long?` 16); `seq(nullable(...))` in the layout selects one `T?` per element (a `T` .NET does not write as raw memory) |
 | `map[K]V`, `map[K]struct{}` | `map(K,V)`, a set `seq(K)`: written in key order, a repeated key fails on read |
 | `[]nino.Entry[K, V]` | `map(K,V)` in the order of the data (no check for repeated keys); a `nino.Entry` alone is a `pair` |
 | `*T` (struct) | a class: presence byte, or type id with `header=TypeId`; `Nullable<T>` when `T` is a struct (`header=None`) |

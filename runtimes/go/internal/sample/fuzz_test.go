@@ -86,6 +86,12 @@ func seeds() []seed {
 	one := int32(1)
 	b, err = nino.Serialize(&Nullables{Int: &one, IntArray: []*int32{&one, nil}, PaddedArray: []*Padded{{1, 2}, nil}}, WriteNullables)
 	add("Conformance.Nullables", b, err)
+	b, err = nino.Serialize(&NullableSequences{
+		IntSet: []*int32{&one, nil}, Grid: &Grid[*int32]{Lengths: [2]int{1, 2}, Items: []*int32{nil, &one}},
+		PaddedGrid: &Grid[*Padded]{Lengths: [2]int{1, 1}, Items: []*Padded{{1, 2}}}, Nested: [][]*int32{{&one}, nil},
+		Values: []nino.Entry[int32, *int64]{{Key: 1}}, Pairs: []nino.Entry[int32, *int32]{{Key: 1, Value: &one}},
+	}, WriteNullableSequences)
+	add("Conformance.NullableSequences", b, err)
 	count := int32(3)
 	b, err = nino.Serialize(&NinoNullables{
 		Guid: &nino.Guid{1}, DecimalArray: []*nino.Decimal{{Lo: 1}, nil}, PaddedList: []*Padded{nil, {1, 2}},
