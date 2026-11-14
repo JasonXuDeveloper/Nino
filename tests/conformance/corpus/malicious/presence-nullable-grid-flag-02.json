@@ -1,0 +1,15 @@
+{
+  "case": "presence-nullable-grid-flag-02",
+  "type": "Conformance.Targets.MaybeIntGrid",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "An int?[,] element (fixed stride) whose flag is 0x02.",
+  "size": 17,
+  "layouts": {
+    "Conformance.Targets.MaybeIntGrid": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCA7112FB; deferrable=true; members=Values:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

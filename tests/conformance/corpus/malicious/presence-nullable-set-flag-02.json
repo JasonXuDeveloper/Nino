@@ -1,0 +1,15 @@
+{
+  "case": "presence-nullable-set-flag-02",
+  "type": "Conformance.Targets.MaybeIntSet",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "A HashSet<int?> element (fixed stride, as an int?[]'s) whose flag is 0x02.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Targets.MaybeIntSet": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8BFF9D91; deferrable=true; members=Values:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

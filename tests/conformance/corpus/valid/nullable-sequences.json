@@ -1,0 +1,86 @@
+{
+  "case": "nullable-sequences",
+  "description": "Raw nullables as the elements of sets, of a grid and of nested sequences: a fixed stride each (spec 6.2), as in an array; as a dictionary's value and a pair's item: a presence byte, then the value.",
+  "type": "Conformance.NullableSequences",
+  "features": [
+    "nullable",
+    "seq",
+    "map",
+    "grid"
+  ],
+  "size": 249,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.NullableSequences": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xDB16AFA3; deferrable=true; members=IntSet:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongSet:System.Collections.Generic.HashSet<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});Grid:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});PaddedGrid:System.Nullable<Conformance.Padded>[,]:grid(2,raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Nested:System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<int>>>:seq(seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}));Values:System.Collections.Generic.Dictionary<int, System.Nullable<long>>:map(raw(4),nullable(raw(8)));Pairs:System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, System.Nullable<int>>>:seq(pair(raw(4),nullable(raw(4))))",
+    "Conformance.Padded": "format=Positional; header=None; trackReferences=false; raw=true; id=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}"
+  },
+  "value": {
+    "$type": "Conformance.NullableSequences",
+    "IntSet": [
+      4,
+      null,
+      -2147483648
+    ],
+    "LongSet": [
+      null,
+      "9223372036854775807"
+    ],
+    "Grid": {
+      "lengths": [
+        2,
+        3
+      ],
+      "items": [
+        1,
+        null,
+        3,
+        null,
+        5,
+        null
+      ]
+    },
+    "PaddedGrid": {
+      "lengths": [
+        1,
+        2
+      ],
+      "items": [
+        {
+          "$type": "Conformance.Padded",
+          "A": 3,
+          "B": 4
+        },
+        null
+      ]
+    },
+    "Nested": [
+      [
+        1
+      ],
+      [],
+      [
+        null
+      ]
+    ],
+    "Values": [
+      [
+        1,
+        null
+      ],
+      [
+        2,
+        7
+      ]
+    ],
+    "Pairs": [
+      [
+        1,
+        null
+      ],
+      [
+        2,
+        9
+      ]
+    ]
+  }
+}

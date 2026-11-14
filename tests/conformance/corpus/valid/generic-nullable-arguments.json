@@ -1,13 +1,13 @@
 {
   "case": "generic-nullable-arguments",
-  "description": "Nullables and pairs inside the type arguments of a generic type: raw nullables in arrays and lists at a fixed stride, item by item elsewhere.",
+  "description": "Nullables and pairs inside the type arguments of a generic type: raw nullables at a fixed stride as the elements of a sequence, item by item as a dictionary's value or a pair's item.",
   "type": "Conformance.WrappedArgs",
   "features": [
     "nullable",
     "seq",
     "map"
   ],
-  "size": 140,
+  "size": 150,
   "roundTrip": true,
   "layouts": {
     "Conformance.Vec2": "format=Positional; header=None; trackReferences=false; raw=true; id=0x53124224; deferrable=false; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}",
