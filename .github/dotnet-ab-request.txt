@@ -325,6 +325,13 @@
 # 1.6-4x slower than T? (its conversion to T?'s bytes). Main 606e8d09 against df0d2b17: the GF(2^8) clear for any
 # stride and the vpermb pack (ee3456d4), structs that open no class body on a local reader and writer, inlined
 # (30df6106, 80c18c90); the floor; and the nullable forms beside MemoryPack on the head.
-cpu='EPYC|Xeon|Neoverse' df0d2b17 606e8d09 3 *NullableTest.Nino* *CollectionsTest.Nino*Nullable*
-cpu='EPYC|Xeon|Neoverse' df0d2b17 df0d2b17 3 *NullableTest.Nino* *CollectionsTest.Nino*Nullable*
-cpu='EPYC|Xeon|Neoverse' 606e8d09 606e8d09 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# done (run 43600970932): cpu='EPYC|Xeon|Neoverse' df0d2b17 606e8d09 3 *NullableTest.Nino* *CollectionsTest.Nino*Nullable*
+# done (run 43600970932): cpu='EPYC|Xeon|Neoverse' df0d2b17 df0d2b17 3 *NullableTest.Nino* *CollectionsTest.Nino*Nullable*
+# done (run 43600970932): cpu='EPYC|Xeon|Neoverse' 606e8d09 606e8d09 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# Run 43600970932: structs that open no class body 1.7-2.6x faster to write and 1.2-1.9x to read on every CPU; the
+# GF(2^8) clear of any stride moved no T? case (the stores bound it, #282). The series after 606e8d09: a raw T? as a
+# slot in every collection, read and written as runs (Queue, HashSet through its entries, Collection through its
+# list, grids, ...), NinoNullable<T> as its memory, and nullable runs stored at whole vectors of the destination.
+cpu='EPYC|Xeon|Neoverse' 606e8d09 df8a40f2 3 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*RawNullable* *NullableTest.Nino*NullableStruct*
+cpu='EPYC|Xeon|Neoverse' 606e8d09 606e8d09 3 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*RawNullable* *NullableTest.Nino*NullableStruct*
+cpu='EPYC|Xeon|Neoverse' df8a40f2 df8a40f2 2 *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *NullableTest.*RawNullable*
