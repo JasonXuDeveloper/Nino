@@ -213,10 +213,11 @@ namespace Nino.Codegen.Tests
         }
 
         /// <summary>
-        /// A <c>NinoNullable&lt;T&gt;</c> is each language's nullable value (TypeScript <c>T | null</c>, Go <c>*T</c>;
-        /// Rust <c>nino::NinoNullable&lt;T&gt;</c>, an <c>Option&lt;T&gt;</c> with those bytes, since <c>Option&lt;T&gt;</c>
-        /// itself is a <c>T?</c>), and every type holding one is written: alone, in every collection, in type
-        /// arguments, and inside raw structs whatever the size of <c>T</c>.
+        /// A <c>NinoNullable&lt;T&gt;</c> has a type of its own in Go and Rust (<c>nino.NinoNullable[T]</c>, a value
+        /// and whether it has one; <c>nino::NinoNullable&lt;T&gt;</c>, an <c>Option&lt;T&gt;</c> with those bytes),
+        /// where a <c>T?</c> is a <c>*T</c> and an <c>Option&lt;T&gt;</c>, and is TypeScript's <c>T | null</c>; every
+        /// type holding one is written: alone, in every collection, in type arguments, and inside raw structs
+        /// whatever the size of <c>T</c>.
         /// </summary>
         [TestMethod]
         public void NinoNullableIsGeneratedInEveryLanguage()
@@ -234,8 +235,11 @@ namespace Nino.Codegen.Tests
             StringAssert.Contains(ts, "r.ninoNullableAt(");
             var (go, goOutput) = Run("go", "nino_types.go");
             Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go,
-                @"type HoldsWideNinoNullable struct \{\n\tA uint8 +`[^`]*`\n\tB \*nino\.Decimal "));
-            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tOne +\*Box\[\*int32\] "));
+                @"type HoldsWideNinoNullable struct \{\n\tA uint8 +`[^`]*`\n\tB nino\.NinoNullable\[nino\.Decimal\] "));
+            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tOne +\*Box\[nino\.NinoNullable\[int32\]\] "));
+            // A run of a number is one block; any other element is decoded at its offsets into the value type.
+            StringAssert.Contains(go, "v.Set = nino.ReadNinoNullables[int32](r)");
+            StringAssert.Contains(go, "return nino.NinoNullable[nino.Decimal]{HasValue: true, Value: ");
             StringAssert.Contains(go, "r.NinoNullableAt(b[0:16], b[16:32])");
             foreach (string output in new[] { rustOutput, tsOutput, goOutput })
             foreach (string name in names)

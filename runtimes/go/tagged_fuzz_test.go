@@ -19,6 +19,7 @@ var fuzzTargets = []reflect.Type{
 	reflect.TypeFor[*tagRecordChain](),
 	reflect.TypeFor[[]tagPacked](),
 	reflect.TypeFor[map[string][]*tagKeyed](),
+	reflect.TypeFor[*tagNinoNullables](),
 }
 
 // FuzzTagged reads arbitrary bytes into tag-mapped types (the first byte picks one). Reading must never panic, must
@@ -48,6 +49,10 @@ func FuzzTagged(f *testing.F) {
 	seed(6, &tagRecordChain{Value: 1, Next: &tagRecordChain{Value: 2}})
 	seed(7, []tagPacked{{1, 2, 3}})
 	seed(8, map[string][]*tagKeyed{"a": {{ID: 1}, nil}})
+	seed(9, &tagNinoNullables{
+		One: NinoNullableOf[int32](7), Run: []NinoNullable[int32]{NinoNullableOf[int32](5), {}},
+		Map: map[int32]NinoNullable[int64]{1: {}}, Fields: tagNinoNullableFields{Tag: 2, Count: NinoNullableOf[int32](3)},
+	})
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) == 0 {
 			return

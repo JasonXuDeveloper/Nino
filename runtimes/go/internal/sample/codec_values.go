@@ -896,111 +896,95 @@ func writeNullableSequencesBody(w *nino.Writer, v *NullableSequences) {
 // ---------------------------------------------------------------- NinoNullable<T>: its memory, a raw struct
 
 // A NinoNullable<T> is 2 x size(T) bytes wherever it is: the presence (a whole T: 0 or 1 in its first byte, zeros
-// above), then the value (zeros when absent). nino.Reader.NinoNullableAt checks both halves.
+// above), then the value (zeros when absent). nino.Reader.NinoNullableAt checks both halves; a run of a number is
+// one block (nino.ReadNinoNullables).
 
-func decodeNinoNullableUint8(r *nino.Reader, b []byte) *uint8 {
-	_ = b[1]
-	if !r.NinoNullableAt(b[0:1], b[1:2]) {
-		return nil
-	}
-	x := b[1]
-	return &x
-}
-
-func encodeNinoNullableUint8(b []byte, v *uint8) {
-	_ = b[1]
-	if v != nil {
-		b[0] = 1
-		b[1] = *v
-	}
-}
-
-func decodeNinoNullableInt32(r *nino.Reader, b []byte) *int32 {
+func decodeNinoNullableInt32(r *nino.Reader, b []byte) nino.NinoNullable[int32] {
 	_ = b[7]
 	if !r.NinoNullableAt(b[0:4], b[4:8]) {
-		return nil
+		return nino.NinoNullable[int32]{}
 	}
 	x := int32(le.Uint32(b[4:]))
-	return &x
+	return nino.NinoNullableOf(x)
 }
 
-func encodeNinoNullableInt32(b []byte, v *int32) {
+func encodeNinoNullableInt32(b []byte, v nino.NinoNullable[int32]) {
 	_ = b[7]
-	if v != nil {
+	if v.HasValue {
 		b[0] = 1
-		le.PutUint32(b[4:], uint32(*v))
+		le.PutUint32(b[4:], uint32(v.Value))
 	}
 }
 
-func decodeNinoNullableInt64(r *nino.Reader, b []byte) *int64 {
+func decodeNinoNullableInt64(r *nino.Reader, b []byte) nino.NinoNullable[int64] {
 	_ = b[15]
 	if !r.NinoNullableAt(b[0:8], b[8:16]) {
-		return nil
+		return nino.NinoNullable[int64]{}
 	}
 	x := int64(le.Uint64(b[8:]))
-	return &x
+	return nino.NinoNullableOf(x)
 }
 
-func encodeNinoNullableInt64(b []byte, v *int64) {
+func encodeNinoNullableInt64(b []byte, v nino.NinoNullable[int64]) {
 	_ = b[15]
-	if v != nil {
+	if v.HasValue {
 		b[0] = 1
-		le.PutUint64(b[8:], uint64(*v))
+		le.PutUint64(b[8:], uint64(v.Value))
 	}
 }
 
-func decodeNinoNullableGuid(r *nino.Reader, b []byte) *nino.Guid {
+func decodeNinoNullableGuid(r *nino.Reader, b []byte) nino.NinoNullable[nino.Guid] {
 	_ = b[31]
 	if !r.NinoNullableAt(b[0:16], b[16:32]) {
-		return nil
+		return nino.NinoNullable[nino.Guid]{}
 	}
 	x := nino.Guid(b[16:32])
-	return &x
+	return nino.NinoNullableOf(x)
 }
 
-func encodeNinoNullableGuid(b []byte, v *nino.Guid) {
+func encodeNinoNullableGuid(b []byte, v nino.NinoNullable[nino.Guid]) {
 	_ = b[31]
-	if v != nil {
+	if v.HasValue {
 		b[0] = 1
-		copy(b[16:], v[:])
+		copy(b[16:], v.Value[:])
 	}
 }
 
-func decodeNinoNullablePadded(r *nino.Reader, b []byte) *Padded {
+func decodeNinoNullablePadded(r *nino.Reader, b []byte) nino.NinoNullable[Padded] {
 	_ = b[31]
 	if !r.NinoNullableAt(b[0:16], b[16:32]) {
-		return nil
+		return nino.NinoNullable[Padded]{}
 	}
 	x := decodePadded(r, b[16:32])
-	return &x
+	return nino.NinoNullableOf(x)
 }
 
-func encodeNinoNullablePadded(b []byte, v *Padded) {
+func encodeNinoNullablePadded(b []byte, v nino.NinoNullable[Padded]) {
 	_ = b[31]
-	if v != nil {
+	if v.HasValue {
 		b[0] = 1
-		encodePadded(b[16:32], *v)
+		encodePadded(b[16:32], v.Value)
 	}
 }
 
-func decodeNinoNullableDecimal(r *nino.Reader, b []byte) *nino.Decimal {
+func decodeNinoNullableDecimal(r *nino.Reader, b []byte) nino.NinoNullable[nino.Decimal] {
 	_ = b[31]
 	if !r.NinoNullableAt(b[0:16], b[16:32]) {
-		return nil
+		return nino.NinoNullable[nino.Decimal]{}
 	}
 	x := nino.DecimalAt(b[16:])
 	if !x.Valid() {
 		r.Fail(nino.CodeInvalidData, "invalid decimal")
-		return nil
+		return nino.NinoNullable[nino.Decimal]{}
 	}
-	return &x
+	return nino.NinoNullableOf(x)
 }
 
-func encodeNinoNullableDecimal(b []byte, v *nino.Decimal) {
+func encodeNinoNullableDecimal(b []byte, v nino.NinoNullable[nino.Decimal]) {
 	_ = b[31]
-	if v != nil {
+	if v.HasValue {
 		b[0] = 1
-		v.Put(b[16:])
+		v.Value.Put(b[16:])
 	}
 }
 
@@ -1022,8 +1006,8 @@ func readNinoNullablesBody(r *nino.Reader, v *NinoNullables) {
 	v.Decimal = readNinoNullableDecimal(r)
 	v.Guid = readNinoNullableGuid(r)
 	v.Padded = readNinoNullablePadded(r)
-	v.LongArray = readNinoNullableInt64s(r)
-	v.LongList = readNinoNullableInt64s(r)
+	v.LongArray = nino.ReadNinoNullables[int64](r)
+	v.LongList = nino.ReadNinoNullables[int64](r)
 	v.DecimalArray = readNinoNullableDecimals(r)
 	v.DecimalList = readNinoNullableDecimals(r)
 	v.GuidArray = readNinoNullableGuids(r)
@@ -1041,8 +1025,8 @@ func writeNinoNullablesBody(w *nino.Writer, v *NinoNullables) {
 	writeNinoNullableDecimal(w, v.Decimal)
 	writeNinoNullableGuid(w, v.Guid)
 	writeNinoNullablePadded(w, v.Padded)
-	writeNinoNullableInt64s(w, v.LongArray)
-	writeNinoNullableInt64s(w, v.LongList)
+	nino.WriteNinoNullables(w, v.LongArray)
+	nino.WriteNinoNullables(w, v.LongList)
 	writeNinoNullableDecimals(w, v.DecimalArray)
 	writeNinoNullableDecimals(w, v.DecimalList)
 	writeNinoNullableGuids(w, v.GuidArray)
@@ -1056,17 +1040,17 @@ func writeNinoNullablesBody(w *nino.Writer, v *NinoNullables) {
 }
 
 func readNinoNullableRunsBody(r *nino.Reader, v *NinoNullableRuns) {
-	v.LongArray = readNinoNullableInt64s(r)
-	v.LongList = readNinoNullableInt64s(r)
-	v.IntArray = readNinoNullableInt32s(r)
-	v.ByteList = readNinoNullableUint8s(r)
+	v.LongArray = nino.ReadNinoNullables[int64](r)
+	v.LongList = nino.ReadNinoNullables[int64](r)
+	v.IntArray = nino.ReadNinoNullables[int32](r)
+	v.ByteList = nino.ReadNinoNullables[uint8](r)
 }
 
 func writeNinoNullableRunsBody(w *nino.Writer, v *NinoNullableRuns) {
-	writeNinoNullableInt64s(w, v.LongArray)
-	writeNinoNullableInt64s(w, v.LongList)
-	writeNinoNullableInt32s(w, v.IntArray)
-	writeNinoNullableUint8s(w, v.ByteList)
+	nino.WriteNinoNullables(w, v.LongArray)
+	nino.WriteNinoNullables(w, v.LongList)
+	nino.WriteNinoNullables(w, v.IntArray)
+	nino.WriteNinoNullables(w, v.ByteList)
 }
 
 // ---------------------------------------------------------------- empties

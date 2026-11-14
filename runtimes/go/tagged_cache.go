@@ -17,9 +17,6 @@ const (
 	variantDefault uint8 = iota
 	variantUTF8
 	variantElementNullable // []*T written as single T? per element (seq(nullable(...)))
-	// variantNinoNullable: the layout declares the member with .NET's NinoNullable<T>, so each *T of a raw T in it
-	// (the field, an element, a map's key or value, an Entry's) is one: its memory, not a T?.
-	variantNinoNullable
 )
 
 // unsafeAccess selects pointer access to the fields of numbers instead of reflect's Set and Int (the unsafe path;

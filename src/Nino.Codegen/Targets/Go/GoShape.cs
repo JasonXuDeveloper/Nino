@@ -87,7 +87,8 @@ namespace Nino.Codegen.Targets
 
         /// <summary>
         /// A sequence's way: <c>bytes</c>, <c>block</c>, <c>bools</c>, <c>values</c> (a block of dates, decimals,
-        /// Guids or 128-bit integers), <c>fixed</c> (raw values at their stride),
+        /// Guids or 128-bit integers), <c>ninonullables</c> (a block of <c>NinoNullable&lt;T&gt;</c> of a number),
+        /// <c>fixed</c> (raw values at their stride),
         /// <c>unique</c> (a set of comparable values), <c>stringset</c>, <c>slice</c>; a map's: <c>block</c>
         /// (primitive keys and values, pairs copied as one block where their memory is their bytes; repeated keys
         /// fail), <c>unique</c> (repeated keys fail) or <c>entries</c>.
@@ -98,7 +99,10 @@ namespace Nino.Codegen.Targets
 
         public int ValueOffset { get; internal set; }
 
-        /// <summary>A <c>rawnullable</c> that is a <c>NinoNullable&lt;T&gt;</c> (<see cref="ValueModel.Clean"/>).</summary>
+        /// <summary>
+        /// A <c>rawnullable</c> that is a <c>NinoNullable&lt;T&gt;</c> (<see cref="ValueModel.Clean"/>): a
+        /// <c>nino.NinoNullable[T]</c>, where a <c>T?</c> is a <c>*T</c>.
+        /// </summary>
         public bool Clean { get; internal set; }
 
         public int Rank { get; internal set; }

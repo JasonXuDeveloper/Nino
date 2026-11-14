@@ -162,6 +162,12 @@ func renderValue(v reflect.Value) any {
 	case reflect.Struct:
 		name := t.Name()
 		switch {
+		case strings.HasPrefix(name, "NinoNullable[") && t.PkgPath() == tDateTime.PkgPath():
+			// .NET's NinoNullable<T>: its value, or null.
+			if !v.Field(0).Bool() {
+				return nil
+			}
+			return renderValue(v.Field(1))
 		case strings.HasPrefix(name, "Entry["), strings.HasPrefix(name, "Tuple2["), strings.HasPrefix(name, "NinoTuple"):
 			out := make([]any, t.NumField())
 			for i := range out {

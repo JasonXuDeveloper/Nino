@@ -94,6 +94,7 @@ namespace Nino.Codegen.Targets
                         : element.Kind == "prim" && element.Primitive == "Bool" ? "bools"
                         : element.Block ? "block"
                         : element.Kind == "prim" && BlockValues.Contains(element.Primitive!) ? "values"
+                        : element is { Kind: "rawnullable", Clean: true, Inner.Block: true } ? "ninonullables"
                         : element.Kind is "rawstruct" or "rawnullable" or "rawtuple" ? "fixed"
                         : "slice";
                     return Open(value, new GoShape("seq") { Element = element, Mode = mode, MinSize = 4 }, false);
@@ -198,6 +199,7 @@ namespace Nino.Codegen.Targets
             "prim" => s.Primitive!,
             "enum" => "enum:" + s.Enum!.FullName,
             "rawstruct" or "emptystruct" => "struct:" + s.Struct!.FullName,
+            "rawnullable" when s.Clean => "ninonullable[" + GoTypeKey(s.Inner!) + "]",
             "rawnullable" or "nullable" => "*" + GoTypeKey(s.Inner!),
             "rawtuple" or "tuple" => (s.Pair ? "entry" : "tuple") + "[" + string.Join(",", s.Items.Select(GoTypeKey)) + "]",
             "string" or "utf8" => "*string",

@@ -92,13 +92,18 @@ func seeds() []seed {
 		Values: []nino.Entry[int32, *int64]{{Key: 1}}, Pairs: []nino.Entry[int32, *int32]{{Key: 1, Value: &one}},
 	}, WriteNullableSequences)
 	add("Conformance.NullableSequences", b, err)
-	count := int32(3)
+	count := nino.NinoNullableOf[int32](3)
 	b, err = nino.Serialize(&NinoNullables{
-		Guid: &nino.Guid{1}, DecimalArray: []*nino.Decimal{{Lo: 1}, nil}, PaddedList: []*Padded{nil, {1, 2}},
-		DecimalMap: []nino.Entry[int32, *nino.Decimal]{{Key: 1}}, Fields: NinoNullableFields{Tag: 1, Count: &count},
+		Guid:         nino.NinoNullableOf(nino.Guid{1}),
+		DecimalArray: []nino.NinoNullable[nino.Decimal]{nino.NinoNullableOf(nino.Decimal{Lo: 1}), {}},
+		PaddedList:   []nino.NinoNullable[Padded]{{}, nino.NinoNullableOf(Padded{1, 2})},
+		DecimalMap:   []nino.Entry[int32, nino.NinoNullable[nino.Decimal]]{{Key: 1}},
+		Fields:       NinoNullableFields{Tag: 1, Count: count},
 	}, WriteNinoNullables)
 	add("Conformance.NinoNullables", b, err)
-	b, err = nino.Serialize(&NinoNullableRuns{IntArray: []*int32{&count, nil}, ByteList: []*uint8{nil}}, WriteNinoNullableRuns)
+	b, err = nino.Serialize(&NinoNullableRuns{
+		IntArray: []nino.NinoNullable[int32]{count, {}}, ByteList: []nino.NinoNullable[uint8]{{}},
+	}, WriteNinoNullableRuns)
 	add("Conformance.NinoNullableRuns", b, err)
 	b, err = nino.Serialize(&KeyedHolder{Keyed: &KeyedV1{Name: &s, Items: []int32{1}}}, WriteKeyedHolder)
 	add("Conformance.KeyedHolder", b, err)
