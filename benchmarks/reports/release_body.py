@@ -16,7 +16,8 @@ them), then rewrites the benchmark part of the body. --release-dir runs it again
 
 body: the body with its benchmark part rewritten from a manifest (what publish does last).
 
-The body: the release notes (release_notes.py) stay as they are; after them, between the START and END markers, a
+The body: the release notes (release_notes.py) stay as they are; before them (the owner's order: the benchmarks
+first, then New, Performance and the rest), between the START and END markers, a
 "## 📊 Benchmarks" heading and one collapsed <details> per section in SECTIONS' order: its title and a one-line
 summary, the chart (a <picture> of its light and dark SVG, by the reader's colour scheme; a .NET section has README's
 charts instead, a collapsed <details> per group of readme.GROUPS, listed in its manifest entry's "charts"), the
@@ -94,7 +95,8 @@ def legacy_sections(text):
 
 
 def split(body):
-    """-> (the release notes, the benchmark part, what follows END)."""
+    """-> (what precedes the benchmark part, the part, what follows END); the release notes are what precedes it
+    in a body written before the part moved to the top, and what follows it since."""
     if START in body:
         notes, rest = body.split(START, 1)
         part, _, tail = rest.partition(END)
@@ -140,13 +142,14 @@ def render(body, manifest, tag):
     listed = {e["name"]: e for e in manifest["assets"]}
     kept = [text for key, text in legacy_sections(part).items() if key not in listed]
     sections = [section(manifest, listed[name], tag) for name, _ in SECTIONS if name in listed]
-    out = [notes.rstrip("\n"), "", START, HEADING, "",
+    # The benchmarks first, then the notes (the owner's order): what was before the part and what followed it.
+    out = [START, HEADING, "",
            "Charts of one run on GitHub's runners; each section's full table is attached to this release, and "
            f"{link(tag, release_assets.MANIFEST)} lists the files.", ""]
     out += [s + "\n" for s in sections] + [t + "\n" for t in kept]
-    out += [END]
-    text = "\n".join(out).lstrip("\n") + "\n" + tail.lstrip("\n")
-    return text.rstrip("\n") + "\n"
+    out += [END, ""]
+    out += [text.strip("\n") for text in (notes, tail) if text.strip("\n")]
+    return "\n".join(out).rstrip("\n") + "\n"
 
 
 # ---------------------------------------------------------------- the charts
