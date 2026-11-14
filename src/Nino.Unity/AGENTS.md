@@ -18,8 +18,8 @@ Packages/
   com.jasonxudeveloper.nino/ the package OpenUPM publishes
     package.json             name, version (X.Y.Z-preview.N for a pre-release, set by bump_version.py), unity 2022.3
     Runtime/                 Nino.Core.dll (netstandard2.1), Nino.Generator.dll (Roslyn 4.3), Nino.Generator.CodeFixes.dll,
-                             Nino.UnityTypes.dll; ThirdParty/: System.Buffers, System.Memory,
-                             System.Runtime.CompilerServices.Unsafe
+                             Nino.UnityTypes.dll; ThirdParty/: System.Runtime.CompilerServices.Unsafe (the only
+                             assembly Nino.Core's netstandard2.1 build references besides netstandard)
     Burst/                   Nino.Burst, one partial class NinoBurst: Burst-compiled NinoKernels (AVX2 / SSSE3 /
                              AArch64 Neon with scalar branches), compiled only with com.unity.burst 1.8+ (NINO_BURST,
                              versionDefines; NINO_BURST_2 from 2.0, Unity 6000.6's built-in Burst); Nino.Core calls
