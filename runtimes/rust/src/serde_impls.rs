@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::types::{
     BigInteger, BitArray, DateOnly, DateTime, DateTimeKind, DateTimeOffset, Decimal, Grid, Guid, Half, NinoNullable,
-    RawNullables, Rune, TimeOnly, TimeSpan, Utf8, Version, WideString,
+    RawNullable, RawNullables, Rune, TimeOnly, TimeSpan, Utf8, Version, WideString,
 };
 
 fn invalid<E: serde::de::Error>(what: &str, e: crate::Error) -> E {
@@ -221,6 +221,18 @@ impl<T: Serialize> Serialize for NinoNullable<T> {
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for NinoNullable<T> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> core::result::Result<Self, D::Error> {
         Option::deserialize(d).map(NinoNullable)
+    }
+}
+
+impl<T: Serialize> Serialize for RawNullable<T> {
+    fn serialize<S: Serializer>(&self, s: S) -> core::result::Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for RawNullable<T> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> core::result::Result<Self, D::Error> {
+        Option::deserialize(d).map(RawNullable)
     }
 }
 

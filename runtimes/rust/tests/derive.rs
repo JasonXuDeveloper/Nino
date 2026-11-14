@@ -8,7 +8,7 @@
 use indexmap::{IndexMap, IndexSet};
 use nino::{
     BigInteger, DateOnly, DateTime, DateTimeOffset, Decimal, Grid, Guid, Half, NinoNullable, NinoRead, NinoWrite,
-    RawNullables, TimeOnly, TimeSpan, Version, WideString,
+    RawNullable, RawNullables, TimeOnly, TimeSpan, Version, WideString,
 };
 use std::path::{Path, PathBuf};
 
@@ -243,6 +243,20 @@ pub struct Nullables {
     pub long_list: Option<RawNullables<i64>>,
     pub padded_array: Option<RawNullables<Padded>>,
     pub map: Option<IndexMap<i32, Option<i32>>>,
+}
+
+/// Raw nullables as the elements of sets, grids and nested sequences: a slot each (`RawNullable<T>`), where a map's
+/// value and a pair's item are single values (`Option<T>`).
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xDB16AFA3; deferrable=true; members=IntSet:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongSet:System.Collections.Generic.HashSet<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});Grid:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});PaddedGrid:System.Nullable<Conformance.Padded>[,]:grid(2,raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Nested:System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<int>>>:seq(seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}));Values:System.Collections.Generic.Dictionary<int, System.Nullable<long>>:map(raw(4),nullable(raw(8)));Pairs:System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, System.Nullable<int>>>:seq(pair(raw(4),nullable(raw(4))))")]
+pub struct NullableSequences {
+    pub int_set: Option<IndexSet<RawNullable<i32>>>,
+    pub long_set: Option<IndexSet<RawNullable<i64>>>,
+    pub grid: Option<Grid<RawNullable<i32>, 2>>,
+    pub padded_grid: Option<Grid<RawNullable<Padded>, 2>>,
+    pub nested: Option<Vec<Option<IndexSet<RawNullable<i32>>>>>,
+    pub values: Option<IndexMap<i32, Option<i64>>>,
+    pub pairs: Option<Vec<(i32, Option<i32>)>>,
 }
 
 /// A raw struct holding .NET's `NinoNullable<T>`: each field its memory at its offset.
@@ -595,6 +609,18 @@ pub struct MaybeIntArray {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8BFF9D91; deferrable=true; members=Values:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})")]
+pub struct MaybeIntSet {
+    pub values: Option<IndexSet<RawNullable<i32>>>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCA7112FB; deferrable=true; members=Values:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})")]
+pub struct MaybeIntGrid {
+    pub values: Option<Grid<RawNullable<i32>, 2>>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xA6B6AFE2; deferrable=true; members=Value:System.Numerics.BigInteger:bigint")]
 pub struct BigSlot {
     pub value: BigInteger,
@@ -641,6 +667,7 @@ fn case_type(name: &str) -> Option<Box<dyn Case>> {
         "Conformance.Outer" => of::<Option<Box<Outer>>>(),
         "Conformance.Structs" => of::<Option<Box<Structs>>>(),
         "Conformance.Nullables" => of::<Option<Box<Nullables>>>(),
+        "Conformance.NullableSequences" => of::<Option<Box<NullableSequences>>>(),
         "Conformance.NinoNullables" => of::<Option<Box<NinoNullables>>>(),
         "Conformance.NinoNullableRuns" => of::<Option<Box<NinoNullableRuns>>>(),
         "Conformance.Collections" => of::<Option<Box<Collections>>>(),
@@ -676,6 +703,8 @@ fn case_type(name: &str) -> Option<Box<dyn Case>> {
         "Conformance.Targets.BoolArray" => of::<Option<Box<BoolArray>>>(),
         "Conformance.Targets.MaybeInt" => of::<Option<Box<MaybeInt>>>(),
         "Conformance.Targets.MaybeIntArray" => of::<Option<Box<MaybeIntArray>>>(),
+        "Conformance.Targets.MaybeIntSet" => of::<Option<Box<MaybeIntSet>>>(),
+        "Conformance.Targets.MaybeIntGrid" => of::<Option<Box<MaybeIntGrid>>>(),
         "Conformance.Targets.BigSlot" => of::<Option<Box<BigSlot>>>(),
         "Conformance.Targets.VersionSlot" => of::<Option<Box<VersionSlot>>>(),
         _ => return None,

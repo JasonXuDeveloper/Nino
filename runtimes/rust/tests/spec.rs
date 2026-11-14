@@ -138,7 +138,7 @@ fn a6_raw_nullables() {
 
     let v = RawNullables::<i32>(vec![Some(1), None]);
     assert_eq!(serialize(&v).unwrap(), hex("02000000 01000000 01000000 00000000 00000000"));
-    // One T? per element (IList<int?>).
+    // A Vec of Options is a presence byte and the value an element: what .NET writes for a T? whose T is not raw.
     assert_eq!(serialize(&vec![Some(1i32), None]).unwrap(), hex("02000000 01 01000000 00"));
     assert_eq!(serialize(&Some(7i32)).unwrap(), hex("01 07000000"));
     assert_eq!(serialize(&None::<i64>).unwrap(), hex("00"));
@@ -156,6 +156,49 @@ fn a6_raw_nullables() {
     );
     // The value bytes of a null element are not looked at (.NET writes zeros there).
     assert_eq!(deserialize_exact::<RawNullables<i32>>(&hex("01000000 00000000 01000000")).unwrap().0, vec![None]);
+}
+
+/// A raw `T?` is the slot of 6.2 as the element of every sequence (`RawNullable<T>`): the bytes of a `T?[]` in a
+/// queue, a set, a grid and nested; a single value (a map's value, a pair's item) stays a presence byte and the value.
+#[test]
+fn a6_raw_nullable_elements() {
+    use nino::{Grid, RawNullable};
+    use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
+
+    // Queue<int?> {5, null}, as int?[] {5, null}.
+    let queue = VecDeque::from([RawNullable(Some(5i32)), RawNullable(None)]);
+    let bytes = serialize(&queue).unwrap();
+    assert_eq!(bytes, hex("02000000 01000000 05000000 00000000 00000000"));
+    assert_eq!(serialize(&RawNullables(vec![Some(5i32), None])).unwrap(), bytes);
+    assert_eq!(serialize(&vec![RawNullable(Some(5i32)), RawNullable(None)]).unwrap(), bytes);
+    assert_eq!(deserialize_exact::<VecDeque<RawNullable<i32>>>(&bytes).unwrap(), queue);
+    assert_eq!(deserialize_exact::<HashSet<RawNullable<i32>>>(&bytes).unwrap().len(), 2);
+    // SortedSet<long?> {null, 7}: 16 bytes an element.
+    let sorted = BTreeSet::from([RawNullable(None), RawNullable(Some(7i64))]);
+    let bytes = serialize(&sorted).unwrap();
+    assert_eq!(bytes, hex("02000000 00000000000000000000000000000000 0100000000000000 0700000000000000"));
+    assert_eq!(deserialize_exact::<BTreeSet<RawNullable<i64>>>(&bytes).unwrap(), sorted);
+    // int?[1,2] {{5, null}}, and List<HashSet<int?>> {{5}}.
+    let grid = Grid::new([1, 2], vec![RawNullable(Some(5i32)), RawNullable(None)]).unwrap();
+    let bytes = serialize(&grid).unwrap();
+    assert_eq!(bytes, hex("01000000 02000000 01000000 05000000 00000000 00000000"));
+    assert_eq!(deserialize_exact::<Grid<RawNullable<i32>, 2>>(&bytes).unwrap(), grid);
+    let nested = vec![HashSet::from([RawNullable(Some(5i32))])];
+    assert_eq!(serialize(&nested).unwrap(), hex("01000000 01000000 01000000 05000000"));
+    // Dictionary<int, long?> {1: null, 2: 7}: single values.
+    let map = BTreeMap::from([(1i32, None), (2, Some(7i64))]);
+    assert_eq!(serialize(&map).unwrap(), hex("02000000 01000000 00 02000000 01 0700000000000000"));
+
+    // A presence byte other than 0 or 1 is rejected in every container, an element read twice in a set, and the
+    // elements written as single values (10 bytes where two slots are 16).
+    let read = |text: &str| deserialize_exact::<HashSet<RawNullable<i32>>>(&hex(text)).map(|_| ());
+    assert_eq!(read("01000000 02000000 07000000").unwrap_err().kind(), ErrorKind::InvalidPresence);
+    assert_eq!(read("02000000 00000000 00000000 00000000 00000000").unwrap_err().kind(), ErrorKind::DuplicateKey);
+    assert!(read("02000000 01 01000000 01 02000000").is_err());
+    let flag = hex("01000000 01000000 ff000000 07000000");
+    assert_eq!(deserialize_exact::<Grid<RawNullable<i32>, 2>>(&flag).unwrap_err().kind(), ErrorKind::InvalidPresence);
+    // The value bytes of a null element are not looked at, so two nulls that differ there are one element.
+    assert_eq!(read("02000000 00000000 00000000 00000000 01000000").unwrap_err().kind(), ErrorKind::DuplicateKey);
 }
 
 /// .NET's `NinoNullable<T>`: its memory wherever it is, a presence and a value of a `T` each. Not the bytes of a
