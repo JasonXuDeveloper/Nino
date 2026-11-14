@@ -312,6 +312,11 @@ fn fixed_size_shapes_as_blocks() {
     assert_eq!(nino::deserialize_exact::<Vec<RawPair<i32>>>(&bytes).unwrap(), raw);
 }
 
+/// A list of raw `T?` slots.
+fn slots<T, const N: usize>(values: [Option<T>; N]) -> Vec<nino::NullableSlot<T>> {
+    values.into_iter().map(nino::NullableSlot).collect()
+}
+
 /// The bytes .NET writes for Shapes.Strides (a `T?[]` of a raw struct aligned to 4 by the auto layout of the tuple
 /// it holds: the flag, three bytes of padding, then the value), as a member and as a type argument.
 const STRIDES: &str = "01 02000000 01000000 01000000 02000000 FCFF0300 00000000000000000000000000000000 \
@@ -322,8 +327,8 @@ fn nullable_strides_as_dotnet_writes_them() {
     use shapes::{BoxType, Strides, TupleCell, TupleInside, ValueTupleByteInt16};
     let cell = TupleCell { a: 1, inside: TupleInside { a: 2, t: ValueTupleByteInt16 { item1: 3, item2: -4 } } };
     let strides = Strides {
-        cells: Some(nino::RawNullables(vec![Some(cell), None])),
-        boxed: Some(Box::new(BoxType { value: Some(nino::RawNullables(vec![None, Some(cell)])) })),
+        cells: Some(slots([Some(cell), None])),
+        boxed: Some(Box::new(BoxType { value: Some(slots([None, Some(cell)])) })),
     };
     let expected: Vec<u8> = STRIDES
         .split_whitespace()
@@ -348,19 +353,19 @@ const DICTIONARY: &str = "02000000 01000000 00 02000000 01 0700000000000000";
 
 #[test]
 fn nullable_slots_as_dotnet_writes_them() {
-    use nino::{RawNullable, RawNullables};
+    use nino::NullableSlot;
     use shapes::{BoxType, NullableSlots, TupleCell};
     let cell = TupleCell { a: 1, ..Default::default() };
     let value = NullableSlots {
-        queue: Some(RawNullables(vec![Some(5), None])),
-        stack: Some(RawNullables(vec![None, Some(7)])),
-        linked: Some(RawNullables(vec![None, Some(9)])),
-        sorted: Some([None, Some(-1), Some(3)].into_iter().map(RawNullable).collect()),
-        read_only: Some(RawNullables(vec![Some(cell), None])),
-        nested: Some(vec![Some(RawNullables(vec![Some(1)])), None, Some(RawNullables(vec![]))]),
-        boxed_set: Some(Box::new(BoxType { value: Some([Some(4), None].into_iter().map(RawNullable).collect()) })),
+        queue: Some(slots([Some(5), None])),
+        stack: Some(slots([None, Some(7)])),
+        linked: Some(slots([None, Some(9)])),
+        sorted: Some([None, Some(-1), Some(3)].into_iter().map(NullableSlot).collect()),
+        read_only: Some(slots([Some(cell), None])),
+        nested: Some(vec![Some(slots([Some(1)])), None, Some(slots([]))]),
+        boxed_set: Some(Box::new(BoxType { value: Some([Some(4), None].into_iter().map(NullableSlot).collect()) })),
         boxed_nested: Some(Box::new(BoxType {
-            value: Some(vec![Some([None, Some(-2)].into_iter().map(RawNullable).collect())]),
+            value: Some(vec![Some([None, Some(-2)].into_iter().map(NullableSlot).collect())]),
         })),
         map: Some([(1, None), (2, Some(7))].into_iter().collect()),
         boxed_map: Some(Box::new(BoxType { value: Some([(3, Some(8))].into_iter().collect()) })),
@@ -393,13 +398,13 @@ const NULLABLE_GRIDS: &str = "01010000000200000001000000050000000000000000000000
 
 #[test]
 fn nullable_grids_as_dotnet_writes_them() {
-    use nino::{Grid, RawNullable};
+    use nino::{Grid, NullableSlot};
     use shapes::{NullableGrids, TupleCell};
     let cell = TupleCell { a: 1, ..Default::default() };
     let value = NullableGrids {
-        grid: Grid::new([1, 2], vec![RawNullable(Some(5)), RawNullable(None)]),
-        cube: Grid::new([1, 2, 1], vec![RawNullable(None), RawNullable(Some(7))]),
-        cells: Grid::new([2, 1], vec![RawNullable(None), RawNullable(Some(cell))]),
+        grid: Grid::new([1, 2], vec![NullableSlot(Some(5)), NullableSlot(None)]),
+        cube: Grid::new([1, 2, 1], vec![NullableSlot(None), NullableSlot(Some(7))]),
+        cells: Grid::new([2, 1], vec![NullableSlot(None), NullableSlot(Some(cell))]),
     };
     let expected = unhex(NULLABLE_GRIDS);
     assert_eq!(nino::serialize(&Some(Box::new(value.clone()))).unwrap(), expected);

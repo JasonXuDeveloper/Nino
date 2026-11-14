@@ -255,17 +255,14 @@ class Gen:
             return f"Option<{self.rust(inner, enc[1], owner, member)}>"
         if kind == "seq":
             el = self.element(c)
-            # A raw T? is a slot in every sequence (the specification, 6.2): a set's elements are
-            # nino::RawNullable<T>, a list's the plain Options of nino::RawNullables<T>.
-            slot = self.nullable_slot(el, enc[1])
             if name in SELF_COLLECTIONS:
                 return f"Option<{ident(name)}>"
+            # A raw T? is a slot in every sequence (the specification, 6.2): nino::NullableSlot<T>.
+            element = self.nullable_slot(el, enc[1]) or self.rust(el, enc[1], owner, member)
             if c[0].endswith("HashSet"):
                 # A set may hold null (.NET writes HashSet<string> { null }), so its strings are Options.
-                return f"Option<indexmap::IndexSet<{slot or self.rust(el, enc[1], owner, member)}>>"
-            if slot:
-                return f"Option<nino::RawNullables<{self.rust(el[1][0], ('raw', None, None))}>>"
-            return f"Option<Vec<{self.rust(el, enc[1], owner, member)}>>"
+                return f"Option<indexmap::IndexSet<{element}>>"
+            return f"Option<Vec<{element}>>"
         if kind == "map":
             if name in SELF_COLLECTIONS:
                 return f"Option<{ident(name)}>"
@@ -293,10 +290,10 @@ class Gen:
         raise ValueError(kind)
 
     def nullable_slot(self, el, enc):
-        """nino::RawNullable<T> for a sequence's or a grid's element that is a T? of a raw T, else None."""
+        """nino::NullableSlot<T> for a sequence's or a grid's element that is a T? of a raw T, else None."""
         if el is None or not cs_name(el).startswith(NULLABLE) or enc[0] != "raw":
             return None
-        return f"nino::RawNullable<{self.rust(el[1][0], ('raw', None, None))}>"
+        return f"nino::NullableSlot<{self.rust(el[1][0], ('raw', None, None))}>"
 
     def key(self, c, enc):
         """A dictionary key: never null (.NET throws on a null key)."""

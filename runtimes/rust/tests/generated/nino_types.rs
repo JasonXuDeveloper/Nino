@@ -1561,7 +1561,7 @@ pub struct BclRawHost {
     pub wide: HoldsWide,
     pub pointers: HoldsPointers,
     pub wides: Option<Vec<HoldsWide>>,
-    pub gaps: Option<nino::RawNullables<i128>>,
+    pub gaps: Option<Vec<nino::NullableSlot<i128>>>,
 }
 
 impl NinoReadBody for BclRawHost {
@@ -1596,7 +1596,7 @@ impl NinoRead for BclRawHost {
 impl NinoWrite for BclRawHost {
     const PREFETCH_BYTES: usize = 0usize
         .saturating_add(<Option<Vec<HoldsWide>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<i128>> as NinoWrite>::PREFETCH_BYTES);
+        .saturating_add(<Option<Vec<nino::NullableSlot<i128>>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.wides.prefetch();
@@ -3863,7 +3863,7 @@ impl MaybeInt {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct MaybeIntArray {
-    pub values: Option<nino::RawNullables<i32>>,
+    pub values: Option<Vec<nino::NullableSlot<i32>>>,
 }
 
 impl NinoReadBody for MaybeIntArray {
@@ -3891,7 +3891,7 @@ impl NinoRead for MaybeIntArray {
 
 impl NinoWrite for MaybeIntArray {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<nino::RawNullables<i32>> as NinoWrite>::PREFETCH_BYTES);
+        .saturating_add(<Option<Vec<nino::NullableSlot<i32>>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.values.prefetch();
@@ -3912,7 +3912,7 @@ impl MaybeIntArray {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct MaybeIntGrid {
-    pub values: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
+    pub values: Option<nino::Grid<nino::NullableSlot<i32>, 2>>,
 }
 
 impl NinoReadBody for MaybeIntGrid {
@@ -3950,7 +3950,7 @@ impl MaybeIntGrid {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct MaybeIntSet {
-    pub values: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
+    pub values: Option<indexmap::IndexSet<nino::NullableSlot<i32>>>,
 }
 
 impl NinoReadBody for MaybeIntSet {
@@ -3978,7 +3978,7 @@ impl NinoRead for MaybeIntSet {
 
 impl NinoWrite for MaybeIntSet {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<indexmap::IndexSet<nino::RawNullable<i32>>> as NinoWrite>::PREFETCH_BYTES);
+        .saturating_add(<Option<indexmap::IndexSet<nino::NullableSlot<i32>>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.values.prefetch();
@@ -4248,11 +4248,11 @@ impl NinoNullables {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct NullableSequences {
-    pub int_set: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
-    pub long_set: Option<indexmap::IndexSet<nino::RawNullable<i64>>>,
-    pub grid: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
-    pub padded_grid: Option<nino::Grid<nino::RawNullable<Padded>, 2>>,
-    pub nested: Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>,
+    pub int_set: Option<indexmap::IndexSet<nino::NullableSlot<i32>>>,
+    pub long_set: Option<indexmap::IndexSet<nino::NullableSlot<i64>>>,
+    pub grid: Option<nino::Grid<nino::NullableSlot<i32>, 2>>,
+    pub padded_grid: Option<nino::Grid<nino::NullableSlot<Padded>, 2>>,
+    pub nested: Option<Vec<Option<indexmap::IndexSet<nino::NullableSlot<i32>>>>>,
     pub values: Option<indexmap::IndexMap<i32, Option<i64>>>,
     pub pairs: Option<Vec<(i32, Option<i32>)>>,
 }
@@ -4294,9 +4294,9 @@ impl NinoRead for NullableSequences {
 
 impl NinoWrite for NullableSequences {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<indexmap::IndexSet<nino::RawNullable<i32>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<indexmap::IndexSet<nino::RawNullable<i64>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<nino::NullableSlot<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<nino::NullableSlot<i64>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Option<indexmap::IndexSet<nino::NullableSlot<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Vec<(i32, Option<i32>)>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
@@ -4324,10 +4324,10 @@ impl NullableSequences {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct NullableTwins {
-    pub long_array: Option<nino::RawNullables<i64>>,
-    pub long_list: Option<nino::RawNullables<i64>>,
-    pub int_array: Option<nino::RawNullables<i32>>,
-    pub byte_list: Option<nino::RawNullables<u8>>,
+    pub long_array: Option<Vec<nino::NullableSlot<i64>>>,
+    pub long_list: Option<Vec<nino::NullableSlot<i64>>>,
+    pub int_array: Option<Vec<nino::NullableSlot<i32>>>,
+    pub byte_list: Option<Vec<nino::NullableSlot<u8>>>,
 }
 
 impl NinoReadBody for NullableTwins {
@@ -4361,10 +4361,10 @@ impl NinoRead for NullableTwins {
 
 impl NinoWrite for NullableTwins {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<i32>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<u8>> as NinoWrite>::PREFETCH_BYTES);
+        .saturating_add(<Option<Vec<nino::NullableSlot<i64>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<i64>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<u8>>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.long_array.prefetch();
@@ -4400,9 +4400,9 @@ pub struct Nullables {
     pub vec: Option<Vec2>,
     pub padded: Option<Padded>,
     pub label: Option<Label>,
-    pub int_array: Option<nino::RawNullables<i32>>,
-    pub long_list: Option<nino::RawNullables<i64>>,
-    pub padded_array: Option<nino::RawNullables<Padded>>,
+    pub int_array: Option<Vec<nino::NullableSlot<i32>>>,
+    pub long_list: Option<Vec<nino::NullableSlot<i64>>>,
+    pub padded_array: Option<Vec<nino::NullableSlot<Padded>>>,
     pub map: Option<indexmap::IndexMap<i32, Option<i32>>>,
 }
 
@@ -4464,9 +4464,9 @@ impl NinoWrite for Nullables {
         .saturating_add(<Option<Vec2> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Padded> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Label> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<i32>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<Padded>> as NinoWrite>::PREFETCH_BYTES);
+        .saturating_add(<Option<Vec<nino::NullableSlot<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<i64>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<Padded>>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.int.prefetch();
@@ -6498,10 +6498,10 @@ impl<T> Wrap<T> {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct WrappedArgs {
-    pub nullable_array: Option<Box<Wrap<Option<nino::RawNullables<i32>>>>>,
-    pub nullable_list: Option<Box<Wrap<Option<nino::RawNullables<i32>>>>>,
-    pub nullable_set: Option<Box<Wrap<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>>,
-    pub nullable_structs: Option<Box<Wrap<Option<nino::RawNullables<Vec2>>>>>,
+    pub nullable_array: Option<Box<Wrap<Option<Vec<nino::NullableSlot<i32>>>>>>,
+    pub nullable_list: Option<Box<Wrap<Option<Vec<nino::NullableSlot<i32>>>>>>,
+    pub nullable_set: Option<Box<Wrap<Option<indexmap::IndexSet<nino::NullableSlot<i32>>>>>>,
+    pub nullable_structs: Option<Box<Wrap<Option<Vec<nino::NullableSlot<Vec2>>>>>>,
     pub nullable_values: Option<Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>>,
     pub pairs: Option<Box<Wrap<Option<Vec<(i32, Option<nino::WideString>)>>>>>,
     pub pair_array: Option<Box<Wrap<Option<Vec<(Option<nino::WideString>, Option<i32>)>>>>>,
@@ -6544,10 +6544,10 @@ impl NinoRead for WrappedArgs {
 
 impl NinoWrite for WrappedArgs {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Box<Wrap<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Box<Wrap<Option<nino::RawNullables<Vec2>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Wrap<Option<Vec<nino::NullableSlot<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Wrap<Option<Vec<nino::NullableSlot<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Wrap<Option<indexmap::IndexSet<nino::NullableSlot<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<Wrap<Option<Vec<nino::NullableSlot<Vec2>>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Wrap<Option<Vec<(i32, Option<nino::WideString>)>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<Wrap<Option<Vec<(Option<nino::WideString>, Option<i32>)>>>>> as NinoWrite>::PREFETCH_BYTES);
@@ -6934,17 +6934,17 @@ pub enum AnyObject {
     /// `Conformance.Wrap<System.Collections.Generic.Dictionary<System.Int32,System.Nullable<System.Double>>>`.
     WrapDictionaryInt32NullableDouble(Box<Wrap<Option<indexmap::IndexMap<i32, Option<f64>>>>>),
     /// `Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>`.
-    WrapHashSetNullableInt32(Box<Wrap<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>),
+    WrapHashSetNullableInt32(Box<Wrap<Option<indexmap::IndexSet<nino::NullableSlot<i32>>>>>),
     /// `Conformance.Wrap<System.Collections.Generic.KeyValuePair<System.String,System.Nullable<System.Int32>>[]>`.
     WrapKeyValuePair(Box<Wrap<Option<Vec<(Option<nino::WideString>, Option<i32>)>>>>),
     /// `Conformance.Wrap<System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<System.Int32,System.String>>>`.
     WrapListKeyValuePairInt32String(Box<Wrap<Option<Vec<(i32, Option<nino::WideString>)>>>>),
     /// `Conformance.Wrap<System.Collections.Generic.List<System.Nullable<Conformance.Vec2>>>`.
-    WrapListNullableVec2(Box<Wrap<Option<nino::RawNullables<Vec2>>>>),
+    WrapListNullableVec2(Box<Wrap<Option<Vec<nino::NullableSlot<Vec2>>>>>),
     /// `Conformance.Wrap<System.Collections.Generic.List<System.Nullable<System.Int32>>>`.
-    WrapListNullableInt32(Box<Wrap<Option<nino::RawNullables<i32>>>>),
+    WrapListNullableInt32(Box<Wrap<Option<Vec<nino::NullableSlot<i32>>>>>),
     /// `Conformance.Wrap<System.Nullable<System.Int32>[]>`.
-    WrapNullable(Box<Wrap<Option<nino::RawNullables<i32>>>>),
+    WrapNullable(Box<Wrap<Option<Vec<nino::NullableSlot<i32>>>>>),
 }
 
 impl AnyObject {

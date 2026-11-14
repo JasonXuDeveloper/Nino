@@ -1485,11 +1485,11 @@ impl J for NinoNullables {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct NullableSequences {
-    pub int_set: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
-    pub long_set: Option<indexmap::IndexSet<nino::RawNullable<i64>>>,
-    pub grid: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
-    pub padded_grid: Option<nino::Grid<nino::RawNullable<Padded>, 2>>,
-    pub nested: Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>,
+    pub int_set: Option<indexmap::IndexSet<nino::NullableSlot<i32>>>,
+    pub long_set: Option<indexmap::IndexSet<nino::NullableSlot<i64>>>,
+    pub grid: Option<nino::Grid<nino::NullableSlot<i32>, 2>>,
+    pub padded_grid: Option<nino::Grid<nino::NullableSlot<Padded>, 2>>,
+    pub nested: Option<Vec<Option<indexmap::IndexSet<nino::NullableSlot<i32>>>>>,
     pub values: Option<indexmap::IndexMap<i32, Option<i64>>>,
     pub pairs: Option<Vec<(i32, Option<i32>)>>,
 }
@@ -1561,9 +1561,9 @@ pub struct Nullables {
     pub vec: Option<Vec2>,
     pub padded: Option<Padded>,
     pub label: Option<Label>,
-    pub int_array: Option<nino::RawNullables<i32>>,
-    pub long_list: Option<nino::RawNullables<i64>>,
-    pub padded_array: Option<nino::RawNullables<Padded>>,
+    pub int_array: Option<Vec<nino::NullableSlot<i32>>>,
+    pub long_list: Option<Vec<nino::NullableSlot<i64>>>,
+    pub padded_array: Option<Vec<nino::NullableSlot<Padded>>>,
     pub map: Option<indexmap::IndexMap<i32, Option<i32>>>,
 }
 
@@ -2755,7 +2755,7 @@ impl J for TMaybeInt {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TMaybeIntArray {
-    pub values: Option<nino::RawNullables<i32>>,
+    pub values: Option<Vec<nino::NullableSlot<i32>>>,
 }
 
 impl NinoReadBody for TMaybeIntArray {
@@ -2798,7 +2798,7 @@ impl J for TMaybeIntArray {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TMaybeIntGrid {
-    pub values: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
+    pub values: Option<nino::Grid<nino::NullableSlot<i32>, 2>>,
 }
 
 impl NinoReadBody for TMaybeIntGrid {
@@ -2841,7 +2841,7 @@ impl J for TMaybeIntGrid {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
 pub struct TMaybeIntSet {
-    pub values: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
+    pub values: Option<indexmap::IndexSet<nino::NullableSlot<i32>>>,
 }
 
 impl NinoReadBody for TMaybeIntSet {

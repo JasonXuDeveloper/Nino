@@ -8,7 +8,7 @@
 use indexmap::{IndexMap, IndexSet};
 use nino::{
     BigInteger, DateOnly, DateTime, DateTimeOffset, Decimal, Grid, Guid, Half, NinoNullable, NinoRead, NinoWrite,
-    RawNullable, RawNullables, TimeOnly, TimeSpan, Version, WideString,
+    NullableSlot, TimeOnly, TimeSpan, Version, WideString,
 };
 use std::path::{Path, PathBuf};
 
@@ -239,22 +239,22 @@ pub struct Nullables {
     pub vec: Option<Vec2>,
     pub padded: Option<Padded>,
     pub label: Option<Label>,
-    pub int_array: Option<RawNullables<i32>>,
-    pub long_list: Option<RawNullables<i64>>,
-    pub padded_array: Option<RawNullables<Padded>>,
+    pub int_array: Option<Vec<NullableSlot<i32>>>,
+    pub long_list: Option<Vec<NullableSlot<i64>>>,
+    pub padded_array: Option<Vec<NullableSlot<Padded>>>,
     pub map: Option<IndexMap<i32, Option<i32>>>,
 }
 
-/// Raw nullables as the elements of sets, grids and nested sequences: a slot each (`RawNullable<T>`), where a map's
+/// Raw nullables as the elements of sets, grids and nested sequences: a slot each (`NullableSlot<T>`), where a map's
 /// value and a pair's item are single values (`Option<T>`).
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xDB16AFA3; deferrable=true; members=IntSet:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongSet:System.Collections.Generic.HashSet<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});Grid:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});PaddedGrid:System.Nullable<Conformance.Padded>[,]:grid(2,raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Nested:System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<int>>>:seq(seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}));Values:System.Collections.Generic.Dictionary<int, System.Nullable<long>>:map(raw(4),nullable(raw(8)));Pairs:System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, System.Nullable<int>>>:seq(pair(raw(4),nullable(raw(4))))")]
 pub struct NullableSequences {
-    pub int_set: Option<IndexSet<RawNullable<i32>>>,
-    pub long_set: Option<IndexSet<RawNullable<i64>>>,
-    pub grid: Option<Grid<RawNullable<i32>, 2>>,
-    pub padded_grid: Option<Grid<RawNullable<Padded>, 2>>,
-    pub nested: Option<Vec<Option<IndexSet<RawNullable<i32>>>>>,
+    pub int_set: Option<IndexSet<NullableSlot<i32>>>,
+    pub long_set: Option<IndexSet<NullableSlot<i64>>>,
+    pub grid: Option<Grid<NullableSlot<i32>, 2>>,
+    pub padded_grid: Option<Grid<NullableSlot<Padded>, 2>>,
+    pub nested: Option<Vec<Option<IndexSet<NullableSlot<i32>>>>>,
     pub values: Option<IndexMap<i32, Option<i64>>>,
     pub pairs: Option<Vec<(i32, Option<i32>)>>,
 }
@@ -269,7 +269,7 @@ pub struct NinoNullableFields {
 }
 
 /// .NET's `NinoNullable<T>` members: its memory wherever it is (a presence and a value of a `T` each), which is not
-/// the bytes of a `T?`: `nino::NinoNullable<T>`, where a `T?` is an `Option<T>` or a `RawNullables<T>`.
+/// the bytes of a `T?`: `nino::NinoNullable<T>`, where a `T?` is an `Option<T>` or a `Vec<NullableSlot<T>>`.
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x66E9615A; deferrable=true; members=Long:Nino.Core.NinoNullable<long>:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)};Decimal:Nino.Core.NinoNullable<decimal>:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)};Guid:Nino.Core.NinoNullable<System.Guid>:raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)};Padded:Nino.Core.NinoNullable<Conformance.Padded>:raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}};LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:Nino.Core.NinoNullable<decimal>[]:seq(raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});DecimalList:System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>>:seq(raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});GuidArray:Nino.Core.NinoNullable<System.Guid>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});GuidList:System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>>:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});PaddedArray:Nino.Core.NinoNullable<Conformance.Padded>[]:seq(raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>>:seq(raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});GuidQueue:System.Collections.Generic.Queue<Nino.Core.NinoNullable<System.Guid>>:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});DecimalMap:System.Collections.Generic.Dictionary<int, Nino.Core.NinoNullable<decimal>>:map(raw(4),raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});Fields:Conformance.NinoNullableFields:raw(48){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},Price:Nino.Core.NinoNullable<decimal>@16:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)}};FieldsArray:Conformance.NinoNullableFields[]:seq(raw(48){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},Price:Nino.Core.NinoNullable<decimal>@16:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)}})")]
 pub struct NinoNullables {
@@ -291,7 +291,7 @@ pub struct NinoNullables {
     pub fields_array: Option<Vec<NinoNullableFields>>,
 }
 
-/// Runs of `NinoNullable<T>` of a `T` as large as its alignment: the bytes of the `T?` runs (`RawNullables<T>`).
+/// Runs of `NinoNullable<T>` of a `T` as large as its alignment: the bytes of the `T?` runs (`Vec<NullableSlot<T>>`).
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x97EFBB53; deferrable=true; members=LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});IntArray:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});ByteList:System.Collections.Generic.List<Nino.Core.NinoNullable<byte>>:seq(raw(2){hasValue:bool@0:raw(1),value:byte@1:raw(1)})")]
 pub struct NinoNullableRuns {
@@ -605,19 +605,19 @@ pub struct MaybeInt {
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})")]
 pub struct MaybeIntArray {
-    pub values: Option<RawNullables<i32>>,
+    pub values: Option<Vec<NullableSlot<i32>>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8BFF9D91; deferrable=true; members=Values:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})")]
 pub struct MaybeIntSet {
-    pub values: Option<IndexSet<RawNullable<i32>>>,
+    pub values: Option<IndexSet<NullableSlot<i32>>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xCA7112FB; deferrable=true; members=Values:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})")]
 pub struct MaybeIntGrid {
-    pub values: Option<Grid<RawNullable<i32>, 2>>,
+    pub values: Option<Grid<NullableSlot<i32>, 2>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]

@@ -234,15 +234,9 @@ impl<T: J> J for NinoNullable<T> {
     }
 }
 
-impl<T: J> J for RawNullable<T> {
+impl<T: J> J for NullableSlot<T> {
     fn j(&self) -> Value {
         self.0.j()
-    }
-}
-
-impl<T: Raw + J> J for RawNullables<T> {
-    fn j(&self) -> Value {
-        Value::Array(self.0.iter().map(J::j).collect())
     }
 }
 

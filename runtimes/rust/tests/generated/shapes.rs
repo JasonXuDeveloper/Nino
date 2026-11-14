@@ -816,7 +816,7 @@ impl Holder {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostHolder {
     pub leaves: HostLeaves,
-    pub gaps: Option<nino::RawNullables<i128>>,
+    pub gaps: Option<Vec<nino::NullableSlot<i128>>>,
 }
 
 impl NinoReadBody for HostHolder {
@@ -846,7 +846,7 @@ impl NinoRead for HostHolder {
 
 impl NinoWrite for HostHolder {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<nino::RawNullables<i128>> as NinoWrite>::PREFETCH_BYTES);
+        .saturating_add(<Option<Vec<nino::NullableSlot<i128>>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.gaps.prefetch();
@@ -1325,9 +1325,9 @@ impl<T> Node<T> {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NullableGrids {
-    pub grid: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
-    pub cube: Option<nino::Grid<nino::RawNullable<i64>, 3>>,
-    pub cells: Option<nino::Grid<nino::RawNullable<TupleCell>, 2>>,
+    pub grid: Option<nino::Grid<nino::NullableSlot<i32>, 2>>,
+    pub cube: Option<nino::Grid<nino::NullableSlot<i64>, 3>>,
+    pub cells: Option<nino::Grid<nino::NullableSlot<TupleCell>, 2>>,
 }
 
 impl NinoReadBody for NullableGrids {
@@ -1369,14 +1369,14 @@ impl NullableGrids {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NullableSlots {
-    pub queue: Option<nino::RawNullables<i32>>,
-    pub stack: Option<nino::RawNullables<i64>>,
-    pub linked: Option<nino::RawNullables<u8>>,
-    pub sorted: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
-    pub read_only: Option<nino::RawNullables<TupleCell>>,
-    pub nested: Option<Vec<Option<nino::RawNullables<i32>>>>,
-    pub boxed_set: Option<Box<BoxType<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>>,
-    pub boxed_nested: Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i64>>>>>>>>,
+    pub queue: Option<Vec<nino::NullableSlot<i32>>>,
+    pub stack: Option<Vec<nino::NullableSlot<i64>>>,
+    pub linked: Option<Vec<nino::NullableSlot<u8>>>,
+    pub sorted: Option<indexmap::IndexSet<nino::NullableSlot<i32>>>,
+    pub read_only: Option<Vec<nino::NullableSlot<TupleCell>>>,
+    pub nested: Option<Vec<Option<Vec<nino::NullableSlot<i32>>>>>,
+    pub boxed_set: Option<Box<BoxType<Option<indexmap::IndexSet<nino::NullableSlot<i32>>>>>>,
+    pub boxed_nested: Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::NullableSlot<i64>>>>>>>>,
     pub map: Option<indexmap::IndexMap<i32, Option<i64>>>,
     pub boxed_map: Option<Box<BoxType<Option<indexmap::IndexMap<i32, Option<i64>>>>>>,
     pub tuples: Option<Vec<(i32, Option<i32>)>>,
@@ -1427,14 +1427,14 @@ impl NinoRead for NullableSlots {
 
 impl NinoWrite for NullableSlots {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<nino::RawNullables<i32>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<u8>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<indexmap::IndexSet<nino::RawNullable<i32>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<nino::RawNullables<TupleCell>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Vec<Option<nino::RawNullables<i32>>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Box<BoxType<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i64>>>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<i64>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<u8>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<nino::NullableSlot<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::NullableSlot<TupleCell>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Option<Vec<nino::NullableSlot<i32>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<indexmap::IndexSet<nino::NullableSlot<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::NullableSlot<i64>>>>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Box<BoxType<Option<indexmap::IndexMap<i32, Option<i64>>>>>> as NinoWrite>::PREFETCH_BYTES)
         .saturating_add(<Option<Vec<(i32, Option<i32>)>> as NinoWrite>::PREFETCH_BYTES);
 
@@ -2205,8 +2205,8 @@ impl Stamps {
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Strides {
-    pub cells: Option<nino::RawNullables<TupleCell>>,
-    pub boxed: Option<Box<BoxType<Option<nino::RawNullables<TupleCell>>>>>,
+    pub cells: Option<Vec<nino::NullableSlot<TupleCell>>>,
+    pub boxed: Option<Box<BoxType<Option<Vec<nino::NullableSlot<TupleCell>>>>>>,
 }
 
 impl NinoReadBody for Strides {
@@ -2236,8 +2236,8 @@ impl NinoRead for Strides {
 
 impl NinoWrite for Strides {
     const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<nino::RawNullables<TupleCell>> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Box<BoxType<Option<nino::RawNullables<TupleCell>>>>> as NinoWrite>::PREFETCH_BYTES);
+        .saturating_add(<Option<Vec<nino::NullableSlot<TupleCell>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<Vec<nino::NullableSlot<TupleCell>>>>>> as NinoWrite>::PREFETCH_BYTES);
 
     fn prefetch(&self) {
         self.cells.prefetch();

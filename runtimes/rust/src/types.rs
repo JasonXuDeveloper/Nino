@@ -109,7 +109,7 @@ fn decode_each<T, const N: usize>(chunks: &[[u8; N]], decode: fn(&[u8; N]) -> Re
 }
 
 /// A value copied as raw bytes in the canonical layout (the specification, 5): what a sequence of `T?` of it holds in
-/// slots of a fixed size ([`RawNullable`], [`RawNullables`]). Generated raw structs implement it too.
+/// slots of a fixed size ([`NullableSlot`]). Generated raw structs implement it too.
 pub trait Raw: Sized + 'static {
     /// Its size in the canonical layout.
     const SIZE: usize;
@@ -816,8 +816,8 @@ impl NinoWrite for Utf8 {
 }
 
 /// `Nullable<T>` of a raw `T` in the canonical layout (the specification, 5.2 and 6.2): the presence byte, zeros up to
-/// `T`'s alignment, then `T` (zero when absent). What a raw struct holds as a `T?` field and a [`RawNullables`]
-/// element is.
+/// `T`'s alignment, then `T` (zero when absent). What a raw struct holds as a `T?` field and a [`NullableSlot`]
+/// is.
 impl<T: Raw> Raw for Option<T> {
     const SIZE: usize = T::ALIGN.saturating_add(T::SIZE);
     const ALIGN: usize = T::ALIGN;
@@ -849,7 +849,7 @@ impl<T: Raw> Raw for Option<T> {
 /// an element of any collection, a field of a raw struct), `2 * size(T)` bytes: the presence, a whole `T` (0 or 1 in
 /// its first byte, zeros above), then the value, zeros when absent. A `T?` is not these bytes: alone it is a
 /// presence byte and the value only when present (`Option<T>`), and in an array a stride of `T`'s alignment plus
-/// its size ([`RawNullables`]), which is the same only for a `T` as large as its alignment.
+/// its size ([`NullableSlot`]), which is the same only for a `T` as large as its alignment.
 ///
 /// It wraps the `Option<T>` it stands for (`.0`, [`From`] both ways, [`core::ops::Deref`]). Reading rejects a
 /// presence other than 0 or 1, a byte set above it and an absent value that is not zeros, as .NET's untrusted mode
@@ -957,34 +957,34 @@ impl<T: Raw> NinoWrite for NinoNullable<T> {
 
 /// A `T?` of a raw `T` as the element of a sequence (the specification, 6.2): a slot of `align(T) + size(T)` bytes
 /// in every sequence, the presence byte first and the value at offset `align(T)`, zeroed when absent. The element
-/// type of a set, a multi-dimensional array or any other collection of them (`HashSet<RawNullable<i32>>` is a
-/// `HashSet<int?>`, `Grid<RawNullable<i32>, 2>` an `int?[,]`); a `Vec` of them with plain `Option`s is
-/// [`RawNullables`]. A single `T?` (a member, a map's key or value, a tuple's item) is not these bytes: it is an
-/// `Option<T>`, a presence byte and the value only when present.
+/// type of every collection of them: `Vec<NullableSlot<i32>>` is an `int?[]` or a `List<int?>`,
+/// `HashSet<NullableSlot<i32>>` a `HashSet<int?>`, `Grid<NullableSlot<i32>, 2>` an `int?[,]`. A single `T?` (a
+/// member, a map's key or value, a tuple's item) is not these bytes: it is an `Option<T>`, a presence byte and the
+/// value only when present.
 ///
 /// It wraps the `Option<T>` it stands for (`.0`, [`From`] both ways, [`core::ops::Deref`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RawNullable<T>(pub Option<T>);
+pub struct NullableSlot<T>(pub Option<T>);
 
-impl<T> Default for RawNullable<T> {
+impl<T> Default for NullableSlot<T> {
     fn default() -> Self {
         Self(None)
     }
 }
 
-impl<T> From<Option<T>> for RawNullable<T> {
+impl<T> From<Option<T>> for NullableSlot<T> {
     fn from(value: Option<T>) -> Self {
         Self(value)
     }
 }
 
-impl<T> From<RawNullable<T>> for Option<T> {
-    fn from(value: RawNullable<T>) -> Self {
+impl<T> From<NullableSlot<T>> for Option<T> {
+    fn from(value: NullableSlot<T>) -> Self {
         value.0
     }
 }
 
-impl<T> core::ops::Deref for RawNullable<T> {
+impl<T> core::ops::Deref for NullableSlot<T> {
     type Target = Option<T>;
 
     fn deref(&self) -> &Option<T> {
@@ -992,14 +992,14 @@ impl<T> core::ops::Deref for RawNullable<T> {
     }
 }
 
-impl<T> core::ops::DerefMut for RawNullable<T> {
+impl<T> core::ops::DerefMut for NullableSlot<T> {
     fn deref_mut(&mut self) -> &mut Option<T> {
         &mut self.0
     }
 }
 
 // The slot is `Raw for Option<T>`; a collection reads and writes a run of them as one block (`FIXED_SIZE`).
-impl<T: Raw> NinoRead for RawNullable<T> {
+impl<T: Raw> NinoRead for NullableSlot<T> {
     const MIN_SIZE: usize = <Option<T> as Raw>::SIZE;
     const FIXED_SIZE: usize = <Option<T> as Raw>::SIZE;
 
@@ -1014,7 +1014,7 @@ impl<T: Raw> NinoRead for RawNullable<T> {
     }
 }
 
-impl<T: Raw> NinoWrite for RawNullable<T> {
+impl<T: Raw> NinoWrite for NullableSlot<T> {
     const FIXED_SIZE: usize = <Option<T> as Raw>::SIZE;
 
     #[inline]
@@ -1026,49 +1026,6 @@ impl<T: Raw> NinoWrite for RawNullable<T> {
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
         self.0.encode_raw(w.reserve(<Option<T> as Raw>::SIZE));
         Ok(())
-    }
-}
-
-/// A `T?[]`, `List<T?>` or other list of a raw `T?` (the specification, 6.2) as a `Vec` of plain `Option`s: each
-/// element a slot of `align(T) + size(T)` bytes, the presence byte first and the value at offset `align(T)`, zeroed
-/// when absent (a [`RawNullable`] each).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
-pub struct RawNullables<T>(pub Vec<Option<T>>);
-
-impl<T: Raw> RawNullables<T> {
-    const STRIDE: usize = <Option<T> as Raw>::SIZE;
-}
-
-impl<T: Raw> NinoRead for RawNullables<T> {
-    const MIN_SIZE: usize = 4;
-
-    fn read(r: &mut Reader<'_>) -> Result<Self> {
-        Self::read_option(r)?.ok_or_else(Error::null)
-    }
-
-    fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-        let Some(count) = r.length(Self::STRIDE)? else { return Ok(None) };
-        let bytes = r.take(count.checked_mul(Self::STRIDE).ok_or_else(Error::too_large)?)?;
-        let mut values = Vec::with_capacity(count);
-        for element in bytes.chunks_exact(Self::STRIDE.max(1)) {
-            values.push(Option::<T>::decode_raw(element)?);
-        }
-        Ok(Some(Self(values)))
-    }
-}
-
-impl<T: Raw> NinoWrite for RawNullables<T> {
-    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        w.length(self.0.len())?;
-        let out = w.reserve(self.0.len().saturating_mul(Self::STRIDE));
-        for (element, value) in out.chunks_exact_mut(Self::STRIDE.max(1)).zip(&self.0) {
-            value.encode_raw(element);
-        }
-        Ok(())
-    }
-
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        w.or_null_length(value)
     }
 }
 
