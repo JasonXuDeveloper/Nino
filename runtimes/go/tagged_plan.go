@@ -154,6 +154,20 @@ func (b *builder) plan(t reflect.Type) (*plan, error) {
 	return p, nil
 }
 
+// planIn returns the plan of t where a member's variant reaches it: a nino.Entry of a member declared with
+// NinoNullable<T> holds them too (a plan of its own, kept by the codec that asked for it); any other type has its
+// one plan.
+func (b *builder) planIn(t reflect.Type, variant uint8) (*plan, error) {
+	if variant != variantNinoNullable || !isEntryType(t) {
+		return b.plan(t)
+	}
+	p := &plan{typ: t, deferrable: true, variant: variant}
+	if err := b.buildPlan(p); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
 // buildPlan fills the plan of p.typ: its declaration (layout, header, type id), its format, the order of its fields
 // and each field's codec, checked against the layout's members.
 func (b *builder) buildPlan(p *plan) error {
@@ -187,7 +201,7 @@ func (b *builder) buildPlan(p *plan) error {
 		} else if d.hasMembers && d.rawEnc == nil {
 			f.member = order[i]
 		}
-		if err := b.fieldCodec(p, d, fi, f); err != nil {
+		if err := b.fieldCodec(p, d, fi, f, order[i]); err != nil {
 			return err
 		}
 	}
@@ -333,15 +347,24 @@ func checkMemberCount(p *plan, d *layoutDecl, n int) error {
 	return nil
 }
 
-// fieldCodec builds the codec of field f (its member already set), in the variant its tag and its layout member
-// ask for, and checks it against the member's encoding.
-func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field) error {
+// ninoNullableName is how a layout names .NET's NinoNullable<T> in a member's or a raw field's type.
+const ninoNullableName = "Nino.Core.NinoNullable<"
+
+// fieldCodec builds the codec of field f (its member already set; at is its place among the plan's fields), in the
+// variant its tag and its layout member ask for, and checks it against the member's encoding.
+func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field, at int) error {
 	t := p.typ
 	var enc *encoding
+	declared := ""
 	if f.member >= 0 {
-		enc = d.members[f.member].enc
+		enc, declared = d.members[f.member].enc, d.members[f.member].typ
+	} else if d.rawEnc != nil && at < len(d.rawEnc.fields) {
+		declared = d.rawEnc.fields[at].typ
 	}
-	variant := variantDefault
+	variant := p.variant
+	if strings.Contains(declared, ninoNullableName) {
+		variant = variantNinoNullable
+	}
 	if fi.tag.utf8 {
 		variant = variantUTF8
 	}

@@ -218,10 +218,13 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 | `T` (struct) | a struct: raw, or member by member |
 | an interface (`any`, or one the allowed types implement) | `object`, an abstract class, an interface: a type id, then one of the **registered** types that implements the field's interface |
 
-.NET's `NinoNullable<T>` is `T?` on the wire and in the layouts (`nullable(...)` alone, the fixed stride in an array or
-a `List`), so it maps to the same Go types: `*T`, and `[]*T` for `NinoNullable<T>[]` and `List<NinoNullable<T>>`, in
-the code nino-gen writes and with struct tags alike. Inside a plain struct copied as raw memory, where .NET holds its
-presence as a whole `T`, generated code reads it as a `*T` too, the value at the offset the layout gives.
+.NET's `NinoNullable<T>` is a `*T` too, with bytes of its own: its memory wherever it is, a presence and a value of a
+`T` each (`2 * size(T)` bytes: `01000000 05000000` for a `NinoNullable<int>` of 5, zeros for nil), alone, as an
+element of any collection and inside a raw struct. Generated code reads and writes it so, and so do struct tags where
+the type's `NinoLayout` names it: a member (or a raw struct's field) whose declared type holds `Nino.Core.NinoNullable<`
+reads each `*T` of a fixed-size `T` in it (the field, a slice's elements, a map's or a `nino.Entry`'s values) as one,
+where the same Go type without it is a `T?`. Reading rejects a presence other than 0 or 1, a byte set above it and a
+value that is not zeros where it is absent (`Reader.NinoNullableAt`), as .NET does with `NinoSettings.Untrusted`.
 
 Polymorphic types are registered once, by a value: `nino.Register((*Dog)(nil), (*Cat)(nil), Circle{})` (a nil pointer
 for a class, a zero value for a struct; `nino.RegisterID(id, v)` for a closed generic type, whose layout publishes

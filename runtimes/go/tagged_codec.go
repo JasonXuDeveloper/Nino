@@ -35,10 +35,11 @@ const (
 	kSet
 	kMap
 	kNullable
-	kClass     // pointer to a class: presence byte or type id, then the body
-	kStruct    // a struct written member by member
-	kRawStruct // a raw struct
-	kIface     // interface: type id, then a registered type
+	kNinoNullable // .NET's NinoNullable<T>: raw memory, a presence and a value of a T each
+	kClass        // pointer to a class: presence byte or type id, then the body
+	kStruct       // a struct written member by member
+	kRawStruct    // a raw struct
+	kIface        // interface: type id, then a registered type
 )
 
 // codec reads and writes one Go type. read and write take an addressable value.
@@ -60,7 +61,9 @@ type codec struct {
 }
 
 // rawCapable: the value can be a field of a raw struct (a fixed-size leaf or a raw struct).
-func (c *codec) rawCapable() bool { return c.kind <= kHalf || c.kind == kRawStruct }
+func (c *codec) rawCapable() bool {
+	return c.kind <= kHalf || c.kind == kRawStruct || c.kind == kNinoNullable
+}
 
 // plan is the body of a struct type.
 type plan struct {
@@ -77,6 +80,7 @@ type plan struct {
 	size       int           // raw size
 	align      int           // raw alignment
 	entry      bool          // nino.Entry: a pair
+	variant    uint8         // an Entry's: the variant of its key and value (variantNinoNullable), else 0
 	rawErr     string        // why the type cannot be raw although its fields are fixed-size
 }
 
