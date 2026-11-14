@@ -184,7 +184,12 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   shard picked by the minutes each shard's "Run benchmarks" step took in the last report, and at most about 70 cases
   of v4 and v3 together (`--list flat` of both builds with the shard's globs; about 15 minutes a shard plus half a
   minute a case, under report.yml's 150-minute timeout): a new shard (the next letter) rather than an overfull one
-  (`audit-ci`, Fast and parallel). Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
+  (`audit-ci`, Fast and parallel). Name a case so that no other shard's glob matches it, and check that
+  every case of both builds is in exactly one report shard (`fnmatch` of the `--list flat` names against every
+  shard's globs): `CollectionsTest`'s globs end at the case (`*.CollectionsTest.*Queue`), so a `NullableIntQueue`
+  would have run in shard i too (the collections of `int?` are `NullableQueueInts`, ...), and an A/B shard takes a
+  class by prefix, so their 80 Nino and MemoryPack cases all landed in A/B shard e (187 cases, the others about 50)
+  until CollectionsTest was split by verb between a and e. Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
   ci.yml runs `--verify` on x64 and on Arm64 (`audit-ci`, Scripts only a release runs).
 - A case that needs a process-wide setting frozen on first use (`NinoSettings.Untrusted`, `UntrustedTest`) sets it in
   its class's static constructor inside `try`/`catch (InvalidOperationException)` and never throws from
@@ -219,7 +224,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   `[NullWrappedValue]` at `CompatibilityLevel.Level300` (`google.protobuf.Int32Value`, ...: Google.Protobuf's `int?`).
   Keep such contracts at Level300: at the default level `GetSchema` names `decimal?`'s wrapper `Wrapped.bcl.Decimal`,
   which protoc rejects, and `[NullWrappedValue]` on an enum writes a message while the schema keeps the bare enum
-  (Google.Protobuf would misread it), so a nullable enum stays bare with a zero member the data never uses. A
+  (Google.Protobuf would misread it), so a nullable enum stays bare with a zero member the data never uses. `GetSchema`
+  writes the message of a wrapped scalar once for every kind of member that needs it (`Wrappedstring` for a Level300
+  `decimal?` and again for a null-wrapped `string`), and protoc rejects the second definition ("already defined in
+  nino.cases"): `ProtoFile.Generate` keeps each identical top-level message once. A
   `Nullable<T>` of a message type cannot be wrapped in a repeated field at all ("No serializer for type
   System.Nullable`1[SimpleStruct]"): write an array of a contract with one optional field (`OptionalSimpleStruct`,
   the same bytes), made outside the timed region; a top-level null is such a contract with the field absent. A
