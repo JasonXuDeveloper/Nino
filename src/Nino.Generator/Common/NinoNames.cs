@@ -27,6 +27,9 @@ internal static class NinoNames
     /// <summary>The static classes of the top-level API.</summary>
     public const string Serializer = "NinoSerializer", Deserializer = "NinoDeserializer";
 
+    /// <summary>Metadata name of <c>NinoNullable&lt;T&gt;</c>, written as <c>T?</c> rather than as its raw memory.</summary>
+    public const string NinoNullable = CoreNamespace + ".NinoNullable`1";
+
     /// <summary>Metadata name of the Nino.Core type <paramref name="name"/> (e.g. <c>NinoFormatter`1</c>).</summary>
     public static string Core(string name) => CoreNamespace + "." + name;
 }

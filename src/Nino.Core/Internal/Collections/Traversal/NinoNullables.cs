@@ -739,6 +739,72 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>
+        /// Whether a run of <see cref="NinoNullable{T}"/> is its wire as it lies in memory: T as large as its alignment
+        /// (its presence a whole T, so the slot's padding is the presence's upper bytes) and the slots copied as they
+        /// are (<see cref="Raw"/>). Its memory is then the memory a <c>T?</c> run read as raw holds, byte for byte.
+        /// </summary>
+        internal static readonly bool Words = Raw && Unsafe.SizeOf<NinoNullable<T>>() == Stride &&
+                                             Unsafe.SizeOf<T?>() == Stride;
+
+        /// <summary>
+        /// Writes the count and the elements of a <see cref="NinoNullable{T}"/> run, the bytes of a <c>T?</c> run: as
+        /// one block copy where <see cref="Words"/> (the type keeps its memory clean), else slot by slot.
+        /// </summary>
+        public static void Write(ReadOnlySpan<NinoNullable<T>> values, ref Writer writer)
+        {
+            ref byte dst = ref writer.ReserveCounted(values.Length, Stride);
+            if (values.IsEmpty)
+                return;
+            ref NinoNullable<T> item = ref MemoryMarshal.GetReference(values);
+            if (Words)
+            {
+                NinoUnsafe.Copy(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), (uint)(values.Length * Stride));
+                return;
+            }
+
+            Unsafe.InitBlockUnaligned(ref dst, 0, (uint)(values.Length * Stride));
+            for (int i = 0; i < values.Length; i++)
+            {
+                ref NinoNullable<T> element = ref Unsafe.Add(ref item, i);
+                if (!element.HasValue)
+                    continue;
+                ref byte slot = ref Unsafe.Add(ref dst, i * Stride);
+                slot = NinoWire.NotNull;
+                NinoLayout<T>.Write(ref Unsafe.Add(ref slot, Offset), element.GetValueOrDefault());
+            }
+        }
+
+        /// <summary>
+        /// Reads a <see cref="NinoNullable{T}"/> run whose count was checked: as a <c>T?</c> run (presence bytes
+        /// checked, then one block copy) where <see cref="Words"/>, else slot by slot into values this type makes, which
+        /// are clean whatever the data's padding held (also in <see cref="NinoSettings.Untrusted"/> mode, which then
+        /// never keeps the data's padding).
+        /// </summary>
+        public static void Read(Span<NinoNullable<T>> destination, ref Reader reader)
+        {
+            // The same memory as T?, so the T? read checks the presence bytes and copies the slots.
+            if (Words && !NinoLimits.Untrusted)
+            {
+                ReadPrechecked(ref Unsafe.As<NinoNullable<T>, T?>(ref MemoryMarshal.GetReference(destination)),
+                    destination.Length, ref reader);
+                return;
+            }
+
+            ref byte src = ref reader.UnsafeAdvance(destination.Length * Stride);
+            if (destination.IsEmpty)
+                return;
+            NinoChecks.Flags(ref src, destination.Length, Stride);
+            ref NinoNullable<T> item = ref MemoryMarshal.GetReference(destination);
+            for (int i = 0; i < destination.Length; i++)
+            {
+                ref byte slot = ref Unsafe.Add(ref src, i * Stride);
+                Unsafe.Add(ref item, i) = slot != NinoWire.Null
+                    ? new NinoNullable<T>(NinoLayout<T>.Read(ref Unsafe.Add(ref slot, Offset)))
+                    : default;
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteBoolValues(ref T? item, ref byte destination, int count)
         {
@@ -916,22 +982,29 @@ namespace Nino.Core
 #endif
 
         /// <summary>Reads the elements after the count check has bounded the full fixed-stride payload.</summary>
-        public static void ReadPrechecked(Span<T?> destination, ref Reader reader)
+        public static void ReadPrechecked(Span<T?> destination, ref Reader reader) =>
+            ReadPrechecked(ref MemoryMarshal.GetReference(destination), destination.Length, ref reader);
+
+        /// <summary>
+        /// <see cref="ReadPrechecked(Span{T?}, ref Reader)"/> of <paramref name="count"/> elements from
+        /// <paramref name="item"/>: also what reads a <see cref="NinoNullable{T}"/> run in place, its memory taken as
+        /// <c>T?</c> (<see cref="Words"/>), on every build (netstandard2.0 has no span over a reference).
+        /// </summary>
+        private static void ReadPrechecked(ref T? item, int count, ref Reader reader)
         {
-            int bytes = destination.Length * Stride;
+            int bytes = count * Stride;
             ref byte src = ref reader.UnsafeAdvance(bytes);
-            if (destination.IsEmpty)
+            if (count == 0)
                 return;
-            if (typeof(T) == typeof(bool) && destination.Length == 1)
+            if (typeof(T) == typeof(bool) && count == 1)
             {
-                ReadSingleBool(ref src, ref Unsafe.As<T?, bool?>(ref MemoryMarshal.GetReference(destination)));
+                ReadSingleBool(ref src, ref Unsafe.As<T?, bool?>(ref item));
                 return;
             }
 
             // Presence bytes other than 0 or 1 are invalid data (copied as they are, they would make HasValue true
             // and the value unequal to any other).
-            NinoChecks.Flags(ref src, destination.Length, Stride);
-            ref T? item = ref MemoryMarshal.GetReference(destination);
+            NinoChecks.Flags(ref src, count, Stride);
             if (Raw)
             {
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T?, byte>(ref item), ref src, (uint)bytes);
@@ -940,8 +1013,7 @@ namespace Nino.Core
 
             if (typeof(T) == typeof(bool))
             {
-                int count = destination.Length;
-                ref bool? booleans = ref Unsafe.As<T?, bool?>(ref item);
+                                ref bool? booleans = ref Unsafe.As<T?, bool?>(ref item);
 #if NET8_0_OR_GREATER
                 if (count < Vector128<ushort>.Count)
                 {
@@ -983,7 +1055,7 @@ namespace Nino.Core
                 }
             }
 
-            for (int i = 0; i < destination.Length; i++)
+            for (int i = 0; i < count; i++)
             {
                 ref byte slot = ref Unsafe.Add(ref src, i * Stride);
                 Unsafe.Add(ref item, i) = slot != NinoWire.Null

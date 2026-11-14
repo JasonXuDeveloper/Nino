@@ -42,7 +42,9 @@ internal sealed class RawRules
             if (named.IsTupleType && named.Arity != 0)
                 return false;
             var definition = named.OriginalDefinition;
-            if (definition.SpecialType == SpecialType.System_Nullable_T)
+            // Nullable and NinoNullable (written as Nullable) have a format of their own.
+            if (definition.SpecialType == SpecialType.System_Nullable_T ||
+                TypeNames.HasMetadataName(definition, NinoNames.NinoNullable))
                 return false;
             if (TypeNames.HasMetadataName(definition, "System.Collections.Generic.KeyValuePair`2") ||
                 TypeNames.IsValueTuple(definition) || TypeNames.HasMetadataName(definition, "System.DateTimeOffset"))

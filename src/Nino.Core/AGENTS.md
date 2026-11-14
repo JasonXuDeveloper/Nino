@@ -21,6 +21,8 @@ NinoDeserializer.cs          the public Deserialize<T> (a new value, or into an 
 NinoSettings.cs              every process-wide setting (MaxDepth, MaxCollectionLength, MaxHashCollisions, Untrusted,
                              pool sizes, SetRecycler<T>), plain fields frozen on first use (NinoLimits)
 NinoDataException.cs         the exception every check of the data throws (an InvalidOperationException)
+NinoNullable.cs              NinoNullable<T>: a nullable value whose memory is always clean (its presence a whole T), written
+                             as T?; its arrays and lists are block copies where T is as large as its alignment
 NinoKernels.cs               NinoKernels: native Permute / Interleave32 / NormalizeBoolSlots / Narrow / Widen /
                              NarrowAscii / WidenAscii function pointers the netstandard builds call when registered (Unity's Burst and WebGL
                              kernels), with their scalar forms
@@ -103,6 +105,8 @@ BuiltInFormatters.cs         the [assembly: NinoFormatter] table of the BCL form
 BoxedFormatter.cs            BoxedFormatter: NinoFormatterCache<T> for a runtime Type (the Boxed APIs)
 PrimitiveFormatters.cs       UnmanagedFormatter<T> (raw bytes), RawValueFormatter<T>, IntPtr / UIntPtr (8 bytes),
                              DateTimeOffset, String (Latin-1 or UTF-16), Utf8String, Nullable, ObjectFormatter
+NinoNullableFormatters.cs    NinoNullable<T>, NinoNullable<T>[] and List<NinoNullable<T>>: the bytes of T?, T?[] and
+                             List<T?> (NinoNullables<T>.Write / Read)
 Collections/                the collection formatters, a folder per kind:
   Arrays/
     ArrayFormatter.cs        general T[] and reuse
