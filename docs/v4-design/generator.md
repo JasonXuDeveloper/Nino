@@ -153,8 +153,8 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   paths of `NinoBlockPlan<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
   byte one memory byte (`NinoBlockMap.Runs`) the vector shuffles and permutes (AVX-512 VBMI groups and 64-byte
   permutes, AVX2 or SSSE3 lanes, Arm64 `tbl`, WebAssembly's swizzle; with VBMI, values of more than 16 bytes in
-  memory, which its groups and permutes do not take, are written in the AVX2 lane plan's partial groups); elsewhere (no SIMD, a map that overlaps, Mono,
-  .NET Framework and the netstandard builds of Nino.Core) the scalar loop of `WriteFixed`/`ReadBlock`, inlined, one
+  memory, which its groups and permutes do not take, are written in the AVX2 lane plan's partial groups); elsewhere (no SIMD, a map that overlaps, Mono
+  and the netstandard2.1 build of Nino.Core) the scalar loop of `WriteFixed`/`ReadBlock`, inlined, one
   value after another, unless kernels are registered (below). `BlockMap()` is built once per type from `NinoBlockMap` (`Raw<TItem>(memory, wire)` for a raw
   item, `Block<TItem, TFormatter>` for a nested block, whose map is merged); the memory offset of a field is
   `NinoBlocks.Offset`, of an auto-property's backing field (which generated code cannot name) `NinoBlocks.Find`, which
@@ -178,8 +178,8 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   `tests/Nino.AotTests` checks that the shuffle is `pshufb` under Native AOT. The AVX2 and AVX-512 paths run there
   only with `IlcInstructionSet` (`x86-64-v3`, `x86-64-v4`, `native`); Arm64's baseline has AdvSimd, so Arm64 takes
   every path.
-* **Kernels for the netstandard builds.** The netstandard builds have no hardware intrinsics, so on Unity (Mono,
-  IL2CPP, HybridCLR) and .NET Framework the block paths above, the masked copy of raw structs with padding
+* **Kernels for the netstandard2.1 build.** The netstandard2.1 build has no hardware intrinsics, so on Unity (Mono,
+  IL2CPP, HybridCLR) and Mono the block paths above, the masked copy of raw structs with padding
   (`NinoMask.Copy`) and the narrowing and widening of Latin-1 text (`NinoStrings.NarrowWords`/`WidenWords`) are scalar,
   except where `System.Numerics.Vector<T>` is fast for the operation. The text uses `Vector.Narrow`/`Widen` on .NET
   Framework and .NET Core where the JIT accelerates them (`NinoUnsafe.NumericVectors`), never on Mono: classic Mono's
@@ -224,7 +224,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   around every call. The regular calls do the same through `NinoFormatterBase<T>.Write` (the cached formatter of a type
   with a twin is a `TopStructFormatter` registered by `NinoTypes.RegisterTop`). Measured (x64, a
   version-tolerant class of five members, two of them inherited, `Serialize(T)` to `byte[]`): 183 → 121
-  instructions per call (with the merged region below). netstandard2.0 (span and position) takes the same route.
+  instructions per call (with the merged region below). netstandard2.1 (span and position) takes the same route.
   The top-level reads of a new value (`Deserialize<T>(data)`) do the same through `INinoTopFormatter<T>.Read(data)`
   (`NinoDirect.DeserializeTop`, `NinoFormatterBase<T>.Read`): a twin whose body is not inlined reads in `__ReadTop`,
   which creates the reader and calls the body that reads a new instance, an inlinable method (`__ReadBodyInline`, or

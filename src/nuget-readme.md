@@ -46,7 +46,7 @@ For .NET, Unity (Mono and IL2CPP), Godot, Native AOT and HybridCLR, with Go, Rus
 
 | | Command | |
 |---|---|---|
-| .NET, Godot 4 | `dotnet add package Nino --prerelease` | .NET 8 and later ([builds tuned for .NET 8 and .NET 10](https://nino.xgamedev.net/en/docs/v4/platforms#which-build)), .NET Standard 2.0, Native AOT; add-ons `Nino.Immutable`, `Nino.AspNetCore`, `Nino.Codegen` |
+| .NET, Godot 4 | `dotnet add package Nino --prerelease` | .NET 8 and later ([builds tuned for .NET 8 and .NET 10](https://nino.xgamedev.net/en/docs/v4/platforms#which-build)), .NET Standard 2.1, Native AOT; add-ons `Nino.Immutable`, `Nino.AspNetCore`, `Nino.Codegen` |
 | Unity 2022.3+ | `openupm add com.jasonxudeveloper.nino` | Mono, IL2CPP, HybridCLR · [guide](https://nino.xgamedev.net/en/docs/v4/advanced/unity) |
 | Go 1.22+ | `go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4` | generated code or struct tags · [guide](https://nino.xgamedev.net/en/docs/v4/advanced/go) |
 | Rust 1.88+ | `cargo add nino-serialization` | generated code or `--features derive` · [guide](https://nino.xgamedev.net/en/docs/v4/advanced/rust) |

@@ -26,9 +26,7 @@ and owned by a `NinoArrayBufferWriter`.
   them and is copied) and then reads that span: every check of the data is the span
   overload's. The array grows by doubling as bytes arrive, and a seekable stream's `Length` sizes the first one only
   up to 1 MiB, so a stream makes Nino hold at most about twice what it delivered. The async forms return `ValueTask`
-  and are not in the netstandard2.0 build (`ValueTask` needs a package there); Task-returning forms there would have
-  another signature than the same methods in the other builds, which a netstandard2.0 library would call and a .NET
-  application would not have (`MissingMethodException`). All of this is `NinoStreams`.
+  in every build. All of this is `NinoStreams`.
 
 ## Reader
 
@@ -436,7 +434,7 @@ Hash flooding (keys built to share a hash bucket, which makes each insert scan e
 every mode by `MaxHashCollisions`, at no cost where Nino fills the table: `HashTables` (Nino.Core) writes the entries
 and buckets of a new `Dictionary<TKey, TValue>` or `HashSet<T>` itself, through a layout declared per runtime and
 checked at startup (as `CollectionViews` does), and the walk of the bucket it makes for duplicates counts. Where the
-table adds a key itself (an existing table, a layout not found, netstandard2.0), `HashTables.Walk` walks the new key's
+table adds a key itself (an existing table, a layout not found), `HashTables.Walk` walks the new key's
 bucket afterwards, out of line (`HashTables.Plan` decides per key and value type whether a loop inserts or walks).
 String keys of .NET's tables, which switch to a randomized comparer after 100 collisions, are left to them;
 `ImmutableDictionary` and `ImmutableHashSet` count equal hash codes in the sorted hashes their trees are built from.

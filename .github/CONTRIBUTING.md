@@ -8,9 +8,8 @@ Requires the .NET 10 and .NET 8 SDKs.
 dotnet build
 dotnet test tests/Nino.UnitTests
 
-# Every Nino.Core build must write identical bytes: run the suite against the netstandard builds too,
+# Every Nino.Core build must write identical bytes: run the suite against the netstandard2.1 build too,
 # and with interceptors off (the regular entry points must agree with the intercepted ones).
-dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.0
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8   # the .NET 8 SDK generator build
@@ -20,17 +19,18 @@ The unit tests run their test classes in parallel, one worker per core (the meth
 `[DoNotParallelize]` classes alone, after the others); `-- MSTest.Parallelize.Workers=1` runs everything in sequence.
 
 CI (`.github/workflows/ci.yml`) runs the unit tests on net10.0, on Nino.Core
-netstandard2.1 without interceptors (what Unity runs), on netstandard2.0 with the Roslyn 4.8 generator, on Arm64
-(net10.0 and net8.0), on x64 without AVX-512, without AVX2 and without SIMD (`DOTNET_EnableAVX512=0`,
+netstandard2.1 without interceptors (what Unity runs), on Arm64 (net10.0, and net8.0 with the Roslyn 4.8
+generator), on x64 without AVX-512, without AVX2 and without SIMD (`DOTNET_EnableAVX512=0`,
 `DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`) and on Windows, each configuration split over three runners
 (everything but `ShapeMatrixTests`, and each half of its rows; "Build and Test" checks the three ran the whole suite,
 `.github/scripts/test_shards.py`; each shard runs one class at a time, `Workers=1`, since three shards already share a
 runner). Beside them it builds the whole solution and runs the ASP.NET Core tests and those
 of Nino.Codegen (`Nino.AspNetCore.Tests`, `Nino.Codegen.Integration.Tests`, `Nino.Codegen.Tests`, Node 22.18+),
 publishes `Nino.AotTests` trimmed and Native AOT, and runs `Nino.RuntimeTests` ("Runtime internals") on every runtime
-whose collections Nino reads or builds through their fields: .NET on x64, Arm64, Windows x86 and Arm32 (under qemu),
-Mono on x64 and Arm64 (also with `MONO_GC_DEBUG=verify-before-collections`), and .NET Framework 4.8 64-bit and 32-bit
-(`-p:NinoX86=true` builds the 32-bit exe). Each must write .NET x64's bytes, see the same contents through the public
+whose collections Nino reads or builds through their fields: .NET on x64, Arm64, Windows x64 and x86 and Arm32 (under
+qemu),
+and Mono on x64 and Arm64 (also with `MONO_GC_DEBUG=verify-before-collections`; the net472 build, compiled against
+Mono's class libraries and the netstandard2.1 builds, is made only where Mono is installed). Each must write .NET x64's bytes, see the same contents through the public
 API and find every path meant for it (`FastPaths` in its `Program.cs`). Locally:
 
 ```bash

@@ -42,7 +42,7 @@
 
 | | 命令 | |
 |---|---|---|
-| .NET、Godot 4 | `dotnet add package Nino --prerelease` | .NET 8 及以上（[针对 .NET 8 和 .NET 10 单独优化](https://nino.xgamedev.net/zh/docs/v4/platforms#which-build)）、.NET Standard 2.0、Native AOT；扩展包 `Nino.Immutable`、`Nino.AspNetCore`、`Nino.Codegen` |
+| .NET、Godot 4 | `dotnet add package Nino --prerelease` | .NET 8 及以上（[针对 .NET 8 和 .NET 10 单独优化](https://nino.xgamedev.net/zh/docs/v4/platforms#which-build)）、.NET Standard 2.1、Native AOT；扩展包 `Nino.Immutable`、`Nino.AspNetCore`、`Nino.Codegen` |
 | Unity 2022.3+ | `openupm add com.jasonxudeveloper.nino` | Mono、IL2CPP、HybridCLR · [指南](https://nino.xgamedev.net/zh/docs/v4/advanced/unity) |
 | Go 1.22+ | `go get github.com/JasonXuDeveloper/Nino/runtimes/go/v4` | 生成的代码或 struct tag · [指南](https://nino.xgamedev.net/zh/docs/v4/advanced/go) |
 | Rust 1.88+ | `cargo add nino-serialization` | 生成的代码或 `--features derive` · [指南](https://nino.xgamedev.net/zh/docs/v4/advanced/rust) |

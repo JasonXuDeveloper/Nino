@@ -70,7 +70,7 @@ Generated formatters live outside the type, so the type and every type containin
 ### NINO002
 
 Where generated code cannot reach a non-public member through `[UnsafeAccessor]`, it reaches it through an accessor
-generated inside the type: before .NET 8 (Unity, .NET Framework, `netstandard`), for generic types before .NET 9
+generated inside the type: before .NET 8 (Unity, `netstandard`), for generic types before .NET 9
 (the compilation defines no `NET9_0_OR_GREATER`), and on .NET 9+ for a member a generic type inherits from a generic
 base whose type arguments are not the type's own first type parameters in order (`class D<T> : Base<List<T>>`,
 `class D<T> : Base<int>`; `class D<T, U> : Base<T>` is fine), since the runtime matches the accessor against the

@@ -12,7 +12,8 @@ it is, every other one converts it field by field, at offsets it finds once (`Ni
 
 Measured by CI run 41280617045 (`# layout` lines of `tests/Nino.RuntimeTests`, tabulated with
 `tests/Nino.RuntimeTests/layouts.py`): .NET 10.0.13/14 on Linux x64, Linux Arm64, Windows x86 and Linux Arm32 (qemu), .NET
-Framework 4.8.9363 64-bit and 32-bit, Mono 6.14.1 on Linux x64 and Arm64. `=` is the same size and field offsets as
+Framework 4.8.9363 64-bit and 32-bit, Mono 6.14.1 on Linux x64 and Arm64. The .NET Framework columns are history:
+Nino no longer runs there since 4.0.0-rc.11 (no netstandard2.0 build), and CI no longer measures it. `=` is the same size and field offsets as
 CoreCLR x64; a bold cell differs (offsets only, in field order); `n/a` is a type the runtime does not have (the
 net472 build). Field names differ between runtimes (`_dateData` and `dateData`); offsets are what count. Generic
 instantiations mix field sizes on purpose: `(int,long)`, `(byte,long,int)`, nested tuples, tuples holding `DateTime`,

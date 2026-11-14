@@ -6,7 +6,7 @@ Nino is a binary serializer. A C# source generator writes a formatter for each `
 runtime (`NinoSerializer`, `NinoDeserializer`, `Reader`/`Writer`, the formatters for built-in and BCL types). The
 same bytes are read and written by runtimes in Go (`runtimes/go`), Rust (`runtimes/rust`) and TypeScript
 (`runtimes/typescript`), plus the code `nino-gen` (`src/Nino.Codegen`) writes for them. It runs on .NET
-(netstandard2.0 to net10.0), Mono, Unity (Mono and IL2CPP), .NET Framework and NativeAOT.
+(netstandard2.1 to net10.0), Mono, Unity (Mono and IL2CPP) and NativeAOT.
 
 **The bytes passed to any deserializer are untrusted**: network messages, save files, request bodies
 (`Nino.AspNetCore`'s input formatter reads HTTP request bodies). Everything that reads them is in scope:
@@ -73,7 +73,7 @@ runtime's documented error (Go `error`, Rust `Err`, TypeScript a thrown `NinoErr
   cases are ones .NET's default mode may accept.
 - Platforms in the image: CoreCLR (`DOTNET_EnableHWIntrinsic=0`, `DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`
   select the vector paths), Mono 6.12 (`mono tests/Nino.RuntimeTests/bin/Debug/net472/Nino.RuntimeTests.exe`, the
-  netstandard2.0 build Unity uses), the netstandard builds (`-p:NinoCoreTfm=netstandard2.0`).
+  netstandard2.1 build Unity uses), the netstandard2.1 build (`-p:NinoCoreTfm=netstandard2.1`).
 - Go: `cd runtimes/go && go test ./...` (fuzz targets such as `FuzzReader`, `FuzzDecode`, `FuzzTagged`, `FuzzTaggedDecode`, `FuzzUtf8`).
   Rust: `cd runtimes/rust && cargo test --workspace --all-features`, `cd fuzz && cargo +nightly fuzz run check` (also `conformance`, `generated`).
   TypeScript: `cd runtimes/typescript && npm run test:node`.

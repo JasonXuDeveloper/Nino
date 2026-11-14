@@ -29,8 +29,9 @@ Read a reference when the task reaches it:
   write v4 data. Optional, also `--prerelease`: `Nino.Immutable`, `Nino.AspNetCore`, `Nino.Codegen`, the `nino-gen`
   tool (`Nino.Codegen.Tool`).
 - Unity 2022.3+: `openupm add com.jasonxudeveloper.nino`.
-- Requirements: Roslyn 4.3+ and `LangVersion` 9+ in the declaring project (old .NET Framework projects default to
-  7.3). Every target framework, runtime and CPU writes identical bytes.
+- Requirements: .NET 8+, Unity or Mono (Nino.Core targets netstandard2.1, net8.0 and net10.0; no .NET Framework),
+  Roslyn 4.3+ and `LangVersion` 9+ in the declaring project. Every target framework, runtime and CPU writes
+  identical bytes.
 - Nothing to register or initialize: generated registries load on first use.
 
 ## Decide in this order
@@ -64,7 +65,7 @@ Read a reference when the task reaches it:
   `Span<T>`: add `[NinoIgnore]`).
 - `[NinoIgnore]` drops a member. `[NinoType(false)]` writes only `[NinoMember(index)]` members, by index ascending
   (`[property: NinoMember(n)]` on record parameters). Mixing them up: NINO010 to NINO013.
-- Non-public members need `includeNonPublicMembers: true` (else NINO009). Before .NET 8 (Unity, .NET Framework,
+- Non-public members need `includeNonPublicMembers: true` (else NINO009). Before .NET 8 (Unity,
   `netstandard`), and for generic types before .NET 9, the type and every containing type must be `partial`
   (NINO002): write `partial` anyway when the code may build for Unity.
 - Subtypes inherit `[NinoType]` and its options from the nearest `[NinoType]` base or interface. A subtype's own
@@ -175,7 +176,7 @@ Order copy = NinoDeserializer.Deserialize<Order>(bytes);     // from any ReadOnl
 NinoDeserializer.Deserialize(bytes, ref copy);               // reuse: fills copy in place (null: creates it)
 NinoSerializer.Serialize(order, stream);                     // the same bytes to a Stream, no framing
 Order read = NinoDeserializer.Deserialize<Order>(stream);    // reads the stream TO ITS END (also ref copy)
-await NinoSerializer.SerializeAsync(order, stream, ct);      // ValueTask; not in the netstandard2.0 build
+await NinoSerializer.SerializeAsync(order, stream, ct);      // ValueTask
 Order next = await NinoDeserializer.DeserializeAsync<Order>(stream, ct);
 Order piped = NinoDeserializer.Deserialize<Order>(sequence); // a pipe's ReadOnlySequence<byte> (also ref copy)
 ```

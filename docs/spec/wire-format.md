@@ -1208,7 +1208,7 @@ every culture it creates for the life of the process, so names from the data cou
 **.NET:** done in the net8.0 and net10.0 builds: `""` is the invariant culture, a name with a one-character subtag
 (`-u-`, `-t-`, `-x-`, `i-`) is rejected, and any other name must be a culture the runtime ships
 (`GetCultureInfo(name, predefinedOnly: true)`); in invariant globalization mode only `""` reads back. The
-netstandard builds (.NET Framework, Mono, Unity) read the names their own culture tables know.
+netstandard2.1 build (Mono, Unity) reads the names their own culture tables know.
 
 ### 9.11 Unused bits
 

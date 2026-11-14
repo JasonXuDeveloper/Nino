@@ -15,7 +15,7 @@ This document describes the v4 rewrite of Nino: its goals and target frameworks 
    types and composes formatter type names for members.
 4. **Thread safety**: every public API is safe to call concurrently. Mutable shared state is published
    copy-on-write; hot paths never write shared memory.
-5. **Identical output on every target**: `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0`
+5. **Identical output on every target**: `netstandard2.1`, `net8.0` and `net10.0`
    produce byte-identical payloads. Each target uses its best available primitives.
 6. **Reuse deserialization that plays well with object pools**: existing instances are reused when possible,
    and any instance that is discarded is passed to `NinoRecycler`.
@@ -24,8 +24,8 @@ This document describes the v4 rewrite of Nino: its goals and target frameworks 
 
 | Project | Targets |
 | --- | --- |
-| `Nino.Core` (NuGet package `Nino.Serialization`) | `netstandard2.0`, `netstandard2.1`, `net8.0`, `net10.0` |
-| `Nino.Immutable` | `netstandard2.0`, `net8.0` |
+| `Nino.Core` (NuGet package `Nino.Serialization`) | `netstandard2.1`, `net8.0`, `net10.0` |
+| `Nino.Immutable` | `netstandard2.1`, `net8.0` |
 | `Nino.UnityTypes` (Unity package only) | `netstandard2.1` |
 | `Nino.AspNetCore` | `net8.0`, `net10.0` |
 | `Nino.Codegen` (`nino-gen`, run by the build) | `net8.0`, rolled forward to the SDK's runtime |
@@ -39,7 +39,7 @@ compiler can run. Roslyn 4.3 is the oldest compiler Unity supports, so the 4.3 b
 uses, sticks to 4.3 APIs. The 4.8 and 4.12 builds add only call interceptors (see
 [Top-level calls and interceptors](v4-design/generator.md#top-level-calls-and-interceptors)); everything else is shared.
 
-The `Nino` package references `Nino.Serialization` and `Nino.Generator`; `Nino.Immutable` (`netstandard2.0`, `net8.0`)
+The `Nino` package references `Nino.Serialization` and `Nino.Generator`; `Nino.Immutable` (`netstandard2.1`, `net8.0`)
 adds formatters for the `System.Collections.Immutable` types (arrays, lists, sets, sorted sets, queues,
 stacks, dictionaries and sorted dictionaries).
 
@@ -59,8 +59,10 @@ file-scoped namespaces. Zero-cost composition uses the struct-constrained generi
 (`where TFormatter : struct, INinoFormatter<T>`), which every runtime (CoreCLR, Mono, IL2CPP, HybridCLR)
 specializes per value-type argument.
 
-Platform-specific code lives behind `#if` in `Nino.Core` only. The fallback paths (`netstandard2.0`) use
-`System.Memory` and `System.Runtime.CompilerServices.Unsafe` and are written to produce the same bytes.
+Platform-specific code lives behind `#if` in `Nino.Core` only. The fallback paths (`netstandard2.1`, for Unity and
+Mono) use `System.Runtime.CompilerServices.Unsafe` and are written to produce the same bytes. .NET Framework, which
+implements only netstandard2.0, is not a target (dropped in 4.0.0-rc.11); the Roslyn components stay netstandard2.0,
+as Roslyn hosts require.
 The test-suite runs against each `Nino.Core` build and checks golden payloads.
 
 ## Contents

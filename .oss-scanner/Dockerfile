@@ -4,7 +4,7 @@
 #
 #   .NET      SDK 10 and the 8.0 runtimes (Nino.Core's net8.0 / net10.0 / netstandard builds, the tests, the fuzzer)
 #   Mono      6.12 from mono-project.com, the newest packaged Mono and the line Unity's Mono fork is based on,
-#             runs the net472 builds (Nino.Core's netstandard2.0 build, as Unity loads it). .NET ships no
+#             runs the net472 build (Nino.Core's netstandard2.1 build, as Unity loads it). .NET ships no
 #             Linux runtime pack for its own Mono after .NET 9 previews, so there is no newer Mono to add.
 #   Go        latest stable (module says Go 1.22)
 #   Rust      stable and nightly (cargo-fuzz)
@@ -63,10 +63,10 @@ RUN arch="$(dpkg --print-architecture | sed 's/amd64/x64/')" \
 COPY . /src
 WORKDIR /src
 
-# .NET: restore and build everything (Debug keeps full symbols), plus the netstandard2.0 build of Nino.Core that
-# Unity, Mono and .NET Framework load.
+# .NET: restore and build everything (Debug keeps full symbols), plus the netstandard2.1 build of Nino.Core that
+# Unity and Mono load.
 RUN dotnet build Nino.slnx -c Debug \
-    && dotnet build tests/Nino.UnitTests -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0 \
+    && dotnet build tests/Nino.UnitTests -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1 \
     && dotnet build tests/Nino.RuntimeTests -c Debug -f net472
 
 # Go, Rust and TypeScript: fetch and compile everything the tests and fuzzers need.
