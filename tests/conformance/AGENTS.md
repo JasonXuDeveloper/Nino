@@ -49,6 +49,13 @@ Nino.Conformance/            the net10.0 program that writes (--out) and checks 
 - `--out` is deterministic: an unchanged Nino rewrites identical files. Cases are added freely; a case is renamed or
   removed only with a reason in the commit. `corpusVersion` changes only with an incompatible change of the file
   layout or the JSON schema.
+- A new sample type is read by every runtime in the same commit, or their corpus tests fail on "no codec": Go's
+  hand-written sample (`runtimes/go/internal/sample`: `types.go` with its tags, `ids.go`, `layouts.go`, a codec in
+  `codec_*.go` with its loops in `loops.go`, `registry_test.go`, `tagged_test.go`, a seed in `fuzz_test.go`) or its
+  `unsupported` list in `conformance_test.go`; Rust's `tests/conformance/gen.py` (then `types.rs` again, and
+  `cargo fmt`) or its `NOT_EMULATED`, and a derived twin in `tests/derive.rs`; the generated files of all three
+  (`NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`). Malicious cases forged from a valid case's bytes
+  (`Patched`, with that case as the control) need no root type of their own, which saves those places a type each.
 - A new malicious category that every runtime must reject goes into `docs/spec/wire-format.md` §9 too.
 - A check .NET makes only with `NinoSettings.Untrusted` (raw blocks, value ranges, trailing bytes) gets its cases
   through `AddUntrusted` in `MaliciousCases.cs`: `untrusted: true`, and `--out` fails unless the untrusted mode rejects

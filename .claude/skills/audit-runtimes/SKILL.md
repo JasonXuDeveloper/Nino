@@ -23,6 +23,20 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   14-byte stride where .NET writes 16 in all three languages, and Rust's `RawNullables<i128>` 24 where .NET writes
   32. Pin such a value against bytes .NET writes (`Shapes.Strides`: ModelTests, and each runtime's shapes test), not
   a round trip, which agrees with itself.
+- Teach nino-gen every .NET type that is given an existing encoding, and prove it with a twin: nino-gen resolves an
+  encoding against the member's .NET type by name (`CodegenModel.Value` for `nullable`, `CodegenModel.Raw` for a
+  nullable in raw memory, `ArgumentEncoding` and `NullableStride` for type arguments, which no layout describes), and
+  so does Rust's `tests/conformance/gen.py`, so the same encoding under a new type name has no form there. Why:
+  `NinoNullable<T>` is published as `T?` (`nullable(raw(n))`, the stride of `T?[]`), and nino-gen left every type
+  holding one out of all three languages (NINOGEN002) while `nino-gen inspect` failed with "has no decodable form"
+  (#285; `CodegenModel.IsNullable`). The twin is the same sample declared both ways (the corpus's `NinoNullables` and
+  `NullableTwins`, Shapes.cs' `NinoNullableArgs` and `NullableArgs`), whose IR
+  (`ModelTests.NinoNullableIsTheValueOfNullable`), generated members and codecs
+  (`TargetTests.NinoNullableIsGeneratedAsNullable`), inspect tree and bytes are compared, with a corpus case written
+  from one and read as the other (`ninonullables-from-nullable`). Inside a plain struct copied as raw memory the two
+  are not the same bytes (the presence is a whole `T`, the value at `T`'s size): TypeScript and Go read the offsets
+  the layout gives, Rust's `Option<T>` in raw memory only the layout of `T?`, so Rust leaves a `T` wider than its
+  alignment out there (`TargetTests.RustLeavesOutANinoNullableWiderThanItsAlignmentInRawMemory`).
 - Resolve a raw field's type from the layout when the name it publishes is canonical rather than declared:
   `DateTimeOffset` publishes `offsetMinutes` (an int at 0) and `dateTime` (at 8), which no runtime declares (.NET 10
   `_offsetMinutes`, .NET 8 a short), so reflection found nothing and nino-gen left every type holding one out
