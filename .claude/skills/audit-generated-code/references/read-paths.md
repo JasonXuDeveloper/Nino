@@ -182,8 +182,15 @@ candidates; a published claim still needs runner numbers (`benchmark`).
   628 B. In the x64 cross-JIT MinOpts listing the body grew from 233 to 256 B and the caller stayed at 163 B.
   Unaligned 64-character reuse improved in four paired runs and the A/A/B replay; adjacent lengths varied. Wire bytes,
   allocations, 577-model reuse and collection matched. Both Roslyn target suites passed.
-- **Merge the single-use `__ReadTop` body into the twin's no-inline `Read` method, and return directly after reading
-  an absent presence flag**, before any body can acquire reference state (`8ab1698e`). Moving the body without the
+- **Return a null value (presence byte 0) in the twin's inlined `Read`, and read the rest in a static no-inline
+  `__ReadTop`**; write a null value in the inlined `Write` (`NinoDirect.WriteNull`). Why: the null read and write
+  created a reader or writer out of line, which v3 3.3.13 did not (rc.10 `NinoDeserializeNullableObject` 2.68 ns
+  against v3's 0.95, `...Serialize...` 3.50 against 2.55); inlined, 3.05 → 0.80 and 3.67 → 1.43 ns (Xeon Emerald
+  Rapids, eight alternated in-process rounds), and a static `__ReadTop` stores no dummy byte for the twin's `this`.
+  The earlier form below merged `__ReadTop` into an instance no-inline `Read`.
+- **Return directly after reading an absent presence flag in the twin's top-level read**, before any body can acquire
+  reference state (`8ab1698e`, which also merged `__ReadTop` into the twin's no-inline `Read`, since split again as
+  above). Moving the body without the
   early return repeatedly slowed the null case. The final null-only, mixed and first-call timings varied with
   controls. The 68 affected files saved 4,080 source bytes across all four replay states. `SimpleClass` used 39 IL
   bytes in place of 37 plus a 7-byte forwarder. Arm64 Tier 1 moved the caller from 108 to 120 bytes because it
