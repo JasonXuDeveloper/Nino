@@ -19,7 +19,7 @@ README.zh.md (the landing page on GitHub and NuGet), `docs/` (design, spec, code
   and count the friction: (1) a newcomer who wants a first type serialized in five minutes (home -> Quick Start ->
   Serialize and Deserialize -> Defining Types); (2) a user hunting one fact ("how do I version a type", "is X
   supported on IL2CPP", "what does NINO007 mean"); (3) an evaluator comparing Nino with MemoryPack (vs-memorypack ->
-  benchmarks -> limitations). Count clicks and scrolls to the answer, dead ends, a word used before it is explained,
+  benchmarks -> choosing a serializer, which holds the limitations). Count clicks and scrolls to the answer, dead ends, a word used before it is explained,
   walls of text, anything read twice; fix them, and put the before/after walk in the report. A change that makes a
   page richer but not easier to read is not made. Why: the owner's rule (round 107: "the main goal is the reader's
   reading experience"). Evidence: round 107's walk found Quick Start seventh in the sidebar behind six "Overview"
@@ -171,6 +171,15 @@ is a finding, and so is a page that teaches a feature before the one it builds o
 
 ## 3. Across pages and repositories
 
+- **Compare Nino with every library at once, and lead every page with the way we recommend.** The home page's
+  headline and panels set Nino against all the libraries the release measured, each row one workload with the range
+  of multiples, never MemoryPack in a panel of its own (owner, rc.10: "为啥单独把memorypack放出来呢，对比全部其他库然后
+  给个快多少的范围"); one case's rows time the same case for every library (the panel once labelled MediaContent's
+  times SimpleClass and showed Google.Protobuf under a protobuf-net title, nino.docs 47c9e35). A page with several
+  routes opens with which to take, the recommended one first: the browser page had walked through a .NET WebAssembly
+  module and named generated TypeScript only at its end, and read as recommending wasm (owner: "读者读起来会很懵";
+  nino.docs 0e3cdd7). Cross-library facts live once on `compare` (Choosing a Serializer), and the vs pages share one
+  anatomy (nino.docs `WRITING.md`; 7b5fb1a).
 - **Run the information-architecture checklist in every docs pass** ([references/ia.md](references/ia.md)): one home
   per fact, the sidebar as the reader's path in sections of about 3 to 7, a lead and next steps on every page,
   redirects for moved pages and anchors, no orphans (nino.docs `WRITING.md`, "Information architecture"). Read it in
