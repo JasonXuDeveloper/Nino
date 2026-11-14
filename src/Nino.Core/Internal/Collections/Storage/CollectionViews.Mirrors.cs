@@ -10,6 +10,12 @@ namespace Nino.Core.Internal
     // The candidate layouts: mirror classes per runtime, and the fields by name on net10.0.
     internal static partial class CollectionViews
     {
+        // Collection<T>: the list it wraps comes first in every runtime (.NET Framework and Mono add a sync root).
+        private sealed class CollectionCore
+        {
+            public object items;
+        }
+
         private sealed class ListCore
         {
             public object _items;

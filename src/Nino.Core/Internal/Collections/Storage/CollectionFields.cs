@@ -114,6 +114,18 @@ namespace Nino.Core.Internal
                 ? Unsafe.As<MapEntry<TKey, TValue>[]>(ObjectFields.At<object>(dictionary, CollectionViews.DictionaryEntries))
                 : null;
 
+        /// <summary>
+        /// The <see cref="List{T}"/> that <paramref name="collection"/> wraps (what its constructors without a list
+        /// make, and <c>ObservableCollection</c>'s), or null when it wraps another <see cref="IList{T}"/>. Call where
+        /// <see cref="CollectionViews.Collection"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static List<T> List<T>(System.Collections.ObjectModel.Collection<T> collection)
+        {
+            object items = ObjectFields.At<object>(collection, CollectionViews.CollectionItems);
+            return items != null && items.GetType() == typeof(List<T>) ? Unsafe.As<List<T>>(items) : null;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T[] Items<T>(List<T> list) => ref ObjectFields.At<T[]>(list, CollectionViews.ListItems);
 

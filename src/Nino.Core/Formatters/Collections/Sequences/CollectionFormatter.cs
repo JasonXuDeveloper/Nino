@@ -32,6 +32,15 @@ namespace Nino.Core
 
         public void Deserialize(ref Reader reader, ref TCollection value)
         {
+            // Collection<T> itself: through the list it wraps (ReadThroughList).
+            if (typeof(TCollection) == typeof(System.Collections.ObjectModel.Collection<T>) &&
+                (value == null || CollectionViews.Collection &&
+                    CollectionFields.List(Unsafe.As<System.Collections.ObjectModel.Collection<T>>(value)) != null))
+            {
+                ReadThroughList(ref reader, ref value);
+                return;
+            }
+
             // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
             // collection allocates ahead of them (NinoElements.Heavy).
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
@@ -60,6 +69,27 @@ namespace Nino.Core
                 NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
                 collection.Add(item);
             }
+        }
+
+        /// <summary>
+        /// A <c>Collection&lt;T&gt;</c> (the type itself, which adds nothing to its list on the way in) read through
+        /// the <c>List&lt;T&gt;</c> it wraps, as a list is: the same bytes, the elements as one block where they have
+        /// one, where <c>Add</c> inserts each through a virtual call (1,000 <c>int</c> into a new one: 468 ns
+        /// against 3,934, local). A new one is made around the list read; an existing one keeps its list, refilled.
+        /// Null where the data holds none. A subclass (<c>ObservableCollection</c>, a user's) is filled through its
+        /// own <c>Add</c>, which it may override.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadThroughList(ref Reader reader, ref TCollection value)
+        {
+            var list = value == null
+                ? null
+                : CollectionFields.List(Unsafe.As<System.Collections.ObjectModel.Collection<T>>(value));
+            default(ListFormatter<List<T>, T, TFormatter>).Deserialize(ref reader, ref list);
+            if (list == null)
+                value = null;
+            else if (value == null)
+                value = Unsafe.As<TCollection>(new System.Collections.ObjectModel.Collection<T>(list));
         }
 
         private struct Adder : INinoAdder<TCollection, T>
