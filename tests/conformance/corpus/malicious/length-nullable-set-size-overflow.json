@@ -1,0 +1,15 @@
+{
+  "case": "length-nullable-set-size-overflow",
+  "type": "Conformance.Targets.MaybeIntSet",
+  "category": "length",
+  "expected": "error",
+  "exercises": "nullable-set: a count of 0x20000001, whose byte size (8 a element) is 2^32 + 8: 8 bytes in 32-bit arithmetic, which are present.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Targets.MaybeIntSet": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8BFF9D91; deferrable=true; members=Values:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}
