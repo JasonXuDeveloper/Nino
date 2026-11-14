@@ -23,6 +23,8 @@ const notGenerated = new Set([
   "Conformance.Collections", "Conformance.TreeHolder", "Conformance.EmptyStruct", "Conformance.Empties",
   "Conformance.Targets.Grid", "Conformance.Targets.BigSlot", "Conformance.Targets.VersionSlot",
   "Conformance.BclRawOffset",
+  // int?[,]: the slots of raw nullables in a set and a nested set are read in test/shapes.test.ts (NullableSlots).
+  "Conformance.NullableSequences", "Conformance.Targets.MaybeIntGrid",
 ]);
 
 /** The optional features of the corpus the generated code supports. */

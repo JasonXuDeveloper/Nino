@@ -205,9 +205,9 @@ namespace Nino.Codegen.Model
         /// (<c>CachedFormatter&lt;T&gt;</c>), which a generic type's formatter calls for its type parameters. It
         /// differs from a member's encoding where the generator copies a member as raw memory: a closed generic
         /// struct that is not a [NinoType], a <c>ValueTuple</c>, a <c>KeyValuePair</c> or a <c>T?</c> is written
-        /// item by item as a type argument, and as raw memory as a member (<c>NinoReflection.IsRawShape</c>). An
-        /// array or <c>List</c> of <c>T?</c> with a raw <c>T</c> is the exception: the runtime binds
-        /// <c>NullableArrayFormatter</c> / <c>NullableListFormatter</c>, a fixed stride (<see cref="NullableStride"/>).
+        /// item by item as a type argument, and as raw memory as a member (<c>NinoReflection.IsRawShape</c>). A
+        /// <c>T?</c> with a raw <c>T</c> as the element of a sequence is the exception: a slot of a fixed size
+        /// (<see cref="ElementEncoding"/>), as in a member's layout.
         /// A <c>NinoNullable&lt;T&gt;</c> is raw memory everywhere (<see cref="RawArgument"/>).
         /// Null for a type whose formatter is not known here (a <c>Tuple</c>, a type of another library): the
         /// generic type is then left out where it has that argument.
@@ -229,8 +229,7 @@ namespace Nino.Codegen.Model
             }
 
             if (type.IsArray)
-                return type.GetArrayRank() == 1 &&
-                       (NullableStride(type.GetElementType()!) ?? ArgumentEncoding(type.GetElementType()!)) is { } item
+                return type.GetArrayRank() == 1 && ElementEncoding(type.GetElementType()!) is { } item
                     ? $"seq({item})"
                     : null;
             if (!type.IsGenericType)
@@ -245,9 +244,8 @@ namespace Nino.Codegen.Model
             switch (definition)
             {
                 case "System.Collections.Generic.List`1":
-                    return $"seq({NullableStride(args[0]) ?? parts[0]})";
                 case "System.Collections.Generic.HashSet`1":
-                    return $"seq({parts[0]})";
+                    return $"seq({NullableSlot(args[0]) ?? parts[0]})";
                 case "System.Collections.Generic.Dictionary`2":
                     return $"map({parts[0]},{parts[1]})";
                 case Nullable:
@@ -272,11 +270,19 @@ namespace Nino.Codegen.Model
         private const string NinoNullable = "Nino.Core.NinoNullable`1";
 
         /// <summary>
-        /// The element of a <c>T?[]</c> or <c>List&lt;T?&gt;</c> with a raw <c>T</c>, as <c>NullableArrayFormatter</c>
-        /// writes it (wire-format spec §6.2): the presence byte, padding to <c>T</c>'s canonical alignment <c>A</c>,
-        /// then <c>T</c>, a stride of <c>A + size(T)</c>; null when <paramref name="type"/> is not such a <c>T?</c>.
+        /// The encoding of a type argument's value as the element of a sequence (an array, a list, a set): a raw
+        /// <c>T?</c> is a slot there (<see cref="NullableSlot"/>), every other type what it is as a single value.
         /// </summary>
-        private string? NullableStride(Type type)
+        private string? ElementEncoding(Type type) => NullableSlot(type) ?? ArgumentEncoding(type);
+
+        /// <summary>
+        /// A <c>T?</c> with a raw <c>T</c> as the element of any sequence, as <c>UnmanagedNullableFormatter</c>
+        /// writes a run of them (wire-format spec §6.2): the presence byte, padding to <c>T</c>'s canonical alignment
+        /// <c>A</c>, then <c>T</c>, a slot of <c>A + size(T)</c>; null when <paramref name="type"/> is not such a
+        /// <c>T?</c>. A single value (a dictionary's key or value, a pair's or a tuple's item) is
+        /// <c>nullable(...)</c> instead.
+        /// </summary>
+        private string? NullableSlot(Type type)
         {
             if (Generic(type) != Nullable)
                 return null;

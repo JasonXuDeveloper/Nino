@@ -81,15 +81,15 @@ namespace Nino.Codegen.Targets
                 }
                 case ValueKind.Sequence:
                 {
-                    // T?[] of a raw T, the fixed stride. A NinoNullable<T> is an element like any raw struct.
-                    if (value.Element!.Kind == ValueKind.RawNullable && !value.Element.Clean)
-                        return new RustShape("seq") { Element = Raw(value.Element).Inner, Mode = "rawnullables" };
+                    bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
+                               CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
+                    // A list of a raw T?: the slots as a Vec of plain Options (a set's are RawNullable elements).
+                    if (!set && IsNullableSlot(value.Element!))
+                        return new RustShape("seq") { Element = Raw(value.Element!).Inner, Mode = "rawnullables" };
 
                     // A set's elements may be null (.NET writes a HashSet<string> holding null), so a string element
                     // is an Option as in a list; only a map's keys are never null.
-                    var element = Shape(value.Element, false);
-                    bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
-                               CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
+                    var element = Element(value.Element!);
                     if (set && !element.Hashable)
                         throw new UnsupportedException(
                             $"{value.ClrName}: a set of values Rust cannot hash (a set needs Eq and Hash)");
@@ -111,7 +111,7 @@ namespace Nino.Codegen.Targets
                 }
                 case ValueKind.Grid:
                 {
-                    var element = Shape(value.Element!, false);
+                    var element = Element(value.Element!);
                     return new RustShape("grid") { Element = element, Rank = value.Rank, MayDefer = element.MayDefer };
                 }
                 case ValueKind.BigInteger:
@@ -125,6 +125,25 @@ namespace Nino.Codegen.Targets
                 default:
                     throw new UnsupportedException($"{value.ClrName} ({value.Encoding}) has no Rust form");
             }
+        }
+
+        /// <summary>
+        /// Whether a sequence's element is a <c>T?</c> of a raw <c>T</c>, a slot of a fixed size (wire-format spec
+        /// §6.2). A <c>NinoNullable&lt;T&gt;</c> is an element like any raw struct.
+        /// </summary>
+        private static bool IsNullableSlot(ValueModel element) => element.Kind == ValueKind.RawNullable && !element.Clean;
+
+        /// <summary>
+        /// The shape of the element of a sequence or a grid: a raw <c>T?</c> is <c>nino::RawNullable&lt;T&gt;</c> there
+        /// (the slot, where an <c>Option&lt;T&gt;</c> is the single value: a presence byte, then the value).
+        /// </summary>
+        private RustShape Element(ValueModel element)
+        {
+            if (!IsNullableSlot(element))
+                return Shape(element, false);
+            var raw = Raw(element);
+            return new RustShape("rawnullableelement")
+                { Inner = raw.Inner, Size = raw.Size, Align = raw.Align, Hashable = raw.Hashable };
         }
 
         /// <summary>The shape of a value of <paramref name="type"/>'s, whose open slots are its slot parameters.</summary>
