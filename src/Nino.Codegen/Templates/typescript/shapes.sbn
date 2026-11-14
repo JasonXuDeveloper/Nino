@@ -260,7 +260,8 @@ func read_into(s, cur)
     end
     # A null one is read new, through the read helper: one that only reads (the read path measured slower with the
     # into branches in it).
-    ret "(" + cur + " == null ? " + read(s) + " : " + helper(s, "readinto") + "(r" + s.codecs_argument + ", " + cur + "))"
+    # TypeScript narrows a member (`v.items`) after the null check, never an element (`values[i]`): that one is asserted.
+    ret "(" + cur + " == null ? " + read(s) + " : " + helper(s, "readinto") + "(r" + s.codecs_argument + ", " + cur + ((cur | string.ends_with "]") ? "!" : "") + "))"
   when "nullable"
     $inner = read_into(s.inner, cur)
     if $inner == read(s.inner)
