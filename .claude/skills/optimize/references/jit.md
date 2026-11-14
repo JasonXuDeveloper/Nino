@@ -164,6 +164,22 @@ where that is so, and its x64 sizes are listings, not throughput.
   two `vmovups`; written `Is64Bit || IsX86 || Unsafe.SizeOf<T>() <= 4 || UnalignedWide32` at each site, the x64
   listing was identical to main. A `|` of a constant and a field does not fold either: R2R x86 kept the field load
   and its class-init helper call.
+- Choose a formatter's path on .NET 8+ by `default(TFormatter) is IMarker` (a struct's box tested against an
+  interface, folded while the call is imported), not by a `static readonly` field read through an inlined method
+  (`RawFormatter.Is<T, TFormatter>()`), when the path not taken touches a struct's fields: the dead path is imported,
+  and its field reads and writes decide struct promotion before the branch folds. Watch `Nullable<T>` most: a `T?`
+  local promoted to its fields is joined again through the stack to be returned or copied, a store-forwarding stall
+  (a load spanning a byte store and a dword store). Evidence: `NullableFormatter.Deserialize`'s non-raw path
+  (`GetValueOrDefault`, `value = item`) kept `NullableTest.NinoDeserializeNullableStruct` (12-byte `SimpleStruct`,
+  Pack 4) at 9.2 ns on a Xeon (Emerald Rapids) with the read itself in two registers; with the test folded at import,
+  the case is two loads, a shift and `rax`/`rdx` (1.0 ns; MemoryPack 1.3). Any other field access of the `T?`
+  promotes it too: a null read passes the value held to an out-of-line `Reader.Recycle` (which reads `HasValue`) only
+  when `NinoRecycler<T?>.Handler` is set, copying it only there (copied before the test, every null `Guid?` field
+  was loaded and stored to the stack), and the end-of-data path throws instead of calling the `Nullable` constructor.
+  Keep `Reader.ReadNullableRaw` small: inlined into every nullable member, its first form (a `MayRecycle` test of
+  three fields, a second null path) used up `ProfileV2Formatter.ReadBody`'s inlining budget, which then called
+  `NinoUnsafe.Read` and the word constructor. Find such a cause by removing paths one at a time and dumping the case (a scratch program
+  of the same shape stayed clean, so the cause was in Nino's code, not the JIT's handling of `T?` itself).
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlockPlan<T, TFormatter>.Size`): one load, nothing to inline.
 - Decide "copy memory" against "convert" by a `static readonly` computed before Tier1 (`NinoLayout<T>.IsCanonical`,

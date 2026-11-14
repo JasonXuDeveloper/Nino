@@ -183,6 +183,13 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   same uops and reads a flag byte above 1 as absent where the copy reads it as present; masked stores
   (`vmovdqu8 {k}`) cannot skip absent lanes, the destination holds garbage that must become zeros. The JIT does
   not fold `Equals(x & m, 0)` into a two-operand `vptestmq x, m`. Arm64 timing: runners only (listings under qemu).
+- Do not scan raw `T?` runs for dirty absent values and padding to take `NinoUnsafe.Copy` when clean (MemoryPack's
+  `SafeNullable` is a plain memcpy because its memory is always clean): a read-only AVX-512 pass of the same
+  test-and-masked-AND plus an XOR and OR into an accumulator, then the copy, took longer than the one-pass copy on a
+  Xeon (Emerald Rapids), clean data: `NinoSerializeNullableLongs` 336 against 283 ns, `...Ints` 154 against 139 (four
+  alternated in-process rounds). The pass costs as much as the copy's own ALU work. What bounds the one pass there is
+  three 512-bit ALU uops a vector on ports 0 and 5 (`vpandd`, `vptestmq`, `vpandq {k}{z}`) against the copy's one
+  store a cycle; .NET 10 exposes no intrinsic for the two-operand `vptestmq x, m` that would make it two.
 - Keep the bulk clear for converted nullable writes. Per-slot clearing wrote each slot once but slowed 64 mixed and
   16,384 all-null booleans in four paired runs. Wire bytes matched and Arm64 FullOpts grew from 1,256 to 1,404 bytes.
 - On Arm64, bypass that converter for nullable bools with the probed two-byte flag/value layout. Expand each 0/1
