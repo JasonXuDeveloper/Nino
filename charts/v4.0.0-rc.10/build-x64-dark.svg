@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 590" width="940" height="590" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="940" height="590" rx="8" fill="#0d1117"/>
+<g transform="translate(20 20)">
+<style>.t{font-size:18px;font-weight:700;fill:#f0f6fc}.s{font-size:12px;fill:#9198a1}.g{font-size:13px;font-weight:600;fill:#f0f6fc}.l{font-size:12px;fill:#9198a1;text-anchor:end}.v{font-size:12px;fill:#f0f6fc}.n{font-weight:700}.a{fill:#5b8def}.b{fill:#6e7681}.c{fill:#3d444d}</style>
+<text x="0" y="22" class="t">Build: v3 3.3.13 vs v4 source generator (shorter is better)</text>
+<text x="0" y="44" class="s">Sizes in millions of chars (source) and bytes (IL), times the median of the runs; N× = N times v4&#x27;s.</text>
+<text x="0" y="78" class="g">Generated source · 330 types</text>
+<text x="90" y="100" class="l n">Nino v4</text>
+<rect x="100" y="88" width="13.9" height="15" rx="3" class="a"/>
+<text x="121.9" y="100" class="v n">1.53 MB (28,632 lines)</text>
+<text x="90" y="120" class="l">Nino v3</text>
+<rect x="100" y="108" width="170.0" height="15" rx="3" class="b"/>
+<text x="278.0" y="120" class="v">18.7 MB (363,325 lines) · 12×</text>
+<text x="450" y="78" class="g">Generated source · 1,100 types</text>
+<text x="540" y="100" class="l n">Nino v4</text>
+<rect x="550" y="88" width="14.0" height="15" rx="3" class="a"/>
+<text x="572.0" y="100" class="v n">5.09 MB (95,552 lines)</text>
+<text x="540" y="120" class="l">Nino v3</text>
+<rect x="550" y="108" width="170.0" height="15" rx="3" class="b"/>
+<text x="728.0" y="120" class="v">62.0 MB (1,204,235 lines) · 12×</text>
+<text x="0" y="158" class="g">Compiling the generated code (emit) · 330 types</text>
+<text x="90" y="180" class="l n">Nino v4</text>
+<rect x="100" y="168" width="3.2" height="15" rx="3" class="a"/>
+<text x="111.2" y="180" class="v n">0.30 s</text>
+<text x="90" y="200" class="l">Nino v3</text>
+<rect x="100" y="188" width="170.0" height="15" rx="3" class="b"/>
+<text x="278.0" y="200" class="v">15.9 s · 53×</text>
+<text x="450" y="158" class="g">Compiling the generated code (emit) · 1,100 types</text>
+<text x="540" y="180" class="l n">Nino v4</text>
+<rect x="550" y="168" width="3.0" height="15" rx="3" class="a"/>
+<text x="561.0" y="180" class="v n">1.03 s</text>
+<text x="540" y="200" class="l">Nino v3</text>
+<rect x="550" y="188" width="170.0" height="15" rx="3" class="b"/>
+<text x="728.0" y="200" class="v">193 s · 187×</text>
+<text x="0" y="238" class="g">Running the generator · 330 types</text>
+<text x="90" y="260" class="l n">Nino v4</text>
+<rect x="100" y="248" width="17.3" height="15" rx="3" class="a"/>
+<text x="125.3" y="260" class="v n">0.05 s</text>
+<text x="90" y="280" class="l">Nino v3</text>
+<rect x="100" y="268" width="170.0" height="15" rx="3" class="b"/>
+<text x="278.0" y="280" class="v">0.49 s · 9.8×</text>
+<text x="450" y="238" class="g">Running the generator · 1,100 types</text>
+<text x="540" y="260" class="l n">Nino v4</text>
+<rect x="550" y="248" width="20.6" height="15" rx="3" class="a"/>
+<text x="578.6" y="260" class="v n">0.19 s</text>
+<text x="540" y="280" class="l">Nino v3</text>
+<rect x="550" y="268" width="170.0" height="15" rx="3" class="b"/>
+<text x="728.0" y="280" class="v">1.57 s · 8.3×</text>
+<text x="0" y="318" class="g">Re-generating after editing a member · 330 types</text>
+<text x="90" y="340" class="l n">Nino v4</text>
+<rect x="100" y="328" width="16.2" height="15" rx="3" class="a"/>
+<text x="124.2" y="340" class="v n">0.04 s</text>
+<text x="90" y="360" class="l">Nino v3</text>
+<rect x="100" y="348" width="170.0" height="15" rx="3" class="b"/>
+<text x="278.0" y="360" class="v">0.42 s · 11×</text>
+<text x="450" y="318" class="g">Re-generating after editing a member · 1,100 types</text>
+<text x="540" y="340" class="l n">Nino v4</text>
+<rect x="550" y="328" width="18.6" height="15" rx="3" class="a"/>
+<text x="576.6" y="340" class="v n">0.14 s</text>
+<text x="540" y="360" class="l">Nino v3</text>
+<rect x="550" y="348" width="170.0" height="15" rx="3" class="b"/>
+<text x="728.0" y="360" class="v">1.28 s · 9.1×</text>
+<text x="0" y="398" class="g">Re-generating after editing a comment · 330 types</text>
+<text x="90" y="420" class="l n">Nino v4</text>
+<rect x="100" y="408" width="15.1" height="15" rx="3" class="a"/>
+<text x="123.1" y="420" class="v n">0.04 s</text>
+<text x="90" y="440" class="l">Nino v3</text>
+<rect x="100" y="428" width="170.0" height="15" rx="3" class="b"/>
+<text x="278.0" y="440" class="v">0.45 s · 11×</text>
+<text x="450" y="398" class="g">Re-generating after editing a comment · 1,100 types</text>
+<text x="540" y="420" class="l n">Nino v4</text>
+<rect x="550" y="408" width="18.9" height="15" rx="3" class="a"/>
+<text x="576.9" y="420" class="v n">0.14 s</text>
+<text x="540" y="440" class="l">Nino v3</text>
+<rect x="550" y="428" width="170.0" height="15" rx="3" class="b"/>
+<text x="728.0" y="440" class="v">1.26 s · 9.0×</text>
+<text x="0" y="478" class="g">IL of the generated code · 330 types</text>
+<text x="90" y="500" class="l n">Nino v4</text>
+<rect x="100" y="488" width="61.5" height="15" rx="3" class="a"/>
+<text x="169.5" y="500" class="v n">0.80 MB</text>
+<text x="90" y="520" class="l">Nino v3</text>
+<rect x="100" y="508" width="170.0" height="15" rx="3" class="b"/>
+<text x="278.0" y="520" class="v">2.21 MB · 2.8×</text>
+<text x="450" y="478" class="g">IL of the generated code · 1,100 types</text>
+<text x="540" y="500" class="l n">Nino v4</text>
+<rect x="550" y="488" width="62.1" height="15" rx="3" class="a"/>
+<text x="620.1" y="500" class="v n">2.68 MB</text>
+<text x="540" y="520" class="l">Nino v3</text>
+<rect x="550" y="508" width="170.0" height="15" rx="3" class="b"/>
+<text x="728.0" y="520" class="v">7.34 MB · 2.7×</text>
+</g>
+</svg>
