@@ -136,6 +136,9 @@ enum NullablePriority {
    Normal = 2;
    High = 3;
 }
+message NullableStringList {
+   repeated Wrappedstring Items = 1;
+}
 message OptionalManagedStruct {
    ManagedStruct Value = 1;
 }
@@ -188,6 +191,14 @@ message PolymorphicTransform {
    float X = 1;
    float Y = 2;
    float Z = 3;
+}
+message RawNullable {
+   int32 Id = 1;
+   .google.protobuf.Int64Value Total = 2;
+   .google.protobuf.DoubleValue Score = 3;
+}
+message RawNullableList {
+   repeated RawNullable Items = 1;
 }
 message SimpleClass {
    string Name = 1;
