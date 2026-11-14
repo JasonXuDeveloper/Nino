@@ -1,5 +1,5 @@
 //! Nino's reader and writer on blocks of fixed-size elements other than numbers: `bool`, dates, decimals, GUIDs, a raw
-//! struct as nino-gen generates it, plain structs as `#[derive]` writes them, tuples, nullable values and a dictionary, 10,000 of each (1,000 entries for the
+//! struct as nino-gen generates it, plain structs as `#[derive]` writes them, tuples, nullable values (`Option<T>`, `NullableSlot<T>`, `NinoNullable<T>`) and a dictionary, 10,000 of each (1,000 entries for the
 //! dictionary). For comparing changes to the block paths back to back on one machine; not part of the published
 //! comparison (`compare.rs`).
 //!
@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::hint::black_box;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use nino::{DateOnly, DateTime, DateTimeKind, Decimal, Guid, NinoRead, NinoWrite};
+use nino::{DateOnly, DateTime, DateTimeKind, Decimal, Guid, NinoNullable, NinoRead, NinoWrite, NullableSlot};
 
 /// `[NinoType] struct Point { int X; int Y; }` (raw), as nino-gen's Rust templates generate it.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -75,7 +75,8 @@ fn benches(c: &mut Criterion) {
             .map(|i| Decimal::new(u128::from(i as u32) * 1_000_003, (i % 29) as u8, i % 2 == 0).unwrap())
             .collect::<Vec<_>>(),
     );
-    case(c, "guid", (0..N).map(|i| Guid((i as u128 * 0x9E37_79B9_7F4A_7C15).to_le_bytes())).collect::<Vec<_>>());
+    let guid = |i: i32| Guid((i as u128 * 0x9E37_79B9_7F4A_7C15).to_le_bytes());
+    case(c, "guid", (0..N).map(guid).collect::<Vec<_>>());
     case(c, "point", (0..N).map(|i| Point { x: i, y: -i }).collect::<Vec<_>>());
     case(c, "struct-i32-f32", (0..N).map(|i| Plain { x: i, y: i as f32 * 0.5 }).collect::<Vec<_>>());
     let mixed = |i: i32| PlainMixed { id: i64::from(i) * 7919, flag: i % 3 == 0, score: -i };
@@ -83,6 +84,13 @@ fn benches(c: &mut Criterion) {
     case(c, "tuple-i32-i32", (0..N).map(|i| (i, -i)).collect::<Vec<(i32, i32)>>());
     case(c, "tuple-i64-bool", (0..N).map(|i| (i64::from(i), i % 2 == 0)).collect::<Vec<(i64, bool)>>());
     case(c, "option-i32", (0..N).map(|i| (i % 4 != 0).then_some(i)).collect::<Vec<Option<i32>>>());
+    // A raw `T?` as a sequence's element and .NET's `NinoNullable<T>`, one in four absent.
+    let some = |i: i32| i % 4 != 0;
+    case(c, "slot-i32", (0..N).map(|i| NullableSlot(some(i).then_some(i))).collect::<Vec<_>>());
+    case(c, "slot-i64", (0..N).map(|i| NullableSlot(some(i).then_some(i64::from(i)))).collect::<Vec<_>>());
+    case(c, "slot-guid", (0..N).map(|i| NullableSlot(some(i).then(|| guid(i)))).collect::<Vec<_>>());
+    case(c, "ninonullable-i32", (0..N).map(|i| NinoNullable(some(i).then_some(i))).collect::<Vec<_>>());
+    case(c, "ninonullable-guid", (0..N).map(|i| NinoNullable(some(i).then(|| guid(i)))).collect::<Vec<_>>());
     case(c, "map-i32-i32", (0..1000).map(|i| (i, i * 7)).collect::<HashMap<i32, i32>>());
 }
 
