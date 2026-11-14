@@ -973,7 +973,7 @@ namespace Nino.Core
     /// Field offsets of <c>Nullable&lt;T&gt;</c> in memory on the running runtime. Old Mono stores the value first
     /// while corefx stores the flag first, so the layout is probed rather than assumed.
     /// </summary>
-    internal static class NullableLayout<T> where T : unmanaged
+    internal static class NullableLayout<T> where T : struct
     {
         public static readonly int HasValueOffset = ProbeHasValue();
 
@@ -990,4 +990,76 @@ namespace Nino.Core
             return 0;
         }
     }
+#if NET8_0_OR_GREATER
+    /// <summary>
+    /// A single <c>T?</c> of 16 bytes read from its wire form (the presence byte, then T) as two 8-byte words built in
+    /// registers: memory holds the flag, zeros up to T's alignment, then T. Through a local the JIT stored T (12 bytes
+    /// of <c>SimpleStruct</c>: 8 and 4) and loaded the 16-byte nullable over those stores, two store-forwarding stalls
+    /// a read (NullableTest.NinoDeserializeNullableStruct, 15 ns against MemoryPack's 1 ns in v4.0.0-rc.10).
+    /// </summary>
+    internal static class NullableWords<T> where T : struct
+    {
+        /// <summary>Where T starts in <c>T?</c>: its alignment, the flag being first.</summary>
+        private static readonly int Offset = NullableLayout<T>.ValueOffset;
+
+        /// <summary>
+        /// Whether <see cref="Read"/> applies: a little-endian runtime with the flag first, T copied as it is, and
+        /// <c>T?</c> 16 bytes, T filling it from its alignment on (so the wire's 17 - Offset bytes cover both words).
+        /// </summary>
+        public static readonly bool Applies = BitConverter.IsLittleEndian && Unsafe.SizeOf<T?>() == 16 &&
+                                              NinoLayout<T>.CopiesAsIs && NullableLayout<T>.HasValueOffset == 0 &&
+                                              Offset is > 0 and <= 8 && Unsafe.SizeOf<T>() == 16 - Offset;
+
+        /// <summary>
+        /// Stores the value whose present flag <paramref name="flag"/> is (checked by the caller), and T after it, as two
+        /// words over <paramref name="value"/>: a <c>T?</c> local the JIT split into its fields joins them again through
+        /// the stack to be returned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Read(ref byte flag, ref T? value)
+        {
+            // The flag in byte 0 (it is 1), T's first bytes from Offset on; Offset 8 leaves T wholly in the high word.
+            ulong low = Offset == 8 ? 1UL : NinoUnsafe.Read<ulong>(ref flag) >> 8 << (8 * Offset) | 1UL;
+            ulong high = NinoUnsafe.Read<ulong>(ref Unsafe.Add(ref flag, 9 - Offset));
+            Unsafe.As<T?, Words>(ref value) = new Words(low, high);
+        }
+
+        /// <summary>
+        /// Whether <see cref="Write"/> applies: as <see cref="Applies"/>, T written as it lies in memory (canonical, no
+        /// padding to clear).
+        /// </summary>
+        public static readonly bool Writes = BitConverter.IsLittleEndian && Unsafe.SizeOf<T?>() == 16 &&
+                                             NinoLayout<T>.IsCanonical && !NinoLayout<T>.HasPadding &&
+                                             NullableLayout<T>.HasValueOffset == 0 && Offset is > 0 and <= 8 &&
+                                             Unsafe.SizeOf<T>() == 16 - Offset;
+
+        /// <summary>
+        /// Writes the present <paramref name="value"/> as the wire holds it (the presence byte, then T) from its two
+        /// words: the low one shifted down to T's first bytes behind the flag, the high one over its end. Why: the
+        /// value copied T's 8 and 4 bytes from offset 4 of a 16-byte store, which Intel cores do not forward (a stall
+        /// per write: NullableTest.NinoSerializeNullableStruct 6.9 ns against MemoryPack's 3.3 on a Xeon).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Write(ref byte destination, in T? value)
+        {
+            ref Words words = ref Unsafe.As<T?, Words>(ref Unsafe.AsRef(in value));
+            // Bytes 0 to 7 first (for Offset 8 only the flag counts), then bytes 9 - Offset to 16 - Offset over them.
+            NinoUnsafe.Write(ref destination, Offset == 8 ? 1UL : words.Low >> (8 * Offset) << 8 | 1UL);
+            NinoUnsafe.Write(ref destination, 9 - Offset, words.High);
+        }
+
+        private readonly struct Words
+        {
+            public readonly ulong Low;
+            public readonly ulong High;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Words(ulong low, ulong high)
+            {
+                Low = low;
+                High = high;
+            }
+        }
+    }
+#endif
 }

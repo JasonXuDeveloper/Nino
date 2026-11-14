@@ -181,10 +181,29 @@ namespace Nino.Core
         where T : struct
         where TFormatter : struct, INinoFormatter<T>
     {
+        /// <summary>
+        /// Whether <typeparamref name="TFormatter"/> writes T as its bytes, which the reader and writer take with the
+        /// presence byte at once (converting a layout that is not canonical, as TFormatter would). On .NET 8+ a struct
+        /// tested against an interface, which the JIT folds while it imports the call: through
+        /// <see cref="RawFormatter.Is{T,TFormatter}"/> (a field read in an inlined call) the other path was imported
+        /// too, and its reads and writes of the nullable's fields made the JIT split <c>T?</c> locals into their fields
+        /// and join them again through the stack (NullableTest.NinoDeserializeNullableStruct: a store-forwarding stall
+        /// per read). The netstandard builds read the field, which Mono and IL2CPP do without boxing.
+        /// </summary>
+        private static bool IsRaw
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => default(TFormatter) is INinoRawFormatter;
+#else
+            get => RawFormatter.Is<T, TFormatter>();
+#endif
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T? value, ref Writer writer)
         {
-            if (RawFormatter.Is<T, TFormatter>())
+            if (IsRaw)
             {
                 // Flag and value in one reservation.
                 writer.WriteNullableRaw(value);
@@ -204,13 +223,10 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref T? value)
         {
-            if (RawFormatter.Is<T, TFormatter>())
+            if (IsRaw)
             {
                 // Flag and value under one bounds check; a value replaced by null is discarded, as TryReadPresent does.
-                T? read = reader.ReadNullableRaw<T>();
-                if (!read.HasValue)
-                    NinoRecycler.Discard(ref value);
-                value = read;
+                reader.ReadNullableRaw(ref value);
                 return;
             }
 
