@@ -96,12 +96,13 @@ namespace Nino.Core
 
         /// <summary>
         /// A new <typeparamref name="TCollection"/> of the <paramref name="length"/> elements that follow, if it is a
-        /// concurrent stack or queue, which the runtime builds faster from an array than element by element;
+        /// concurrent stack, queue or bag, which the runtime builds faster from an array than element by element;
         /// otherwise null, and nothing is read.
         /// </summary>
         public static TCollection TryCreate<TCollection>(int length, ref Reader reader) where TCollection : class
         {
-            if (typeof(TCollection) != typeof(ConcurrentStack<T>) && typeof(TCollection) != typeof(ConcurrentQueue<T>))
+            if (typeof(TCollection) != typeof(ConcurrentStack<T>) && typeof(TCollection) != typeof(ConcurrentQueue<T>) &&
+                typeof(TCollection) != typeof(ConcurrentBag<T>))
                 return null;
             var items = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
             try
@@ -109,6 +110,9 @@ namespace Nino.Core
                 if (typeof(TCollection) == typeof(ConcurrentQueue<T>))
                     // Its first segment sized for them, filled without contention.
                     return (TCollection)(object)new ConcurrentQueue<T>(new Run(items, length));
+                if (typeof(TCollection) == typeof(ConcurrentBag<T>))
+                    // Added to this thread's own queue by the constructor, in the order TryAdd would add them.
+                    return (TCollection)(object)new ConcurrentBag<T>(new Run(items, length));
                 // One linked chain swapped in at once, where a push per element swaps the top each time (2x faster).
                 var stack = new ConcurrentStack<T>();
                 if (length != 0)
