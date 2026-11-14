@@ -1,0 +1,60 @@
+CopyPermuted stride 24, 1000 elements (24000 bytes): ns by source offset (rows) and destination offset (columns 0, 4, 20, 36)
+  src+0     709.3   777.7   750.1   827.0
+  src+16    589.4   781.6   726.3   724.9
+  src+8     708.8   800.9   756.3   714.7
+CopyPermuted stride 20, 1000 elements (20000 bytes): ns by source offset (rows) and destination offset (columns 0, 4, 20, 36)
+  src+0     399.6   400.5   395.5   375.6
+  src+16    325.8   321.1   408.9   365.7
+  src+8     315.5   325.0   387.4   390.8
+CopyPermuted stride 40, 1000 elements (40000 bytes): ns by source offset (rows) and destination offset (columns 0, 4, 20, 36)
+  src+0    2348.1  2689.6  2658.2  2615.1
+  src+16   2362.9  2699.7  2695.9  2664.9
+  src+8    2385.4  2723.4  2651.9  2629.7
+CopyPermuted stride 12, 1000 elements (12000 bytes): ns by source offset (rows) and destination offset (columns 0, 4, 20, 36)
+  src+0     234.4   238.4   213.5   219.2
+  src+16    185.9   172.8   228.2   218.9
+  src+8     187.7   186.1   219.4   219.0
+WritePacked size 16 align 8 (slot 32 -> wire 24), 1000 values: ns by source offset (rows) and destination offset (columns 0, 4, 20, 36)
+  src+0     777.6  1146.2  1174.4  1172.9
+  src+16    862.0  1153.4  1101.1  1110.7
+  src+8     896.7  1127.0  1123.5  1133.0
+ReadPacked size 16 align 8 (wire 24 -> slot 32): ns by wire offset (rows) and memory offset (columns 0, 16, 8, 24, 40); second row of each: stores aligned to the destination
+  wire+0    803.8   975.1   992.3   979.7   992.1
+  aligned   1084.9  WRONG   WRONG   WRONG   1077.5
+  wire+4    847.5   991.6  1000.7   995.9   993.5
+  aligned   1074.7  WRONG   WRONG   WRONG   1048.4
+  wire+20   852.7   995.1  1018.6  1042.6  1038.8
+  aligned   1048.9  WRONG   WRONG   WRONG   1042.5
+WritePacked size 16 align 4 (slot 32 -> wire 20), 1000 values: ns by source offset (rows) and destination offset (columns 0, 4, 20, 36)
+  src+0     989.9  1077.8  1092.0  1103.6
+  src+16    954.0   993.2  1013.3  1011.8
+  src+8     919.8   954.7   989.1  1009.9
+ReadPacked size 16 align 4 (wire 20 -> slot 32): ns by wire offset (rows) and memory offset (columns 0, 16, 8, 24, 40); second row of each: stores aligned to the destination
+  wire+0    761.1   953.8   936.5  1026.7   944.1
+  aligned   1063.3  WRONG   WRONG   WRONG   1053.1
+  wire+4    792.5   988.3   935.0   954.7   960.0
+  aligned   1094.1  WRONG   WRONG   WRONG   1069.8
+  wire+20   814.7   992.2   942.9   938.1   948.0
+  aligned   1089.5  WRONG   WRONG   WRONG   1042.8
+WritePacked size 12 align 4 (slot 24 -> wire 16), 1000 values: ns by source offset (rows) and destination offset (columns 0, 4, 20, 36)
+  src+0     630.4   653.8   647.2   646.1
+  src+16    561.3   609.3   622.8   631.4
+  src+8     615.9   659.8   651.5   678.3
+ReadPacked size 12 align 4 (wire 16 -> slot 24): ns by wire offset (rows) and memory offset (columns 0, 16, 8, 24, 40); second row of each: stores aligned to the destination
+  wire+0    570.1   556.4   598.6   579.3   610.5
+  aligned   WRONG   1557.7  WRONG   1554.7  1473.0
+  wire+4    622.5   653.6   661.1   681.2   652.8
+  aligned   WRONG   1554.0  WRONG   1551.2  1512.1
+  wire+20   641.0   598.1   622.9   603.9   620.4
+  aligned   WRONG   1514.0  WRONG   1471.6  1521.3
+WritePacked size 24 align 8 (slot 48 -> wire 32), 1000 values: ns by source offset (rows) and destination offset (columns 0, 4, 20, 36)
+  src+0    1602.3  2140.1  2232.3  2181.6
+  src+16   1565.0  2211.6  2206.8  2119.7
+  src+8    1648.7  2075.7  2193.2  1982.8
+ReadPacked size 24 align 8 (wire 32 -> slot 48): ns by wire offset (rows) and memory offset (columns 0, 16, 8, 24, 40); second row of each: stores aligned to the destination
+  wire+0   1699.9  1746.8  2231.9  2240.2  2193.7
+  aligned   3086.1  3176.5  3122.4  3058.7  3044.8
+  wire+4   1684.8  1696.0  2155.2  2161.5  2112.5
+  aligned   3043.8  3004.8  2892.9  3172.4  3211.5
+  wire+20  1777.4  1783.9  2103.8  2074.6  2109.9
+  aligned   3037.0  2975.0  3196.8  3110.9  3064.2

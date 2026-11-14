@@ -1,0 +1,64 @@
+N = 200: ns with the destination at +0 / +4 / +36 from a 64-byte boundary
+  S20 ymm, 12 past              150     170     149
+  S20 xmm+xmm overlap           158     164     158
+  S20 xmm+word                  170     167     158
+  S20 zmm permute                72      74      74
+  S24 ymm, 8 past               161     150     156
+  S24 xmm+word                  161     161     165
+  S24 words                     183     184     178
+  S24 zmm permute                97      99     106
+  S24 zmm, 32+16 stores         111     106     114
+  S24 zmm, masked store         122     142     151
+  S40 ymm+ymm overlap           215     221     244
+  S40 ymm+word                  194     202     195
+  S40 zmm, 24 past              204     217     205
+  S40 words                     242     277     269
+  S72 ymm x3 overlap            285     338     358
+  S72 ymm x2+word               245     283     288
+  S72 zmm+word                  279     299     302
+  S72 words                     748     757     762
+  pack zmm, 16 past              87      92      91
+  pack zmm, 32+16 stores         96     100      95
+  pack zmm, masked store        129     138     138
+  pack ymm vpermq, 8 past       150     150     146
+  pack ymm, 16+8 stores         148     138     150
+  pack window (16+flag)         101     119     107
+  pack words                    155     162     158
+  unpack: the wire at +4, memory at +0 / +16 / +8 / +40 from a 64-byte boundary
+  unpack zmm                    80     100     112      98
+  unpack zmm aligned            87      80      82      84
+  unpack ymm vpermd            115     126     127     122
+  unpack window                151     148     185     193
+  unpack words                 148     136     153     156
+N = 1000: ns with the destination at +0 / +4 / +36 from a 64-byte boundary
+  S20 ymm, 12 past              642     689     643
+  S20 xmm+xmm overlap           722     721     728
+  S20 xmm+word                  757     779     765
+  S20 zmm permute               329     324     322
+  S24 ymm, 8 past               647     701     684
+  S24 xmm+word                  777     810     850
+  S24 words                     810     974    1014
+  S24 zmm permute               552     670     638
+  S24 zmm, 32+16 stores         559     667     687
+  S24 zmm, masked store         818     944     920
+  S40 ymm+ymm overlap          2063    2311    2214
+  S40 ymm+word                 1276    1365    1353
+  S40 zmm, 24 past             2105    2317    2327
+  S40 words                    1349    1791    1796
+  S72 ymm x3 overlap           2871    3226    3297
+  S72 ymm x2+word              2094    2263    2234
+  S72 zmm+word                 2110    2361    2279
+  S72 words                    3663    3850    3669
+  pack zmm, 16 past             860    1222    1217
+  pack zmm, 32+16 stores        737     853     865
+  pack zmm, masked store        909    1057    1030
+  pack ymm vpermq, 8 past       925    1279    1296
+  pack ymm, 16+8 stores         912    1054    1015
+  pack window (16+flag)         849     951     984
+  pack words                    878    1142    1172
+  unpack: the wire at +4, memory at +0 / +16 / +8 / +40 from a 64-byte boundary
+  unpack zmm                   806     915     926     881
+  unpack zmm aligned           723     783     751     746
+  unpack ymm vpermd            845    1192    1226    1208
+  unpack window                948     953    1304    1295
+  unpack words                1050    1127    1087    1068

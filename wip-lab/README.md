@@ -1,0 +1,1 @@
+Kernel and end-to-end harnesses of the unfinished SIMD-coverage work (#279), kept only so a fresh session can rerun them. Paths inside the scripts point at the old session's scratchpad: adjust them. Delete this folder before anything here lands.

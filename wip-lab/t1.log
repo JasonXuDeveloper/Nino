@@ -1,0 +1,7 @@
+    0 Error(s)
+[default] Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 3 s - Nino.UnitTests.dll (net10.0)
+[noavx512] Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 3 s - Nino.UnitTests.dll (net10.0)
+[noavx512-nogfni] Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 3 s - Nino.UnitTests.dll (net10.0)
+[noavx2] Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 3 s - Nino.UnitTests.dll (net10.0)
+[noavx2-nogfni] Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 3 s - Nino.UnitTests.dll (net10.0)
+[nohw] Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 4 s - Nino.UnitTests.dll (net10.0)
