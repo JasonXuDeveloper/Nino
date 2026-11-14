@@ -60,7 +60,7 @@ macro_rules! fixed {
             #[inline]
             fn encode_fixed(&self, out: &mut [u8]) {
                 if let Some(dst) = out.first_chunk_mut::<$n>() {
-                    *dst = self.encode();
+                    store_words(dst, &self.encode());
                 }
             }
 
@@ -94,11 +94,22 @@ macro_rules! fixed {
             #[inline]
             fn encode_raw(&self, out: &mut [u8]) {
                 if let Some(dst) = out.first_chunk_mut::<$n>() {
-                    *dst = self.encode();
+                    store_words(dst, &self.encode());
                 }
             }
         }
     };
+}
+
+/// Copies `bytes` to `dst` eight bytes at a time. `dst` is mostly a part of [`crate::simd::extend_fixed`]'s buffer on
+/// the stack, which the compiler drops only when every store into it is a register's width: a `Guid` stored as one
+/// 16-byte copy at offset 4 of a `Guid?` slot stayed in memory, and the copy out of the buffer, split at other
+/// offsets, waited for that store on every element.
+#[inline(always)]
+fn store_words<const N: usize>(dst: &mut [u8; N], bytes: &[u8; N]) {
+    for (d, s) in dst.chunks_mut(8).zip(bytes.chunks(8)) {
+        d.copy_from_slice(s);
+    }
 }
 
 /// `chunks` decoded one by one (a block whose quick test failed).
@@ -901,8 +912,9 @@ impl<T: Raw> Raw for NinoNullable<T> {
         if flag > 1 {
             return Err(Error::new(ErrorKind::InvalidPresence, i32::from(flag)));
         }
-        let unused = if flag == 0 { value } else { &[] };
-        if above.iter().chain(unused).any(|&b| b != 0) {
+        // Each run ORed whole, with no early exit: the compiler tests it a word or a vector at a time.
+        let set = |bytes: &[u8]| bytes.iter().fold(0, |all, &b| all | b) != 0;
+        if set(above) || (flag == 0 && set(value)) {
             return Err(Error::of(ErrorKind::InvalidBits));
         }
         if flag == 0 {
