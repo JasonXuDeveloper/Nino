@@ -213,3 +213,85 @@ func TestNullableStridesAsDotNetWritesThem(t *testing.T) {
 		t.Fatalf("read back: %v, %+v", err, back)
 	}
 }
+
+// NinoNullable<T> is read and written as T?, inside type arguments too: the bytes .NET writes for the NinoNullableArgs
+// (and the NullableArgs, the same type declared with T?) of tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex.
+func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
+	const want = "0101000000000001000002000000010000000000000001000000000000000000000000000000000000000000000001010700000001020000000000" +
+		"00000000000000000000000000000100000001000000000000000000000001020000000100000000000000ffffffffffffffff0000000000000000" +
+		"000000000000000002000000010400000000020000000100000001000000000000e03f0200000000"
+	ptr := func(v int32) *int32 { return &v }
+	a, b, minusOne, half := FlagsA, FlagsB, int64(-1), 0.5
+	value := &NinoNullableArgsType{
+		Enum:  &b,
+		Enums: []*Flags{&a, nil},
+		One:   &Box[*int32]{Value: ptr(7)},
+		Array: &Box[[]*TupleCell]{Value: []*TupleCell{nil, {A: 1}}},
+		List:  &Box[[]*int64]{Value: []*int64{&minusOne, nil}},
+		Set:   []*int32{ptr(4), nil},
+		Map:   []nino.Entry[int32, *float64]{{Key: 1, Value: &half}, {Key: 2}},
+	}
+	data, err := nino.Serialize(value, WriteNinoNullableArgsType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hex.EncodeToString(data); got != want {
+		t.Fatalf("wrote\n %s\nwant %s", got, want)
+	}
+	back, err := nino.DeserializeExact(data, ReadNinoNullableArgsType)
+	if err != nil || !reflect.DeepEqual(back, value) {
+		t.Fatalf("read back: %v, %+v", err, back)
+	}
+	// The same type declared with T?: it reads these bytes to the same fields and writes them back.
+	twin, err := nino.DeserializeExact(data, ReadNullableArgs)
+	if err != nil || !reflect.DeepEqual(*twin, NullableArgs(*value)) {
+		t.Fatalf("read as T?: %v, %+v", err, twin)
+	}
+	again, err := nino.Serialize(twin, WriteNullableArgs)
+	if err != nil || hex.EncodeToString(again) != want {
+		t.Fatalf("wrote as T?: %v\n %x", err, again)
+	}
+}
+
+// NinoNullable<T> inside a raw struct, where .NET holds it: the presence a whole T (1 in its first byte), then the
+// value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
+// tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
+func TestNinoNullableInsideRawStructsAsDotNetWritesIt(t *testing.T) {
+	seven, minusOne := int32(7), int32(-1)
+	narrow := &NinoNullableRawType{
+		One:  HoldsNinoNullable{A: 1, B: &seven},
+		Many: []HoldsNinoNullable{{A: 2}, {A: 3, B: &minusOne}},
+	}
+	data, err := nino.Serialize(narrow, WriteNinoNullableRawType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := hex.EncodeToString(data), "01010000000100000007000000020000000200000000000000000000000300000001000000ffffffff"; got != want {
+		t.Fatalf("wrote\n %s\nwant %s", got, want)
+	}
+	if back, err := nino.DeserializeExact(data, ReadNinoNullableRawType); err != nil || !reflect.DeepEqual(back, narrow) {
+		t.Fatalf("read back: %v, %+v", err, back)
+	}
+
+	wide := &NinoNullableRawWideType{
+		One:  HoldsWideNinoNullable{A: 1, B: &nino.Decimal{Flags: 1 << 16, Lo: 15}},
+		Many: []HoldsWideNinoNullable{{A: 2}},
+	}
+	data, err = nino.Serialize(wide, WriteNinoNullableRawWideType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "0101000000000000000100000000000000000000000000000000000100000000000f000000000000000100" +
+		"000002000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	if got := hex.EncodeToString(data); got != want {
+		t.Fatalf("wrote\n %s\nwant %s", got, want)
+	}
+	if back, err := nino.DeserializeExact(data, ReadNinoNullableRawWideType); err != nil || !reflect.DeepEqual(back, wide) {
+		t.Fatalf("read back: %v, %+v", err, back)
+	}
+	// A presence byte other than 0 or 1 is rejected there too.
+	data[1+8] = 2
+	if _, err := nino.DeserializeExact(data, ReadNinoNullableRawWideType); err == nil {
+		t.Fatal("a presence byte of 2 was read")
+	}
+}

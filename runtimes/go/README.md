@@ -218,6 +218,11 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 | `T` (struct) | a struct: raw, or member by member |
 | an interface (`any`, or one the allowed types implement) | `object`, an abstract class, an interface: a type id, then one of the **registered** types that implements the field's interface |
 
+.NET's `NinoNullable<T>` is `T?` on the wire and in the layouts (`nullable(...)` alone, the fixed stride in an array or
+a `List`), so it maps to the same Go types: `*T`, and `[]*T` for `NinoNullable<T>[]` and `List<NinoNullable<T>>`, in
+the code nino-gen writes and with struct tags alike. Inside a plain struct copied as raw memory, where .NET holds its
+presence as a whole `T`, generated code reads it as a `*T` too, the value at the offset the layout gives.
+
 Polymorphic types are registered once, by a value: `nino.Register((*Dog)(nil), (*Cat)(nil), Circle{})` (a nil pointer
 for a class, a zero value for a struct; `nino.RegisterID(id, v)` for a closed generic type, whose layout publishes
 id 0). Reading an id that is not registered, or whose type does not implement the field's interface, fails with
