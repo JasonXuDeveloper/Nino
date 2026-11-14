@@ -13,7 +13,8 @@ namespace Nino.Benchmark;
 // models (Fixtures/NullableBenchmarkData.cs, Fixtures/SimpleBenchmarkData.cs) and data. Only the Nino calls differ, as
 // in V3/SimpleTest.cs: NinoSerializer/NinoDeserializer -> NinoGen.Serializer/NinoGen.Deserializer,
 // NinoArrayBufferWriter -> ArrayBufferWriter<byte>; and the protobuf-net, Google.Protobuf and System.Text.Json cases are
-// left out (the v3 run times Nino and MemoryPack only). Everything else is verbatim.
+// left out (the v3 run times Nino and MemoryPack only), and so are the other nullable forms (NullableTest.NullableForms.cs:
+// NinoNullable<T> is v4's, and MemoryPack's other forms compare with it). Everything else is verbatim.
 
 /// <summary>
 /// Nullable values: a class of eight nullable members, half of them null, alone and in an array of 100; one

@@ -237,7 +237,18 @@ same nullable values, each through the representation its users write for them:
   array of `OptionalSimpleStruct`, the same bytes the wrapper writes, made outside the timed region as MemoryPack's
   copies are. Google.Protobuf reads and writes the messages `cases.proto` has for them. `--verify` checks that every
   library reads the null `SimpleClass` back as null (`[ReadsNull]` on the baseline).
-- v3 3.3.13 runs the Nino and MemoryPack cases of both (`V3/NullableTest.cs`, `V3/CollectionsTest.cs`).
+- v3 3.3.13 runs the Nino and MemoryPack cases of both (`V3/NullableTest.cs`, `V3/CollectionsTest.cs`) v3 has no `NinoNullable<T>` and runs
+  none of the forms below.
+- The nullable-struct cases (`NullableFields`, `NullableFieldsArray`, `NullableStruct`, `NullableStructs`,
+  `NullableLongs`, `NullableInts`, `NullableDecimals`) also time the other forms a user can choose
+  (`NullableForms` in `Cases/Scenarios/NullableTest.NullableForms.cs`, `CollectionsTest.NullableForms.cs`), each its
+  own method prefix and its own bars in the charts (`FORMS` in `reports/readme.py`, with the charts' footnote):
+  `NinoNullable` (the model declares `NinoNullable<T>` instead of `T?`: the same bytes, memory always clean, so arrays
+  are one block copy), `MemoryPackUnsafe` (MemoryPack given `T?` as it is, which copies the uninitialized padding:
+  fast, not safe) and `MemoryPackConverted` (the model's `T?` converted to `SafeNullable<T>` and back inside the timed
+  region: what MemoryPack's safe form costs a model that holds `T?`). The plain `MemoryPack` rows stay
+  `SafeNullable<T>` data the model already holds. Nino's `T?` is always safe; the release's summary of libraries leaves
+  the forms out.
 
 ### Google.Protobuf and System.Text.Json
 

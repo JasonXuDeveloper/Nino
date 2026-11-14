@@ -65,6 +65,26 @@ WORKLOAD_KEYS = [key for key, _ in WORKLOADS]
 OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "MessagePack"),
           ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"), ("Protobuf", "protobuf", "protobuf-net"),
           ("Json", "json", "System.Text.Json")]
+# The other forms of a nullable value the nullable cases time (NullableForms in Nino.Benchmark's NullableTest), as
+# (method prefix, name): Nino with NinoNullable<T>, MemoryPack given T? as it is (it copies uninitialized padding: not
+# safe) and MemoryPack converting T? to SafeNullable<T> and back inside the timed region. Bars of the nullable cases
+# beside Nino's T? and MemoryPack's SafeNullable data; never in a summary of libraries.
+FORMS = [("NinoNullable", "Nino (NinoNullable)"), ("MemoryPackConverted", "MemoryPack (converted)"),
+         ("MemoryPackUnsafe", "MemoryPack (T?, unsafe)")]
+# The footnote of every chart with those bars (README, docs, the release body), English and Chinese.
+FORM_NOTE = ("Nullable cases: MemoryPack writes SafeNullable<T> data the model already holds; MemoryPack (converted) "
+             "converts the model's T? to it and back inside the timed region; MemoryPack (T?, unsafe) copies T? with its "
+             "uninitialized padding (one value can give different bytes, with leftover memory in them). "
+             "Nino (NinoNullable) is NinoNullable<T> in place of T?, the same bytes. Nino's T? is always safe.")
+FORM_NOTE_ZH = ("可空值：MemoryPack 写的是模型里已备好的 SafeNullable<T>；MemoryPack (converted) 在计时内把模型的 T? "
+                "转成它、读完再转回；MemoryPack (T?, unsafe) 直接拷贝 T?，连同未初始化的填充字节（同一个值可能写出不同的字节，"
+                "还会带出进程里残留的内存）。Nino (NinoNullable) 是用 NinoNullable<T> 代替 T?，字节相同。Nino 的 T? 始终安全。")
+
+
+def has_forms(chart):
+    """Whether a chart (pairs of (title, rows) or None) has a bar of FORMS."""
+    names = {name for _, name in FORMS}
+    return any(name in names for pair in chart for half in pair if half for name, *_ in half[1])
 # Nullable values against every library and v3 (the owner's choice): NullableTest's class with half its members null,
 # 100 of them, its SimpleStruct?[100] with every fifth null, and CollectionsTest's long?[] with every fifth null.
 NULLABLE_CASES = [("NullableFieldsArray", "100 objects with nullable fields"),
@@ -224,7 +244,7 @@ REUSE_ROWS = [("pooled class", "DeserializeNew", "DeserializePooled", "Deseriali
               ("plain list", "PlainNew", None, None)]
 VERBS = ("Serialize", "Deserialize")
 # Method prefixes, the longest first (GoogleProtobuf before Protobuf, which it starts with).
-PREFIXES = sorted(["Nino"] + [o for o, _, _ in OTHERS], key=len, reverse=True)
+PREFIXES = sorted(["Nino"] + [o for o, _, _ in OTHERS] + [f for f, _ in FORMS], key=len, reverse=True)
 
 
 def split_method(method):
@@ -255,10 +275,14 @@ def bars(v4, v3, method_of, first="Nino v4"):
     out = [(first, v4[nino]["mean"])]
     if v3 is not None:
         out.append(("Nino v3", v3.get(nino)))
-    for other, _, name in OTHERS:
-        method = method_of(other)
+    # Nino's form after Nino, MemoryPack's after MemoryPack (FORMS: the nullable cases only).
+    names = {**{o: n for o, _, n in OTHERS}, **dict(FORMS)}
+    order = ["NinoNullable"] + [lib for o, _, _ in OTHERS
+                                for lib in [o] + (["MemoryPackConverted", "MemoryPackUnsafe"] if o == "MemoryPack" else [])]
+    for lib in order:
+        method = method_of(lib)
         if method and method in v4:
-            out.append((name, v4[method]["mean"]))
+            out.append((names[lib], v4[method]["mean"]))
     return out
 
 
@@ -509,10 +533,11 @@ def write_charts(overview, groups, render_png=False, chrome=None):
         fallback = f"{ASSETS}/benchmark.png" if i == 0 else None
         alt = f"{title}: time per operation of Nino v4, v3 and every library, serialize and deserialize"
         # README opens only the first group, so the page stays short; docs/v4-benchmarks.md opens them all.
-        en.append(details(title, picture(light, dark, alt, fallback), i == 0))
-        doc.append(details(title, picture(light, dark, alt, fallback), True))
+        note, note_zh = (f"\n\n<sub>{FORM_NOTE}</sub>", f"\n\n<sub>{FORM_NOTE_ZH}</sub>") if has_forms(chart) else ("", "")
+        en.append(details(title, picture(light, dark, alt, fallback) + note, i == 0))
+        doc.append(details(title, picture(light, dark, alt, fallback) + note, True))
         zh.append(details(title_zh, picture(light, dark, f"{title_zh}：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化",
-                                            fallback), i == 0))
+                                            fallback) + note_zh, i == 0))
     join = lambda parts: "\n" + "\n\n".join(parts) + "\n"
     return {"charts": (join(en), join(zh)), "doc.charts": join(doc)}
 

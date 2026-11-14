@@ -65,7 +65,8 @@ LEGACY = {V3_HEADING: "dotnet-v3-x64.md", ARM64_HEADING: "dotnet-arm64.md",
           **{h: f"runtime-{lang}-arm64.md" for lang, h in runtimes_report.ARM64_HEADINGS.items()}}
 
 # Method prefixes of the .NET libraries (GoogleProtobuf before Protobuf, which it starts with).
-LIBRARIES = ["Nino"] + sorted((o for o, _, _ in readme.OTHERS), key=len, reverse=True)
+LIBRARIES = sorted(["Nino"] + [o for o, _, _ in readme.OTHERS] + [f for f, _ in readme.FORMS], key=len, reverse=True)
+FORMS = {f for f, _ in readme.FORMS}
 
 
 # ---------------------------------------------------------------- the body
@@ -172,7 +173,8 @@ def dotnet_chart(path, arch, v3_path=None):
     by_case = {}
     for method, row in v4.items():
         lib, case = split_method(method)
-        if lib:
+        # The other forms of a nullable value (readme.FORMS) are bars of their cases, not libraries of the summary.
+        if lib and lib not in FORMS:
             by_case.setdefault(case, {})[lib] = row["mean"]
     compared = {c: libs for c, libs in by_case.items() if "Nino" in libs and len(libs) > 1}
     ahead = sum(all(ratio_ok(libs["Nino"], t) for lib, t in libs.items() if lib != "Nino") for libs in compared.values())
@@ -180,6 +182,8 @@ def dotnet_chart(path, arch, v3_path=None):
                f"({len(v4)} rows)")
     run = f"{arch} GitHub runners" + (", v3 3.3.13 directly before v4" if v3 else "")
     note = f"BenchmarkDotNet, .NET 10, {run}; every case is in the table; N× = N times as long as Nino v4."
+    if any(readme.has_forms(chart) for _, _, _, chart in groups):
+        note += " " + readme.FORM_NOTE
     return groups, summary, note
 
 

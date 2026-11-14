@@ -37,7 +37,7 @@ namespace Nino.Benchmark;
 [GcServer(true)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
-public class NullableTest : IReadBack
+public partial class NullableTest : IReadBack
 {
     private static readonly NullableFields Fields;
     private static readonly NullableFields[] FieldsArray;
@@ -158,6 +158,8 @@ public class NullableTest : IReadBack
             BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableObject", SerializedNullableObject[i].Length);
             BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableObjects", SerializedNullableObjects[i].Length);
         }
+
+        InitNullableForms();
     }
 
     [GlobalSetup]
@@ -186,7 +188,7 @@ public class NullableTest : IReadBack
         P.OptionalSimpleClass => ((OptionalSimpleClass)ProtobufModel.ReadBack(result, typeof(OptionalSimpleClass))).Value,
         P.NullableObjectList => ((NullableObjectList)ProtobufModel.ReadBack(result, typeof(NullableObjectList))).Items,
         OptionalSimpleStruct[] items => OptionalSimpleStruct.ToNullable(items),
-        _ => ProtobufModel.ReadBack(SafeNullables.ReadBack(result), model),
+        _ => ProtobufModel.ReadBack(NullableForms.ReadBack(result), model),
     };
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableFieldsSerialize")]
