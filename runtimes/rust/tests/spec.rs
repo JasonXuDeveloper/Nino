@@ -2,7 +2,7 @@
 
 mod samples;
 
-use nino::{deserialize, deserialize_exact, serialize, type_id, ErrorKind, RawNullables, Utf8};
+use nino::{deserialize, deserialize_exact, serialize, type_id, ErrorKind, NinoNullable, RawNullables, Utf8};
 use samples::*;
 
 fn hex(s: &str) -> Vec<u8> {
@@ -156,6 +156,38 @@ fn a6_raw_nullables() {
     );
     // The value bytes of a null element are not looked at (.NET writes zeros there).
     assert_eq!(deserialize_exact::<RawNullables<i32>>(&hex("01000000 00000000 01000000")).unwrap().0, vec![None]);
+}
+
+/// .NET's `NinoNullable<T>`: its memory wherever it is, a presence and a value of a `T` each. Not the bytes of a
+/// `T?`, but for a run of a `T` as large as its alignment.
+#[test]
+fn nino_nullable_is_its_memory() {
+    let price = NinoNullable(Some(nino::Decimal { flags: 1 << 16, hi: 0, lo: 15 })); // 1.5
+    let bytes = serialize(&price).unwrap();
+    assert_eq!(bytes, hex("01000000000000000000000000000000 00000100 00000000 0f00000000000000"));
+    assert_eq!(deserialize_exact::<NinoNullable<nino::Decimal>>(&bytes).unwrap(), price);
+    assert_eq!(serialize(&NinoNullable::<nino::Decimal>(None)).unwrap(), [0u8; 32]);
+    assert_eq!(serialize(&price.0).unwrap(), hex("01 00000100 00000000 0f00000000000000"));
+
+    let run = vec![NinoNullable(Some(5i32)), NinoNullable(None)];
+    let bytes = serialize(&run).unwrap();
+    assert_eq!(bytes, hex("02000000 01000000 05000000 00000000 00000000"));
+    assert_eq!(deserialize_exact::<Vec<NinoNullable<i32>>>(&bytes).unwrap(), run);
+    assert_eq!(serialize(&RawNullables(vec![Some(5i32), None])).unwrap(), bytes);
+    // A wider T: 32 bytes an element, where a decimal?[] element is 24.
+    assert_eq!(serialize(&vec![price]).unwrap().len(), 4 + 32);
+    assert_eq!(serialize(&RawNullables(vec![price.0])).unwrap().len(), 4 + 24);
+
+    // What .NET's untrusted mode rejects: a presence other than 0 or 1, a byte above its first, a byte in a value
+    // that is absent; and the value's own checks where it is present (a decimal's scale).
+    let read = |text: &str| deserialize_exact::<NinoNullable<i32>>(&hex(text)).map(|v| v.0);
+    assert_eq!(read("01000000 07000000").unwrap(), Some(7));
+    assert_eq!(read("02000000 07000000").unwrap_err().kind(), ErrorKind::InvalidPresence);
+    assert_eq!(read("01000100 07000000").unwrap_err().kind(), ErrorKind::InvalidBits);
+    assert_eq!(read("00000000 07000000").unwrap_err().kind(), ErrorKind::InvalidBits);
+    assert!(read("01000000 070000").is_err());
+    let scale = hex("01000000000000000000000000000000 0000c800 00000000 0f00000000000000");
+    assert!(deserialize_exact::<NinoNullable<nino::Decimal>>(&scale).is_err());
 }
 
 /// `{ byte A; Int128 B; }`: B at 16, 32 bytes (the specification, 5.2). Through the derive, which sets the ALIGN.
