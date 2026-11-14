@@ -204,7 +204,7 @@ namespace Nino.Core.Internal
         /// <see cref="IsRawUnmanaged"/> of an unmanaged type that is not a <c>[NinoType]</c>, and false for a
         /// <c>[NinoType]</c>: the rule NativeAOT applies too (NinoFormatterCache's CreateWithoutDynamicCode), where an
         /// unmanaged type that generated code did not register can only be raw. Pointer-sized values are written as 8
-        /// bytes, and Nullable, NinoNullable, KeyValuePair, the value tuples and DateTimeOffset have formats of their own.
+        /// bytes, and Nullable, KeyValuePair, the value tuples and DateTimeOffset have formats of their own.
         /// </summary>
         public static bool IsRawShape(Type type)
         {
@@ -213,8 +213,7 @@ namespace Nino.Core.Internal
             if (type.IsGenericType)
             {
                 var definition = type.GetGenericTypeDefinition();
-                if (definition == typeof(Nullable<>) || definition == typeof(NinoNullable<>) ||
-                    definition == typeof(KeyValuePair<,>) ||
+                if (definition == typeof(Nullable<>) || definition == typeof(KeyValuePair<,>) ||
                     ValueTuples.Contains(definition))
                     return false;
             }

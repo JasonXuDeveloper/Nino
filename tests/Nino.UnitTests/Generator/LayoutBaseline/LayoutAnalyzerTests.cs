@@ -346,20 +346,19 @@ namespace Game
 }";
 
     /// <summary>
-    /// Every <c>T?</c> member, array and list of keyed, positional and version-tolerant types changed to
-    /// <c>NinoNullable&lt;T&gt;</c>, and back: the layouts' encodings are the same, so the baseline reports nothing.
+    /// A run of <c>T?</c> changed to <c>NinoNullable&lt;T&gt;</c>, and back, where T is as large as its alignment:
+    /// the same bytes and the same published encoding, so the baseline reports nothing. A single value (one presence
+    /// byte and the value against two T) and a run of a wider T (its alignment and a T against two T) change.
     /// </summary>
     [TestMethod]
-    public async Task NinoNullableInPlaceOfNullableIsNoChange()
+    public async Task NinoNullableInPlaceOfNullable()
     {
-        string changed = System.Text.RegularExpressions.Regex.Replace(Nullables, @"(\w+)\?", "NinoNullable<$1>");
-        StringAssert.Contains(changed, "public List<NinoNullable<Vec>> Path;");
-        StringAssert.Contains(changed, "public NinoNullable<Guid>[] Ids;");
-        Assert.IsFalse(changed.Contains('?'));
-        await Test(changed, await Baseline(Nullables)).RunAsync();
-        await Test(Nullables, await Baseline(changed)).RunAsync();
-        // The same edit with another T changes the bytes, and is reported.
-        await Test(Edit(changed, "public NinoNullable<int> Volume;", "public NinoNullable<long> {|#0:Volume|};"),
+        string run = Edit(Nullables, "public long?[] Scores;", "public NinoNullable<long>[] Scores;");
+        await Test(run, await Baseline(Nullables)).RunAsync();
+        await Test(Nullables, await Baseline(run)).RunAsync();
+        await Test(Edit(Nullables, "public long? Gold;", "public NinoNullable<long> {|#0:Gold|};"),
+            await Baseline(Nullables), D("NINO034").WithLocation(0)).RunAsync();
+        await Test(Edit(Nullables, "public Guid?[] Ids;", "public NinoNullable<Guid>[] {|#0:Ids|};"),
             await Baseline(Nullables), D("NINO034").WithLocation(0)).RunAsync();
     }
 
