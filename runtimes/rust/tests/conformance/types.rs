@@ -1481,6 +1481,73 @@ impl J for NinoNullables {
     }
 }
 
+/// `Conformance.NullableSequences`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct NullableSequences {
+    pub int_set: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
+    pub long_set: Option<indexmap::IndexSet<nino::RawNullable<i64>>>,
+    pub grid: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
+    pub padded_grid: Option<nino::Grid<nino::RawNullable<Padded>, 2>>,
+    pub nested: Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>,
+    pub values: Option<indexmap::IndexMap<i32, Option<i64>>>,
+    pub pairs: Option<Vec<(i32, Option<i32>)>>,
+}
+
+impl NinoReadBody for NullableSequences {
+    fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_into(&mut self.int_set)?;
+        r.read_into(&mut self.long_set)?;
+        r.read_into(&mut self.grid)?;
+        r.read_into(&mut self.padded_grid)?;
+        r.read_into(&mut self.nested)?;
+        r.read_into(&mut self.values)?;
+        r.read_into(&mut self.pairs)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for NullableSequences {
+    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        w.write(&self.int_set)?;
+        w.write(&self.long_set)?;
+        w.write(&self.grid)?;
+        w.write(&self.padded_grid)?;
+        w.write(&self.nested)?;
+        w.write(&self.values)?;
+        w.write(&self.pairs)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for NullableSequences {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for NullableSequences {
+    nino::sealed_write!();
+}
+
+impl NullableSequences {
+    pub const NINO_TYPE_ID: i32 = 0xDB16AFA3u32 as i32;
+}
+
+impl J for NullableSequences {
+    fn j(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("$type".into(), Value::from("Conformance.NullableSequences"));
+        m.insert("IntSet".into(), self.int_set.j());
+        m.insert("LongSet".into(), self.long_set.j());
+        m.insert("Grid".into(), self.grid.j());
+        m.insert("PaddedGrid".into(), self.padded_grid.j());
+        m.insert("Nested".into(), self.nested.j());
+        m.insert("Values".into(), self.values.j());
+        m.insert("Pairs".into(), self.pairs.j());
+        Value::Object(m)
+    }
+}
+
 /// `Conformance.Nullables`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -2722,6 +2789,92 @@ impl J for TMaybeIntArray {
     fn j(&self) -> Value {
         let mut m = Map::new();
         m.insert("$type".into(), Value::from("Conformance.Targets.MaybeIntArray"));
+        m.insert("Values".into(), self.values.j());
+        Value::Object(m)
+    }
+}
+
+/// `Conformance.Targets.MaybeIntGrid`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct TMaybeIntGrid {
+    pub values: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
+}
+
+impl NinoReadBody for TMaybeIntGrid {
+    fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_into(&mut self.values)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TMaybeIntGrid {
+    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        w.write(&self.values)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for TMaybeIntGrid {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for TMaybeIntGrid {
+    nino::sealed_write!();
+}
+
+impl TMaybeIntGrid {
+    pub const NINO_TYPE_ID: i32 = 0xCA7112FBu32 as i32;
+}
+
+impl J for TMaybeIntGrid {
+    fn j(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("$type".into(), Value::from("Conformance.Targets.MaybeIntGrid"));
+        m.insert("Values".into(), self.values.j());
+        Value::Object(m)
+    }
+}
+
+/// `Conformance.Targets.MaybeIntSet`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct TMaybeIntSet {
+    pub values: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
+}
+
+impl NinoReadBody for TMaybeIntSet {
+    fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_into(&mut self.values)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TMaybeIntSet {
+    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        w.write(&self.values)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for TMaybeIntSet {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for TMaybeIntSet {
+    nino::sealed_write!();
+}
+
+impl TMaybeIntSet {
+    pub const NINO_TYPE_ID: i32 = 0x8BFF9D91u32 as i32;
+}
+
+impl J for TMaybeIntSet {
+    fn j(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("$type".into(), Value::from("Conformance.Targets.MaybeIntSet"));
         m.insert("Values".into(), self.values.j());
         Value::Object(m)
     }
@@ -4714,6 +4867,7 @@ pub enum AnyObject {
     Middle(Box<Middle>),
     NinoNullableRuns(Box<NinoNullableRuns>),
     NinoNullables(Box<NinoNullables>),
+    NullableSequences(Box<NullableSequences>),
     Nullables(Box<Nullables>),
     Outer(Box<Outer>),
     Plain(Box<Plain>),
@@ -4739,6 +4893,8 @@ pub enum AnyObject {
     TLongList(Box<TLongList>),
     TMaybeInt(Box<TMaybeInt>),
     TMaybeIntArray(Box<TMaybeIntArray>),
+    TMaybeIntGrid(Box<TMaybeIntGrid>),
+    TMaybeIntSet(Box<TMaybeIntSet>),
     TObjectSlot(Box<TObjectSlot>),
     TPaddedArray(Box<TPaddedArray>),
     TPointList(Box<TPointList>),
@@ -4792,6 +4948,7 @@ impl AnyObject {
             Self::Middle(v) => &mut **v,
             Self::NinoNullableRuns(v) => &mut **v,
             Self::NinoNullables(v) => &mut **v,
+            Self::NullableSequences(v) => &mut **v,
             Self::Nullables(v) => &mut **v,
             Self::Outer(v) => &mut **v,
             Self::Plain(v) => &mut **v,
@@ -4817,6 +4974,8 @@ impl AnyObject {
             Self::TLongList(v) => &mut **v,
             Self::TMaybeInt(v) => &mut **v,
             Self::TMaybeIntArray(v) => &mut **v,
+            Self::TMaybeIntGrid(v) => &mut **v,
+            Self::TMaybeIntSet(v) => &mut **v,
             Self::TObjectSlot(v) => &mut **v,
             Self::TPaddedArray(v) => &mut **v,
             Self::TPointList(v) => &mut **v,
@@ -4957,6 +5116,10 @@ impl NinoRead for AnyObject {
                 r.read_class_into(&mut **v)?;
                 true
             }
+            Some(Self::NullableSequences(v)) if id == NullableSequences::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
             Some(Self::Nullables(v)) if id == Nullables::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
@@ -5054,6 +5217,14 @@ impl NinoRead for AnyObject {
                 true
             }
             Some(Self::TMaybeIntArray(v)) if id == TMaybeIntArray::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TMaybeIntGrid(v)) if id == TMaybeIntGrid::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::TMaybeIntSet(v)) if id == TMaybeIntSet::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -5187,6 +5358,7 @@ impl NinoRead for AnyObject {
                 Middle::NINO_TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
                 NinoNullableRuns::NINO_TYPE_ID => Self::NinoNullableRuns(Box::new(r.read_class()?)),
                 NinoNullables::NINO_TYPE_ID => Self::NinoNullables(Box::new(r.read_class()?)),
+                NullableSequences::NINO_TYPE_ID => Self::NullableSequences(Box::new(r.read_class()?)),
                 Nullables::NINO_TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
                 Outer::NINO_TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
                 Plain::NINO_TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
@@ -5212,6 +5384,8 @@ impl NinoRead for AnyObject {
                 TLongList::NINO_TYPE_ID => Self::TLongList(Box::new(r.read_class()?)),
                 TMaybeInt::NINO_TYPE_ID => Self::TMaybeInt(Box::new(r.read_class()?)),
                 TMaybeIntArray::NINO_TYPE_ID => Self::TMaybeIntArray(Box::new(r.read_class()?)),
+                TMaybeIntGrid::NINO_TYPE_ID => Self::TMaybeIntGrid(Box::new(r.read_class()?)),
+                TMaybeIntSet::NINO_TYPE_ID => Self::TMaybeIntSet(Box::new(r.read_class()?)),
                 TObjectSlot::NINO_TYPE_ID => Self::TObjectSlot(Box::new(r.read_class()?)),
                 TPaddedArray::NINO_TYPE_ID => Self::TPaddedArray(Box::new(r.read_class()?)),
                 TPointList::NINO_TYPE_ID => Self::TPointList(Box::new(r.read_class()?)),
@@ -5337,6 +5511,10 @@ impl NinoWrite for AnyObject {
                 w.i32(NinoNullables::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
+            Self::NullableSequences(v) => {
+                w.i32(NullableSequences::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
             Self::Nullables(v) => {
                 w.i32(Nullables::NINO_TYPE_ID);
                 w.write_class(&**v)
@@ -5435,6 +5613,14 @@ impl NinoWrite for AnyObject {
             }
             Self::TMaybeIntArray(v) => {
                 w.i32(TMaybeIntArray::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::TMaybeIntGrid(v) => {
+                w.i32(TMaybeIntGrid::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::TMaybeIntSet(v) => {
+                w.i32(TMaybeIntSet::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::TObjectSlot(v) => {
@@ -5580,6 +5766,7 @@ impl J for AnyObject {
             Self::Middle(v) => v.j(),
             Self::NinoNullableRuns(v) => v.j(),
             Self::NinoNullables(v) => v.j(),
+            Self::NullableSequences(v) => v.j(),
             Self::Nullables(v) => v.j(),
             Self::Outer(v) => v.j(),
             Self::Plain(v) => v.j(),
@@ -5605,6 +5792,8 @@ impl J for AnyObject {
             Self::TLongList(v) => v.j(),
             Self::TMaybeInt(v) => v.j(),
             Self::TMaybeIntArray(v) => v.j(),
+            Self::TMaybeIntGrid(v) => v.j(),
+            Self::TMaybeIntSet(v) => v.j(),
             Self::TObjectSlot(v) => v.j(),
             Self::TPaddedArray(v) => v.j(),
             Self::TPointList(v) => v.j(),
@@ -6154,6 +6343,7 @@ pub fn with_type<R>(name: &str, f: impl Visit<R>) -> Option<R> {
         "Conformance.Nested" => f.visit::<Nested>(),
         "Conformance.NinoNullableRuns" => f.visit::<Option<Box<NinoNullableRuns>>>(),
         "Conformance.NinoNullables" => f.visit::<Option<Box<NinoNullables>>>(),
+        "Conformance.NullableSequences" => f.visit::<Option<Box<NullableSequences>>>(),
         "Conformance.Nullables" => f.visit::<Option<Box<Nullables>>>(),
         "Conformance.Outer" => f.visit::<Option<Box<Outer>>>(),
         "Conformance.Padded" => f.visit::<Padded>(),
@@ -6176,6 +6366,8 @@ pub fn with_type<R>(name: &str, f: impl Visit<R>) -> Option<R> {
         "Conformance.Targets.LongList" => f.visit::<Option<Box<TLongList>>>(),
         "Conformance.Targets.MaybeInt" => f.visit::<Option<Box<TMaybeInt>>>(),
         "Conformance.Targets.MaybeIntArray" => f.visit::<Option<Box<TMaybeIntArray>>>(),
+        "Conformance.Targets.MaybeIntGrid" => f.visit::<Option<Box<TMaybeIntGrid>>>(),
+        "Conformance.Targets.MaybeIntSet" => f.visit::<Option<Box<TMaybeIntSet>>>(),
         "Conformance.Targets.ObjectSlot" => f.visit::<Option<Box<TObjectSlot>>>(),
         "Conformance.Targets.PaddedArray" => f.visit::<Option<Box<TPaddedArray>>>(),
         "Conformance.Targets.PointList" => f.visit::<Option<Box<TPointList>>>(),

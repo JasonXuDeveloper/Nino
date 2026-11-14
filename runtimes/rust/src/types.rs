@@ -108,8 +108,8 @@ fn decode_each<T, const N: usize>(chunks: &[[u8; N]], decode: fn(&[u8; N]) -> Re
     crate::simd::decode_block(chunks.iter(), decode)
 }
 
-/// A value copied as raw bytes in the canonical layout (the specification, 5): what a `T?[]` of it holds at a
-/// fixed stride ([`RawNullables`]). Generated raw structs implement it too.
+/// A value copied as raw bytes in the canonical layout (the specification, 5): what a sequence of `T?` of it holds in
+/// slots of a fixed size ([`RawNullable`], [`RawNullables`]). Generated raw structs implement it too.
 pub trait Raw: Sized + 'static {
     /// Its size in the canonical layout.
     const SIZE: usize;
@@ -955,8 +955,83 @@ impl<T: Raw> NinoWrite for NinoNullable<T> {
 
 // ---------------------------------------------------------------------- arrays
 
-/// A `T?[]` or `List<T?>` of a raw `T` (the specification, 6.2): each element at a fixed stride of
-/// `align(T) + size(T)` bytes, the presence byte first and the value at offset `align(T)`, zeroed when absent.
+/// A `T?` of a raw `T` as the element of a sequence (the specification, 6.2): a slot of `align(T) + size(T)` bytes
+/// in every sequence, the presence byte first and the value at offset `align(T)`, zeroed when absent. The element
+/// type of a set, a multi-dimensional array or any other collection of them (`HashSet<RawNullable<i32>>` is a
+/// `HashSet<int?>`, `Grid<RawNullable<i32>, 2>` an `int?[,]`); a `Vec` of them with plain `Option`s is
+/// [`RawNullables`]. A single `T?` (a member, a map's key or value, a tuple's item) is not these bytes: it is an
+/// `Option<T>`, a presence byte and the value only when present.
+///
+/// It wraps the `Option<T>` it stands for (`.0`, [`From`] both ways, [`core::ops::Deref`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RawNullable<T>(pub Option<T>);
+
+impl<T> Default for RawNullable<T> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<T> From<Option<T>> for RawNullable<T> {
+    fn from(value: Option<T>) -> Self {
+        Self(value)
+    }
+}
+
+impl<T> From<RawNullable<T>> for Option<T> {
+    fn from(value: RawNullable<T>) -> Self {
+        value.0
+    }
+}
+
+impl<T> core::ops::Deref for RawNullable<T> {
+    type Target = Option<T>;
+
+    fn deref(&self) -> &Option<T> {
+        &self.0
+    }
+}
+
+impl<T> core::ops::DerefMut for RawNullable<T> {
+    fn deref_mut(&mut self) -> &mut Option<T> {
+        &mut self.0
+    }
+}
+
+// The slot is `Raw for Option<T>`; a collection reads and writes a run of them as one block (`FIXED_SIZE`).
+impl<T: Raw> NinoRead for RawNullable<T> {
+    const MIN_SIZE: usize = <Option<T> as Raw>::SIZE;
+    const FIXED_SIZE: usize = <Option<T> as Raw>::SIZE;
+
+    #[inline]
+    fn decode_fixed(b: &[u8]) -> Result<Self> {
+        Option::<T>::decode_raw(b).map(Self)
+    }
+
+    #[inline]
+    fn read(r: &mut Reader<'_>) -> Result<Self> {
+        Self::decode_fixed(r.take(<Option<T> as Raw>::SIZE)?)
+    }
+}
+
+impl<T: Raw> NinoWrite for RawNullable<T> {
+    const FIXED_SIZE: usize = <Option<T> as Raw>::SIZE;
+
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        self.0.encode_raw(out);
+    }
+
+    #[inline]
+    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        self.0.encode_raw(w.reserve(<Option<T> as Raw>::SIZE));
+        Ok(())
+    }
+}
+
+/// A `T?[]`, `List<T?>` or other list of a raw `T?` (the specification, 6.2) as a `Vec` of plain `Option`s: each
+/// element a slot of `align(T) + size(T)` bytes, the presence byte first and the value at offset `align(T)`, zeroed
+/// when absent (a [`RawNullable`] each).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct RawNullables<T>(pub Vec<Option<T>>);
 
