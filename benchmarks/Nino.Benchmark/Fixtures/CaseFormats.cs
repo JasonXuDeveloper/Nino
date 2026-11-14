@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Nino.Benchmark.Workloads;
@@ -71,6 +74,34 @@ public sealed class NullableIntList
 public sealed class NullableDecimalList
 {
     [ProtoMember(1), NullWrappedValue] public decimal?[] Items;
+}
+
+/// <summary>
+/// CollectionsTest's other collections of <c>int?</c> (CollectionsTest.NullableCollections.cs), one contract for every
+/// collection type protobuf-net writes as a repeated field: <see cref="NullableIntList"/> around
+/// <typeparamref name="TCollection"/>. Not in cases.proto: Google.Protobuf has one repeated field for every sequence,
+/// so its case of each would be NullableInts' again.
+/// </summary>
+[ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+public sealed class NullableIntsIn<TCollection>
+{
+    [ProtoMember(1), NullWrappedValue] public TCollection Items;
+}
+
+// NullableTest's string[] with nulls: a null string is wrapped as the collections' nulls are (Level300:
+// google.protobuf.StringValue); and its raw struct with nullable members in an array (RawNullable, Level300 as
+// NullableFields), named for cases.proto.
+
+[ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+public sealed class NullableStringList
+{
+    [ProtoMember(1), NullWrappedValue] public string[] Items;
+}
+
+[ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+public sealed class RawNullableList
+{
+    [ProtoMember(1)] public RawNullable[] Items;
 }
 
 // NullableTest's nullable structs and nullable references. A null message is an absent field, so one nullable struct is
@@ -178,4 +209,14 @@ public sealed class NullableObjectList
 [JsonSerializable(typeof(ManagedStruct?))]
 [JsonSerializable(typeof(ManagedStruct?[]))]
 [JsonSerializable(typeof(Vec3?[]))]
+[JsonSerializable(typeof(Queue<int?>))]
+[JsonSerializable(typeof(HashSet<int?>))]
+[JsonSerializable(typeof(LinkedList<int?>))]
+[JsonSerializable(typeof(Collection<int?>))]
+[JsonSerializable(typeof(ConcurrentQueue<int?>))]
+[JsonSerializable(typeof(Memory<int?>))]
+[JsonSerializable(typeof(IList<int?>))]
+[JsonSerializable(typeof(RawNullable))]
+[JsonSerializable(typeof(RawNullable[]))]
+[JsonSerializable(typeof(string[]))]
 public partial class CaseJson : JsonSerializerContext;

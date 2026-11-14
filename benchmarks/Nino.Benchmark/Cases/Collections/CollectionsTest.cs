@@ -31,7 +31,9 @@ namespace Nino.Benchmark;
 /// its bytes, <see cref="NullableFieldsMemoryPack"/>); protobuf, which has no null in a repeated field, as a message per
 /// element with an optional value (protobuf-net's <c>[NullWrappedValue]</c>, the contracts in CaseFormats.cs, whose
 /// messages Google.Protobuf reads, parsed from protobuf-net's bytes outside the timed region); System.Text.Json source
-/// generated, UTF-8.
+/// generated, UTF-8. And a raw <c>int?</c> as the element of the other collections (a queue, a set, a linked list, a
+/// <c>Collection</c>, a concurrent queue, a two-dimensional array, a <c>Memory</c>, an <c>IList</c>:
+/// CollectionsTest.NullableCollections.cs).
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -225,6 +227,7 @@ public partial class CollectionsTest : IReadBack
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSelfTree), NinoSelfTreeBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSelfTree), MemoryPackSelfTreeBytes.Length);
         InitNullableForms();
+        InitNullableCollections();
     }
 
     private readonly ArrayBufferWriter<byte> _messagePackBuffer = new(1 << 16);
