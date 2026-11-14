@@ -35,12 +35,7 @@ func (b *builder) slice(c *codec, variant uint8) error {
 	}
 	// []*T of a raw T: a slot of a fixed size each (the elements of any sequence of T?: an array, a list, a set, a
 	// queue), unless the layout says each element is a single T?.
-	// What the layout says of the member's nullable values holds for its elements.
-	elemVariant := variantDefault
-	if variant == variantNinoNullable {
-		elemVariant = variant
-	}
-	if et.Kind() == reflect.Pointer && variant == variantDefault && et.Elem().Kind() != reflect.String {
+	if et.Kind() == reflect.Pointer && variant != variantElementNullable && et.Elem().Kind() != reflect.String {
 		pe, err := b.codec(et, variantDefault, nil)
 		if err != nil {
 			return err
@@ -49,7 +44,7 @@ func (b *builder) slice(c *codec, variant uint8) error {
 			return b.stride(c, pe.elem)
 		}
 	}
-	e, err := b.codec(et, elemVariant, nil)
+	e, err := b.codec(et, variantDefault, nil)
 	if err != nil {
 		return err
 	}
@@ -204,12 +199,9 @@ func (b *builder) stride(c *codec, e *codec) error {
 	return nil
 }
 
-func (b *builder) mapCodec(c *codec, variant uint8) error {
+func (b *builder) mapCodec(c *codec) error {
 	t := c.typ
-	if variant != variantNinoNullable {
-		variant = variantDefault
-	}
-	kc, err := b.codec(t.Key(), variant, nil)
+	kc, err := b.codec(t.Key(), variantDefault, nil)
 	if err != nil {
 		return err
 	}
@@ -218,7 +210,7 @@ func (b *builder) mapCodec(c *codec, variant uint8) error {
 	set := vt.Kind() == reflect.Struct && vt.NumField() == 0
 	var vc *codec
 	if !set {
-		if vc, err = b.codec(vt, variant, nil); err != nil {
+		if vc, err = b.codec(vt, variantDefault, nil); err != nil {
 			return err
 		}
 		c.elem = vc
@@ -232,7 +224,7 @@ func (b *builder) mapCodec(c *codec, variant uint8) error {
 		pairMin += vc.min
 		slot += int(vt.Size())
 	}
-	if f, ok := fastMaps[t]; ok && b.fast && !c.enter && variant == variantDefault {
+	if f, ok := fastMaps[t]; ok && b.fast && !c.enter {
 		c.read, c.write = f.codecs(pairMin)
 		return nil
 	}
@@ -315,7 +307,7 @@ func (b *builder) mapCodec(c *codec, variant uint8) error {
 }
 
 // blockSlices holds, for the element types whose slices generated code reads and writes as one block other than
-// numbers (bool and the BlockValue types), a read and a write on the unsafe path. A slice type with such elements
+// numbers (bool, the BlockValue types and a NinoNullable of a number), a read and a write on the unsafe path. A slice type with such elements
 // has their layout whatever its name, so the codecs set and take it as a []T.
 var blockSlices = map[reflect.Type]func() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)){
 	reflect.TypeFor[bool](): func() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
@@ -328,6 +320,21 @@ var blockSlices = map[reflect.Type]func() (func(*Reader, reflect.Value), func(*W
 	reflect.TypeFor[Guid]():     blockValues[Guid],
 	reflect.TypeFor[Int128]():   blockValues[Int128],
 	reflect.TypeFor[UInt128]():  blockValues[UInt128],
+
+	reflect.TypeFor[NinoNullable[int8]]():    ninoNullableBlocks[int8],
+	reflect.TypeFor[NinoNullable[uint8]]():   ninoNullableBlocks[uint8],
+	reflect.TypeFor[NinoNullable[int16]]():   ninoNullableBlocks[int16],
+	reflect.TypeFor[NinoNullable[uint16]]():  ninoNullableBlocks[uint16],
+	reflect.TypeFor[NinoNullable[int32]]():   ninoNullableBlocks[int32],
+	reflect.TypeFor[NinoNullable[uint32]]():  ninoNullableBlocks[uint32],
+	reflect.TypeFor[NinoNullable[int64]]():   ninoNullableBlocks[int64],
+	reflect.TypeFor[NinoNullable[uint64]]():  ninoNullableBlocks[uint64],
+	reflect.TypeFor[NinoNullable[float32]](): ninoNullableBlocks[float32],
+	reflect.TypeFor[NinoNullable[float64]](): ninoNullableBlocks[float64],
+}
+
+func ninoNullableBlocks[T Primitive]() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+	return blockSlice(ReadNinoNullables[T], WriteNinoNullables[T])
 }
 
 func blockValues[T BlockValue]() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {

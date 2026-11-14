@@ -202,11 +202,26 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 	case 27:
 		v := ReadBlock[TimeOnly](r)
 		check(func(w *Writer) { WriteBlock(w, v) }, func(b *Reader) bool { return equalSlices(ReadBlock[TimeOnly](b), v) })
+	case 28:
+		fuzzNinoNullables[uint8](r, check)
+	case 29:
+		fuzzNinoNullables[int16](r, check)
+	case 30:
+		fuzzNinoNullables[int32](r, check)
+	case 31:
+		fuzzNinoNullables[float64](r, check)
 	}
 }
 
 // fuzzOps is the number of ops fuzzOp runs.
-const fuzzOps = 28
+const fuzzOps = 32
+
+// fuzzNinoNullables reads a block of NinoNullable<T>; what it accepts is written back as the same bytes and values
+// (the padding of a value read is zeros: the bytes above the presence's first, checked, or untouched memory).
+func fuzzNinoNullables[T Primitive](r *Reader, check func(write func(*Writer), read func(*Reader) bool)) {
+	v := ReadNinoNullables[T](r)
+	check(func(w *Writer) { WriteNinoNullables(w, v) }, func(b *Reader) bool { return equalSlices(ReadNinoNullables[T](b), v) })
+}
 
 // equalSlices reports whether a and b are both nil, or both not nil with the same memory (bit for bit: a NaN equals
 // itself; the types compared have no padding).

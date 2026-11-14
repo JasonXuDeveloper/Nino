@@ -137,6 +137,42 @@ func isEntryType(t reflect.Type) bool {
 	return t.PkgPath() == ninoPkg && strings.HasPrefix(t.Name(), "Entry[")
 }
 
+// nullablesIn reports which nullable values t holds as itself, its elements, keys or values (a nino.Entry's
+// included): a nino.NinoNullable[T], and a pointer to a value that is no struct of the caller's (a *int32, a
+// *nino.Decimal: a T?; a pointer to a caller's struct may be a class). depth bounds a slice type that holds itself.
+func nullablesIn(t reflect.Type, depth int) (value, pointer bool) {
+	if depth == 0 {
+		return false, false
+	}
+	both := func(a, b reflect.Type) (bool, bool) {
+		av, ap := nullablesIn(a, depth-1)
+		bv, bp := nullablesIn(b, depth-1)
+		return av || bv, ap || bp
+	}
+	switch t.Kind() {
+	case reflect.Slice:
+		return nullablesIn(t.Elem(), depth-1)
+	case reflect.Map:
+		return both(t.Key(), t.Elem())
+	case reflect.Pointer:
+		e := t.Elem()
+		return false, e.Kind() != reflect.Struct || e.PkgPath() == ninoPkg
+	case reflect.Struct:
+		if isNinoNullableType(t) {
+			return true, false
+		}
+		if isEntryType(t) {
+			return both(t.Field(0).Type, t.Field(1).Type)
+		}
+	}
+	return false, false
+}
+
+// isNinoNullableType reports whether t is a nino.NinoNullable[T].
+func isNinoNullableType(t reflect.Type) bool {
+	return t.PkgPath() == ninoPkg && strings.HasPrefix(t.Name(), "NinoNullable[")
+}
+
 // plan returns the plan of the struct type t (built at most once per build; in progress when t holds itself).
 func (b *builder) plan(t reflect.Type) (*plan, error) {
 	if p, ok := b.plans[t]; ok {
@@ -149,20 +185,6 @@ func (b *builder) plan(t reflect.Type) (*plan, error) {
 	b.plans[t] = p
 	if err := b.buildPlan(p); err != nil {
 		delete(b.plans, t)
-		return nil, err
-	}
-	return p, nil
-}
-
-// planIn returns the plan of t where a member's variant reaches it: a nino.Entry of a member declared with
-// NinoNullable<T> holds them too (a plan of its own, kept by the codec that asked for it); any other type has its
-// one plan.
-func (b *builder) planIn(t reflect.Type, variant uint8) (*plan, error) {
-	if variant != variantNinoNullable || !isEntryType(t) {
-		return b.plan(t)
-	}
-	p := &plan{typ: t, deferrable: true, variant: variant}
-	if err := b.buildPlan(p); err != nil {
 		return nil, err
 	}
 	return p, nil
@@ -361,10 +383,14 @@ func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field, 
 	} else if d.rawEnc != nil && at < len(d.rawEnc.fields) {
 		declared = d.rawEnc.fields[at].typ
 	}
-	variant := p.variant
-	if strings.Contains(declared, ninoNullableName) {
-		variant = variantNinoNullable
+	if declared != "" {
+		// A run of a narrow T has the bytes of a T? run, so the sizes alone would let the wrong one through.
+		value, pointer := nullablesIn(fi.sf.Type, 8)
+		if named := strings.Contains(declared, ninoNullableName); (named && pointer) || (!named && value) {
+			return &TagError{Type: t, Field: fi.path, Detail: "the layout declares " + declared + ": a .NET NinoNullable<T> is a nino.NinoNullable[T], a T? a *T"}
+		}
 	}
+	variant := variantDefault
 	if fi.tag.utf8 {
 		variant = variantUTF8
 	}

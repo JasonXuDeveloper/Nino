@@ -309,19 +309,18 @@ func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
 		"0100000000000000ffffffffffffffff00000000000000000000000000000000020000000100000004000000000000000000000002000000010000" +
 		"000100000000000000000000000000e03f020000000000000000000000000000000000000009010000000000000000000000000000003322110055" +
 		"4477668899aabbccddeeff"
-	ptr := func(v int32) *int32 { return &v }
-	a, b, minusOne, half := FlagsA, FlagsB, int64(-1), 0.5
+	guid := nino.Guid{0x33, 0x22, 0x11, 0x00, 0x55, 0x44, 0x77, 0x66, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 	value := &NinoNullableArgsType{
-		Enum:  &b,
-		Enums: []*Flags{&a, nil},
-		Cell:  &TupleCell{A: 1},
-		One:   &Box[*int32]{Value: ptr(7)},
-		Wide:  &Box[*nino.Decimal]{Value: &nino.Decimal{Flags: 1 << 16, Lo: 15}},
-		Array: &Box[[]*TupleCell]{Value: []*TupleCell{nil, {A: 1}}},
-		List:  &Box[[]*int64]{Value: []*int64{&minusOne, nil}},
-		Set:   []*int32{ptr(4), nil},
-		Map:   []nino.Entry[int32, *float64]{{Key: 1, Value: &half}, {Key: 2}},
-		Tuple: NinoTuple2[uint8, *nino.Guid]{Item1: 9, Item2: &nino.Guid{0x33, 0x22, 0x11, 0x00, 0x55, 0x44, 0x77, 0x66, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}},
+		Enum:  nino.NinoNullableOf(FlagsB),
+		Enums: []nino.NinoNullable[Flags]{nino.NinoNullableOf(FlagsA), {}},
+		Cell:  nino.NinoNullableOf(TupleCell{A: 1}),
+		One:   &Box[nino.NinoNullable[int32]]{Value: nino.NinoNullableOf[int32](7)},
+		Wide:  &Box[nino.NinoNullable[nino.Decimal]]{Value: nino.NinoNullableOf(nino.Decimal{Flags: 1 << 16, Lo: 15})},
+		Array: &Box[[]nino.NinoNullable[TupleCell]]{Value: []nino.NinoNullable[TupleCell]{{}, nino.NinoNullableOf(TupleCell{A: 1})}},
+		List:  &Box[[]nino.NinoNullable[int64]]{Value: []nino.NinoNullable[int64]{nino.NinoNullableOf[int64](-1), {}}},
+		Set:   []nino.NinoNullable[int32]{nino.NinoNullableOf[int32](4), {}},
+		Map:   []nino.Entry[int32, nino.NinoNullable[float64]]{{Key: 1, Value: nino.NinoNullableOf(0.5)}, {Key: 2}},
+		Tuple: NinoTuple2[uint8, nino.NinoNullable[nino.Guid]]{Item1: 9, Item2: nino.NinoNullableOf(guid)},
 	}
 	data, err := nino.Serialize(value, WriteNinoNullableArgsType)
 	if err != nil {
@@ -349,10 +348,9 @@ func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
 // then the value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
 // tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
 func TestNinoNullableInsideRawStructsAsDotNetWritesIt(t *testing.T) {
-	seven, minusOne := int32(7), int32(-1)
 	narrow := &NinoNullableRawType{
-		One:  HoldsNinoNullable{A: 1, B: &seven},
-		Many: []HoldsNinoNullable{{A: 2}, {A: 3, B: &minusOne}},
+		One:  HoldsNinoNullable{A: 1, B: nino.NinoNullableOf[int32](7)},
+		Many: []HoldsNinoNullable{{A: 2}, {A: 3, B: nino.NinoNullableOf[int32](-1)}},
 	}
 	data, err := nino.Serialize(narrow, WriteNinoNullableRawType)
 	if err != nil {
@@ -366,7 +364,7 @@ func TestNinoNullableInsideRawStructsAsDotNetWritesIt(t *testing.T) {
 	}
 
 	wide := &NinoNullableRawWideType{
-		One:  HoldsWideNinoNullable{A: 1, B: &nino.Decimal{Flags: 1 << 16, Lo: 15}},
+		One:  HoldsWideNinoNullable{A: 1, B: nino.NinoNullableOf(nino.Decimal{Flags: 1 << 16, Lo: 15})},
 		Many: []HoldsWideNinoNullable{{A: 2}},
 	}
 	data, err = nino.Serialize(wide, WriteNinoNullableRawWideType)

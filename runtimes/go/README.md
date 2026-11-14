@@ -83,7 +83,7 @@ tracked objects are read new. On a failure the value holds what was read before 
 | BCL values | `Decimal`, `Guid`, `DateTime`, `TimeSpan`, `DateTimeOffset`, `DateOnly`, `TimeOnly`, `BigInteger` (`*big.Int`), `Version` |
 | Strings | `String`, `NullableString`, `StringPtr` (default encoding); `UTF8`, `NullableUTF8`, `UTF8Ptr` (`[NinoUtf8]`); `UTF16` (code units) |
 | Raw runs | `Reader.Take(n)`, `Writer.Extend(n)` / `ExtendZero(n)`, `BoolAt` for a bool inside a raw struct |
-| Collections | `Length`, `ByteArray`, `ReadPrimitives` / `WritePrimitives` (one block copy), `WriteStrings` / `WriteStringPtrs`, `ReadBools`, `ReadBlock` (dates, decimals, Guids, 128-bit integers: one block copy, then checked), `CheckUniqueKeys`, `CheckUniqueValues` and `CheckUniqueStrings` (the duplicate check for the pairs or set elements read by your own loop, `CheckUniqueStrings` for a set of nullable strings: numbers and strings compared as .NET compares them, a NaN equal to every NaN, in a seeded table of the reader's own, no map), `ReadPrimitiveEntries` (dictionaries of primitive keys and values: one block copy on little-endian hosts where a pair has no padding), `ReadPrimitiveMap` (the same into a Go map: one bounds check for the block, no call per pair), `ReadRaw` (raw structs whose Go memory is their bytes: one block copy on little-endian hosts), `ReadShape` (multi-dimensional arrays) and their writers. Other collections are loops of your own with a direct call per element, as nino-gen writes them (`internal/sample/loops.go`); the helpers that took each element's code as a function value (`ReadSlice`, `ReadMap`, `ReadEntries`, `ReadSet`, `ReadUnique`, `ReadUniqueEntries`, `ReadFixed` and their writers, `WritePrimitivesRaw`, `ReadPrimitivesInto`, `ReadSealedInto`) were removed in 4.0.0-rc.8 |
+| Collections | `Length`, `ByteArray`, `ReadPrimitives` / `WritePrimitives` (one block copy), `WriteStrings` / `WriteStringPtrs`, `ReadBools`, `ReadBlock` (dates, decimals, Guids, 128-bit integers: one block copy, then checked), `ReadNinoNullables` / `WriteNinoNullables` (`NinoNullable<T>` of a number: one block), `CheckUniqueKeys`, `CheckUniqueValues` and `CheckUniqueStrings` (the duplicate check for the pairs or set elements read by your own loop, `CheckUniqueStrings` for a set of nullable strings: numbers and strings compared as .NET compares them, a NaN equal to every NaN, in a seeded table of the reader's own, no map), `ReadPrimitiveEntries` (dictionaries of primitive keys and values: one block copy on little-endian hosts where a pair has no padding), `ReadPrimitiveMap` (the same into a Go map: one bounds check for the block, no call per pair), `ReadRaw` (raw structs whose Go memory is their bytes: one block copy on little-endian hosts), `ReadShape` (multi-dimensional arrays) and their writers. Other collections are loops of your own with a direct call per element, as nino-gen writes them (`internal/sample/loops.go`); the helpers that took each element's code as a function value (`ReadSlice`, `ReadMap`, `ReadEntries`, `ReadSet`, `ReadUnique`, `ReadUniqueEntries`, `ReadFixed` and their writers, `WritePrimitivesRaw`, `ReadPrimitivesInto`, `ReadSealedInto`) were removed in 4.0.0-rc.8 |
 | Classes | `Class[T]`, `ReadClass`, `WriteClass`, `ReadSealed`, `WriteSealed` (depth and deferral, below); `EnterBody` / `ExitBody` on the reader and the writer, to call a body's code directly and fall back to `ReadClassInto` / `WriteClass` from 128 open bodies on, as generated code does |
 | Regions | `BeginRegion` / `EndRegion` (version-tolerant and keyed bodies), `More`, `BeginMember` / `EndMember` / `SkipMember`, `KeyedSeen` |
 | Polymorphism | `TypeID(name)`, `WriteTyped`, `UnknownType`; or `TypeSet`, `ClassType`, `StructType`, `ReadAny`, `WriteAny` |
@@ -218,13 +218,24 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 | `T` (struct) | a struct: raw, or member by member |
 | an interface (`any`, or one the allowed types implement) | `object`, an abstract class, an interface: a type id, then one of the **registered** types that implements the field's interface |
 
-.NET's `NinoNullable<T>` is a `*T` too, with bytes of its own: its memory wherever it is, a presence and a value of a
-`T` each (`2 * size(T)` bytes: `01000000 05000000` for a `NinoNullable<int>` of 5, zeros for nil), alone, as an
-element of any collection and inside a raw struct. Generated code reads and writes it so, and so do struct tags where
-the type's `NinoLayout` names it: a member (or a raw struct's field) whose declared type holds `Nino.Core.NinoNullable<`
-reads each `*T` of a fixed-size `T` in it (the field, a slice's elements, a map's or a `nino.Entry`'s values) as one,
-where the same Go type without it is a `T?`. Reading rejects a presence other than 0 or 1, a byte set above it and a
-value that is not zeros where it is absent (`Reader.NinoNullableAt`), as .NET does with `NinoSettings.Untrusted`.
+.NET writes a nullable fixed-size `T` (a number, a date, a raw struct) in three ways, and the Go type says which:
+
+| .NET | Bytes | Go |
+| --- | --- | --- |
+| `T?`, a single value (a member, a map's key or value, a tuple's item) | a presence byte, then the value when present | `*T` |
+| `T?`, the element of a sequence (`T?[]`, `List<T?>`, `HashSet<T?>`, nested ones) | a slot of `T`'s alignment plus its size: the presence byte, zeros, then the value, zeros when absent | `[]*T` |
+| `NinoNullable<T>`, wherever it is | its memory, `2 * size(T)` bytes: a presence as wide as `T` (0 or 1), then the value, zeros when absent | `nino.NinoNullable[T]` |
+
+`nino.NinoNullable[T]` is a value, `struct { HasValue bool; Value T }`, whose zero value is absent:
+`nino.NinoNullableOf(v)` holds `v`, and `Get()` returns the value and whether there is one. A `NinoNullable<int>` of 5
+is `01000000 05000000` alone, as an element of any collection and inside a raw struct; `Value` is written only when
+`HasValue` is set. Generated code declares .NET's `NinoNullable<T>` members with it, and struct tags know the type by
+itself, with or without a `NinoLayout` (a layout that names the other nullable is a `*TagError`: a run of a narrow
+`NinoNullable<T>` has the bytes of a `T?` run). A slice of them holds no pointer an element: `[]nino.NinoNullable[T]`
+of a number is read and written as one block (`ReadNinoNullables` / `WriteNinoNullables`, copied as memory where
+Go lays the struct out as the wire does), any other `T` at its offsets from one bounds check. Reading rejects a
+presence other than 0 or 1, a byte set above it and a value that is not zeros where it is absent
+(`Reader.NinoNullableAt`), as .NET does with `NinoSettings.Untrusted`.
 
 Polymorphic types are registered once, by a value: `nino.Register((*Dog)(nil), (*Cat)(nil), Circle{})` (a nil pointer
 for a class, a zero value for a struct; `nino.RegisterID(id, v)` for a closed generic type, whose layout publishes

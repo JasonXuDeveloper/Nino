@@ -80,7 +80,6 @@ type plan struct {
 	size       int           // raw size
 	align      int           // raw alignment
 	entry      bool          // nino.Entry: a pair
-	variant    uint8         // an Entry's: the variant of its key and value (variantNinoNullable), else 0
 	rawErr     string        // why the type cannot be raw although its fields are fixed-size
 }
 

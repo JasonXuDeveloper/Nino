@@ -151,9 +151,12 @@ func (b *builder) fill(c *codec, variant uint8) error {
 	case reflect.Slice:
 		return b.slice(c, variant)
 	case reflect.Map:
-		return b.mapCodec(c, variant)
+		return b.mapCodec(c)
 	case reflect.Struct:
-		p, err := b.planIn(t, variant)
+		if isNinoNullableType(t) {
+			return b.ninoNullable(c)
+		}
+		p, err := b.plan(t)
 		if err != nil {
 			return err
 		}
@@ -268,15 +271,6 @@ func numberAccess(kind codecKind, size int, fast bool) (func(*Reader, reflect.Va
 func (b *builder) pointer(c *codec, variant uint8) error {
 	t := c.typ
 	et := t.Elem()
-	if variant == variantNinoNullable {
-		e, err := b.codec(et, variantDefault, nil)
-		if err != nil {
-			return err
-		}
-		if e.rawCapable() && e.kind != kDTO {
-			return b.ninoNullable(c, e)
-		}
-	}
 	switch {
 	case et.Kind() == reflect.String:
 		c.kind, c.min, c.utf8 = kStringPtr, 1, variant == variantUTF8
@@ -398,12 +392,20 @@ func (b *builder) nullable(c *codec) error {
 	return nil
 }
 
-// ninoNullable: .NET's NinoNullable<T> of a raw T (e), its memory wherever it is: the presence, a whole T (0 or 1
-// in its first byte, zeros above), then the value, zeros when absent. Reading checks all of it (NinoNullableAt).
-func (b *builder) ninoNullable(c *codec, e *codec) error {
+// ninoNullable: a nino.NinoNullable[T], .NET's NinoNullable<T> of a raw T, its memory wherever it is: the presence,
+// a whole T (0 or 1 in its first byte, zeros above), then the value, zeros when absent. Reading checks all of it
+// (NinoNullableAt). The type says so by itself, whatever the layout.
+func (b *builder) ninoNullable(c *codec) error {
+	t := c.typ
+	e, err := b.codec(t.Field(1).Type, variantDefault, nil)
+	if err != nil {
+		return err
+	}
+	if !e.rawCapable() || e.kind == kDTO {
+		return typeErr(t, "a NinoNullable holds a raw value (a number, a date, a raw struct), not %s", t.Field(1).Type)
+	}
 	size := e.size
 	c.kind, c.elem, c.size, c.align, c.min = kNinoNullable, e, 2*size, e.align, 2*size
-	et := c.typ.Elem()
 	c.read = func(r *Reader, v reflect.Value) {
 		if len(r.buf) < 2*size {
 			r.eof()
@@ -419,20 +421,17 @@ func (b *builder) ninoNullable(c *codec, e *codec) error {
 			v.SetZero()
 			return
 		}
-		p := reflect.New(et)
-		e.read(r, p.Elem())
-		if r.err == nil {
-			v.Set(p)
-		}
+		e.read(r, v.Field(1))
+		v.Field(0).SetBool(r.err == nil)
 	}
 	c.write = func(w *Writer, v reflect.Value) {
-		if v.IsNil() {
+		if !v.Field(0).Bool() {
 			w.ExtendZero(2 * size)
 			return
 		}
 		w.U8(1)
 		w.ExtendZero(size - 1)
-		e.write(w, v.Elem())
+		e.write(w, v.Field(1))
 	}
 	return nil
 }

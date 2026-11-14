@@ -617,27 +617,40 @@ func (badTolerantGap) NinoLayout() string {
 }
 func (badElements) NinoLayout() string { return "members=[elements]::seq(raw(4));A:int:raw(4)" }
 
-// .NET's NinoNullable<T>, which the layout names: each *T of such a member is its memory (a presence and a value
-// of a T each), where the same Go type under a T? is a presence byte and the value (Plain).
+// .NET's NinoNullable<T> is a nino.NinoNullable[T]: its memory wherever it is (a presence and a value of a T each),
+// where a *T is a T?, a presence byte and the value (Plain). The type says so by itself; a layout, when there is
+// one, has to agree.
 type tagNinoNullableFields struct {
-	Tag   uint8  `nino:"0"`
-	Count *int32 `nino:"1"`
-}
-
-func (tagNinoNullableFields) NinoLayout() string {
-	return "header=None; raw=true; members=raw(12){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}"
+	Tag   uint8               `nino:"0"`
+	Count NinoNullable[int32] `nino:"1"`
 }
 
 type tagNinoNullables struct {
-	One    *int32                `nino:"0"`
-	Wide   *Decimal              `nino:"1"`
-	Run    []*int32              `nino:"2"`
-	Map    map[int32]*int64      `nino:"3"`
-	Fields tagNinoNullableFields `nino:"4"`
-	Plain  *int32                `nino:"5"`
+	One    NinoNullable[int32]           `nino:"0"`
+	Wide   NinoNullable[Decimal]         `nino:"1"`
+	Run    []NinoNullable[int32]         `nino:"2"`
+	Map    map[int32]NinoNullable[int64] `nino:"3"`
+	Fields tagNinoNullableFields         `nino:"4"`
+	Plain  *int32                        `nino:"5"`
 }
 
-func (tagNinoNullables) NinoLayout() string {
+// The same types with the layouts a generator emits.
+type tagNinoNullableFieldsLaidOut tagNinoNullableFields
+
+func (tagNinoNullableFieldsLaidOut) NinoLayout() string {
+	return "header=None; raw=true; members=raw(12){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}"
+}
+
+type tagNinoNullablesLaidOut struct {
+	One    NinoNullable[int32]           `nino:"0"`
+	Wide   NinoNullable[Decimal]         `nino:"1"`
+	Run    []NinoNullable[int32]         `nino:"2"`
+	Map    map[int32]NinoNullable[int64] `nino:"3"`
+	Fields tagNinoNullableFieldsLaidOut  `nino:"4"`
+	Plain  *int32                        `nino:"5"`
+}
+
+func (tagNinoNullablesLaidOut) NinoLayout() string {
 	return "format=Positional; header=Presence; members=" +
 		"One:Nino.Core.NinoNullable<int>:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)};" +
 		"Wide:Nino.Core.NinoNullable<decimal>:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)};" +
@@ -648,15 +661,10 @@ func (tagNinoNullables) NinoLayout() string {
 }
 
 func TestTagNinoNullable(t *testing.T) {
-	bothModes(t, func(t *testing.T) {
-		seven, five, three, nine := int32(7), int32(5), int32(3), int32(9)
-		v := &tagNinoNullables{
-			One: &seven, Run: []*int32{&five, nil}, Map: map[int32]*int64{1: nil},
-			Fields: tagNinoNullableFields{Tag: 2, Count: &three}, Plain: &nine,
-		}
-		const want = "01 0100000007000000 0000000000000000000000000000000000000000000000000000000000000000" +
-			" 02000000 0100000005000000 0000000000000000 01000000 01000000 00000000000000000000000000000000" +
-			" 02000000 0100000003000000 01 09000000"
+	const want = "01 0100000007000000 0000000000000000000000000000000000000000000000000000000000000000" +
+		" 02000000 0100000005000000 0000000000000000 01000000 01000000 00000000000000000000000000000000" +
+		" 02000000 0100000003000000 01 09000000"
+	check := func(t *testing.T, v any, read func([]byte) (any, error)) {
 		got, err := Marshal(v)
 		if err != nil {
 			t.Fatal(err)
@@ -664,8 +672,7 @@ func TestTagNinoNullable(t *testing.T) {
 		if !bytes.Equal(got, mustHex(t, want)) {
 			t.Fatalf("got %X\nwant %s", got, want)
 		}
-		var back *tagNinoNullables
-		if err := UnmarshalExact(got, &back); err != nil || !reflect.DeepEqual(back, v) {
+		if back, err := read(got); err != nil || !reflect.DeepEqual(back, v) {
 			t.Fatalf("read back: %v, %+v", err, back)
 		}
 		// What .NET's untrusted mode rejects: a presence other than 0 or 1, a byte above its first, and a byte in a
@@ -673,11 +680,71 @@ func TestTagNinoNullable(t *testing.T) {
 		for _, at := range []int{1, 2, 9 + 20, 45 + 8 + 4, 65 + 9, 77 + 5} {
 			bad := bytes.Clone(got)
 			bad[at] |= 2
-			if err := UnmarshalExact(bad, &back); err == nil {
+			if _, err := read(bad); err == nil {
 				t.Fatalf("a byte set at %d was read", at)
 			}
 		}
+	}
+	bothModes(t, func(t *testing.T) {
+		seven, nine := NinoNullableOf[int32](7), int32(9)
+		run := []NinoNullable[int32]{NinoNullableOf[int32](5), {}}
+		absent := map[int32]NinoNullable[int64]{1: {}}
+		// An absent value is zeros on the wire whatever Value holds.
+		stale := []NinoNullable[int32]{NinoNullableOf[int32](5), {Value: 8}}
+		if got, err := Marshal(stale); err != nil || !bytes.Equal(got, mustHex(t, "02000000 0100000005000000 0000000000000000")) {
+			t.Fatalf("an absent element with a value: %X, %v", got, err)
+		}
+		t.Run("no layout", func(t *testing.T) {
+			v := &tagNinoNullables{
+				One: seven, Run: run, Map: absent,
+				Fields: tagNinoNullableFields{Tag: 2, Count: NinoNullableOf[int32](3)}, Plain: &nine,
+			}
+			check(t, v, func(b []byte) (any, error) {
+				var back *tagNinoNullables
+				err := UnmarshalExact(b, &back)
+				return back, err
+			})
+		})
+		t.Run("layout", func(t *testing.T) {
+			v := &tagNinoNullablesLaidOut{
+				One: seven, Run: run, Map: absent,
+				Fields: tagNinoNullableFieldsLaidOut{Tag: 2, Count: NinoNullableOf[int32](3)}, Plain: &nine,
+			}
+			check(t, v, func(b []byte) (any, error) {
+				var back *tagNinoNullablesLaidOut
+				err := UnmarshalExact(b, &back)
+				return back, err
+			})
+		})
 	})
+	if v, ok := NinoNullableOf("x").Get(); v != "x" || !ok {
+		t.Fatalf("Get of a value: %q, %v", v, ok)
+	}
+	if v, ok := (NinoNullable[int32]{Value: 4}).Get(); v != 0 || ok {
+		t.Fatalf("Get of an absent value: %d, %v", v, ok)
+	}
+}
+
+// A layout and the Go type have to name the same nullable: a run of a narrow NinoNullable<T> has the bytes of a T?
+// run, so the sizes would let either through.
+type (
+	badNinoNullablePointer struct {
+		Run []*int32 `nino:"0"`
+	}
+	badNullableValue struct {
+		Run []NinoNullable[int32] `nino:"0"`
+	}
+	badNinoNullableText struct {
+		S NinoNullable[string] `nino:"0"`
+	}
+)
+
+func (badNinoNullablePointer) NinoLayout() string {
+	return "members=Run:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+}
+
+func (badNullableValue) NinoLayout() string {
+	return "members=Run:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
 }
 
 func TestTagErrors(t *testing.T) {
@@ -709,6 +776,9 @@ func TestTagErrors(t *testing.T) {
 		{badEmbeddedPtr{}, "tagRaw", "embedded pointer"},
 		{badElements{}, "", "collections"},
 		{badPtrPtr{}, "P", "pointer to a ptr"},
+		{badNinoNullablePointer{}, "Run", "is a nino.NinoNullable[T]"},
+		{badNullableValue{}, "Run", "a T? a *T"},
+		{badNinoNullableText{}, "S", "holds a raw value"},
 	} {
 		err := Check(reflect.TypeOf(c.v))
 		var te *TagError
