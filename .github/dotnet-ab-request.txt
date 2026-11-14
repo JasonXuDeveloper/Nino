@@ -299,6 +299,16 @@
 # Nullable values (#275, #276): 16-byte T? read and written as two words, the nullable path folded at import,
 # nullable raw members on a local writer, null top-level classes without a reader or writer (claude/sleepy-sagan-oeorb1
 # 30f2ab1) against main 6b69761, twice (filters reordered, two Arm64 jobs), and main against itself (floor).
-cpu='EPYC|Xeon|Neoverse' 6b69761 30f2ab1 5 *NullableTest.Nino* *CollectionsTest.Nino*Nullable* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache*
-cpu='EPYC|Xeon|Neoverse' 6b69761 30f2ab1 5 *CollectionsTest.Nino*Nullable* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache* *NullableTest.Nino* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize*
-cpu='EPYC|Xeon|Neoverse' 6b69761 6b69761 5 *NullableTest.Nino* *CollectionsTest.Nino*Nullable* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache*
+# done (run 43562225698): cpu='EPYC|Xeon|Neoverse' 6b69761 30f2ab1 5 *NullableTest.Nino* *CollectionsTest.Nino*Nullable* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache*
+# done (run 43562225698): cpu='EPYC|Xeon|Neoverse' 6b69761 30f2ab1 5 *CollectionsTest.Nino*Nullable* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache* *NullableTest.Nino* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize*
+# done (run 43562225698): cpu='EPYC|Xeon|Neoverse' 6b69761 6b69761 5 *NullableTest.Nino* *CollectionsTest.Nino*Nullable* *SimpleTest.NinoSerializeSimpleClass* *VersionTolerantTest.NinoSerialize* *WorkloadTest.Nino*EventStream* *WorkloadTest.Nino*ProfileCache*
+# Round 1 (run 43562225698), per CPU, head 30f2ab1 against main 6b69761: NullableStruct serialize 1.14-4.25x,
+# NullableFields serialize 1.67-3.33x and deserialize 1.04-1.25x, NullableFieldsArray deserialize 1.13-1.30x, null
+# object serialize 1.32-1.66x, nothing else beyond the floor (0.94-1.05; 1.12-1.22 on nanosecond cases).
+# Arm64 tbl spread for T?[] strides 2-16, words for 24 (04ce37f0) against its parent 7a7d1368, and the parent
+# against itself.
+cpu=Neoverse 7a7d1368 04ce37f0 8 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*NullableStructs* *NullableTest.Nino*NullableFieldsArray*
+cpu=Neoverse 7a7d1368 7a7d1368 5 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*NullableStructs* *NullableTest.Nino*NullableFieldsArray*
+# The nullable forms (7daeb6de: NinoNullable<T>, MemoryPack's T? as it is and converted inside the timing) beside
+# Nino's T? and MemoryPack's SafeNullable data, one run per CPU (the reports in the log; base and head the same).
+cpu='EPYC|Xeon|Neoverse' 7daeb6de 7daeb6de 3 *NullableTest.Nino*Struct* *NullableTest.Nino*Fields* *NullableTest.MemoryPack*Struct* *NullableTest.MemoryPack*Fields* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
