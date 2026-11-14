@@ -177,6 +177,15 @@ namespace Nino.Core
         {
             nuint length = (nuint)total;
 #if NET9_0_OR_GREATER
+            if (AdvSimd.Arm64.IsSupported)
+            {
+                if (Stride <= 16)
+                    CopySpread(ref destination, ref source, length);
+                else
+                    CopyWords(ref destination, ref source, length);
+                return;
+            }
+
             if (AdvSimd.Arm64.IsSupported && length >= (nuint)PartStep)
             {
                 CopyParts(ref destination, ref source, length);
@@ -227,6 +236,108 @@ namespace Nino.Core
             for (int i = 0; i < bytes.Length; i++)
                 bytes[i] = element[part * PartWidth + i % PartWidth];
             return Vector128.Create(bytes);
+        }
+
+        /// <summary>
+        /// For strides of 2 to 16 bytes, the table lookup (tbl) that gives each byte of a 16-byte vector its element's
+        /// flag where a present element keeps it, and zero (an index out of the table) in the padding.
+        /// </summary>
+        private static readonly Vector128<byte> SpreadFlags = Spread();
+
+        private static Vector128<byte> Spread()
+        {
+            var bytes = new byte[16];
+            if (Stride <= 16)
+            {
+                var keep = Keeps();
+                for (int i = 0; i < bytes.Length; i++)
+                    bytes[i] = keep[i % Stride] != 0 ? (byte)(i - i % Stride) : (byte)0xFF;
+            }
+
+            return Vector128.Create(bytes);
+        }
+
+        /// <summary>
+        /// <see cref="CopyLanes"/> on Arm64 for strides of 2 to 16 bytes, which tile a 16-byte vector: each byte takes
+        /// its element's flag (tbl), the flags tested against themselves (cmtst) give the bytes to keep, and one AND
+        /// keeps them; vectors loaded and stored in pairs (ldp, stp). Three vector operations a vector, where the
+        /// structure loads and stores of <see cref="CopyParts"/> (ld2, st2) took the vector pipes too. The last vector
+        /// overlaps the one before it.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopySpread(ref byte destination, ref byte source, nuint total)
+        {
+            // Cursors bumped, so the two vectors of a step are at constant offsets (ldp, stp).
+            var spread = SpreadFlags;
+            nuint left = total;
+            for (; left >= 32; left -= 32)
+            {
+                var a = Vector128.LoadUnsafe(ref source);
+                var b = Vector128.LoadUnsafe(ref source, 16);
+                Spread(a, spread).StoreUnsafe(ref destination);
+                Spread(b, spread).StoreUnsafe(ref destination, 16);
+                source = ref Unsafe.Add(ref source, 32);
+                destination = ref Unsafe.Add(ref destination, 32);
+            }
+
+            if (left >= 16)
+            {
+                Spread(Vector128.LoadUnsafe(ref source), spread).StoreUnsafe(ref destination);
+                source = ref Unsafe.Add(ref source, 16);
+                destination = ref Unsafe.Add(ref destination, 16);
+                left -= 16;
+            }
+
+            if (left != 0)
+                Spread(Vector128.LoadUnsafe(ref source, left - 16), spread).StoreUnsafe(ref destination, left - 16);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Spread(Vector128<byte> value, Vector128<byte> spread)
+        {
+            var flags = AdvSimd.Arm64.VectorTableLookup(value, spread);
+            return value & AdvSimd.CompareTest(flags, flags);
+        }
+
+        /// <summary>The bytes the first, second and third 8-byte words of a present element keep.</summary>
+        private static readonly ulong KeepWord0 = Stride >= 8 ? Word(Keeps(), 0) : 0;
+
+        private static readonly ulong KeepWord1 = Stride >= 16 ? Word(Keeps(), 8) : 0;
+
+        private static readonly ulong KeepWord2 = Stride == 24 ? Word(Keeps(), 16) : 0;
+
+        /// <summary>Whether an element's first word keeps only its flag, which is zero where it has no value.</summary>
+        private static readonly bool FlagWordOnly = KeepWord0 == 0xFF;
+
+        private static ulong Word(byte[] keep, int offset) => BitConverter.ToUInt64(keep, offset);
+
+        /// <summary>
+        /// <see cref="CopyLanes"/> on Arm64 for a stride of 24 bytes (or 8 and 16), a word at a time in general-purpose
+        /// registers: each element's flag tested once, each word kept (ANDed with its bytes to keep) or zeroed by a
+        /// conditional select, loaded and stored in pairs (ldp, stp), where the structure loads and stores of
+        /// <see cref="CopyParts"/> (ld2, st2) take the vector pipes.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyWords(ref byte destination, ref byte source, nuint total)
+        {
+            // Cursors bumped by the stride, so each element's words are at constant offsets, read before any is written
+            // (ldp, stp); the presence a mask, all ones for a flag other than 0 (its negation shifted right
+            // arithmetically), ANDed into each word: a ternary compiled to a branch per element.
+            ref byte end = ref Unsafe.Add(ref source, total);
+            while (Unsafe.IsAddressLessThan(ref source, ref end))
+            {
+                ulong w0 = Unsafe.ReadUnaligned<ulong>(ref source);
+                ulong w1 = Stride >= 16 ? Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, 8)) : 0;
+                ulong w2 = Stride == 24 ? Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, 16)) : 0;
+                ulong present = (ulong)(-(long)(byte)w0 >> 63);
+                Unsafe.WriteUnaligned(ref destination, FlagWordOnly ? w0 & 0xFF : w0 & KeepWord0 & present);
+                if (Stride >= 16)
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, 8), w1 & KeepWord1 & present);
+                if (Stride == 24)
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, 16), w2 & KeepWord2 & present);
+                source = ref Unsafe.Add(ref source, Stride);
+                destination = ref Unsafe.Add(ref destination, Stride);
+            }
         }
 
         /// <summary>
