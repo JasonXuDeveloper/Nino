@@ -113,6 +113,16 @@ namespace Nino.Core.CompilerServices
             default(TFormatter).Serialize(value, ref writer);
 
         /// <summary>
+        /// Writes a null class with a presence byte as a whole payload into <paramref name="buffer"/>: the byte alone,
+        /// where a generated <c>__Top</c> twin's <c>Write</c> finds the value null, without calling its writer (a
+        /// writer created and flushed out of line took longer than v3's inlined null, 3.5 ns against 2.6 in
+        /// v4.0.0-rc.10's NullableTest.NinoSerializeNullableObject). Out of line: inlined, its reservation (and the
+        /// buffer's growth) nearly doubled every top-level call of such a class (SimpleClass's 88 to 161 bytes).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void WriteNull(NinoArrayBufferWriter buffer) => buffer.Reserve(1) = NinoWire.Null;
+
+        /// <summary>
         /// Writes <paramref name="value"/> as a whole payload into <paramref name="buffer"/> with a writer created
         /// here (inlined: in the caller's frame, where the JIT keeps it in registers if no call takes its address).
         /// </summary>

@@ -230,7 +230,9 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   which creates the reader and calls the body that reads a new instance, an inlinable method (`__ReadBodyInline`, or
   `__ReadBodyFreshInline`) that the out-of-line body also calls on its local copy of the reader. Measured (x64, the
   same class, `Deserialize<T>(byte[])`): 220 → 139 instructions per call. Pooled types keep the regular route
-  (their new value comes from the pool first).
+  (their new value comes from the pool first). A null value is handled in the inlined `Write` and `Read` themselves
+  (`NinoDirect.WriteNull`, a presence byte 0 returned as null), so neither creates a writer or reader out of line
+  for it; `__ReadTop` is static (an instance method out of line takes the twin's address).
 * A version-tolerant body whose first members are raw values (written by the body itself, not by a base's
   `WriteMembers`) reserves the region's length and those members together (`Writer.BeginRegion(size, out
   lengthPosition)`): one capacity check instead of two.
