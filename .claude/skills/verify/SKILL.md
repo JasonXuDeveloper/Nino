@@ -19,7 +19,6 @@ at its time limit while it still waits for the lock (round 103 lost a fuzz serie
 dotnet build -c Release                                    # 0 warnings
 dotnet test tests/Nino.UnitTests -c Release                # split in two if memory is short:
                                                            #   --filter "FullyQualifiedName!~ShapeMatrixTests", then "~ShapeMatrixTests"
-dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.0
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true        # interceptors off
 dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8       # the .NET 8 SDK generator

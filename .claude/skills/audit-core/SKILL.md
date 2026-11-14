@@ -52,7 +52,7 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
 - **Threads**: registries and caches are safe to read while another thread registers (copy-on-write or locks, with
   the contract written next to the code); per-thread state does not leak between calls; statics initialize once.
 - **Exceptions**: data errors are `NinoDataException` (`audit-security`), caller mistakes say which call and why.
-- **Platforms**: every TFM (netstandard2.0, 2.1, net8.0, net10.0) builds the same behavior; Unity and IL2CPP
+- **Platforms**: every TFM (netstandard2.1, net8.0, net10.0) builds the same behavior; Unity and IL2CPP
   constraints (`platforms`); trim and AOT annotations on every reflection path.
 - **Unbounded memory**: pools, caches and registries with a cap or a release.
 - **Dead code**: members, overloads and helpers nothing uses (`audit-code` owns the cross-project sweep).

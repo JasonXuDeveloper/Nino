@@ -75,7 +75,8 @@ proof](#reusing-a-length-proof), [Vector loops](#vector-loops).
 
 - Index an array or span on a hot path through a ref to its first element and `Unsafe.Add`, never `a[i]` or `span[i]`:
   take `ref MemoryMarshal.GetReference(span)` or `ref NinoUnsafe.GetArrayDataReference(array)` once (the wrapper
-  covers netstandard2.0, which lacks `MemoryMarshal.GetArrayDataReference`), check the length once against what the
+  covers netstandard2.1, which lacks `MemoryMarshal.GetArrayDataReference`; on Mono a `ReadOnlySpan` indexer call
+  also fails outright, `platforms`), check the length once against what the
   loop will touch, then walk with `Unsafe.Add(ref first, i)` or a bumped cursor. Why: the JIT removes a check only
   when it can prove `i < Length` (a `for` over `0..Length` of the same local); anything else (two arrays, an index
   from the data, a count read earlier, `i + 1`) leaves a compare and a `CORINFO_HELP_RNGCHKFAIL` call per access, and

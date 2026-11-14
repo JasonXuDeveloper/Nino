@@ -1,6 +1,6 @@
 ---
 name: platforms
-description: "Every platform Nino runs on and how to test each locally - x64 with AVX-512/AVX2/SSSE3 only, Arm64 and Arm32 under qemu (with the flags that keep qemu from crashing), 32-bit and big-endian, no SIMD, WebAssembly, Mono and the net472 build, .NET Framework, Unity IL2CPP and Burst, the netstandard builds and interceptors off. Use when a change adds a platform-specific path, when something fails on one platform only, or before landing a change to a read or write path. Triggers: qemu, Arm32, linux-arm, x86, crossgen2, unaligned, Vector<T>, s390x, big-endian, Mono, net472, IL2CPP, Unity, Burst, DOTNET_EnableHWIntrinsic, netstandard2.0, NinoRegularCalls, 平台, 跨平台, 32位, 大端."
+description: "Every platform Nino runs on and how to test each locally - x64 with AVX-512/AVX2/SSSE3 only, Arm64 and Arm32 under qemu (with the flags that keep qemu from crashing), 32-bit and big-endian, no SIMD, WebAssembly, Mono and the net472 build, Unity IL2CPP and Burst, the netstandard2.1 build and interceptors off. Use when a change adds a platform-specific path, when something fails on one platform only, or before landing a change to a read or write path. Triggers: qemu, Arm32, linux-arm, x86, crossgen2, unaligned, Vector<T>, s390x, big-endian, Mono, net472, IL2CPP, Unity, Burst, DOTNET_EnableHWIntrinsic, netstandard2.1, netstandard2.0, .NET Framework, MissingMethodException, NinoRegularCalls, 平台, 跨平台, 32位, 大端."
 metadata:
   internal: true
 ---
@@ -9,22 +9,30 @@ metadata:
 
 Every optimization has to hold on each platform Nino runs on: x64 with AVX-512, AVX2 or SSSE3 only, Arm64, Arm32 and
 other 32-bit targets, WebAssembly and anything without SIMD (`DOTNET_EnableHWIntrinsic=0`), Mono and Unity (IL2CPP
-included), .NET Framework. Fix a problem everywhere it occurs, not only in the case that showed it, and say in the
+included). .NET Framework is not one: the runtime packages target netstandard2.1, net8.0 and net10.0 (the owner
+dropped netstandard2.0 in rc.11; only the Roslyn components, generator, analyzer and code fixes, stay netstandard2.0,
+as Roslyn hosts require). Fix a problem everywhere it occurs, not only in the case that showed it, and say in the
 commit body which platforms a change speeds up and which keep the old path.
 
 Prefer one path for every platform. A platform-specific fast path (an intrinsic, `UnsafeAccessor` on .NET 8+,
 `allows ref struct` on .NET 9+, a runtime's internal layout) is allowed only behind `#if` or a startup check, with
 the shared path kept as the fallback; say in a comment which platforms take it, and test that both paths write and
-read the same bytes (run the suite once with the fast path off: `DOTNET_EnableHWIntrinsic=0`, the `netstandard`
-builds of Nino.Core, Mono).
+read the same bytes (run the suite once with the fast path off: `DOTNET_EnableHWIntrinsic=0`, the netstandard2.1
+build of Nino.Core, Mono).
 
 - Give a public member one signature in every build of Nino.Core, or leave it out of the build that cannot have it:
-  never `Task` in netstandard2.0 where the others return `ValueTask`. Why: NuGet hands a .NET application the net8.0
-  or net10.0 build while a netstandard2.0 library it references was compiled against the netstandard2.0 one, so the
-  library calls a method that does not exist at run time (`MissingMethodException`); a member left out fails at the
-  library's compile time instead, and can be added later without a break. Evidence: rc.10's async Stream overloads
-  (`SerializeAsync`, `DeserializeAsync`) are `ValueTask` and absent from netstandard2.0, which has no `ValueTask`
-  without the System.Threading.Tasks.Extensions package; the tests guard them with `NINO_CORE_NETSTANDARD2_0`.
+  never another return type in netstandard2.1 than in net8.0. Why: NuGet hands a .NET application the net8.0 or
+  net10.0 build while a netstandard library it references was compiled against the netstandard2.1 one, so the library
+  calls a method that does not exist at run time (`MissingMethodException`); a member left out fails at the library's
+  compile time instead, and can be added later without a break. Evidence: rc.10's async Stream overloads were
+  `ValueTask` and left out of the then netstandard2.0 build (no `ValueTask` there) rather than typed `Task`.
+- In Nino.Core, never index a `ReadOnlySpan<T>` (`span[i]`, or `foreach`, which the compiler lowers to the indexer):
+  take `ref MemoryMarshal.GetReference(span)` and `Unsafe.Add`. Why: the netstandard2.1 build calls the indexer with
+  `modreq(InAttribute)` on its `ref readonly` return, and stock Mono 6.8's mscorlib (Ubuntu's `mono-complete`)
+  declares it without one, so the call throws `MissingMethodException` there. Evidence: rc.11, the first Mono run of
+  the netstandard2.1 build, failed 27 `Around<(...)>[]` cases in `Writer.WriteUnmanagedRaw` and would have failed
+  `NinoSequences`' header read; find such calls with `monodis Nino.Core.dll | grep 'ReadOnlySpan`1.*get_Item'`.
+  `Span<T>`'s indexer returns a plain `ref` and is safe.
 - Under NativeAOT, emit every instruction a run-time plan leads to as that set's own intrinsic, under its own
   `X.IsSupported` test in the method that uses it (`if (Ssse3.IsSupported) return Ssse3.Shuffle(...)`), and give the
   test a fallback that is not a call. Why: ILC compiles x64 for SSE2 and emits a later set only behind its test (a
@@ -47,12 +55,12 @@ builds of Nino.Core, Mono).
 | Platform | How |
 |---|---|
 | x64 ISAs | `DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0` on the test run (this last one leaves .NET 10's baseline `X86Base` supported: an unguarded `X86Base.CpuId` ran under it and failed only on Arm64, round 129; an x86-only call is proven guarded only on Arm64) |
-| netstandard builds, interceptors off, Roslyn 4.8 | `-f net8.0 -p:NinoCoreTfm=netstandard2.0` / `2.1`, `-p:NinoRegularCalls=true`, `-p:NinoGeneratorBuild=4.8` (`verify`) |
+| netstandard2.1 build, interceptors off, Roslyn 4.8 | `-f net8.0 -p:NinoCoreTfm=netstandard2.1`, `-p:NinoRegularCalls=true`, `-p:NinoGeneratorBuild=4.8` (`verify`) |
 | Arm64 | build `-r linux-arm64`, run under `qemu-aarch64-static -cpu neoverse-n1` |
 | Arm32 | build `-r linux-arm`, run under `qemu-arm-static` with `DOTNET_EnableWriteXorExecute=0` and `DOTNET_INTERNAL_ThreadSuspendInjection=0` |
-| Mono | the `net472` build of `tests/Nino.RuntimeTests` under `mono` (also `MONO_GC_DEBUG=verify-before-collections`) |
+| Mono | the `net472` build of `tests/Nino.RuntimeTests` under `mono` (also `MONO_GC_DEBUG=verify-before-collections`): compiled against Mono's class libraries (`/usr/lib/mono/4.5/`, `-p:MonoLibraries=` elsewhere) and the netstandard2.1 builds, made only where they are installed (`apt-get install mono-complete`) |
 | Mono 32-bit (x86) | Mono 6.12's i386 debs extracted, run through their own `ld-linux.so.2` with `MONO_PATH` (references/layouts.md, the `delegate*` bullet) |
-| .NET Framework 4.8, Windows x86 | CI's "Runtime internals" job (`-p:NinoX86=true` builds the 32-bit exe) |
+| .NET on Windows x64 and x86 | CI's "Runtime internals" job (the net10.0 build, with an x86 .NET runtime beside the SDK) |
 | Go 386, Arm32, s390x (big-endian) | `runtimes.yml`; locally `GOARCH=386`, `GOARCH=arm` / `s390x` under qemu |
 | Rust Arm64 (NEON kernels) | no cross C toolchain needed: `rustup target add aarch64-unknown-linux-musl`, then `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=rust-lld CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER="qemu-aarch64 -cpu neoverse-n1" cargo test --release --target aarch64-unknown-linux-musl --all-features` (debug: the simd tests ran over an hour; release, all tests, ~5 min); `cargo +nightly miri test --lib --target aarch64-unknown-linux-gnu simd` for the unsafe code; asm with `cargo rustc --release --lib --target aarch64-unknown-linux-gnu -- --emit asm`, cycles with `llvm-mca -mcpu=neoverse-n2` over the executed instruction stream (`optimize-runtimes`, references/strings.md, the per-char decoder bullet) |
 | Unity (editor tests, IL2CPP player, Burst) | `unity.yml` only (one license seat: `audit-ci`); `src/Nino.Unity/AGENTS.md` |

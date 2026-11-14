@@ -1,6 +1,6 @@
 ---
 name: runtime-internals
-description: "How Nino reads and builds a runtime's own objects through their fields instead of the public API - CollectionViews (List, HashSet, Dictionary layouts per runtime), mirror classes and ObjectTypes.Retype, ImmutableDictionary/ImmutableHashSet trees (HashTrees), SortedSet red-black trees, LinkedList rings, ConcurrentDictionary buckets - with startup checks, public-API fallbacks and the FastPaths tests. Use when adding or changing such a path, when a collection reads or writes wrong on Mono, IL2CPP, .NET Framework or 32-bit, or when a startup check fails. Triggers: CollectionViews, HashTrees, SortedSetNodes, ReadLinked, ConcurrentTables, Retype, mirror class, startup check, FastPaths, tests/Nino.RuntimeTests, Mono abort, SortedSet, ConcurrentDictionary, 读错, 启动检查, 运行时内部, 镜像类, 字段布局, 红黑树."
+description: "How Nino reads and builds a runtime's own objects through their fields instead of the public API - CollectionViews (List, HashSet, Dictionary layouts per runtime), mirror classes and ObjectTypes.Retype, ImmutableDictionary/ImmutableHashSet trees (HashTrees), SortedSet red-black trees, LinkedList rings, ConcurrentDictionary buckets - with startup checks, public-API fallbacks and the FastPaths tests. Use when adding or changing such a path, when a collection reads or writes wrong on Mono, IL2CPP or 32-bit, or when a startup check fails. Triggers: CollectionViews, HashTrees, SortedSetNodes, ReadLinked, ConcurrentTables, Retype, mirror class, startup check, FastPaths, tests/Nino.RuntimeTests, Mono abort, SortedSet, ConcurrentDictionary, 读错, 启动检查, 运行时内部, 镜像类, 字段布局, 红黑树."
 metadata:
   internal: true
 ---
@@ -21,8 +21,8 @@ tested on every runtime it can meet.
 ## Reading a runtime's collections through their fields
 
 A path through a runtime's internals (`CollectionViews`: the fields of `List<T>`, `HashSet<T>`,
-`Dictionary<TKey, TValue>`, ...) declares a layout for each implementation (.NET 64-bit and 32-bit, .NET Framework,
-Mono), checks it against an instance with known contents at startup and uses the public API when none matches. Keep
+`Dictionary<TKey, TValue>`, ...) declares a layout for each implementation (.NET 64-bit and 32-bit, Mono and
+Unity; some mirrors also match .NET Framework's class library, which Nino no longer runs on), checks it against an instance with known contents at startup and uses the public API when none matches. Keep
 the fallback (the enumerator) out of line.
 
 - Capture the published head of an exact CoreCLR `ConcurrentStack<T>` once when writing raw elements. On the
@@ -74,7 +74,7 @@ What works everywhere so far:
 - Run it on .NET 8 and 10, the `net472` build under Mono (also `MONO_GC_DEBUG=verify-before-collections`), the
   `linux-arm` and `linux-arm64` builds under qemu (`platforms`), with a GC stress (forced compacting collections
   between builds, then every object checked).
-- CI's "Runtime internals" job runs `tests/Nino.RuntimeTests` on .NET (x64, Arm64, Arm32 under qemu, Windows x86),
-  Mono (x64, Arm64) and .NET Framework 4.8 (64-bit and 32-bit): give a new path a case there with known contents, and
+- CI's "Runtime internals" job runs `tests/Nino.RuntimeTests` on .NET (x64, Arm64, Arm32 under qemu, Windows x64 and
+  x86) and Mono (x64, Arm64; the netstandard2.1 builds): give a new path a case there with known contents, and
   its startup flag a row in its `FastPaths`, so a runtime that falls back to the public API fails. Each runtime must
   write .NET x64's bytes; locally, diff the outputs (.github/CONTRIBUTING.md).

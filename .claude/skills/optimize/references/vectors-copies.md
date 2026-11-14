@@ -201,7 +201,7 @@ writers](#long-copies-and-writers), [Sequences](#sequences), [Masked copy](#mask
   scalar tests and netstandard builds passed (`7a3cf2c6`).
   These unrolls (and the two- and one-word ones below) run only where no vector mask does: .NET 8+ without SIMD and
   the netstandard builds without accelerated `Vector<byte>` or a registered kernel for the run (IL2CPP, Unity's Mono,
-  .NET Framework); keep them as that platform's fast path, never merged into the shared word loop, until a Mono or
+  Mono); keep them as that platform's fast path, never merged into the shared word loop, until a Mono or
   IL2CPP measurement says otherwise (every number here is .NET 10 with SIMD disabled; `NinoMask.Copy` says so).
 - Keep indexed addressing for the three-word period. Bumping both byrefs preserved `ldp` and `stp` but left two
   address increments, grew IL from 383 to 399 bytes and Arm64 scalar Tier 1 from 432 to 440, and left the x64 cross

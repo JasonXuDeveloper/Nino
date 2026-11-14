@@ -55,7 +55,7 @@ the runtime it targets.
   (the fuzzer's `RawUntrusted.Dates`): the fuzzer places inputs against such a page, but only a value that ends the
   input shows an over-read. A vector check of values is proven against the types' own constructors over random
   layouts, strides and run lengths, run at every vector width (`ValueCheckLayoutTests`; `DOTNET_MaxVectorTBitWidth=512`,
-  `DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`); its mutations of `Plan.Joins` and of the bool mask fail it. An assertion that a vector path ran follows the build of Nino.Core, not the test runtime: `#if !NINO_CORE_NETSTANDARD` (the netstandard builds have no vector passes, and `Vector.IsHardwareAccelerated` is true there too); run the netstandard2.0 and netstandard2.1 lines of `verify` before landing such a test (round 129: main went red on both netstandard shards).
+  `DOTNET_EnableAVX2=0`, `DOTNET_EnableHWIntrinsic=0`); its mutations of `Plan.Joins` and of the bool mask fail it. An assertion that a vector path ran follows the build of Nino.Core, not the test runtime: `#if !NINO_CORE_NETSTANDARD` (the netstandard builds have no vector passes, and `Vector.IsHardwareAccelerated` is true there too); run the netstandard2.1 line of `verify` before landing such a test (round 129: main went red on both netstandard shards, then 2.0 and 2.1).
 - A read that allocates from a count before checking it against the bytes left (collections, strings, multi-dim
   arrays, `BigInteger`, `BitArray`, `StringBuilder`, custom formatters' helpers).
 - A presize budget per collection instead of per read: each collection nested in another claims the bytes left

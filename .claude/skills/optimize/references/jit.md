@@ -191,7 +191,7 @@ where that is so, and its x64 sizes are listings, not throughput.
 
 ## Locals, listing size and arithmetic
 
-- Scope a captured local inside the branch that needs its closure. Why: the netstandard2.0 `Lazy<T>` formatter
+- Scope a captured local inside the branch that needs its closure. Why: the then netstandard2.0 `Lazy<T>` formatter
   (`a792e149`) previously allocated before the presence check; moving the local into the present branch removed that
   null-path allocation on Arm64 and x64 listings. A late helper with a large generic local would move that value onto
   the stack, and changing the Lazy publication mode lost present throughput.

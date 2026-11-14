@@ -15,7 +15,7 @@ tests: `src/Nino.Unity/AGENTS.md`; the kernels' techniques: `optimize`, referenc
   inline into those (`Narrow`, `Widen`, `ConditionalSelect`, `AndNot`, `~`) run the package's software form, and
   `Vector<T>` from Mono's own mscorlib (Unity's too) is never accelerated, though `IsHardwareAccelerated` was true on
   Unity 2022.3.47f1 and 6000.0.20f1 (UUM-77339; Unity reverted that change in its fork in February 2025). So the text
-  kernels (`Narrow`/`Widen`) take `NinoUnsafe.NumericVectors` (.NET Framework and .NET Core only) and the padding
+  kernels (`Narrow`/`Widen`) take `NinoUnsafe.NumericVectors` (.NET Core only) and the padding
   masks (loads, stores, `&`) `NinoUnsafe.VectorMasks` (also classic Mono with the package). Evidence, Mono 6.8 on x64
   (local): 1,024 chars narrowed in 5,400 ns with `Vector.Narrow` against 550 for the 8-byte loop, widened in 6,700
   against 400; `Vector.EqualsAll` inlines to `Equals` and is fast (the check before Narrow in 120 ns); an array of

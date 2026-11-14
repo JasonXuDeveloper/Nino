@@ -16,8 +16,9 @@ Nino.UnitTests/              the main suite (net8.0, net10.0, and net11.0 with a
 Nino.UnitTests.Subset/       netstandard2.1 library of types the main suite needs positional (raw, fixed-size, block
                              and deep types) or compiled with a newer C# (required members, primary constructors),
                              compiled with the Roslyn 4.3 generator
-Nino.RuntimeTests/           one program (net10.0; net472 with the netstandard2.0 builds) that CI's "Runtime internals"
-                             job runs on .NET (x64, Arm64, Arm32 under qemu, Windows x86), Mono and .NET Framework 4.8:
+Nino.RuntimeTests/           one program (net10.0; net472, Mono's, with the netstandard2.1 builds, made where Mono is
+                             installed) that CI's "Runtime internals" job runs on .NET (x64, Arm64, Arm32 under qemu,
+                             Windows x64 and x86) and Mono:
                              the same bytes everywhere, and every fast path through a runtime's internals taken
                              (FastPaths: a row per startup flag of CollectionViews, HashTables, ConcurrentTables,
                              SortedSetNodes, ObjectTypes, HashTrees, SortedTrees); BclStructs.cs: every BCL struct
