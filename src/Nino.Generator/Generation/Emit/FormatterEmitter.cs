@@ -253,15 +253,20 @@ internal static class FormatterEmitter
             ? $"{Signature.Serialize(t)} => __SerializeTop(value, ref writer);"
             : $"{Signature.Serialize(t)} => {SerializeTop(m, top)};");
         w.Line(names.Inline);
+        // A null value is its presence byte alone, written inline: the writer is created out of line (__WriteTop).
         w.Line(serializeTop
-            ? $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => __WriteTop(value, buffer);"
+            ? $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) {{ if (value == null) {CoreCompilerServices}NinoDirect.WriteNull(buffer); else __WriteTop(value, buffer); }}"
             : $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => {CoreCompilerServices}NinoDirect.Write<{t}, {top}>(value, buffer);");
         w.Line(names.Inline);
         w.Line($"{Signature.Deserialize(t)} => {CoreCompilerServices}NinoObject.DeserializeTop<{t}, {top}>(ref reader, ref value);");
         if (m.ReadTop)
         {
+            // A null value (its presence byte 0) is returned inline; the reader is created in a static method out of
+            // line (an instance method out of line takes the twin's address: a byte stored on the caller's stack).
+            w.Line(names.Inline);
+            w.Line($"public {t} Read(global::System.ReadOnlySpan<byte> data) => !data.IsEmpty && data[0] == {NinoWire.Null} ? null : __ReadTop(data);");
             w.Line(names.NoInline);
-            w.Open($"public {t} Read(global::System.ReadOnlySpan<byte> data)");
+            w.Open($"private static {t} __ReadTop(global::System.ReadOnlySpan<byte> data)");
             w.Line($"var __r = new {Core}Reader(data);");
             w.Line("if (!__r.ReadPresent())");
             w.IndentedLine("return null;");
