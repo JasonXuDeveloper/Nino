@@ -173,14 +173,6 @@ namespace Nino.Core
             return i;
         }
 
-        private static bool KeepsWholeBytes()
-        {
-            foreach (byte keep in Keeps())
-                if (keep != 0 && keep != 0xFF)
-                    return false;
-            return true;
-        }
-
         /// <summary>
         /// The elements of a 16-byte stride as the wire holds them, in two operations: every byte multiplied in GF(2^8)
         /// by its element's flag (gf2p8mulb: times 1 it is kept, times 0 cleared), the padding by 0. A test into a
@@ -196,6 +188,15 @@ namespace Nino.Core
         private static Vector256<byte> Kept(Vector256<byte> value) =>
             Gfni.V256.GaloisFieldMultiply(value, Avx2.Shuffle(value, FlagOfByte.GetLower()));
 #endif
+
+        /// <summary>Whether the wire keeps or clears each byte of an element whole (no byte keeps only some bits).</summary>
+        private static bool KeepsWholeBytes()
+        {
+            foreach (byte keep in Keeps())
+                if (keep != 0 && keep != 0xFF)
+                    return false;
+            return true;
+        }
 
         /// <summary>The bytes one step of <see cref="CopyLanes"/> covers with 16-byte vectors (one period).</summary>
         private static readonly int LaneStep = Stride == 24 ? 48 : 16;
@@ -808,6 +809,265 @@ namespace Nino.Core
                     : ~Vector128.Equals(value.AsUInt64(), Vector128<ulong>.Zero).AsByte();
             }
         }
+
+        /// <summary>
+        /// Whether a run of a stride the lanes do not take (3, 6, 12, 20, 32, 40, ...: a struct of two floats, a
+        /// <c>Guid?</c>, a struct of three or four words) is cleared in one pass by <see cref="CopyPieces"/>, with
+        /// 16-byte vectors (SSSE3, Arm64) or 32-byte ones (AVX2). AVX-512 VBMI with GFNI takes strides up to 64 bytes
+        /// in <see cref="CopyPermuted"/> first; no vectors, and the netstandard build, copy and then clear.
+        /// </summary>
+        private static readonly bool Pieces = (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported) && !Lanes &&
+                                              Stride is not (2 or 4 or 8 or 16 or 24) &&
+                                              Mask?.ClearsAbsent != true && KeepsWholeBytes();
+
+        /// <summary>Whether 32-byte and 16-byte vectors clear by the multiplication (GFNI), as <see cref="Kept(Vector256{byte})"/>.</summary>
+#if NET10_0_OR_GREATER
+        private static readonly bool Multiplies256 = Gfni.V256.IsSupported;
+
+        private static readonly bool Multiplies128 = Gfni.IsSupported;
+#else
+        private const bool Multiplies256 = false;
+
+        private const bool Multiplies128 = false;
+#endif
+
+        // Read by the tables below: static fields are initialized in the order they are written.
+        /// <summary>
+        /// For <see cref="Pieces128"/>: the place in a 16-byte vector of the flag of each byte's element, for the bytes
+        /// the wire keeps of the whole elements it holds (several of a stride below 16, else the first 16 bytes of
+        /// one), and an index out of the table (pshufb and tbl give zero) for the others.
+        /// </summary>
+        private static readonly Vector128<byte> PieceFlags = Pieces ? PieceFlagIndexes() : default;
+
+        private static Vector128<byte> PieceFlagIndexes()
+        {
+            var keep = Keeps();
+            var bytes = new byte[16];
+            int whole = Stride >= 16 ? 16 : 16 / Stride * Stride;
+            for (int i = 0; i < bytes.Length; i++)
+                bytes[i] = i < whole && keep[i % Stride] != 0 ? (byte)(i - i % Stride) : (byte)0x80;
+            return Vector128.Create(bytes);
+        }
+
+        /// <summary>
+        /// For <see cref="Pieces256"/>: what the first 32 bytes of an element are tested against or ANDed with. With
+        /// GFNI the bytes the wire keeps (the flag in each of them is the byte's multiplier); without, 1 in those bytes
+        /// and 0xFF in the others, which no flag equals, so one compare gives the bytes of a present element to keep.
+        /// </summary>
+        private static readonly Vector256<byte> PieceKept = Pieces ? PieceKeptBytes() : default;
+
+        private static Vector256<byte> PieceKeptBytes()
+        {
+            var keep = Keeps();
+            var bytes = new byte[32];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                bool kept = i < Stride && keep[i] != 0;
+                bytes[i] = Multiplies256 ? (kept ? (byte)0xFF : (byte)0) : (kept ? (byte)1 : (byte)0xFF);
+            }
+
+            return Vector256.Create(bytes);
+        }
+
+        /// <summary>The bytes the wire keeps of one element, for the pieces after an element's first vector.</summary>
+        private static readonly byte[] PieceKeeps = Pieces ? Keeps() : null;
+
+        /// <summary>Whether those pieces keep every byte (the value has no padding of its own): no AND for them.</summary>
+        private static readonly bool WholePieces = Array.TrueForAll(Keeps()[Math.Min(8, Stride)..], keep => keep == 0xFF);
+
+        /// <summary>
+        /// Copies the elements of <paramref name="total"/> bytes that fill whole vectors as the wire holds them, and
+        /// returns how many bytes it wrote (whole elements); the caller copies the few after them. AVX2 takes an
+        /// element of up to 32 bytes in one load (its last element would end past the run: 16-byte vectors take it)
+        /// and longer ones in 32-byte pieces; 16-byte vectors take the rest.
+        /// </summary>
+        // Out of line: one call per collection, as CopyLanes.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static nuint CopyPieces(ref byte destination, ref byte source, nuint total)
+        {
+            nuint done = 0;
+            if (Avx2.IsSupported && Stride > 16)
+            {
+                done = CopyPieces<Vector256<byte>, Pieces256>(ref destination, ref source, total);
+                if (done == total)
+                    return done;
+            }
+
+            return done + CopyPieces<Vector128<byte>, Pieces128>(ref Unsafe.Add(ref destination, done),
+                ref Unsafe.Add(ref source, done), total - done);
+        }
+
+        /// <summary>
+        /// One vector width of <see cref="CopyPieces"/>. A stride below the vector: the whole elements a vector holds a
+        /// step, each byte cleared by its own element's flag; what the store writes past them the next step writes
+        /// again. A stride of a vector or more: one element a step, its first vector, then pieces of a vector each
+        /// cleared by the element's flag, the last ending where the element ends (it overlaps the one before).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static nuint CopyPieces<TVector, TPieces>(ref byte destination, ref byte source, nuint total)
+            where TVector : struct
+            where TPieces : struct, IPieces<TVector>
+        {
+            nuint width = (nuint)Unsafe.SizeOf<TVector>(), stride = (nuint)Stride;
+            nuint step = stride >= width ? stride : width / stride * stride;
+            nuint reach = stride >= width ? stride : width;
+            var table = TPieces.Table;
+            ref byte keep = ref MemoryMarshal.GetArrayDataReference(PieceKeeps);
+            nuint i = 0;
+            for (; i + reach <= total; i += step)
+            {
+                var first = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i));
+                if (stride > width)
+                {
+                    var present = TPieces.Present(first);
+                    for (nuint at = width; at + width < stride; at += width)
+                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + at), TPieces.Rest(
+                            Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i + at)), present,
+                            ref Unsafe.Add(ref keep, at)));
+                    nuint last = i + stride - width;
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, last), TPieces.Rest(
+                        Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, last)), present,
+                        ref Unsafe.Add(ref keep, stride - width)));
+                }
+
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i), TPieces.First(first, table));
+            }
+
+            return i;
+        }
+
+        /// <summary>The operations of one vector width of <see cref="CopyPieces{TVector,TPieces}"/>.</summary>
+        private interface IPieces<TVector> where TVector : struct
+        {
+            /// <summary>The constant <see cref="First"/> takes, read once before the loop.</summary>
+            static abstract TVector Table { get; }
+
+            /// <summary>The first vector of a step as the wire holds it.</summary>
+            static abstract TVector First(TVector first, TVector table);
+
+            /// <summary>Whether the element whose first vector is <paramref name="first"/> has a value, as <see cref="Rest"/> takes it.</summary>
+            static abstract TVector Present(TVector first);
+
+            /// <summary>A later piece of that element as the wire holds it; <paramref name="keep"/> is its bytes to keep.</summary>
+            static abstract TVector Rest(TVector piece, TVector present, ref byte keep);
+        }
+
+        /// <summary>
+        /// 16-byte vectors: a shuffle (pshufb, tbl) gives each byte its element's flag, zero where the wire keeps
+        /// nothing. x64 multiplies by it with GFNI, else compares it with zero and clears those bytes (pandn); Arm64
+        /// tests it (cmtst) and ANDs.
+        /// </summary>
+        private readonly struct Pieces128 : IPieces<Vector128<byte>>
+        {
+            public static Vector128<byte> Table
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => PieceFlags;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<byte> First(Vector128<byte> first, Vector128<byte> table)
+            {
+                if (AdvSimd.Arm64.IsSupported)
+                {
+                    var flags = AdvSimd.Arm64.VectorTableLookup(first, table);
+                    return first & AdvSimd.CompareTest(flags, flags);
+                }
+
+                if (Ssse3.IsSupported)
+                {
+                    var flags = Ssse3.Shuffle(first, table);
+#if NET10_0_OR_GREATER
+                    if (Gfni.IsSupported)
+                        return Gfni.GaloisFieldMultiply(first, flags);
+#endif
+                    return Sse2.AndNot(Sse2.CompareEqual(flags, Vector128<byte>.Zero), first);
+                }
+
+                return first;
+            }
+
+            /// <summary>The flag in every byte: with GFNI the multiplier itself, else the bytes of an absent element (x64), of a present one (Arm64).</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<byte> Present(Vector128<byte> first)
+            {
+                if (AdvSimd.Arm64.IsSupported)
+                {
+                    var flags = AdvSimd.DuplicateSelectedScalarToVector128(first, 0);
+                    return AdvSimd.CompareTest(flags, flags);
+                }
+
+                if (Ssse3.IsSupported)
+                {
+                    var flags = Ssse3.Shuffle(first, Vector128<byte>.Zero);
+                    return Multiplies128 ? flags : Sse2.CompareEqual(flags, Vector128<byte>.Zero);
+                }
+
+                return first;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<byte> Rest(Vector128<byte> piece, Vector128<byte> present, ref byte keep)
+            {
+                if (AdvSimd.Arm64.IsSupported)
+                    return WholePieces ? piece & present : piece & present & Vector128.LoadUnsafe(ref keep);
+#if NET10_0_OR_GREATER
+                if (Gfni.IsSupported)
+                    return Gfni.GaloisFieldMultiply(piece, WholePieces ? present : present & Vector128.LoadUnsafe(ref keep));
+#endif
+                return Sse2.IsSupported
+                    ? Sse2.AndNot(present, WholePieces ? piece : piece & Vector128.LoadUnsafe(ref keep))
+                    : piece;
+            }
+        }
+
+        /// <summary>
+        /// 32-byte vectors (AVX2), for strides above 16 bytes: the element's flag broadcast to every byte (a shuffle
+        /// stays within 16 bytes); with GFNI the bytes multiplied by it where the wire keeps them, without it compared
+        /// with 1 there and ANDed.
+        /// </summary>
+        private readonly struct Pieces256 : IPieces<Vector256<byte>>
+        {
+            public static Vector256<byte> Table
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => PieceKept;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<byte> First(Vector256<byte> first, Vector256<byte> table)
+            {
+                if (!Avx2.IsSupported)
+                    return first;
+                var flags = Avx2.BroadcastScalarToVector256(first.GetLower());
+#if NET10_0_OR_GREATER
+                if (Gfni.V256.IsSupported)
+                    return Gfni.V256.GaloisFieldMultiply(first, flags & table);
+#endif
+                return first & Avx2.CompareEqual(flags, table);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<byte> Present(Vector256<byte> first)
+            {
+                if (!Avx2.IsSupported)
+                    return first;
+                var flags = Avx2.BroadcastScalarToVector256(first.GetLower());
+                return Multiplies256 ? flags : Avx2.CompareEqual(flags, Vector256<byte>.Zero);
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<byte> Rest(Vector256<byte> piece, Vector256<byte> present, ref byte keep)
+            {
+#if NET10_0_OR_GREATER
+                if (Gfni.V256.IsSupported)
+                    return Gfni.V256.GaloisFieldMultiply(piece, WholePieces ? present : present & Vector256.LoadUnsafe(ref keep));
+#endif
+                return Avx2.IsSupported
+                    ? Avx2.AndNot(present, WholePieces ? piece : piece & Vector256.LoadUnsafe(ref keep))
+                    : piece;
+            }
+        }
 #endif
 
         /// <summary>Writes the count and the elements.</summary>
@@ -838,6 +1098,17 @@ namespace Nino.Core
                 {
                     CopyLanes(ref dst, ref src, count * Stride);
                     return;
+                }
+
+                if (Pieces)
+                {
+                    // The elements that fill whole vectors; the few after them are copied and cleared below.
+                    int done = (int)CopyPieces(ref dst, ref src, (nuint)(count * Stride));
+                    count -= done / Stride;
+                    if (count == 0)
+                        return;
+                    src = ref Unsafe.Add(ref src, done);
+                    dst = ref Unsafe.Add(ref dst, done);
                 }
 #endif
                 if (Mask != null)
@@ -993,34 +1264,50 @@ namespace Nino.Core
 
         /// <summary>
         /// Whether a run of <see cref="NinoNullable{T}"/> that is not its wire as it lies (<see cref="Words"/>) is
-        /// packed into it by a permutation (vpermb, AVX-512 VBMI), a 64-byte load of whole slots at a time: of each
-        /// slot the presence byte, zeros up to T's alignment, then the value, without the bytes the wire clears.
-        /// Any T up to 32 bytes (<c>decimal</c>, <c>Guid</c>, a struct of three floats); read the other way.
+        /// moved by vectors: T larger than its alignment and written as its bytes (<c>decimal</c>, <c>Guid</c>, a
+        /// struct of floats or of words). Of each slot the wire holds the presence byte, zeros up to T's alignment,
+        /// then the value without the bytes the wire clears; reading is the same the other way.
         /// </summary>
-        private static readonly bool Packs = Raw && !Words && SlotSize <= 64 && Mask?.ClearsAbsent != true &&
-                                             Unsafe.SizeOf<T>() == NinoLayout<T>.WireSize &&
-                                             Avx512Vbmi.IsSupported && Vector512.IsHardwareAccelerated;
+        private static readonly bool Moves = Raw && !Words && Mask?.ClearsAbsent != true && KeepsWholeBytes() &&
+                                             Unsafe.SizeOf<T>() == NinoLayout<T>.WireSize;
 
-        /// <summary>The slots a 64-byte load holds whole.</summary>
-        private static readonly int SlotsPerVector = Packs ? 64 / SlotSize : 0;
+        /// <summary>
+        /// The vector whose whole slots one shuffle packs into their wire form (<see cref="Shuffled{TVector,TShuffle}"/>),
+        /// 0 for none: 64 bytes with AVX-512 VBMI (vpermb, any slot up to 64 bytes), 32 with AVX2 where the slot is
+        /// made of 4-byte words (vpermd: T aligned to 4 or 8 bytes, up to 16 bytes), 16 where a slot fits (pshufb with
+        /// SSSE3, tbl on Arm64: T up to 8 bytes).
+        /// </summary>
+        private static readonly int PackWidth =
+            !Moves ? 0
+            : Avx512Vbmi.IsSupported && Vector512.IsHardwareAccelerated && SlotSize <= 64 ? 64
+            : Avx2.IsSupported && SlotSize <= 32 && Offset % 4 == 0 ? 32
+            : (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported) && SlotSize <= 16 ? 16
+            : 0;
 
-        private static readonly Vector512<byte> PackIndex = Packs ? Packing(true, false) : default;
+        /// <summary>The slots a vector of <see cref="PackWidth"/> bytes holds whole.</summary>
+        private static readonly int SlotsPerVector = PackWidth / SlotSize;
 
-        private static readonly Vector512<byte> PackKeep = Packs ? Packing(true, true) : default;
+        private static readonly Vector512<byte> PackIndex = PackWidth != 0 ? Packing(true, false) : default;
 
-        private static readonly Vector512<byte> UnpackIndex = Packs ? Packing(false, false) : default;
+        private static readonly Vector512<byte> PackKeep = PackWidth != 0 ? Packing(true, true) : default;
 
-        private static readonly Vector512<byte> UnpackKeep = Packs ? Packing(false, true) : default;
+        private static readonly Vector512<byte> UnpackIndex = PackWidth != 0 ? Packing(false, false) : default;
+
+        private static readonly Vector512<byte> UnpackKeep = PackWidth != 0 ? Packing(false, true) : default;
 
         /// <summary>
         /// For each byte of the vector written (the wire when <paramref name="pack"/>, else the slots in memory): the
         /// byte of the vector read that it takes, or with <paramref name="keep"/> whether it keeps it (the rest zero).
+        /// For 32-byte vectors the index is of 4-byte words (vpermd); for 16-byte ones a byte the wire does not keep
+        /// has an index out of the table, which pshufb and tbl turn into zero, so they need no AND.
         /// </summary>
         private static Vector512<byte> Packing(bool pack, bool keep)
         {
             int size = Unsafe.SizeOf<T>();
             var kept = Keeps();
             var bytes = new byte[64];
+            if (PackWidth == 16 && !keep)
+                bytes.AsSpan().Fill(0x80);
             int to = pack ? Stride : SlotSize, from = pack ? SlotSize : Stride;
             for (int i = 0; i < SlotsPerVector * to; i++)
             {
@@ -1028,40 +1315,194 @@ namespace Nino.Core
                 // On the wire: the flag, zeros to Offset, the value. In memory: the flag, zeros to size, the value.
                 int head = pack ? Offset : size;
                 bool value = at >= head;
-                bytes[i] = keep
-                    ? at == 0 ? (byte)0xFF : value ? (pack ? kept[at] : (byte)0xFF) : (byte)0
-                    : (byte)(element * from + (value ? (pack ? size : Offset) + at - head : 0));
+                byte keeps = at == 0 ? (byte)0xFF : value ? (pack ? kept[at] : (byte)0xFF) : (byte)0;
+                int takes = element * from + (value ? (pack ? size : Offset) + at - head : 0);
+                if (keep)
+                    bytes[i] = keeps;
+                else if (PackWidth == 64)
+                    bytes[i] = (byte)takes;
+                else if (PackWidth == 16)
+                    bytes[i] = keeps != 0 ? (byte)takes : (byte)0x80;
+                else if (i % 4 == 0)
+                    bytes[i] = (byte)(takes / 4);
             }
 
             return Vector512.Create(bytes);
         }
 
         /// <summary>
-        /// Packs the slots of <paramref name="count"/> values that fill whole 64-byte loads and stores, and returns how
-        /// many it wrote: a store writes the whole vector, and what lies past its elements is written again by the
-        /// next one or by the caller, which writes the rest.
+        /// Packs the slots of <paramref name="count"/> values that fill whole loads and stores of a vector, and
+        /// returns how many it wrote: a store writes the whole vector, and what lies past its elements is written
+        /// again by the next one or by the caller, which writes the rest.
         /// </summary>
-        private static int WritePacked(ref byte destination, ref byte source, int count)
+        private static int WritePacked(ref byte destination, ref byte source, int count) =>
+            PackWidth == 64
+                ? Shuffled<Vector512<byte>, Shuffle512>(ref destination, ref source, count, SlotSize, Stride,
+                    PackIndex, PackKeep)
+                : PackWidth == 32
+                    ? Shuffled<Vector256<byte>, Shuffle256>(ref destination, ref source, count, SlotSize, Stride,
+                        PackIndex.GetLower(), PackKeep.GetLower())
+                    : Shuffled<Vector128<byte>, Shuffle128>(ref destination, ref source, count, SlotSize, Stride,
+                        PackIndex.GetLower().GetLower(), default);
+
+        /// <summary><see cref="WritePacked"/> the other way, of values whose presence bytes were checked.</summary>
+        private static int ReadPacked(ref byte destination, ref byte source, int count) =>
+            PackWidth == 64
+                ? Shuffled<Vector512<byte>, Shuffle512>(ref destination, ref source, count, Stride, SlotSize,
+                    UnpackIndex, UnpackKeep)
+                : PackWidth == 32
+                    ? Shuffled<Vector256<byte>, Shuffle256>(ref destination, ref source, count, Stride, SlotSize,
+                        UnpackIndex.GetLower(), UnpackKeep.GetLower())
+                    : Shuffled<Vector128<byte>, Shuffle128>(ref destination, ref source, count, Stride, SlotSize,
+                        UnpackIndex.GetLower().GetLower(), default);
+
+        /// <summary>
+        /// The loop of <see cref="WritePacked"/> and <see cref="ReadPacked"/>: a vector of whole elements of
+        /// <paramref name="from"/> bytes loaded, shuffled into elements of <paramref name="to"/> bytes and stored,
+        /// while both the load and the store stay inside the run.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Shuffled<TVector, TShuffle>(ref byte destination, ref byte source, int count, int from,
+            int to, TVector index, TVector keep)
+            where TVector : struct
+            where TShuffle : struct, IShuffle<TVector>
         {
-            var index = PackIndex;
-            var keep = PackKeep;
             int i = 0;
-            for (; (count - i) * Stride >= 64; i += SlotsPerVector)
-                (Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, (nuint)(i * SlotSize)), index) & keep)
-                    .StoreUnsafe(ref destination, (nuint)(i * Stride));
+            for (; (count - i) * Stride >= Unsafe.SizeOf<TVector>(); i += SlotsPerVector)
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nuint)(i * to)), TShuffle.Shuffle(
+                    Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, (nuint)(i * from))), index, keep));
             return i;
         }
 
-        /// <summary><see cref="WritePacked"/> the other way, of values whose presence bytes were checked.</summary>
-        private static int ReadPacked(ref byte destination, ref byte source, int count)
+        /// <summary>One vector width of <see cref="Shuffled{TVector,TShuffle}"/>.</summary>
+        private interface IShuffle<TVector> where TVector : struct
         {
-            var index = UnpackIndex;
-            var keep = UnpackKeep;
-            int i = 0;
-            for (; (count - i) * Stride >= 64; i += SlotsPerVector)
-                (Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, (nuint)(i * Stride)), index) & keep)
-                    .StoreUnsafe(ref destination, (nuint)(i * SlotSize));
-            return i;
+            static abstract TVector Shuffle(TVector value, TVector index, TVector keep);
+        }
+
+        private readonly struct Shuffle512 : IShuffle<Vector512<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector512<byte> Shuffle(Vector512<byte> value, Vector512<byte> index, Vector512<byte> keep) =>
+                Avx512Vbmi.IsSupported ? Avx512Vbmi.PermuteVar64x8(value, index) & keep : value;
+        }
+
+        private readonly struct Shuffle256 : IShuffle<Vector256<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector256<byte> Shuffle(Vector256<byte> value, Vector256<byte> index, Vector256<byte> keep) =>
+                Avx2.IsSupported ? Avx2.PermuteVar8x32(value.AsInt32(), index.AsInt32()).AsByte() & keep : value;
+        }
+
+        private readonly struct Shuffle128 : IShuffle<Vector128<byte>>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static Vector128<byte> Shuffle(Vector128<byte> value, Vector128<byte> index, Vector128<byte> keep) =>
+                AdvSimd.Arm64.IsSupported ? AdvSimd.Arm64.VectorTableLookup(value, index)
+                : Ssse3.IsSupported ? Ssse3.Shuffle(value, index)
+                : value;
+        }
+
+        /// <summary>
+        /// The vector the slots no shuffle packs are moved with (<see cref="WriteWindows"/>, <see cref="ReadWindows"/>),
+        /// 0 for none: the wire's bytes of a slot but its presence byte lie together in memory (the end of the
+        /// presence, which is zeros, then the value), so they are copied in pieces of a vector, the last ending where
+        /// the slot ends, and the presence is stored after them. 32 bytes with AVX2 for a wire slot of 32 bytes or
+        /// more, else 16 for one of 16 or more.
+        /// </summary>
+        private static readonly int WindowWidth =
+            !Moves || Offset > 8 ? 0
+            : Avx2.IsSupported && Stride >= 32 ? 32
+            : Vector128.IsHardwareAccelerated && Stride >= 16 ? 16
+            : 0;
+
+        /// <summary>Whether the wire keeps every byte of the value (T has no padding of its own).</summary>
+        private static readonly bool WholeValue = Array.TrueForAll(Keeps()[Offset..], keep => keep == 0xFF);
+
+        /// <summary>The bytes the wire keeps of one slot, for the pieces of a value with padding.</summary>
+        private static readonly byte[] WindowKeeps = WindowWidth != 0 ? Keeps() : null;
+
+        /// <summary>Writes <paramref name="count"/> values a vector piece at a time (<see cref="WindowWidth"/>).</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteWindows(ref byte destination, ref byte source, int count)
+        {
+            if (WindowWidth == 32)
+                WriteWindows<Vector256<byte>>(ref destination, ref source, count);
+            else
+                WriteWindows<Vector128<byte>>(ref destination, ref source, count);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteWindows<TVector>(ref byte destination, ref byte source, int count)
+            where TVector : struct
+        {
+            nuint width = (nuint)Unsafe.SizeOf<TVector>(), stride = (nuint)Stride;
+            ref byte keep = ref MemoryMarshal.GetArrayDataReference(WindowKeeps);
+            for (int i = 0; i < count; i++)
+            {
+                // The slot's last Stride bytes: Offset bytes of the presence's end, then the value.
+                ref byte window = ref Unsafe.Add(ref source, SlotSize - Stride);
+                for (nuint at = 0; at + width < stride; at += width)
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at),
+                        KeptPiece(Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref window, at)), ref Unsafe.Add(ref keep, at)));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, stride - width), KeptPiece(
+                    Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref window, stride - width)),
+                    ref Unsafe.Add(ref keep, stride - width)));
+                // Over the presence's end the pieces copied: the presence byte and zeros up to the value.
+                WritePresence(ref destination, source);
+                source = ref Unsafe.Add(ref source, SlotSize);
+                destination = ref Unsafe.Add(ref destination, stride);
+            }
+        }
+
+        /// <summary>A piece of a value as the wire holds it: as it is, or without the bytes of T's own padding.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static TVector KeptPiece<TVector>(TVector piece, ref byte keep) where TVector : struct
+        {
+            if (WholeValue)
+                return piece;
+            if (typeof(TVector) == typeof(Vector256<byte>))
+            {
+                var kept = Unsafe.As<TVector, Vector256<byte>>(ref piece) & Vector256.LoadUnsafe(ref keep);
+                return Unsafe.As<Vector256<byte>, TVector>(ref kept);
+            }
+            else
+            {
+                var kept = Unsafe.As<TVector, Vector128<byte>>(ref piece) & Vector128.LoadUnsafe(ref keep);
+                return Unsafe.As<Vector128<byte>, TVector>(ref kept);
+            }
+        }
+
+        /// <summary><see cref="WriteWindows"/> the other way, of values whose presence bytes were checked.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadWindows(ref byte destination, ref byte source, int count)
+        {
+            if (WindowWidth == 32)
+                ReadWindows<Vector256<byte>>(ref destination, ref source, count);
+            else
+                ReadWindows<Vector128<byte>>(ref destination, ref source, count);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadWindows<TVector>(ref byte destination, ref byte source, int count)
+            where TVector : struct
+        {
+            nuint width = (nuint)Unsafe.SizeOf<TVector>(), stride = (nuint)Stride;
+            for (int i = 0; i < count; i++)
+            {
+                ref byte window = ref Unsafe.Add(ref destination, SlotSize - Stride);
+                byte presence = source;
+                for (nuint at = 0; at + width < stride; at += width)
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref window, at),
+                        Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, at)));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref window, stride - width),
+                    Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, stride - width)));
+                // Over the wire's flag and padding the pieces copied: the presence, a whole T (stores only).
+                Unsafe.As<byte, T>(ref destination) = default;
+                destination = presence;
+                source = ref Unsafe.Add(ref source, stride);
+                destination = ref Unsafe.Add(ref destination, SlotSize);
+            }
         }
 #endif
 
@@ -1083,12 +1524,18 @@ namespace Nino.Core
 
             int count = values.Length;
 #if NET8_0_OR_GREATER
-            if (Packs)
+            if (PackWidth != 0)
             {
                 int done = WritePacked(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), count);
                 count -= done;
                 item = ref Unsafe.Add(ref item, done);
                 dst = ref Unsafe.Add(ref dst, done * Stride);
+            }
+
+            if (WindowWidth != 0 && !Wide)
+            {
+                WriteWindows(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), count);
+                return;
             }
 #endif
 
@@ -1197,12 +1644,18 @@ namespace Nino.Core
             ref NinoNullable<T> first = ref MemoryMarshal.GetReference(destination);
             int count = destination.Length;
 #if NET8_0_OR_GREATER
-            if (Packs && !NinoLimits.Untrusted)
+            if (PackWidth != 0 && !NinoLimits.Untrusted)
             {
                 int done = ReadPacked(ref Unsafe.As<NinoNullable<T>, byte>(ref first), ref src, count);
                 count -= done;
                 first = ref Unsafe.Add(ref first, done);
                 src = ref Unsafe.Add(ref src, done * Stride);
+            }
+
+            if (WindowWidth != 0 && !Wide && !NinoLimits.Untrusted)
+            {
+                ReadWindows(ref Unsafe.As<NinoNullable<T>, byte>(ref first), ref src, count);
+                return;
             }
 #endif
 
