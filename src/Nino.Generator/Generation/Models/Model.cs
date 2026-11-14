@@ -329,12 +329,14 @@ internal sealed record TypeModel(
 
     /// <summary>
     /// Whether the body is small enough to be inlined wherever the formatter is used (at most two members that call
-    /// formatters, of at most eight), for a class whose body opens no class body. A subtype writing a base's members
+    /// formatters, of at most eight), for a class or struct whose body opens no class body (a struct's is then part
+    /// of the loop over an array of it or of its nullable, with the reader or writer in registers: out of line, each
+    /// element passed the address of both). A subtype writing a base's members
     /// (through its WriteMembers, or itself for a <see cref="InheritanceModel.SharedBase"/>) keeps its body out of line: inlined into a
     /// dispatch of many subtypes, the bodies would use up its inlining budget.
     /// </summary>
     public bool InlineBody => !IsGeneric && !TrackReferences && !RawStruct && !Depth.Nests &&
-                              Kind is FormatterKind.Class or FormatterKind.SealedClass && Format == NinoFormat.Positional &&
+                              Kind != FormatterKind.Polymorphic && Format == NinoFormat.Positional &&
                               Inheritance.BaseFormatter.Length == 0 && !Inheritance.SharedBase && !IsCollection &&
                               Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
 

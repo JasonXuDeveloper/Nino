@@ -162,12 +162,14 @@ namespace Top
         StringAssert.Contains(sources["NinoGen.Top_BigFormatter.g.cs"],
             "=> default(Top_BigFormatter).WriteBody(value, ref writer);");
         Assert.IsFalse(sources["NinoGen.Top_PairFormatter.g.cs"].Contains("__Top"));
-        // A struct has no twin, but a body that opens no class body is a class's: out of line on a local copy of the
-        // reader and the writer (Pair, Wide). One holding a class (Holder) passes the reader and writer on, and stays
-        // as it was.
+        // A struct has no twin, but a body that opens no class body is a class's: inlined where it is small (Pair, into
+        // the loop over its array or its nullable's), else out of line on a local copy of the reader and the writer
+        // (Wide). One holding a class (Holder) passes the reader and writer on, and stays as it was.
         string pair = sources["NinoGen.Top_PairFormatter.g.cs"];
         StringAssert.Contains(pair, "public int Traits => 0;");
-        StringAssert.Contains(pair, "writer.CopyTo(ref __w);");
+        StringAssert.Contains(pair, "=> __WriteBodyInline(ref value, ref writer);");
+        StringAssert.Contains(pair, "=> __ReadBodyInline(ref reader, ref value);");
+        Assert.IsFalse(pair.Contains("NoInline"), pair);
         string wide = sources["NinoGen.Top_WideFormatter.g.cs"];
         StringAssert.Contains(wide, "writer.CopyTo(ref __w);");
         StringAssert.Contains(wide, "reader.CopyTo(ref __r);");
