@@ -22,7 +22,11 @@ const back = deserialize(PlayerCodec, bytes);
 ```
 
 A C# member is the TypeScript type the guide's [Type Mapping](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#type-mapping)
-lists. .NET's `NinoNullable<T>` is `T | null` wherever it is declared, as `T?` is, with bytes of its own: its memory,
+lists. A `T?` is `T | null`: a presence byte and the value when it is a single value (a member, a map's key or value,
+a tuple's item), and for a `T` .NET writes as raw memory (a number, a date, a raw struct) a slot of a fixed size as
+the element of any sequence (an array, a `Set`: `T`'s alignment plus its size, zeros when null; `Queue<int?> {5, null}`
+is `02000000 01000000 05000000 00000000 00000000`), which the generated code reads and writes from the type's layout.
+.NET's `NinoNullable<T>` is `T | null` wherever it is declared, as `T?` is, with bytes of its own: its memory,
 a presence and a value of a `T` each (`2 * size(T)` bytes: `01000000 05000000` for a `NinoNullable<int>` of 5, zeros
 for none), alone, as an element of any collection and inside a raw struct. Reading rejects a presence other than 0 or
 1, a byte set above it and a value that is not zeros where it is absent (`NinoReader.ninoNullableAt`), as .NET does
