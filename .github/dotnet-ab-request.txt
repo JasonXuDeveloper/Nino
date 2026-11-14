@@ -307,8 +307,17 @@
 # object serialize 1.32-1.66x, nothing else beyond the floor (0.94-1.05; 1.12-1.22 on nanosecond cases).
 # Arm64 tbl spread for T?[] strides 2-16, words for 24 (04ce37f0) against its parent 7a7d1368, and the parent
 # against itself.
-cpu=Neoverse 7a7d1368 04ce37f0 8 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*NullableStructs* *NullableTest.Nino*NullableFieldsArray*
-cpu=Neoverse 7a7d1368 7a7d1368 5 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*NullableStructs* *NullableTest.Nino*NullableFieldsArray*
+# done (run 43573480826): cpu=Neoverse 7a7d1368 04ce37f0 8 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*NullableStructs* *NullableTest.Nino*NullableFieldsArray*
+# done (run 43573480826): cpu=Neoverse 7a7d1368 7a7d1368 5 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*NullableStructs* *NullableTest.Nino*NullableFieldsArray*
 # The nullable forms (7daeb6de: NinoNullable<T>, MemoryPack's T? as it is and converted inside the timing) beside
 # Nino's T? and MemoryPack's SafeNullable data, one run per CPU (the reports in the log; base and head the same).
-cpu='EPYC|Xeon|Neoverse' 7daeb6de 7daeb6de 3 *NullableTest.Nino*Struct* *NullableTest.Nino*Fields* *NullableTest.MemoryPack*Struct* *NullableTest.MemoryPack*Fields* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# done (run 43573480826): cpu='EPYC|Xeon|Neoverse' 7daeb6de 7daeb6de 3 *NullableTest.Nino*Struct* *NullableTest.Nino*Fields* *NullableTest.MemoryPack*Struct* *NullableTest.MemoryPack*Fields* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# Run 43573480826: the Arm64 tbl spread (04ce37f) against the structure loads was 1.00 in every case on Neoverse-N2
+# (three vector operations an element on two vector pipes either way); NinoNullable<long>/<int> arrays wrote 1.1-1.8x
+# as fast as MemoryPack's SafeNullable on all four CPUs, its single values and non-block arrays 1.3-10x slower than T?.
+# 16-byte nullable elements cleared by a GF(2^8) multiplication (24a43490, GFNI: Intel and Zen 4+) against its
+# parent, and the parent against itself.
+cpu='EPYC|Xeon' b4fd0910 24a43490 6 *CollectionsTest.Nino*NullableLongs* *NullableTest.Nino*NullableFieldsArray*
+cpu='EPYC|Xeon' b4fd0910 b4fd0910 4 *CollectionsTest.Nino*NullableLongs* *NullableTest.Nino*NullableFieldsArray*
+# The nullable forms again after NinoNullable<T> reads and writes its own memory (6652c50a), one report per CPU.
+cpu='EPYC|Xeon|Neoverse' 24a43490 24a43490 3 *NullableTest.Nino*Struct* *NullableTest.Nino*Fields* *NullableTest.MemoryPack*Struct* *NullableTest.MemoryPack*Fields* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
