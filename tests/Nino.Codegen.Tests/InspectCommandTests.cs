@@ -322,6 +322,7 @@ namespace Nino.Codegen.Tests
         [DataRow("references-shared", DisplayName = "reference tracking")]
         [DataRow("nino-collections", DisplayName = "[NinoType] collections")]
         [DataRow("bcl-raw-values", DisplayName = "BCL values in raw structs")]
+        [DataRow("ninonullables-values", DisplayName = "NinoNullable<T>: nullable values, alone and at a stride")]
         [DataRow("deep-tolerant-chain-129", DisplayName = "a section of deferred bodies")]
         [DataRow("presence-bool-02", DisplayName = "malformed: an invalid bool")]
         [DataRow("keyed-member-too-short", DisplayName = "malformed: a keyed entry too short")]
@@ -333,6 +334,28 @@ namespace Nino.Codegen.Tests
                 json.RootElement.GetProperty("type").GetString(), Corpus(kind, name + ".bin"));
             Assert.AreEqual(kind == "valid" ? 0 : InspectCommand.Malformed, exit, output);
             Golden(name, output.Replace(Corpus(kind, name + ".bin"), name + ".bin"));
+        }
+
+        /// <summary>
+        /// A <c>NinoNullable&lt;T&gt;</c> member is printed as the nullable value a <c>T?</c> member is: the same tree
+        /// for the same bytes read as either declaration, but for the types' names.
+        /// </summary>
+        [TestMethod]
+        public void PrintsANinoNullableAsANullableValue()
+        {
+            string Tree(string type)
+            {
+                var (exit, output) = Run("--assembly", GeneratedFilesTests.Conformance, "--type", type,
+                    Corpus("valid", "ninonullables-values.bin"));
+                Assert.AreEqual(0, exit, output);
+                return output;
+            }
+
+            string ninoNullable = Tree("Conformance.NinoNullables");
+            StringAssert.Contains(ninoNullable, "Long: Nino.Core.NinoNullable<long> [nullable(raw(8))]");
+            Assert.AreEqual(Tree("Conformance.NullableTwins"),
+                ninoNullable.Replace("Conformance.NinoNullables", "Conformance.NullableTwins")
+                    .Replace("Nino.Core.NinoNullable<", "System.Nullable<"));
         }
 
         private static void Golden(string name, string text)

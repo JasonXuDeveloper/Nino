@@ -284,6 +284,50 @@ func readStrideInt64s(r *nino.Reader) []*int64 {
 	return v
 }
 
+func readStrideDecimals(r *nino.Reader) []*nino.Decimal {
+	n := r.Length(24)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 24)
+	if len(b) != n*24 {
+		return nil
+	}
+	var e *nino.Decimal
+	v := make([]*nino.Decimal, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 24 {
+		e = decodeStrideDecimal(r, b[:24:24])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[24:]
+	}
+	return v
+}
+
+func readStrideGuids(r *nino.Reader) []*nino.Guid {
+	n := r.Length(20)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 20)
+	if len(b) != n*20 {
+		return nil
+	}
+	var e *nino.Guid
+	v := make([]*nino.Guid, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 20 {
+		e = decodeStrideGuid(r, b[:20:20])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[20:]
+	}
+	return v
+}
+
 func readStridePaddeds(r *nino.Reader) []*Padded {
 	n := r.Length(24)
 	if n < 0 {
@@ -644,6 +688,38 @@ func writeStrideInt64s(w *nino.Writer, v []*int64) {
 	for _, e := range v {
 		encodeStrideInt64(b[:16:16], e)
 		b = b[16:]
+	}
+}
+
+func writeStrideDecimals(w *nino.Writer, v []*nino.Decimal) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 24)
+	if len(b) != len(v)*24 {
+		return
+	}
+	for _, e := range v {
+		encodeStrideDecimal(b[:24:24], e)
+		b = b[24:]
+	}
+}
+
+func writeStrideGuids(w *nino.Writer, v []*nino.Guid) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 20)
+	if len(b) != len(v)*20 {
+		return
+	}
+	for _, e := range v {
+		encodeStrideGuid(b[:20:20], e)
+		b = b[20:]
 	}
 }
 

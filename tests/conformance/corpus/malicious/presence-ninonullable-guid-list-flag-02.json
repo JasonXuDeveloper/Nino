@@ -1,0 +1,16 @@
+{
+  "case": "presence-ninonullable-guid-list-flag-02",
+  "type": "Conformance.NinoNullables",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "ninonullables-values with the has-value byte of GuidList[2] (a slot of 20 bytes: flag, 3 padding bytes, value) 0x02.",
+  "size": 545,
+  "layouts": {
+    "Conformance.NinoNullables": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x66E9615A; deferrable=true; members=Long:Nino.Core.NinoNullable<long>:nullable(raw(8));Decimal:Nino.Core.NinoNullable<decimal>:nullable(raw(16));Guid:Nino.Core.NinoNullable<System.Guid>:nullable(raw(16));Padded:Nino.Core.NinoNullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:Nino.Core.NinoNullable<decimal>[]:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});DecimalList:System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>>:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});GuidArray:Nino.Core.NinoNullable<System.Guid>[]:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});GuidList:System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>>:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});PaddedArray:Nino.Core.NinoNullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>>:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}})",
+    "Conformance.Padded": "format=Positional; header=None; trackReferences=false; raw=true; id=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

@@ -389,6 +389,48 @@ namespace Conformance
         public Dictionary<int, int?> Map;
     }
 
+    // ------------------------------------------------------------------ NinoNullable<T>: the bytes of T?
+
+    /// <summary>
+    /// <see cref="NinoNullable{T}"/> alone, in arrays and in lists: a T as large as its alignment (long), larger than
+    /// it (decimal, Guid: 16 bytes aligned to 4) and a raw struct with padding. Its layout and bytes are those of
+    /// <see cref="NullableTwins"/>, the same members as <c>T?</c>.
+    /// </summary>
+    [NinoType]
+    public sealed class NinoNullables
+    {
+        public NinoNullable<long> Long;
+        public NinoNullable<decimal> Decimal;
+        public NinoNullable<Guid> Guid;
+        public NinoNullable<Padded> Padded;
+        public NinoNullable<long>[] LongArray;
+        public List<NinoNullable<long>> LongList;
+        public NinoNullable<decimal>[] DecimalArray;
+        public List<NinoNullable<decimal>> DecimalList;
+        public NinoNullable<Guid>[] GuidArray;
+        public List<NinoNullable<Guid>> GuidList;
+        public NinoNullable<Padded>[] PaddedArray;
+        public List<NinoNullable<Padded>> PaddedList;
+    }
+
+    /// <summary><see cref="NinoNullables"/> declared with <c>T?</c>: either reads the other's data.</summary>
+    [NinoType]
+    public sealed class NullableTwins
+    {
+        public long? Long;
+        public decimal? Decimal;
+        public Guid? Guid;
+        public Padded? Padded;
+        public long?[] LongArray;
+        public List<long?> LongList;
+        public decimal?[] DecimalArray;
+        public List<decimal?> DecimalList;
+        public Guid?[] GuidArray;
+        public List<Guid?> GuidList;
+        public Padded?[] PaddedArray;
+        public List<Padded?> PaddedList;
+    }
+
     // ------------------------------------------------------------------ version tolerance and keyed members
 
     [NinoType(format: NinoFormat.VersionTolerant)]

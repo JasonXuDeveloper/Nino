@@ -444,6 +444,51 @@ namespace Conformance
                 Map = new Dictionary<int, int?>(),
             }, "nullable", "seq", "map");
 
+            // ---------------------------------------------------------- NinoNullable<T>: the bytes of T?
+
+            Add("ninonullables-null", "Every NinoNullable<T> without a value, every collection of them null.",
+                new NinoNullables(), "nullable");
+            Add("ninonullables-values", "NinoNullable<T> with values, alone (a presence byte, then the value) and in " +
+                                        "arrays and lists (the fixed stride of T?[]): long, decimal, Guid and a " +
+                                        "struct with padding, values present and absent.",
+                new NinoNullables
+            {
+                Long = long.MinValue, Decimal = -1234.5600m, Guid = new Guid("00112233-4455-6677-8899-aabbccddeeff"),
+                Padded = new Padded { A = 1, B = 2 },
+                LongArray = new NinoNullable<long>[] { 1, default, long.MaxValue, 0 },
+                LongList = new List<NinoNullable<long>> { default, -1, default },
+                DecimalArray = new NinoNullable<decimal>[] { decimal.MaxValue, default, 0.10m },
+                DecimalList = new List<NinoNullable<decimal>> { default, decimal.MinValue },
+                GuidArray = new NinoNullable<Guid>[] { default, new Guid("ffeeddcc-bbaa-9988-7766-554433221100") },
+                GuidList = new List<NinoNullable<Guid>> { Guid.Empty, default, new Guid("01020304-0506-0708-090a-0b0c0d0e0f10") },
+                PaddedArray = new NinoNullable<Padded>[] { new Padded { A = 3, B = 4 }, default },
+                PaddedList = new List<NinoNullable<Padded>> { default, new Padded { A = 255, B = long.MinValue }, default },
+            }, "nullable", "seq", "raw-struct");
+            Add("ninonullables-empty-collections", "Empty NinoNullable<T> collections.", new NinoNullables
+            {
+                LongArray = Array.Empty<NinoNullable<long>>(), LongList = new List<NinoNullable<long>>(),
+                DecimalArray = Array.Empty<NinoNullable<decimal>>(), DecimalList = new List<NinoNullable<decimal>>(),
+                GuidArray = Array.Empty<NinoNullable<Guid>>(), GuidList = new List<NinoNullable<Guid>>(),
+                PaddedArray = Array.Empty<NinoNullable<Padded>>(), PaddedList = new List<NinoNullable<Padded>>(),
+            }, "nullable", "seq");
+            // The values of ninonullables-values declared with T? (NullableTwins): the same bytes, so the two .bin
+            // files are equal and it round-trips through NinoNullable<T>.
+            Across<NullableTwins, NinoNullables>("ninonullables-from-nullable",
+                "The values of ninonullables-values written from T? members: the same bytes, read as NinoNullable<T>.",
+                new NullableTwins
+            {
+                Long = long.MinValue, Decimal = -1234.5600m, Guid = new Guid("00112233-4455-6677-8899-aabbccddeeff"),
+                Padded = new Padded { A = 1, B = 2 },
+                LongArray = new long?[] { 1, default, long.MaxValue, 0 },
+                LongList = new List<long?> { default, -1, default },
+                DecimalArray = new decimal?[] { decimal.MaxValue, default, 0.10m },
+                DecimalList = new List<decimal?> { default, decimal.MinValue },
+                GuidArray = new Guid?[] { default, new Guid("ffeeddcc-bbaa-9988-7766-554433221100") },
+                GuidList = new List<Guid?> { Guid.Empty, default, new Guid("01020304-0506-0708-090a-0b0c0d0e0f10") },
+                PaddedArray = new Padded?[] { new Padded { A = 3, B = 4 }, default },
+                PaddedList = new List<Padded?> { default, new Padded { A = 255, B = long.MinValue }, default },
+            }, "nullable", "seq", "raw-struct");
+
             // ---------------------------------------------------------- version tolerance and keyed members
 
             Add("tolerant", "Version-tolerant bodies (one length a body), in a hierarchy, and empty.", new TolerantHolder

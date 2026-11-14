@@ -1,0 +1,73 @@
+{
+  "case": "ninonullables-from-nullable",
+  "description": "The values of ninonullables-values written from T? members: the same bytes, read as NinoNullable<T>.",
+  "type": "Conformance.NinoNullables",
+  "features": [
+    "nullable",
+    "seq",
+    "raw-struct"
+  ],
+  "size": 545,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.NinoNullables": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x66E9615A; deferrable=true; members=Long:Nino.Core.NinoNullable<long>:nullable(raw(8));Decimal:Nino.Core.NinoNullable<decimal>:nullable(raw(16));Guid:Nino.Core.NinoNullable<System.Guid>:nullable(raw(16));Padded:Nino.Core.NinoNullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:Nino.Core.NinoNullable<decimal>[]:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});DecimalList:System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>>:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});GuidArray:Nino.Core.NinoNullable<System.Guid>[]:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});GuidList:System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>>:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});PaddedArray:Nino.Core.NinoNullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>>:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}})",
+    "Conformance.Padded": "format=Positional; header=None; trackReferences=false; raw=true; id=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}"
+  },
+  "value": {
+    "$type": "Conformance.NinoNullables",
+    "Long": "-9223372036854775808",
+    "Decimal": "-1234.5600",
+    "Guid": "00112233-4455-6677-8899-aabbccddeeff",
+    "Padded": {
+      "$type": "Conformance.Padded",
+      "A": 1,
+      "B": 2
+    },
+    "LongArray": [
+      1,
+      null,
+      "9223372036854775807",
+      0
+    ],
+    "LongList": [
+      null,
+      -1,
+      null
+    ],
+    "DecimalArray": [
+      "79228162514264337593543950335",
+      null,
+      "0.10"
+    ],
+    "DecimalList": [
+      null,
+      "-79228162514264337593543950335"
+    ],
+    "GuidArray": [
+      null,
+      "ffeeddcc-bbaa-9988-7766-554433221100"
+    ],
+    "GuidList": [
+      "00000000-0000-0000-0000-000000000000",
+      null,
+      "01020304-0506-0708-090a-0b0c0d0e0f10"
+    ],
+    "PaddedArray": [
+      {
+        "$type": "Conformance.Padded",
+        "A": 3,
+        "B": 4
+      },
+      null
+    ],
+    "PaddedList": [
+      null,
+      {
+        "$type": "Conformance.Padded",
+        "A": 255,
+        "B": "-9223372036854775808"
+      },
+      null
+    ]
+  }
+}

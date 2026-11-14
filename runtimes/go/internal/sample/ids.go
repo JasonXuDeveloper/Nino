@@ -34,6 +34,7 @@ const (
 	idMiddle            int32 = -765756749  // Conformance.Middle, 0xD25B7AB3
 	idMixed             int32 = 235403483   // Conformance.Mixed, 0x0E07F8DB
 	idNested            int32 = 103626619   // Conformance.Nested, 0x062D377B
+	idNinoNullables     int32 = 1726570842  // Conformance.NinoNullables, 0x66E9615A
 	idNullables         int32 = 958404412   // Conformance.Nullables, 0x3920173C
 	idOuter             int32 = 1062789439  // Conformance.Outer, 0x3F58E13F
 	idPacked            int32 = -282809690  // Conformance.Packed, 0xEF24AAA6
@@ -100,6 +101,7 @@ var typeNames = map[int32]string{
 	idMiddle:            "Conformance.Middle",
 	idMixed:             "Conformance.Mixed",
 	idNested:            "Conformance.Nested",
+	idNinoNullables:     "Conformance.NinoNullables",
 	idNullables:         "Conformance.Nullables",
 	idOuter:             "Conformance.Outer",
 	idPacked:            "Conformance.Packed",

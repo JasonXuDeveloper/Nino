@@ -78,6 +78,9 @@ GENERIC_ARGS = {
         "System.Collections.Generic.List<Conformance.Point>", "seq(type(Conformance.Point))"),
 }
 
+# T? and .NET's NinoNullable<T>, which is published and written exactly as T?.
+NULLABLES = ("System.Nullable<", "Nino.Core.NinoNullable<")
+
 PRIMS = {
     "sbyte": "i8", "byte": "u8", "short": "i16", "ushort": "u16", "int": "i32", "uint": "u32", "long": "i64",
     "ulong": "u64", "float": "f32", "double": "f64", "bool": "bool", "char": "u16", "decimal": "nino::Decimal",
@@ -223,7 +226,7 @@ class Gen:
                 return PRIMS[name]
             if name in ENUMS:
                 return PRIMS[ENUMS[name]]
-            if name.startswith("System.Nullable<"):
+            if name.startswith(NULLABLES):
                 raise ValueError(name)
             return self.raw_struct(name)
         if kind == "string":
@@ -245,7 +248,7 @@ class Gen:
             return f"Option<{self.rust(inner, enc[1], owner, member)}>"
         if kind == "seq":
             el = self.element(c)
-            if el is not None and cs_name(el).startswith("System.Nullable<") and enc[1][0] == "raw":
+            if el is not None and cs_name(el).startswith(NULLABLES) and enc[1][0] == "raw":
                 inner = el[1][0]
                 return f"Option<nino::RawNullables<{self.rust(inner, ('raw', None, None))}>>"
             if name in SELF_COLLECTIONS:

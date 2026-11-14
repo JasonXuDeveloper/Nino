@@ -3919,6 +3919,236 @@ impl Middle {
     nino::type_consts!(0xD25B7AB3u32 as i32, "Conformance.Middle", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xD25B7AB3; deferrable=true; members=First:Conformance.Point:type(Conformance.Point);Second:Conformance.Point:type(Conformance.Point);Inner:Conformance.Inner:type(Conformance.Inner)");
 }
 
+/// `Conformance.NinoNullables`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct NinoNullables {
+    pub long: Option<i64>,
+    pub decimal: Option<nino::Decimal>,
+    pub guid: Option<nino::Guid>,
+    pub padded: Option<Padded>,
+    pub long_array: Option<nino::RawNullables<i64>>,
+    pub long_list: Option<nino::RawNullables<i64>>,
+    pub decimal_array: Option<nino::RawNullables<nino::Decimal>>,
+    pub decimal_list: Option<nino::RawNullables<nino::Decimal>>,
+    pub guid_array: Option<nino::RawNullables<nino::Guid>>,
+    pub guid_list: Option<nino::RawNullables<nino::Guid>>,
+    pub padded_array: Option<nino::RawNullables<Padded>>,
+    pub padded_list: Option<nino::RawNullables<Padded>>,
+}
+
+impl NinoReadBody for NinoNullables {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.long)?;
+        r.read_into(&mut self.decimal)?;
+        r.read_into(&mut self.guid)?;
+        r.read_into(&mut self.padded)?;
+        r.read_into(&mut self.long_array)?;
+        r.read_into(&mut self.long_list)?;
+        r.read_into(&mut self.decimal_array)?;
+        r.read_into(&mut self.decimal_list)?;
+        r.read_into(&mut self.guid_array)?;
+        r.read_into(&mut self.guid_list)?;
+        r.read_into(&mut self.padded_array)?;
+        r.read_into(&mut self.padded_list)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for NinoNullables {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.long)?;
+        w.write(&self.decimal)?;
+        w.write(&self.guid)?;
+        w.write(&self.padded)?;
+        w.write(&self.long_array)?;
+        w.write(&self.long_list)?;
+        w.write(&self.decimal_array)?;
+        w.write(&self.decimal_list)?;
+        w.write(&self.guid_array)?;
+        w.write(&self.guid_list)?;
+        w.write(&self.padded_array)?;
+        w.write(&self.padded_list)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for NinoNullables {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for NinoNullables {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<i64> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::Decimal> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::Guid> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Padded> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<nino::Decimal>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<nino::Decimal>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<nino::Guid>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<nino::Guid>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<Padded>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<Padded>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.long.prefetch();
+        self.decimal.prefetch();
+        self.guid.prefetch();
+        self.padded.prefetch();
+        self.long_array.prefetch();
+        self.long_list.prefetch();
+        self.decimal_array.prefetch();
+        self.decimal_list.prefetch();
+        self.guid_array.prefetch();
+        self.guid_list.prefetch();
+        self.padded_array.prefetch();
+        self.padded_list.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.long.prefetch_members();
+        self.decimal.prefetch_members();
+        self.guid.prefetch_members();
+        self.padded.prefetch_members();
+        self.long_array.prefetch_members();
+        self.long_list.prefetch_members();
+        self.decimal_array.prefetch_members();
+        self.decimal_list.prefetch_members();
+        self.guid_array.prefetch_members();
+        self.guid_list.prefetch_members();
+        self.padded_array.prefetch_members();
+        self.padded_list.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl NinoNullables {
+    nino::type_consts!(0x66E9615Au32 as i32, "Conformance.NinoNullables", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x66E9615A; deferrable=true; members=Long:Nino.Core.NinoNullable<long>:nullable(raw(8));Decimal:Nino.Core.NinoNullable<decimal>:nullable(raw(16));Guid:Nino.Core.NinoNullable<System.Guid>:nullable(raw(16));Padded:Nino.Core.NinoNullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:Nino.Core.NinoNullable<decimal>[]:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});DecimalList:System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>>:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});GuidArray:Nino.Core.NinoNullable<System.Guid>[]:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});GuidList:System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>>:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});PaddedArray:Nino.Core.NinoNullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>>:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}})");
+}
+
+/// `Conformance.NullableTwins`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct NullableTwins {
+    pub long: Option<i64>,
+    pub decimal: Option<nino::Decimal>,
+    pub guid: Option<nino::Guid>,
+    pub padded: Option<Padded>,
+    pub long_array: Option<nino::RawNullables<i64>>,
+    pub long_list: Option<nino::RawNullables<i64>>,
+    pub decimal_array: Option<nino::RawNullables<nino::Decimal>>,
+    pub decimal_list: Option<nino::RawNullables<nino::Decimal>>,
+    pub guid_array: Option<nino::RawNullables<nino::Guid>>,
+    pub guid_list: Option<nino::RawNullables<nino::Guid>>,
+    pub padded_array: Option<nino::RawNullables<Padded>>,
+    pub padded_list: Option<nino::RawNullables<Padded>>,
+}
+
+impl NinoReadBody for NullableTwins {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.long)?;
+        r.read_into(&mut self.decimal)?;
+        r.read_into(&mut self.guid)?;
+        r.read_into(&mut self.padded)?;
+        r.read_into(&mut self.long_array)?;
+        r.read_into(&mut self.long_list)?;
+        r.read_into(&mut self.decimal_array)?;
+        r.read_into(&mut self.decimal_list)?;
+        r.read_into(&mut self.guid_array)?;
+        r.read_into(&mut self.guid_list)?;
+        r.read_into(&mut self.padded_array)?;
+        r.read_into(&mut self.padded_list)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for NullableTwins {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.long)?;
+        w.write(&self.decimal)?;
+        w.write(&self.guid)?;
+        w.write(&self.padded)?;
+        w.write(&self.long_array)?;
+        w.write(&self.long_list)?;
+        w.write(&self.decimal_array)?;
+        w.write(&self.decimal_list)?;
+        w.write(&self.guid_array)?;
+        w.write(&self.guid_list)?;
+        w.write(&self.padded_array)?;
+        w.write(&self.padded_list)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for NullableTwins {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for NullableTwins {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<i64> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::Decimal> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::Guid> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Padded> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<nino::Decimal>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<nino::Decimal>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<nino::Guid>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<nino::Guid>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<Padded>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<Padded>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.long.prefetch();
+        self.decimal.prefetch();
+        self.guid.prefetch();
+        self.padded.prefetch();
+        self.long_array.prefetch();
+        self.long_list.prefetch();
+        self.decimal_array.prefetch();
+        self.decimal_list.prefetch();
+        self.guid_array.prefetch();
+        self.guid_list.prefetch();
+        self.padded_array.prefetch();
+        self.padded_list.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.long.prefetch_members();
+        self.decimal.prefetch_members();
+        self.guid.prefetch_members();
+        self.padded.prefetch_members();
+        self.long_array.prefetch_members();
+        self.long_list.prefetch_members();
+        self.decimal_array.prefetch_members();
+        self.decimal_list.prefetch_members();
+        self.guid_array.prefetch_members();
+        self.guid_list.prefetch_members();
+        self.padded_array.prefetch_members();
+        self.padded_list.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl NullableTwins {
+    nino::type_consts!(0x62FEF080u32 as i32, "Conformance.NullableTwins", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x62FEF080; deferrable=true; members=Long:System.Nullable<long>:nullable(raw(8));Decimal:System.Nullable<decimal>:nullable(raw(16));Guid:System.Nullable<System.Guid>:nullable(raw(16));Padded:System.Nullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});LongArray:System.Nullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:System.Nullable<decimal>[]:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});DecimalList:System.Collections.Generic.List<System.Nullable<decimal>>:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});GuidArray:System.Nullable<System.Guid>[]:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});GuidList:System.Collections.Generic.List<System.Nullable<System.Guid>>:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});PaddedArray:System.Nullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<System.Nullable<Conformance.Padded>>:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}})");
+}
+
 /// `Conformance.Nullables`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -6387,6 +6617,8 @@ pub enum AnyObject {
     Middle(Box<Middle>),
     Mixed(Box<Mixed>),
     Nested(Box<Nested>),
+    NinoNullables(Box<NinoNullables>),
+    NullableTwins(Box<NullableTwins>),
     Nullables(Box<Nullables>),
     ObjectSlot(Box<ObjectSlot>),
     Outer(Box<Outer>),
@@ -6522,6 +6754,8 @@ impl AnyObject {
             Self::Middle(v) => &mut **v,
             Self::Mixed(v) => &mut **v,
             Self::Nested(v) => &mut **v,
+            Self::NinoNullables(v) => &mut **v,
+            Self::NullableTwins(v) => &mut **v,
             Self::Nullables(v) => &mut **v,
             Self::ObjectSlot(v) => &mut **v,
             Self::Outer(v) => &mut **v,
@@ -6800,6 +7034,14 @@ impl NinoRead for AnyObject {
             }
             Some(Self::Nested(v)) if id == Nested::NINO_TYPE_ID => {
                 r.read_into(&mut **v)?;
+                true
+            }
+            Some(Self::NinoNullables(v)) if id == NinoNullables::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::NullableTwins(v)) if id == NullableTwins::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
                 true
             }
             Some(Self::Nullables(v)) if id == Nullables::NINO_TYPE_ID => {
@@ -7097,6 +7339,8 @@ impl NinoRead for AnyObject {
                 Middle::NINO_TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
                 Mixed::NINO_TYPE_ID => Self::Mixed(Box::new(r.read()?)),
                 Nested::NINO_TYPE_ID => Self::Nested(Box::new(r.read()?)),
+                NinoNullables::NINO_TYPE_ID => Self::NinoNullables(Box::new(r.read_class()?)),
+                NullableTwins::NINO_TYPE_ID => Self::NullableTwins(Box::new(r.read_class()?)),
                 Nullables::NINO_TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
                 ObjectSlot::NINO_TYPE_ID => Self::ObjectSlot(Box::new(r.read_class()?)),
                 Outer::NINO_TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
@@ -7360,6 +7604,14 @@ impl NinoWrite for AnyObject {
             Self::Nested(v) => {
                 w.i32(Nested::NINO_TYPE_ID);
                 w.write(&**v)
+            }
+            Self::NinoNullables(v) => {
+                w.i32(NinoNullables::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::NullableTwins(v) => {
+                w.i32(NullableTwins::NINO_TYPE_ID);
+                w.write_class(&**v)
             }
             Self::Nullables(v) => {
                 w.i32(Nullables::NINO_TYPE_ID);
@@ -8847,6 +9099,8 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.Middle" => f.visit::<Option<Box<Middle>>>(),
         "Conformance.Mixed" => f.visit::<Mixed>(),
         "Conformance.Nested" => f.visit::<Nested>(),
+        "Conformance.NinoNullables" => f.visit::<Option<Box<NinoNullables>>>(),
+        "Conformance.NullableTwins" => f.visit::<Option<Box<NullableTwins>>>(),
         "Conformance.Nullables" => f.visit::<Option<Box<Nullables>>>(),
         "Conformance.Outer" => f.visit::<Option<Box<Outer>>>(),
         "Conformance.Packed" => f.visit::<Packed>(),

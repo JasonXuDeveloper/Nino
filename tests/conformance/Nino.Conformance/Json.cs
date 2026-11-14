@@ -250,6 +250,13 @@ namespace Conformance
                 return;
             }
 
+            // A NinoNullable<T> is its T?: boxed, null or the value.
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(NinoNullable<>))
+            {
+                Write(w, type.GetMethod(nameof(NinoNullable<int>.ToNullable))!.Invoke(value, null));
+                return;
+            }
+
             var layout = Layouts.Of(type);
             if (layout != null)
             {

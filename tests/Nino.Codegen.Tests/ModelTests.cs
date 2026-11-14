@@ -93,6 +93,7 @@ namespace Nino.Codegen.Tests
         /// works the encoding out. .NET writes both declarations to the same bytes.
         /// </summary>
         [TestMethod]
+        [DataRow("Conformance.NinoNullables", "Conformance.NullableTwins")]
         [DataRow("Shapes.NinoNullableArgs", "Shapes.NullableArgs")]
         public void NinoNullableIsTheValueOfNullable(string ninoNullable, string nullable)
         {

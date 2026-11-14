@@ -48,6 +48,7 @@ Lossless: every value is encoded so that no JSON parser rounds or rewrites it.
 | .NET value | JSON |
 | --- | --- |
 | `null` (a class, string, collection or nullable) | `null` |
+| `NinoNullable<T>` | as `T?`: `null` without a value, else the value |
 | `bool` | `true` / `false` |
 | integers of any width, enums (their underlying value) | a number when \|n\| <= 2^53, else a decimal string (`"-9223372036854775808"`) |
 | `char` | its UTF-16 code unit as a number (lone surrogates included) |

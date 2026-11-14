@@ -183,6 +183,7 @@ namespace Nino.Codegen.Tests
         /// arguments (Shapes.cs). <paramref name="goName"/>: Go keeps names starting with Nino for the runtime's.
         /// </summary>
         [TestMethod]
+        [DataRow("conformance", "NinoNullables", "NinoNullablesType", "NullableTwins")]
         [DataRow("shapes", "NinoNullableArgs", "NinoNullableArgsType", "NullableArgs")]
         public void NinoNullableIsGeneratedAsNullable(string assembly, string ninoNullable, string goName, string nullable)
         {

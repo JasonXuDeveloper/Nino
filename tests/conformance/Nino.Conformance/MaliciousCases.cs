@@ -101,6 +101,18 @@ namespace Conformance
             Lengths<IntMap>("int-map", 8, Concat(I32(1), I32(2), I32(3), I32(4)));
             Lengths<StringSet>("string-set", 0, Concat(V(3), new byte[] { (byte)'a' }, V(1)));
 
+            // A slot of a NinoNullable<T> collection cut short, as of a T?[]: ninonullables-values is the control.
+            Add<NinoNullables>("length", "ninonullable-slot-truncated",
+                "ninonullables-values without its last 12 bytes: the last of PaddedList's three 24-byte slots is half " +
+                "there.", validBytes["ninonullables-values"][..^12]);
+            Add<NinoNullables>("length", "ninonullable-list-past-end",
+                "ninonullables-values with PaddedList's count 4 where 3 slots are present.",
+                Patched("ninonullables-values", 469, 4));
+            Add<NinoNullables>("length", "ninonullable-array-past-end",
+                "ninonullables-values with LongArray's count 5 where 4 slots are meant: the fifth is LongList's count " +
+                "and its first slot's start, and the members after it run past the end.",
+                Patched("ninonullables-values", 61, 5));
+
             Control<Grid>("grid", NotNull, I32(2), I32(2), I32(1), I32(2), I32(3), I32(4));
             Control<BigSlot>("bigint", NotNull, I32(4), new byte[4]);
             Add<Grid>("length", "grid-minus-2", "int[,]: a first length of -2.", NotNull, I32(-2), I32(1), I32(0));
@@ -253,6 +265,25 @@ namespace Conformance
                 AddUntrusted<BclRawNullables>("presence", $"raw-array-nullable-flag-{hex}",
                     $"bcl-raw-nullables with the has-value byte of Array[1].B (a block of raw structs) 0x{hex}.",
                     Patched("bcl-raw-nullables", 1 + 40 + 4 + 40 + 4, b));
+
+                // NinoNullable<T>: the bytes of T?, so the same flags are rejected. ninonullables-values is the
+                // control; the offsets are its members' (1: the null flag; then 9, 17, 17 and 17 bytes of single
+                // values; then each collection's count and slots of 16, 16, 24, 24, 20, 20, 24 and 24 bytes).
+                void NinoNullableFlag(string name, string what, int offset) =>
+                    Add<NinoNullables>("presence", $"ninonullable-{name}-flag-{hex}",
+                        $"ninonullables-values with the has-value byte of {what} 0x{hex}.",
+                        Patched("ninonullables-values", offset, b));
+
+                NinoNullableFlag("long", "Long (a NinoNullable<long>: the flag, then the value)", 1);
+                NinoNullableFlag("padded", "Padded (a NinoNullable of a struct with padding)", 44);
+                NinoNullableFlag("long-array", "LongArray[1], which has no value (a slot of 16 bytes: flag, 7 " +
+                                               "padding bytes, value)", 65 + 16);
+                NinoNullableFlag("long-list", "LongList[1], which has a value", 133 + 16);
+                NinoNullableFlag("decimal-array", "DecimalArray[0] (a slot of 24 bytes: flag, 7 padding bytes, value)",
+                    185);
+                NinoNullableFlag("guid-list", "GuidList[2] (a slot of 20 bytes: flag, 3 padding bytes, value)",
+                    357 + 40);
+                NinoNullableFlag("padded-array", "PaddedArray[1], which has no value (a slot of 24 bytes)", 421 + 24);
             }
 
             // ---------------------------------------------------------- type ids
@@ -643,7 +674,7 @@ namespace Conformance
                 "big-values", "big-values-edges", "string-ascii", "string-latin1", "string-bmp", "string-astral",
                 "string-lone-surrogates", "string-collections", "bytes-values", "structs-values", "nested-objects",
                 "empties", "struct-root-raw", "struct-root-nested-raw", "struct-root", "struct-root-keyed",
-                "collections-values", "nullables-values", "tolerant", "tolerant-new-to-old", "keyed",
+                "collections-values", "nullables-values", "ninonullables-values", "tolerant", "tolerant-new-to-old", "keyed",
                 "keyed-v1-to-v2", "polymorphism", "polymorphism-generic-root", "deep-chain-130",
                 "deep-tolerant-chain-129", "deep-keyed-chain-129", "deep-links-129", "deep-in-region",
                 "references-shared", "tree-collections", "bcl-raw-values", "bcl-raw-nullables",

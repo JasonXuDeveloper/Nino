@@ -249,6 +249,22 @@ type Nullables struct {
 	Map         []nino.Entry[int32, *int32] `nino:"12" json:"map" yaml:"map"`
 }
 
+// NinoNullables is .NET's NinoNullable<T> members: the bytes and the layout encodings of T?, so the Go types of T?.
+type NinoNullables struct {
+	Long         *int64          `nino:"0" json:"long" yaml:"long"`
+	Decimal      *nino.Decimal   `nino:"1" json:"decimal" yaml:"decimal"`
+	Guid         *nino.Guid      `nino:"2" json:"guid" yaml:"guid"`
+	Padded       *Padded         `nino:"3" json:"padded" yaml:"padded"`
+	LongArray    []*int64        `nino:"4" json:"longArray" yaml:"longArray"`
+	LongList     []*int64        `nino:"5" json:"longList" yaml:"longList"`
+	DecimalArray []*nino.Decimal `nino:"6" json:"decimalArray" yaml:"decimalArray"`
+	DecimalList  []*nino.Decimal `nino:"7" json:"decimalList" yaml:"decimalList"`
+	GuidArray    []*nino.Guid    `nino:"8" json:"guidArray" yaml:"guidArray"`
+	GuidList     []*nino.Guid    `nino:"9" json:"guidList" yaml:"guidList"`
+	PaddedArray  []*Padded       `nino:"10" json:"paddedArray" yaml:"paddedArray"`
+	PaddedList   []*Padded       `nino:"11" json:"paddedList" yaml:"paddedList"`
+}
+
 // ---------------------------------------------------------------- version tolerant and keyed
 
 type TolerantV1 struct {

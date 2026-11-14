@@ -245,6 +245,24 @@ pub struct Nullables {
     pub map: Option<IndexMap<i32, Option<i32>>>,
 }
 
+/// .NET's `NinoNullable<T>` members: the layout encodings and bytes of `T?`, so the Rust types of `T?`.
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x66E9615A; deferrable=true; members=Long:Nino.Core.NinoNullable<long>:nullable(raw(8));Decimal:Nino.Core.NinoNullable<decimal>:nullable(raw(16));Guid:Nino.Core.NinoNullable<System.Guid>:nullable(raw(16));Padded:Nino.Core.NinoNullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:Nino.Core.NinoNullable<decimal>[]:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});DecimalList:System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>>:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});GuidArray:Nino.Core.NinoNullable<System.Guid>[]:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});GuidList:System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>>:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});PaddedArray:Nino.Core.NinoNullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>>:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}})")]
+pub struct NinoNullables {
+    pub long: Option<i64>,
+    pub decimal: Option<Decimal>,
+    pub guid: Option<Guid>,
+    pub padded: Option<Padded>,
+    pub long_array: Option<RawNullables<i64>>,
+    pub long_list: Option<RawNullables<i64>>,
+    pub decimal_array: Option<RawNullables<Decimal>>,
+    pub decimal_list: Option<RawNullables<Decimal>>,
+    pub guid_array: Option<RawNullables<Guid>>,
+    pub guid_list: Option<RawNullables<Guid>>,
+    pub padded_array: Option<RawNullables<Padded>>,
+    pub padded_list: Option<RawNullables<Padded>>,
+}
+
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xFECE6DDB; deferrable=true; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)")]
 pub struct Collections {
@@ -599,6 +617,7 @@ fn case_type(name: &str) -> Option<Box<dyn Case>> {
         "Conformance.Outer" => of::<Option<Box<Outer>>>(),
         "Conformance.Structs" => of::<Option<Box<Structs>>>(),
         "Conformance.Nullables" => of::<Option<Box<Nullables>>>(),
+        "Conformance.NinoNullables" => of::<Option<Box<NinoNullables>>>(),
         "Conformance.Collections" => of::<Option<Box<Collections>>>(),
         "Conformance.Empties" => of::<Option<Box<Empties>>>(),
         "Conformance.TolerantV1" => of::<Option<Box<TolerantV1>>>(),

@@ -1323,6 +1323,93 @@ impl J for Middle {
     }
 }
 
+/// `Conformance.NinoNullables`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct NinoNullables {
+    pub long: Option<i64>,
+    pub decimal: Option<nino::Decimal>,
+    pub guid: Option<nino::Guid>,
+    pub padded: Option<Padded>,
+    pub long_array: Option<nino::RawNullables<i64>>,
+    pub long_list: Option<nino::RawNullables<i64>>,
+    pub decimal_array: Option<nino::RawNullables<nino::Decimal>>,
+    pub decimal_list: Option<nino::RawNullables<nino::Decimal>>,
+    pub guid_array: Option<nino::RawNullables<nino::Guid>>,
+    pub guid_list: Option<nino::RawNullables<nino::Guid>>,
+    pub padded_array: Option<nino::RawNullables<Padded>>,
+    pub padded_list: Option<nino::RawNullables<Padded>>,
+}
+
+impl NinoReadBody for NinoNullables {
+    fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
+        r.read_into(&mut self.long)?;
+        r.read_into(&mut self.decimal)?;
+        r.read_into(&mut self.guid)?;
+        r.read_into(&mut self.padded)?;
+        r.read_into(&mut self.long_array)?;
+        r.read_into(&mut self.long_list)?;
+        r.read_into(&mut self.decimal_array)?;
+        r.read_into(&mut self.decimal_list)?;
+        r.read_into(&mut self.guid_array)?;
+        r.read_into(&mut self.guid_list)?;
+        r.read_into(&mut self.padded_array)?;
+        r.read_into(&mut self.padded_list)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for NinoNullables {
+    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        w.write(&self.long)?;
+        w.write(&self.decimal)?;
+        w.write(&self.guid)?;
+        w.write(&self.padded)?;
+        w.write(&self.long_array)?;
+        w.write(&self.long_list)?;
+        w.write(&self.decimal_array)?;
+        w.write(&self.decimal_list)?;
+        w.write(&self.guid_array)?;
+        w.write(&self.guid_list)?;
+        w.write(&self.padded_array)?;
+        w.write(&self.padded_list)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for NinoNullables {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for NinoNullables {
+    nino::sealed_write!();
+}
+
+impl NinoNullables {
+    pub const NINO_TYPE_ID: i32 = 0x66E9615Au32 as i32;
+}
+
+impl J for NinoNullables {
+    fn j(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("$type".into(), Value::from("Conformance.NinoNullables"));
+        m.insert("Long".into(), self.long.j());
+        m.insert("Decimal".into(), self.decimal.j());
+        m.insert("Guid".into(), self.guid.j());
+        m.insert("Padded".into(), self.padded.j());
+        m.insert("LongArray".into(), self.long_array.j());
+        m.insert("LongList".into(), self.long_list.j());
+        m.insert("DecimalArray".into(), self.decimal_array.j());
+        m.insert("DecimalList".into(), self.decimal_list.j());
+        m.insert("GuidArray".into(), self.guid_array.j());
+        m.insert("GuidList".into(), self.guid_list.j());
+        m.insert("PaddedArray".into(), self.padded_array.j());
+        m.insert("PaddedList".into(), self.padded_list.j());
+        Value::Object(m)
+    }
+}
+
 /// `Conformance.Nullables`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -4554,6 +4641,7 @@ pub enum AnyObject {
     KeyedV1(Box<KeyedV1>),
     KeyedV2(Box<KeyedV2>),
     Middle(Box<Middle>),
+    NinoNullables(Box<NinoNullables>),
     Nullables(Box<Nullables>),
     Outer(Box<Outer>),
     Plain(Box<Plain>),
@@ -4630,6 +4718,7 @@ impl AnyObject {
             Self::KeyedV1(v) => &mut **v,
             Self::KeyedV2(v) => &mut **v,
             Self::Middle(v) => &mut **v,
+            Self::NinoNullables(v) => &mut **v,
             Self::Nullables(v) => &mut **v,
             Self::Outer(v) => &mut **v,
             Self::Plain(v) => &mut **v,
@@ -4784,6 +4873,10 @@ impl NinoRead for AnyObject {
                 true
             }
             Some(Self::Middle(v)) if id == Middle::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::NinoNullables(v)) if id == NinoNullables::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
             }
@@ -5015,6 +5108,7 @@ impl NinoRead for AnyObject {
                 KeyedV1::NINO_TYPE_ID => Self::KeyedV1(Box::new(r.read_class()?)),
                 KeyedV2::NINO_TYPE_ID => Self::KeyedV2(Box::new(r.read_class()?)),
                 Middle::NINO_TYPE_ID => Self::Middle(Box::new(r.read_class()?)),
+                NinoNullables::NINO_TYPE_ID => Self::NinoNullables(Box::new(r.read_class()?)),
                 Nullables::NINO_TYPE_ID => Self::Nullables(Box::new(r.read_class()?)),
                 Outer::NINO_TYPE_ID => Self::Outer(Box::new(r.read_class()?)),
                 Plain::NINO_TYPE_ID => Self::Plain(Box::new(r.read_class()?)),
@@ -5155,6 +5249,10 @@ impl NinoWrite for AnyObject {
             }
             Self::Middle(v) => {
                 w.i32(Middle::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::NinoNullables(v) => {
+                w.i32(NinoNullables::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Nullables(v) => {
@@ -5398,6 +5496,7 @@ impl J for AnyObject {
             Self::KeyedV1(v) => v.j(),
             Self::KeyedV2(v) => v.j(),
             Self::Middle(v) => v.j(),
+            Self::NinoNullables(v) => v.j(),
             Self::Nullables(v) => v.j(),
             Self::Outer(v) => v.j(),
             Self::Plain(v) => v.j(),
@@ -5557,54 +5656,6 @@ impl J for EmptyStruct {
     }
 }
 
-/// `Conformance.Vec2`: raw, 8 bytes.
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
-pub struct Vec2 {
-    pub x: f32,
-    pub y: f32,
-}
-
-impl nino::Raw for Vec2 {
-    const SIZE: usize = 8;
-    const ALIGN: usize = 4;
-
-    fn decode_raw(b: &[u8]) -> Result<Self> {
-        let b = b.get(..8).ok_or_else(|| Error::of(ErrorKind::UnexpectedEnd))?;
-        Ok(Self {
-            x: <f32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
-            y: <f32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
-        })
-    }
-
-    fn encode_raw(&self, out: &mut [u8]) {
-        if let Some(o) = out.get_mut(0..) {
-            nino::Raw::encode_raw(&self.x, o);
-        }
-        if let Some(o) = out.get_mut(4..) {
-            nino::Raw::encode_raw(&self.y, o);
-        }
-    }
-}
-
-impl NinoRead for Vec2 {
-    nino::raw_read!();
-}
-
-impl NinoWrite for Vec2 {
-    nino::raw_write!();
-}
-
-impl J for Vec2 {
-    fn j(&self) -> Value {
-        let mut m = Map::new();
-        m.insert("$type".into(), Value::from("Conformance.Vec2"));
-        m.insert("X".into(), self.x.j());
-        m.insert("Y".into(), self.y.j());
-        Value::Object(m)
-    }
-}
-
 /// `Conformance.Padded`: raw, 16 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -5652,6 +5703,54 @@ impl J for Padded {
         m.insert("$type".into(), Value::from("Conformance.Padded"));
         m.insert("A".into(), self.a.j());
         m.insert("B".into(), self.b.j());
+        Value::Object(m)
+    }
+}
+
+/// `Conformance.Vec2`: raw, 8 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct Vec2 {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl nino::Raw for Vec2 {
+    const SIZE: usize = 8;
+    const ALIGN: usize = 4;
+
+    fn decode_raw(b: &[u8]) -> Result<Self> {
+        let b = b.get(..8).ok_or_else(|| Error::of(ErrorKind::UnexpectedEnd))?;
+        Ok(Self {
+            x: <f32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            y: <f32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.x, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.y, o);
+        }
+    }
+}
+
+impl NinoRead for Vec2 {
+    nino::raw_read!();
+}
+
+impl NinoWrite for Vec2 {
+    nino::raw_write!();
+}
+
+impl J for Vec2 {
+    fn j(&self) -> Value {
+        let mut m = Map::new();
+        m.insert("$type".into(), Value::from("Conformance.Vec2"));
+        m.insert("X".into(), self.x.j());
+        m.insert("Y".into(), self.y.j());
         Value::Object(m)
     }
 }
@@ -5913,6 +6012,7 @@ pub fn with_type<R>(name: &str, f: impl Visit<R>) -> Option<R> {
         "Conformance.Label" => f.visit::<Label>(),
         "Conformance.Link" => f.visit::<Option<LinkRef>>(),
         "Conformance.Nested" => f.visit::<Nested>(),
+        "Conformance.NinoNullables" => f.visit::<Option<Box<NinoNullables>>>(),
         "Conformance.Nullables" => f.visit::<Option<Box<Nullables>>>(),
         "Conformance.Outer" => f.visit::<Option<Box<Outer>>>(),
         "Conformance.Padded" => f.visit::<Padded>(),
