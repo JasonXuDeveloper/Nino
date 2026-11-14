@@ -119,6 +119,29 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// <see cref="Discard{T}"/> of a nullable value, for the raw nullable reads (Reader.ReadNullableRaw): set to
+        /// null as a whole, the value held passed to a recycler of <c>T?</c> (a value type's only one) when one is set,
+        /// copied only then, and its <c>HasValue</c> read out of line. Why: a <c>HasValue</c> read where the value is a
+        /// local made the JIT split the <c>T?</c> into its fields and join them through the stack to return it (a
+        /// store-forwarding stall per read of <c>SimpleStruct?</c>), and a copy taken before the test loaded every
+        /// null member's old value.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void DiscardNullable<T>(ref T? value) where T : struct
+        {
+            if (NinoRecycler<T?>.Handler != null)
+                RecycleNullable(value);
+            value = null;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RecycleNullable<T>(T? old) where T : struct
+        {
+            if (old.HasValue)
+                NinoRecycler<T?>.Recycle(old);
+        }
+
+        /// <summary>
         /// Replace: stores <paramref name="replacement"/> in <paramref name="value"/> and recycles the instance it
         /// held, unless it is the same one.
         /// </summary>

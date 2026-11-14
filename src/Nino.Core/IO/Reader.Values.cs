@@ -155,9 +155,8 @@ namespace Nino.Core
 
         /// <summary>
         /// <see cref="ReadNullableRaw{T}()"/> over <paramref name="value"/>: a null read discards the value held
-        /// (<see cref="NinoRecycler.Discard{T}"/>), told by the presence byte. Why not by the result's
-        /// <c>HasValue</c>: the JIT then split the result into its fields and joined them again through the stack to
-        /// return it (a store-forwarding stall per read of <c>SimpleStruct?</c>).
+        /// (<see cref="NinoRecycler.DiscardNullable{T}"/>), told by the presence byte, never by a <c>HasValue</c>
+        /// read here, which made the JIT split the value into its fields (see there).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void ReadNullableRaw<T>(ref T? value) where T : struct
@@ -184,18 +183,7 @@ namespace Nino.Core
             if (avail == 0 || block != NinoWire.Null)
                 NinoThrow.NotNull(avail == 0 ? -1 : block);
             Skip(1);
-            // Discarded only to a recycler of T? (a value type's only one), the value held copied only then (copied
-            // first, every null read loaded it), its HasValue read out of line: read here it made the JIT split value.
-            if (NinoRecycler<T?>.Handler != null)
-                Recycle(value);
-            value = null;
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void Recycle<T>(T? old) where T : struct
-        {
-            if (old.HasValue)
-                NinoRecycler<T?>.Recycle(old);
+            NinoRecycler.DiscardNullable(ref value);
         }
 
         /// <summary>Consumes 4 bytes if they equal <paramref name="expected"/>; otherwise consumes nothing.</summary>
