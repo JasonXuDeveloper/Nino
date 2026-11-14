@@ -83,9 +83,9 @@ namespace Nino.Codegen.Model
                     return new ValueModel(ValueKind.Named, clr, e.Source) { NamedType = clr };
                 case "nullable":
                 {
-                    // T?, Lazy<T>: a presence byte, then T. Tuple<...>: a presence byte, then its items.
-                    var definition = clr.IsGenericType ? clr.GetGenericTypeDefinition().FullName : null;
-                    if (definition is "System.Nullable`1" or "System.Lazy`1")
+                    // T?, NinoNullable<T>, Lazy<T>: a presence byte, then T. Tuple<...>: a presence byte, then its items.
+                    var definition = Generic(clr);
+                    if (IsNullable(clr) || definition == "System.Lazy`1")
                         return new ValueModel(ValueKind.Nullable, clr, e.Source)
                         {
                             Element = Value(e.Arguments[0], clr.GetGenericArguments()[0]),
@@ -251,6 +251,9 @@ namespace Nino.Codegen.Model
                     return $"map({parts[0]},{parts[1]})";
                 case "System.Nullable`1":
                     return $"nullable({parts[0]})";
+                case NinoNullable:
+                    // NinoNullableFormatter: its T is always raw.
+                    return RawArgument(args[0]) is { } raw ? $"nullable({raw.Source})" : null;
                 case "System.Collections.Generic.KeyValuePair`2":
                     return $"pair({parts[0]},{parts[1]})";
             }
@@ -260,14 +263,20 @@ namespace Nino.Codegen.Model
             return null;
         }
 
+        /// <summary>Nino.Core's <c>NinoNullable&lt;T&gt;</c>, which Nino writes and publishes exactly as <c>T?</c>.</summary>
+        private const string NinoNullable = "Nino.Core.NinoNullable`1";
+
+        /// <summary>Whether <paramref name="type"/> is a <c>T?</c> or a <c>NinoNullable&lt;T&gt;</c>: one value on the wire.</summary>
+        internal static bool IsNullable(Type type) => Generic(type) is "System.Nullable`1" or NinoNullable;
+
         /// <summary>
-        /// The element of a <c>T?[]</c> or <c>List&lt;T?&gt;</c> with a raw <c>T</c>, as <c>NullableArrayFormatter</c>
-        /// writes it (wire-format spec §6.2): the presence byte, padding to <c>T</c>'s canonical alignment <c>A</c>,
+        /// The element of a <c>T?[]</c> or <c>List&lt;T?&gt;</c> with a raw <c>T</c> (or of <c>NinoNullable&lt;T&gt;</c>,
+        /// the same bytes), as <c>NullableArrayFormatter</c> writes it (wire-format spec §6.2): the presence byte, padding to <c>T</c>'s canonical alignment <c>A</c>,
         /// then <c>T</c>, a stride of <c>A + size(T)</c>; null when <paramref name="type"/> is not such a <c>T?</c>.
         /// </summary>
         private string? NullableStride(Type type)
         {
-            if (Generic(type) != "System.Nullable`1")
+            if (!IsNullable(type))
                 return null;
             var value = type.GetGenericArguments()[0];
             if (RawArgument(value) is not { } raw)
@@ -347,9 +356,9 @@ namespace Nino.Codegen.Model
             }
 
             string definition = Generic(clr) ?? "";
-            if (definition == "System.Nullable`1" && e.Fields.Count == 2)
+            if (IsNullable(clr) && e.Fields.Count == 2)
             {
-                // T? in the canonical Nullable<T> layout: the flag, then the value at its offset (zeroed when absent).
+                // T? (or NinoNullable<T>, published as T?) in the canonical Nullable<T> layout: the flag, then the value at its offset (zeroed when absent).
                 var (flag, field) = (e.Fields[0], e.Fields[1]);
                 return new ValueModel(ValueKind.RawNullable, clr, e.Source)
                 {

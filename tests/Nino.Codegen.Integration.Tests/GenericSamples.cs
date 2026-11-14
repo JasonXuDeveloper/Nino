@@ -69,6 +69,32 @@ namespace Nino.Codegen.Integration.Tests
             Anything = new Crate<int> { Name = "anything", Content = 1 },
         };
 
+        /// <summary><c>NinoNullable&lt;T&gt;</c> members with and without values.</summary>
+        internal static Sparse Sparse() => new()
+        {
+            One = 7,
+            Point = new Vec2 { X = 1.5f, Y = -2 },
+            Array = new NinoNullable<long>[] { long.MinValue, default, 3 },
+            List = new List<NinoNullable<Rank>> { default, Rank.Gold },
+            Guids = new NinoNullable<Guid>[] { new Guid("0f8fad5b-d9cb-469f-a165-70867728950e"), default },
+            Points = new List<NinoNullable<Vec2>> { default, new Vec2 { X = 3, Y = 4 } },
+            Boxed = new Box<NinoNullable<int>> { Label = "boxed", Value = -1 },
+            BoxedList = new Box<List<NinoNullable<long>>> { Value = new List<NinoNullable<long>> { 1, default } },
+        };
+
+        /// <summary>The values of <see cref="Sparse"/> declared with <c>T?</c>.</summary>
+        internal static SparseTwin SparseTwin() => new()
+        {
+            One = 7,
+            Point = new Vec2 { X = 1.5f, Y = -2 },
+            Array = new long?[] { long.MinValue, null, 3 },
+            List = new List<Rank?> { null, Rank.Gold },
+            Guids = new Guid?[] { new Guid("0f8fad5b-d9cb-469f-a165-70867728950e"), null },
+            Points = new List<Vec2?> { null, new Vec2 { X = 3, Y = 4 } },
+            Boxed = new Box<int?> { Label = "boxed", Value = -1 },
+            BoxedList = new Box<List<long?>> { Value = new List<long?> { 1, null } },
+        };
+
         /// <summary><see cref="Full"/> with at most one entry in each map: written in the same order by any map.</summary>
         internal static Generics SingleEntries()
         {
@@ -84,12 +110,18 @@ namespace Nino.Codegen.Integration.Tests
         /// </summary>
         internal static List<(string Type, byte[] Bytes)> Cases(bool ordered)
         {
+            // NinoNullable<T> is T? on the wire: one value's bytes, whichever type it was declared with.
+            var sparse = NinoSerializer.Serialize(Sparse());
+            Assert.AreEqual(Hex(NinoSerializer.Serialize(SparseTwin())), Hex(sparse));
             var cases = new List<(string, byte[])>
             {
                 ("Samples.Generics", NinoSerializer.Serialize(SingleEntries())),
                 ("Samples.Generics", NinoSerializer.Serialize(new Generics())),
                 ("Samples.Generics", NinoSerializer.Serialize<Generics>(null)),
                 ("Samples.Tag", NinoSerializer.Serialize(new Tag { Name = "tag", Weight = -1 })),
+                ("Samples.Sparse", sparse),
+                ("Samples.SparseTwin", sparse),
+                ("Samples.Sparse", NinoSerializer.Serialize(new Sparse())),
                 ("Samples.Pens", NinoSerializer.Serialize(Pens())),
                 ("Samples.Pens", NinoSerializer.Serialize(new Pens { Anything = new Patch<int> { Value = 5 } })),
             };

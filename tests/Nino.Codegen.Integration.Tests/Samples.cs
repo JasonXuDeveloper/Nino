@@ -288,6 +288,38 @@ namespace Samples
     }
 
     /// <summary>
+    /// <c>NinoNullable&lt;T&gt;</c> members, which Nino writes and publishes as <c>T?</c>: alone, in an array and a list
+    /// (the fixed stride, of a value as large as its alignment, of a Guid and of a raw struct) and inside type
+    /// arguments. <see cref="SparseTwin"/> is the same type with <c>T?</c>: each language reads either one's data.
+    /// </summary>
+    [NinoType]
+    public sealed class Sparse
+    {
+        public NinoNullable<int> One;
+        public NinoNullable<Vec2> Point;
+        public NinoNullable<long>[] Array;
+        public List<NinoNullable<Rank>> List;
+        public NinoNullable<Guid>[] Guids;
+        public List<NinoNullable<Vec2>> Points;
+        public Box<NinoNullable<int>> Boxed;
+        public Box<List<NinoNullable<long>>> BoxedList;
+    }
+
+    /// <summary><see cref="Sparse"/> declared with <c>T?</c>.</summary>
+    [NinoType]
+    public sealed class SparseTwin
+    {
+        public int? One;
+        public Vec2? Point;
+        public long?[] Array;
+        public List<Rank?> List;
+        public Guid?[] Guids;
+        public List<Vec2?> Points;
+        public Box<int?> Boxed;
+        public Box<List<long?>> BoxedList;
+    }
+
+    /// <summary>
     /// A generic subtype: written behind the id of its closed .NET name (Crate&lt;int&gt;), so a slot allows the closed
     /// types the assembly names (<see cref="Pens"/>'s values, in GenericSamples).
     /// </summary>

@@ -103,6 +103,17 @@ as .NET builds the formatter of `Box<T>` from the formatter of `T`. The IR gives
 formatter for it writes: a `T?[]` or `List<T?>` of an unmanaged `T` as raw `T`s with a flag each, a `HashSet<T?>` or
 a dictionary's values item by item, a `KeyValuePair` as its key then its value (`CodegenModel.Generic`).
 
+`NinoNullable<T>` is `T?` to nino-gen wherever it is declared (`CodegenModel.IsNullable`): the generator publishes it
+with the encodings of `T?` (`nullable(...)` alone, the fixed stride in an array or a `List`), and inside a type
+argument the IR gives it the encoding of `T?` as well, so every target writes the member types and the codec of the
+same type declared with `T?` (`ModelTests.NinoNullableIsTheValueOfNullable`,
+`TargetTests.NinoNullableIsGeneratedAsNullable`; the corpus's `ninonullables-*` cases). Inside a plain struct copied as
+raw memory it is not the bytes of `T?`: .NET holds its presence as a whole `T` (1 in its first byte), so the value
+follows at `T`'s size, and the layout publishes those two fields. The IR reads them as a nullable value with the flag
+and the value at those offsets (`ValueKind.RawNullable`); TypeScript and Go read any offsets, while Rust's `Option<T>`
+in raw memory is the layout of `T?` (the value at `T`'s alignment), which is the same only for a `T` as large as its
+alignment, so Rust leaves out a type holding a wider one there (a decimal, a Guid) with NINOGEN002.
+
 A generic type that holds itself with other arguments (`Nest<T>` holding `Nest<List<T>>`) needs a new instantiation for
 every level of the data. TypeScript builds the codec of the next level when it first reads or writes one. Go and Rust
 instantiate generics at compile time and cannot: Go rejects a generic type whose instantiation cycle grows its

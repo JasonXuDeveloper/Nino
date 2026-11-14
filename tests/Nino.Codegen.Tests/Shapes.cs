@@ -146,6 +146,72 @@ namespace Shapes
     }
 
     /// <summary>
+    /// <c>NinoNullable&lt;T&gt;</c> where the corpus lacks it: inside type arguments, which nino-gen works out as it does
+    /// those of <c>T?</c> (a presence byte and the value alone and in sets and maps, the fixed stride in arrays and
+    /// lists), and of an enum. <see cref="NullableArgs"/> is the same type with <c>T?</c>.
+    /// </summary>
+    [NinoType]
+    public sealed class NinoNullableArgs
+    {
+        public NinoNullable<Flags> Enum;
+        public NinoNullable<Flags>[] Enums;
+        public Generic.Box<NinoNullable<int>> One;
+        public Generic.Box<NinoNullable<TupleCell>[]> Array;
+        public Generic.Box<List<NinoNullable<long>>> List;
+        public HashSet<NinoNullable<int>> Set;
+        public Dictionary<int, NinoNullable<double>> Map;
+    }
+
+    /// <summary><see cref="NinoNullableArgs"/> declared with <c>T?</c>: the same layout encodings and bytes.</summary>
+    [NinoType]
+    public sealed class NullableArgs
+    {
+        public Flags? Enum;
+        public Flags?[] Enums;
+        public Generic.Box<int?> One;
+        public Generic.Box<TupleCell?[]> Array;
+        public Generic.Box<List<long?>> List;
+        public HashSet<int?> Set;
+        public Dictionary<int, double?> Map;
+    }
+
+    /// <summary>
+    /// <c>NinoNullable&lt;T&gt;</c> inside a plain struct: raw memory, its presence a whole <c>T</c> (1 in its first
+    /// byte) and then the value. For a <c>T</c> as large as its alignment those are the bytes of <c>T?</c> there (the
+    /// flag, padding to the alignment, the value): 8 for an int.
+    /// </summary>
+    public struct HoldsNinoNullable
+    {
+        public byte A;
+        public NinoNullable<int> B;
+    }
+
+    /// <summary>
+    /// A <c>T</c> larger than its alignment (a decimal: 16 bytes aligned to 8) is 32 bytes there, the value at 16,
+    /// where a <c>decimal?</c> is 24, the value at 8. TypeScript and Go read the flag and the value where they are;
+    /// Rust's <c>Option&lt;T&gt;</c> in raw memory is the layout of <c>T?</c> only, so it leaves the type out.
+    /// </summary>
+    public struct HoldsWideNinoNullable
+    {
+        public byte A;
+        public NinoNullable<decimal> B;
+    }
+
+    [NinoType]
+    public sealed class NinoNullableRaw
+    {
+        public HoldsNinoNullable One;
+        public HoldsNinoNullable[] Many;
+    }
+
+    [NinoType]
+    public sealed class NinoNullableRawWide
+    {
+        public HoldsWideNinoNullable One;
+        public HoldsWideNinoNullable[] Many;
+    }
+
+    /// <summary>
     /// The BCL leaves whose layout differs by runtime, inside a raw struct, in the canonical layout (wire-format spec
     /// §5.2): Int128 aligned to 16, nint sign-extended, nuint and pointers (delegate* too) zero-extended to 8 bytes.
     /// </summary>

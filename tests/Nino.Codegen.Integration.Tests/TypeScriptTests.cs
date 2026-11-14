@@ -293,6 +293,14 @@ namespace Nino.Codegen.Integration.Tests
                          "\"array\":{\"label\":null,\"value\":[1,-2,2147483647]}",
                      })
                 StringAssert.Contains(full, expected);
+            // NinoNullable<T> members are the values T? members are (Sparse, and SparseTwin over the same bytes).
+            int sparse = cases.FindIndex(c => c.Item1 == "SparseCodec");
+            StringAssert.Contains(results[sparse].Json,
+                "{\"one\":7,\"point\":{\"x\":1.5,\"y\":-2},\"array\":[\"-9223372036854775808\",null,\"3\"]," +
+                "\"list\":[null,3],\"guids\":[\"0f8fad5b-d9cb-469f-a165-70867728950e\",null]," +
+                "\"points\":[null,{\"x\":3,\"y\":4}],\"boxed\":{\"label\":\"boxed\",\"value\":-1}," +
+                "\"boxedList\":{\"label\":null,\"value\":[\"1\",null]}}");
+            Assert.AreEqual(results[sparse].Json, results[sparse + 1].Json);
             string types = File.ReadAllText(Path.Combine(_directory, "Nino.Codegen.Integration.Tests.ts"));
             StringAssert.Contains(types, "export class Box<T> {");
             StringAssert.Contains(types, "export class Duo<TFirst, TSecond> {");
