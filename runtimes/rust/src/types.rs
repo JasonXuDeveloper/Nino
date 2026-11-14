@@ -845,6 +845,114 @@ impl<T: Raw> Raw for Option<T> {
     }
 }
 
+/// .NET's `NinoNullable<T>` (`Nino.Core`), a nullable raw `T` that is written as its memory wherever it is (a member,
+/// an element of any collection, a field of a raw struct), `2 * size(T)` bytes: the presence, a whole `T` (0 or 1 in
+/// its first byte, zeros above), then the value, zeros when absent. A `T?` is not these bytes: alone it is a
+/// presence byte and the value only when present (`Option<T>`), and in an array a stride of `T`'s alignment plus
+/// its size ([`RawNullables`]), which is the same only for a `T` as large as its alignment.
+///
+/// It wraps the `Option<T>` it stands for (`.0`, [`From`] both ways, [`core::ops::Deref`]). Reading rejects a
+/// presence other than 0 or 1, a byte set above it and an absent value that is not zeros, as .NET's untrusted mode
+/// does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NinoNullable<T>(pub Option<T>);
+
+impl<T> Default for NinoNullable<T> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<T> From<Option<T>> for NinoNullable<T> {
+    fn from(value: Option<T>) -> Self {
+        Self(value)
+    }
+}
+
+impl<T> From<NinoNullable<T>> for Option<T> {
+    fn from(value: NinoNullable<T>) -> Self {
+        value.0
+    }
+}
+
+impl<T> core::ops::Deref for NinoNullable<T> {
+    type Target = Option<T>;
+
+    fn deref(&self) -> &Option<T> {
+        &self.0
+    }
+}
+
+impl<T> core::ops::DerefMut for NinoNullable<T> {
+    fn deref_mut(&mut self) -> &mut Option<T> {
+        &mut self.0
+    }
+}
+
+impl<T: Raw> Raw for NinoNullable<T> {
+    const SIZE: usize = T::SIZE.saturating_mul(2);
+    const ALIGN: usize = T::ALIGN;
+
+    #[inline]
+    fn decode_raw(bytes: &[u8]) -> Result<Self> {
+        let (presence, value) = bytes.split_at_checked(T::SIZE).ok_or_else(Error::end)?;
+        let value = value.get(..T::SIZE).ok_or_else(Error::end)?;
+        let (&flag, above) = presence.split_first().ok_or_else(Error::end)?;
+        if flag > 1 {
+            return Err(Error::new(ErrorKind::InvalidPresence, i32::from(flag)));
+        }
+        let unused = if flag == 0 { value } else { &[] };
+        if above.iter().chain(unused).any(|&b| b != 0) {
+            return Err(Error::of(ErrorKind::InvalidBits));
+        }
+        if flag == 0 {
+            return Ok(Self(None));
+        }
+        T::decode_raw(value).map(|v| Self(Some(v)))
+    }
+
+    #[inline]
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let (Some(v), Some((presence, value))) = (&self.0, out.split_at_mut_checked(T::SIZE)) {
+            if let Some(flag) = presence.first_mut() {
+                *flag = 1;
+            }
+            v.encode_raw(value);
+        }
+    }
+}
+
+// `raw_read!` and `raw_write!` take a block of a constant size, which a generic `T` cannot give on stable Rust.
+impl<T: Raw> NinoRead for NinoNullable<T> {
+    const MIN_SIZE: usize = <Self as Raw>::SIZE;
+    const FIXED_SIZE: usize = <Self as Raw>::SIZE;
+
+    #[inline]
+    fn decode_fixed(b: &[u8]) -> Result<Self> {
+        Self::decode_raw(b)
+    }
+
+    #[inline]
+    fn read(r: &mut Reader<'_>) -> Result<Self> {
+        Self::decode_raw(r.take(<Self as Raw>::SIZE)?)
+    }
+}
+
+impl<T: Raw> NinoWrite for NinoNullable<T> {
+    const FIXED_SIZE: usize = <Self as Raw>::SIZE;
+
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        self.encode_raw(out);
+    }
+
+    #[inline]
+    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        self.encode_raw(w.reserve(<Self as Raw>::SIZE));
+        Ok(())
+    }
+}
+
 // ---------------------------------------------------------------------- arrays
 
 /// A `T?[]` or `List<T?>` of a raw `T` (the specification, 6.2): each element at a fixed stride of

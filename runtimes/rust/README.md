@@ -40,13 +40,14 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `type_consts!(id, name, layout)` | The `NINO_TYPE_ID`, `NINO_TYPE_NAME` and `NINO_LAYOUT` constants nino-gen declares in each type's impl (`Cat::NINO_TYPE_ID`; the body traits' `TYPE_ID` is set from it), documented once here; a generic type passes no id (`type_consts!(name, layout)`). |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
-How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`, the
-value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/rust#types).
-.NET's `NinoNullable<T>` is `T?` on the wire and in the layouts, so it maps to the same Rust types: `Option<T>` alone,
-and `RawNullables<T>` (the fixed stride) for `NinoNullable<T>[]` and `List<NinoNullable<T>>`, in the code nino-gen
-writes and with the derive alike. Inside a plain struct copied as raw memory .NET holds its presence as a whole `T`:
-that is the layout of `T?` (an `Option<T>` field) for a `T` as large as its alignment, and nino-gen leaves a type
-holding a wider one there (a decimal, a Guid) out of the Rust it writes (NINOGEN002).
+How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`,
+`NinoNullable<T>`, the value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/rust#types).
+.NET's `NinoNullable<T>` is `nino::NinoNullable<T>`, a wrapper of the `Option<T>` it stands for (`.0`, `From` both
+ways, `Deref`), since it has bytes of its own: its memory wherever it is, a presence and a value of a `T` each
+(`2 * size(T)` bytes: `01000000 05000000` for a `NinoNullable<int>` of 5, zeros for `None`), alone, as an element of
+any collection (`Vec<NinoNullable<T>>`) and inside a raw struct, in the code nino-gen writes and with the derive
+alike. `Option<T>` and `RawNullables<T>` stay `T?` and `T?[]`: the same bytes only for a run of a `T` as large as its
+alignment.
 A polymorphic declared type (an abstract class, an interface, or a class that is not sealed) becomes a Rust enum with
 one variant per concrete type. The reader rejects any type id that is not one of the variants
 (`ErrorKind::UnknownTypeId`).
@@ -81,6 +82,8 @@ every mode, some only with `NinoSettings.Untrusted` set, and the rest not at all
 - A `BitArray` must have zeros in its unused bits (.NET: no).
 - A `BigInteger` must be in its minimal form. A count of 0 reads as zero (.NET: no).
 - The padding of raw structs must be zero (.NET: no).
+- A `NinoNullable<T>` must have a presence of 0 or 1 with zeros above its first byte, and a value of zeros where it is
+  absent (.NET: with `Untrusted`).
 - Sets and maps must not contain duplicate keys (.NET: in every mode).
 - A keyed member must use up its whole length (`end_member`) (.NET: in every mode).
 - A deferred-body section must be the outermost region, must be filled exactly by its entries, and every entry's key
