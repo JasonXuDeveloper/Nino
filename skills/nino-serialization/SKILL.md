@@ -249,7 +249,8 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
   `[MemoryPackOnSerializing]` and the other three → `[NinoOnSerializing]` ... (instance methods, except a static
   `[NinoOnDeserializing]`; no `ref reader`/`ref writer` overloads),
   `GenerateType.VersionTolerant` → `NinoFormat.Keyed`, `GenerateType.CircularReference` → `trackReferences: true`,
-  `Serialize(bufferWriter, value)` → `Serialize(value, bufferWriter)` (value first). Invalid data throws
+  `Serialize(bufferWriter, value)` → `Serialize(value, bufferWriter)` (value first), `SafeNullable<T>` → `T?` (Nino's
+  is always safe) or `NinoNullable<T>` for hot nullable arrays (references/types.md). Invalid data throws
   `NinoDataException`. Full table: https://nino.xgamedev.net/en/docs/v4/vs-memorypack.md
 
 Diagnostics: errors mean the type cannot work, warnings mean data is silently dropped or an attribute does nothing.

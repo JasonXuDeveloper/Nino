@@ -19,6 +19,8 @@ https://nino.xgamedev.net/en/docs/v4/pooling.md
 - Several values in one buffer: `var w = new Writer(ninoArrayBufferWriter);` (a `NinoArrayBufferWriter` only),
   `NinoSerializer.Serialize(a, ref w)`..., `w.Flush(); w.ReleaseReferences();`; read with `var r = new Reader(span);`,
   `NinoDeserializer.Deserialize<T>(ref r)`..., `r.ReleaseReferences()`. Release once per logical message.
+- Arrays and lists of nullable values written often: `NinoNullable<T>[]` in place of `T?[]` (same bytes, one block
+  copy; references/types.md).
 - `NinoSerializer.GetFixedSize<T>()` gives the size of a fixed-size type; `NinoSerializer.IsSupported(type)` whether
   Nino can write a type.
 

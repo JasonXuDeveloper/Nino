@@ -39,6 +39,17 @@ A generic `[NinoType]` closed over such a type (`Box<Action>`) compiles, but wri
   added later), is not raw: it is written member by member, and its `bool` members are checked in every mode.
 - A struct that serializes no member is NINO023.
 
+### `NinoNullable<T>`: nullable values in hot collections
+
+`NinoNullable<T>` (Nino.Core, `T : unmanaged`) is a drop-in for `T?` that Nino writes with exactly `T?`'s bytes
+(either reads the other's data; the published layout says nullable too). Its presence is a whole `T`, so its memory
+has no padding and no stale bytes: an array or `List<>` of it is one block copy where `T` is as large as its alignment
+(`long`, `int`, `double`, enums, `DateTime`, `TimeSpan`), where `T?[]` clears padding and absent values element by
+element. Use it for arrays and lists of nullable values written often; a single `T?` member is as fast already. It
+converts implicitly from `T` and `T?` and to `T?`, and has `HasValue`, `Value`, `GetValueOrDefault`, `ToNullable()`.
+It takes twice `T`'s size (`T?` takes `T`'s size plus its alignment: the same for 8-byte primitives, larger for
+`decimal` or `Guid`). Its presence byte is checked in every mode.
+
 ### One canonical layout on every runtime
 
 Runtimes lay structs out differently (Mono keeps tuple items in declaration order, IL2CPP and .NET Framework align

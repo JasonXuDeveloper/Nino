@@ -105,9 +105,10 @@ rules, and a test checks that both write the same bytes:
 5. Two markers on type parameters state what the formatter does with the bound type, and both resolvers check them
    identically:
    * `[NinoRaw] T` (with `where T : unmanaged`): values are copied as raw memory, so `T` must be a type Nino writes as
-     its raw bytes (stricter than C#'s unmanaged: no `Nullable`, tuples, `nint`, `DateTimeOffset`, or `[NinoType]`
-     structs that are not raw). `UnmanagedFormatter`, `UnmanagedArrayFormatter`, `NullableArrayFormatter`,
-     `UnmanagedListFormatter` and `NullableListFormatter` mark their element parameter. A plain `unmanaged`
+     its raw bytes (stricter than C#'s unmanaged: no `Nullable`, `NinoNullable`, tuples, `nint`, `DateTimeOffset`, or
+     `[NinoType]` structs that are not raw). `UnmanagedFormatter`, `UnmanagedArrayFormatter`, `NullableArrayFormatter`,
+     `UnmanagedListFormatter`, `NullableListFormatter` and the three `NinoNullable` formatters mark their element
+     parameter. A plain `unmanaged`
      constraint, such as the one a generated formatter of `[NinoType] class Box<T> where T : unmanaged` copies from
      the type, binds any unmanaged type.
    * `[NinoCreated] TCollection`: the formatter creates instances through `NinoActivator<TCollection>.Create()`, so the
