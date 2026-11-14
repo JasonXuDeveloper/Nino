@@ -176,6 +176,8 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   - Select the presence byte once and write it once.
   - Keep out-of-line write bodies static behind the inlined forwarder (a dummy `this` per call measured slower in
     subtype dispatch); merge only single-use read bodies into the instance method.
+  - A struct that opens no class body is a class's body: a local reader and writer, inlined where small (one or two
+    formatter members of at most eight), so a loop over `T[]` or `T?[]` keeps its cursor in registers.
   - Dispatch: outline exact writes only for nesting subtypes; every comparison `GetType() == typeof(...)`, never
     `is`, `GetType()` never hoisted.
 - **Reach an interface member a struct implements explicitly through a generic accessor constrained to the

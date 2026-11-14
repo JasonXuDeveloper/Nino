@@ -85,6 +85,34 @@ claim still needs runner numbers (`benchmark`).
   bodies with GC-tracked struct arguments. At 127 `NamedItem` elements the M4 writer slowed about 5–13% across four
   rounds at both offsets; wide timings were closer. Wire bytes, allocation, model reuse and collection matched. The
   prototype passed 86 and 87 targeted tests on .NET 8 and 10, respectively, and was withdrawn.
+- **Ask a struct's members whether they open a class body, as a class's, and inline the body of a small struct
+  that opens none (`TypeShape.Nests`, `TypeModel.InlineBody`); never mark a struct as nesting by its kind.** Why: a
+  struct that is not raw (it holds a string) was marked `NinoBodyTraits.Nests` whatever its members, so it never got
+  a local reader or writer nor an inlined body, and every element of `T[]`, `T?[]`, `List<T?>` or a dictionary's
+  values was a call that took the address of the reader or writer: the loop's cursor lived in memory and so did the
+  element (copied to a local for the call). Evidence (x64 Tier1, `asm.py dump --filter Nullable`,
+  `ManagedStruct { int; string; double }`, e7c4c91c and a7a4af24): `NullableTest.NinoSerializeNullableManagedStructs`
+  778 bytes with 72 stack accesses and a call of `__WriteBody` per element (the presence byte: a load, a store and
+  two read-modify-writes at `[rbp-0x48]` / `[rbp-0x38]`; the body three such pairs on `[rbx+0x10]` / `[rbx+0x20]`)
+  became 1,308 bytes with 23 and no call but `Writer.Grow` and the long-string helpers, the cursor in `rax` / `r13d`;
+  `NinoElements.ReadEach` of `ManagedStruct?` kept the reader at `[rbp+0x18]` / `[rbp+0x28]` and copied each value in
+  and out around `ReadBody`, and now holds it in `r13` / `r12d`, loads only the string it may reuse and stores the
+  fields straight into the slot; the top-level read of one `ManagedStruct?` is one method (27 stack accesses to 18,
+  no `ReadBody` call) whose fresh path the JIT folds (the local is null, so `ReadString(current)` drops its reuse
+  branch). Local quick runs only chose between the variants; the gain is still to be measured on runners
+  (`benchmark`). What did not help, so nobody retries it blind:
+  - The local reader and writer alone (the body still out of line, e7c4c91c without a7a4af24): the three-member
+    struct timed no faster locally, the copy in and out costing what the per-member loads and stores did. It is
+    kept for the bodies too large to inline (three or more formatter members, or more than eight), where a class's
+    body made the same trade and won.
+  - Taking the struct by value in the inlined body (`__WriteBodyInline(__T value, ...)`): the Tier1 listings were
+    the same to two bytes, with the same 23 stack accesses. The spills that remain in the write loop are register
+    pressure (the double has no callee-saved register on System V), not an address-exposed local.
+  What remains: the element is still copied once per element (`INinoFormatter<T>.Serialize` takes `T` by value, so
+  the loop loads every field of a `T?` before it tests the flag); a class holding such a struct still nests (a
+  `[NinoType]` member resolves with `OpensBodies` true), so its own body has no local reader or writer. Telling the
+  resolver needs a guard for structs that reach themselves through a collection, and `LocalReader` must then exclude
+  a member whose body is out of line (it takes the reader's address).
 
 ## Polymorphic dispatch
 

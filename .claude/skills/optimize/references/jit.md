@@ -180,6 +180,16 @@ where that is so, and its x64 sizes are listings, not throughput.
   three fields, a second null path) used up `ProfileV2Formatter.ReadBody`'s inlining budget, which then called
   `NinoUnsafe.Read` and the word constructor. Find such a cause by removing paths one at a time and dumping the case (a scratch program
   of the same shape stayed clean, so the cause was in Nino's code, not the JIT's handling of `T?` itself).
+- Leave `NullableFormatter`'s path for a `T` that is not raw as it is (`TryReadPresent`, `T item =
+  value.GetValueOrDefault()`, the body, `value = item`; the write: the flag, then `GetValueOrDefault()` to the
+  body): once the body of `T` is inlined (`audit-generated-code`, references/write-paths.md, "The write body's
+  methods") the copies are gone from the machine code. Evidence (x64 Tier1, `ManagedStruct?`, a7a4af24): the array
+  read loads only the reference it may reuse (`mov r13, [r15+0x08]`) and stores the flag and the three fields into
+  the slot, one write barrier an element; the top-level read builds the value in registers and stores it into the
+  return buffer field by field, with no load of the whole (no stall). Reading in place through
+  `Nullable.GetValueRefOrDefaultRef` would take the address of that local and keep it in memory, so it was not
+  built. The cost was the out-of-line body, which took the reader's address: look there first when a `T?` of a
+  managed struct is slow.
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlockPlan<T, TFormatter>.Size`): one load, nothing to inline.
 - Decide "copy memory" against "convert" by a `static readonly` computed before Tier1 (`NinoLayout<T>.IsCanonical`,

@@ -182,6 +182,8 @@ candidates; a published claim still needs runner numbers (`benchmark`).
   628 B. In the x64 cross-JIT MinOpts listing the body grew from 233 to 256 B and the caller stayed at 163 B.
   Unaligned 64-character reuse improved in four paired runs and the A/A/B replay; adjacent lengths varied. Wire bytes,
   allocations, 577-model reuse and collection matched. Both Roslyn target suites passed.
+- **A struct's read body follows the rule of its write body**: on a local reader where it opens no class body,
+  inlined where it is small (`write-paths.md`, "The write body's methods", has the listings and what did not help).
 - **Return a null value (presence byte 0) in the twin's inlined `Read`, and read the rest in a static no-inline
   `__ReadTop`**; write a null value in the inlined `Write` (`NinoDirect.WriteNull`). Why: the null read and write
   created a reader or writer out of line, which v3 3.3.13 did not (rc.10 `NinoDeserializeNullableObject` 2.68 ns
