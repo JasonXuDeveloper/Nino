@@ -10,6 +10,7 @@ using BenchmarkDotNet.Configs;
 using Google.Protobuf;
 using MemoryPack;
 using MessagePack;
+using Nino.Benchmark.Workloads;
 using Nino.Core;
 using ProtoBuf;
 using P = Nino.Benchmark.Proto;
@@ -24,7 +25,8 @@ namespace Nino.Benchmark;
 /// the runtime's collection layouts and on SIMD. Against MemoryPack, MessagePack and protobuf-net. Also a list that
 /// holds itself (<see cref="SelfTree"/>, 5,461 lists), which counts the depth at every level: against MemoryPack only
 /// (MessagePack fails to read it back, protobuf-net has no list of lists). And nullable values with every fifth one null
-/// (<c>long?[]</c>, <c>List&lt;int?&gt;</c>, <c>decimal?[]</c>), which Nino writes as a fixed stride with each absent value
+/// (<c>long?[]</c>, <c>List&lt;int?&gt;</c>, <c>decimal?[]</c> and <c>Vec3?[]</c>, a user's struct of three floats: 16
+/// bytes with 4-byte alignment), which Nino writes as a fixed stride with each absent value
 /// zeroed: against every library. MemoryPack writes them as <c>SafeNullable&lt;T&gt;</c> (no uninitialized padding in
 /// its bytes, <see cref="NullableFieldsMemoryPack"/>); protobuf, which has no null in a repeated field, as a message per
 /// element with an optional value (protobuf-net's <c>[NullWrappedValue]</c>, the contracts in CaseFormats.cs, whose
@@ -59,6 +61,10 @@ public partial class CollectionsTest : IReadBack
     private static readonly List<int?> NullableInts = Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (int?)i * 7).ToList();
     private static readonly decimal?[] NullableDecimals =
         Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (decimal?)i / 8).ToArray();
+    // A user's own unmanaged struct (the workloads' Vec3, three floats): its Vec3? is 16 bytes with 4-byte alignment,
+    // the stride whose flag has 3 bytes of padding and whose value is not a multiple of 8 bytes.
+    private static readonly Vec3?[] NullableVec3s =
+        Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (Vec3?)new Vec3 { X = i * 0.5f, Y = i * 1.25f, Z = -i }).ToArray();
 
     private static readonly SelfTree SelfTree = SelfTree.Create(6, 4);
 
@@ -107,6 +113,10 @@ public partial class CollectionsTest : IReadBack
     private static readonly SafeNullable<long>[] MemoryPackNullableLongs = SafeNullables.From(NullableLongs);
     private static readonly List<SafeNullable<int>> MemoryPackNullableInts = SafeNullables.From(NullableInts);
     private static readonly SafeNullable<decimal>[] MemoryPackNullableDecimals = SafeNullables.From(NullableDecimals);
+    private static readonly SafeNullable<Vec3>[] MemoryPackNullableVec3s = SafeNullables.From(NullableVec3s);
+    // A Nullable<T> of a message type cannot be null-wrapped in a repeated field: an array of an optional field, as
+    // NullableTest's SimpleStruct?[] (CaseFormats.cs), made here, outside the timed region.
+    private static readonly OptionalVec3List ProtobufNullableVec3s = new() { Items = OptionalVec3.From(NullableVec3s) };
     private static readonly NullableLongList ProtobufNullableLongs = new() { Items = NullableLongs };
     private static readonly NullableIntList ProtobufNullableInts = new() { Items = NullableInts };
     private static readonly NullableDecimalList ProtobufNullableDecimals = new() { Items = NullableDecimals };
@@ -132,6 +142,13 @@ public partial class CollectionsTest : IReadBack
     private static readonly P.NullableDecimalList NullableDecimalsProto = P.NullableDecimalList.Parser.ParseFrom(ProtobufNullableDecimalsBytes);
     private static readonly byte[] GoogleProtobufNullableDecimalsBytes = NullableDecimalsProto.ToByteArray();
     private static readonly byte[] JsonNullableDecimalsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableDecimals, CaseJson.Default.NullableDecimalArray);
+    private static readonly byte[] NinoNullableVec3sBytes = NinoSerializer.Serialize(NullableVec3s);
+    private static readonly byte[] MemoryPackNullableVec3sBytes = MemoryPackSerializer.Serialize(MemoryPackNullableVec3s);
+    private static readonly byte[] MessagePackNullableVec3sBytes = MessagePackSerializer.Serialize(NullableVec3s);
+    private static readonly byte[] ProtobufNullableVec3sBytes = ProtobufModel.Serialize(ProtobufNullableVec3s);
+    private static readonly P.OptionalVec3List NullableVec3sProto = P.OptionalVec3List.Parser.ParseFrom(ProtobufNullableVec3sBytes);
+    private static readonly byte[] GoogleProtobufNullableVec3sBytes = NullableVec3sProto.ToByteArray();
+    private static readonly byte[] JsonNullableVec3sBytes = JsonSerializer.SerializeToUtf8Bytes(NullableVec3s, CaseJson.Default.NullableVec3Array);
 
     private static readonly byte[] NinoSelfTreeBytes = NinoSerializer.Serialize(SelfTree);
     private static readonly byte[] MemoryPackSelfTreeBytes = MemoryPackSerializer.Serialize(SelfTree);
@@ -199,6 +216,12 @@ public partial class CollectionsTest : IReadBack
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeNullableDecimals), ProtobufNullableDecimalsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeNullableDecimals), GoogleProtobufNullableDecimalsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableDecimals), JsonNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableVec3s), NinoNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableVec3s), MemoryPackNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeNullableVec3s), MessagePackNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeNullableVec3s), ProtobufNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeNullableVec3s), GoogleProtobufNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableVec3s), JsonNullableVec3sBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSelfTree), NinoSelfTreeBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSelfTree), MemoryPackSelfTreeBytes.Length);
         InitNullableForms();
@@ -227,6 +250,9 @@ public partial class CollectionsTest : IReadBack
         P.NullableLongList => ((NullableLongList)ProtobufModel.ReadBack(result, typeof(NullableLongList))).Items,
         P.NullableIntList => ((NullableIntList)ProtobufModel.ReadBack(result, typeof(NullableIntList))).Items,
         P.NullableDecimalList => ((NullableDecimalList)ProtobufModel.ReadBack(result, typeof(NullableDecimalList))).Items,
+        P.OptionalVec3List => OptionalVec3.ToNullable(
+            ((OptionalVec3List)ProtobufModel.ReadBack(result, typeof(OptionalVec3List))).Items),
+        OptionalVec3[] items => OptionalVec3.ToNullable(items),
         _ => NullableForms.ReadBack(result),
     };
 
@@ -448,6 +474,79 @@ public partial class CollectionsTest : IReadBack
     [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
     public decimal?[] JsonDeserializeNullableDecimals() =>
         JsonSerializer.Deserialize(JsonNullableDecimalsBytes, CaseJson.Default.NullableDecimalArray);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableVec3sSerialize")]
+    public int NinoSerializeNullableVec3s()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(NullableVec3s, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int MemoryPackSerializeNullableVec3s()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, MemoryPackNullableVec3s);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int MessagePackSerializeNullableVec3s()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, NullableVec3s);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int ProtobufSerializeNullableVec3s()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, ProtobufNullableVec3s);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int GoogleProtobufSerializeNullableVec3s()
+    {
+        _googleProtobufBuffer.ResetWrittenCount();
+        NullableVec3sProto.WriteTo(_googleProtobufBuffer);
+        return _googleProtobufBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int JsonSerializeNullableVec3s()
+    {
+        _jsonBuffer.ResetWrittenCount();
+        _jsonWriter.Reset(_jsonBuffer);
+        JsonSerializer.Serialize(_jsonWriter, NullableVec3s, CaseJson.Default.NullableVec3Array);
+        return _jsonBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableVec3sDeserialize")]
+    public Vec3?[] NinoDeserializeNullableVec3s() =>
+        NinoDeserializer.Deserialize<Vec3?[]>(NinoNullableVec3sBytes);
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public SafeNullable<Vec3>[] MemoryPackDeserializeNullableVec3s() =>
+        MemoryPackSerializer.Deserialize<SafeNullable<Vec3>[]>(MemoryPackNullableVec3sBytes);
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public Vec3?[] MessagePackDeserializeNullableVec3s() =>
+        MessagePackSerializer.Deserialize<Vec3?[]>(MessagePackNullableVec3sBytes);
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public OptionalVec3[] ProtobufDeserializeNullableVec3s() =>
+        Serializer.Deserialize<OptionalVec3List>(new ReadOnlySpan<byte>(ProtobufNullableVec3sBytes)).Items;
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public P.OptionalVec3List GoogleProtobufDeserializeNullableVec3s() =>
+        P.OptionalVec3List.Parser.ParseFrom(new ReadOnlySpan<byte>(GoogleProtobufNullableVec3sBytes));
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public Vec3?[] JsonDeserializeNullableVec3s() =>
+        JsonSerializer.Deserialize(JsonNullableVec3sBytes, CaseJson.Default.NullableVec3Array);
 
     [Benchmark(Baseline = true), BenchmarkCategory("TupleListSerialize")]
     public int NinoSerializeTupleList()

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using BenchmarkDotNet.Configs;
 using MemoryPack;
+using Nino.Benchmark.Workloads;
 
 #nullable disable
 namespace Nino.Benchmark;
@@ -22,7 +23,7 @@ namespace Nino.Benchmark;
 /// CollectionsTest's collections of the base class library with 1,000 elements each, serialized by Nino v3 to a reused
 /// buffer writer and deserialized into new instances: a list of tuples, an array of key-value pairs, a dictionary of
 /// ints, the hashed, queued, linked, sorted and concurrent collections, and nullable values with every fifth one null
-/// (<c>long?[]</c>, <c>List&lt;int?&gt;</c>, <c>decimal?[]</c>), against MemoryPack (the nullable values as
+/// (<c>long?[]</c>, <c>List&lt;int?&gt;</c>, <c>decimal?[]</c>, <c>Vec3?[]</c>), against MemoryPack (the nullable values as
 /// <c>SafeNullable&lt;T&gt;</c>, <see cref="NullableFieldsMemoryPack"/>).
 /// </summary>
 [PayloadColumn]
@@ -53,6 +54,10 @@ public class CollectionsTest : IReadBack
     private static readonly List<int?> NullableInts = Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (int?)i * 7).ToList();
     private static readonly decimal?[] NullableDecimals =
         Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (decimal?)i / 8).ToArray();
+    // A user's own unmanaged struct (the workloads' Vec3, three floats): its Vec3? is 16 bytes with 4-byte alignment,
+    // the stride whose flag has 3 bytes of padding and whose value is not a multiple of 8 bytes.
+    private static readonly Vec3?[] NullableVec3s =
+        Enumerable.Range(0, N).Select(i => i % 5 == 0 ? null : (Vec3?)new Vec3 { X = i * 0.5f, Y = i * 1.25f, Z = -i }).ToArray();
 
     private static readonly byte[] NinoTupleListBytes = NinoGen.Serializer.Serialize(TupleList);
     private static readonly byte[] MemoryPackTupleListBytes = MemoryPackSerializer.Serialize(TupleList);
@@ -79,6 +84,7 @@ public class CollectionsTest : IReadBack
     private static readonly SafeNullable<long>[] MemoryPackNullableLongs = SafeNullables.From(NullableLongs);
     private static readonly List<SafeNullable<int>> MemoryPackNullableInts = SafeNullables.From(NullableInts);
     private static readonly SafeNullable<decimal>[] MemoryPackNullableDecimals = SafeNullables.From(NullableDecimals);
+    private static readonly SafeNullable<Vec3>[] MemoryPackNullableVec3s = SafeNullables.From(NullableVec3s);
 
     private static readonly byte[] NinoNullableLongsBytes = NinoGen.Serializer.Serialize(NullableLongs);
     private static readonly byte[] MemoryPackNullableLongsBytes = MemoryPackSerializer.Serialize(MemoryPackNullableLongs);
@@ -86,6 +92,8 @@ public class CollectionsTest : IReadBack
     private static readonly byte[] MemoryPackNullableIntsBytes = MemoryPackSerializer.Serialize(MemoryPackNullableInts);
     private static readonly byte[] NinoNullableDecimalsBytes = NinoGen.Serializer.Serialize(NullableDecimals);
     private static readonly byte[] MemoryPackNullableDecimalsBytes = MemoryPackSerializer.Serialize(MemoryPackNullableDecimals);
+    private static readonly byte[] NinoNullableVec3sBytes = NinoGen.Serializer.Serialize(NullableVec3s);
+    private static readonly byte[] MemoryPackNullableVec3sBytes = MemoryPackSerializer.Serialize(MemoryPackNullableVec3s);
 
     // v3 3.3.13 has no NinoArrayBufferWriter; its IBufferWriter<byte> overload is the reused-buffer path.
     private ArrayBufferWriter<byte> _ninoBuffer;
@@ -119,6 +127,8 @@ public class CollectionsTest : IReadBack
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableInts), MemoryPackNullableIntsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableDecimals), NinoNullableDecimalsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableDecimals), MemoryPackNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableVec3s), NinoNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableVec3s), MemoryPackNullableVec3sBytes.Length);
     }
 
     [GlobalSetup]
@@ -211,6 +221,33 @@ public class CollectionsTest : IReadBack
     [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
     public SafeNullable<decimal>[] MemoryPackDeserializeNullableDecimals() =>
         MemoryPackSerializer.Deserialize<SafeNullable<decimal>[]>(MemoryPackNullableDecimalsBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableVec3sSerialize")]
+    public int NinoSerializeNullableVec3s()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(NullableVec3s, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int MemoryPackSerializeNullableVec3s()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, MemoryPackNullableVec3s);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableVec3sDeserialize")]
+    public Vec3?[] NinoDeserializeNullableVec3s()
+    {
+        NinoGen.Deserializer.Deserialize(NinoNullableVec3sBytes, out Vec3?[] ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public SafeNullable<Vec3>[] MemoryPackDeserializeNullableVec3s() =>
+        MemoryPackSerializer.Deserialize<SafeNullable<Vec3>[]>(MemoryPackNullableVec3sBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("TupleListSerialize")]
     public int NinoSerializeTupleList()

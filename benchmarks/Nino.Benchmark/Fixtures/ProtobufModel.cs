@@ -105,7 +105,8 @@ public sealed class ProtoFile(string path, string package, string csharpNamespac
         typeof(SimpleStructList), typeof(VectorList), typeof(PolymorphicFooList), typeof(PolymorphicClassList),
         typeof(NullableFieldsList), typeof(NullableLongList), typeof(NullableIntList), typeof(NullableDecimalList),
         typeof(OptionalSimpleStruct), typeof(OptionalSimpleStructList), typeof(OptionalSimpleClass),
-        typeof(NullableObjectList));
+        typeof(NullableObjectList), typeof(ManagedStructList), typeof(OptionalManagedStruct),
+        typeof(OptionalManagedStructList), typeof(OptionalVec3List));
 
     public static readonly ProtoFile Workloads = new("Workloads/workloads.proto", "nino.workloads",
         "Nino.Benchmark.Workloads.Proto", "workload models", typeof(MediaContent), typeof(StackOverflowPage),

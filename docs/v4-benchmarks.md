@@ -550,7 +550,8 @@ can write the same data ([benchmarks/README.md](../benchmarks/README.md#messagep
 they cannot; `SimpleTest`, `PolymorphicTest`, `NullableTest`, `CollectionsTest`'s nullable collections and `WorkloadTest`
 also against Google.Protobuf and System.Text.Json): `SimpleTest`, `PolymorphicTest`, `NullableTest` (a class of eight
 nullable members, half of them null, one and 100; a `SimpleStruct?`, `SimpleStruct?[100]`, a null `SimpleClass` and
-`SimpleClass[100]` with nulls; MemoryPack through `SafeNullable<T>`), `GenericPolymorphicTest` (subtypes through a
+`SimpleClass[100]` with nulls; `ManagedStruct`, a struct that holds a string, with a value and nullable, one and 100;
+MemoryPack through `SafeNullable<T>` where `T` is unmanaged), `GenericPolymorphicTest` (subtypes through a
 non-generic base and through closed instances of a generic base, whose union MemoryPack registers at runtime), `PooledTest` and `PooledGraphTest` (reuse and
 pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`

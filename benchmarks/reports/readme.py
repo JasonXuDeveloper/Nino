@@ -390,7 +390,11 @@ SIMPLE_CASES = [("SimpleClass", "`SimpleClass`"), ("SimpleClasses", "`SimpleClas
                 ("NullableObject", "`SimpleClass` reference, null"),
                 ("NullableObjects", "`SimpleClass[100]`, every fifth null"),
                 ("NullableLongs", "`long?[1000]`, every fifth null"), ("NullableInts", "`List<int?>`, 1,000"),
-                ("NullableDecimals", "`decimal?[1000]`")]
+                ("NullableDecimals", "`decimal?[1000]`"),
+                ("NullableVec3s", "`Vec3?[1000]` (three floats), every fifth null"),
+                ("ManagedStruct", "`ManagedStruct` (`int`, `string`, `double`)"),
+                ("ManagedStructs", "`ManagedStruct[100]`"), ("NullableManagedStruct", "`ManagedStruct?`"),
+                ("NullableManagedStructs", "`ManagedStruct?[100]`, every fifth null")]
 REUSE_CASES = [("Pooled node", "NinoNodeNew", "NinoNodePooled", "MemoryPackNodeNew", "MemoryPackNodeOverwrite"),
                ("Pooled leaves, in place", "NinoLeavesNew", "NinoLeavesInPlace", "MemoryPackLeavesNew",
                 "MemoryPackLeavesOverwrite"),

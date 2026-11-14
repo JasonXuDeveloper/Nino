@@ -19,7 +19,8 @@ namespace Nino.Benchmark;
 /// <summary>
 /// Nullable values: a class of eight nullable members, half of them null, alone and in an array of 100; one
 /// <c>SimpleStruct?</c> with a value, <c>SimpleStruct?[100]</c> and <c>SimpleClass[100]</c> with every fifth element null,
-/// and one null <c>SimpleClass</c>. Against MemoryPack (SafeNullable for the nullable structs) and MessagePack.
+/// and one null <c>SimpleClass</c>; a struct that holds a reference (<see cref="ManagedStruct"/>), with a value and
+/// nullable, alone and in an array of 100. Against MemoryPack (SafeNullable for the nullable structs) and MessagePack.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -41,6 +42,17 @@ public class NullableTest : IReadBack
     private static readonly SimpleClass[] Objects;
     private static readonly SafeNullable<SimpleStruct> StructMemoryPack;
     private static readonly SafeNullable<SimpleStruct>[] StructsMemoryPack;
+
+    // NullableTest.ManagedStruct.cs: a struct that holds a reference, with a value and nullable (MemoryPack and Nino;
+    // each array holds MemoryPack's bytes, then Nino's).
+    private static readonly ManagedStruct Managed = ManagedStruct.Create(0);
+    private static readonly ManagedStruct[] Manageds = ManagedStruct.CreateArray(100);
+    private static readonly ManagedStruct? NullableManaged = Managed;
+    private static readonly ManagedStruct?[] NullableManageds = ManagedStruct.CreateNullableArray(100);
+    private static readonly byte[][] SerializedManagedStruct = [MemoryPackSerializer.Serialize(Managed), NinoGen.Serializer.Serialize(Managed)];
+    private static readonly byte[][] SerializedManagedStructs = [MemoryPackSerializer.Serialize(Manageds), NinoGen.Serializer.Serialize(Manageds)];
+    private static readonly byte[][] SerializedNullableManagedStruct = [MemoryPackSerializer.Serialize(NullableManaged), NinoGen.Serializer.Serialize(NullableManaged)];
+    private static readonly byte[][] SerializedNullableManagedStructs = [MemoryPackSerializer.Serialize(NullableManageds), NinoGen.Serializer.Serialize(NullableManageds)];
 
     // v3 3.3.13 has no NinoArrayBufferWriter; its IBufferWriter<byte> overload is the reused-buffer path.
     private ArrayBufferWriter<byte> _ninoBuffer;
@@ -85,6 +97,15 @@ public class NullableTest : IReadBack
             BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableStructs", SerializedNullableStructs[i].Length);
             BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableObject", SerializedNullableObject[i].Length);
             BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableObjects", SerializedNullableObjects[i].Length);
+        }
+
+        string[] managed = ["MemoryPack", "Nino"];
+        for (int i = 0; i < managed.Length; i++)
+        {
+            BenchmarkPayloadRegistry.Register($"{managed[i]}SerializeManagedStruct", SerializedManagedStruct[i].Length);
+            BenchmarkPayloadRegistry.Register($"{managed[i]}SerializeManagedStructs", SerializedManagedStructs[i].Length);
+            BenchmarkPayloadRegistry.Register($"{managed[i]}SerializeNullableManagedStruct", SerializedNullableManagedStruct[i].Length);
+            BenchmarkPayloadRegistry.Register($"{managed[i]}SerializeNullableManagedStructs", SerializedNullableManagedStructs[i].Length);
         }
     }
 
@@ -333,4 +354,112 @@ public class NullableTest : IReadBack
     [Benchmark, BenchmarkCategory("NullableObjectsDeserialize")]
     public SimpleClass[] MessagePackDeserializeNullableObjects() =>
         MessagePackSerializer.Deserialize<SimpleClass[]>(SerializedNullableObjects[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("ManagedStructSerialize")]
+    public int NinoSerializeManagedStruct()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(Managed, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ManagedStructSerialize")]
+    public int MemoryPackSerializeManagedStruct()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, Managed);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("ManagedStructsSerialize")]
+    public int NinoSerializeManagedStructs()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(Manageds, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("ManagedStructsSerialize")]
+    public int MemoryPackSerializeManagedStructs()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, Manageds);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableManagedStructSerialize")]
+    public int NinoSerializeNullableManagedStruct()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(NullableManaged, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableManagedStructSerialize")]
+    public int MemoryPackSerializeNullableManagedStruct()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableManaged);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableManagedStructsSerialize")]
+    public int NinoSerializeNullableManagedStructs()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(NullableManageds, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableManagedStructsSerialize")]
+    public int MemoryPackSerializeNullableManagedStructs()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableManageds);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("ManagedStructDeserialize")]
+    public ManagedStruct NinoDeserializeManagedStruct()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedManagedStruct[1], out ManagedStruct ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("ManagedStructDeserialize")]
+    public ManagedStruct MemoryPackDeserializeManagedStruct() =>
+        MemoryPackSerializer.Deserialize<ManagedStruct>(SerializedManagedStruct[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("ManagedStructsDeserialize")]
+    public ManagedStruct[] NinoDeserializeManagedStructs()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedManagedStructs[1], out ManagedStruct[] ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("ManagedStructsDeserialize")]
+    public ManagedStruct[] MemoryPackDeserializeManagedStructs() =>
+        MemoryPackSerializer.Deserialize<ManagedStruct[]>(SerializedManagedStructs[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableManagedStructDeserialize")]
+    public ManagedStruct? NinoDeserializeNullableManagedStruct()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedNullableManagedStruct[1], out ManagedStruct? ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableManagedStructDeserialize")]
+    public ManagedStruct? MemoryPackDeserializeNullableManagedStruct() =>
+        MemoryPackSerializer.Deserialize<ManagedStruct?>(SerializedNullableManagedStruct[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableManagedStructsDeserialize")]
+    public ManagedStruct?[] NinoDeserializeNullableManagedStructs()
+    {
+        NinoGen.Deserializer.Deserialize(SerializedNullableManagedStructs[1], out ManagedStruct?[] ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableManagedStructsDeserialize")]
+    public ManagedStruct?[] MemoryPackDeserializeNullableManagedStructs() =>
+        MemoryPackSerializer.Deserialize<ManagedStruct?[]>(SerializedNullableManagedStructs[0]);
 }

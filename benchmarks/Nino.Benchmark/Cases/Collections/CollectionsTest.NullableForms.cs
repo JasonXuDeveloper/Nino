@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using BenchmarkDotNet.Attributes;
 using MemoryPack;
+using Nino.Benchmark.Workloads;
 using Nino.Core;
 
 #nullable disable
@@ -17,6 +18,8 @@ public partial class CollectionsTest
     private static NinoNullable<long>[] NinoNullableLongs;
     private static List<NinoNullable<int>> NinoNullableInts;
     private static NinoNullable<decimal>[] NinoNullableDecimals;
+    private static NinoNullable<Vec3>[] NinoNullableVec3s;
+    private static byte[] MemoryPackUnsafeNullableVec3sBytes;
     private static byte[] MemoryPackUnsafeNullableLongsBytes;
     private static byte[] MemoryPackUnsafeNullableIntsBytes;
     private static byte[] MemoryPackUnsafeNullableDecimalsBytes;
@@ -26,6 +29,8 @@ public partial class CollectionsTest
         NinoNullableLongs = NullableForms.Nino(NullableLongs);
         NinoNullableInts = NullableForms.Nino(NullableInts);
         NinoNullableDecimals = NullableForms.Nino(NullableDecimals);
+        NinoNullableVec3s = NullableForms.Nino(NullableVec3s);
+        MemoryPackUnsafeNullableVec3sBytes = MemoryPackSerializer.Serialize(NullableVec3s);
         MemoryPackUnsafeNullableLongsBytes = MemoryPackSerializer.Serialize(NullableLongs);
         MemoryPackUnsafeNullableIntsBytes = MemoryPackSerializer.Serialize(NullableInts);
         MemoryPackUnsafeNullableDecimalsBytes = MemoryPackSerializer.Serialize(NullableDecimals);
@@ -40,6 +45,9 @@ public partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackConvertedSerializeNullableLongs), MemoryPackNullableLongsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackConvertedSerializeNullableInts), MemoryPackNullableIntsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackConvertedSerializeNullableDecimals), MemoryPackNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoNullableSerializeNullableVec3s), NinoNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackUnsafeSerializeNullableVec3s), MemoryPackUnsafeNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackConvertedSerializeNullableVec3s), MemoryPackNullableVec3sBytes.Length);
     }
 
     [Benchmark, BenchmarkCategory("NullableLongsSerialize")]
@@ -149,4 +157,40 @@ public partial class CollectionsTest
     [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
     public decimal?[] MemoryPackConvertedDeserializeNullableDecimals() =>
         NullableForms.ToNullable(MemoryPackSerializer.Deserialize<SafeNullable<decimal>[]>(MemoryPackNullableDecimalsBytes));
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int NinoNullableSerializeNullableVec3s()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(NinoNullableVec3s, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int MemoryPackUnsafeSerializeNullableVec3s()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, NullableVec3s);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int MemoryPackConvertedSerializeNullableVec3s()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, SafeNullables.From(NullableVec3s));
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public NinoNullable<Vec3>[] NinoNullableDeserializeNullableVec3s() =>
+        NinoDeserializer.Deserialize<NinoNullable<Vec3>[]>(NinoNullableVec3sBytes);
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public Vec3?[] MemoryPackUnsafeDeserializeNullableVec3s() =>
+        MemoryPackSerializer.Deserialize<Vec3?[]>(MemoryPackUnsafeNullableVec3sBytes);
+
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public Vec3?[] MemoryPackConvertedDeserializeNullableVec3s() =>
+        NullableForms.ToNullable(MemoryPackSerializer.Deserialize<SafeNullable<Vec3>[]>(MemoryPackNullableVec3sBytes));
 }

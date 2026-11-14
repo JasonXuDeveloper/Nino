@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -92,6 +93,31 @@ public sealed partial class NullableFieldsMemoryPack
 }
 
 /// <summary>
+/// NullableTest's struct that holds a reference (the v3 build's too): not raw, so no library copies it as memory and
+/// each writes its members one by one, with a value and as <c>ManagedStruct?</c>. The values depend on the index only,
+/// so the v3 and v4 runs and every process write the same ones; a name is never empty (protobuf writes no empty string).
+/// </summary>
+[NinoType]
+[MemoryPackable]
+[MessagePackObject]
+[ProtoContract]
+public partial struct ManagedStruct
+{
+    [Key(0)] [ProtoMember(1)] public int Id;
+    [Key(1)] [ProtoMember(2)] public string Name;
+    [Key(2)] [ProtoMember(3)] public double Score;
+
+    public static ManagedStruct Create(int index) =>
+        new() { Id = index * 7919 + 1, Name = "player-" + index.ToString("D4"), Score = index * 1.5 + 0.25 };
+
+    public static ManagedStruct[] CreateArray(int count) => Enumerable.Range(0, count).Select(Create).ToArray();
+
+    /// <summary>Every fifth element null, as the other nullable arrays.</summary>
+    public static ManagedStruct?[] CreateNullableArray(int count) =>
+        Enumerable.Range(0, count).Select(i => i % 5 == 0 ? null : (ManagedStruct?)Create(i)).ToArray();
+}
+
+/// <summary>
 /// The <see cref="SafeNullable{T}"/> copies of nullable data that MemoryPack's cases write and read (see
 /// <see cref="NullableFieldsMemoryPack"/> for why), and the way back for Verify.cs.
 /// </summary>
@@ -114,6 +140,7 @@ public static class SafeNullables
         List<SafeNullable<int>> ints => ints.ConvertAll(v => v.ToNullable()),
         SafeNullable<SimpleStruct> single => single.ToNullable(),
         SafeNullable<SimpleStruct>[] structs => Array.ConvertAll(structs, v => v.ToNullable()),
+        SafeNullable<Workloads.Vec3>[] vectors => Array.ConvertAll(vectors, v => v.ToNullable()),
         NullableFieldsMemoryPack one => one.ToNullable(),
         NullableFieldsMemoryPack[] many => Array.ConvertAll(many, v => v.ToNullable()),
         _ => result,

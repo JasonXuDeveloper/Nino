@@ -293,6 +293,7 @@ public static class NullableForms
         NinoNullable<decimal>[] decimals => Array.ConvertAll(decimals, v => v.ToNullable()),
         NinoNullable<SimpleStruct> single => single.ToNullable(),
         NinoNullable<SimpleStruct>[] structs => Array.ConvertAll(structs, v => v.ToNullable()),
+        NinoNullable<Workloads.Vec3>[] vectors => Array.ConvertAll(vectors, v => v.ToNullable()),
         NullableFieldsNino one => one.ToNullable(),
         NullableFieldsNino[] many => Array.ConvertAll(many, v => v.ToNullable()),
         NullableFieldsUnsafe one => one.ToNullable(),

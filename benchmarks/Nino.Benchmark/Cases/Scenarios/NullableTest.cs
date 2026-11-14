@@ -23,7 +23,9 @@ namespace Nino.Benchmark;
 ///    (<see cref="NullableFields"/>), alone and in an array of 100 whose objects alternate which half is null;
 ///  - nullable values on their own: one <c>SimpleStruct?</c> that holds a value, <c>SimpleStruct?[100]</c> and
 ///    <c>SimpleClass[100]</c> with every fifth element null, and one <c>SimpleClass</c> reference that is null (SimpleTest's
-///    SimpleClass case is its counterpart with a value).
+///    SimpleClass case is its counterpart with a value);
+///  - a struct that holds a reference, with a value and nullable, alone and in an array of 100
+///    (NullableTest.ManagedStruct.cs).
 /// MemoryPack writes the nullable structs as <c>SafeNullable&lt;T&gt;</c> (<see cref="NullableFieldsMemoryPack"/> says
 /// why), copied outside the timed region; protobuf a null as an absent message field (CaseFormats.cs). Each
 /// <c>Serialized*</c> array holds the bytes of MessagePack, MemoryPack, Nino, protobuf-net, Google.Protobuf and
@@ -159,6 +161,7 @@ public partial class NullableTest : IReadBack
             BenchmarkPayloadRegistry.Register($"{libraries[i]}SerializeNullableObjects", SerializedNullableObjects[i].Length);
         }
 
+        InitManagedStructs(libraries);
         InitNullableForms();
     }
 
@@ -188,6 +191,10 @@ public partial class NullableTest : IReadBack
         P.OptionalSimpleClass => ((OptionalSimpleClass)ProtobufModel.ReadBack(result, typeof(OptionalSimpleClass))).Value,
         P.NullableObjectList => ((NullableObjectList)ProtobufModel.ReadBack(result, typeof(NullableObjectList))).Items,
         OptionalSimpleStruct[] items => OptionalSimpleStruct.ToNullable(items),
+        P.OptionalManagedStruct => ((OptionalManagedStruct)ProtobufModel.ReadBack(result, typeof(OptionalManagedStruct))).Value,
+        P.OptionalManagedStructList => OptionalManagedStruct.ToNullable(
+            ((OptionalManagedStructList)ProtobufModel.ReadBack(result, typeof(OptionalManagedStructList))).Items),
+        OptionalManagedStruct[] items => OptionalManagedStruct.ToNullable(items),
         _ => ProtobufModel.ReadBack(NullableForms.ReadBack(result), model),
     };
 

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Nino.Benchmark.Workloads;
 using ProtoBuf;
 
 #nullable disable
@@ -97,6 +98,51 @@ public sealed class OptionalSimpleStructList
     [ProtoMember(1)] public OptionalSimpleStruct[] Items;
 }
 
+// NullableTest's ManagedStruct (a struct with a string) and CollectionsTest's Vec3?[] (the workloads' Vec3): the same
+// contracts as SimpleStruct's, a list that names the top-level array and an optional field for a nullable struct.
+
+[ProtoContract]
+public sealed class ManagedStructList
+{
+    [ProtoMember(1)] public ManagedStruct[] Items;
+}
+
+[ProtoContract]
+public struct OptionalManagedStruct
+{
+    [ProtoMember(1)] public ManagedStruct? Value;
+
+    public static OptionalManagedStruct[] From(ManagedStruct?[] values) =>
+        System.Array.ConvertAll(values, v => new OptionalManagedStruct { Value = v });
+
+    public static ManagedStruct?[] ToNullable(OptionalManagedStruct[] values) =>
+        System.Array.ConvertAll(values, v => v.Value);
+}
+
+[ProtoContract]
+public sealed class OptionalManagedStructList
+{
+    [ProtoMember(1)] public OptionalManagedStruct[] Items;
+}
+
+[ProtoContract]
+public struct OptionalVec3
+{
+    [ProtoMember(1)] public Vec3? Value;
+
+    public static OptionalVec3[] From(Vec3?[] values) =>
+        System.Array.ConvertAll(values, v => new OptionalVec3 { Value = v });
+
+    public static Vec3?[] ToNullable(OptionalVec3[] values) =>
+        System.Array.ConvertAll(values, v => v.Value);
+}
+
+[ProtoContract]
+public sealed class OptionalVec3List
+{
+    [ProtoMember(1)] public OptionalVec3[] Items;
+}
+
 /// <summary>One nullable SimpleClass: protobuf has no null message at the top level, so it is an optional field (absent: null).</summary>
 [ProtoContract]
 public sealed class OptionalSimpleClass
@@ -127,4 +173,9 @@ public sealed class NullableObjectList
 [JsonSerializable(typeof(long?[]))]
 [JsonSerializable(typeof(List<int?>))]
 [JsonSerializable(typeof(decimal?[]))]
+[JsonSerializable(typeof(ManagedStruct))]
+[JsonSerializable(typeof(ManagedStruct[]))]
+[JsonSerializable(typeof(ManagedStruct?))]
+[JsonSerializable(typeof(ManagedStruct?[]))]
+[JsonSerializable(typeof(Vec3?[]))]
 public partial class CaseJson : JsonSerializerContext;
