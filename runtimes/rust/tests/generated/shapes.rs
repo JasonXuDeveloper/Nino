@@ -1321,6 +1321,156 @@ impl<T> Node<T> {
     nino::type_consts!("Shapes.Generic.Node<T>", "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T):key=0xC373233E;Next:Shapes.Generic.Node<T>:type(Shapes.Generic.Node<T>):key=0xC9A6113A");
 }
 
+/// `Shapes.NullableGrids`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct NullableGrids {
+    pub grid: Option<nino::Grid<nino::RawNullable<i32>, 2>>,
+    pub cube: Option<nino::Grid<nino::RawNullable<i64>, 3>>,
+    pub cells: Option<nino::Grid<nino::RawNullable<TupleCell>, 2>>,
+}
+
+impl NinoReadBody for NullableGrids {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.grid)?;
+        r.read_into(&mut self.cube)?;
+        r.read_into(&mut self.cells)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for NullableGrids {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.grid)?;
+        w.write(&self.cube)?;
+        w.write(&self.cells)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for NullableGrids {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for NullableGrids {
+    nino::sealed_write!();
+}
+
+impl NullableGrids {
+    nino::type_consts!(0x80A37045u32 as i32, "Shapes.NullableGrids", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x80A37045; deferrable=true; members=Grid:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});Cube:System.Nullable<long>[,,]:grid(3,raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});Cells:System.Nullable<Shapes.TupleCell>[,]:grid(2,raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}})");
+}
+
+/// `Shapes.NullableSlots`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct NullableSlots {
+    pub queue: Option<nino::RawNullables<i32>>,
+    pub stack: Option<nino::RawNullables<i64>>,
+    pub linked: Option<nino::RawNullables<u8>>,
+    pub sorted: Option<indexmap::IndexSet<nino::RawNullable<i32>>>,
+    pub read_only: Option<nino::RawNullables<TupleCell>>,
+    pub nested: Option<Vec<Option<nino::RawNullables<i32>>>>,
+    pub boxed_set: Option<Box<BoxType<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>>,
+    pub boxed_nested: Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i64>>>>>>>>,
+    pub map: Option<indexmap::IndexMap<i32, Option<i64>>>,
+    pub boxed_map: Option<Box<BoxType<Option<indexmap::IndexMap<i32, Option<i64>>>>>>,
+    pub tuples: Option<Vec<(i32, Option<i32>)>>,
+}
+
+impl NinoReadBody for NullableSlots {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.queue)?;
+        r.read_into(&mut self.stack)?;
+        r.read_into(&mut self.linked)?;
+        r.read_into(&mut self.sorted)?;
+        r.read_into(&mut self.read_only)?;
+        r.read_into(&mut self.nested)?;
+        r.read_member_into(&mut self.boxed_set, nino::field!(Self, boxed_set))?;
+        r.read_member_into(&mut self.boxed_nested, nino::field!(Self, boxed_nested))?;
+        r.read_into(&mut self.map)?;
+        r.read_member_into(&mut self.boxed_map, nino::field!(Self, boxed_map))?;
+        r.read_into(&mut self.tuples)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for NullableSlots {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.queue)?;
+        w.write(&self.stack)?;
+        w.write(&self.linked)?;
+        w.write(&self.sorted)?;
+        w.write(&self.read_only)?;
+        w.write(&self.nested)?;
+        w.write(&self.boxed_set)?;
+        w.write(&self.boxed_nested)?;
+        w.write(&self.map)?;
+        w.write(&self.boxed_map)?;
+        w.write(&self.tuples)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for NullableSlots {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for NullableSlots {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<nino::RawNullables<i32>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<i64>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<u8>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<indexmap::IndexSet<nino::RawNullable<i32>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<nino::RawNullables<TupleCell>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Option<nino::RawNullables<i32>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<indexmap::IndexSet<nino::RawNullable<i32>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::RawNullable<i64>>>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Box<BoxType<Option<indexmap::IndexMap<i32, Option<i64>>>>>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<(i32, Option<i32>)>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.queue.prefetch();
+        self.stack.prefetch();
+        self.linked.prefetch();
+        self.sorted.prefetch();
+        self.read_only.prefetch();
+        self.nested.prefetch();
+        self.boxed_set.prefetch();
+        self.boxed_nested.prefetch();
+        self.boxed_map.prefetch();
+        self.tuples.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.queue.prefetch_members();
+        self.stack.prefetch_members();
+        self.linked.prefetch_members();
+        self.sorted.prefetch_members();
+        self.read_only.prefetch_members();
+        self.nested.prefetch_members();
+        self.boxed_set.prefetch_members();
+        self.boxed_nested.prefetch_members();
+        self.boxed_map.prefetch_members();
+        self.tuples.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl NullableSlots {
+    nino::type_consts!(0x3AF0FAE9u32 as i32, "Shapes.NullableSlots", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x3AF0FAE9; deferrable=true; members=Queue:System.Collections.Generic.Queue<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});Stack:System.Collections.Generic.Stack<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});Linked:System.Collections.Generic.LinkedList<System.Nullable<byte>>:seq(raw(2){hasValue:bool@0:raw(1),value:byte@1:raw(1)});Sorted:System.Collections.Generic.SortedSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});ReadOnly:System.Collections.Generic.IReadOnlyList<System.Nullable<Shapes.TupleCell>>:seq(raw(16){hasValue:bool@0:raw(1),value:Shapes.TupleCell@4:raw(12){A:byte@0:raw(1),Inside:Shapes.TupleInside@4:raw(8){A:byte@0:raw(1),T:System.ValueTuple<byte, short>@4:raw(4){Item1:byte@2:raw(1),Item2:short@0:raw(2)}}}});Nested:System.Collections.Generic.List<System.Collections.Generic.Queue<System.Nullable<int>>>:seq(seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}));BoxedSet:Shapes.Generic.Box<System.Collections.Generic.HashSet<System.Nullable<int>>>:type(Shapes.Generic.Box<System.Collections.Generic.HashSet<System.Nullable<int>>>);BoxedNested:Shapes.Generic.Box<System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<long>>>>:type(Shapes.Generic.Box<System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<long>>>>);Map:System.Collections.Generic.Dictionary<int, System.Nullable<long>>:map(raw(4),nullable(raw(8)));BoxedMap:Shapes.Generic.Box<System.Collections.Generic.Dictionary<int, System.Nullable<long>>>:type(Shapes.Generic.Box<System.Collections.Generic.Dictionary<int, System.Nullable<long>>>);Tuples:System.Collections.Generic.List<System.ValueTuple<int, System.Nullable<int>>>:seq(tuple(raw(4),nullable(raw(4))))");
+}
+
 /// `Shapes.OffsetHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -2631,6 +2781,8 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Shapes.NinoNullableArgs" => f.visit::<Option<Box<NinoNullableArgs>>>(),
         "Shapes.NinoNullableRaw" => f.visit::<Option<Box<NinoNullableRaw>>>(),
         "Shapes.NinoNullableRawWide" => f.visit::<Option<Box<NinoNullableRawWide>>>(),
+        "Shapes.NullableGrids" => f.visit::<Option<Box<NullableGrids>>>(),
+        "Shapes.NullableSlots" => f.visit::<Option<Box<NullableSlots>>>(),
         "Shapes.OffsetHolder" => f.visit::<Option<Box<OffsetHolder>>>(),
         "Shapes.Outer+Inner" => f.visit::<Option<Box<OuterInner>>>(),
         "Shapes.Recursive" => f.visit::<Recursive>(),

@@ -2,10 +2,11 @@
 // writes for it.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deserializeExact, serialize } from "../src/nino.ts";
+import { deserializeExact, NinoError, serialize } from "../src/nino.ts";
 import {
   Box, Flags, HoldsNinoNullable, HoldsWideNinoNullable, NinoNullableArgs, NinoNullableArgsCodec, NinoNullableRaw,
-  NinoNullableRawCodec, NinoNullableRawWide, NinoNullableRawWideCodec, Strides, StridesCodec, TupleCell, TupleInside,
+  NinoNullableRawCodec, NinoNullableRawWide, NinoNullableRawWideCodec, NullableSlots, NullableSlotsCodec, Strides,
+  StridesCodec, TupleCell, TupleInside,
 } from "./generated/Nino.Codegen.Tests.ts";
 
 function hex(bytes: Uint8Array): string {
@@ -27,6 +28,52 @@ describe("Shapes", () => {
     const data = serialize(StridesCodec, strides);
     assert.equal(hex(data), want);
     assert.deepEqual(deserializeExact(StridesCodec, data), strides);
+  });
+
+  it("reads and writes a raw T? as a slot in every sequence, and as a single value elsewhere", () => {
+    // What .NET writes for the NullableSlots of ModelTests.cs, NullableSlotsHex: a slot of a fixed size as the element
+    // of a queue, a stack, a linked list, a sorted set, a list interface, nested and a set inside type arguments; a
+    // presence byte and the value in a dictionary and a tuple.
+    const want = "010200000001000000050000000000000000000000020000000000000000000000000000000000000001000000000000000700000000000000" +
+      "020000000000010903000000000000000000000001000000ffffffff0100000003000000020000000100000001000000000000000000000000" +
+      "00000000000000000000000000000003000000010000000100000001000000ffffffff00000000010200000001000000040000000000000000" +
+      "000000010100000002000000000000000000000000000000000000000100000000000000feffffffffffffff02000000010000000002000000" +
+      "010700000000000000010100000003000000010800000000000000020000000100000000020000000109000000";
+    // Queue<int?> {5, null}: the two slots of an int?[]. Dictionary<int, long?> {1: null, 2: 7}: single values.
+    const queue = "0200000001000000050000000000000000000000", dictionary = "02000000010000000002000000010700000000000000";
+    const value = Object.assign(new NullableSlots(), {
+      queue: [5, null],
+      stack: [null, 7n],
+      linked: [null, 9],
+      sorted: new Set<number | null>([null, -1, 3]),
+      readOnly: [Object.assign(new TupleCell(), { a: 1 }), null],
+      nested: [[1], null, []],
+      boxedSet: Object.assign(new Box<Set<number | null> | null>(), { value: new Set<number | null>([4, null]) }),
+      boxedNested: Object.assign(new Box<(Set<bigint | null> | null)[] | null>(), {
+        value: [new Set<bigint | null>([null, -2n])],
+      }),
+      map: new Map<number, bigint | null>([[1, null], [2, 7n]]),
+      boxedMap: Object.assign(new Box<Map<number, bigint | null> | null>(), {
+        value: new Map<number, bigint | null>([[3, 8n]]),
+      }),
+      tuples: [[1, null], [2, 9]],
+    });
+    const data = serialize(NullableSlotsCodec, value);
+    assert.equal(hex(data), want);
+    assert.equal(hex(data.subarray(1, 21)), queue);
+    assert.equal(hex(data.subarray(215, 237)), dictionary);
+    assert.deepEqual(deserializeExact(NullableSlotsCodec, data), value);
+    // A presence byte other than 0 or 1 is rejected in every sequence: the queue's first slot (at 5), the sorted
+    // set's second (at 77), the set's inside a type argument (at 158).
+    for (const at of [5, 77, 158]) {
+      const bad = data.slice();
+      bad[at] = 2;
+      assert.throws(() => deserializeExact(NullableSlotsCodec, bad), NinoError, `byte ${at}`);
+    }
+    // A set of slots rejects an element read twice: the sorted set's third slot made the second (-1).
+    const twice = data.slice();
+    twice.set(data.subarray(77, 85), 85);
+    assert.throws(() => deserializeExact(NullableSlotsCodec, twice), NinoError);
   });
 
   it("reads and writes NinoNullable<T> as its memory, inside type arguments too", () => {

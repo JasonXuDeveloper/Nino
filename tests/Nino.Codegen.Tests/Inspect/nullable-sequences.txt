@@ -1,0 +1,43 @@
+nino-gen inspect: Conformance.NullableSequences, 249 byte(s) from offset 0
+  offset  length  value
+       0     249  value: Conformance.NullableSequences
+       0       1    presence = 1
+       1      28    IntSet: System.Collections.Generic.HashSet<System.Nullable<int>> [seq(raw(8){...}]  (3 elements)
+       5       8      [0] = 4
+      13       8      [1] = null
+      21       8      [2] = -2147483648
+      29      36    LongSet: System.Collections.Generic.HashSet<System.Nullable<long>> [seq(raw(16){...}]  (2 elements)
+      33      16      [0] = null
+      49      16      [1] = 9223372036854775807
+      65      56    Grid: System.Nullable<int>[,] [grid(2,raw(8){...}]  (2 x 3)
+      73       8      [0,0] = 1
+      81       8      [0,1] = null
+      89       8      [0,2] = 3
+      97       8      [1,0] = null
+     105       8      [1,1] = 5
+     113       8      [1,2] = null
+     121      56    PaddedGrid: System.Nullable<Conformance.Padded>[,] [grid(2,raw(24){...}]  (1 x 2)
+     129      24      [0,0]
+     137       1        A: System.Byte = 3
+     145       8        B: System.Int64 = 4
+     153      24      [0,1] = null
+     177      32    Nested: System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<int>>> [seq(seq(raw(8){...}]  (3 elements)
+     181      12      [0]  (1 element)
+     185       8        [0] = 1
+     193       4      [1]  (0 elements)
+     197      12      [2]  (1 element)
+     201       8        [0] = null
+     209      22    Values: System.Collections.Generic.Dictionary<int, System.Nullable<long>> [map(raw(4),nullable(raw(8)))]  (2 entries)
+     213       5      [0]
+     213       4        key: System.Int32 = 1
+     217       1        value: System.Nullable<System.Int64> = null
+     218      13      [1]
+     218       4        key: System.Int32 = 2
+     222       9        value: System.Nullable<System.Int64> = 7
+     231      18    Pairs: System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, System.Nullable<int>>> [seq(pair(raw(4),nullable(raw(4))))]  (2 elements)
+     235       5      [0]
+     235       4        Key: System.Int32 = 1
+     239       1        Value: System.Nullable<System.Int32> = null
+     240       9      [1]
+     240       4        Key: System.Int32 = 2
+     244       5        Value: System.Nullable<System.Int32> = 9
