@@ -196,7 +196,9 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   than writing it: `Workloads/workloads.proto` is protobuf-net's `GetSchema` of the models at
   `CompatibilityLevel.Level300`, `Fixtures/cases.proto` that of SimpleTest's and PolymorphicTest's models at
   protobuf-net's default (importing its `bcl.proto`, vendored in `Fixtures/protobuf-net/`; a top-level array named by a
-  list contract, `Fixtures/CaseFormats.cs`), both through `ProtoFile` (`--write-proto`; the setup fails on a stale file), Google.Protobuf's data is parsed
+  list contract, `Fixtures/CaseFormats.cs`), both through `ProtoFile` (`--write-proto`; the setup fails on a stale file; a case
+  that names a message the file lacks does not build, and `--write-proto` needs a build: append the new messages to
+  the `.proto` by hand, build, run `--write-proto`, build again), Google.Protobuf's data is parsed
   from protobuf-net's bytes, and its result reads back through protobuf-net, so no converter is written by hand. Number
   a protobuf type's subtypes from 1 and its own members from 20: protobuf-net reads the subtype field before the
   base's, and Google.Protobuf writes fields in number order, so base fields first made protobuf-net create the
