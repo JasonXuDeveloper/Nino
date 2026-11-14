@@ -99,14 +99,16 @@ namespace Nino.Core
         /// every byte a present element keeps its element's flag, and zero (an index with the top bit) to the padding:
         /// what <see cref="Kept(Vector512{byte})"/> multiplies the element by.
         /// </summary>
-        private static readonly Vector512<byte> FlagOfByte = Stride == 16 ? FlagOfBytes() : default;
+        private static readonly Vector512<byte> FlagOfByte =
+            Stride is 2 or 4 or 8 or 16 ? FlagOfBytes() : default;
 
         private static Vector512<byte> FlagOfBytes()
         {
+            // The index of the element's flag within its 16-byte lane (strides of 2 to 8 have several elements a lane).
             var keep = Keeps();
             var bytes = new byte[64];
             for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = keep[i % Stride] != 0 ? (byte)0 : (byte)0x80;
+                bytes[i] = keep[i % Stride] != 0 ? (byte)(i % 16 - i % Stride) : (byte)0x80;
             return Vector512.Create(bytes);
         }
 
@@ -114,7 +116,62 @@ namespace Nino.Core
         /// Whether a 16-byte element is cleared by a multiplication (GFNI): its bytes are kept whole or cleared whole
         /// (no byte keeps only some of its bits).
         /// </summary>
-        private static readonly bool Multiplies = Stride == 16 && Gfni.IsSupported && KeepsWholeBytes();
+        // Strides of 2 to 8 bytes are one lane of a mask register an element: a test and a masked AND, two
+        // operations already. Without AVX-512 (VL) they are a compare, an AND NOT and an AND, and take this too.
+        private static readonly bool Multiplies = Gfni.IsSupported && KeepsWholeBytes() &&
+                                                  (Stride == 16 ||
+                                                   (Stride is 2 or 4 or 8 && !Avx512F.VL.IsSupported));
+
+        /// <summary>The whole elements a 64-byte vector holds (0 for a stride over 64 bytes).</summary>
+        private static readonly int PerVector = Stride <= 64 ? 64 / Stride : 0;
+
+        /// <summary>
+        /// Whether a run of any other stride up to 64 bytes (12, 20, 24, 32, ...: a <c>decimal?</c>, a <c>Guid?</c>, a
+        /// struct of two or three words) is cleared the same way, a vector's whole elements at a time: their flags
+        /// lie anywhere in the vector, so a permutation across it (vpermb, AVX-512 VBMI) gives each byte its
+        /// element's flag.
+        /// </summary>
+        private static readonly bool Permutes = PerVector > 0 && Stride is not (2 or 4 or 8 or 16) &&
+                                                Mask?.ClearsAbsent != true && Avx512Vbmi.IsSupported &&
+                                                Gfni.V512.IsSupported && KeepsWholeBytes();
+
+        /// <summary>For <see cref="Permutes"/>: where in the vector the flag of each byte's element is.</summary>
+        private static readonly Vector512<byte> FlagIndex = Permutes ? FlagIndexes(false) : default;
+
+        /// <summary>For <see cref="Permutes"/>: the bytes of the vector's whole elements that the wire keeps.</summary>
+        private static readonly Vector512<byte> KeptBytes = Permutes ? FlagIndexes(true) : default;
+
+        private static Vector512<byte> FlagIndexes(bool kept)
+        {
+            var keep = Keeps();
+            var bytes = new byte[64];
+            for (int i = 0; i < PerVector * Stride; i++)
+                bytes[i] = kept ? keep[i % Stride] : (byte)(i - i % Stride);
+            return Vector512.Create(bytes);
+        }
+
+        /// <summary>
+        /// Copies the elements of <paramref name="total"/> bytes that fill whole 64-byte loads, as the wire holds
+        /// them: each vector's whole elements cleared by <see cref="Kept(Vector512{byte})"/>'s multiplication, the
+        /// flags gathered by a permutation. A store writes the whole vector; what lies past its whole elements is
+        /// written again by the next one, or by the caller, which copies the elements from the returned offset on.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static nuint CopyPermuted(ref byte destination, ref byte source, nuint total)
+        {
+            nuint step = (nuint)(PerVector * Stride);
+            var index = FlagIndex;
+            var kept = KeptBytes;
+            nuint i = 0;
+            for (; i + 64 <= total; i += step)
+            {
+                var elements = Vector512.LoadUnsafe(ref source, i);
+                var flags = Avx512Vbmi.PermuteVar64x8(elements, index) & kept;
+                Gfni.V512.GaloisFieldMultiply(elements, flags).StoreUnsafe(ref destination, i);
+            }
+
+            return i;
+        }
 
         private static bool KeepsWholeBytes()
         {
@@ -763,18 +820,31 @@ namespace Nino.Core
             if (Raw)
             {
                 ref byte src = ref Unsafe.As<T?, byte>(ref item);
-#if NET8_0_OR_GREATER
-                if (Lanes && values.Length * Stride >= LaneStep)
+                int count = values.Length;
+#if NET10_0_OR_GREATER
+                if (Permutes && count * Stride >= 64)
                 {
-                    CopyLanes(ref dst, ref src, values.Length * Stride);
+                    // The elements that fill whole vectors; the last few take the paths below.
+                    int done = (int)CopyPermuted(ref dst, ref src, (nuint)(count * Stride));
+                    count -= done / Stride;
+                    if (count == 0)
+                        return;
+                    src = ref Unsafe.Add(ref src, done);
+                    dst = ref Unsafe.Add(ref dst, done);
+                }
+#endif
+#if NET8_0_OR_GREATER
+                if (Lanes && count * Stride >= LaneStep)
+                {
+                    CopyLanes(ref dst, ref src, count * Stride);
                     return;
                 }
 #endif
                 if (Mask != null)
-                    Mask.Copy(ref dst, ref src, values.Length);
+                    Mask.Copy(ref dst, ref src, count);
                 else
-                    NinoUnsafe.Copy(ref dst, ref src, (uint)(values.Length * Stride));
-                ClearAbsent(ref dst, values.Length);
+                    NinoUnsafe.Copy(ref dst, ref src, (uint)(count * Stride));
+                ClearAbsent(ref dst, count);
                 return;
             }
 
@@ -917,6 +987,84 @@ namespace Nino.Core
             }
         }
 
+#if NET8_0_OR_GREATER
+        /// <summary>The bytes of a <see cref="NinoNullable{T}"/> in memory: its presence and its value, a T each.</summary>
+        private static readonly int SlotSize = Unsafe.SizeOf<NinoNullable<T>>();
+
+        /// <summary>
+        /// Whether a run of <see cref="NinoNullable{T}"/> that is not its wire as it lies (<see cref="Words"/>) is
+        /// packed into it by a permutation (vpermb, AVX-512 VBMI), a 64-byte load of whole slots at a time: of each
+        /// slot the presence byte, zeros up to T's alignment, then the value, without the bytes the wire clears.
+        /// Any T up to 32 bytes (<c>decimal</c>, <c>Guid</c>, a struct of three floats); read the other way.
+        /// </summary>
+        private static readonly bool Packs = Raw && !Words && SlotSize <= 64 && Mask?.ClearsAbsent != true &&
+                                             Unsafe.SizeOf<T>() == NinoLayout<T>.WireSize &&
+                                             Avx512Vbmi.IsSupported && Vector512.IsHardwareAccelerated;
+
+        /// <summary>The slots a 64-byte load holds whole.</summary>
+        private static readonly int SlotsPerVector = Packs ? 64 / SlotSize : 0;
+
+        private static readonly Vector512<byte> PackIndex = Packs ? Packing(true, false) : default;
+
+        private static readonly Vector512<byte> PackKeep = Packs ? Packing(true, true) : default;
+
+        private static readonly Vector512<byte> UnpackIndex = Packs ? Packing(false, false) : default;
+
+        private static readonly Vector512<byte> UnpackKeep = Packs ? Packing(false, true) : default;
+
+        /// <summary>
+        /// For each byte of the vector written (the wire when <paramref name="pack"/>, else the slots in memory): the
+        /// byte of the vector read that it takes, or with <paramref name="keep"/> whether it keeps it (the rest zero).
+        /// </summary>
+        private static Vector512<byte> Packing(bool pack, bool keep)
+        {
+            int size = Unsafe.SizeOf<T>();
+            var kept = Keeps();
+            var bytes = new byte[64];
+            int to = pack ? Stride : SlotSize, from = pack ? SlotSize : Stride;
+            for (int i = 0; i < SlotsPerVector * to; i++)
+            {
+                int element = i / to, at = i % to;
+                // On the wire: the flag, zeros to Offset, the value. In memory: the flag, zeros to size, the value.
+                int head = pack ? Offset : size;
+                bool value = at >= head;
+                bytes[i] = keep
+                    ? at == 0 ? (byte)0xFF : value ? (pack ? kept[at] : (byte)0xFF) : (byte)0
+                    : (byte)(element * from + (value ? (pack ? size : Offset) + at - head : 0));
+            }
+
+            return Vector512.Create(bytes);
+        }
+
+        /// <summary>
+        /// Packs the slots of <paramref name="count"/> values that fill whole 64-byte loads and stores, and returns how
+        /// many it wrote: a store writes the whole vector, and what lies past its elements is written again by the
+        /// next one or by the caller, which writes the rest.
+        /// </summary>
+        private static int WritePacked(ref byte destination, ref byte source, int count)
+        {
+            var index = PackIndex;
+            var keep = PackKeep;
+            int i = 0;
+            for (; (count - i) * Stride >= 64; i += SlotsPerVector)
+                (Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, (nuint)(i * SlotSize)), index) & keep)
+                    .StoreUnsafe(ref destination, (nuint)(i * Stride));
+            return i;
+        }
+
+        /// <summary><see cref="WritePacked"/> the other way, of values whose presence bytes were checked.</summary>
+        private static int ReadPacked(ref byte destination, ref byte source, int count)
+        {
+            var index = UnpackIndex;
+            var keep = UnpackKeep;
+            int i = 0;
+            for (; (count - i) * Stride >= 64; i += SlotsPerVector)
+                (Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, (nuint)(i * Stride)), index) & keep)
+                    .StoreUnsafe(ref destination, (nuint)(i * SlotSize));
+            return i;
+        }
+#endif
+
         /// <summary>
         /// Writes the count and the elements of a <see cref="NinoNullable{T}"/> run, the bytes of a <c>T?</c> run: as
         /// one block copy where <see cref="Words"/> (the type keeps its memory clean), else slot by slot.
@@ -933,15 +1081,26 @@ namespace Nino.Core
                 return;
             }
 
+            int count = values.Length;
+#if NET8_0_OR_GREATER
+            if (Packs)
+            {
+                int done = WritePacked(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), count);
+                count -= done;
+                item = ref Unsafe.Add(ref item, done);
+                dst = ref Unsafe.Add(ref dst, done * Stride);
+            }
+#endif
+
             if (Wide)
             {
-                WriteWide(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), values.Length);
+                WriteWide(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), count);
                 return;
             }
 
             // Slot by slot without a branch: the presence byte with the slot's padding (Offset bytes), then the value,
             // which the type keeps zero when it has none.
-            for (int i = 0; i < values.Length; i++)
+            for (int i = 0; i < count; i++)
             {
                 ref T presence = ref Unsafe.As<NinoNullable<T>, T>(ref Unsafe.Add(ref item, i));
                 ref byte slot = ref Unsafe.Add(ref dst, i * Stride);
@@ -1036,13 +1195,24 @@ namespace Nino.Core
                 return;
             NinoChecks.Flags(ref src, destination.Length, Stride);
             ref NinoNullable<T> first = ref MemoryMarshal.GetReference(destination);
+            int count = destination.Length;
+#if NET8_0_OR_GREATER
+            if (Packs && !NinoLimits.Untrusted)
+            {
+                int done = ReadPacked(ref Unsafe.As<NinoNullable<T>, byte>(ref first), ref src, count);
+                count -= done;
+                first = ref Unsafe.Add(ref first, done);
+                src = ref Unsafe.Add(ref src, done * Stride);
+            }
+#endif
+
             if (Wide && !NinoLimits.Untrusted)
             {
-                ReadWide(ref Unsafe.As<NinoNullable<T>, byte>(ref first), ref src, destination.Length);
+                ReadWide(ref Unsafe.As<NinoNullable<T>, byte>(ref first), ref src, count);
                 return;
             }
 
-            for (int i = 0; i < destination.Length; i++)
+            for (int i = 0; i < count; i++)
             {
                 ref byte slot = ref Unsafe.Add(ref src, i * Stride);
                 // Stores only: a value built in a local and copied here is read back over the stores that made it.
