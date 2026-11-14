@@ -39,7 +39,7 @@ namespace Nino.Benchmark;
 [GcServer(true)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
-public class CollectionsTest : IReadBack
+public partial class CollectionsTest : IReadBack
 {
     private const int N = 1000;
     private static readonly List<(int, long)> TupleList = Enumerable.Range(0, N).Select(i => (i, (long)i * 31)).ToList();
@@ -201,6 +201,7 @@ public class CollectionsTest : IReadBack
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableDecimals), JsonNullableDecimalsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSelfTree), NinoSelfTreeBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSelfTree), MemoryPackSelfTreeBytes.Length);
+        InitNullableForms();
     }
 
     private readonly ArrayBufferWriter<byte> _messagePackBuffer = new(1 << 16);
@@ -226,7 +227,7 @@ public class CollectionsTest : IReadBack
         P.NullableLongList => ((NullableLongList)ProtobufModel.ReadBack(result, typeof(NullableLongList))).Items,
         P.NullableIntList => ((NullableIntList)ProtobufModel.ReadBack(result, typeof(NullableIntList))).Items,
         P.NullableDecimalList => ((NullableDecimalList)ProtobufModel.ReadBack(result, typeof(NullableDecimalList))).Items,
-        _ => SafeNullables.ReadBack(result),
+        _ => NullableForms.ReadBack(result),
     };
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableLongsSerialize")]
