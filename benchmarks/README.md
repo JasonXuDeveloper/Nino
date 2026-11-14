@@ -250,8 +250,8 @@ user's struct that holds a reference (`ManagedStruct?`) and a class reference:
   `NullableLongs`, `NullableInts`, `NullableDecimals`, `NullableVec3s`) also time the other forms a user can choose
   (`NullableForms` in `Cases/Scenarios/NullableTest.NullableForms.cs`, `CollectionsTest.NullableForms.cs`), each its
   own method prefix and its own bars in the charts (`FORMS` in `reports/readme.py`, with the charts' footnote):
-  `NinoNullable` (the model declares `NinoNullable<T>` instead of `T?`: the same bytes, memory always clean, so arrays
-  are one block copy), `MemoryPackUnsafe` (MemoryPack given `T?` as it is, which copies the uninitialized padding:
+  `NinoNullable` (the model declares `NinoNullable<T>` instead of `T?`: its memory, always clean, written as it is,
+  so every value and array is one copy; two `T` a value, the bytes of the `T?` array only for `long` and `int`), `MemoryPackUnsafe` (MemoryPack given `T?` as it is, which copies the uninitialized padding:
   fast, not safe) and `MemoryPackConverted` (the model's `T?` converted to `SafeNullable<T>` and back inside the timed
   region: what MemoryPack's safe form costs a model that holds `T?`). The plain `MemoryPack` rows stay
   `SafeNullable<T>` data the model already holds. Nino's `T?` is always safe; the release's summary of libraries leaves
