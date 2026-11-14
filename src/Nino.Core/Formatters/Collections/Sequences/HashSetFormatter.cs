@@ -144,6 +144,13 @@ namespace Nino.Core
                 return;
             }
 
+            // Slots (raw T?): read as one run, as an array of them is, then added.
+            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            {
+                AddSlots(set, length, ref reader);
+                return;
+            }
+
             // Elements whose buckets the set guards itself (strings on .NET) are added here, inline as before;
             // others out of line, where each is inserted or its bucket walked (HashTables.Plan).
             if (HashTables.Plan<T>.Inserts || HashTables.Plan<T>.Walks)
@@ -178,20 +185,52 @@ namespace Nino.Core
             {
                 T item = default;
                 NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
-                if (insert)
-                {
-                    HashTables.Insert(set, item);
-                }
-                else
-                {
-                    if (!set.Add(item))
-                        NinoThrow.DuplicateKey(set.GetType());
-                    if (walk)
-                        HashTables.Walk(set, item);
-                }
+                Add(set, item, insert, walk);
             }
 
             return reader;
+        }
+
+        /// <summary>
+        /// Adds one element as <see cref="AddEach"/> chose for the run: inserted where the set is as expected, else
+        /// added by the set, its bucket walked after where the plan says so.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Add(TSet set, T item, bool insert, bool walk)
+        {
+            if (insert)
+            {
+                HashTables.Insert(set, item);
+                return;
+            }
+
+            if (!set.Add(item))
+                NinoThrow.DuplicateKey(set.GetType());
+            if (walk)
+                HashTables.Walk(set, item);
+        }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> slots (raw <c>T?</c>) as one run into a rented array, checked and
+        /// converted by the run's kernels, then adds each as <see cref="AddEach"/> does: one element at a time
+        /// through the reader took two and a half times as long (1,000 <c>int?</c>: 12,174 ns against 4,842 before
+        /// slots, local).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void AddSlots(TSet set, int length, ref Reader reader)
+        {
+            var rented = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
+            try
+            {
+                bool insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
+                bool walk = HashTables.Plan<T>.Walks;
+                for (int i = 0; i < length; i++)
+                    Add(set, rented[i], insert, walk);
+            }
+            finally
+            {
+                NinoCollections.ReturnRented(rented);
+            }
         }
 
         /// <summary>
