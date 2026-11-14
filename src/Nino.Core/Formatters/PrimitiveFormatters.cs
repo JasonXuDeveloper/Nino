@@ -261,6 +261,13 @@ namespace Nino.Core
 
         void INinoSlotFormatter<T?>.ReadSlots(Span<T?> values, ref Reader reader) =>
             NinoNullables<T>.ReadPrechecked(values, ref reader);
+
+        bool INinoSlotFormatter<T?>.SlotsAreMemory => NinoNullables<T>.Raw;
+
+        bool INinoSlotFormatter<T?>.SlotsWriteInPlace => NinoNullables<T>.InPlace;
+
+        void INinoSlotFormatter<T?>.CheckSlots(ref byte slots, int count) =>
+            NinoChecks.Flags(ref slots, count, NinoNullables<T>.Stride);
     }
 
     /// <summary>

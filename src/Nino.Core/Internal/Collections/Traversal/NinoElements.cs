@@ -27,6 +27,23 @@ namespace Nino.Core.Internal
         /// past them. Overwrites every value; rejects a presence byte other than 0 or 1.
         /// </summary>
         void ReadSlots(Span<T> values, ref Reader reader);
+
+        /// <summary>
+        /// Whether a slot is its value as it lies in memory on this runtime (then also <see cref="SlotStride"/> is the
+        /// value's size): a collection that keeps its elements in storage of its own (a set's entries) then moves
+        /// them as raw elements are moved, checked by <see cref="CheckSlots"/> on the way in.
+        /// </summary>
+        bool SlotsAreMemory { get; }
+
+        /// <summary>
+        /// Whether <see cref="WriteSlots"/> may write a run over itself (values moved to the wire as they lie, then
+        /// made the wire's bytes in place): <see cref="SlotsAreMemory"/>, and every step of its kernels reads only
+        /// the bytes it writes.
+        /// </summary>
+        bool SlotsWriteInPlace { get; }
+
+        /// <summary>Rejects a presence byte other than 0 or 1 in <paramref name="count"/> slots (not zero).</summary>
+        void CheckSlots(ref byte slots, int count);
     }
 
     /// <summary>
