@@ -1,0 +1,31 @@
+int?[]                               8004 B  ser    182.5  de-reuse    124.7  de-new   1381.9 ns
+List<int?>                           8004 B  ser    210.5  de-reuse    122.3  de-new   1122.3 ns
+Queue<int?>                          8004 B  ser    206.9  de-reuse    125.6  de-new   1056.0 ns
+Stack<int?>                          8004 B  ser    197.5  de-reuse    124.1  de-new   1030.6 ns
+HashSet<int?>                        8004 B  ser   1583.3  de-reuse  12174.0  de-new  14567.3 ns
+LinkedList<int?>                     8004 B  ser   2098.5  de-reuse  14648.1  de-new  12568.5 ns
+Memory<int?>                         8004 B  ser    186.7  de-reuse    123.6  de-new   1099.0 ns
+ArraySegment<int?>                   8004 B  ser    185.3  de-reuse   1114.6  de-new   1083.0 ns
+int?[,]                              8008 B  ser    197.5  de-reuse    110.5  de-new   1036.7 ns
+IList<int?>                          8004 B  ser    218.7  de-reuse    132.4  de-new   1054.2 ns
+Dictionary<int,int?>                 8204 B  ser   2026.2  de-reuse   6463.1  de-new   8184.0 ns
+long?[]                             16004 B  ser    607.5  de-reuse    227.0  de-new   2350.7 ns
+Queue<long?>                        16004 B  ser    591.3  de-reuse    221.1  de-new   1949.5 ns
+decimal?[]                          24004 B  ser   1678.7  de-reuse    338.2  de-new   2642.7 ns
+Queue<decimal?>                     24004 B  ser   1678.8  de-reuse    339.2  de-new   3010.7 ns
+NinoNullable<int>[]                  8004 B  ser    125.9  de-reuse    114.1  de-new   1381.2 ns
+Queue<NinoNullable<int>>             8004 B  ser    136.7  de-reuse    126.5  de-new   1047.8 ns
+NinoNullable<long>[]                16004 B  ser    491.8  de-reuse    211.8  de-new   2281.2 ns
+Queue<NinoNullable<long>>           16004 B  ser    489.6  de-reuse    216.1  de-new   1878.0 ns
+Dictionary<int,NinoNullable<int>>    8204 B  ser   2205.4  de-reuse   5761.3  de-new   7958.1 ns
+HashSet<NinoNullable<int>>           6412 B  ser   1207.4  de-reuse   9864.4  de-new  11728.1 ns
+LinkedList<long?>                   16004 B  ser   2315.1  de-reuse  16056.9  de-new  13675.8 ns
+SortedSet<int?>                      6412 B  ser   2941.4  de-reuse  14693.5  de-new  15110.7 ns
+ConcurrentQueue<int?>                8004 B  ser   5436.6  de-reuse  28583.4  de-new  16841.2 ns
+ImmutableLikeCollection<int?>        8004 B  ser    269.5  de-reuse  11637.8  de-new  14284.7 ns
+List<int?> x16 in List               7924 B  ser    461.6  de-reuse   1142.6  de-new   3026.0 ns
+Queue<int?> x16 in List              7924 B  ser    415.1  de-reuse    840.6  de-new   2783.2 ns
+HashSet<int?> x8 in List             3796 B  ser   1731.7  de-reuse   7297.5  de-new   9887.4 ns
+Queue<int?> all null                 8004 B  ser    186.6  de-reuse    126.9  de-new   1063.8 ns
+Queue<int> (control)                 4004 B  ser     74.1  de-reuse     34.6  de-new    523.5 ns
+HashSet<int> (control)               4004 B  ser    203.8  de-reuse   5957.0  de-new   3556.4 ns
