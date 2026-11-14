@@ -91,7 +91,7 @@ The generated API of each language is on the site; these are the decisions behin
   fields the layout publishes at their canonical offsets (spec §5.2, §8.3). `nint` becomes a signed 64-bit integer
   (`int64`, `i64`, `bigint`) and `nuint`, pointers and function pointers (`delegate*`) an unsigned one (`uint64`, `u64`, `bigint`), because the wire
   holds them as 8 bytes, sign- or zero-extended; `Int128` sits at its 16-byte-aligned offset, and a `Nullable<Int128>`
-  element of a fixed-stride array has a stride of 32. `DateTimeOffset` is a struct `{ dateTime, offsetMinutes }` in Go
+  element of a sequence is a slot of 32 bytes. `DateTimeOffset` is a struct `{ dateTime, offsetMinutes }` in Go
   and Rust; TypeScript leaves it out with NINOGEN002, since a `Date` holds milliseconds as UTC and cannot give back
   the ticks and kind. `Vector64<T>` to `Vector512<T>` (the bare `raw`) and layouts from an older build that hold a
   `System.Numerics.Vector<T>` (`IsHostSizedVector`) are NINOGEN002 too.
@@ -100,8 +100,26 @@ The generated API of each language is on the site; these are the decisions behin
 
 A generic `[NinoType]` is a generic type in each language, whose codec is built from the codecs of its type arguments,
 as .NET builds the formatter of `Box<T>` from the formatter of `T`. The IR gives each type argument the encoding .NET's
-formatter for it writes: a `T?[]` or `List<T?>` of an unmanaged `T` as raw `T`s with a flag each, a `HashSet<T?>` or
-a dictionary's values item by item, a `KeyValuePair` as its key then its value (`CodegenModel.Generic`).
+formatter for it writes: a `T?` of a raw `T` as a slot of a fixed size where it is the element of a sequence (an
+array, a `List<T?>`, a `HashSet<T?>`), a dictionary's values item by item, a `KeyValuePair` as its key then its value
+(`CodegenModel.Generic`).
+
+A raw `T?` has two encodings, and the IR tells them apart for every language (wire-format spec §6.2, §6.5). As the
+element of a sequence (an array, a list, a set, a queue, a stack, a linked list, the collection interfaces, the
+elements of a multi-dimensional array; nested ones too) it is a slot of `T`'s alignment plus `T`'s size, the flag
+first and the value after its padding (`int?` 8 bytes, `long?` 16, `decimal?` 24): `ValueKind.RawNullable`, which
+the layout publishes as `seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})` or `grid(2,raw(8){...})` and the
+IR gives a sequence inside a type argument too (`CodegenModel.NullableSlot`). As a single value (a member, a
+dictionary's key or value, a pair's or a tuple's item) it is a presence byte and the value only when present:
+`ValueKind.Nullable`. `Queue<int?> {5, null}` is `02000000 01000000 05000000 00000000 00000000`;
+`Dictionary<int, long?> {1: null, 2: 7}` is `02000000 01000000 00 02000000 01 0700000000000000`. TypeScript holds both
+as `T | null` and Go as `*T` (a set and a queue of slots are a `Set<T | null>` and a `[]*T`); Rust's codecs go by the
+type, so a single value is an `Option<T>`, a list of slots a `nino::RawNullables<T>` (a `Vec<Option<T>>`), and the
+elements of a set or a grid `nino::RawNullable<T>` (`IndexSet<nino::RawNullable<i32>>`,
+`nino::Grid<nino::RawNullable<i32>, 2>`). Every reader rejects a slot whose presence byte is not 0 or 1
+(`ModelTests.RawNullablesAreSlotsInEverySequenceAndSingleValuesElsewhere`,
+`TargetTests.RawNullableSlotsAreGeneratedInEveryLanguage`; the corpus's `nullable-sequences`, `presence-nullable-set-*`
+and `presence-nullable-grid-*` cases).
 
 `NinoNullable<T>` is to nino-gen what it is to .NET: a raw struct wherever it is declared, a presence and a value of
 a `T` each (`2 * size(T)` bytes, the presence's first byte 0 or 1). The generator publishes it as a `T?` in raw memory
