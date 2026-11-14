@@ -35,8 +35,11 @@ internal static class WireEncoding
                 or "ConcurrentStackFormatter" or "BlockingCollectionFormatter"
                 or "InterfaceListFormatter" or "InterfaceSetFormatter" => $"seq({e[0]})",
             "UnmanagedArrayFormatter" or "UnmanagedListFormatter" => $"seq({RawLayout.Describe(types[types.Length - 1])})",
-            "NullableArrayFormatter" or "NullableListFormatter" => $"seq({RawLayout.Describe(compilation
+            // NinoNullable<T> is written as T?: the same encodings.
+            "NullableArrayFormatter" or "NullableListFormatter" or "NinoNullableArrayFormatter"
+                or "NinoNullableListFormatter" => $"seq({RawLayout.Describe(compilation
                 .GetSpecialType(SpecialType.System_Nullable_T).Construct(types[types.Length - 1]))})",
+            "NinoNullableFormatter" => $"nullable({RawLayout.Describe(types[types.Length - 1])})",
             "DictionaryFormatter" or "DictionaryLikeFormatter" or "InterfaceDictionaryFormatter" =>
                 $"map({e[0]},{e[1]})",
             "KeyValuePairFormatter" => $"pair({e[0]},{e[1]})",
