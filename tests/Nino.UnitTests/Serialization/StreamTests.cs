@@ -198,10 +198,8 @@ public class StreamTests
                 NinoDeserializer.Deserialize(stream, ref into);
             }
 
-#if !NINO_CORE_NETSTANDARD2_0
             target.Position = 0;
             NinoSerializer.SerializeAsync(sample, target).GetAwaiter().GetResult();
-#endif
         }
 
         for (int i = 0; i < 100; i++)
@@ -327,7 +325,6 @@ public class StreamTests
         Assert.ThrowsExactly<ArgumentNullException>(() => NinoDeserializer.DeserializeBoxed(new MemoryStream(), null));
     }
 
-#if !NINO_CORE_NETSTANDARD2_0 // The netstandard2.0 build of Nino.Core has no ValueTask, so no async overloads.
     [TestMethod]
     public async Task AsyncRoundTrips()
     {
@@ -407,7 +404,6 @@ public class StreamTests
         await pending;
         CollectionAssert.AreEqual(NinoSerializer.Serialize(first), stream.Written);
     }
-#endif
 
     [TestMethod]
     public void TopLevelStreamCallsAreIntercepted()
@@ -446,10 +442,8 @@ public class StreamTests
         Assert.IsTrue(called.Contains("Deserialize") || called.Contains("DeserializeTop"), all);
         Assert.IsTrue(called.Contains("SerializePrefetched"), all);
         Assert.IsTrue(called.Contains("DeserializePrefetched"), all);
-#if !NINO_CORE_NETSTANDARD2_0
         Assert.IsTrue(called.Contains("SerializeAsync"), all);
         Assert.IsTrue(called.Contains("DeserializeAsync"), all);
-#endif
     }
 
     /// <summary>
@@ -587,7 +581,6 @@ public class StreamTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-#if !NINO_CORE_NETSTANDARD2_0
     /// <summary>A stream whose asynchronous write reads the memory it was given only when <see cref="Complete"/> is called.</summary>
     private sealed class PendingWriteStream : Stream
     {
@@ -625,5 +618,4 @@ public class StreamTests
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
-#endif
 }

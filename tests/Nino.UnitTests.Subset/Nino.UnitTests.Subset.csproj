@@ -7,7 +7,7 @@
 
 
     <ItemGroup>
-        <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to test a specific Nino.Core build. -->
+        <!-- Build with -p:NinoCoreTfm=netstandard2.1 to test that Nino.Core build. -->
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
                           SetTargetFramework="TargetFramework=$(NinoCoreTfm)"/>

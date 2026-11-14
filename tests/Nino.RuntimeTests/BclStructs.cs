@@ -98,8 +98,8 @@ public static class BclStructs
         RefusedByHand("Around<Vector<long>> by hand", new Around<System.Numerics.Vector<long>> { A = 1, C = -1 });
         Top("LaneParticle", LaneParticle.Doubled(3));
 #if NET8_0_OR_GREATER
-        // .NET only (the net472 build has none of these): checked against the fixtures, printed as comments so the
-        // outputs of the .NET Framework and Mono runs stay comparable with .NET's.
+        // .NET only (the net472 build, Mono's, has none of these): checked against the fixtures, printed as comments so the
+        // outputs of the Mono runs stay comparable with .NET's.
         _netOnly = true;
         Bcl("Int128", (Int128)(-1), Int128.MaxValue);
         Bcl("(byte,Int128)", ((byte)1, (Int128)(-2)), ((byte)3, Int128.MinValue));

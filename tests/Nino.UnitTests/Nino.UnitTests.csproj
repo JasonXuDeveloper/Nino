@@ -40,13 +40,9 @@
       <NinoPrefetchLargeCollections>true</NinoPrefetchLargeCollections>
     </PropertyGroup>
 
-    <!-- The netstandard builds of Nino.Core have no PriorityQueue formatter (netstandard has no PriorityQueue). -->
+    <!-- The netstandard2.1 build of Nino.Core has no PriorityQueue formatter (netstandard has no PriorityQueue). -->
     <PropertyGroup Condition="'$(NinoCoreTfm)' != ''">
       <DefineConstants>$(DefineConstants);NINO_CORE_NETSTANDARD</DefineConstants>
-    </PropertyGroup>
-    <!-- Its netstandard2.0 build has no ValueTask, so no asynchronous Stream overloads (StreamTests). -->
-    <PropertyGroup Condition="'$(NinoCoreTfm)' == 'netstandard2.0'">
-      <DefineConstants>$(DefineConstants);NINO_CORE_NETSTANDARD2_0</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>
@@ -74,7 +70,7 @@
 
 
     <ItemGroup>
-        <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to test a specific Nino.Core build. -->
+        <!-- Build with -p:NinoCoreTfm=netstandard2.1 to test that Nino.Core build. -->
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
         <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
                           SetTargetFramework="TargetFramework=$(NinoCoreTfm)"/>

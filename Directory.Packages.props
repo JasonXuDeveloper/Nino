@@ -6,8 +6,6 @@
 
     <!-- What the packages depend on: the versions in their nuspecs. -->
     <ItemGroup>
-        <PackageVersion Include="System.Buffers" Version="4.6.1"/>
-        <PackageVersion Include="System.Memory" Version="4.6.3"/>
         <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2"/>
         <PackageVersion Include="System.Collections.Immutable" Version="10.0.15"/>
         <PackageVersion Include="System.Reflection.MetadataLoadContext" Version="10.0.15"/>
@@ -42,7 +40,10 @@
         <PackageVersion Include="UniTask" Version="2.5.11"/>
         <!-- net10.0; the net8.0 build of Nino.AspNetCore.Tests takes 8.0.33 (VersionOverride). -->
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14"/>
-        <PackageVersion Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3"/>
+        <!-- Nino.RuntimeTests' Mono build: what System.Collections.Immutable depends on there. -->
+        <PackageVersion Include="System.Memory" Version="4.6.3"/>
+        <PackageVersion Include="System.Buffers" Version="4.6.1"/>
+        <PackageVersion Include="System.Numerics.Vectors" Version="4.6.1"/>
         <!-- The patched version of a package the Roslyn test libraries bring in (security advisory): never
              referenced, it pins the transitive dependency in Nino.UnitTests (CentralPackageTransitivePinningEnabled
              there). -->

@@ -70,7 +70,7 @@ public sealed class GoldenData
 }
 
 /// <summary>
-/// Pins the wire format. Every Nino.Core build (netstandard2.0, netstandard2.1, net8.0, net10.0) must produce and
+/// Pins the wire format. Every Nino.Core build (netstandard2.1, net8.0, net10.0) must produce and
 /// read exactly these bytes; CI runs this suite against each of them.
 /// </summary>
 [TestClass]

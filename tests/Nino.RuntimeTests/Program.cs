@@ -31,7 +31,7 @@ public struct WideAfterByte { public byte A; public Int128 B; }
 
 // DateTime after a smaller field: aligned to 8 on 64-bit runtimes and by Mono, to 4 by .NET on 32-bit x86 (an
 // auto-layout struct as a field; long and TimeSpan are aligned to 8 there): { int; DateTime } is 16 bytes on x64, 12
-// on x86 .NET; .NET Framework reorders { byte; DateTime; int } (the int first). Plain structs are raw, [NinoType] ones
+// on x86 .NET. Plain structs are raw, [NinoType] ones
 // too when not portable: the canonical (64-bit) layout everywhere.
 public struct HoldsDateTime { public int A; public DateTime B; }
 public struct HoldsDateTimes { public byte A; public DateTime B; public int C; }
@@ -145,7 +145,7 @@ public static class Program
 
     /// <summary>
     /// The paths through a runtime's own internals, each found (or not) at startup; each must be found on every
-    /// runtime this program runs on (.NET 64-bit and 32-bit, .NET Framework 64-bit and 32-bit, Mono): one that is not
+    /// runtime this program runs on (.NET 64-bit and 32-bit, Mono): one that is not
     /// means Nino silently uses the public API there, and its layouts for that runtime are wrong or missing.
     /// </summary>
     private static readonly (Assembly Assembly, string Type, string Field)[] FastPaths =
@@ -181,21 +181,13 @@ public static class Program
     };
 
     /// <summary>
-    /// Whether the path <see cref="FastPaths"/> names <paramref name="field"/> is meant to be taken on this runtime. Not
-    /// a HashSet filled directly from the netstandard2.0 build of Nino.Core (no HashSet.EnsureCapacity to size a new
-    /// set with); not string keys on .NET 5+, whose tables hash strings with a comparer of their own.
+    /// Whether the path <see cref="FastPaths"/> names <paramref name="field"/> is meant to be taken on this runtime:
+    /// not string keys on .NET 5+, whose tables hash strings with a comparer of their own.
     /// </summary>
     private static bool Expected(string field)
     {
-        var target = typeof(NinoSerializer).Assembly
-            .GetCustomAttributes(typeof(System.Runtime.Versioning.TargetFrameworkAttribute), false)
-            .Cast<System.Runtime.Versioning.TargetFrameworkAttribute>().FirstOrDefault()?.FrameworkName ?? "";
-        if ((field == "Set" || field == "SetReferences" || field == "SetStrings") &&
-            target == ".NETStandard,Version=v2.0")
-            return false;
         string runtime = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription;
-        bool core = runtime.StartsWith(".NET ", StringComparison.Ordinal) &&
-                    !runtime.StartsWith(".NET Framework", StringComparison.Ordinal);
+        bool core = runtime.StartsWith(".NET ", StringComparison.Ordinal);
         return !(field.EndsWith("Strings", StringComparison.Ordinal) && core);
     }
 
@@ -497,7 +489,7 @@ public static class Program
 
 #if NET8_0_OR_GREATER
         // Int128 after a byte: the canonical layout (16-byte alignment) whatever this runtime aligns it to, padding
-        // written as zeros. Not compared (the net472 build has no Int128): checked against the expected bytes.
+        // written as zeros. Not compared (the net472 build, Mono's, has no Int128): checked against the expected bytes.
         {
             var value = new WideAfterByte { A = 1, B = -2 };
             var expected = new byte[32];
