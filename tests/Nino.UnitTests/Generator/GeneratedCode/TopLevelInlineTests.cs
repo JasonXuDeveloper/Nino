@@ -32,6 +32,7 @@ namespace Top
     [NinoType] public sealed class Map { public Dictionary<int, string> A; }
     [NinoType] public struct Pair { public int Id; public string Name; }
     [NinoType] public sealed class Big { public string A, B, C; }
+    [NinoType] public sealed class Nullables { public int? A; public long? B; public Guid? C; public decimal? D; public string E; }
 
     public static class Api
     {
@@ -54,6 +55,29 @@ namespace Top
                 : typeof(T).Name + "": "" + Hex(regular) + "" / "" + Hex(top) + "" / "" + Hex(again) + "" / "" + Hex(reread);
         }
 
+        // The twin's own top-level Write and Read (what NinoSerializer and NinoDeserializer reach), a null value
+        // included: the presence byte alone, written and read without a writer or reader of its own.
+        static string CheckTop<T, TTop, TFormatter>(T value)
+            where TTop : struct, INinoTopFormatter<T> where TFormatter : struct, INinoFormatter<T>
+        {
+            var expected = NinoDirect.Serialize<T, TFormatter>(value);
+            var buffer = new NinoArrayBufferWriter(1);
+            buffer.GetSpan(1)[0] = 0xEE; // a byte before the payload, so a null is written after it
+            buffer.Advance(1);
+            default(TTop).Write(value, buffer);
+            var written = buffer.WrittenSpan.Slice(1).ToArray();
+            var read = default(TTop).Read(written);
+            return Hex(written) == Hex(expected) && Hex(NinoDirect.Serialize<T, TFormatter>(read)) == Hex(expected)
+                ? ""ok""
+                : typeof(T).Name + "" top: "" + Hex(expected) + "" / "" + Hex(written);
+        }
+
+        static string Throws(Func<object> read)
+        {
+            try { read(); return ""no exception""; }
+            catch (NinoDataException) { return ""ok""; }
+        }
+
         public static string Run()
         {
             var results = new[]
@@ -69,6 +93,16 @@ namespace Top
                 Check<Map, NinoGen.Top_MapFormatter.__Top, NinoGen.Top_MapFormatter>(new Map { A = new Dictionary<int, string> { [1] = ""a"", [2] = null } }),
                 Check<Big, NinoGen.Top_BigFormatter.__Top, NinoGen.Top_BigFormatter>(new Big { A = ""a"", C = ""ç"" }),
                 Check<Big, NinoGen.Top_BigFormatter.__Top, NinoGen.Top_BigFormatter>(null),
+                Check<Nullables, NinoGen.Top_NullablesFormatter.__Top, NinoGen.Top_NullablesFormatter>(
+                    new Nullables { A = 1, C = Guid.Empty, D = 2.5m, E = ""e"" }),
+                Check<Nullables, NinoGen.Top_NullablesFormatter.__Top, NinoGen.Top_NullablesFormatter>(new Nullables()),
+                Check<Nullables, NinoGen.Top_NullablesFormatter.__Top, NinoGen.Top_NullablesFormatter>(null),
+                CheckTop<Nullables, NinoGen.Top_NullablesFormatter.__Top, NinoGen.Top_NullablesFormatter>(
+                    new Nullables { B = -3, D = 1m, E = ""é"" }),
+                CheckTop<Nullables, NinoGen.Top_NullablesFormatter.__Top, NinoGen.Top_NullablesFormatter>(null),
+                CheckTop<Text, NinoGen.Top_TextFormatter.__Top, NinoGen.Top_TextFormatter>(null),
+                Throws(() => default(NinoGen.Top_NullablesFormatter.__Top).Read(new byte[] { 2 })),
+                Throws(() => default(NinoGen.Top_NullablesFormatter.__Top).Read(Array.Empty<byte>())),
                 // Top-level collections: the interceptors use the __Top twins of their elements' formatters.
                 Check<Text[], ArrayFormatter<Text, NinoGen.Top_TextFormatter.__Top>, ArrayFormatter<Text, NinoGen.Top_TextFormatter>>(
                     new[] { new Text { A = ""a"", B = ""é"" }, null, new Text() }),
@@ -97,6 +131,13 @@ namespace Top
         StringAssert.Contains(sources["NinoGen.Top_BigFormatter.g.cs"],
             "=> default(Top_BigFormatter).WriteBody(value, ref writer);");
         Assert.IsFalse(sources["NinoGen.Top_PairFormatter.g.cs"].Contains("__Top"));
+        // Nullable raw members write through the writer inline (Flat): the body runs on a local copy of the writer.
+        // A null value is handled in the twin's inlined Write and Read, the rest out of line.
+        string nullables = sources["NinoGen.Top_NullablesFormatter.g.cs"];
+        StringAssert.Contains(nullables, "writer.CopyTo(ref __w);");
+        StringAssert.Contains(nullables, "{ if (value == null) __CS.NinoDirect.WriteNull(buffer); else __WriteTop(value, buffer); }");
+        StringAssert.Contains(nullables, "=> !data.IsEmpty && data[0] == 0 ? null : __ReadTop(data);");
+        StringAssert.Contains(nullables, "private static __T __ReadTop(global::System.ReadOnlySpan<byte> data)");
 
         return TestCompilation.EmitAndLoad(compilation.AddSyntaxTrees(run.GeneratedTrees));
     }
