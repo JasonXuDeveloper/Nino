@@ -215,7 +215,8 @@ namespace Nino.Codegen.Tests
         /// <summary>
         /// A <c>NinoNullable&lt;T&gt;</c> has a type of its own in Go and Rust (<c>nino.NinoNullable[T]</c>, a value
         /// and whether it has one; <c>nino::NinoNullable&lt;T&gt;</c>, an <c>Option&lt;T&gt;</c> with those bytes),
-        /// where a <c>T?</c> is a <c>*T</c> and an <c>Option&lt;T&gt;</c>, and is TypeScript's <c>T | null</c>; every
+        /// where a <c>T?</c> is a <c>*T</c> and an <c>Option&lt;T&gt;</c>, and in TypeScript the runtime's alias
+        /// <c>NinoNullable&lt;T&gt;</c> of the <c>T | null</c> a <c>T?</c> is, with nothing at run time; every
         /// type holding one is written: alone, in every collection, in type arguments, and inside raw structs
         /// whatever the size of <c>T</c>.
         /// </summary>
@@ -230,8 +231,11 @@ namespace Nino.Codegen.Tests
             StringAssert.Contains(rust, "    pub one: Option<Box<BoxType<nino::NinoNullable<i32>>>>,");
             StringAssert.Contains(rust, "    pub set: Option<indexmap::IndexSet<nino::NinoNullable<i32>>>,");
             var (ts, tsOutput) = Run("ts", "Nino.Codegen.Tests.ts");
-            StringAssert.Contains(ts, "export class HoldsWideNinoNullable {\n  a: number = 0;\n  b: string | null = null;\n}");
-            StringAssert.Contains(ts, "  one: Box<number | null> | null = null;");
+            StringAssert.Contains(ts, "export class HoldsWideNinoNullable {\n  a: number = 0;\n  b: NinoNullable<string> = null;\n}");
+            StringAssert.Contains(ts, "  one: Box<NinoNullable<number>> | null = null;");
+            // The alias of T | null is imported by the file that names it, and a T? member stays T | null.
+            StringAssert.Contains(ts, "import { NinoReader, NinoSubtypes, NinoWriter, type NinoCodec, type NinoNullable } from");
+            StringAssert.Contains(ts, "  queue: (number | null)[] | null = null;");
             StringAssert.Contains(ts, "r.ninoNullableAt(");
             var (go, goOutput) = Run("go", "nino_types.go");
             Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go,

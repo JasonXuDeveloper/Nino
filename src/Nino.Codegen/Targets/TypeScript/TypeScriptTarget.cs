@@ -111,13 +111,26 @@ namespace Nino.Codegen.Targets
             renderer.Function("helper", new Func<TsShape, string, string>(Helper));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
             renderer.Function("helper_at", new Func<int, TsHelper>(i => _helpers[i]));
-            return renderer.Render("types.sbn").TrimEnd('\n') + "\n";
+            // The runtime's NinoNullable<T> is imported only by a file that names it (an import nothing uses fails a
+            // build with noUnusedLocals), which is known once every type is spelled: the import line holds a mark.
+            bool usesNinoNullable = false;
+            renderer.Set("more_imports", MoreImports);
+            renderer.Function("nino_nullable", new Func<string, string>(inner =>
+            {
+                usesNinoNullable = true;
+                return "NinoNullable<" + inner + ">";
+            }));
+            string text = renderer.Render("types.sbn").TrimEnd('\n') + "\n";
+            return text.Replace(MoreImports, usesNinoNullable ? ", type NinoNullable" : "");
         }
 
         // ---------------------------------------------------------------- which types
 
         // A generic type holding itself with other arguments is fine (no GenericProblem): its codecs build those of
         // the types it holds when the data first needs them.
+
+        /// <summary>Stands in the rendered import line for the type imports only some files need.</summary>
+        private const string MoreImports = "\u0001";
 
         protected override void Reset()
         {

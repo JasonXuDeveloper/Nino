@@ -151,6 +151,14 @@ function makeScratch(): NinoReader {
 }
 
 /**
+ * A member that is .NET's `NinoNullable<T>` (`Nino.Core`): the value or `null`, as a `T?` member is (`T | null`), under
+ * the name that says which bytes it has: its memory wherever it is, a presence and a value of a `T` each
+ * (`NinoReader.ninoNullableAt`), where a `T?` is a presence byte and the value, or a slot in a sequence. An alias
+ * only: no wrapper object and nothing at run time.
+ */
+export type NinoNullable<T> = T | null;
+
+/**
  * A typed array of a fixed-size number type: how generated code holds an array or list of `sbyte`, `byte`, `short`,
  * `ushort`, `int`, `uint`, `long`, `ulong`, `float` or `double` (`NinoReader.numbers`, `NinoWriter.numbers`).
  */

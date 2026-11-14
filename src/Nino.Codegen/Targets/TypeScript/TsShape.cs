@@ -109,7 +109,10 @@ namespace Nino.Codegen.Targets
 
         public int ValueOffset { get; internal set; }
 
-        /// <summary>A <c>rawnullable</c> that is a <c>NinoNullable&lt;T&gt;</c> (<see cref="ValueModel.Clean"/>).</summary>
+        /// <summary>
+        /// A <c>rawnullable</c> that is a <c>NinoNullable&lt;T&gt;</c> (<see cref="ValueModel.Clean"/>): declared
+        /// as the runtime's <c>NinoNullable&lt;T&gt;</c>, an alias of <c>T | null</c>.
+        /// </summary>
         public bool Clean { get; internal set; }
 
         /// <summary>Whether the value may hold a class body (a class, <c>object</c> or an interface) itself.</summary>
