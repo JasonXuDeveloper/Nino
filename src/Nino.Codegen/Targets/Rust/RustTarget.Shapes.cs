@@ -81,7 +81,8 @@ namespace Nino.Codegen.Targets
                 }
                 case ValueKind.Sequence:
                 {
-                    if (value.Element!.Kind == ValueKind.RawNullable)
+                    // T?[] of a raw T, the fixed stride. A NinoNullable<T> is an element like any raw struct.
+                    if (value.Element!.Kind == ValueKind.RawNullable && !value.Element.Clean)
                         return new RustShape("seq") { Element = Raw(value.Element).Inner, Mode = "rawnullables" };
 
                     // A set's elements may be null (.NET writes a HashSet<string> holding null), so a string element
@@ -259,6 +260,18 @@ namespace Nino.Codegen.Targets
                     {
                         Struct = model, Size = model.Empty ? 1 : model.Size, Align = model.Align,
                         Hashable = fields.All(f => f.Hashable),
+                    };
+                }
+                case ValueKind.RawNullable when value.Clean:
+                {
+                    // nino::NinoNullable<T>: the flag, then T at T's size.
+                    var inner = Raw(value.Element!);
+                    if (value.FlagOffset != 0 || value.ValueOffset != inner.Size || value.Size != 2 * inner.Size)
+                        throw new UnsupportedException(
+                            $"{value.ClrName} ({value.Encoding}) is not the flag then the value at its size");
+                    return new RustShape("ninonullable")
+                    {
+                        Inner = inner, Size = value.Size, Align = inner.Align, Hashable = inner.Hashable,
                     };
                 }
                 case ValueKind.RawNullable:

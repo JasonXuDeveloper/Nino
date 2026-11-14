@@ -344,7 +344,9 @@ func read_at(s, off)
   when "rawstruct"
     ret "read" + name(s.struct) + "(r, " + at(off) + ")"
   when "rawnullable"
-    ret "(r.presentAt(" + at(off + s.flag_offset) + ") ? " + read_at(s.inner, off + s.value_offset) + " : null)"
+    # A NinoNullable<T>: its whole presence and an absent value are checked. A T?: its flag.
+    $present = s.clean ? "r.ninoNullableAt(" + at(off + s.flag_offset) + ", " + (s.value_offset - s.flag_offset) + ")" : "r.presentAt(" + at(off + s.flag_offset) + ")"
+    ret "(" + $present + " ? " + read_at(s.inner, off + s.value_offset) + " : null)"
   when "fixedtuple"
     $parts = []
     for $item in s.items

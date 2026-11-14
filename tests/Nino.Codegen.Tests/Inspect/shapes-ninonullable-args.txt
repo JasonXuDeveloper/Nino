@@ -1,0 +1,50 @@
+nino-gen inspect: Shapes.NinoNullableArgs, 306 byte(s) from offset 0
+  offset  length  value
+       0     306  value: Shapes.NinoNullableArgs
+       0       1    presence = 1
+       1      16    Enum: Nino.Core.NinoNullable<Shapes.Flags> [raw(16){...}] = 1099511627776
+      17      36    Enums: Nino.Core.NinoNullable<Shapes.Flags>[] [seq(raw(16){...}]  (2 elements)
+      21      16      [0] = 1
+      37      16      [1] = null
+      53      24    Cell: Nino.Core.NinoNullable<Shapes.TupleCell> [raw(24){...}]
+      65       1      A: System.Byte = 1
+      69       8      Inside: Shapes.TupleInside
+      69       1        A: System.Byte = 0
+      73       4        T: System.ValueTuple<System.Byte,System.Int16>
+      75       1          Item1: System.Byte = 0
+      73       2          Item2: System.Int16 = 0
+      77       9    One: Shapes.Generic.Box<Nino.Core.NinoNullable<int>> [type(Shapes.Generic.Box<Nino.Core.NinoNullable<int>>)]
+      77       1      presence = 1
+      78       8      Value: T (Nino.Core.NinoNullable<System.Int32>) [type(T)] = 7
+      86      33    Wide: Shapes.Generic.Box<Nino.Core.NinoNullable<decimal>> [type(Shapes.Generic.Box<Nino.Core.NinoNullable<decimal>>)]
+      86       1      presence = 1
+      87      32      Value: T (Nino.Core.NinoNullable<System.Decimal>) [type(T)] = 1.5
+     119      53    Array: Shapes.Generic.Box<Nino.Core.NinoNullable<Shapes.TupleCell>[]> [type(Shapes.Generic.Box<Nino.Core.NinoNullable<Shapes.TupleCell>[]>)]
+     119       1      presence = 1
+     120      52      Value: T (Nino.Core.NinoNullable<Shapes.TupleCell>[]) [type(T)]  (2 elements)
+     124      24        [0] = null
+     148      24        [1]
+     160       1          A: System.Byte = 1
+     164       8          Inside: Shapes.TupleInside
+     164       1            A: System.Byte = 0
+     168       4            T: System.ValueTuple<System.Byte,System.Int16>
+     170       1              Item1: System.Byte = 0
+     168       2              Item2: System.Int16 = 0
+     172      37    List: Shapes.Generic.Box<System.Collections.Generic.List<Nino.Core.NinoNullable<long>>> [type(Shapes.Generic.Box<System.Collections.Generic.List<Nino.Core.NinoNullable<long>>>)]
+     172       1      presence = 1
+     173      36      Value: T (System.Collections.Generic.List<Nino.Core.NinoNullable<System.Int64>>) [type(T)]  (2 elements)
+     177      16        [0] = -1
+     193      16        [1] = null
+     209      20    Set: System.Collections.Generic.HashSet<Nino.Core.NinoNullable<int>> [seq(raw(8){...}]  (2 elements)
+     213       8      [0] = 4
+     221       8      [1] = null
+     229      44    Map: System.Collections.Generic.Dictionary<int, Nino.Core.NinoNullable<double>> [map(raw(4),raw(16){...}]  (2 entries)
+     233      20      [0]
+     233       4        key: System.Int32 = 1
+     237      16        value: Nino.Core.NinoNullable<System.Double> = 0.5
+     253      20      [1]
+     253       4        key: System.Int32 = 2
+     257      16        value: Nino.Core.NinoNullable<System.Double> = null
+     273      33    Tuple: System.ValueTuple<byte, Nino.Core.NinoNullable<System.Guid>> [tuple(raw(1),raw(32){...}]
+     273       1      Item1: System.Byte = 9
+     274      32      Item2: Nino.Core.NinoNullable<System.Guid> = 00112233-4455-6677-8899-aabbccddeeff

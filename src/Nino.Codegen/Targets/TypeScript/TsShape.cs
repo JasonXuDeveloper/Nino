@@ -109,6 +109,9 @@ namespace Nino.Codegen.Targets
 
         public int ValueOffset { get; internal set; }
 
+        /// <summary>A <c>rawnullable</c> that is a <c>NinoNullable&lt;T&gt;</c> (<see cref="ValueModel.Clean"/>).</summary>
+        public bool Clean { get; internal set; }
+
         /// <summary>Whether the value may hold a class body (a class, <c>object</c> or an interface) itself.</summary>
         internal bool Opens { get; set; }
 
@@ -133,7 +136,7 @@ namespace Nino.Codegen.Targets
             yield return Header ?? "";
             yield return Set ? "set" : "";
             yield return ArrayType ?? "";
-            yield return FlagOffset + "/" + ValueOffset;
+            yield return FlagOffset + "/" + ValueOffset + (Clean ? "/clean" : "");
             yield return string.Join("/", Offsets);
             foreach (var child in new[] { Inner, Element, Key, Value }.Concat(Items))
                 yield return child?.Identity ?? "-";

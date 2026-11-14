@@ -88,28 +88,49 @@ namespace Nino.Codegen.Tests
         }
 
         /// <summary>
-        /// A <c>NinoNullable&lt;T&gt;</c> is the value a <c>T?</c> is, wherever it is declared: a member, an array or list
-        /// element (the corpus's types) and inside type arguments (Shapes.cs), where no layout says so and nino-gen
-        /// works the encoding out. .NET writes both declarations to the same bytes.
+        /// A <c>NinoNullable&lt;T&gt;</c> is its memory wherever it is declared: a member, an element of a collection and
+        /// a field of a raw struct (the corpus's types), and inside type arguments, a set and a tuple (Shapes.cs),
+        /// where no layout says so and nino-gen works the encoding out. The flag, then the value at <c>T</c>'s size,
+        /// twice that in all, and marked as checked on read (<see cref="ValueModel.Clean"/>).
         /// </summary>
         [TestMethod]
-        [DataRow("Conformance.NinoNullables", "Conformance.NullableTwins")]
-        [DataRow("Shapes.NinoNullableArgs", "Shapes.NullableArgs")]
-        public void NinoNullableIsTheValueOfNullable(string ninoNullable, string nullable)
+        [DataRow("Conformance.NinoNullables", 18)]
+        [DataRow("Shapes.NinoNullableArgs", 10)]
+        public void NinoNullableIsItsMemoryWhereverItIs(string type, int count)
         {
-            using var model = Load(ninoNullable.StartsWith("Shapes.", StringComparison.Ordinal)
+            using var model = Load(type.StartsWith("Shapes.", StringComparison.Ordinal)
                 ? GeneratedFilesTests.Shapes
                 : GeneratedFilesTests.Conformance);
-            var (actual, expected) = (Type(model, ninoNullable), Type(model, nullable));
-            Assert.AreEqual(expected.Format, actual.Format);
-            Assert.AreEqual(expected.Header, actual.Header);
+            var values = Type(model, type).Members.SelectMany(m => m.Value.Walk()).ToList();
+            foreach (var value in values)
+            {
+                Assert.AreNotEqual(ValueKind.Unsupported, value.Kind, value.ToString());
+                bool ninoNullable = value.ClrName.StartsWith("Nino.Core.NinoNullable`1[", StringComparison.Ordinal) &&
+                                    !value.ClrName.EndsWith("[]", StringComparison.Ordinal);
+                Assert.AreEqual(ninoNullable, value.Clean, value.ToString());
+                if (!ninoNullable)
+                    continue;
+                Assert.AreEqual(ValueKind.RawNullable, value.Kind, value.ToString());
+                int size = value.Element!.Size;
+                Assert.AreEqual((0, size, 2 * size), (value.FlagOffset, value.ValueOffset, value.Size), value.ToString());
+            }
+
+            Assert.AreEqual(count, values.Count(v => v.Clean));
+        }
+
+        /// <summary>
+        /// A run of <c>NinoNullable&lt;T&gt;</c> of a <c>T</c> as large as its alignment is the run of <c>T?</c>: the same
+        /// encodings in the two declarations (the corpus writes one and reads it as the other).
+        /// </summary>
+        [TestMethod]
+        public void NinoNullableRunsOfNarrowValuesAreTheRunsOfNullable()
+        {
+            using var model = Load(GeneratedFilesTests.Conformance);
+            var (actual, expected) = (Type(model, "Conformance.NinoNullableRuns"), Type(model, "Conformance.NullableTwins"));
             Assert.AreSequenceEqual(expected.Members.Select(m => m.Name).ToList(),
                 actual.Members.Select(m => m.Name).ToList());
             foreach (var (a, e) in actual.Members.Zip(expected.Members))
-            {
-                Assert.AreNotEqual(ValueKind.Unsupported, a.Value.Kind, a.Name);
                 Assert.AreEqual(Shape(e.Value), Shape(a.Value), a.Name);
-            }
         }
 
         /// <summary>What a value is on the wire, without the .NET types it was declared with.</summary>
@@ -123,35 +144,41 @@ namespace Nino.Codegen.Tests
             return $"{text} {{{string.Join("; ", v.Children().Select(Shape))}}}";
         }
 
-        [TestMethod]
-        public void NinoNullableTypeArgumentsAreWrittenAsNullableOnes()
+        /// <summary>The value whose bytes <see cref="NinoNullableArgsHex"/> are.</summary>
+        internal static Shapes.NinoNullableArgs NinoNullableArgsValue()
         {
             var cell = new Shapes.TupleCell { A = 1 };
-            var ninoNullable = new Shapes.NinoNullableArgs
+            return new Shapes.NinoNullableArgs
             {
                 Enum = Shapes.Flags.B,
                 Enums = new NinoNullable<Shapes.Flags>[] { Shapes.Flags.A, default },
+                Cell = cell,
                 One = new() { Value = 7 },
+                Wide = new() { Value = 1.5m },
                 Array = new() { Value = new NinoNullable<Shapes.TupleCell>[] { default, cell } },
                 List = new() { Value = new List<NinoNullable<long>> { -1, default } },
                 Set = new HashSet<NinoNullable<int>> { 4, default },
                 Map = new Dictionary<int, NinoNullable<double>> { [1] = 0.5, [2] = default },
+                Tuple = (9, new Guid("00112233-4455-6677-8899-aabbccddeeff")),
             };
-            var nullable = new Shapes.NullableArgs
-            {
-                Enum = Shapes.Flags.B,
-                Enums = new Shapes.Flags?[] { Shapes.Flags.A, null },
-                One = new() { Value = 7 },
-                Array = new() { Value = new Shapes.TupleCell?[] { null, cell } },
-                List = new() { Value = new List<long?> { -1, null } },
-                Set = new HashSet<int?> { 4, null },
-                Map = new Dictionary<int, double?> { [1] = 0.5, [2] = null },
-            };
-            var bytes = NinoSerializer.Serialize(ninoNullable);
-            Assert.AreSequenceEqual(NinoSerializer.Serialize(nullable), bytes);
-            // The bytes the runtimes' tests of the generated shapes read and write (NinoNullableArgs).
+        }
+
+        /// <summary>
+        /// The bytes .NET writes for <c>NinoNullable&lt;T&gt;</c> in type arguments and the other places of
+        /// Shapes.NinoNullableArgs, which the runtimes' tests of the generated shapes read and write, and which
+        /// nino-gen's model reads back to the same values (<c>nino-gen inspect</c>).
+        /// </summary>
+        [TestMethod]
+        public void NinoNullableTypeArgumentsAreTheBytesNinoCoreWrites()
+        {
+            var bytes = NinoSerializer.Serialize(NinoNullableArgsValue());
             Assert.AreEqual(NinoNullableArgsHex, Convert.ToHexString(bytes).ToLowerInvariant());
             Assert.AreSequenceEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<Shapes.NinoNullableArgs>(bytes)));
+            // Box<NinoNullable<int>> { 7 }: the box's null flag, then eight bytes, where a Box<int?> is a flag and four.
+            var one = NinoSerializer.Serialize(new Shapes.Generic.Box<NinoNullable<int>> { Value = 7 });
+            Assert.AreEqual("010100000007000000", Convert.ToHexString(one).ToLowerInvariant());
+            Assert.AreEqual("010107000000", Convert.ToHexString(NinoSerializer.Serialize(
+                new Shapes.Generic.Box<int?> { Value = 7 })).ToLowerInvariant());
         }
 
         /// <summary>
@@ -195,19 +222,21 @@ namespace Nino.Codegen.Tests
         /// <summary>What .NET writes for the values above, which the runtimes' tests of the generated shapes hold too.</summary>
         internal const string NinoNullableRawHex = "01010000000100000007000000020000000200000000000000000000000300000001000000ffffffff";
 
-        /// <summary>Rust leaves the type out (TargetTests.RustLeavesOutANinoNullableWiderThanItsAlignmentInRawMemory).</summary>
-        internal const string NinoNullableRawWideHex = 
+        internal const string NinoNullableRawWideHex =
             "0101000000000000000100000000000000000000000000000000000100000000000f000000000000000100" +
             "000002000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
         /// <summary>
-        /// What .NET writes for the value above, which runtimes/typescript/test/shapes.test.ts,
+        /// What .NET writes for <see cref="NinoNullableArgsValue"/>, which runtimes/typescript/test/shapes.test.ts,
         /// runtimes/go/internal/generated/shapes/shapes_test.go and runtimes/rust/tests/generated.rs hold too.
         /// </summary>
         internal const string NinoNullableArgsHex =
-            "0101000000000001000002000000010000000000000001000000000000000000000000000000000000000000000001010700000001020000000000" +
-            "00000000000000000000000000000100000001000000000000000000000001020000000100000000000000ffffffffffffffff0000000000000000" +
-            "000000000000000002000000010400000000020000000100000001000000000000e03f0200000000";
+            "0101000000000000000000000000010000020000000100000000000000010000000000000000000000000000000000000000000000010000000000" +
+            "000000000000010000000000000000000000010100000007000000010100000000000000000000000000000000000100000000000f000000000000" +
+            "0001020000000000000000000000000000000000000000000000000000000100000000000000000000000100000000000000000000000102000000" +
+            "0100000000000000ffffffffffffffff00000000000000000000000000000000020000000100000004000000000000000000000002000000010000" +
+            "000100000000000000000000000000e03f020000000000000000000000000000000000000009010000000000000000000000000000003322110055" +
+            "4477668899aabbccddeeff";
 
         /// <summary>
         /// The leaves whose layout differs by runtime (Int128, nint, nuint, pointers, delegate*, DateTimeOffset) are where

@@ -336,7 +336,7 @@ namespace Nino.Codegen.Targets
                     return new GoShape("rawnullable")
                     {
                         Inner = inner, FlagOffset = value.FlagOffset, ValueOffset = value.ValueOffset,
-                        Size = value.Size, MinSize = value.Size,
+                        Clean = value.Clean, Size = value.Size, MinSize = value.Size,
                     };
                 }
                 case ValueKind.RawTuple:
