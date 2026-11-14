@@ -146,6 +146,37 @@ namespace Shapes
     }
 
     /// <summary>
+    /// Raw nullables as the elements of the sequences the corpus lacks (a queue, a stack, a linked list, a sorted
+    /// set, a list interface, nested, and a set inside type arguments, where nino-gen works the encoding out): a slot
+    /// of a fixed size each, as in an array (wire-format spec §6.2). In a dictionary's value and a tuple's item they
+    /// are single values: a presence byte, then the value.
+    /// </summary>
+    [NinoType]
+    public sealed class NullableSlots
+    {
+        public Queue<int?> Queue;
+        public Stack<long?> Stack;
+        public LinkedList<byte?> Linked;
+        public SortedSet<int?> Sorted;
+        public IReadOnlyList<TupleCell?> ReadOnly;
+        public List<Queue<int?>> Nested;
+        public Generic.Box<HashSet<int?>> BoxedSet;
+        public Generic.Box<List<HashSet<long?>>> BoxedNested;
+        public Dictionary<int, long?> Map;
+        public Generic.Box<Dictionary<int, long?>> BoxedMap;
+        public List<(int, int?)> Tuples;
+    }
+
+    /// <summary>Raw nullables as the elements of arrays of two and three dimensions: slots too (TypeScript has no grids).</summary>
+    [NinoType]
+    public sealed class NullableGrids
+    {
+        public int?[,] Grid;
+        public long?[,,] Cube;
+        public TupleCell?[,] Cells;
+    }
+
+    /// <summary>
     /// <c>NinoNullable&lt;T&gt;</c> where the corpus lacks it: of an enum and of a struct of several fields, inside
     /// type arguments (which no layout describes: nino-gen works them out as the raw struct it is everywhere, a
     /// presence and a value of a <c>T</c> each), in a set and in a tuple.

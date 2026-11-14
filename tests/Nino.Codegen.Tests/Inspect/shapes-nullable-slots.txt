@@ -1,0 +1,62 @@
+nino-gen inspect: Shapes.NullableSlots, 273 byte(s) from offset 0
+  offset  length  value
+       0     273  value: Shapes.NullableSlots
+       0       1    presence = 1
+       1      20    Queue: System.Collections.Generic.Queue<System.Nullable<int>> [seq(raw(8){...}]  (2 elements)
+       5       8      [0] = 5
+      13       8      [1] = null
+      21      36    Stack: System.Collections.Generic.Stack<System.Nullable<long>> [seq(raw(16){...}]  (2 elements)
+      25      16      [0] = null
+      41      16      [1] = 7
+      57       8    Linked: System.Collections.Generic.LinkedList<System.Nullable<byte>> [seq(raw(2){...}]  (2 elements)
+      61       2      [0] = null
+      63       2      [1] = 9
+      65      28    Sorted: System.Collections.Generic.SortedSet<System.Nullable<int>> [seq(raw(8){...}]  (3 elements)
+      69       8      [0] = null
+      77       8      [1] = -1
+      85       8      [2] = 3
+      93      36    ReadOnly: System.Collections.Generic.IReadOnlyList<System.Nullable<Shapes.TupleCell>> [seq(raw(16){...}]  (2 elements)
+      97      16      [0]
+     101       1        A: System.Byte = 1
+     105       8        Inside: Shapes.TupleInside
+     105       1          A: System.Byte = 0
+     109       4          T: System.ValueTuple<System.Byte,System.Int16>
+     111       1            Item1: System.Byte = 0
+     109       2            Item2: System.Int16 = 0
+     113      16      [1] = null
+     129      24    Nested: System.Collections.Generic.List<System.Collections.Generic.Queue<System.Nullable<int>>> [seq(seq(raw(8){...}]  (3 elements)
+     133      12      [0]  (1 element)
+     137       8        [0] = 1
+     145       4      [1] = null
+     149       4      [2]  (0 elements)
+     153      21    BoxedSet: Shapes.Generic.Box<System.Collections.Generic.HashSet<System.Nullable<int>>> [type(Shapes.Generic.Box<System.Collections.Generic.HashSet<System.Nullable<int>>>)]
+     153       1      presence = 1
+     154      20      Value: T (System.Collections.Generic.HashSet<System.Nullable<System.Int32>>) [type(T)]  (2 elements)
+     158       8        [0] = 4
+     166       8        [1] = null
+     174      41    BoxedNested: Shapes.Generic.Box<System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<long>>>> [type(Shapes.Generic.Box<System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<long>>>>)]
+     174       1      presence = 1
+     175      40      Value: T (System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<System.Int64>>>) [type(T)]  (1 element)
+     179      36        [0]  (2 elements)
+     183      16          [0] = null
+     199      16          [1] = -2
+     215      22    Map: System.Collections.Generic.Dictionary<int, System.Nullable<long>> [map(raw(4),nullable(raw(8)))]  (2 entries)
+     219       5      [0]
+     219       4        key: System.Int32 = 1
+     223       1        value: System.Nullable<System.Int64> = null
+     224      13      [1]
+     224       4        key: System.Int32 = 2
+     228       9        value: System.Nullable<System.Int64> = 7
+     237      18    BoxedMap: Shapes.Generic.Box<System.Collections.Generic.Dictionary<int, System.Nullable<long>>> [type(Shapes.Generic.Box<System.Collections.Generic.Dictionary<int, System.Nullable<long>>>)]
+     237       1      presence = 1
+     238      17      Value: T (System.Collections.Generic.Dictionary<System.Int32,System.Nullable<System.Int64>>) [type(T)]  (1 entry)
+     242      13        [0]
+     242       4          key: System.Int32 = 3
+     246       9          value: System.Nullable<System.Int64> = 8
+     255      18    Tuples: System.Collections.Generic.List<System.ValueTuple<int, System.Nullable<int>>> [seq(tuple(raw(4),nullable(raw(4))))]  (2 elements)
+     259       5      [0]
+     259       4        Item1: System.Int32 = 1
+     263       1        Item2: System.Nullable<System.Int32> = null
+     264       9      [1]
+     264       4        Item1: System.Int32 = 2
+     268       5        Item2: System.Nullable<System.Int32> = 9

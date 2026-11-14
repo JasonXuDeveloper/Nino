@@ -306,6 +306,22 @@ namespace Samples
     }
 
     /// <summary>
+    /// Raw nullables as the elements of sequences other than arrays and lists (a queue, a set, a stack of a raw
+    /// struct, nested sets, a set inside type arguments): a slot of a fixed size each, as in an array; as a
+    /// dictionary's value, a presence byte and the value. Each language reads .NET's bytes and writes them back.
+    /// </summary>
+    [NinoType]
+    public sealed class Slots
+    {
+        public Queue<long?> Queue;
+        public HashSet<int?> Set;
+        public Stack<Vec2?> Stack;
+        public List<SortedSet<int?>> Nested;
+        public Box<HashSet<int?>> BoxedSet;
+        public Dictionary<int, long?> Map;
+    }
+
+    /// <summary>
     /// A generic subtype: written behind the id of its closed .NET name (Crate&lt;int&gt;), so a slot allows the closed
     /// types the assembly names (<see cref="Pens"/>'s values, in GenericSamples).
     /// </summary>

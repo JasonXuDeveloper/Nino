@@ -88,6 +88,126 @@ namespace Nino.Codegen.Tests
         }
 
         /// <summary>
+        /// A raw <c>T?</c> is a slot of a fixed size as the element of every sequence (a queue, a stack, a linked
+        /// list, a set, an interface, a grid, nested ones), from the layout and inside type arguments, where nino-gen
+        /// works the encoding out; a dictionary's value and a tuple's item are single values. Each slot is
+        /// <c>T</c>'s alignment and its size, the value after the flag's padding.
+        /// </summary>
+        [TestMethod]
+        public void RawNullablesAreSlotsInEverySequenceAndSingleValuesElsewhere()
+        {
+            using var model = Load(GeneratedFilesTests.Shapes);
+            ValueModel Member(string type, string name) => Type(model, type).Members.Single(m => m.Name == name).Value;
+            ValueModel Unboxed(ValueModel value) => value.Kind == ValueKind.Generic ? value.Arguments.Single() : value;
+            void Slot(ValueModel sequence, int size, int valueOffset)
+            {
+                Assert.IsTrue(sequence.Kind is ValueKind.Sequence or ValueKind.Grid, sequence.ToString());
+                var element = sequence.Element!;
+                Assert.AreEqual(ValueKind.RawNullable, element.Kind, sequence.ToString());
+                Assert.IsFalse(element.Clean, sequence.ToString());
+                Assert.AreEqual((0, valueOffset, size), (element.FlagOffset, element.ValueOffset, element.Size), sequence.ToString());
+            }
+
+            const string slots = "Shapes.NullableSlots", grids = "Shapes.NullableGrids";
+            Slot(Member(slots, "Queue"), 8, 4);
+            Slot(Member(slots, "Stack"), 16, 8);
+            Slot(Member(slots, "Linked"), 2, 1);
+            Slot(Member(slots, "Sorted"), 8, 4);
+            Slot(Member(slots, "ReadOnly"), 16, 4);
+            Slot(Member(slots, "Nested").Element!, 8, 4);
+            Slot(Unboxed(Member(slots, "BoxedSet")), 8, 4);
+            Slot(Unboxed(Member(slots, "BoxedNested")).Element!, 16, 8);
+            Slot(Member(grids, "Grid"), 8, 4);
+            Slot(Member(grids, "Cube"), 16, 8);
+            Slot(Member(grids, "Cells"), 16, 4);
+            foreach (var single in new[]
+                     {
+                         Member(slots, "Map").Value!, Unboxed(Member(slots, "BoxedMap")).Value!,
+                         Member(slots, "Tuples").Element!.Items[1],
+                     })
+            {
+                Assert.AreEqual(ValueKind.Nullable, single.Kind, single.ToString());
+                Assert.AreEqual(ValueKind.Primitive, single.Element!.Kind, single.ToString());
+            }
+        }
+
+        /// <summary>The value whose bytes <see cref="NullableSlotsHex"/> are.</summary>
+        internal static Shapes.NullableSlots NullableSlotsValue()
+        {
+            var cell = new Shapes.TupleCell { A = 1 };
+            var stack = new Stack<long?>();
+            stack.Push(null);
+            stack.Push(7);
+            return new Shapes.NullableSlots
+            {
+                Queue = new Queue<int?>(new int?[] { 5, null }),
+                Stack = stack,
+                Linked = new LinkedList<byte?>(new byte?[] { null, 9 }),
+                Sorted = new SortedSet<int?> { 3, null, -1 },
+                ReadOnly = new Shapes.TupleCell?[] { cell, null },
+                Nested = new List<Queue<int?>> { new(new int?[] { 1 }), null, new() },
+                BoxedSet = new() { Value = new HashSet<int?> { 4, null } },
+                BoxedNested = new() { Value = new List<HashSet<long?>> { new() { null, -2 } } },
+                Map = new Dictionary<int, long?> { [1] = null, [2] = 7 },
+                BoxedMap = new() { Value = new Dictionary<int, long?> { [3] = 8 } },
+                Tuples = new List<(int, int?)> { (1, null), (2, 9) },
+            };
+        }
+
+        /// <summary>The value whose bytes <see cref="NullableGridsHex"/> are.</summary>
+        internal static Shapes.NullableGrids NullableGridsValue() => new()
+        {
+            Grid = new int?[,] { { 5, null } },
+            Cube = new long?[1, 2, 1] { { { null }, { 7 } } },
+            Cells = new Shapes.TupleCell?[,] { { null }, { new Shapes.TupleCell { A = 1 } } },
+        };
+
+        /// <summary>
+        /// The bytes .NET writes for the raw nullables of Shapes.NullableSlots and Shapes.NullableGrids, which the
+        /// runtimes' tests of the generated shapes read and write: a queue of <c>{5, null}</c> is the two slots of an
+        /// <c>int?[]</c>, a dictionary's <c>{1: null, 2: 7}</c> a presence byte and the value only when present.
+        /// </summary>
+        [TestMethod]
+        public void RawNullableSlotsAreTheBytesNinoCoreWrites()
+        {
+            var bytes = NinoSerializer.Serialize(NullableSlotsValue());
+            Assert.AreEqual(NullableSlotsHex, Convert.ToHexString(bytes).ToLowerInvariant());
+            Assert.AreSequenceEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<Shapes.NullableSlots>(bytes)));
+            bytes = NinoSerializer.Serialize(NullableGridsValue());
+            Assert.AreEqual(NullableGridsHex, Convert.ToHexString(bytes).ToLowerInvariant());
+            Assert.AreSequenceEqual(bytes, NinoSerializer.Serialize(NinoDeserializer.Deserialize<Shapes.NullableGrids>(bytes)));
+
+            static string Hex<T>(T value) => Convert.ToHexString(NinoSerializer.Serialize(value)).ToLowerInvariant();
+            Assert.AreEqual(QueueHex, Hex(new Queue<int?>(new int?[] { 5, null })));
+            Assert.AreEqual(QueueHex, Hex(new int?[] { 5, null }));
+            Assert.AreEqual(MapHex, Hex(new Dictionary<int, long?> { [1] = null, [2] = 7 }));
+            StringAssert.StartsWith(NullableSlotsHex, "01" + QueueHex);
+            StringAssert.Contains(NullableSlotsHex, MapHex);
+        }
+
+        /// <summary><c>Queue&lt;int?&gt; {5, null}</c>: the count, then two slots of 8 bytes.</summary>
+        internal const string QueueHex = "0200000001000000050000000000000000000000";
+
+        /// <summary><c>Dictionary&lt;int, long?&gt; {1: null, 2: 7}</c>: the count, then a key, a presence byte and the value when present.</summary>
+        internal const string MapHex = "02000000010000000002000000010700000000000000";
+
+        /// <summary>
+        /// What .NET writes for <see cref="NullableSlotsValue"/> and <see cref="NullableGridsValue"/>, which
+        /// runtimes/typescript/test/shapes.test.ts (the slots), runtimes/go/internal/generated/shapes/shapes_test.go and
+        /// runtimes/rust/tests/generated.rs hold too.
+        /// </summary>
+        internal const string NullableSlotsHex =
+            "0102000000010000000500000000000000000000000200000000000000000000000000000000000000010000000000000007000000000000000200" +
+            "00000000010903000000000000000000000001000000ffffffff010000000300000002000000010000000100000000000000000000000000000000" +
+            "000000000000000000000003000000010000000100000001000000ffffffff00000000010200000001000000040000000000000000000000010100" +
+            "000002000000000000000000000000000000000000000100000000000000feffffffffffffff020000000100000000020000000107000000000000" +
+            "00010100000003000000010800000000000000020000000100000000020000000109000000";
+
+        internal const string NullableGridsHex =
+            "0101000000020000000100000005000000000000000000000001000000020000000100000000000000000000000000000000000000010000000000" +
+            "0000070000000000000002000000010000000000000000000000000000000000000001000000010000000000000000000000";
+
+        /// <summary>
         /// A <c>NinoNullable&lt;T&gt;</c> is its memory wherever it is declared: a member, an element of a collection and
         /// a field of a raw struct (the corpus's types), and inside type arguments, a set and a tuple (Shapes.cs),
         /// where no layout says so and nino-gen works the encoding out. The flag, then the value at <c>T</c>'s size,

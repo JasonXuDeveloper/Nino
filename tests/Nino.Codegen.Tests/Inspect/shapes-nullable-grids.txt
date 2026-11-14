@@ -1,0 +1,19 @@
+nino-gen inspect: Shapes.NullableGrids, 109 byte(s) from offset 0
+  offset  length  value
+       0     109  value: Shapes.NullableGrids
+       0       1    presence = 1
+       1      24    Grid: System.Nullable<int>[,] [grid(2,raw(8){...}]  (1 x 2)
+       9       8      [0,0] = 5
+      17       8      [0,1] = null
+      25      44    Cube: System.Nullable<long>[,,] [grid(3,raw(16){...}]  (1 x 2 x 1)
+      37      16      [0,0,0] = null
+      53      16      [0,1,0] = 7
+      69      40    Cells: System.Nullable<Shapes.TupleCell>[,] [grid(2,raw(16){...}]  (2 x 1)
+      77      16      [0,0] = null
+      93      16      [1,0]
+      97       1        A: System.Byte = 1
+     101       8        Inside: Shapes.TupleInside
+     101       1          A: System.Byte = 0
+     105       4          T: System.ValueTuple<System.Byte,System.Int16>
+     107       1            Item1: System.Byte = 0
+     105       2            Item2: System.Int16 = 0

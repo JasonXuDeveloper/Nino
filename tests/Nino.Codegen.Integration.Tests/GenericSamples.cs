@@ -82,6 +82,34 @@ namespace Nino.Codegen.Integration.Tests
             BoxedList = new Box<List<NinoNullable<long>>> { Value = new List<NinoNullable<long>> { 1, default } },
         };
 
+        /// <summary>
+        /// Raw nullables with and without values in each sequence, and in a dictionary's value; one element in each
+        /// set unless <paramref name="ordered"/> (written in the same order by any set).
+        /// </summary>
+        internal static Slots Slots(bool ordered)
+        {
+            var stack = new Stack<Vec2?>();
+            stack.Push(null);
+            stack.Push(new Vec2 { X = 1.5f, Y = -2 });
+            var value = new Slots
+            {
+                Queue = new Queue<long?>(new long?[] { long.MinValue, null, 3 }),
+                Set = new HashSet<int?> { 4 },
+                Stack = stack,
+                Nested = new List<SortedSet<int?>> { new() { null }, null, new() },
+                BoxedSet = new Box<HashSet<int?>> { Label = "boxed", Value = new HashSet<int?> { null } },
+                Map = new Dictionary<int, long?> { [1] = null },
+            };
+            if (ordered)
+            {
+                value.Set.Add(null);
+                value.Nested[0].UnionWith(new int?[] { 2, -2 });
+                value.BoxedSet.Value.Add(7);
+            }
+
+            return value;
+        }
+
         /// <summary><see cref="Full"/> with at most one entry in each map: written in the same order by any map.</summary>
         internal static Generics SingleEntries()
         {
@@ -105,6 +133,8 @@ namespace Nino.Codegen.Integration.Tests
                 ("Samples.Tag", NinoSerializer.Serialize(new Tag { Name = "tag", Weight = -1 })),
                 ("Samples.Sparse", NinoSerializer.Serialize(Sparse())),
                 ("Samples.Sparse", NinoSerializer.Serialize(new Sparse())),
+                ("Samples.Slots", NinoSerializer.Serialize(Slots(ordered))),
+                ("Samples.Slots", NinoSerializer.Serialize(new Slots())),
                 ("Samples.Pens", NinoSerializer.Serialize(Pens())),
                 ("Samples.Pens", NinoSerializer.Serialize(new Pens { Anything = new Patch<int> { Value = 5 } })),
             };

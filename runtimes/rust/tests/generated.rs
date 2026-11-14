@@ -333,6 +333,86 @@ fn nullable_strides_as_dotnet_writes_them() {
     assert_eq!(nino::deserialize_exact::<Option<Box<Strides>>>(&expected).unwrap(), Some(Box::new(strides)));
 }
 
+/// The bytes .NET writes for the NullableSlots of tests/Nino.Codegen.Tests/ModelTests.cs, NullableSlotsHex: a raw
+/// `T?` is a slot of a fixed size as the element of every sequence (a queue, a stack, a linked list, a sorted set,
+/// a list interface, nested, a set inside type arguments), and a single value in a dictionary and a tuple.
+const NULLABLE_SLOTS: &str = "010200000001000000050000000000000000000000020000000000000000000000000000000000000001000000000000000700000000000000 \
+    020000000000010903000000000000000000000001000000ffffffff0100000003000000020000000100000001000000000000000000000000 \
+    00000000000000000000000000000003000000010000000100000001000000ffffffff00000000010200000001000000040000000000000000 \
+    000000010100000002000000000000000000000000000000000000000100000000000000feffffffffffffff02000000010000000002000000 \
+    010700000000000000010100000003000000010800000000000000020000000100000000020000000109000000";
+
+/// `Queue<int?> {5, null}`, the two slots of an `int?[]`; `Dictionary<int, long?> {1: null, 2: 7}`, single values.
+const QUEUE: &str = "02000000 01000000 05000000 00000000 00000000";
+const DICTIONARY: &str = "02000000 01000000 00 02000000 01 0700000000000000";
+
+#[test]
+fn nullable_slots_as_dotnet_writes_them() {
+    use nino::{RawNullable, RawNullables};
+    use shapes::{BoxType, NullableSlots, TupleCell};
+    let cell = TupleCell { a: 1, ..Default::default() };
+    let value = NullableSlots {
+        queue: Some(RawNullables(vec![Some(5), None])),
+        stack: Some(RawNullables(vec![None, Some(7)])),
+        linked: Some(RawNullables(vec![None, Some(9)])),
+        sorted: Some([None, Some(-1), Some(3)].into_iter().map(RawNullable).collect()),
+        read_only: Some(RawNullables(vec![Some(cell), None])),
+        nested: Some(vec![Some(RawNullables(vec![Some(1)])), None, Some(RawNullables(vec![]))]),
+        boxed_set: Some(Box::new(BoxType { value: Some([Some(4), None].into_iter().map(RawNullable).collect()) })),
+        boxed_nested: Some(Box::new(BoxType {
+            value: Some(vec![Some([None, Some(-2)].into_iter().map(RawNullable).collect())]),
+        })),
+        map: Some([(1, None), (2, Some(7))].into_iter().collect()),
+        boxed_map: Some(Box::new(BoxType { value: Some([(3, Some(8))].into_iter().collect()) })),
+        tuples: Some(vec![(1, None), (2, Some(9))]),
+    };
+    let expected = unhex(NULLABLE_SLOTS);
+    assert_eq!(nino::serialize(&Some(Box::new(value.clone()))).unwrap(), expected);
+    assert_eq!(
+        nino::deserialize_exact::<Option<Box<NullableSlots>>>(&expected).unwrap(),
+        Some(Box::new(value.clone()))
+    );
+    assert_eq!(nino::serialize(&value.queue).unwrap(), unhex(QUEUE));
+    assert_eq!(nino::serialize(&value.map).unwrap(), unhex(DICTIONARY));
+    assert_eq!(expected[1..21], unhex(QUEUE));
+    assert_eq!(expected[215..237], unhex(DICTIONARY));
+    // A presence byte other than 0 or 1 is rejected in every sequence: the queue's first slot (at 5), the sorted
+    // set's second (at 77), the set's inside a type argument (at 158).
+    for at in [5, 77, 158] {
+        let mut bad = expected.clone();
+        bad[at] = 2;
+        let error = nino::deserialize_exact::<Option<Box<NullableSlots>>>(&bad).unwrap_err();
+        assert_eq!(error.kind(), nino::ErrorKind::InvalidPresence, "byte {at}");
+    }
+}
+
+/// The elements of arrays of two and three dimensions are slots too: the bytes .NET writes for the NullableGrids of
+/// ModelTests.cs, NullableGridsHex.
+const NULLABLE_GRIDS: &str = "010100000002000000010000000500000000000000000000000100000002000000010000000000000000000000000000000000000001000000 \
+    00000000070000000000000002000000010000000000000000000000000000000000000001000000010000000000000000000000";
+
+#[test]
+fn nullable_grids_as_dotnet_writes_them() {
+    use nino::{Grid, RawNullable};
+    use shapes::{NullableGrids, TupleCell};
+    let cell = TupleCell { a: 1, ..Default::default() };
+    let value = NullableGrids {
+        grid: Grid::new([1, 2], vec![RawNullable(Some(5)), RawNullable(None)]),
+        cube: Grid::new([1, 2, 1], vec![RawNullable(None), RawNullable(Some(7))]),
+        cells: Grid::new([2, 1], vec![RawNullable(None), RawNullable(Some(cell))]),
+    };
+    let expected = unhex(NULLABLE_GRIDS);
+    assert_eq!(nino::serialize(&Some(Box::new(value.clone()))).unwrap(), expected);
+    assert_eq!(nino::deserialize_exact::<Option<Box<NullableGrids>>>(&expected).unwrap(), Some(Box::new(value)));
+    // The presence byte of the grid's first element (at 9) and of the cube's second (at 53).
+    for at in [9, 53] {
+        let mut bad = expected.clone();
+        bad[at] = 0xff;
+        let error = nino::deserialize_exact::<Option<Box<NullableGrids>>>(&bad).unwrap_err();
+        assert_eq!(error.kind(), nino::ErrorKind::InvalidPresence, "byte {at}");
+    }
+}
+
 fn unhex(text: &str) -> Vec<u8> {
     let text: String = text.split_whitespace().collect();
     (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap()).collect()
