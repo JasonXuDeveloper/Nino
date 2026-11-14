@@ -284,50 +284,6 @@ func readStrideInt64s(r *nino.Reader) []*int64 {
 	return v
 }
 
-func readStrideDecimals(r *nino.Reader) []*nino.Decimal {
-	n := r.Length(24)
-	if n < 0 {
-		return nil
-	}
-	b := r.Take(n * 24)
-	if len(b) != n*24 {
-		return nil
-	}
-	var e *nino.Decimal
-	v := make([]*nino.Decimal, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
-	for len(b) >= 24 {
-		e = decodeStrideDecimal(r, b[:24:24])
-		if r.Failed() {
-			return nil
-		}
-		v = append(v, e)
-		b = b[24:]
-	}
-	return v
-}
-
-func readStrideGuids(r *nino.Reader) []*nino.Guid {
-	n := r.Length(20)
-	if n < 0 {
-		return nil
-	}
-	b := r.Take(n * 20)
-	if len(b) != n*20 {
-		return nil
-	}
-	var e *nino.Guid
-	v := make([]*nino.Guid, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
-	for len(b) >= 20 {
-		e = decodeStrideGuid(r, b[:20:20])
-		if r.Failed() {
-			return nil
-		}
-		v = append(v, e)
-		b = b[20:]
-	}
-	return v
-}
-
 func readStridePaddeds(r *nino.Reader) []*Padded {
 	n := r.Length(24)
 	if n < 0 {
@@ -691,38 +647,6 @@ func writeStrideInt64s(w *nino.Writer, v []*int64) {
 	}
 }
 
-func writeStrideDecimals(w *nino.Writer, v []*nino.Decimal) {
-	if v == nil {
-		w.NullLength()
-		return
-	}
-	w.Length(len(v))
-	b := w.ExtendZero(len(v) * 24)
-	if len(b) != len(v)*24 {
-		return
-	}
-	for _, e := range v {
-		encodeStrideDecimal(b[:24:24], e)
-		b = b[24:]
-	}
-}
-
-func writeStrideGuids(w *nino.Writer, v []*nino.Guid) {
-	if v == nil {
-		w.NullLength()
-		return
-	}
-	w.Length(len(v))
-	b := w.ExtendZero(len(v) * 20)
-	if len(b) != len(v)*20 {
-		return
-	}
-	for _, e := range v {
-		encodeStrideGuid(b[:20:20], e)
-		b = b[20:]
-	}
-}
-
 func writeStridePaddeds(w *nino.Writer, v []*Padded) {
 	if v == nil {
 		w.NullLength()
@@ -902,5 +826,368 @@ func readVec2(r *nino.Reader) (v Vec2) {
 func writeVec2(w *nino.Writer, v Vec2) {
 	if b := w.ExtendZero(8); len(b) == 8 {
 		encodeVec2(b, v)
+	}
+}
+
+// The loops and single values of NinoNullable<T>: fixed-size elements, 2 x size(T) bytes each.
+
+func readNinoNullableUint8s(r *nino.Reader) []*uint8 {
+	n := r.Length(2)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 2)
+	if len(b) != n*2 {
+		return nil
+	}
+	var e *uint8
+	v := make([]*uint8, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 2 {
+		e = decodeNinoNullableUint8(r, b[:2:2])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[2:]
+	}
+	return v
+}
+
+func writeNinoNullableUint8s(w *nino.Writer, v []*uint8) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 2)
+	if len(b) != len(v)*2 {
+		return
+	}
+	for _, e := range v {
+		encodeNinoNullableUint8(b[:2:2], e)
+		b = b[2:]
+	}
+}
+
+func readNinoNullableInt32s(r *nino.Reader) []*int32 {
+	n := r.Length(8)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 8)
+	if len(b) != n*8 {
+		return nil
+	}
+	var e *int32
+	v := make([]*int32, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 8 {
+		e = decodeNinoNullableInt32(r, b[:8:8])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[8:]
+	}
+	return v
+}
+
+func writeNinoNullableInt32s(w *nino.Writer, v []*int32) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 8)
+	if len(b) != len(v)*8 {
+		return
+	}
+	for _, e := range v {
+		encodeNinoNullableInt32(b[:8:8], e)
+		b = b[8:]
+	}
+}
+
+func readNinoNullableInt64s(r *nino.Reader) []*int64 {
+	n := r.Length(16)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 16)
+	if len(b) != n*16 {
+		return nil
+	}
+	var e *int64
+	v := make([]*int64, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 16 {
+		e = decodeNinoNullableInt64(r, b[:16:16])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[16:]
+	}
+	return v
+}
+
+func writeNinoNullableInt64s(w *nino.Writer, v []*int64) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 16)
+	if len(b) != len(v)*16 {
+		return
+	}
+	for _, e := range v {
+		encodeNinoNullableInt64(b[:16:16], e)
+		b = b[16:]
+	}
+}
+
+func readNinoNullableDecimals(r *nino.Reader) []*nino.Decimal {
+	n := r.Length(32)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 32)
+	if len(b) != n*32 {
+		return nil
+	}
+	var e *nino.Decimal
+	v := make([]*nino.Decimal, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 32 {
+		e = decodeNinoNullableDecimal(r, b[:32:32])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[32:]
+	}
+	return v
+}
+
+func writeNinoNullableDecimals(w *nino.Writer, v []*nino.Decimal) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 32)
+	if len(b) != len(v)*32 {
+		return
+	}
+	for _, e := range v {
+		encodeNinoNullableDecimal(b[:32:32], e)
+		b = b[32:]
+	}
+}
+
+func readNinoNullableGuids(r *nino.Reader) []*nino.Guid {
+	n := r.Length(32)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 32)
+	if len(b) != n*32 {
+		return nil
+	}
+	var e *nino.Guid
+	v := make([]*nino.Guid, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 32 {
+		e = decodeNinoNullableGuid(r, b[:32:32])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[32:]
+	}
+	return v
+}
+
+func writeNinoNullableGuids(w *nino.Writer, v []*nino.Guid) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 32)
+	if len(b) != len(v)*32 {
+		return
+	}
+	for _, e := range v {
+		encodeNinoNullableGuid(b[:32:32], e)
+		b = b[32:]
+	}
+}
+
+func readNinoNullablePaddeds(r *nino.Reader) []*Padded {
+	n := r.Length(32)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 32)
+	if len(b) != n*32 {
+		return nil
+	}
+	var e *Padded
+	v := make([]*Padded, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 32 {
+		e = decodeNinoNullablePadded(r, b[:32:32])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[32:]
+	}
+	return v
+}
+
+func writeNinoNullablePaddeds(w *nino.Writer, v []*Padded) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 32)
+	if len(b) != len(v)*32 {
+		return
+	}
+	for _, e := range v {
+		encodeNinoNullablePadded(b[:32:32], e)
+		b = b[32:]
+	}
+}
+
+func readNinoNullableFieldsSlice(r *nino.Reader) []NinoNullableFields {
+	n := r.Length(48)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 48)
+	if len(b) != n*48 {
+		return nil
+	}
+	var e NinoNullableFields
+	v := make([]NinoNullableFields, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 48 {
+		e = decodeNinoNullableFields(r, b[:48:48])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[48:]
+	}
+	return v
+}
+
+func writeNinoNullableFieldsSlice(w *nino.Writer, v []NinoNullableFields) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 48)
+	if len(b) != len(v)*48 {
+		return
+	}
+	for _, e := range v {
+		encodeNinoNullableFields(b[:48:48], e)
+		b = b[48:]
+	}
+}
+
+func readNinoNullableInt64(r *nino.Reader) (v *int64) {
+	if b := r.Take(16); len(b) == 16 {
+		v = decodeNinoNullableInt64(r, b)
+	}
+	return v
+}
+
+func writeNinoNullableInt64(w *nino.Writer, v *int64) {
+	if b := w.ExtendZero(16); len(b) == 16 {
+		encodeNinoNullableInt64(b, v)
+	}
+}
+
+func readNinoNullableDecimal(r *nino.Reader) (v *nino.Decimal) {
+	if b := r.Take(32); len(b) == 32 {
+		v = decodeNinoNullableDecimal(r, b)
+	}
+	return v
+}
+
+func writeNinoNullableDecimal(w *nino.Writer, v *nino.Decimal) {
+	if b := w.ExtendZero(32); len(b) == 32 {
+		encodeNinoNullableDecimal(b, v)
+	}
+}
+
+func readNinoNullableGuid(r *nino.Reader) (v *nino.Guid) {
+	if b := r.Take(32); len(b) == 32 {
+		v = decodeNinoNullableGuid(r, b)
+	}
+	return v
+}
+
+func writeNinoNullableGuid(w *nino.Writer, v *nino.Guid) {
+	if b := w.ExtendZero(32); len(b) == 32 {
+		encodeNinoNullableGuid(b, v)
+	}
+}
+
+func readNinoNullablePadded(r *nino.Reader) (v *Padded) {
+	if b := r.Take(32); len(b) == 32 {
+		v = decodeNinoNullablePadded(r, b)
+	}
+	return v
+}
+
+func writeNinoNullablePadded(w *nino.Writer, v *Padded) {
+	if b := w.ExtendZero(32); len(b) == 32 {
+		encodeNinoNullablePadded(b, v)
+	}
+}
+
+func readNinoNullableFields(r *nino.Reader) (v NinoNullableFields) {
+	if b := r.Take(48); len(b) == 48 {
+		v = decodeNinoNullableFields(r, b)
+	}
+	return v
+}
+
+func writeNinoNullableFields(w *nino.Writer, v NinoNullableFields) {
+	if b := w.ExtendZero(48); len(b) == 48 {
+		encodeNinoNullableFields(b, v)
+	}
+}
+
+func readI32NinoNullableDecimalEntries(r *nino.Reader) []nino.Entry[int32, *nino.Decimal] {
+	n := r.Length(36)
+	if n < 0 {
+		return nil
+	}
+	var e nino.Entry[int32, *nino.Decimal]
+	v := make([]nino.Entry[int32, *nino.Decimal], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for range n {
+		k := r.I32()
+		e = nino.Entry[int32, *nino.Decimal]{Key: k, Value: readNinoNullableDecimal(r)}
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+	}
+	return nino.CheckUniqueKeys(r, v)
+}
+
+func writeI32NinoNullableDecimalEntries(w *nino.Writer, v []nino.Entry[int32, *nino.Decimal]) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		w.I32(e.Key)
+		writeNinoNullableDecimal(w, e.Value)
 	}
 }

@@ -1,7 +1,7 @@
 {
   "rule": "For each case, every strict prefix of valid/<case>.bin (lengths 0 to size - 1) read as <type> must be an error.",
   "expected": "error",
-  "prefixCount": 11403,
+  "prefixCount": 11935,
   "cases": [
     {
       "case": "integers-mixed",
@@ -270,11 +270,11 @@
     {
       "case": "ninonullables-values",
       "type": "Conformance.NinoNullables",
-      "prefixes": 545,
+      "prefixes": 1077,
       "dotnet": {
         "outcome": "error",
         "exceptions": {
-          "NinoDataException": 545
+          "NinoDataException": 1077
         }
       }
     },

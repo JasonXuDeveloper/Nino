@@ -7,8 +7,8 @@
 
 use indexmap::{IndexMap, IndexSet};
 use nino::{
-    BigInteger, DateOnly, DateTime, DateTimeOffset, Decimal, Grid, Guid, Half, NinoRead, NinoWrite, RawNullables,
-    TimeOnly, TimeSpan, Version, WideString,
+    BigInteger, DateOnly, DateTime, DateTimeOffset, Decimal, Grid, Guid, Half, NinoNullable, NinoRead, NinoWrite,
+    RawNullables, TimeOnly, TimeSpan, Version, WideString,
 };
 use std::path::{Path, PathBuf};
 
@@ -245,22 +245,46 @@ pub struct Nullables {
     pub map: Option<IndexMap<i32, Option<i32>>>,
 }
 
-/// .NET's `NinoNullable<T>` members: the layout encodings and bytes of `T?`, so the Rust types of `T?`.
+/// A raw struct holding .NET's `NinoNullable<T>`: each field its memory at its offset.
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; id=0xFEE5EE68; deferrable=false; members=raw(48){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},Price:Nino.Core.NinoNullable<decimal>@16:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)}}")]
+pub struct NinoNullableFields {
+    pub tag: u8,
+    pub count: NinoNullable<i32>,
+    pub price: NinoNullable<Decimal>,
+}
+
+/// .NET's `NinoNullable<T>` members: its memory wherever it is (a presence and a value of a `T` each), which is not
+/// the bytes of a `T?`: `nino::NinoNullable<T>`, where a `T?` is an `Option<T>` or a `RawNullables<T>`.
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x66E9615A; deferrable=true; members=Long:Nino.Core.NinoNullable<long>:nullable(raw(8));Decimal:Nino.Core.NinoNullable<decimal>:nullable(raw(16));Guid:Nino.Core.NinoNullable<System.Guid>:nullable(raw(16));Padded:Nino.Core.NinoNullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:Nino.Core.NinoNullable<decimal>[]:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});DecimalList:System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>>:seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)});GuidArray:Nino.Core.NinoNullable<System.Guid>[]:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});GuidList:System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>>:seq(raw(20){hasValue:bool@0:raw(1),value:System.Guid@4:raw(16)});PaddedArray:Nino.Core.NinoNullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>>:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}})")]
+#[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x66E9615A; deferrable=true; members=Long:Nino.Core.NinoNullable<long>:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)};Decimal:Nino.Core.NinoNullable<decimal>:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)};Guid:Nino.Core.NinoNullable<System.Guid>:raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)};Padded:Nino.Core.NinoNullable<Conformance.Padded>:raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}};LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});DecimalArray:Nino.Core.NinoNullable<decimal>[]:seq(raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});DecimalList:System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>>:seq(raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});GuidArray:Nino.Core.NinoNullable<System.Guid>[]:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});GuidList:System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>>:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});PaddedArray:Nino.Core.NinoNullable<Conformance.Padded>[]:seq(raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});PaddedList:System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>>:seq(raw(32){hasValue:bool@0:raw(1),value:Conformance.Padded@16:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});GuidQueue:System.Collections.Generic.Queue<Nino.Core.NinoNullable<System.Guid>>:seq(raw(32){hasValue:bool@0:raw(1),value:System.Guid@16:raw(16)});DecimalMap:System.Collections.Generic.Dictionary<int, Nino.Core.NinoNullable<decimal>>:map(raw(4),raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)});Fields:Conformance.NinoNullableFields:raw(48){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},Price:Nino.Core.NinoNullable<decimal>@16:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)}};FieldsArray:Conformance.NinoNullableFields[]:seq(raw(48){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)},Price:Nino.Core.NinoNullable<decimal>@16:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)}})")]
 pub struct NinoNullables {
-    pub long: Option<i64>,
-    pub decimal: Option<Decimal>,
-    pub guid: Option<Guid>,
-    pub padded: Option<Padded>,
-    pub long_array: Option<RawNullables<i64>>,
-    pub long_list: Option<RawNullables<i64>>,
-    pub decimal_array: Option<RawNullables<Decimal>>,
-    pub decimal_list: Option<RawNullables<Decimal>>,
-    pub guid_array: Option<RawNullables<Guid>>,
-    pub guid_list: Option<RawNullables<Guid>>,
-    pub padded_array: Option<RawNullables<Padded>>,
-    pub padded_list: Option<RawNullables<Padded>>,
+    pub long: NinoNullable<i64>,
+    pub decimal: NinoNullable<Decimal>,
+    pub guid: NinoNullable<Guid>,
+    pub padded: NinoNullable<Padded>,
+    pub long_array: Option<Vec<NinoNullable<i64>>>,
+    pub long_list: Option<Vec<NinoNullable<i64>>>,
+    pub decimal_array: Option<Vec<NinoNullable<Decimal>>>,
+    pub decimal_list: Option<Vec<NinoNullable<Decimal>>>,
+    pub guid_array: Option<Vec<NinoNullable<Guid>>>,
+    pub guid_list: Option<Vec<NinoNullable<Guid>>>,
+    pub padded_array: Option<Vec<NinoNullable<Padded>>>,
+    pub padded_list: Option<Vec<NinoNullable<Padded>>>,
+    pub guid_queue: Option<Vec<NinoNullable<Guid>>>,
+    pub decimal_map: Option<IndexMap<i32, NinoNullable<Decimal>>>,
+    pub fields: NinoNullableFields,
+    pub fields_array: Option<Vec<NinoNullableFields>>,
+}
+
+/// Runs of `NinoNullable<T>` of a `T` as large as its alignment: the bytes of the `T?` runs (`RawNullables<T>`).
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x97EFBB53; deferrable=true; members=LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});IntArray:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});ByteList:System.Collections.Generic.List<Nino.Core.NinoNullable<byte>>:seq(raw(2){hasValue:bool@0:raw(1),value:byte@1:raw(1)})")]
+pub struct NinoNullableRuns {
+    pub long_array: Option<Vec<NinoNullable<i64>>>,
+    pub long_list: Option<Vec<NinoNullable<i64>>>,
+    pub int_array: Option<Vec<NinoNullable<i32>>>,
+    pub byte_list: Option<Vec<NinoNullable<u8>>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
@@ -618,6 +642,7 @@ fn case_type(name: &str) -> Option<Box<dyn Case>> {
         "Conformance.Structs" => of::<Option<Box<Structs>>>(),
         "Conformance.Nullables" => of::<Option<Box<Nullables>>>(),
         "Conformance.NinoNullables" => of::<Option<Box<NinoNullables>>>(),
+        "Conformance.NinoNullableRuns" => of::<Option<Box<NinoNullableRuns>>>(),
         "Conformance.Collections" => of::<Option<Box<Collections>>>(),
         "Conformance.Empties" => of::<Option<Box<Empties>>>(),
         "Conformance.TolerantV1" => of::<Option<Box<TolerantV1>>>(),

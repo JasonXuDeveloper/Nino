@@ -78,8 +78,9 @@ GENERIC_ARGS = {
         "System.Collections.Generic.List<Conformance.Point>", "seq(type(Conformance.Point))"),
 }
 
-# T? and .NET's NinoNullable<T>, which is published and written exactly as T?.
-NULLABLES = ("System.Nullable<", "Nino.Core.NinoNullable<")
+NULLABLE = "System.Nullable<"
+# .NET's NinoNullable<T>: its memory wherever it is (a presence and a value of a T each), nino::NinoNullable<T>.
+NINO_NULLABLE = "Nino.Core.NinoNullable<"
 
 PRIMS = {
     "sbyte": "i8", "byte": "u8", "short": "i16", "ushort": "u16", "int": "i32", "uint": "u32", "long": "i64",
@@ -200,10 +201,14 @@ class Gen:
         # Where a layout publishes a T?[] stride (the specification, 6.2), its value offset is T's alignment: each
         # raw struct's computed alignment is checked against it.
         self.published_aligns = {}
+        # A NinoNullable<T> publishes the same text with the value at T's size: its members say nothing of alignment.
         for text in layouts.values():
-            for t, off in re.findall(r"hasValue:bool@0:raw\(1\),value:([^@]+)@(\d+):", text):
-                if self.published_aligns.setdefault(t, int(off)) != int(off):
-                    raise ValueError(f"two strides published for {t}")
+            for member in text.split(";"):
+                if NINO_NULLABLE in member:
+                    continue
+                for t, off in re.findall(r"hasValue:bool@0:raw\(1\),value:([^@]+)@(\d+):", member):
+                    if self.published_aligns.setdefault(t, int(off)) != int(off):
+                        raise ValueError(f"two strides published for {t}")
         self.type_ids = type_ids
         self.out = []
         self.raw_structs = {}
@@ -226,7 +231,9 @@ class Gen:
                 return PRIMS[name]
             if name in ENUMS:
                 return PRIMS[ENUMS[name]]
-            if name.startswith(NULLABLES):
+            if name.startswith(NINO_NULLABLE):
+                return f"nino::NinoNullable<{self.rust(c[1][0], ('raw', None, None))}>"
+            if name.startswith(NULLABLE):
                 raise ValueError(name)
             return self.raw_struct(name)
         if kind == "string":
@@ -248,7 +255,7 @@ class Gen:
             return f"Option<{self.rust(inner, enc[1], owner, member)}>"
         if kind == "seq":
             el = self.element(c)
-            if el is not None and cs_name(el).startswith(NULLABLES) and enc[1][0] == "raw":
+            if el is not None and cs_name(el).startswith(NULLABLE) and enc[1][0] == "raw":
                 inner = el[1][0]
                 return f"Option<nino::RawNullables<{self.rust(inner, ('raw', None, None))}>>"
             if name in SELF_COLLECTIONS:
@@ -324,6 +331,8 @@ class Gen:
             return self.struct_align(ftype)
         if re.match(r"System\.(ValueTuple|Collections\.Generic\.KeyValuePair|Nullable|DateTimeOffset)\b", ftype):
             raise ValueError(f"{ftype}: a BCL struct in a raw struct, left to the code nino-gen writes")
+        if ftype.startswith(NINO_NULLABLE):
+            return self.leaf_align(ftype[len(NINO_NULLABLE):-1], ("raw", fenc[1] // 2, None))
         return LEAF_ALIGNS.get(ftype, fenc[1])
 
     def struct_align(self, name):

@@ -1,0 +1,37 @@
+{
+  "case": "ninonullable-runs",
+  "description": "Runs of NinoNullable<T> of a T as large as its alignment (long, int, byte): the bytes of the T? runs.",
+  "type": "Conformance.NinoNullableRuns",
+  "features": [
+    "seq",
+    "raw-struct"
+  ],
+  "size": 151,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.NinoNullableRuns": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x97EFBB53; deferrable=true; members=LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});IntArray:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});ByteList:System.Collections.Generic.List<Nino.Core.NinoNullable<byte>>:seq(raw(2){hasValue:bool@0:raw(1),value:byte@1:raw(1)})"
+  },
+  "value": {
+    "$type": "Conformance.NinoNullableRuns",
+    "LongArray": [
+      1,
+      null,
+      "9223372036854775807",
+      0
+    ],
+    "LongList": [
+      null,
+      -1,
+      null
+    ],
+    "IntArray": [
+      5,
+      null
+    ],
+    "ByteList": [
+      255,
+      null,
+      0
+    ]
+  }
+}

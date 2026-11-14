@@ -32,6 +32,7 @@ var tagRoots = map[string]reflect.Type{
 	"Conformance.Collections":       nil, // int[,]: grid encodings are not supported by struct tags
 	"Conformance.Nullables":         reflect.TypeFor[*Nullables](),
 	"Conformance.NinoNullables":     reflect.TypeFor[*NinoNullables](),
+	"Conformance.NinoNullableRuns":  reflect.TypeFor[*NinoNullableRuns](),
 	"Conformance.Empties":           reflect.TypeFor[*Empties](),
 	"Conformance.TolerantV1":        reflect.TypeFor[*TolerantV1](),
 	"Conformance.TolerantV2":        reflect.TypeFor[*TolerantV2](),

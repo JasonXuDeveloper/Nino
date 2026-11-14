@@ -45,6 +45,7 @@ var codecs = map[string]codec{
 	"Conformance.Collections":       codecOf(ReadCollections, WriteCollections),
 	"Conformance.Nullables":         codecOf(ReadNullables, WriteNullables),
 	"Conformance.NinoNullables":     codecOf(ReadNinoNullables, WriteNinoNullables),
+	"Conformance.NinoNullableRuns":  codecOf(ReadNinoNullableRuns, WriteNinoNullableRuns),
 	"Conformance.Empties":           codecOf(ReadEmpties, WriteEmpties),
 	"Conformance.TolerantV1":        codecOf(ReadTolerantV1, WriteTolerantV1),
 	"Conformance.TolerantV2":        codecOf(ReadTolerantV2, WriteTolerantV2),

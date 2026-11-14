@@ -228,6 +228,12 @@ impl<T: J, const R: usize> J for Grid<T, R> {
     }
 }
 
+impl<T: J> J for NinoNullable<T> {
+    fn j(&self) -> Value {
+        self.0.j()
+    }
+}
+
 impl<T: Raw + J> J for RawNullables<T> {
     fn j(&self) -> Value {
         Value::Array(self.0.iter().map(J::j).collect())

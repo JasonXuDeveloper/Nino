@@ -444,13 +444,14 @@ namespace Conformance
                 Map = new Dictionary<int, int?>(),
             }, "nullable", "seq", "map");
 
-            // ---------------------------------------------------------- NinoNullable<T>: the bytes of T?
+            // ---------------------------------------------------------- NinoNullable<T>: its memory, a raw struct
 
-            Add("ninonullables-null", "Every NinoNullable<T> without a value, every collection of them null.",
-                new NinoNullables(), "nullable");
-            Add("ninonullables-values", "NinoNullable<T> with values, alone (a presence byte, then the value) and in " +
-                                        "arrays and lists (the fixed stride of T?[]): long, decimal, Guid and a " +
-                                        "struct with padding, values present and absent.",
+            Add("ninonullables-null", "Every NinoNullable<T> without a value (2 x size(T) zero bytes each), every " +
+                                      "collection of them null.",
+                new NinoNullables(), "raw-struct");
+            Add("ninonullables-values", "NinoNullable<T> with values, alone, in arrays, lists, a queue, a dictionary " +
+                                        "and a raw struct, each 2 x size(T) bytes (the presence, then the value): " +
+                                        "long, decimal, Guid and a struct with padding, values present and absent.",
                 new NinoNullables
             {
                 Long = long.MinValue, Decimal = -1234.5600m, Guid = new Guid("00112233-4455-6677-8899-aabbccddeeff"),
@@ -463,31 +464,45 @@ namespace Conformance
                 GuidList = new List<NinoNullable<Guid>> { Guid.Empty, default, new Guid("01020304-0506-0708-090a-0b0c0d0e0f10") },
                 PaddedArray = new NinoNullable<Padded>[] { new Padded { A = 3, B = 4 }, default },
                 PaddedList = new List<NinoNullable<Padded>> { default, new Padded { A = 255, B = long.MinValue }, default },
-            }, "nullable", "seq", "raw-struct");
+                GuidQueue = new Queue<NinoNullable<Guid>>(new NinoNullable<Guid>[] { new Guid("0f0e0d0c-0b0a-0908-0706-050403020100"), default }),
+                DecimalMap = new Dictionary<int, NinoNullable<decimal>> { [1] = 79.99m, [-2] = default },
+                Fields = new NinoNullableFields { Tag = 7, Count = 5, Price = 0.01m },
+                FieldsArray = new[]
+                {
+                    new NinoNullableFields { Tag = 1, Price = -1m }, default,
+                    new NinoNullableFields { Tag = 255, Count = int.MinValue },
+                },
+            }, "seq", "map", "raw-struct");
             Add("ninonullables-empty-collections", "Empty NinoNullable<T> collections.", new NinoNullables
             {
                 LongArray = Array.Empty<NinoNullable<long>>(), LongList = new List<NinoNullable<long>>(),
                 DecimalArray = Array.Empty<NinoNullable<decimal>>(), DecimalList = new List<NinoNullable<decimal>>(),
                 GuidArray = Array.Empty<NinoNullable<Guid>>(), GuidList = new List<NinoNullable<Guid>>(),
                 PaddedArray = Array.Empty<NinoNullable<Padded>>(), PaddedList = new List<NinoNullable<Padded>>(),
-            }, "nullable", "seq");
-            // The values of ninonullables-values declared with T? (NullableTwins): the same bytes, so the two .bin
-            // files are equal and it round-trips through NinoNullable<T>.
-            Across<NullableTwins, NinoNullables>("ninonullables-from-nullable",
-                "The values of ninonullables-values written from T? members: the same bytes, read as NinoNullable<T>.",
+                GuidQueue = new Queue<NinoNullable<Guid>>(), DecimalMap = new Dictionary<int, NinoNullable<decimal>>(),
+                FieldsArray = Array.Empty<NinoNullableFields>(),
+            }, "seq", "map", "raw-struct");
+            Add("ninonullable-runs", "Runs of NinoNullable<T> of a T as large as its alignment (long, int, byte): " +
+                                     "the bytes of the T? runs.",
+                new NinoNullableRuns
+            {
+                LongArray = new NinoNullable<long>[] { 1, default, long.MaxValue, 0 },
+                LongList = new List<NinoNullable<long>> { default, -1, default },
+                IntArray = new NinoNullable<int>[] { 5, default },
+                ByteList = new List<NinoNullable<byte>> { 255, default, 0 },
+            }, "seq", "raw-struct");
+            // The values of ninonullable-runs declared with T? (NullableTwins): the same bytes, so the two .bin files
+            // are equal and it round-trips through NinoNullable<T>.
+            Across<NullableTwins, NinoNullableRuns>("ninonullable-runs-from-nullable",
+                "The values of ninonullable-runs written from T?[] and List<T?> members: the same bytes, read as " +
+                "NinoNullable<T>.",
                 new NullableTwins
             {
-                Long = long.MinValue, Decimal = -1234.5600m, Guid = new Guid("00112233-4455-6677-8899-aabbccddeeff"),
-                Padded = new Padded { A = 1, B = 2 },
                 LongArray = new long?[] { 1, default, long.MaxValue, 0 },
                 LongList = new List<long?> { default, -1, default },
-                DecimalArray = new decimal?[] { decimal.MaxValue, default, 0.10m },
-                DecimalList = new List<decimal?> { default, decimal.MinValue },
-                GuidArray = new Guid?[] { default, new Guid("ffeeddcc-bbaa-9988-7766-554433221100") },
-                GuidList = new List<Guid?> { Guid.Empty, default, new Guid("01020304-0506-0708-090a-0b0c0d0e0f10") },
-                PaddedArray = new Padded?[] { new Padded { A = 3, B = 4 }, default },
-                PaddedList = new List<Padded?> { default, new Padded { A = 255, B = long.MinValue }, default },
-            }, "nullable", "seq", "raw-struct");
+                IntArray = new int?[] { 5, default },
+                ByteList = new List<byte?> { 255, default, 0 },
+            }, "nullable", "seq");
 
             // ---------------------------------------------------------- version tolerance and keyed members
 

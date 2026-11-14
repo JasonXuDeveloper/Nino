@@ -86,8 +86,14 @@ func seeds() []seed {
 	one := int32(1)
 	b, err = nino.Serialize(&Nullables{Int: &one, IntArray: []*int32{&one, nil}, PaddedArray: []*Padded{{1, 2}, nil}}, WriteNullables)
 	add("Conformance.Nullables", b, err)
-	b, err = nino.Serialize(&NinoNullables{Guid: &nino.Guid{1}, DecimalArray: []*nino.Decimal{{Lo: 1}, nil}, PaddedList: []*Padded{nil, {1, 2}}}, WriteNinoNullables)
+	count := int32(3)
+	b, err = nino.Serialize(&NinoNullables{
+		Guid: &nino.Guid{1}, DecimalArray: []*nino.Decimal{{Lo: 1}, nil}, PaddedList: []*Padded{nil, {1, 2}},
+		DecimalMap: []nino.Entry[int32, *nino.Decimal]{{Key: 1}}, Fields: NinoNullableFields{Tag: 1, Count: &count},
+	}, WriteNinoNullables)
 	add("Conformance.NinoNullables", b, err)
+	b, err = nino.Serialize(&NinoNullableRuns{IntArray: []*int32{&count, nil}, ByteList: []*uint8{nil}}, WriteNinoNullableRuns)
+	add("Conformance.NinoNullableRuns", b, err)
 	b, err = nino.Serialize(&KeyedHolder{Keyed: &KeyedV1{Name: &s, Items: []int32{1}}}, WriteKeyedHolder)
 	add("Conformance.KeyedHolder", b, err)
 	b, err = nino.Serialize(&TreeHolder{Tree: Tree{Tree{}, nil}, DictTree: DictTree{{Key: "a", Value: nil}}}, WriteTreeHolder)
