@@ -105,7 +105,9 @@ NinoFormatterResolver.cs     builds formatter types by reflection for unregister
 BuiltInFormatters.cs         the [assembly: NinoFormatter] table of the BCL formatters below (generator and resolver read it)
 BoxedFormatter.cs            BoxedFormatter: NinoFormatterCache<T> for a runtime Type (the Boxed APIs)
 PrimitiveFormatters.cs       UnmanagedFormatter<T> (raw bytes), RawValueFormatter<T>, IntPtr / UIntPtr (8 bytes),
-                             DateTimeOffset, String (Latin-1 or UTF-16), Utf8String, Nullable, ObjectFormatter
+                             DateTimeOffset, String (Latin-1 or UTF-16), Utf8String, Nullable,
+                             UnmanagedNullableFormatter (a raw T?: one presence byte and the value alone, a slot of
+                             a fixed size as the element of any collection), ObjectFormatter
 Collections/                the collection formatters, a folder per kind:
   Arrays/
     ArrayFormatter.cs        general T[] and reuse
@@ -215,7 +217,9 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 
 ```
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
-NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
+NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed);
+                             the block kinds every collection moves as one run (raw values, DateTimeOffset, block
+                             formatters, slots: INinoSlotFormatter, raw T?)
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the

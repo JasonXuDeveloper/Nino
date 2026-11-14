@@ -16,8 +16,8 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 | `string` (default) | header (1, 3 or 5 bytes, minimal: the value itself up to 127, else `0x80` and a `u16`, else `0x81` and a `u32`): `0` = null; `2n + 1` (odd, `1` = empty) then `n` Latin-1 bytes when every char is at most U+00FF; else `2n` then `n` UTF-16 code units (see below) |
 | `string` with `[NinoUtf8]` | char count plus one as a header (`0` = null, `1` = empty; nothing follows either), then the byte count as a header and the UTF-8 bytes (see below) |
 | Array / list of unmanaged `T` | length, then one block copy of the elements |
-| `T?[]` / `List<T?>` of raw `T` | length, then each element in the canonical `Nullable<T>` layout (fixed stride: flag, padding, value); an `IList<T?>`/`IEnumerable<T?>` member writes each element as a single `T?` instead (see `docs/pitfalls.md`) |
-| `NinoNullable<T>`, its arrays and lists | exactly the bytes of `T?`, `T?[]` and `List<T?>` (its memory is that stride wherever `T` is as large as its alignment, so the collections are one block copy) |
+| Every collection of `T?` of raw `T` (arrays, lists, queues, sets, memory, interfaces, ...) | length, then each element in the canonical `Nullable<T>` layout (fixed stride: flag, padding, value). A single `T?` (a member, a dictionary's value, a pair's or tuple's item) is a presence byte and the value when present |
+| `NinoNullable<T>`, anywhere | its memory, a raw struct: a presence of `T`'s size (first byte 0 or 1, the rest zero), then the value (zero when absent); one copy as a member, an element or a field. The bytes of a `T?` sequence's element only where `T` is as large as its alignment |
 | Other collections | length, then each element |
 | Dictionary | length, then key/value pairs |
 | Multi-dimensional array `T[,..]` | `int32` rank-lengths (`-1` for null in the first slot), then elements in row-major order |

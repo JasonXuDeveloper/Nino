@@ -41,14 +41,20 @@ A generic `[NinoType]` closed over such a type (`Box<Action>`) compiles, but wri
 
 ### `NinoNullable<T>`: nullable values in hot collections
 
-`NinoNullable<T>` (Nino.Core, `T : unmanaged`) is a drop-in for `T?` that Nino writes with exactly `T?`'s bytes
-(either reads the other's data; the published layout says nullable too). Its presence is a whole `T`, so its memory
-has no padding and no stale bytes: an array or `List<>` of it is one block copy where `T` is as large as its alignment
-(`long`, `int`, `double`, enums, `DateTime`, `TimeSpan`), where `T?[]` clears padding and absent values element by
-element. Use it for arrays and lists of nullable values written often; a single `T?` member is as fast already. It
-converts implicitly from `T` and `T?` and to `T?`, and has `HasValue`, `Value`, `GetValueOrDefault`, `ToNullable()`.
-It takes twice `T`'s size (`T?` takes `T`'s size plus its alignment: the same for 8-byte primitives, larger for
-`decimal` or `Guid`). Its presence byte is checked in every mode.
+`NinoNullable<T>` (Nino.Core, `T : unmanaged`) is a nullable value in a format of its own, not `T?`'s: Nino writes its
+memory, a presence and a value of a `T` each (twice `T`'s size), wherever it stands. Its memory has no padding and no
+stale bytes, so a member, an array, any collection and a field of a raw struct are one copy, where a run of `T?`
+clears padding and absent values on the way. It converts implicitly from `T` and `T?` and to `T?`, and has
+`HasValue`, `Value`, `GetValueOrDefault`, `ToNullable()`.
+
+- It is larger where `T` is wider than its alignment (`decimal` 32 bytes against 24 as a `T?` element, `Guid` 32
+  against 20), and a single one is always two `T` where a single `T?` is one byte when null.
+- Changing a member between `T?` and `NinoNullable<T>` changes the format: old data does not read. Convert the
+  values (`ToNullable()`, the constructor) when both must be read. With a layout baseline NINO034 reports the change;
+  it reports nothing for the one case that keeps the bytes, a collection of a `T` as large as its alignment
+  (`long?[]` to `NinoNullable<long>[]`).
+- Use it for collections and raw structs of nullable values written often. Its values are checked only in
+  `NinoSettings.Untrusted` mode, as a raw struct's are.
 
 ### One canonical layout on every runtime
 
@@ -106,6 +112,8 @@ public sealed partial class Particle
 
 ## Encodings that differ (changing one changes the bytes)
 
-- `int?[]` / `List<int?>` (fixed stride) and `IList<int?>` / `IEnumerable<int?>` (element by element).
+- `int?` as the element of any sequence (`int?[]`, `List<int?>`, `Queue<int?>`, `IList<int?>`: a fixed stride of
+  8 bytes) and as a single value (`Dictionary<int, int?>` values, `(int, int?)` items, members: a presence byte,
+  then the value).
 - `[NinoUtf8]` and the default string encoding.
 - A raw struct and the same struct made `VersionTolerant`.

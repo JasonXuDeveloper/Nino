@@ -19,6 +19,7 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(IntPtrFormatter))]
 [assembly: NinoFormatter(typeof(UIntPtrFormatter))]
 [assembly: NinoFormatter(typeof(DateTimeOffsetFormatter))]
+[assembly: NinoFormatter(typeof(UnmanagedNullableFormatter<>), Priority = 1)]
 [assembly: NinoFormatter(typeof(NullableFormatter<,>))]
 [assembly: NinoFormatter(typeof(KeyValuePairFormatter<,,,>))]
 [assembly: NinoFormatter(typeof(BigIntegerFormatter))]

@@ -18,16 +18,20 @@ Copying a `T?` as raw memory (what MemoryPack does) therefore produces different
 versions. Nino defines the bytes instead:
 
 - A single `T?` is a presence byte followed by the value when present.
-- A `T?` array or list with unmanaged `T` uses the canonical (64-bit corefx) `Nullable<T>` layout: a
+- A `T?` element of a sequence (an array, a list, a set, a queue, a collection interface, ...) with a raw
+  `T` uses the canonical (64-bit corefx) `Nullable<T>` layout: a
   presence byte, zero padding up to `T`'s alignment, then `T` (zero when null). On runtimes whose
   `Nullable<T>` matches, the block is copied as is (padding cleared). Elsewhere it is converted element
   by element: `NullableLayout<T>` probes the runtime's field offsets once (it builds `default(T)` as a
   `T?` and finds the flag byte) instead of assuming an order.
-- The two encodings are not interchangeable. `int?[]` and `List<int?>` members use the fixed stride (here 8
-  bytes per element: flag, 3 bytes of padding, value), while a member declared as an interface
-  (`IList<int?>`, `IEnumerable<int?>`, `ICollection<int?>`...) writes each element on its own: 1 byte for null,
-  1 + 4 bytes otherwise, whatever collection it holds. Changing a member between the two kinds changes the
-  format.
+- The two encodings are not interchangeable. The elements of every sequence (`int?[]`, `List<int?>`,
+  `Queue<int?>`, `HashSet<int?>`, `IList<int?>`, `Memory<int?>`, `int?[,]`...) use the fixed stride (here 8 bytes
+  per element: flag, 3 bytes of padding, value), so one sequence type can replace another without changing the
+  bytes. A `T?` that is not the element of a sequence is written on its own: 1 byte for null, 1 + 4 bytes
+  otherwise (a member, a dictionary's key or value, the item of a pair or a tuple, also inside a collection:
+  `Dictionary<int, int?>`, `List<(int, int?)>`), and so is a `T?` whose `T` is not raw (`DateTimeOffset?`, a
+  struct holding a reference). Up to 4.0.0-rc.10 only arrays and lists used the fixed stride: data of other
+  sequences written then is not read now.
 
 ### `ValueTuple`, `DateTimeOffset`, `decimal` and other BCL structs differ by runtime
 
