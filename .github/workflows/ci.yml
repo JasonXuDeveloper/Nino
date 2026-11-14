@@ -94,21 +94,18 @@ jobs:
             name: netstandard2.1 without interceptors
             framework: net8.0
             properties: -p:NinoCoreTfm=netstandard2.1 -p:NinoRegularCalls=true
-          # The .NET 8 SDK's preview interceptor attribute: Nino.Core netstandard2.0, the Roslyn 4.8 generator.
-          # Each Nino.Core build is checked against the pinned bytes of GoldenBytesTests.
-          - id: ns20
-            name: netstandard2.0 with Roslyn 4.8
-            framework: net8.0
-            properties: -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
-          # Arm64: its byte shuffle (tbl), 16-byte vectors only, and the net8.0 build's own shuffle path.
+          # Arm64: its byte shuffle (tbl), 16-byte vectors only, and the net8.0 build's own shuffle path. The net8.0
+          # run also takes the Roslyn 4.8 generator (the .NET 8 SDK's preview interceptor attribute). Each Nino.Core
+          # build is checked against the pinned bytes of GoldenBytesTests.
           - id: arm64-net10
             name: net10.0 on Arm64
             runner: ubuntu-26.04-arm
             framework: net10.0
           - id: arm64-net8
-            name: net8.0 on Arm64
+            name: net8.0 on Arm64 with Roslyn 4.8
             runner: ubuntu-26.04-arm
             framework: net8.0
+            properties: -p:NinoGeneratorBuild=4.8
           # x64 CPUs without AVX-512 (most desktops: 32-byte vectors, no byte permute), and without any SIMD.
           - id: no-avx512
             name: net10.0 without AVX-512
@@ -384,9 +381,9 @@ jobs:
   # ConcurrentTables, SortedSetNodes, LinkedList nodes, ObjectTypes; Nino.Immutable's HashTrees and SortedTrees): each
   # must write the same bytes as .NET on x64, see the same contents through the public API, survive compacting
   # collections, and find every path meant for it (a layout that silently fell back to the public API fails). The
-  # net472 build (Nino.Core netstandard2.0) runs on Mono (x64 and Arm64) and on .NET Framework 4.8, 64-bit and
-  # 32-bit; the net10.0 build on .NET x64, Arm64, Windows x86 and Arm32 (qemu: GitHub has no Arm32 runner; it also
-  # checks the Int128 layout, aligned to 8 there).
+  # net472 build (Nino.Core and Nino.Immutable netstandard2.1, compiled against Mono's class libraries) runs on Mono
+  # (x64 and Arm64); the net10.0 build on .NET x64, Arm64, Windows x64 and x86, and Arm32 (qemu: GitHub has no Arm32
+  # runner; it also checks the Int128 layout, aligned to 8 there).
   # The x64 Linux runner also publishes Nino.AotTests trimmed and NativeAOT: Nino.Core and generated code must stay
   # trim and NativeAOT safe, every trim/AOT warning an error (TreatWarningsAsErrors, TrimmerSingleWarn=false), and
   # both runs must write the same bytes. One runner for the three short Linux x64 checks instead of three (about a
@@ -405,7 +402,7 @@ jobs:
         include:
           - { id: linux, name: 'Runtime internals (.NET, Mono, Arm32 under qemu), trim and NativeAOT', runner: ubuntu-26.04 }
           - { id: arm64, name: Runtime internals (.NET and Mono on Arm64), runner: ubuntu-26.04-arm }
-          - { id: framework, name: 'Runtime internals (.NET Framework 4.8 and .NET on Windows, 64-bit and 32-bit)', runner: windows-latest }
+          - { id: windows, name: 'Runtime internals (.NET on Windows, 64-bit and 32-bit)', runner: windows-latest }
 
     steps:
       - name: Checkout code
@@ -416,7 +413,7 @@ jobs:
       - name: Setup .NET
         uses: ./.github/actions/setup-dotnet
         with:
-          cache: ${{ matrix.id == 'framework' && 'runtime-tests' || '' }}
+          cache: ${{ matrix.id == 'windows' && 'runtime-tests' || '' }}
 
       - name: Install Mono
         if: matrix.id == 'arm64'
@@ -442,7 +439,7 @@ jobs:
 
       # 32-bit .NET on Windows (x86: 8-byte fields aligned to 4), beside the 64-bit SDK.
       - name: Install .NET for x86
-        if: matrix.id == 'framework'
+        if: matrix.id == 'windows'
         shell: pwsh
         run: |
           # The runner's own .NET 10 runtime version: an exact version keeps dotnet-install off aka.ms (see the Arm32 step).
@@ -451,13 +448,9 @@ jobs:
           & "$env:RUNNER_TEMP/dotnet-install.ps1" -Runtime dotnet -Version $version -Architecture x86 `
             -InstallDir "$env:RUNNER_TEMP/dotnet-x86" -NoPath
 
-      # 32-bit .NET Framework runs the same exe built for x86 (-p:NinoX86=true, its own output folder).
+      # The net472 build only where Mono is installed (the project looks for its class libraries).
       - name: Build
-        run: |
-          dotnet build tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
-          if [[ "${{ matrix.id }}" == framework ]]; then
-            dotnet build tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release -f net472 -p:NinoX86=true
-          fi
+        run: dotnet build tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
 
       # Each runtime's output without its comment lines (where it keeps the fields) must equal .NET's.
       - name: Run
@@ -517,15 +510,7 @@ jobs:
               grep -q '^# 64-bit: False' arm32.txt || { echo "::error::not a 32-bit process"; status=1; }
               compare arm32
               ;;
-            framework)
-              run framework "$BIN/Release/net472/Nino.RuntimeTests.exe"
-              grep -q '^# 64-bit: True, runtime: .NET Framework' framework.txt ||
-                { echo "::error::not 64-bit .NET Framework"; status=1; }
-              compare framework
-              run framework-x86 "$BIN/x86/Release/net472/Nino.RuntimeTests.exe"
-              grep -q '^# 64-bit: False, runtime: .NET Framework' framework-x86.txt ||
-                { echo "::error::not 32-bit .NET Framework"; status=1; }
-              compare framework-x86
+            windows)
               run dotnet-x86 "$(cygpath -u "$RUNNER_TEMP")/dotnet-x86/dotnet.exe" "$BIN/Release/net10.0/Nino.RuntimeTests.dll"
               grep -q '^# 64-bit: False, runtime: .NET 10' dotnet-x86.txt || { echo "::error::not 32-bit .NET"; status=1; }
               compare dotnet-x86
