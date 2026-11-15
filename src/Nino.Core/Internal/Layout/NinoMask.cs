@@ -31,10 +31,9 @@ namespace Nino.Core.Internal
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
         private readonly int[] _absent; // NinoLayout.Info.Absent: values cleared when their flag is 0
 #if NET10_0_OR_GREATER
-        // CopyCleared: the whole elements a 64-byte vector holds (0: not taken), and for each of its bytes the byte
-        // of its value's flag (_flagIndex, kept by _flagged) or 1 for a byte kept whatever the data (_kept).
-        private readonly int _perVector;
-        private readonly Vector512<byte> _flagIndex, _flagged, _kept;
+        // CopyCleared: whether it takes these elements (ClearedRows.Plan), and its tables, built by the first long run.
+        private readonly bool _clears;
+        private ClearedRows _rows;
 #endif
 #if !NET8_0_OR_GREATER
         // For the registered kernels (NinoKernels.Permute): each byte from itself, padding cleared (0xFF). Zero for
@@ -47,6 +46,14 @@ namespace Nino.Core.Internal
 
         /// <summary>Whether values whose flag is 0 are cleared too (<see cref="NinoLayout.Info.Absent"/>).</summary>
         public bool ClearsAbsent => _absent != null;
+
+#if NET10_0_OR_GREATER
+        /// <summary>
+        /// Whether <see cref="Copy"/> clears those values in the copy's one pass, a vector at a time
+        /// (<see cref="CopyCleared"/>: AVX-512 VBMI with GFNI); elsewhere it clears them element by element after.
+        /// </summary>
+        public bool ClearsByVector => _clears;
+#endif
 
         /// <summary>
         /// Returns a mask, or null when <paramref name="mask"/> keeps every byte and there are no
@@ -93,7 +100,7 @@ namespace Nino.Core.Internal
             }
 #endif
 #if NET10_0_OR_GREATER
-            _perVector = ClearedPlan(mask, absent, out _flagIndex, out _flagged, out _kept);
+            _clears = ClearedRows.Plan(mask, absent, out _, out _, out _);
 #endif
             var words = Repeat(mask, 8, 0, out _);
             _words = new ulong[words.Length / 8];
@@ -151,10 +158,10 @@ namespace Nino.Core.Internal
         public void Copy(ref byte destination, ref byte source, int count)
         {
 #if NET10_0_OR_GREATER
-            if (_perVector != 0 && count * _mask.Length >= 64)
+            if (_clears && count * _mask.Length >= 64)
             {
-                // The elements that fill whole vectors; the last few take the path below.
-                int done = CopyCleared(ref destination, ref source, count * _mask.Length);
+                // The elements whole vectors hold; the last few of a run under two vectors take the path below.
+                int done = CopyCleared(ref destination, ref source, (nuint)(count * _mask.Length));
                 count -= done;
                 if (count == 0)
                     return;
@@ -169,75 +176,337 @@ namespace Nino.Core.Internal
 
 #if NET10_0_OR_GREATER
         /// <summary>
-        /// Whether elements that hold <c>Nullable</c> values are copied with their padding and their absent values
-        /// cleared by one multiplication a vector (<see cref="CopyCleared"/>), and how: the whole elements a vector
-        /// holds, else 0. Needs a permutation across the vector (AVX-512 VBMI) and GFNI, an element of 64 bytes at
-        /// most, a mask of whole bytes, and no value inside another's (a byte would follow two flags).
+        /// The tables of <see cref="CopyCleared"/>: for each place in an element a 64-byte vector can start at (its
+        /// phase), a row of 64-byte vectors, aligned: for each byte of the vector where its value's flag is in the
+        /// vector before it and itself (a vpermt2b index), whether it follows a flag, and 1 where it is kept whatever
+        /// the data; for elements with a <c>Nullable</c> inside another's value, the same for the inner flag.
         /// </summary>
-        private static int ClearedPlan(byte[] mask, int[] absent, out Vector512<byte> flagIndex,
-            out Vector512<byte> flagged, out Vector512<byte> kept)
+        private sealed unsafe class ClearedRows
         {
-            flagIndex = flagged = kept = default;
-            int length = mask.Length;
-            if (absent == null || length > 64 || !Avx512Vbmi.IsSupported || !Gfni.V512.IsSupported)
-                return 0;
-            // The flag each byte of an element follows: -1 none (kept or cleared by the mask alone).
-            var flagOf = new int[length];
-            flagOf.AsSpan().Fill(-1);
-            for (int i = 0; i < absent.Length; i += 3)
-                for (int b = absent[i + 1]; b < absent[i + 1] + absent[i + 2]; b++)
-                {
-                    if (flagOf[b] >= 0)
-                        return 0;
-                    flagOf[b] = absent[i];
-                }
+            /// <summary>The vectors of a row: index, follows a flag, kept; with nested values the inner index and follows.</summary>
+            private const int Plain = 3, WithNested = 5;
 
-            int perVector = 64 / length;
-            byte[] index = new byte[64], follows = new byte[64], keeps = new byte[64];
-            for (int i = 0; i < perVector * length; i++)
+            // Pinned, so the rows stay on 64-byte boundaries: a row loaded across two cache lines three times a
+            // vector took 2.2 ns a vector against 1.5 (local, AVX-512 Xeon).
+            private readonly byte[] _pinned;
+
+            public readonly byte* First;
+            public readonly nuint Length, RowSize;
+
+            /// <summary>The bytes from a vector's row to the next one's: the phase moves by 64 bytes, within the element.</summary>
+            public readonly nuint Step;
+            public readonly bool Nested;
+
+            /// <summary>The vectors after which the phase repeats: the element's length over its common divisor with 64.</summary>
+            public readonly int Period;
+
+            /// <summary>
+            /// Whether <see cref="CopyCleared"/> takes elements of <paramref name="mask"/> and <paramref name="absent"/>,
+            /// and for each byte of an element the flags it follows: <paramref name="outer"/> (-1 for none) and, for a
+            /// value inside another <c>Nullable</c>'s, <paramref name="inner"/>. Needs a permutation across two
+            /// vectors (AVX-512 VBMI) and GFNI, a mask of whole bytes, every flag kept and at most 64 bytes before
+            /// the last byte of its value, and values nested no deeper than two.
+            /// </summary>
+            public static bool Plan(byte[] mask, int[] absent, out int[] outer, out int[] inner, out bool nested)
             {
-                int at = i % length;
-                if (mask[at] == 0)
-                    continue;
-                if (mask[at] != 0xFF || flagOf[at] >= 0 && (mask[flagOf[at]] != 0xFF || flagOf[flagOf[at]] >= 0))
-                    return 0;
-                if (flagOf[at] < 0)
+                outer = inner = null;
+                nested = false;
+                if (absent == null || !Avx512Vbmi.IsSupported || !Gfni.V512.IsSupported)
+                    return false;
+                outer = new int[mask.Length];
+                inner = new int[mask.Length];
+                outer.AsSpan().Fill(-1);
+                inner.AsSpan().Fill(-1);
+                // Outer values come before the ones inside them (NinoLayout.Info.Absent).
+                for (int i = 0; i < absent.Length; i += 3)
                 {
-                    keeps[i] = 1;
-                    continue;
+                    int flag = absent[i];
+                    if (mask[flag] != 0xFF)
+                        return false;
+                    for (int at = absent[i + 1]; at < absent[i + 1] + absent[i + 2]; at++)
+                    {
+                        if (mask[at] == 0)
+                            continue;
+                        if (mask[at] != 0xFF || at <= flag || at - flag > 64 || inner[at] >= 0)
+                            return false;
+                        if (outer[at] < 0)
+                        {
+                            outer[at] = flag;
+                        }
+                        else
+                        {
+                            inner[at] = flag;
+                            nested = true;
+                        }
+                    }
                 }
 
-                index[i] = (byte)(i - at + flagOf[at]);
-                follows[i] = 0xFF;
+                foreach (byte keep in mask)
+                    if (keep != 0 && keep != 0xFF)
+                        return false;
+                return true;
             }
 
-            flagIndex = Vector512.Create(index);
-            flagged = Vector512.Create(follows);
-            kept = Vector512.Create(keeps);
-            return perVector;
+            public ClearedRows(byte[] mask, int[] absent)
+            {
+                Plan(mask, absent, out int[] outer, out int[] inner, out Nested);
+                int length = mask.Length, row = 64 * (Nested ? WithNested : Plain);
+                Length = (nuint)length;
+                RowSize = (nuint)row;
+                Step = (nuint)(64 % length * row);
+                // The vectors of a period: the least n with 64 n a multiple of the length.
+                Period = 1;
+                while (Period * 64 % length != 0)
+                    Period++;
+                _pinned = GC.AllocateArray<byte>(length * row + 63, pinned: true);
+                First = (byte*)(((nuint)Unsafe.AsPointer(ref _pinned[0]) + 63) & ~(nuint)63);
+                for (int phase = 0; phase < length; phase++)
+                {
+                    byte* at = First + phase * row;
+                    for (int i = 0; i < 64; i++)
+                    {
+                        int e = (phase + i) % length;
+                        // The byte itself where it follows no flag: its index is not used.
+                        at[i] = (byte)(64 + i - (outer[e] < 0 ? 0 : e - outer[e]));
+                        at[64 + i] = outer[e] < 0 ? (byte)0 : (byte)0xFF;
+                        at[128 + i] = mask[e] != 0 && outer[e] < 0 ? (byte)1 : (byte)0;
+                        if (!Nested)
+                            continue;
+                        at[192 + i] = (byte)(64 + i - (inner[e] < 0 ? 0 : e - inner[e]));
+                        at[256 + i] = inner[e] < 0 ? (byte)0 : (byte)0xFF;
+                    }
+                }
+            }
         }
 
         /// <summary>
-        /// Copies the elements of <paramref name="total"/> bytes that fill whole 64-byte loads and stores, and returns
-        /// how many: each byte multiplied in GF(2^8) by its value's flag (1 keeps it, 0 clears it), by 1 where it is
-        /// kept whatever the data and by 0 where it is padding, the flags gathered by one permutation. A store writes
-        /// the whole vector; what lies past its whole elements is written again by the next one or by the caller.
-        /// Element by element after the masked copy, the absent values of 1,000 structs of an int, a long? and a
-        /// double? took three times the copy (3,344 ns against 1,126 for the same struct without them, local).
+        /// One vector of elements as the wire holds it: each byte multiplied in GF(2^8) by its value's flag (1 keeps
+        /// it, 0 clears it; a flag is 0 or 1 in every <c>Nullable</c> the runtime makes), by 1 where it is kept
+        /// whatever the data and by 0 where it is padding. The flags come from <paramref name="previous"/> (the 64
+        /// bytes before) and <paramref name="current"/> by one permutation (vpermt2b), from the source and never
+        /// from what was stored: a load right after a store that only partly covers it waits for the store.
         /// </summary>
-        private int CopyCleared(ref byte destination, ref byte source, int total)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector512<byte> Cleared(Vector512<byte> previous, Vector512<byte> current, Vector512<byte> index,
+            Vector512<byte> follows, Vector512<byte> kept) =>
+            Gfni.V512.GaloisFieldMultiply(current, Avx512F.TernaryLogic(
+                Avx512Vbmi.PermuteVar64x8x2(previous, index, current), follows, kept, FollowedOrKept));
+
+        /// <summary>vpternlog's table for <c>(a &amp; b) | c</c>.</summary>
+        private const byte FollowedOrKept = 0xEA;
+
+        /// <summary>vpternlog's table for <c>(a &amp; b) | (~b &amp; c)</c>: a where b, else c.</summary>
+        private const byte FollowedOrOne = 0xE2;
+
+        /// <summary><see cref="Cleared(Vector512{byte}, Vector512{byte}, Vector512{byte}, Vector512{byte}, Vector512{byte})"/> from a row of the tables.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe Vector512<byte> Cleared(Vector512<byte> previous, Vector512<byte> current, byte* row,
+            bool nested)
         {
-            int step = _perVector * _mask.Length;
-            Vector512<byte> index = _flagIndex, flagged = _flagged, kept = _kept;
-            int i = 0;
-            for (; i + 64 <= total; i += step)
+            var value = Cleared(previous, current, Vector512.LoadAligned(row), Vector512.LoadAligned(row + 64),
+                Vector512.LoadAligned(row + 128));
+            if (!nested)
+                return value;
+            // A value inside another Nullable's value: multiplied by the inner flag as well, 1 for every other byte.
+            return Gfni.V512.GaloisFieldMultiply(value, Avx512F.TernaryLogic(
+                Avx512Vbmi.PermuteVar64x8x2(previous, Vector512.LoadAligned(row + 192), current),
+                Vector512.LoadAligned(row + 256), Vector512.Create((byte)1), FollowedOrOne));
+        }
+
+        /// <summary>
+        /// The element length below which <see cref="CopyCleared"/> writes a vector's whole elements a step, its
+        /// stores overlapping (as it does elements that divide 64 bytes, whose stores do not overlap): three
+        /// operations a store that covers 52 bytes or more, where the stores on the destination's boundaries are
+        /// five a vector (vpermt2b is three on Intel cores). 1,000 elements of 6 bytes took 110 to 118 ns so and
+        /// 145 to 150 aligned, of 12 bytes 230 and 245 to 255, a 16-byte struct 258 and 300; of 20 bytes 355 to 380
+        /// and 340 to 348, of 40 bytes 2,200 and 1,190 (local, AVX-512 Xeon, serialize).
+        /// </summary>
+        private const int WholeBelow = 16;
+
+        /// <summary>The vectors from which a run of elements that tile the vector aligns its stores (as NinoNullables' lanes).</summary>
+        private const int AlignFrom = 8;
+
+        /// <summary>
+        /// Copies elements that hold <c>Nullable</c> values (<paramref name="total"/> bytes, 64 or more) with their
+        /// padding and their absent values cleared, a 64-byte vector at a time, and returns how many it wrote whole:
+        /// all of them from two vectors on, else the ones the first vector holds. Element by element after the
+        /// masked copy, the absent values of 1,000 structs of an int, a long? and a double? took three times the
+        /// copy (3,344 ns against 1,126 for the same struct without them, local).
+        /// </summary>
+        private unsafe int CopyCleared(ref byte destination, ref byte source, nuint total)
+        {
+            var rows = _rows ??= new ClearedRows(_mask, _absent);
+            if (total < 128 || _mask.Length < WholeBelow || 64 % _mask.Length == 0)
             {
-                var elements = Vector512.LoadUnsafe(ref source, (nuint)i);
-                var by = Avx512Vbmi.PermuteVar64x8(elements, index) & flagged | kept;
-                Gfni.V512.GaloisFieldMultiply(elements, by).StoreUnsafe(ref destination, (nuint)i);
+                // The whole elements a vector holds, a step: every flag of its bytes is in it (elements start at
+                // its first byte), so one permutation of the vector itself gathers them (vpermb takes the low six
+                // bits of the first row's indices). The store's last bytes are the next step's, except where the
+                // elements tile the vector: those go on from the destination's first 64-byte boundary where whole
+                // elements lead to it, as NinoNullables' lanes do.
+                nuint length = (nuint)_mask.Length, step = 64u / (uint)length * length, i = 0, next = step;
+                if (step == 64 && total >= AlignFrom * 64)
+                {
+                    nuint head = NinoUnsafe.BytesToAligned(ref destination, 64);
+                    // A length that divides 64 is a power of two.
+                    if ((head & (length - 1)) == 0)
+                        next = head;
+                }
+
+                nuint last = total - 64;
+                byte* row = rows.First;
+                bool nested = rows.Nested;
+                Vector512<byte> index = Vector512.LoadAligned(row), follows = Vector512.LoadAligned(row + 64),
+                    kept = Vector512.LoadAligned(row + 128);
+                do
+                {
+                    var current = Vector512.LoadUnsafe(ref source, i);
+                    var value = Gfni.V512.GaloisFieldMultiply(current, Avx512F.TernaryLogic(
+                        Avx512Vbmi.PermuteVar64x8(current, index), follows, kept, FollowedOrKept));
+                    if (nested)
+                        value = Gfni.V512.GaloisFieldMultiply(value, Avx512F.TernaryLogic(
+                            Avx512Vbmi.PermuteVar64x8(current, Vector512.LoadAligned(row + 192)),
+                            Vector512.LoadAligned(row + 256), Vector512.Create((byte)1), FollowedOrOne));
+                    value.StoreUnsafe(ref destination, i);
+                    i += next;
+                    next = step;
+                    // A run under two vectors: its first one only (an element over 64 bytes makes no step).
+                } while (total >= 128 && i <= last);
+
+                if (total < 128)
+                    return (int)((uint)i / (uint)length);
+                // The elements after the last whole vector: one more that ends the run, wherever in an element
+                // it starts (element by element, five 12-byte elements took 30 ns of a run of 1,000's 245).
+                Cleared(Vector512.LoadUnsafe(ref source, last - 64), Vector512.LoadUnsafe(ref source, last),
+                    row + (uint)last % (uint)length * rows.RowSize, nested).StoreUnsafe(ref destination, last);
+                return (int)((uint)total / (uint)length);
             }
 
-            return i / _mask.Length;
+            if (rows.Nested)
+                CopyCleared<AnyPeriod>(ref destination, ref source, total, rows);
+            else if (rows.Period == 3)
+                CopyCleared<Period3>(ref destination, ref source, total, rows);
+            else if (rows.Period == 5)
+                CopyCleared<Period5>(ref destination, ref source, total, rows);
+            else
+                CopyCleared<AnyPeriod>(ref destination, ref source, total, rows);
+            return (int)total / _mask.Length;
+        }
+
+        /// <summary>
+        /// The vectors of a period whose rows <see cref="CopyCleared{TPeriod}"/> keeps in registers (3 or 5: an
+        /// element of 3 or 5 times a power of two), 0 for rows loaded per vector.
+        /// </summary>
+        private interface IClearedPeriod
+        {
+            static abstract int Vectors { get; }
+        }
+
+        private readonly struct AnyPeriod : IClearedPeriod
+        {
+            public static int Vectors => 0;
+        }
+
+        private readonly struct Period3 : IClearedPeriod
+        {
+            public static int Vectors => 3;
+        }
+
+        private readonly struct Period5 : IClearedPeriod
+        {
+            public static int Vectors => 5;
+        }
+
+        /// <summary>
+        /// <see cref="CopyCleared"/> for two vectors or more. Whole vectors, each written once and in address order,
+        /// whatever the element's length: a vector starts anywhere in an element (its phase picks its row), so the
+        /// first two are stored as they lie and the rest on the destination's 64-byte boundaries (a store across
+        /// two cache lines costs about as much as four of these operations), the last one ending the run. No store
+        /// runs past its elements into bytes the next one writes: one 40-byte element a 64-byte store took 2,560 ns
+        /// for 1,000, this 1,160, a copy 1,075 (local, AVX-512 Xeon). Where the phase repeats within five vectors
+        /// the rows stay in registers: loaded per vector, 20-byte elements took 500 ns for 1,000 against 330 (a
+        /// kernel harness).
+        /// </summary>
+        // Fully optimized from the first call, as CopyVectors.
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        private static unsafe void CopyCleared<TPeriod>(ref byte destination, ref byte source, nuint total,
+            ClearedRows plan)
+            where TPeriod : struct, IClearedPeriod
+        {
+            byte* rows = plan.First;
+            nuint size = plan.RowSize, length = plan.Length;
+            bool nested = plan.Nested;
+            nuint step = plan.Step;
+            byte* wrap = rows + length * size;
+            var a = Vector512.LoadUnsafe(ref source);
+            Cleared(a, a, rows, nested).StoreUnsafe(ref destination);
+            var b = Vector512.LoadUnsafe(ref source, 64);
+            nuint end = total - 64;
+            nuint i = 64 + NinoUnsafe.BytesToAligned(ref destination, 64);
+            byte* row = rows + (uint)i % (uint)length * size;
+            byte* last = rows + (uint)end % (uint)length * size;
+            Cleared(a, b, rows + step, nested).StoreUnsafe(ref destination, 64);
+            var previous = Vector512.LoadUnsafe(ref source, i - 64);
+            nuint span = (nuint)TPeriod.Vectors * 64;
+            if (TPeriod.Vectors != 0 && i + span <= end)
+            {
+                byte* row1 = Next(row, step, wrap, size * length), row2 = Next(row1, step, wrap, size * length);
+                byte* row3 = Next(row2, step, wrap, size * length), row4 = Next(row3, step, wrap, size * length);
+                Vector512<byte> x0 = Vector512.LoadAligned(row), f0 = Vector512.LoadAligned(row + 64),
+                    k0 = Vector512.LoadAligned(row + 128);
+                Vector512<byte> x1 = Vector512.LoadAligned(row1), f1 = Vector512.LoadAligned(row1 + 64),
+                    k1 = Vector512.LoadAligned(row1 + 128);
+                Vector512<byte> x2 = Vector512.LoadAligned(row2), f2 = Vector512.LoadAligned(row2 + 64),
+                    k2 = Vector512.LoadAligned(row2 + 128);
+                Vector512<byte> x3 = Vector512.LoadAligned(row3), f3 = Vector512.LoadAligned(row3 + 64),
+                    k3 = Vector512.LoadAligned(row3 + 128);
+                Vector512<byte> x4 = Vector512.LoadAligned(row4), f4 = Vector512.LoadAligned(row4 + 64),
+                    k4 = Vector512.LoadAligned(row4 + 128);
+                do
+                {
+                    var c0 = Vector512.LoadUnsafe(ref source, i);
+                    Cleared(previous, c0, x0, f0, k0).StoreUnsafe(ref destination, i);
+                    previous = c0;
+                    {
+                        var c1 = Vector512.LoadUnsafe(ref source, i + 64);
+                        var c2 = Vector512.LoadUnsafe(ref source, i + 128);
+                        Cleared(c0, c1, x1, f1, k1).StoreUnsafe(ref destination, i + 64);
+                        Cleared(c1, c2, x2, f2, k2).StoreUnsafe(ref destination, i + 128);
+                        previous = c2;
+                    }
+
+                    if (TPeriod.Vectors >= 5)
+                    {
+                        var c3 = Vector512.LoadUnsafe(ref source, i + 192);
+                        var c4 = Vector512.LoadUnsafe(ref source, i + 256);
+                        Cleared(previous, c3, x3, f3, k3).StoreUnsafe(ref destination, i + 192);
+                        Cleared(c3, c4, x4, f4, k4).StoreUnsafe(ref destination, i + 256);
+                        previous = c4;
+                    }
+
+                    i += span;
+                } while (i + span <= end);
+            }
+
+            // The vectors after the last whole period, at the phase the periods started with; every vector of a
+            // longer period.
+            for (; i < end; i += 64)
+            {
+                var current = Vector512.LoadUnsafe(ref source, i);
+                Cleared(previous, current, row, nested).StoreUnsafe(ref destination, i);
+                previous = current;
+                row = Next(row, step, wrap, size * length);
+            }
+
+            Cleared(Vector512.LoadUnsafe(ref source, end - 64), Vector512.LoadUnsafe(ref source, end), last, nested)
+                .StoreUnsafe(ref destination, end);
+        }
+
+        /// <summary>The row of the vector after <paramref name="row"/>'s.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe byte* Next(byte* row, nuint step, byte* wrap, nuint all)
+        {
+            row += step;
+            return row >= wrap ? row - all : row;
         }
 #endif
 
