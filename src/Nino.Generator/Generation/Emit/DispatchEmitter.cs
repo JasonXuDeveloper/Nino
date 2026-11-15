@@ -13,8 +13,8 @@ namespace Nino.Generator.Generation.Emit;
 /// each writing the subtype's id and body, or calling a method of the base formatter that reads that subtype. Anything
 /// else (subtypes in other assemblies, generic subtypes, tracked types) falls back to <c>NinoSubtypes&lt;T&gt;</c>.
 /// A generic base dispatches each of its closed instances that subtypes here derive from in the same way.
-/// Only calls are emitted, never subtype bodies, so the size is two lines and a one-line method per (base, subtype)
-/// pair.
+/// Only calls are emitted, never subtype bodies (a raw body's type id and block reserved here, then its formatter's
+/// WriteRawBody called), so the size is two lines and a one-line method per (base, subtype) pair.
 /// </summary>
 internal static class DispatchEmitter
 {
@@ -229,7 +229,13 @@ internal static class DispatchEmitter
             w.Close();
             w.Line();
             foreach (var s in subtypes)
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRawShallow" : "WriteExactShallow")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
+                w.Line(s.RawBody
+                    // The type id and the raw body in one reservation, written here rather than through
+                    // NinoObject.WriteExactRawShallow: one inlining level fewer per subtype, so a dispatch of many keeps
+                    // more of them within the JIT's budget, and one it leaves out is a call to the subtype's own
+                    // formatter, not to shared generic code that looks the formatter up (#305).
+                    ? $$"""if (value.GetType() == typeof({{s.TypeName}})) { ref byte __block = ref writer.Reserve(sizeof(int) + default({{s.FormatterName}}).BodySize); {{services}}NinoUnsafe.Write(ref __block, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref __block, sizeof(int)); return; }"""
+                    : $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
             w.Line(WriteOther(t, services) + ";");
             w.Close();
 
