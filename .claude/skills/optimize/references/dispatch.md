@@ -154,6 +154,12 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   every deserialize on par; GenericSealedClassTupleBase serialize 1.04 to 1.16x except 0.93x on EPYC 9V45 and 9V74,
   CPUs whose floor reaches 0.87 there. Landed in 558b2a59.
 
+- Inside a large body whose inlining budget is spent, a list of a polymorphic base calls the dispatch per element
+  and the dispatch tail-jumps to the subtype's body (two calls an element; `CharacterSaveData`'s `Bag`). Moving that
+  loop into a `NoInlining` helper with the writer by reference (`NinoElements.WriteDispatched`, the dispatch inlined
+  there: one call an element) was not landed: the budget it freed went elsewhere and the `ActiveBuff[]` member after
+  it then called `WritesOnLocal`, `IsEmpty`, `GetReference` and `Serialize` per element, the whole on par (1.011,
+  local Xeon, six alternated rounds). Revisit only with every member's loop out of the outer body.
 - Keep the write dispatch a chain of exact type checks; never replace it with a jump table through a hash of the type
   handle (the method table pointer read from the object, a multiply, a shift, one compare, then a `switch`). Why: the
   chain's conditional branches predict well even in a random order of subtypes, while the table's indirect jump
