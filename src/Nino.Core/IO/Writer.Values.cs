@@ -184,7 +184,8 @@ namespace Nino.Core
         {
             if (size > (uint)Avail)
             {
-                SetBuffer(GrowLarge(_owner, Pos, size), _owner.Index);
+                int pos = Pos;
+                SetBuffer(GrowLarge(_owner, pos, size), pos);
             }
             ref byte block = ref Cur;
             Skip((int)size);

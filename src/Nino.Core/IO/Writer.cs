@@ -231,8 +231,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Grow(int size)
         {
-            // The position from the owner after it: an empty output is led again in the new array.
-            SetBuffer(Grow(_owner, Pos, size), _owner.Index);
+            int pos = Pos;
+            SetBuffer(Grow(_owner, pos, size), pos);
         }
 
         /// <summary>
