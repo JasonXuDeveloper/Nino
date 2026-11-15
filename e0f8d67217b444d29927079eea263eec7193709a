@@ -1,0 +1,1 @@
+Added: `NinoNullable<T>` (Nino.Core, `T : unmanaged`), a nullable value written as its own memory wherever it stands, a presence of `T` bytes then the value: arrays, collections and raw structs of it are one copy with nothing to clear. It is its own format, not the bytes of `T?`: convert the values (`ToNullable()`, the constructor) where both must be read.
