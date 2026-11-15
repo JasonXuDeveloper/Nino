@@ -600,6 +600,13 @@ namespace Nino.Core
                     lanes.Copy(ref destination, ref source, 0);
                     i = head;
                 }
+                else if (typeof(TVector) == typeof(Vector512<byte>) && Stride != 24 && head % 4 == 0)
+                {
+                    // No element starts a line (a top-level run, 4 bytes of length into an 8-byte aligned array):
+                    // the results moved onto the lines instead.
+                    Lanes512.CopyRealigned(ref destination, ref source, total, head);
+                    return;
+                }
             }
 
             if (Stride != 24)
@@ -621,6 +628,70 @@ namespace Nino.Core
 
         private readonly struct Lanes512 : ILanes
         {
+            /// <summary>One vector of a stride that tiles it (2 to 16 bytes) as the wire holds it.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector512<byte> Cleaned(Vector512<byte> a)
+            {
+#if NET10_0_OR_GREATER
+                if (Multiplies && Gfni.V512.IsSupported)
+                    return Kept(a);
+#endif
+                return Present(a, Tile(a), Keep);
+            }
+
+            /// <summary>
+            /// The elements of <paramref name="total"/> bytes (a stride that tiles the vector, 8 vectors or more) with
+            /// every store but the first and the last two on the destination's 64-byte boundaries, where no element
+            /// starts one (<paramref name="head"/>, the bytes to the first, a multiple of 4): each vector cleared
+            /// where it lies, as the other loops do, then the bytes of two consecutive results that fall on one line
+            /// of the destination joined by a dword permutation across both (vpermt2d, one uop on Ice Lake, Sapphire
+            /// Rapids and Zen 4), with an index built once. Four operations a vector for strides up to 8 bytes
+            /// (vpshufb, vgf2p8mulb, vpermt2d, the store) where the split store cost more: 1,000 <c>long?</c> 191
+            /// ns against 250 unaligned and 164 where elements start a line, <c>Vec3?</c> 208 against 272,
+            /// <c>List&lt;long?&gt;</c> 197 against 249, <c>int?</c> 117 against 130 (local, AVX-512 Xeon). Not 24
+            /// bytes, whose kernel already spends four or five operations a vector and gained nothing (513 against
+            /// 510 to 560). AVX2 has no one-uop dword shift across a 32-byte vector.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void CopyRealigned(ref byte destination, ref byte source, nuint total, nuint head)
+            {
+                var index = Vector512.Create(0u, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) +
+                            Vector512.Create((uint)head >> 2);
+                var previous = Cleaned(Vector512.LoadUnsafe(ref source));
+                previous.StoreUnsafe(ref destination);
+                nuint i = 0;
+                // previous is the vector at i; the store at i + head takes its last bytes and the next one's first.
+                for (; i + 256 + 64 <= total; i += 256)
+                {
+                    var b = Cleaned(Vector512.LoadUnsafe(ref source, i + 64));
+                    var c = Cleaned(Vector512.LoadUnsafe(ref source, i + 128));
+                    var d = Cleaned(Vector512.LoadUnsafe(ref source, i + 192));
+                    var e = Cleaned(Vector512.LoadUnsafe(ref source, i + 256));
+                    Avx512F.PermuteVar16x32x2(previous.AsUInt32(), index, b.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + head);
+                    Avx512F.PermuteVar16x32x2(b.AsUInt32(), index, c.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + 64 + head);
+                    Avx512F.PermuteVar16x32x2(c.AsUInt32(), index, d.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + 128 + head);
+                    Avx512F.PermuteVar16x32x2(d.AsUInt32(), index, e.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + 192 + head);
+                    previous = e;
+                }
+
+                for (; i + 128 <= total; i += 64)
+                {
+                    var next = Cleaned(Vector512.LoadUnsafe(ref source, i + 64));
+                    Avx512F.PermuteVar16x32x2(previous.AsUInt32(), index, next.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + head);
+                    previous = next;
+                }
+
+                // Written up to i + head: the vector at i, and the last one, which ends the run (a whole element
+                // from its start, as the stride divides 64), cover the rest.
+                previous.StoreUnsafe(ref destination, i);
+                Cleaned(Vector512.LoadUnsafe(ref source, total - 64)).StoreUnsafe(ref destination, total - 64);
+            }
+
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Copy(ref byte destination, ref byte source, nuint offset)
             {
