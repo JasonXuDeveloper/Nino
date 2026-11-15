@@ -1213,30 +1213,6 @@ namespace Nino.Core
         }
 #endif
 
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool TryReadFresh(T?[] destination, int length, ref Reader reader) =>
-            TryReadFresh(ref NinoUnsafe.GetArrayDataReference(destination), length, ref reader);
-
-        /// <summary>
-        /// <see cref="TryReadFresh(T?[], int, ref Reader)"/> from <paramref name="item"/>.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TryReadFresh(ref T? item, int length, ref Reader reader)
-        {
-            if (!Vector128.IsHardwareAccelerated)
-                return false;
-
-            int stride = Unsafe.SizeOf<T?>();
-            int bytes = length * stride;
-            ref byte target = ref Unsafe.As<T?, byte>(ref item);
-            if (!NinoChecks.TryCopyFlags(ref target, ref reader.Peek(), bytes, stride))
-                return false;
-            reader.UnsafeAdvance(bytes);
-            return true;
-        }
-#endif
-
         /// <summary>Reads the elements after the count check has bounded the full fixed-stride payload.</summary>
         public static void ReadPrechecked(Span<T?> destination, ref Reader reader) =>
             ReadPrechecked(ref MemoryMarshal.GetReference(destination), destination.Length, ref reader);
@@ -1258,13 +1234,19 @@ namespace Nino.Core
             }
 
             // Presence bytes other than 0 or 1 are invalid data (copied as they are, they would make HasValue true
-            // and the value unequal to any other).
-            NinoChecks.Flags(ref src, count, Stride);
+            // and the value unequal to any other). Long raw runs check them while copying, in one pass.
             if (Raw)
             {
+#if NET8_0_OR_GREATER
+                if (count >= 128 && NinoChecks.TryCopyFlags(ref Unsafe.As<T?, byte>(ref item), ref src, bytes, Stride))
+                    return;
+#endif
+                NinoChecks.Flags(ref src, count, Stride);
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T?, byte>(ref item), ref src, (uint)bytes);
                 return;
             }
+
+            NinoChecks.Flags(ref src, count, Stride);
 
             if (typeof(T) == typeof(bool))
             {
