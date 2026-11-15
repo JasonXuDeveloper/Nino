@@ -29,8 +29,9 @@ nullable.go                  NullableSlot[T] (a T? as the element of a sequence)
                              where Go's layout is the wire's)
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
-unique.go                    duplicate keys of sets and maps read in data order: numbers and strings compared as .NET
-                             does, pairwise or in a seeded open-addressing table (the reader's scratch), no map
+unique.go                    duplicate keys of sets and maps read in data order: numbers, strings and NullableSlots of
+                             numbers (a set of T?) compared as .NET does, pairwise or in a seeded open-addressing table
+                             (the reader's scratch), no map
 collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes (the func-value
                              helpers unexported, for the runtime's rare paths); counts checked against the bytes left
 depth.go                     class bodies (Class, ReadClass, WriteClass), deferral past 128, the 512 limit
@@ -70,8 +71,8 @@ block_test.go                block sizes and ReadBlock / WriteBlock against elem
 raw_test.go                  bool blocks, raw struct blocks and padded structs
 nullable_test.go             NinoNullable blocks against NinoNullableAt on each element, NullableSlot blocks byte by
                              byte; BenchmarkNinoNullables and BenchmarkNullableSlots (the block against the element
-                             loop and the []*T it replaced)
-unique_test.go               duplicate keys: integer keys, large sets, primitive entries
+                             loop and the []*T it replaced), BenchmarkSlotSets (a set of slots against a set of ints)
+unique_test.go               duplicate keys: integer keys, large sets, primitive entries, sets of NullableSlots
 collections_ref_test.go      the func-value collection helpers the runtime dropped, as the tests' references
 reader_test.go               the Reader and Writer against hand-written bytes
 race_test.go, norace_test.go  raceEnabled: allocation counts are checked without the race detector (sync.Pool drops)

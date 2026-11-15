@@ -523,12 +523,12 @@ func init() {
 	unhashedKeysClass = nino.Class[UnhashedKeys]{Read: readUnhashedKeysBody, Write: writeUnhashedKeysBody, Deferrable: true}
 	usesClass = nino.Class[Uses]{Read: readUsesBody, Write: writeUsesBody, Deferrable: true}
 	codecV0 = BoxCodec(NinoArg[[]nino.NullableSlot[TupleCell]]{Read: readV4, Write: writeV4, MinSize: 4})
-	codecV1 = BoxCodec(NinoArg[[]nino.NullableSlot[int32]]{Read: nino.ReadNullableSlots[int32], Write: nino.WriteNullableSlots[int32], MinSize: 4})
-	codecV2 = BoxCodec(NinoArg[[][]nino.NullableSlot[int64]]{Read: readV5, Write: writeV5, MinSize: 4})
-	codecV3 = BoxCodec(NinoArg[[]nino.Entry[int32, *int64]]{Read: readV6, Write: writeV6, MinSize: 4})
+	codecV1 = BoxCodec(NinoArg[[]nino.NullableSlot[int32]]{Read: readV5, Write: nino.WriteNullableSlots[int32], MinSize: 4})
+	codecV2 = BoxCodec(NinoArg[[][]nino.NullableSlot[int64]]{Read: readV6, Write: writeV6, MinSize: 4})
+	codecV3 = BoxCodec(NinoArg[[]nino.Entry[int32, *int64]]{Read: readV7, Write: writeV7, MinSize: 4})
 	codecV4 = BoxCodec(NinoArg[nino.NinoNullable[int32]]{Read: readV0, Write: writeV0, MinSize: 8})
 	codecV5 = BoxCodec(NinoArg[nino.NinoNullable[nino.Decimal]]{Read: readV1, Write: writeV1, MinSize: 32})
-	codecV6 = BoxCodec(NinoArg[[]nino.NinoNullable[TupleCell]]{Read: readV7, Write: writeV7, MinSize: 4})
+	codecV6 = BoxCodec(NinoArg[[]nino.NinoNullable[TupleCell]]{Read: readV8, Write: writeV8, MinSize: 4})
 	codecV7 = BoxCodec(NinoArg[[]nino.NinoNullable[int64]]{Read: nino.ReadNinoNullables[int64], Write: nino.WriteNinoNullables[int64], MinSize: 4})
 	codecV8 = BoxCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8})
 	codecV9 = KeysCodec(codecV8)
@@ -542,13 +542,13 @@ func init() {
 	codecV17 = NodeCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	codecV18 = BoxCodec(NinoArg[IThing]{Read: ReadIThing, Write: WriteIThing, MinSize: 4})
 	codecV19 = BoxCodec(NinoArg[[]int32]{Read: nino.ReadPrimitives[int32], Write: nino.WritePrimitives[int32], MinSize: 4})
-	codecV20 = PairCodec(codecV10, NinoArg[[]nino.Entry[int32, *string]]{Read: readV8, Write: writeV8, MinSize: 4})
+	codecV20 = PairCodec(codecV10, NinoArg[[]nino.Entry[int32, *string]]{Read: readV9, Write: writeV9, MinSize: 4})
 	codecV21 = PairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4}, NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
 	codecV22 = RawPairCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
-	codecV23 = BoxCodec(NinoArg[NinoTuple2[int32, *string]]{Read: readV9, Write: writeV9, MinSize: 5})
-	codecV24 = BoxCodec(NinoArg[*int32]{Read: readV10, Write: writeV10, MinSize: 1})
-	codecV25 = BoxCodec(NinoArg[nino.Entry[int32, *string]]{Read: readV11, Write: writeV11, MinSize: 5})
-	codecV26 = BoxCodec(NinoArg[[]*string]{Read: readV12, Write: writeV12, MinSize: 4})
+	codecV23 = BoxCodec(NinoArg[NinoTuple2[int32, *string]]{Read: readV10, Write: writeV10, MinSize: 5})
+	codecV24 = BoxCodec(NinoArg[*int32]{Read: readV11, Write: writeV11, MinSize: 1})
+	codecV25 = BoxCodec(NinoArg[nino.Entry[int32, *string]]{Read: readV12, Write: writeV12, MinSize: 5})
+	codecV26 = BoxCodec(NinoArg[[]*string]{Read: readV13, Write: writeV13, MinSize: 4})
 	codecV27 = KeysCodec(NinoArg[int32]{Read: (*nino.Reader).I32, Write: (*nino.Writer).I32, MinSize: 4})
 	codecV28 = KeysCodec(NinoArg[*string]{Read: (*nino.Reader).StringPtr, Write: (*nino.Writer).StringPtr, MinSize: 1})
 	codecV29 = OpenHolderCodec(NinoArg[int64]{Read: (*nino.Reader).I64, Write: (*nino.Writer).I64, MinSize: 8}, NinoArg[OpenType[int64]]{Read: readSlot1, Write: writeSlot1, MinSize: 4})
@@ -1103,37 +1103,37 @@ func writeHolderClass(w *nino.Writer, v *Holder) {
 
 func readHolderBody(r *nino.Reader, v *Holder) {
 	ReadIThingInto(r, &v.Thing)
-	readintoV13(r, &v.Things)
+	readintoV14(r, &v.Things)
 	ReadRecursiveInto(r, &v.Tree)
 	ReadOuterInnerInto(r, &v.Inner)
 	ReadShapesLeftItemInto(r, &v.LeftItem)
 	ReadShapesRightItemInto(r, &v.RightItem)
-	v.Flags = readV14(r)
-	v.Gaps = readV15(r)
-	v.Names = readV8(r)
-	v.Tags = readV12(r)
-	v.Utf8Tags = readV16(r)
-	v.Pair = readV9(r)
-	v.Entry = readV17(r)
-	v.Maybe = readV10(r)
+	v.Flags = readV15(r)
+	v.Gaps = readV16(r)
+	v.Names = readV9(r)
+	v.Tags = readV13(r)
+	v.Utf8Tags = readV17(r)
+	v.Pair = readV10(r)
+	v.Entry = readV18(r)
+	v.Maybe = readV11(r)
 	ReadKeywordsInto(r, &v.Keywords)
 }
 
 func writeHolderBody(w *nino.Writer, v *Holder) {
 	WriteIThing(w, v.Thing)
-	writeV13(w, v.Things)
+	writeV14(w, v.Things)
 	WriteRecursive(w, v.Tree)
 	WriteOuterInner(w, v.Inner)
 	WriteShapesLeftItem(w, v.LeftItem)
 	WriteShapesRightItem(w, v.RightItem)
-	writeV14(w, v.Flags)
-	writeV15(w, v.Gaps)
-	writeV8(w, v.Names)
-	writeV12(w, v.Tags)
-	writeV16(w, v.Utf8Tags)
-	writeV9(w, v.Pair)
-	writeV17(w, v.Entry)
-	writeV10(w, v.Maybe)
+	writeV15(w, v.Flags)
+	writeV16(w, v.Gaps)
+	writeV9(w, v.Names)
+	writeV13(w, v.Tags)
+	writeV17(w, v.Utf8Tags)
+	writeV10(w, v.Pair)
+	writeV18(w, v.Entry)
+	writeV11(w, v.Maybe)
 	WriteKeywords(w, v.Keywords)
 }
 
@@ -1224,12 +1224,12 @@ func writeHostHolderClass(w *nino.Writer, v *HostHolder) {
 
 func readHostHolderBody(r *nino.Reader, v *HostHolder) {
 	v.Leaves = readHostLeaves(r)
-	v.Gaps = readV18(r)
+	v.Gaps = readV19(r)
 }
 
 func writeHostHolderBody(w *nino.Writer, v *HostHolder) {
 	writeHostLeaves(w, v.Leaves)
-	writeV18(w, v.Gaps)
+	writeV19(w, v.Gaps)
 }
 
 // IThing is a value of a slot declared as `Shapes.IThing`.
@@ -1811,29 +1811,29 @@ func writeNinoNullableArgsTypeClass(w *nino.Writer, v *NinoNullableArgsType) {
 }
 
 func readNinoNullableArgsTypeBody(r *nino.Reader, v *NinoNullableArgsType) {
-	v.Enum = readV19(r)
+	v.Enum = readV20(r)
 	v.Enums = nino.ReadNinoNullables[Flags](r)
-	v.Cell = readV20(r)
+	v.Cell = readV21(r)
 	v.One = codecV4.Read(r)
 	v.Wide = codecV5.Read(r)
 	v.Array = codecV6.Read(r)
 	v.List = codecV7.Read(r)
 	v.Set = nino.ReadNinoNullables[int32](r)
-	v.Map = readV21(r)
-	v.Tuple = readV22(r)
+	v.Map = readV22(r)
+	v.Tuple = readV23(r)
 }
 
 func writeNinoNullableArgsTypeBody(w *nino.Writer, v *NinoNullableArgsType) {
-	writeV19(w, v.Enum)
+	writeV20(w, v.Enum)
 	nino.WriteNinoNullables[Flags](w, v.Enums)
-	writeV20(w, v.Cell)
+	writeV21(w, v.Cell)
 	codecV4.Write(w, v.One)
 	codecV5.Write(w, v.Wide)
 	codecV6.Write(w, v.Array)
 	codecV7.Write(w, v.List)
 	nino.WriteNinoNullables[int32](w, v.Set)
-	writeV21(w, v.Map)
-	writeV22(w, v.Tuple)
+	writeV22(w, v.Map)
+	writeV23(w, v.Tuple)
 }
 
 // NinoNullableRawType is `Shapes.NinoNullableRaw`.
@@ -1923,12 +1923,12 @@ func writeNinoNullableRawTypeClass(w *nino.Writer, v *NinoNullableRawType) {
 
 func readNinoNullableRawTypeBody(r *nino.Reader, v *NinoNullableRawType) {
 	v.One = readHoldsNinoNullable(r)
-	v.Many = readV23(r)
+	v.Many = readV24(r)
 }
 
 func writeNinoNullableRawTypeBody(w *nino.Writer, v *NinoNullableRawType) {
 	writeHoldsNinoNullable(w, v.One)
-	writeV23(w, v.Many)
+	writeV24(w, v.Many)
 }
 
 // NinoNullableRawWideType is `Shapes.NinoNullableRawWide`.
@@ -2018,12 +2018,12 @@ func writeNinoNullableRawWideTypeClass(w *nino.Writer, v *NinoNullableRawWideTyp
 
 func readNinoNullableRawWideTypeBody(r *nino.Reader, v *NinoNullableRawWideType) {
 	v.One = readHoldsWideNinoNullable(r)
-	v.Many = readV24(r)
+	v.Many = readV25(r)
 }
 
 func writeNinoNullableRawWideTypeBody(w *nino.Writer, v *NinoNullableRawWideType) {
 	writeHoldsWideNinoNullable(w, v.One)
-	writeV24(w, v.Many)
+	writeV25(w, v.Many)
 }
 
 // Node is `Shapes.Generic.Node<T>`.
@@ -2186,15 +2186,15 @@ func writeNullableGridsClass(w *nino.Writer, v *NullableGrids) {
 }
 
 func readNullableGridsBody(r *nino.Reader, v *NullableGrids) {
-	v.Grid = readV25(r)
-	v.Cube = readV26(r)
-	v.Cells = readV27(r)
+	v.Grid = readV26(r)
+	v.Cube = readV27(r)
+	v.Cells = readV28(r)
 }
 
 func writeNullableGridsBody(w *nino.Writer, v *NullableGrids) {
-	writeV25(w, v.Grid)
-	writeV26(w, v.Cube)
-	writeV27(w, v.Cells)
+	writeV26(w, v.Grid)
+	writeV27(w, v.Cube)
+	writeV28(w, v.Cells)
 }
 
 // NullableSlots is `Shapes.NullableSlots`.
@@ -2295,14 +2295,14 @@ func readNullableSlotsBody(r *nino.Reader, v *NullableSlots) {
 	v.Queue = nino.ReadNullableSlots[int32](r)
 	v.Stack = nino.ReadNullableSlots[int64](r)
 	v.Linked = nino.ReadNullableSlots[uint8](r)
-	v.Sorted = nino.ReadNullableSlots[int32](r)
+	v.Sorted = readV5(r)
 	v.ReadOnly = readV4(r)
-	readintoV28(r, &v.Nested)
+	readintoV29(r, &v.Nested)
 	v.BoxedSet = codecV1.Read(r)
 	v.BoxedNested = codecV2.Read(r)
-	v.Map = readV6(r)
+	v.Map = readV7(r)
 	v.BoxedMap = codecV3.Read(r)
-	readintoV29(r, &v.Tuples)
+	readintoV30(r, &v.Tuples)
 }
 
 func writeNullableSlotsBody(w *nino.Writer, v *NullableSlots) {
@@ -2311,12 +2311,12 @@ func writeNullableSlotsBody(w *nino.Writer, v *NullableSlots) {
 	nino.WriteNullableSlots[uint8](w, v.Linked)
 	nino.WriteNullableSlots[int32](w, v.Sorted)
 	writeV4(w, v.ReadOnly)
-	writeV28(w, v.Nested)
+	writeV29(w, v.Nested)
 	codecV1.Write(w, v.BoxedSet)
 	codecV2.Write(w, v.BoxedNested)
-	writeV6(w, v.Map)
+	writeV7(w, v.Map)
 	codecV3.Write(w, v.BoxedMap)
-	writeV29(w, v.Tuples)
+	writeV30(w, v.Tuples)
 }
 
 // OffsetHolder is `Shapes.OffsetHolder`.
@@ -2951,7 +2951,7 @@ func ReadRecursiveInto(r *nino.Reader, v *Recursive) {
 		return
 	}
 	v.Value = r.I32()
-	readintoV30(r, &v.Children)
+	readintoV31(r, &v.Children)
 	r.ExitStruct()
 }
 
@@ -2960,7 +2960,7 @@ func WriteRecursive(w *nino.Writer, v Recursive) {
 		return
 	}
 	w.I32(v.Value)
-	writeV30(w, v.Children)
+	writeV31(w, v.Children)
 	w.ExitStruct()
 }
 
@@ -3367,7 +3367,7 @@ func readStampsBody(r *nino.Reader, v *Stamps) {
 	v.Ids = nino.ReadBlock[nino.Guid](r)
 	v.Signed = nino.ReadBlock[nino.Int128](r)
 	v.Unsigned = nino.ReadBlock[nino.UInt128](r)
-	v.Marks = readV31(r)
+	v.Marks = readV32(r)
 }
 
 func writeStampsBody(w *nino.Writer, v *Stamps) {
@@ -3378,7 +3378,7 @@ func writeStampsBody(w *nino.Writer, v *Stamps) {
 	nino.WriteBlock[nino.Guid](w, v.Ids)
 	nino.WriteBlock[nino.Int128](w, v.Signed)
 	nino.WriteBlock[nino.UInt128](w, v.Unsigned)
-	writeV31(w, v.Marks)
+	writeV32(w, v.Marks)
 }
 
 // Strides is `Shapes.Strides`.
@@ -3827,13 +3827,13 @@ func readUsesBody(r *nino.Reader, v *Uses) {
 	v.Pair = codecV12.Read(r)
 	v.Nested = codecV13.Read(r)
 	v.Mixed = codecV15.Read(r)
-	readintoV32(r, &v.Boxes)
+	readintoV33(r, &v.Boxes)
 	v.Bag = codecV16.Read(r)
 	v.Chain = codecV17.Read(r)
 	v.Thing = codecV18.Read(r)
 	v.Array = codecV19.Read(r)
 	v.Complex = codecV20.Read(r)
-	v.Pairs = readV33(r)
+	v.Pairs = readV34(r)
 	v.Raw = codecV22.Read(r)
 	v.Tuple = codecV23.Read(r)
 	v.Maybe = codecV24.Read(r)
@@ -3849,13 +3849,13 @@ func writeUsesBody(w *nino.Writer, v *Uses) {
 	codecV12.Write(w, v.Pair)
 	codecV13.Write(w, v.Nested)
 	codecV15.Write(w, v.Mixed)
-	writeV32(w, v.Boxes)
+	writeV33(w, v.Boxes)
 	codecV16.Write(w, v.Bag)
 	codecV17.Write(w, v.Chain)
 	codecV18.Write(w, v.Thing)
 	codecV19.Write(w, v.Array)
 	codecV20.Write(w, v.Complex)
-	writeV33(w, v.Pairs)
+	writeV34(w, v.Pairs)
 	codecV22.Write(w, v.Raw)
 	codecV23.Write(w, v.Tuple)
 	codecV24.Write(w, v.Maybe)
@@ -4027,7 +4027,7 @@ func readV4(r *nino.Reader) []nino.NullableSlot[TupleCell] {
 	var e nino.NullableSlot[TupleCell]
 	v := make([]nino.NullableSlot[TupleCell], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 16 {
-		e = decodeV34(r, b[:16:16])
+		e = decodeV35(r, b[:16:16])
 		if r.Failed() {
 			return nil
 		}
@@ -4048,17 +4048,21 @@ func writeV4(w *nino.Writer, v []nino.NullableSlot[TupleCell]) {
 		return
 	}
 	for _, e := range v {
-		encodeV34(b[:16:16], e)
+		encodeV35(b[:16:16], e)
 		b = b[16:]
 	}
 }
 
-func readV5(r *nino.Reader) (v [][]nino.NullableSlot[int64]) {
-	readintoV5(r, &v)
+func readV5(r *nino.Reader) []nino.NullableSlot[int32] {
+	return nino.CheckUniqueValues(r, nino.ReadNullableSlots[int32](r))
+}
+
+func readV6(r *nino.Reader) (v [][]nino.NullableSlot[int64]) {
+	readintoV6(r, &v)
 	return v
 }
 
-func writeV5(w *nino.Writer, v [][]nino.NullableSlot[int64]) {
+func writeV6(w *nino.Writer, v [][]nino.NullableSlot[int64]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4069,7 +4073,7 @@ func writeV5(w *nino.Writer, v [][]nino.NullableSlot[int64]) {
 	}
 }
 
-func readV6(r *nino.Reader) []nino.Entry[int32, *int64] {
+func readV7(r *nino.Reader) []nino.Entry[int32, *int64] {
 	n := r.Length(5)
 	if n < 0 {
 		return nil
@@ -4078,7 +4082,7 @@ func readV6(r *nino.Reader) []nino.Entry[int32, *int64] {
 	v := make([]nino.Entry[int32, *int64], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for range n {
 		k := r.I32()
-		e = nino.Entry[int32, *int64]{Key: k, Value: readV35(r)}
+		e = nino.Entry[int32, *int64]{Key: k, Value: readV36(r)}
 		if r.Failed() {
 			return nil
 		}
@@ -4087,7 +4091,7 @@ func readV6(r *nino.Reader) []nino.Entry[int32, *int64] {
 	return nino.CheckUniqueKeys(r, v)
 }
 
-func writeV6(w *nino.Writer, v []nino.Entry[int32, *int64]) {
+func writeV7(w *nino.Writer, v []nino.Entry[int32, *int64]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4095,7 +4099,7 @@ func writeV6(w *nino.Writer, v []nino.Entry[int32, *int64]) {
 	w.Length(len(v))
 	for _, e := range v {
 		w.I32(e.Key)
-		writeV35(w, e.Value)
+		writeV36(w, e.Value)
 	}
 }
 
@@ -4127,7 +4131,7 @@ func writeV1(w *nino.Writer, v nino.NinoNullable[nino.Decimal]) {
 	}
 }
 
-func readV7(r *nino.Reader) []nino.NinoNullable[TupleCell] {
+func readV8(r *nino.Reader) []nino.NinoNullable[TupleCell] {
 	n := r.Length(24)
 	if n < 0 {
 		return nil
@@ -4139,7 +4143,7 @@ func readV7(r *nino.Reader) []nino.NinoNullable[TupleCell] {
 	var e nino.NinoNullable[TupleCell]
 	v := make([]nino.NinoNullable[TupleCell], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 24 {
-		e = decodeV20(r, b[:24:24])
+		e = decodeV21(r, b[:24:24])
 		if r.Failed() {
 			return nil
 		}
@@ -4149,7 +4153,7 @@ func readV7(r *nino.Reader) []nino.NinoNullable[TupleCell] {
 	return v
 }
 
-func writeV7(w *nino.Writer, v []nino.NinoNullable[TupleCell]) {
+func writeV8(w *nino.Writer, v []nino.NinoNullable[TupleCell]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4160,12 +4164,12 @@ func writeV7(w *nino.Writer, v []nino.NinoNullable[TupleCell]) {
 		return
 	}
 	for _, e := range v {
-		encodeV20(b[:24:24], e)
+		encodeV21(b[:24:24], e)
 		b = b[24:]
 	}
 }
 
-func readV8(r *nino.Reader) []nino.Entry[int32, *string] {
+func readV9(r *nino.Reader) []nino.Entry[int32, *string] {
 	n := r.Length(5)
 	if n < 0 {
 		return nil
@@ -4183,7 +4187,7 @@ func readV8(r *nino.Reader) []nino.Entry[int32, *string] {
 	return nino.CheckUniqueKeys(r, v)
 }
 
-func writeV8(w *nino.Writer, v []nino.Entry[int32, *string]) {
+func writeV9(w *nino.Writer, v []nino.Entry[int32, *string]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4195,19 +4199,19 @@ func writeV8(w *nino.Writer, v []nino.Entry[int32, *string]) {
 	}
 }
 
-func readV9(r *nino.Reader) NinoTuple2[int32, *string] {
+func readV10(r *nino.Reader) NinoTuple2[int32, *string] {
 	var v NinoTuple2[int32, *string]
 	v.Item1 = r.I32()
 	v.Item2 = r.StringPtr()
 	return v
 }
 
-func writeV9(w *nino.Writer, v NinoTuple2[int32, *string]) {
+func writeV10(w *nino.Writer, v NinoTuple2[int32, *string]) {
 	w.I32(v.Item1)
 	w.StringPtr(v.Item2)
 }
 
-func readV10(r *nino.Reader) *int32 {
+func readV11(r *nino.Reader) *int32 {
 	if !r.Present() {
 		return nil
 	}
@@ -4215,26 +4219,26 @@ func readV10(r *nino.Reader) *int32 {
 	return &x
 }
 
-func writeV10(w *nino.Writer, v *int32) {
+func writeV11(w *nino.Writer, v *int32) {
 	w.Present(v != nil)
 	if v != nil {
 		w.I32(*v)
 	}
 }
 
-func readV11(r *nino.Reader) nino.Entry[int32, *string] {
+func readV12(r *nino.Reader) nino.Entry[int32, *string] {
 	var v nino.Entry[int32, *string]
 	v.Key = r.I32()
 	v.Value = r.StringPtr()
 	return v
 }
 
-func writeV11(w *nino.Writer, v nino.Entry[int32, *string]) {
+func writeV12(w *nino.Writer, v nino.Entry[int32, *string]) {
 	w.I32(v.Key)
 	w.StringPtr(v.Value)
 }
 
-func readV12(r *nino.Reader) []*string {
+func readV13(r *nino.Reader) []*string {
 	n := r.Length(1)
 	if n < 0 {
 		return nil
@@ -4251,7 +4255,7 @@ func readV12(r *nino.Reader) []*string {
 	return nino.CheckUniqueStrings(r, v)
 }
 
-func writeV12(w *nino.Writer, v []*string) {
+func writeV13(w *nino.Writer, v []*string) {
 	nino.WriteStringPtrs(w, v)
 }
 
@@ -4279,7 +4283,7 @@ func readintoV3(r *nino.Reader, p *[]Forest) {
 	*p = v
 }
 
-func readintoV13(r *nino.Reader, p *[]IThing) {
+func readintoV14(r *nino.Reader, p *[]IThing) {
 	n := r.Length(4)
 	if n < 0 {
 		*p = nil
@@ -4306,15 +4310,15 @@ func readintoV13(r *nino.Reader, p *[]IThing) {
 	*p = v
 }
 
-func readV14(r *nino.Reader) Flags {
+func readV15(r *nino.Reader) Flags {
 	return Flags(r.I64())
 }
 
-func readV15(r *nino.Reader) []Gappy {
+func readV16(r *nino.Reader) []Gappy {
 	return nino.ReadRaw(r, 8, asIsGappy, nil, decodeGappy)
 }
 
-func readV16(r *nino.Reader) []*string {
+func readV17(r *nino.Reader) []*string {
 	n := r.Length(1)
 	if n < 0 {
 		return nil
@@ -4331,14 +4335,14 @@ func readV16(r *nino.Reader) []*string {
 	return nino.CheckUniqueStrings(r, v)
 }
 
-func readV17(r *nino.Reader) nino.Entry[*string, int32] {
+func readV18(r *nino.Reader) nino.Entry[*string, int32] {
 	var v nino.Entry[*string, int32]
 	v.Key = r.StringPtr()
 	v.Value = r.I32()
 	return v
 }
 
-func writeV13(w *nino.Writer, v []IThing) {
+func writeV14(w *nino.Writer, v []IThing) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4349,15 +4353,15 @@ func writeV13(w *nino.Writer, v []IThing) {
 	}
 }
 
-func writeV14(w *nino.Writer, v Flags) {
+func writeV15(w *nino.Writer, v Flags) {
 	w.I64(int64(v))
 }
 
-func writeV15(w *nino.Writer, v []Gappy) {
+func writeV16(w *nino.Writer, v []Gappy) {
 	nino.WriteRaw(w, v, 8, asIsGappy, nil, []int{1, 2, 3}, encodeGappy)
 }
 
-func writeV16(w *nino.Writer, v []*string) {
+func writeV17(w *nino.Writer, v []*string) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4368,12 +4372,12 @@ func writeV16(w *nino.Writer, v []*string) {
 	}
 }
 
-func writeV17(w *nino.Writer, v nino.Entry[*string, int32]) {
+func writeV18(w *nino.Writer, v nino.Entry[*string, int32]) {
 	w.StringPtr(v.Key)
 	w.I32(v.Value)
 }
 
-func readV18(r *nino.Reader) []nino.NullableSlot[nino.Int128] {
+func readV19(r *nino.Reader) []nino.NullableSlot[nino.Int128] {
 	n := r.Length(32)
 	if n < 0 {
 		return nil
@@ -4385,7 +4389,7 @@ func readV18(r *nino.Reader) []nino.NullableSlot[nino.Int128] {
 	var e nino.NullableSlot[nino.Int128]
 	v := make([]nino.NullableSlot[nino.Int128], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 32 {
-		e = decodeV36(r, b[:32:32])
+		e = decodeV37(r, b[:32:32])
 		if r.Failed() {
 			return nil
 		}
@@ -4395,7 +4399,7 @@ func readV18(r *nino.Reader) []nino.NullableSlot[nino.Int128] {
 	return v
 }
 
-func writeV18(w *nino.Writer, v []nino.NullableSlot[nino.Int128]) {
+func writeV19(w *nino.Writer, v []nino.NullableSlot[nino.Int128]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4406,28 +4410,28 @@ func writeV18(w *nino.Writer, v []nino.NullableSlot[nino.Int128]) {
 		return
 	}
 	for _, e := range v {
-		encodeV36(b[:32:32], e)
+		encodeV37(b[:32:32], e)
 		b = b[32:]
 	}
 }
 
-func readV19(r *nino.Reader) nino.NinoNullable[Flags] {
+func readV20(r *nino.Reader) nino.NinoNullable[Flags] {
 	var v nino.NinoNullable[Flags]
 	if b := r.Take(16); len(b) == 16 {
-		v = decodeV19(r, b)
-	}
-	return v
-}
-
-func readV20(r *nino.Reader) nino.NinoNullable[TupleCell] {
-	var v nino.NinoNullable[TupleCell]
-	if b := r.Take(24); len(b) == 24 {
 		v = decodeV20(r, b)
 	}
 	return v
 }
 
-func readV21(r *nino.Reader) []nino.Entry[int32, nino.NinoNullable[float64]] {
+func readV21(r *nino.Reader) nino.NinoNullable[TupleCell] {
+	var v nino.NinoNullable[TupleCell]
+	if b := r.Take(24); len(b) == 24 {
+		v = decodeV21(r, b)
+	}
+	return v
+}
+
+func readV22(r *nino.Reader) []nino.Entry[int32, nino.NinoNullable[float64]] {
 	n := r.Length(20)
 	if n < 0 {
 		return nil
@@ -4436,7 +4440,7 @@ func readV21(r *nino.Reader) []nino.Entry[int32, nino.NinoNullable[float64]] {
 	v := make([]nino.Entry[int32, nino.NinoNullable[float64]], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for range n {
 		k := r.I32()
-		e = nino.Entry[int32, nino.NinoNullable[float64]]{Key: k, Value: readV37(r)}
+		e = nino.Entry[int32, nino.NinoNullable[float64]]{Key: k, Value: readV38(r)}
 		if r.Failed() {
 			return nil
 		}
@@ -4445,26 +4449,26 @@ func readV21(r *nino.Reader) []nino.Entry[int32, nino.NinoNullable[float64]] {
 	return nino.CheckUniqueKeys(r, v)
 }
 
-func readV22(r *nino.Reader) NinoTuple2[uint8, nino.NinoNullable[nino.Guid]] {
+func readV23(r *nino.Reader) NinoTuple2[uint8, nino.NinoNullable[nino.Guid]] {
 	var v NinoTuple2[uint8, nino.NinoNullable[nino.Guid]]
 	v.Item1 = r.U8()
-	v.Item2 = readV38(r)
+	v.Item2 = readV39(r)
 	return v
 }
 
-func writeV19(w *nino.Writer, v nino.NinoNullable[Flags]) {
+func writeV20(w *nino.Writer, v nino.NinoNullable[Flags]) {
 	if b := w.ExtendZero(16); len(b) == 16 {
-		encodeV19(b, v)
-	}
-}
-
-func writeV20(w *nino.Writer, v nino.NinoNullable[TupleCell]) {
-	if b := w.ExtendZero(24); len(b) == 24 {
 		encodeV20(b, v)
 	}
 }
 
-func writeV21(w *nino.Writer, v []nino.Entry[int32, nino.NinoNullable[float64]]) {
+func writeV21(w *nino.Writer, v nino.NinoNullable[TupleCell]) {
+	if b := w.ExtendZero(24); len(b) == 24 {
+		encodeV21(b, v)
+	}
+}
+
+func writeV22(w *nino.Writer, v []nino.Entry[int32, nino.NinoNullable[float64]]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4472,16 +4476,16 @@ func writeV21(w *nino.Writer, v []nino.Entry[int32, nino.NinoNullable[float64]])
 	w.Length(len(v))
 	for _, e := range v {
 		w.I32(e.Key)
-		writeV37(w, e.Value)
+		writeV38(w, e.Value)
 	}
 }
 
-func writeV22(w *nino.Writer, v NinoTuple2[uint8, nino.NinoNullable[nino.Guid]]) {
+func writeV23(w *nino.Writer, v NinoTuple2[uint8, nino.NinoNullable[nino.Guid]]) {
 	w.U8(v.Item1)
-	writeV38(w, v.Item2)
+	writeV39(w, v.Item2)
 }
 
-func readV23(r *nino.Reader) []HoldsNinoNullable {
+func readV24(r *nino.Reader) []HoldsNinoNullable {
 	n := r.Length(12)
 	if n < 0 {
 		return nil
@@ -4503,7 +4507,7 @@ func readV23(r *nino.Reader) []HoldsNinoNullable {
 	return v
 }
 
-func writeV23(w *nino.Writer, v []HoldsNinoNullable) {
+func writeV24(w *nino.Writer, v []HoldsNinoNullable) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4519,7 +4523,7 @@ func writeV23(w *nino.Writer, v []HoldsNinoNullable) {
 	}
 }
 
-func readV24(r *nino.Reader) []HoldsWideNinoNullable {
+func readV25(r *nino.Reader) []HoldsWideNinoNullable {
 	n := r.Length(40)
 	if n < 0 {
 		return nil
@@ -4541,7 +4545,7 @@ func readV24(r *nino.Reader) []HoldsWideNinoNullable {
 	return v
 }
 
-func writeV24(w *nino.Writer, v []HoldsWideNinoNullable) {
+func writeV25(w *nino.Writer, v []HoldsWideNinoNullable) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4557,22 +4561,8 @@ func writeV24(w *nino.Writer, v []HoldsWideNinoNullable) {
 	}
 }
 
-func readV25(r *nino.Reader) *NinoGrid[nino.NullableSlot[int32]] {
+func readV26(r *nino.Reader) *NinoGrid[nino.NullableSlot[int32]] {
 	g := readGrid[nino.NullableSlot[int32]](r, 2, 8)
-	if g == nil {
-		return nil
-	}
-	for i := range g.Items {
-		g.Items[i] = readV39(r)
-		if r.Failed() {
-			return nil
-		}
-	}
-	return g
-}
-
-func readV26(r *nino.Reader) *NinoGrid[nino.NullableSlot[int64]] {
-	g := readGrid[nino.NullableSlot[int64]](r, 3, 16)
 	if g == nil {
 		return nil
 	}
@@ -4585,13 +4575,13 @@ func readV26(r *nino.Reader) *NinoGrid[nino.NullableSlot[int64]] {
 	return g
 }
 
-func readV27(r *nino.Reader) *NinoGrid[nino.NullableSlot[TupleCell]] {
-	g := readGrid[nino.NullableSlot[TupleCell]](r, 2, 16)
+func readV27(r *nino.Reader) *NinoGrid[nino.NullableSlot[int64]] {
+	g := readGrid[nino.NullableSlot[int64]](r, 3, 16)
 	if g == nil {
 		return nil
 	}
 	for i := range g.Items {
-		g.Items[i] = readV34(r)
+		g.Items[i] = readV41(r)
 		if r.Failed() {
 			return nil
 		}
@@ -4599,17 +4589,22 @@ func readV27(r *nino.Reader) *NinoGrid[nino.NullableSlot[TupleCell]] {
 	return g
 }
 
-func writeV25(w *nino.Writer, v *NinoGrid[nino.NullableSlot[int32]]) {
-	if !writeGrid(w, v, 2) {
-		return
+func readV28(r *nino.Reader) *NinoGrid[nino.NullableSlot[TupleCell]] {
+	g := readGrid[nino.NullableSlot[TupleCell]](r, 2, 16)
+	if g == nil {
+		return nil
 	}
-	for _, e := range v.Items {
-		writeV39(w, e)
+	for i := range g.Items {
+		g.Items[i] = readV35(r)
+		if r.Failed() {
+			return nil
+		}
 	}
+	return g
 }
 
-func writeV26(w *nino.Writer, v *NinoGrid[nino.NullableSlot[int64]]) {
-	if !writeGrid(w, v, 3) {
+func writeV26(w *nino.Writer, v *NinoGrid[nino.NullableSlot[int32]]) {
+	if !writeGrid(w, v, 2) {
 		return
 	}
 	for _, e := range v.Items {
@@ -4617,16 +4612,25 @@ func writeV26(w *nino.Writer, v *NinoGrid[nino.NullableSlot[int64]]) {
 	}
 }
 
-func writeV27(w *nino.Writer, v *NinoGrid[nino.NullableSlot[TupleCell]]) {
+func writeV27(w *nino.Writer, v *NinoGrid[nino.NullableSlot[int64]]) {
+	if !writeGrid(w, v, 3) {
+		return
+	}
+	for _, e := range v.Items {
+		writeV41(w, e)
+	}
+}
+
+func writeV28(w *nino.Writer, v *NinoGrid[nino.NullableSlot[TupleCell]]) {
 	if !writeGrid(w, v, 2) {
 		return
 	}
 	for _, e := range v.Items {
-		writeV34(w, e)
+		writeV35(w, e)
 	}
 }
 
-func readintoV28(r *nino.Reader, p *[][]nino.NullableSlot[int32]) {
+func readintoV29(r *nino.Reader, p *[][]nino.NullableSlot[int32]) {
 	n := r.Length(4)
 	if n < 0 {
 		*p = nil
@@ -4650,7 +4654,7 @@ func readintoV28(r *nino.Reader, p *[][]nino.NullableSlot[int32]) {
 	*p = v
 }
 
-func readintoV29(r *nino.Reader, p *[]NinoTuple2[int32, *int32]) {
+func readintoV30(r *nino.Reader, p *[]NinoTuple2[int32, *int32]) {
 	n := r.Length(5)
 	if n < 0 {
 		*p = nil
@@ -4664,7 +4668,7 @@ func readintoV29(r *nino.Reader, p *[]NinoTuple2[int32, *int32]) {
 	}
 	var e NinoTuple2[int32, *int32]
 	for range n {
-		e = readV41(r)
+		e = readV42(r)
 		if r.Failed() {
 			*p = nil
 			return
@@ -4674,7 +4678,7 @@ func readintoV29(r *nino.Reader, p *[]NinoTuple2[int32, *int32]) {
 	*p = v
 }
 
-func writeV28(w *nino.Writer, v [][]nino.NullableSlot[int32]) {
+func writeV29(w *nino.Writer, v [][]nino.NullableSlot[int32]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4685,18 +4689,18 @@ func writeV28(w *nino.Writer, v [][]nino.NullableSlot[int32]) {
 	}
 }
 
-func writeV29(w *nino.Writer, v []NinoTuple2[int32, *int32]) {
+func writeV30(w *nino.Writer, v []NinoTuple2[int32, *int32]) {
 	if v == nil {
 		w.NullLength()
 		return
 	}
 	w.Length(len(v))
 	for _, e := range v {
-		writeV41(w, e)
+		writeV42(w, e)
 	}
 }
 
-func readintoV30(r *nino.Reader, p *[]Recursive) {
+func readintoV31(r *nino.Reader, p *[]Recursive) {
 	n := r.Length(8)
 	if n < 0 {
 		*p = nil
@@ -4723,7 +4727,7 @@ func readintoV30(r *nino.Reader, p *[]Recursive) {
 	*p = v
 }
 
-func writeV30(w *nino.Writer, v []Recursive) {
+func writeV31(w *nino.Writer, v []Recursive) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4734,15 +4738,15 @@ func writeV30(w *nino.Writer, v []Recursive) {
 	}
 }
 
-func readV31(r *nino.Reader) []Marked {
+func readV32(r *nino.Reader) []Marked {
 	return nino.ReadRaw(r, 8, asIsMarked, []int{4}, decodeMarked)
 }
 
-func writeV31(w *nino.Writer, v []Marked) {
+func writeV32(w *nino.Writer, v []Marked) {
 	nino.WriteRaw(w, v, 8, asIsMarked, []int{4}, nil, encodeMarked)
 }
 
-func readintoV32(r *nino.Reader, p *[]*Box[int32]) {
+func readintoV33(r *nino.Reader, p *[]*Box[int32]) {
 	n := r.Length(1)
 	if n < 0 {
 		*p = nil
@@ -4766,7 +4770,7 @@ func readintoV32(r *nino.Reader, p *[]*Box[int32]) {
 	*p = v
 }
 
-func readV33(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
+func readV34(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
 	n := r.Length(1)
 	if n < 0 {
 		return nil
@@ -4784,7 +4788,7 @@ func readV33(r *nino.Reader) []nino.Entry[string, Pair[int32, int32]] {
 	return nino.CheckUniqueKeys(r, v)
 }
 
-func writeV32(w *nino.Writer, v []*Box[int32]) {
+func writeV33(w *nino.Writer, v []*Box[int32]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4795,7 +4799,7 @@ func writeV32(w *nino.Writer, v []*Box[int32]) {
 	}
 }
 
-func writeV33(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
+func writeV34(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -4807,7 +4811,7 @@ func writeV33(w *nino.Writer, v []nino.Entry[string, Pair[int32, int32]]) {
 	}
 }
 
-func decodeV34(r *nino.Reader, b []byte) nino.NullableSlot[TupleCell] {
+func decodeV35(r *nino.Reader, b []byte) nino.NullableSlot[TupleCell] {
 	_ = b[15]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[TupleCell]{}
@@ -4815,7 +4819,7 @@ func decodeV34(r *nino.Reader, b []byte) nino.NullableSlot[TupleCell] {
 	return nino.NullableSlot[TupleCell]{HasValue: true, Value: decodeTupleCell(r, b[4:16])}
 }
 
-func encodeV34(b []byte, v nino.NullableSlot[TupleCell]) {
+func encodeV35(b []byte, v nino.NullableSlot[TupleCell]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1
@@ -4824,7 +4828,7 @@ func encodeV34(b []byte, v nino.NullableSlot[TupleCell]) {
 	}
 }
 
-func readintoV5(r *nino.Reader, p *[][]nino.NullableSlot[int64]) {
+func readintoV6(r *nino.Reader, p *[][]nino.NullableSlot[int64]) {
 	n := r.Length(4)
 	if n < 0 {
 		*p = nil
@@ -4838,7 +4842,7 @@ func readintoV5(r *nino.Reader, p *[][]nino.NullableSlot[int64]) {
 	}
 	var e []nino.NullableSlot[int64]
 	for range n {
-		e = nino.ReadNullableSlots[int64](r)
+		e = readV43(r)
 		if r.Failed() {
 			*p = nil
 			return
@@ -4848,7 +4852,7 @@ func readintoV5(r *nino.Reader, p *[][]nino.NullableSlot[int64]) {
 	*p = v
 }
 
-func readV35(r *nino.Reader) *int64 {
+func readV36(r *nino.Reader) *int64 {
 	if !r.Present() {
 		return nil
 	}
@@ -4856,14 +4860,14 @@ func readV35(r *nino.Reader) *int64 {
 	return &x
 }
 
-func writeV35(w *nino.Writer, v *int64) {
+func writeV36(w *nino.Writer, v *int64) {
 	w.Present(v != nil)
 	if v != nil {
 		w.I64(*v)
 	}
 }
 
-func decodeV20(r *nino.Reader, b []byte) nino.NinoNullable[TupleCell] {
+func decodeV21(r *nino.Reader, b []byte) nino.NinoNullable[TupleCell] {
 	_ = b[23]
 	if !r.NinoNullableAt(b[0:12], b[12:24]) {
 		return nino.NinoNullable[TupleCell]{}
@@ -4871,7 +4875,7 @@ func decodeV20(r *nino.Reader, b []byte) nino.NinoNullable[TupleCell] {
 	return nino.NinoNullable[TupleCell]{HasValue: true, Value: decodeTupleCell(r, b[12:24])}
 }
 
-func encodeV20(b []byte, v nino.NinoNullable[TupleCell]) {
+func encodeV21(b []byte, v nino.NinoNullable[TupleCell]) {
 	_ = b[23]
 	if v.HasValue {
 		b[0] = 1
@@ -4880,7 +4884,7 @@ func encodeV20(b []byte, v nino.NinoNullable[TupleCell]) {
 	}
 }
 
-func decodeV36(r *nino.Reader, b []byte) nino.NullableSlot[nino.Int128] {
+func decodeV37(r *nino.Reader, b []byte) nino.NullableSlot[nino.Int128] {
 	_ = b[31]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[nino.Int128]{}
@@ -4888,7 +4892,7 @@ func decodeV36(r *nino.Reader, b []byte) nino.NullableSlot[nino.Int128] {
 	return nino.NullableSlot[nino.Int128]{HasValue: true, Value: nino.Int128{Lo: le.Uint64(b[16:]), Hi: le.Uint64(b[24:])}}
 }
 
-func encodeV36(b []byte, v nino.NullableSlot[nino.Int128]) {
+func encodeV37(b []byte, v nino.NullableSlot[nino.Int128]) {
 	_ = b[31]
 	if v.HasValue {
 		b[0] = 1
@@ -4898,7 +4902,7 @@ func encodeV36(b []byte, v nino.NullableSlot[nino.Int128]) {
 	}
 }
 
-func decodeV19(r *nino.Reader, b []byte) nino.NinoNullable[Flags] {
+func decodeV20(r *nino.Reader, b []byte) nino.NinoNullable[Flags] {
 	_ = b[15]
 	if !r.NinoNullableAt(b[0:8], b[8:16]) {
 		return nino.NinoNullable[Flags]{}
@@ -4906,23 +4910,23 @@ func decodeV19(r *nino.Reader, b []byte) nino.NinoNullable[Flags] {
 	return nino.NinoNullable[Flags]{HasValue: true, Value: Flags(int64(le.Uint64(b[8:])))}
 }
 
-func readV37(r *nino.Reader) nino.NinoNullable[float64] {
+func readV38(r *nino.Reader) nino.NinoNullable[float64] {
 	var v nino.NinoNullable[float64]
 	if b := r.Take(16); len(b) == 16 {
-		v = decodeV37(r, b)
-	}
-	return v
-}
-
-func readV38(r *nino.Reader) nino.NinoNullable[nino.Guid] {
-	var v nino.NinoNullable[nino.Guid]
-	if b := r.Take(32); len(b) == 32 {
 		v = decodeV38(r, b)
 	}
 	return v
 }
 
-func encodeV19(b []byte, v nino.NinoNullable[Flags]) {
+func readV39(r *nino.Reader) nino.NinoNullable[nino.Guid] {
+	var v nino.NinoNullable[nino.Guid]
+	if b := r.Take(32); len(b) == 32 {
+		v = decodeV39(r, b)
+	}
+	return v
+}
+
+func encodeV20(b []byte, v nino.NinoNullable[Flags]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1
@@ -4931,73 +4935,77 @@ func encodeV19(b []byte, v nino.NinoNullable[Flags]) {
 	}
 }
 
-func writeV37(w *nino.Writer, v nino.NinoNullable[float64]) {
+func writeV38(w *nino.Writer, v nino.NinoNullable[float64]) {
 	if b := w.ExtendZero(16); len(b) == 16 {
-		encodeV37(b, v)
-	}
-}
-
-func writeV38(w *nino.Writer, v nino.NinoNullable[nino.Guid]) {
-	if b := w.ExtendZero(32); len(b) == 32 {
 		encodeV38(b, v)
 	}
 }
 
-func readV39(r *nino.Reader) nino.NullableSlot[int32] {
-	var v nino.NullableSlot[int32]
-	if b := r.Take(8); len(b) == 8 {
-		v = decodeV39(r, b)
+func writeV39(w *nino.Writer, v nino.NinoNullable[nino.Guid]) {
+	if b := w.ExtendZero(32); len(b) == 32 {
+		encodeV39(b, v)
 	}
-	return v
 }
 
-func readV40(r *nino.Reader) nino.NullableSlot[int64] {
-	var v nino.NullableSlot[int64]
-	if b := r.Take(16); len(b) == 16 {
+func readV40(r *nino.Reader) nino.NullableSlot[int32] {
+	var v nino.NullableSlot[int32]
+	if b := r.Take(8); len(b) == 8 {
 		v = decodeV40(r, b)
 	}
 	return v
 }
 
-func readV34(r *nino.Reader) nino.NullableSlot[TupleCell] {
-	var v nino.NullableSlot[TupleCell]
+func readV41(r *nino.Reader) nino.NullableSlot[int64] {
+	var v nino.NullableSlot[int64]
 	if b := r.Take(16); len(b) == 16 {
-		v = decodeV34(r, b)
+		v = decodeV41(r, b)
 	}
 	return v
 }
 
-func writeV39(w *nino.Writer, v nino.NullableSlot[int32]) {
-	if b := w.ExtendZero(8); len(b) == 8 {
-		encodeV39(b, v)
+func readV35(r *nino.Reader) nino.NullableSlot[TupleCell] {
+	var v nino.NullableSlot[TupleCell]
+	if b := r.Take(16); len(b) == 16 {
+		v = decodeV35(r, b)
 	}
+	return v
 }
 
-func writeV40(w *nino.Writer, v nino.NullableSlot[int64]) {
-	if b := w.ExtendZero(16); len(b) == 16 {
+func writeV40(w *nino.Writer, v nino.NullableSlot[int32]) {
+	if b := w.ExtendZero(8); len(b) == 8 {
 		encodeV40(b, v)
 	}
 }
 
-func writeV34(w *nino.Writer, v nino.NullableSlot[TupleCell]) {
+func writeV41(w *nino.Writer, v nino.NullableSlot[int64]) {
 	if b := w.ExtendZero(16); len(b) == 16 {
-		encodeV34(b, v)
+		encodeV41(b, v)
 	}
 }
 
-func readV41(r *nino.Reader) NinoTuple2[int32, *int32] {
+func writeV35(w *nino.Writer, v nino.NullableSlot[TupleCell]) {
+	if b := w.ExtendZero(16); len(b) == 16 {
+		encodeV35(b, v)
+	}
+}
+
+func readV42(r *nino.Reader) NinoTuple2[int32, *int32] {
 	var v NinoTuple2[int32, *int32]
 	v.Item1 = r.I32()
-	v.Item2 = readV10(r)
+	v.Item2 = readV11(r)
 	return v
 }
 
-func writeV41(w *nino.Writer, v NinoTuple2[int32, *int32]) {
+func writeV42(w *nino.Writer, v NinoTuple2[int32, *int32]) {
 	w.I32(v.Item1)
-	writeV10(w, v.Item2)
+	writeV11(w, v.Item2)
 }
 
-func decodeV37(r *nino.Reader, b []byte) nino.NinoNullable[float64] {
+func readV43(r *nino.Reader) []nino.NullableSlot[int64] {
+	return nino.CheckUniqueValues(r, nino.ReadNullableSlots[int64](r))
+}
+
+func decodeV38(r *nino.Reader, b []byte) nino.NinoNullable[float64] {
 	_ = b[15]
 	if !r.NinoNullableAt(b[0:8], b[8:16]) {
 		return nino.NinoNullable[float64]{}
@@ -5005,7 +5013,7 @@ func decodeV37(r *nino.Reader, b []byte) nino.NinoNullable[float64] {
 	return nino.NinoNullable[float64]{HasValue: true, Value: math.Float64frombits(le.Uint64(b[8:]))}
 }
 
-func decodeV38(r *nino.Reader, b []byte) nino.NinoNullable[nino.Guid] {
+func decodeV39(r *nino.Reader, b []byte) nino.NinoNullable[nino.Guid] {
 	_ = b[31]
 	if !r.NinoNullableAt(b[0:16], b[16:32]) {
 		return nino.NinoNullable[nino.Guid]{}
@@ -5013,7 +5021,7 @@ func decodeV38(r *nino.Reader, b []byte) nino.NinoNullable[nino.Guid] {
 	return nino.NinoNullable[nino.Guid]{HasValue: true, Value: nino.Guid(b[16:32])}
 }
 
-func encodeV37(b []byte, v nino.NinoNullable[float64]) {
+func encodeV38(b []byte, v nino.NinoNullable[float64]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1
@@ -5022,7 +5030,7 @@ func encodeV37(b []byte, v nino.NinoNullable[float64]) {
 	}
 }
 
-func encodeV38(b []byte, v nino.NinoNullable[nino.Guid]) {
+func encodeV39(b []byte, v nino.NinoNullable[nino.Guid]) {
 	_ = b[31]
 	if v.HasValue {
 		b[0] = 1
@@ -5031,7 +5039,7 @@ func encodeV38(b []byte, v nino.NinoNullable[nino.Guid]) {
 	}
 }
 
-func decodeV39(r *nino.Reader, b []byte) nino.NullableSlot[int32] {
+func decodeV40(r *nino.Reader, b []byte) nino.NullableSlot[int32] {
 	_ = b[7]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[int32]{}
@@ -5039,7 +5047,7 @@ func decodeV39(r *nino.Reader, b []byte) nino.NullableSlot[int32] {
 	return nino.NullableSlot[int32]{HasValue: true, Value: int32(le.Uint32(b[4:]))}
 }
 
-func decodeV40(r *nino.Reader, b []byte) nino.NullableSlot[int64] {
+func decodeV41(r *nino.Reader, b []byte) nino.NullableSlot[int64] {
 	_ = b[15]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[int64]{}
@@ -5047,7 +5055,7 @@ func decodeV40(r *nino.Reader, b []byte) nino.NullableSlot[int64] {
 	return nino.NullableSlot[int64]{HasValue: true, Value: int64(le.Uint64(b[8:]))}
 }
 
-func encodeV39(b []byte, v nino.NullableSlot[int32]) {
+func encodeV40(b []byte, v nino.NullableSlot[int32]) {
 	_ = b[7]
 	if v.HasValue {
 		b[0] = 1
@@ -5056,7 +5064,7 @@ func encodeV39(b []byte, v nino.NullableSlot[int32]) {
 	}
 }
 
-func encodeV40(b []byte, v nino.NullableSlot[int64]) {
+func encodeV41(b []byte, v nino.NullableSlot[int64]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1

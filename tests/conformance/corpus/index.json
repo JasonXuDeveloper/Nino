@@ -347,6 +347,8 @@
     "duplicate-int-set",
     "duplicate-string-set",
     "duplicate-string-set-null",
+    "duplicate-nullable-set",
+    "duplicate-nullable-set-null",
     "duplicate-sorted-map",
     "trailing-byte",
     "version-negative-part",

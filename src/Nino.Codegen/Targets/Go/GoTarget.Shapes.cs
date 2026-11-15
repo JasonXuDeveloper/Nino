@@ -98,7 +98,10 @@ namespace Nino.Codegen.Targets
                         : element is { Kind: "rawnullable", SlotElement: true, Inner.Block: true } ? "nullableslots"
                         : element.Kind is "rawstruct" or "rawnullable" or "rawtuple" ? "fixed"
                         : "slice";
-                    return Open(value, new GoShape("seq") { Element = element, Mode = mode, MinSize = 4 }, false);
+                    return Open(value, new GoShape("seq")
+                    {
+                        Element = element, Mode = mode, UniqueSlots = set && element.SlotElement, MinSize = 4,
+                    }, false);
                 }
                 case ValueKind.Map:
                 {

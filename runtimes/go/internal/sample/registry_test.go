@@ -87,7 +87,7 @@ var codecs = map[string]codec{
 	"Conformance.Targets.MaybeInt":      targetOf(ReadMaybeInt, WriteMaybeInt),
 	"Conformance.Targets.MaybeIntArray": targetOf(ReadMaybeIntArray, WriteMaybeIntArray),
 	"Conformance.Targets.MaybeIntGrid":  targetOf(ReadMaybeIntGrid, WriteMaybeIntGrid),
-	"Conformance.Targets.MaybeIntSet":   targetOf(ReadMaybeIntArray, WriteMaybeIntArray),
+	"Conformance.Targets.MaybeIntSet":   targetOf(ReadMaybeIntSet, WriteMaybeIntArray),
 	"Conformance.Targets.ObjectSlot":    targetOf(ReadObject, WriteObject),
 	"Conformance.Targets.PaddedArray":   targetOf(ReadPaddedArray, WritePaddedArray),
 	"Conformance.Targets.PointList":     targetOf(ReadPointList, WritePointList),

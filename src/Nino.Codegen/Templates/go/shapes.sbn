@@ -132,7 +132,7 @@ func rfn(s)
       ret "nino.ReadBlock[" + gotype(s.element) + "]"
     else if s.mode == "ninonullables"
       ret "nino.ReadNinoNullables[" + gotype(s.element.inner) + "]"
-    else if s.mode == "nullableslots"
+    else if s.mode == "nullableslots" && !s.unique_slots
       ret "nino.ReadNullableSlots[" + gotype(s.element.inner) + "]"
     end
   when "map"

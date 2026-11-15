@@ -573,6 +573,8 @@ namespace Conformance
             Control<StringMap>("distinct", NotNull, I32(2), V(3), new byte[] { (byte)'a' }, I32(1), V(2), Utf16("b"), I32(2));
             Control<StringSet>("distinct", NotNull, I32(2), V(1), V(0));
             Control<SortedMap>("distinct", NotNull, I32(2), I32(3), I32(1), I32(4), I32(2));
+            // A null and a zero are two elements: the slots of null and of 0.
+            Control<MaybeIntSet>("distinct", NotNull, I32(2), new byte[8], I32(1), I32(0));
             Add<IntMap>("duplicate", "int-map", "Dictionary<int, int> with the key 1 twice.", NotNull, I32(2), I32(1),
                 I32(10), I32(1), I32(20));
             Add<StringMap>("duplicate", "string-map", "Dictionary<string, int> with the key \"a\" twice.", NotNull,
@@ -584,6 +586,11 @@ namespace Conformance
             Add<StringSet>("duplicate", "string-set", "HashSet<string> with \"\" twice.", NotNull, I32(2), V(1), V(1));
             Add<StringSet>("duplicate", "string-set-null", "HashSet<string> with null twice.", NotNull, I32(2), V(0),
                 V(0));
+            // The slots of a HashSet<int?> (the presence byte, three of padding, the value): spec 6.2.
+            Add<MaybeIntSet>("duplicate", "nullable-set", "HashSet<int?> with 7 twice.", NotNull, I32(2), I32(1),
+                I32(7), I32(1), I32(7));
+            Add<MaybeIntSet>("duplicate", "nullable-set-null", "HashSet<int?> with null twice.", NotNull, I32(2),
+                new byte[8], new byte[8]);
             Add<SortedMap>("duplicate", "sorted-map", "SortedDictionary<int, int> with the key 3 twice.", NotNull,
                 I32(2), I32(3), I32(1), I32(3), I32(2));
 

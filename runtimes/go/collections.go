@@ -363,7 +363,8 @@ func (w *Writer) WriteShape(dims ...int) {
 // it fails r with CodeDuplicateKey (as .NET's HashSet and SortedSet do when filled from empty) and returns nil. It
 // returns nil for nil and after r failed. Generated code reads the elements with direct calls, then checks them
 // once here, as [CheckUniqueKeys] does for a dictionary's keys. Numbers and strings are compared as .NET compares them
-// (a NaN equals every NaN), without a map; other values as Go compares them (unique.go).
+// (a NaN equals every NaN), without a map, and so is a [NullableSlot] of a number, a set of T? (two nulls are equal);
+// other values as Go compares them (unique.go).
 func CheckUniqueValues[T comparable](r *Reader, v []T) []T {
 	if v == nil || r.err != nil {
 		return nil
