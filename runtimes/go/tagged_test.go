@@ -617,6 +617,70 @@ func (badTolerantGap) NinoLayout() string {
 }
 func (badElements) NinoLayout() string { return "members=[elements]::seq(raw(4));A:int:raw(4)" }
 
+// A T? field of a raw struct lies in its memory as the slot it is in a sequence (spec §6.2), with or without a
+// layout: Id at 0, Total at 8 (16 bytes), Inner at 24 (a tagRaw?: 24 bytes), Count at 48, 56 bytes.
+type tagRawOptional struct {
+	Id    int32               `nino:"0"`
+	Total *int64              `nino:"1"`
+	Inner *tagRawStruct       `nino:"2"`
+	Count NinoNullable[int32] `nino:"3"`
+}
+
+type tagRawOptionalLaidOut tagRawOptional
+
+func (tagRawOptionalLaidOut) NinoLayout() string {
+	return "header=None; raw=true; members=raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)}," +
+		"Inner:System.Nullable<Test.Raw>@24:raw(24){hasValue:bool@0:raw(1),value:Test.Raw@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}}," +
+		"Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}"
+}
+
+func TestTagRawOptional(t *testing.T) {
+	const present = "07000000 00000000 0100000000000000 0500000000000000" +
+		" 0100000000000000 0100000000000000 0200000000000000 01000000 03000000"
+	bothModes(t, func(t *testing.T) {
+		five := int64(5)
+		full := tagRawOptional{Id: 7, Total: &five, Inner: &tagRawStruct{1, 2}, Count: NinoNullableOf[int32](3)}
+		for _, c := range []struct {
+			v    tagRawOptional
+			want string
+		}{{full, present}, {tagRawOptional{Id: 7}, "07" + strings.Repeat("00", 55)}} {
+			laidOut := tagRawOptionalLaidOut(c.v)
+			for _, v := range []any{c.v, laidOut, []tagRawOptional{c.v}} {
+				want := mustHex(t, c.want)
+				if reflect.TypeOf(v).Kind() == reflect.Slice {
+					want = append([]byte{1, 0, 0, 0}, want...)
+				}
+				got, err := Marshal(v)
+				if err != nil || !bytes.Equal(got, want) {
+					t.Fatalf("%T: got %X, %v\nwant %X", v, got, err, want)
+				}
+				// Read over a value that holds every field: an absent slot clears its field.
+				back := reflect.New(reflect.TypeOf(v))
+				if back.Elem().Kind() == reflect.Struct {
+					back.Elem().Set(reflect.ValueOf(full).Convert(back.Elem().Type()))
+				}
+				if err := UnmarshalExact(got, back.Interface()); err != nil || !reflect.DeepEqual(back.Elem().Interface(), v) {
+					t.Fatalf("%T read back: %v, %+v", v, err, back.Elem())
+				}
+			}
+		}
+		// Held through a pointer the type is a class, written member by member: each T? a presence byte and its value.
+		const class = "01 07000000 01 0500000000000000 01 0100000000000000 0200000000000000 01000000 03000000"
+		if got, err := Marshal(&full); err != nil || !bytes.Equal(got, mustHex(t, class)) {
+			t.Fatalf("as a class: got %X, %v\nwant %s", got, err, class)
+		}
+		// A presence other than 0 or 1 is rejected (.NET: with NinoSettings.Untrusted), in Total, Inner and Count.
+		for _, at := range []int{8, 24, 48} {
+			bad := mustHex(t, present)
+			bad[at] = 2
+			var v tagRawOptional
+			if err := Unmarshal(bad, &v); err == nil {
+				t.Fatalf("a presence of 2 at %d was read", at)
+			}
+		}
+	})
+}
+
 // .NET's NinoNullable<T> is a nino.NinoNullable[T]: its memory wherever it is (a presence and a value of a T each),
 // where a *T is a T?, a presence byte and the value (Plain). The type says so by itself; a layout, when there is
 // one, has to agree.

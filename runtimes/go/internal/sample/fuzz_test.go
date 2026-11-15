@@ -105,6 +105,12 @@ func seeds() []seed {
 		IntArray: []nino.NinoNullable[int32]{count, {}}, ByteList: []nino.NinoNullable[uint8]{{}},
 	}, WriteNinoNullableRuns)
 	add("Conformance.NinoNullableRuns", b, err)
+	total := int64(5)
+	optional := RawOptional{Id: 1, Total: &total, Price: &nino.Decimal{Lo: 15, Flags: 1 << 16}, Count: count}
+	b, err = nino.Serialize(optional, WriteRawOptional)
+	add("Conformance.RawOptional", b, err)
+	b, err = nino.Serialize(&RawOptionals{One: optional, Array: []RawOptional{{}, optional}, Maybe: &optional}, WriteRawOptionals)
+	add("Conformance.RawOptionals", b, err)
 	b, err = nino.Serialize(&KeyedHolder{Keyed: &KeyedV1{Name: &s, Items: []int32{1}}}, WriteKeyedHolder)
 	add("Conformance.KeyedHolder", b, err)
 	b, err = nino.Serialize(&TreeHolder{Tree: Tree{Tree{}, nil}, DictTree: DictTree{{Key: "a", Value: nil}}}, WriteTreeHolder)

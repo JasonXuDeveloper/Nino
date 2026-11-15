@@ -121,9 +121,10 @@ public partial struct ManagedStruct
 
 /// <summary>
 /// NullableTest's raw struct with nullable members (the v3 build's too): unmanaged, so a library that copies memory
-/// takes it whole, <c>T?</c> members and their padding included. Nino writes each <c>T?</c> member as a presence byte
-/// and the value when present, which is not one copy; with <c>NinoNullable&lt;T&gt;</c> members (RawNullableNino,
-/// NullableTest.RawNullable.cs) the struct is its memory. MemoryPack given this struct as it is copies it, the
+/// takes it whole, <c>T?</c> members and their padding included. Nino v4 writes it as its memory too, each
+/// <c>T?</c> member a slot whose padding and absent value it clears (v3 writes each as a presence byte and the value
+/// when present); with <c>NinoNullable&lt;T&gt;</c> members (RawNullableNino, NullableTest.RawNullable.cs) nothing
+/// needs clearing. MemoryPack given this struct as it is copies it, the
 /// uninitialized padding of each <c>T?</c> included (its unsafe form); <see cref="RawNullableMemoryPack"/> is its safe
 /// one. protobuf-net writes the nullable members through <c>[NullWrappedValue]</c> at Level300, as
 /// <see cref="NullableFields"/>. The values depend on the index only: of every five neighbours one has no

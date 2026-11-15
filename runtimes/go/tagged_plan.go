@@ -520,18 +520,21 @@ func (b *builder) rawLayout(p *plan, d *layoutDecl) error {
 		p.raw, p.size, p.align = true, e.size, 1
 		for i := range p.fields {
 			f := &p.fields[i]
-			if !f.c.rawCapable() || f.c.kind == kDTO {
+			if err := b.rawField(f); err != nil {
+				return err
+			}
+			if f.raw == nil {
 				return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("%s cannot be a field of a raw struct", f.c.typ)}
 			}
 			lf := e.fields[i]
 			f.off = lf.off
-			if err := checkEncoding(f.c, lf.enc); err != nil {
+			if err := checkEncoding(f.raw, lf.enc); err != nil {
 				return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("raw field %s is %s: %v", lf.name, lf.enc.text, err)}
 			}
-			if f.off+f.c.size > p.size {
-				return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("at %d, %d bytes do not fit in %d", f.off, f.c.size, p.size)}
+			if f.off+f.raw.size > p.size {
+				return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("at %d, %d bytes do not fit in %d", f.off, f.raw.size, p.size)}
 			}
-			p.align = max(p.align, f.c.align)
+			p.align = max(p.align, f.raw.align)
 		}
 		return b.sortRaw(p)
 	}
@@ -547,7 +550,10 @@ func (b *builder) rawLayout(p *plan, d *layoutDecl) error {
 	end, align := 0, 1
 	for i := range p.fields {
 		c := p.fields[i].c
-		if !c.rawCapable() {
+		if err := b.rawField(&p.fields[i]); err != nil {
+			return err
+		}
+		if p.fields[i].raw == nil {
 			if c.size > 0 {
 				p.rawErr = fmt.Sprintf("field %s (%s) has no raw layout of its own", p.fields[i].name, c.typ)
 			}
@@ -556,14 +562,32 @@ func (b *builder) rawLayout(p *plan, d *layoutDecl) error {
 	}
 	for i := range p.fields {
 		f := &p.fields[i]
-		if f.c.align == 0 {
+		if f.raw.align == 0 {
 			return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("a raw struct holding %s needs its offsets: declare them in NinoLayout (raw(n){...})", f.c.typ)}
 		}
-		f.off = roundUp(end, f.c.align)
-		end = f.off + f.c.size
-		align = max(align, f.c.align)
+		f.off = roundUp(end, f.raw.align)
+		end = f.off + f.raw.size
+		align = max(align, f.raw.align)
 	}
 	p.raw, p.size, p.align = true, roundUp(end, align), align
+	return nil
+}
+
+// rawField sets the field's codec inside a raw struct's memory (f.raw), nil when it cannot lie there: the codec of
+// a raw value, and for a T? of one (a *T) the slot .NET writes there, as in a sequence. The field keeps its own
+// codec (f.c) for where the type is written member by member: a class body, held through a pointer.
+func (b *builder) rawField(f *field) error {
+	c := f.c
+	switch {
+	case c.kind == kNullable && c.elem.rawCapable():
+		s, err := b.slot(c.typ, c.elem)
+		if err != nil {
+			return err
+		}
+		f.raw = s
+	case c.rawCapable():
+		f.raw = c
+	}
 	return nil
 }
 
@@ -571,7 +595,7 @@ func (b *builder) sortRaw(p *plan) error {
 	slices.SortStableFunc(p.fields, func(a, b field) int { return cmp.Compare(a.off, b.off) })
 	for i := 1; i < len(p.fields); i++ {
 		prev := &p.fields[i-1]
-		if p.fields[i].off < prev.off+prev.c.size {
+		if p.fields[i].off < prev.off+prev.raw.size {
 			return &TagError{Type: p.typ, Field: p.fields[i].name, Detail: "overlaps " + prev.name}
 		}
 	}
@@ -599,7 +623,7 @@ func checkEncoding(c *codec, e *encoding) error {
 				return fmt.Errorf("%d bytes, the Go type takes %d", e.size, c.size)
 			}
 			return nil
-		case c.rawCapable() && c.kind != kDTO:
+		case c.rawCapable() || c.kind == kSlot:
 			if e.size != c.size {
 				return fmt.Errorf("%d bytes, the Go type takes %d", e.size, c.size)
 			}

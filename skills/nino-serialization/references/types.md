@@ -33,8 +33,11 @@ A generic `[NinoType]` closed over such a type (`Box<Action>`) compiles, but wri
   of memory (one block per array or list): its field order, `Pack` and `Size` are the format. Reordering fields or
   changing `StructLayout` changes the bytes. Order fields largest first to avoid padding (padding is written as zeros).
 - `Nullable<T>`, tuples, `KeyValuePair`, `nint` and `DateTimeOffset` are never raw *on their own* (written item by
-  item). A raw `[NinoType]` struct needs every field raw, so one holding them is written member by member. A plain
-  unmanaged struct (no `[NinoType]`) that holds them is still one block, in the canonical layout below.
+  item). A `[NinoType]` struct holding a tuple, a `KeyValuePair`, a `nint` or a `DateTimeOffset` is written member by
+  member; one whose other fields are raw stays one block with `T?` (of a raw `T`) and `NinoNullable<T>` fields, each
+  `T?` a fixed slot of its memory (flag, padding, value; zeros when null), not the presence byte and optional value
+  a `T?` member of a class takes. A plain unmanaged struct (no `[NinoType]`) that holds any of them is one block
+  too, in the canonical layout below.
 - A `[NinoType]` struct with a `[NinoIgnore]`d field, or with `format: NinoFormat.VersionTolerant` (so fields can be
   added later), is not raw: it is written member by member, and its `bool` members are checked in every mode.
 - A struct that serializes no member is NINO023.

@@ -215,7 +215,7 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 | `[]nino.Entry[K, V]` | `map(K,V)` in the order of the data (no check for repeated keys); a `nino.Entry` alone is a `pair` |
 | `*T` (struct) | a class: presence byte, or type id with `header=TypeId`; `Nullable<T>` when `T` is a struct (`header=None`) |
 | `*T` (anything else) | `Nullable<T>`: presence byte, then `T` |
-| `T` (struct) | a struct: raw, or member by member |
+| `T` (struct) | a struct: raw (every field a fixed-size value, a `nino.NinoNullable` or a `*T` of one, which is then a slot at its offset), or member by member |
 | an interface (`any`, or one the allowed types implement) | `object`, an abstract class, an interface: a type id, then one of the **registered** types that implements the field's interface |
 
 .NET writes a nullable fixed-size `T` (a number, a date, a raw struct) in three ways, and the Go type says which:
@@ -224,6 +224,7 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 | --- | --- | --- |
 | `T?`, a single value (a member, a map's key or value, a tuple's item) | a presence byte, then the value when present | `*T` |
 | `T?`, the element of a sequence (`T?[]`, `List<T?>`, `HashSet<T?>`, nested ones) | a slot of `T`'s alignment plus its size: the presence byte, zeros, then the value, zeros when absent | `[]*T` |
+| `T?`, a field of a raw struct (an unmanaged `[NinoType]` struct, written as its memory) | the same slot, at the field's offset | `*T`, a field of a struct held by value whose every field is fixed-size |
 | `NinoNullable<T>`, wherever it is | its memory, `2 * size(T)` bytes: a presence as wide as `T` (0 or 1), then the value, zeros when absent | `nino.NinoNullable[T]` |
 
 `nino.NinoNullable[T]` is a value, `struct { HasValue bool; Value T }`, whose zero value is absent:

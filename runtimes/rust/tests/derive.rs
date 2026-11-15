@@ -291,6 +291,26 @@ pub struct NinoNullables {
     pub fields_array: Option<Vec<NinoNullableFields>>,
 }
 
+/// A raw struct holding nullables: a `T?` field is its slot there (`Option<T>`: the presence, zeros up to `T`'s
+/// alignment, then `T`), a `NinoNullable<T>` its memory.
+#[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; id=0x1C1AA5B4; deferrable=false; members=raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}")]
+pub struct RawOptional {
+    pub id: i32,
+    pub total: Option<i64>,
+    pub price: Option<Decimal>,
+    pub count: NinoNullable<i32>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
+#[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x0F7CD49F; deferrable=true; members=One:Conformance.RawOptional:raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}};Array:Conformance.RawOptional[]:seq(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}});List:System.Collections.Generic.List<Conformance.RawOptional>:seq(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}});Maybe:System.Nullable<Conformance.RawOptional>:nullable(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}})")]
+pub struct RawOptionals {
+    pub one: RawOptional,
+    pub array: Option<Vec<RawOptional>>,
+    pub list: Option<Vec<RawOptional>>,
+    pub maybe: Option<RawOptional>,
+}
+
 /// Runs of `NinoNullable<T>` of a `T` as large as its alignment: the bytes of the `T?` runs (`Vec<NullableSlot<T>>`).
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
 #[nino(layout = "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x97EFBB53; deferrable=true; members=LongArray:Nino.Core.NinoNullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});LongList:System.Collections.Generic.List<Nino.Core.NinoNullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});IntArray:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});ByteList:System.Collections.Generic.List<Nino.Core.NinoNullable<byte>>:seq(raw(2){hasValue:bool@0:raw(1),value:byte@1:raw(1)})")]
@@ -670,6 +690,8 @@ fn case_type(name: &str) -> Option<Box<dyn Case>> {
         "Conformance.NullableSequences" => of::<Option<Box<NullableSequences>>>(),
         "Conformance.NinoNullables" => of::<Option<Box<NinoNullables>>>(),
         "Conformance.NinoNullableRuns" => of::<Option<Box<NinoNullableRuns>>>(),
+        "Conformance.RawOptional" => of::<RawOptional>(),
+        "Conformance.RawOptionals" => of::<Option<Box<RawOptionals>>>(),
         "Conformance.Collections" => of::<Option<Box<Collections>>>(),
         "Conformance.Empties" => of::<Option<Box<Empties>>>(),
         "Conformance.TolerantV1" => of::<Option<Box<TolerantV1>>>(),

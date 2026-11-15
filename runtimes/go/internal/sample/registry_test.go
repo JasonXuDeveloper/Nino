@@ -67,6 +67,8 @@ var codecs = map[string]codec{
 	"Conformance.Vec2":              codecOf(ReadVec2, WriteVec2),
 	"Conformance.Padded":            codecOf(ReadPadded, WritePadded),
 	"Conformance.Nested":            codecOf(ReadNested, WriteNested),
+	"Conformance.RawOptional":       codecOf(ReadRawOptional, WriteRawOptional),
+	"Conformance.RawOptionals":      codecOf(ReadRawOptionals, WriteRawOptionals),
 	"Conformance.Label":             codecOf(ReadLabel, WriteLabel),
 	"Conformance.KeyedStruct":       codecOf(ReadKeyedStruct, WriteKeyedStruct),
 	"Conformance.EmptyStruct":       codecOf(ReadEmptyStruct, WriteEmptyStruct),
