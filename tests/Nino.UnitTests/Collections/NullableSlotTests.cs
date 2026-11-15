@@ -311,7 +311,7 @@ public class NullableSlotTests
         byte[] bytes = NinoSerializer.Serialize(absent);
         Assert.AreEqual(4 + 300 * 5, bytes.Length);
         Assert.AreEqual(300, NinoDeserializer.Deserialize<Dictionary<int, long?>>(bytes).Count);
-#if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueueFormatter is in the .NET 8+ builds of Nino.Core only
         var queue = new PriorityQueue<int?, int>();
         queue.Enqueue(null, 1);
         queue.Enqueue(7, 2);
