@@ -34,7 +34,7 @@ internal static class PrefetchRules
     {
         // A class of fixed size: its body is a few stores the JIT inlines into the collection loop with every writer
         // field in a register (FixedSizeTest's FixedClasses); left out, not measured with the runs and their calls.
-        if (kind == FormatterKind.Struct || generic || fixedSize)
+        if (kind is FormatterKind.Struct or FormatterKind.Union || generic || fixedSize)
             return 0;
         int bytes = Header;
         for (var t = type; t != null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)

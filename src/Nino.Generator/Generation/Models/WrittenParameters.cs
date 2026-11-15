@@ -207,7 +207,9 @@ internal sealed class WrittenParameters
         var writes = new List<ITypeSymbol>();
         var hidden = new bool[parameters.Count];
         var subtypes = new List<(INamedTypeSymbol, List<ITypeSymbol>)>();
-        if (definition.GetNinoTypeOptions() is { } options)
+        if (UnionCases.IsUnion(definition))
+            writes.AddRange(UnionCases.Of(definition));
+        else if (definition.GetNinoTypeOptions() is { } options)
         {
             foreach (var member in _members.Of(definition, options))
             {

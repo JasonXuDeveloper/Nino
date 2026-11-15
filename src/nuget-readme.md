@@ -75,6 +75,11 @@ NinoDeserializer.Deserialize(bytes, ref copy); // fills the same instance in pla
 
 Polymorphism needs no tags: a value declared as its base is read back as its runtime type.
 
+On .NET 11 with C# 15, annotate a union declaration with `[NinoType]`, for example
+`[NinoType] public union Result(int, string);`. Nino generates a formatter for the union and uses each case's
+formatter for its payload. Cases use Nino type ids, so reordering them preserves the meaning of stored ids.
+See the [union wire format](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/spec/wire-format.md#712-c-union-structs).
+
 ```csharp
 [NinoType] public abstract class Message { public int Seq; }
 [NinoType] public sealed class Chat : Message { public string Text; }

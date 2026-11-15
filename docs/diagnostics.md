@@ -53,6 +53,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO042](#nino042) | Error | A serialization callback that runs on the value is static |
 | [NINO043](#nino043) | Error | Instance `[NinoOnDeserializing]` on a type created from its members |
 | [NINO044](#nino044) | Error | A serialization callback on a struct copied as raw memory |
+| [NINO045](#nino045) | Error | Union case cannot be serialized |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -504,6 +505,11 @@ A positional `[NinoType]` struct of unmanaged members only is written as its raw
 one copy: no code of the type runs, so its callbacks would never be called. Making it run code would change its
 bytes, so Nino does not: call the work from a callback of the type that holds the struct, or give the struct a format
 that is written member by member (`NinoFormat.VersionTolerant`), which changes its bytes (a layout change).
+
+### NINO045
+
+A case of a C# `union` marked `[NinoType]` needs a Nino formatter. Mark the case type `[NinoType]`, use an
+already supported case type, or register a formatter for it with `[assembly: NinoFormatter(...)]`.
 
 ## Code generation for other languages
 

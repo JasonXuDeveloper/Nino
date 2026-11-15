@@ -56,6 +56,15 @@ internal static class FormatterEmitter
         iface += Prefetch(m);
 
         w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.FormatterConstraints}");
+        if (m.Kind == FormatterKind.Union)
+        {
+            EmitTypeId(w, m);
+            EmitDeferral(w, m, names);
+            w.Line();
+            UnionEmitter.Emit(w, m, names);
+            w.Close();
+            return;
+        }
         var body = new BodyEmitter(m, w, names);
 
         // TypeId, Traits and Create are a few bytes of IL, which every runtime inlines without being told to. The
