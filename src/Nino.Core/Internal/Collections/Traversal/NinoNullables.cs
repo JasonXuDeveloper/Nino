@@ -135,12 +135,15 @@ namespace Nino.Core
         private static readonly int PerVector = Stride <= 64 ? 64 / Stride : 0;
 
         /// <summary>
-        /// Whether a run of any other stride up to 64 bytes (12, 20, 24, 32, ...: a <c>decimal?</c>, a <c>Guid?</c>, a
-        /// struct of two or three words) is cleared the same way, a vector's whole elements at a time: their flags
+        /// Whether a run of any other stride up to 64 bytes but 24 (12, 20, 32, ...: a <c>Guid?</c>, a struct of
+        /// three floats or of four words) is cleared the same way, a vector's whole elements at a time: their flags
         /// lie anywhere in the vector, so a permutation across it (vpermb, AVX-512 VBMI) gives each byte its
         /// element's flag.
         /// </summary>
-        private static readonly bool Permutes = PerVector > 0 && Stride is not (2 or 4 or 8 or 16) &&
+        // Not 24 bytes: CopyLanes writes those three whole vectors a step, which it can align to the destination,
+        // where a step here is 48 bytes and its 64-byte stores never are (1,000 decimal?, local: 540 to 565 ns
+        // against 584 to 715 at every position of a line, 409 against 583 where the run starts one).
+        private static readonly bool Permutes = PerVector > 0 && Stride is not (2 or 4 or 8 or 16 or 24) &&
                                                 Mask?.ClearsAbsent != true && Avx512Vbmi.IsSupported &&
                                                 Gfni.V512.IsSupported && KeepsWholeBytes();
 
@@ -543,12 +546,13 @@ namespace Nino.Core
             nuint step = (nuint)(LaneStep * Unsafe.SizeOf<TVector>() / 16);
             nuint end = total - step;
             nuint i = 0;
-            // Stores at whole vectors of the destination where whole elements lead there: the first step as it lies,
-            // then steps from the first aligned element on, which write its overlap again. A store that is not
+            // Stores at whole vectors of the destination where whole elements lead there (for 24 bytes a step is
+            // three vectors, and one or two elements may lead to a line's start): the first step as it lies, then
+            // steps from the first aligned element on, which write its overlap again. A store that is not
             // aligned to its width straddles two cache lines, and the stores bound this loop.
-            if (Stride != 24 && total >= AlignFrom * step)
+            if (total >= AlignFrom * step)
             {
-                nuint head = NinoUnsafe.BytesToAligned(ref destination, step);
+                nuint head = NinoUnsafe.BytesToAligned(ref destination, (nuint)Unsafe.SizeOf<TVector>());
                 if (head % (nuint)Stride == 0)
                 {
                     lanes.Copy(ref destination, ref source, 0);
