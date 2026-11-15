@@ -30,7 +30,7 @@ namespace Nino.Core.Internal
 #endif
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
         private readonly int[] _absent; // NinoLayout.Info.Absent: values cleared when their flag is 0
-#if NET10_0_OR_GREATER
+#if NET8_0_OR_GREATER
         // CopyCleared: whether it takes these elements (ClearedRows.Plan), and its tables, built by the first long run.
         private readonly bool _clears;
         private ClearedRows _rows;
@@ -47,10 +47,10 @@ namespace Nino.Core.Internal
         /// <summary>Whether values whose flag is 0 are cleared too (<see cref="NinoLayout.Info.Absent"/>).</summary>
         public bool ClearsAbsent => _absent != null;
 
-#if NET10_0_OR_GREATER
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Whether <see cref="Copy"/> clears those values in the copy's one pass, a vector at a time
-        /// (<see cref="CopyCleared"/>: AVX-512 VBMI with GFNI); elsewhere it clears them element by element after.
+        /// (<see cref="CopyCleared"/>: AVX-512 VBMI, with GFNI on .NET 10); elsewhere it clears them element by element after.
         /// </summary>
         public bool ClearsByVector => _clears;
 #endif
@@ -99,7 +99,7 @@ namespace Nino.Core.Internal
                 }
             }
 #endif
-#if NET10_0_OR_GREATER
+#if NET8_0_OR_GREATER
             _clears = ClearedRows.Plan(mask, absent, out _, out _, out _);
 #endif
             var words = Repeat(mask, 8, 0, out _);
@@ -157,7 +157,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Copy(ref byte destination, ref byte source, int count)
         {
-#if NET10_0_OR_GREATER
+#if NET8_0_OR_GREATER
             if (_clears && count * _mask.Length >= 64)
             {
                 // The elements whole vectors hold; the last few of a run under two vectors take the path below.
@@ -174,7 +174,7 @@ namespace Nino.Core.Internal
                 ClearAbsent(ref destination, count);
         }
 
-#if NET10_0_OR_GREATER
+#if NET8_0_OR_GREATER
         /// <summary>
         /// The tables of <see cref="CopyCleared"/>: for each place in an element a 64-byte vector can start at (its
         /// phase), a row of 64-byte vectors, aligned: for each byte of the vector where its value's flag is in the
@@ -211,7 +211,7 @@ namespace Nino.Core.Internal
             {
                 outer = inner = null;
                 nested = false;
-                if (absent == null || !Avx512Vbmi.IsSupported || !Gfni.V512.IsSupported)
+                if (absent == null || !Avx512Vbmi.IsSupported)
                     return false;
                 outer = new int[mask.Length];
                 inner = new int[mask.Length];
@@ -289,8 +289,24 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static Vector512<byte> Cleared(Vector512<byte> previous, Vector512<byte> current, Vector512<byte> index,
             Vector512<byte> follows, Vector512<byte> kept) =>
-            Gfni.V512.GaloisFieldMultiply(current, Avx512F.TernaryLogic(
+            Multiply(current, Avx512F.TernaryLogic(
                 Avx512Vbmi.PermuteVar64x8x2(previous, index, current), follows, kept, FollowedOrKept));
+
+        /// <summary>
+        /// <paramref name="value"/>'s bytes times <paramref name="by"/>'s, each 0 or 1 (a flag, or a constant): vgf2p8mulb
+        /// with GFNI on .NET 10, else <paramref name="value"/> ANDed with 0 - <paramref name="by"/> (vpsubb, vpandq), as
+        /// .NET 8 has no GFNI API. Without it .NET 8 cleared the absent values element by element after the copy: three
+        /// times the copy for 1,000 structs of an int, a long? and a double? (#301).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector512<byte> Multiply(Vector512<byte> value, Vector512<byte> by)
+        {
+#if NET10_0_OR_GREATER
+            if (Gfni.V512.IsSupported)
+                return Gfni.V512.GaloisFieldMultiply(value, by);
+#endif
+            return value & (Vector512<byte>.Zero - by);
+        }
 
         /// <summary>vpternlog's table for <c>(a &amp; b) | c</c>.</summary>
         private const byte FollowedOrKept = 0xEA;
@@ -308,7 +324,7 @@ namespace Nino.Core.Internal
             if (!nested)
                 return value;
             // A value inside another Nullable's value: multiplied by the inner flag as well, 1 for every other byte.
-            return Gfni.V512.GaloisFieldMultiply(value, Avx512F.TernaryLogic(
+            return Multiply(value, Avx512F.TernaryLogic(
                 Avx512Vbmi.PermuteVar64x8x2(previous, Vector512.LoadAligned(row + 192), current),
                 Vector512.LoadAligned(row + 256), Vector512.Create((byte)1), FollowedOrOne));
         }
@@ -360,10 +376,10 @@ namespace Nino.Core.Internal
                 do
                 {
                     var current = Vector512.LoadUnsafe(ref source, i);
-                    var value = Gfni.V512.GaloisFieldMultiply(current, Avx512F.TernaryLogic(
+                    var value = Multiply(current, Avx512F.TernaryLogic(
                         Avx512Vbmi.PermuteVar64x8(current, index), follows, kept, FollowedOrKept));
                     if (nested)
-                        value = Gfni.V512.GaloisFieldMultiply(value, Avx512F.TernaryLogic(
+                        value = Multiply(value, Avx512F.TernaryLogic(
                             Avx512Vbmi.PermuteVar64x8(current, Vector512.LoadAligned(row + 192)),
                             Vector512.LoadAligned(row + 256), Vector512.Create((byte)1), FollowedOrOne));
                     value.StoreUnsafe(ref destination, i);
