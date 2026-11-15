@@ -626,24 +626,47 @@ namespace Nino.Core.Internal
         {
             if (!HasPadding)
                 return;
-            // A single value with at most two padding runs (the usual case): constant stores, inlined.
-            if (count == 1 && GapCount <= 2 && Info.Absent == null)
+            // A single value with at most four padding runs and two Nullable fields (a struct of a few T? fields):
+            // constant stores and tests, inlined. Mask.Clear's loops over the tables took 9.6 ns for a 40-byte
+            // struct of an int, a long? and a double?, against 3.3 for MemoryPack's copy (local, AVX-512 Xeon).
+            if (count == 1 && GapCount <= 4 && AbsentCount <= 2)
             {
-                NinoMask.Zero(ref Unsafe.Add(ref destination, Gap0Offset), Gap0Length);
-                if (GapCount == 2)
+                if (GapCount > 0)
+                    NinoMask.Zero(ref Unsafe.Add(ref destination, Gap0Offset), Gap0Length);
+                if (GapCount > 1)
                     NinoMask.Zero(ref Unsafe.Add(ref destination, Gap1Offset), Gap1Length);
+                if (GapCount > 2)
+                    NinoMask.Zero(ref Unsafe.Add(ref destination, Gap2Offset), Gap2Length);
+                if (GapCount > 3)
+                    NinoMask.Zero(ref Unsafe.Add(ref destination, Gap3Offset), Gap3Length);
+                // Outer before inner (Info.Absent): an outer value cleared clears an inner flag before its test.
+                if (AbsentCount > 0 && Unsafe.Add(ref destination, Absent0Flag) == 0)
+                    NinoMask.Zero(ref Unsafe.Add(ref destination, Absent0Value), Absent0Size);
+                if (AbsentCount > 1 && Unsafe.Add(ref destination, Absent1Flag) == 0)
+                    NinoMask.Zero(ref Unsafe.Add(ref destination, Absent1Value), Absent1Size);
                 return;
             }
 
             Mask.Clear(ref destination, count);
         }
 
-        // The first two padding runs, as JIT-time constants for single values.
+        // The first four padding runs and two Nullable values, as JIT-time constants for single values.
         private static readonly int GapCount = Mask == null ? 0 : Mask.Gaps.Length / 2;
         private static readonly int Gap0Offset = GapCount > 0 ? Mask.Gaps[0] : 0;
         private static readonly int Gap0Length = GapCount > 0 ? Mask.Gaps[1] : 0;
         private static readonly int Gap1Offset = GapCount > 1 ? Mask.Gaps[2] : 0;
         private static readonly int Gap1Length = GapCount > 1 ? Mask.Gaps[3] : 0;
+        private static readonly int Gap2Offset = GapCount > 2 ? Mask.Gaps[4] : 0;
+        private static readonly int Gap2Length = GapCount > 2 ? Mask.Gaps[5] : 0;
+        private static readonly int Gap3Offset = GapCount > 3 ? Mask.Gaps[6] : 0;
+        private static readonly int Gap3Length = GapCount > 3 ? Mask.Gaps[7] : 0;
+        private static readonly int AbsentCount = Info.Absent == null ? 0 : Info.Absent.Length / 3;
+        private static readonly int Absent0Flag = AbsentCount > 0 ? Info.Absent[0] : 0;
+        private static readonly int Absent0Value = AbsentCount > 0 ? Info.Absent[1] : 0;
+        private static readonly int Absent0Size = AbsentCount > 0 ? Info.Absent[2] : 0;
+        private static readonly int Absent1Flag = AbsentCount > 1 ? Info.Absent[3] : 0;
+        private static readonly int Absent1Value = AbsentCount > 1 ? Info.Absent[4] : 0;
+        private static readonly int Absent1Size = AbsentCount > 1 ? Info.Absent[5] : 0;
 
         /// <summary>
         /// Copies <paramref name="count"/> canonical values to the wire, padding cleared in the same pass (masking
