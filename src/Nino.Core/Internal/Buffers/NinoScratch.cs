@@ -91,7 +91,7 @@ namespace Nino.Core.Internal
             if (buffer == null || buffer.ScratchState != NinoArrayBufferWriter.ScratchIdle)
                 return RentOther();
             buffer.ScratchState = NinoArrayBufferWriter.ScratchInUse;
-            buffer.ResetWrittenCount();
+            buffer.Index = 0;
             return buffer;
         }
 

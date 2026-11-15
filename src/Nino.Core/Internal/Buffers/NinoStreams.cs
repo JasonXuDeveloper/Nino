@@ -53,7 +53,7 @@ namespace Nino.Core.Internal
                 writer.Write(value, buffer);
                 // The array overload everywhere: Stream.Write(ReadOnlySpan) copies into a rented array on a stream
                 // that does not override it.
-                stream.Write(buffer.Buffer, buffer.Start, buffer.Index - buffer.Start);
+                stream.Write(buffer.Buffer, 0, buffer.Index);
             }
             finally
             {
