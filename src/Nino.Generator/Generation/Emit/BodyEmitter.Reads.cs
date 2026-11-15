@@ -64,9 +64,9 @@ internal sealed partial class BodyEmitter
     {
         if (local)
         {
-            BeginLocalCopy(_w, reader: true);
+            BeginLocalCopy(_w, reader: true, ReaderCursorOnly);
             EmitReads(fresh, "__r", present);
-            EndLocalCopy(_w, reader: true);
+            EndLocalCopy(_w, reader: true, ReaderCursorOnly);
         }
         else
             EmitReads(fresh, "reader", present);
@@ -93,16 +93,26 @@ internal sealed partial class BodyEmitter
             EmitInPlaceRead(r, present);
     }
 
-    /// <summary>Copies the reader or writer into a local before emitting its body.</summary>
-    internal static void BeginLocalCopy(CodeWriter w, bool reader)
+    /// <summary>
+    /// Copies the reader or writer into a local before emitting its body: only its cursor where nothing else is
+    /// touched (<paramref name="cursorOnly"/>: every local writer, whose bodies are flat (<see cref="LocalWriter"/>),
+    /// and the reader of a positional body), the whole reader where a version-tolerant body's regions may read a
+    /// deferred section through its other fields.
+    /// </summary>
+    internal static void BeginLocalCopy(CodeWriter w, bool reader, bool cursorOnly)
     {
         w.Line(reader ? Core + "Reader __r = default;" : Core + "Writer __w = default;");
-        w.Line(reader ? "reader.CopyTo(ref __r);" : "writer.CopyTo(ref __w);");
+        w.Line(reader ? $"reader.{CopyMethod(cursorOnly)}(ref __r);" : $"writer.{CopyMethod(cursorOnly)}(ref __w);");
     }
 
-    /// <summary>Copies the local reader or writer back to the parameter after its body.</summary>
-    internal static void EndLocalCopy(CodeWriter w, bool reader) =>
-        w.Line(reader ? "__r.CopyTo(ref reader);" : "__w.CopyTo(ref writer);");
+    /// <summary>Copies the local reader or writer back to the parameter after its body (see <see cref="BeginLocalCopy"/>).</summary>
+    internal static void EndLocalCopy(CodeWriter w, bool reader, bool cursorOnly) =>
+        w.Line(reader ? $"__r.{CopyMethod(cursorOnly)}(ref reader);" : $"__w.{CopyMethod(cursorOnly)}(ref writer);");
+
+    private static string CopyMethod(bool cursorOnly) => cursorOnly ? "CopyCursorTo" : "CopyTo";
+
+    /// <summary>Whether a local reader copies only the cursor (<see cref="BeginLocalCopy"/>): positional bodies.</summary>
+    private bool ReaderCursorOnly => _m.Format == NinoFormat.Positional;
 
     /// <summary>
     /// The local <c>__v</c>, which the reads that follow go to (<see cref="BodyMode.Target"/>): the instance in
@@ -168,9 +178,9 @@ internal sealed partial class BodyEmitter
         {
             // The top twin's new-instance body is inlinable and called here on a local copy of the reader.
             _w.Open($"private static void {body}Fresh({parameters})");
-            BeginLocalCopy(_w, reader: true);
+            BeginLocalCopy(_w, reader: true, ReaderCursorOnly);
             _w.Line($"{body}FreshInline(ref __r, ref value);");
-            EndLocalCopy(_w, reader: true);
+            EndLocalCopy(_w, reader: true, ReaderCursorOnly);
             _w.Close();
             _w.Line();
             _w.Line(_names.Inline);
