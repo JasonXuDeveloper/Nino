@@ -449,6 +449,13 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   second pass per 2 KB chunk with the offsets as `NinoLayout<T>` constants and branchless clears (2.44 us, the same
   gain for a second mechanism). Runner A/B 43739748813 (56346978): RawNullables serialize 3,293 to 1,299 ns on EPYC
   7763 and 3,091 to 2,396 on Neoverse-N2, unchanged on the VBMI CPUs; still 1.6x and 4.1x MemoryPack's there.
+- Keep `Lanes512.CopyRealigned` for `int?` runs behind a 4-byte length; never replace its dword permutation with two
+  unaligned loads a vector (the vector at the destination's line and the one 4 bytes before it, whose value dwords
+  give each value its flag: a subtraction from zero and one ternary logic, no shuffle). Why: both loads straddle cache
+  lines, which costs more than the permutation saves. Evidence (#270, local AVX-512 Xeon, 1,000 `int?`): the kernel
+  alone took 131 to 174 ns against 122 to 126 for the whole `Serialize` through `CopyRealigned` (a plain copy of the
+  8,000 bytes about 96). The gap left on the VBMI runners (6975P 86 against MemoryPack's 59 ns, run 43739748813) is
+  the clearing itself.
 - Write a `T?` run that no vector clears across elements an element at a time, in pieces that tile it
   (`NinoNullables.CopyPieces`: vectors of 64, 32 and 16 bytes, then one word of 8, 4, 2 and 1 bytes as its length
   needs), each ANDed with the element's flag spread over it, on every ISA with plain ANDs: stores in address order,
