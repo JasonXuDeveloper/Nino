@@ -38,8 +38,10 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   (unmeasured; the netstandard builds keep their loops, where Mono turns unaligned 64-bit loads into memcpy calls).
 
 - Write raw `T?` runs (strides 2, 4, 8, 16, 24) with absent values zeroed in the same single pass as the padding,
-  as wide as the masked copy: AVX-512 test-into-mask plus masked AND, Arm64 structure loads; never a second pass
-  over the elements. Runner A/B 43264755384 showed the first form of this fix 2x slower than the masked copy (Writes).
+  as wide as the masked copy, each byte multiplied by its flag spread over its element (GFNI `vgf2p8mulb`, else
+  SSSE3/AVX2 `psignb`; Arm64 `tbl` and `mul`), never a second pass over the elements. Runner A/B 43264755384
+  showed the first form of this fix 2x slower than the masked copy (Writes; local only for the multiplication at
+  every width, owed a runner A/B).
 
 ## Layout and presence flags
 
@@ -198,6 +200,28 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   same uops and reads a flag byte above 1 as absent where the copy reads it as present; masked stores
   (`vmovdqu8 {k}`) cannot skip absent lanes, the destination holds garbage that must become zeros. The JIT does
   not fold `Equals(x & m, 0)` into a two-operand `vptestmq x, m`. Arm64 timing: runners only (listings under qemu).
+- Clear raw `T?` runs by multiplying each byte by its flag spread over its element, two operations a vector, at
+  every width: GFNI's `vgf2p8mulb`, else SSSE3/AVX2's `psignb` (a byte keeps its value where the spread byte is 1 and
+  becomes 0 where it is 0; the spread is `pshufb` with zero in the padding), where a lane test took three (AVX-512:
+  `vpandd`, `vptestm`, masked AND) to five (SSE: a shuffle, an AND, `pcmpeqq`, `pandn`, an AND). For 24 bytes the
+  flag of a byte lies in its own 16-byte lane or the one before: two `pshufb` (the vector and the one loaded 16 bytes
+  earlier, the vector before it at 16 bytes) and a `por` replace the cross-lane `vpermq` moves; with AVX-512 VBMI the
+  flags permuted (`vpermb`/`vpermt2b`) are ANDed with the bytes kept and multiplied, and the results realigned onto
+  the destination's lines as the tiling strides are (`vpermt2d`, `CopyRealigned24`). The raw struct lanes
+  (`NinoMask.CopyLanes`) take the same form: `pshufb` from the vector loaded a lane earlier, `por` 1 into the other
+  kept bytes, `psignb` (Arm64: `cmtst`, `orr`, `and`), with the tables of a period of up to five vectors held in
+  registers (`CopyPeriods`). Local in-process A/B, each build in its own AssemblyLoadContext, destination phase
+  cycled, 1,000 elements, ns, base 98518d32 / this, memcpy of the bytes: SSE without GFNI (`DOTNET_EnableAVX2=0
+  DOTNET_EnableGFNI=0`) `int?` 250 / 194 (memcpy 76), `long?` 666 / 391 (128), `Vec3?` 666 / 388, `decimal?` 1,132 /
+  912 (194), `RawNullable` 2,730 / 1,605 (629); AVX2 without GFNI (Zen 3's ISA) `int?` 192 / 173, `decimal?` 958 /
+  900, `RawNullable` 2,151 / 1,643; AVX2 with GFNI `decimal?` 946 / 866, `RawNullable` 2,145 / 1,637; AVX-512 VBMI
+  `decimal?` 656 / 528, `int?` 108 / 102. `long?` and `Vec3?` under AVX2 moved within the placement noise (an
+  identical kernel in another load context read 6-14 % apart); the kernel harness (16,000 bytes, destination 4
+  bytes past a line) put `psignb` at 297-309 ns against the lane test's 332-342 and GFNI's 303-315. Arm64 by
+  llvm-mca only (`neoverse-n2`, the struct lanes): 2.0 cycles per 16 bytes against 3.0. Byte-identical on 110,080
+  runs (16 element types, lengths 0-79 and 100-1,001, 64 destination offsets, dirty padding and absent values)
+  under every ISA, tiering off and qemu Arm64. Not timed on AMD or Arm hardware: decide by runner A/B. What is
+  left to memcpy on x64 is the split store (the alignment bullet below).
 - Do not scan raw `T?` runs for dirty absent values and padding to take `NinoUnsafe.Copy` when clean (MemoryPack's
   `SafeNullable` is a plain memcpy because its memory is always clean): a read-only AVX-512 pass of the same
   test-and-masked-AND plus an XOR and OR into an accumulator, then the copy, took longer than the one-pass copy on a
@@ -371,9 +395,14 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   `List<long?>` 234-250 / 250 / 193, a class with that list second 234-256 / 250 / 195, `int?[,]` 122 / 122 / 114,
   `int?[]` 130 / 130 / 116 (at a 28-byte phase c1ccaebf 139, this 135); where elements start a line all three
   164 / 168 / 102 (`long?`, `Vec3?`, `int?`);
-  a copy of the bytes 116 and 62; the 16-byte struct into a writer 3.34-3.40 in all. Not 24 bytes: its kernel is
-  already four or five operations a vector (`vpermb` and `vpermt2b` for the flags) and the realigned period took
-  513 against 510-560. AVX2 has no one-uop dword shift across a 32-byte vector, so it keeps the split stores. What
+  a copy of the bytes 116 and 62; the 16-byte struct into a writer 3.34-3.40 in all. 24 bytes realign too
+  (`CopyRealigned24`) since their kernel is three operations a vector (the flags permuted, ANDed with the bytes kept,
+  multiplied): `decimal?` 656 to 528 ns with both, in-process A/B; at four or five operations (the lane test) the
+  realigned period took 513 against 510-560. AVX2 has no one-uop dword shift across a 32-byte vector, so it keeps the
+  split stores: a plain 32-byte copy 4 bytes past a line took 288-294 ns for 16,000 bytes against 100-103 on the
+  line (memcpy 123-129; local Xeon, `DOTNET_EnableAVX512=0`), and the clear adds only 10-20 ns to it; realigning
+  the results (`vperm2i128` and `vpalignr`) lost in L1 (350 against 303-315 ns) and matched memcpy only past it
+  (40,000 bytes: 1,055 against 1,314, memcpy 1,070-1,128), not tried in the code. What
   is left to a copy is the kernel's ALU work: four operations a vector on ports 0 and 5 (`vpshufb`, `vgf2p8mulb`,
   `vpermt2d`, and for 8 bytes the masked AND) against none. Short runs (under 256 elements) could not be timed on
   that shared machine: identical processes read 19 or 298 ns for 128 `int?`, so the gate is the alignment
@@ -449,6 +478,7 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   second pass per 2 KB chunk with the offsets as `NinoLayout<T>` constants and branchless clears (2.44 us, the same
   gain for a second mechanism). Runner A/B 43739748813 (56346978): RawNullables serialize 3,293 to 1,299 ns on EPYC
   7763 and 3,091 to 2,396 on Neoverse-N2, unchanged on the VBMI CPUs; still 1.6x and 4.1x MemoryPack's there.
+  Since then three operations a vector with the period's tables in registers (the multiplication bullet above).
 - Keep `Lanes512.CopyRealigned` for `int?` runs behind a 4-byte length; never replace its dword permutation with two
   unaligned loads a vector (the vector at the destination's line and the one 4 bytes before it, whose value dwords
   give each value its flag: a subtraction from zero and one ternary logic, no shuffle). Why: both loads straddle cache
