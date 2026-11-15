@@ -218,9 +218,9 @@ internal sealed partial class BodyEmitter
             return $"private static void {body}({parameters})";
         // The members are written or read by the inlinable twin (__Top's, or one made for this), through the local.
         _w.Open($"private static void {body}({parameters})");
-        BeginLocalCopy(_w, reader: !write);
+        BeginLocalCopy(_w, reader: !write, write || ReaderCursorOnly);
         _w.Line($"{body}Inline({(write ? $"{value}, ref __w" : "ref __r, ref value")});");
-        EndLocalCopy(_w, reader: !write);
+        EndLocalCopy(_w, reader: !write, write || ReaderCursorOnly);
         _w.Close();
         _w.Line();
         _w.Line(_names.Inline);
