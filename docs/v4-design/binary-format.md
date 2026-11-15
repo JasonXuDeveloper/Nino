@@ -9,9 +9,9 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 
 | Value | Encoding |
 | --- | --- |
-| Unmanaged value (`int`, `Guid`, unmanaged structs, enums) | raw bytes, `Unsafe.SizeOf<T>()` |
+| Unmanaged value (`int`, `Guid`, unmanaged structs, enums; an unmanaged positional `[NinoType]` struct whose fields are raw, `T?` of raw or `NinoNullable<T>`) | raw bytes in the canonical layout, padding and absent values zero; a `T?` field is the canonical `Nullable<T>` slot |
 | `bool` | 1 byte (0/1) |
-| `T?` (nullable value type) | a presence byte, then the value if present |
+| A single `T?` (nullable value type) | a presence byte, then the value if present |
 | Collection / array length | `int32`; `-1` means `null` |
 | `string` (default) | header (1, 3 or 5 bytes, minimal: the value itself up to 127, else `0x80` and a `u16`, else `0x81` and a `u32`): `0` = null; `2n + 1` (odd, `1` = empty) then `n` Latin-1 bytes when every char is at most U+00FF; else `2n` then `n` UTF-16 code units (see below) |
 | `string` with `[NinoUtf8]` | char count plus one as a header (`0` = null, `1` = empty; nothing follows either), then the byte count as a header and the UTF-8 bytes (see below) |

@@ -126,8 +126,7 @@ mod protocol;
 - All: members written by a formatter outside Nino.Core (a custom formatter, `Nino.Immutable`, the Unity classes:
   their bytes have no layout); generic types with `trackReferences`; closed generic types nobody names in the
   assembly.
-- Rust: maps and sets keyed by `f32`/`f64` (or types containing them), raw tuples with padding, nullable raw values
-  outside sequences.
+- Rust: maps and sets keyed by `f32`/`f64` (or types containing them), raw tuples with padding.
 
 The types that hold a left-out type are left out too. For a browser client that needs them, run the C# types on .NET
 WebAssembly instead (https://nino.xgamedev.net/en/docs/v4/advanced/browser.md).

@@ -217,8 +217,9 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
 
 - **Read anything an outsider could craft with `NinoSettings.Untrusted = true`.** The default mode already rejects a
   `bool` or presence byte other than 0 or 1 in members, values and arrays, but it copies a raw struct as one block
-  (any plain unmanaged struct, including one with `bool` or `T?` fields), so a `bool` field or a `Nullable` flag
-  *inside* it is not checked. A byte other than 0 or 1 there is undefined behavior to the .NET JIT, not only a wrong
+  (any plain unmanaged struct, including one with `bool` or `T?` fields, a raw `[NinoType]` struct with `T?` fields,
+  and `NinoNullable<T>`), so a `bool` field, a `Nullable` flag or a `NinoNullable<T>`'s presence *inside* it is not
+  checked. A byte other than 0 or 1 there is undefined behavior to the .NET JIT, not only a wrong
   value (the struct can compare unequal to itself and be lost in a `Dictionary`). Untrusted mode rejects it, and also
   bytes after the value and out-of-range `decimal`, `DateTime`, `DateOnly`, `TimeOnly` copied as bytes. It is one
   process-wide setting: set it once at startup, not per call.
@@ -240,9 +241,10 @@ NinoSettings.MaxHashCollisions = 100;       // default 100, at least 1
   and read with the same declared type (`Serialize<Base>` then `Deserialize<Base>`).
 - `NinoSettings` changed after the first Nino call throws.
 - Sharing one `NinoArrayBufferWriter` between threads, or using `WrittenSpan` after the next write or reset.
-- `List<int?>` (a fixed stride per element, as every sequence of `int?`) and `Dictionary<int, int?>` values or
-  `(int, int?)` items (a presence byte, then the value) write `int?` differently; so do `[NinoUtf8]` and the
-  default; so does a raw struct made `VersionTolerant`.
+- `List<int?>` (a fixed slot per element, as every sequence of `int?`) and `Dictionary<int, int?>` values or
+  `(int, int?)` items (a presence byte, then the value) write `int?` differently; so do `T?` and `NinoNullable<T>`
+  (two formats: convert the values, never read one as the other), `[NinoUtf8]` and the default, and a raw struct made
+  `VersionTolerant`.
 - v3 code: `Serializer.Serialize` / `Deserializer.Deserialize(data, out v)` are now `NinoSerializer.Serialize` /
   `NinoDeserializer.Deserialize<T>(data)`; `[NinoExplicitOrder]` is gone (`[NinoType(false)]` + `[NinoMember]`). v4
   cannot read v3 data. Beta names: `[NinoRefDeserialization]` is `[NinoFactory]`, `DeserializeRef` is
