@@ -364,4 +364,8 @@
 # Arrays of flat sealed classes through a local writer (52c04c5b) and the subtype reads inlined into the dispatch and
 # the dispatch into its caller (98518d32), against 53d7a97d; GenericOpenClassTupleBase serialize again (9V74 +21 %,
 # 9V45 +38 % in run 43755946645, both CPUs noisy there). MemoryPack rides along as the floor.
-cpu='EPYC|Xeon|Neoverse' 53d7a97d 98518d32 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino* *SimpleTest.MemoryPack*
+# done (run 43764424839): cpu='EPYC|Xeon|Neoverse' 53d7a97d 98518d32 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino* *SimpleTest.MemoryPack*
+# Only flat subtype reads inlined into the dispatch (3dd9df2b; run 43764424839 had GenericSealedClassTupleBase and
+# GenericOpenClassTupleBase reads 3-14 % slower with every subtype inlined) and only the cursor copied into a flat
+# body's local writer and reader (b6c6eed1), against 98518d32. MemoryPack rides along as the floor.
+cpu='EPYC|Xeon|Neoverse' 98518d32 3dd9df2b 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino* *SimpleTest.MemoryPack* *CollectionsTest.Nino*Dictionary *CollectionsTest.Nino*HashSet
