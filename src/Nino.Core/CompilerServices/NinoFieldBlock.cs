@@ -45,6 +45,20 @@ namespace Nino.Core.CompilerServices
             Unsafe.SizeOf<TField>() == bytes && NinoLayout<TField>.IsCanonical && !NinoLayout<TField>.HasPadding;
 
         /// <summary>
+        /// Whether values of <typeparamref name="T"/> are read as their bytes (canonical, nothing Untrusted mode checks):
+        /// then a block read may copy them into the object with the other fields.
+        /// </summary>
+        public static bool ReadsAsIs<T>() => NinoLayout<T>.CopiesAsIs;
+
+        /// <summary>
+        /// Copies <paramref name="size"/> bytes from <paramref name="source"/> to <paramref name="first"/>, the block's
+        /// first field (a constant size: unrolled into vector moves).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Read<TFirst>(ref TFirst first, ref byte source, int size) =>
+            Unsafe.CopyBlockUnaligned(ref Unsafe.As<TFirst, byte>(ref first), ref source, (uint)size);
+
+        /// <summary>
         /// Copies the <paramref name="size"/> bytes from <paramref name="first"/>, the block's first field, to
         /// <paramref name="destination"/> + <paramref name="offset"/> (a constant size: unrolled into vector moves).
         /// </summary>
