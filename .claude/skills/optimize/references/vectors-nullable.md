@@ -434,6 +434,20 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   process: a kernel harness whose source and destination shared their low 12 address bits ranked the overlapping
   form 30 % behind the aligned one (4K aliasing), the opposite of the real path, and an array the GC placed
   elsewhere moved `long?` from 128 to 194 ns between two processes of one build.
+- Without VBMI, clear a raw struct run's absent values in the masked copy's pass where each is a `Nullable` of a
+  primitive (`NinoMask.CopyLanes`): each vector loaded again its lane width earlier, where every value lane finds its
+  flag lane, one lane compare and an AND-NOT. Three traps, each measured: the lane width must be a type parameter
+  (a `switch` on it per vector, though perfectly predicted, made the loop twice the masked copy's time: 2.5 us
+  against 1.2 for 1,000 40-byte structs); the vectors must sit at multiples of the lane width into the run, so align
+  them to the source, not to the destination, which follows a 4-byte length (aligned there, every lane compare read
+  half a flag lane and half a value: absent values went through uncleared, and only the tests at every offset
+  caught it); and a packed struct (`Pack = 1`, an `int?` at offset 1, a 9-byte stride) has no lanes, so the stride
+  and every value offset must be multiples of the width. Before, the copy then walked each element's absent table
+  (a flag read back, a branch and a variable-length clear per field): 3.3 us on EPYC 7763 and 3.1 on Neoverse-N2
+  against 0.8 and 0.6 for MemoryPack (run 43714421476); locally with AVX-512 disabled 3.6 us became 2.1 to 2.4, the
+  extra vector load and four ALU operations still a cycle a vector over the plain masked copy (1.2). Not kept: a
+  second pass per 2 KB chunk with the offsets as `NinoLayout<T>` constants and branchless clears (2.44 us, the same
+  gain for a second mechanism).
 - Write a `T?` run that no vector clears across elements an element at a time, in pieces that tile it
   (`NinoNullables.CopyPieces`: vectors of 64, 32 and 16 bytes, then one word of 8, 4, 2 and 1 bytes as its length
   needs), each ANDed with the element's flag spread over it, on every ISA with plain ANDs: stores in address order,
