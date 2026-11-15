@@ -93,6 +93,17 @@ namespace Nino.Core.Internal
         public static bool WritesOnLocal<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>();
 
         /// <summary>
+        /// <see cref="WritesOnLocal{T}"/>, and also for sealed classes whose generated body opens no class body
+        /// (<see cref="NinoBodyTraits.Nests"/> clear: raw members and strings), which inline into the loop and never
+        /// recurse through it. Through the caller's writer by reference, the cursor was loaded from and stored to
+        /// memory for every member (LuminPack's ActiveBuff[], four raw members and a string: four reservations an
+        /// element, each a load, a compare and two stores; #305). A JIT-time constant at Tier1.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool WritesOnLocal<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            WritesOnLocal<T>() || Traits<T, TFormatter>.FlatClass;
+
+        /// <summary>
         /// Whether <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> overwrites every element
         /// whatever it held (raw elements, DateTimeOffsets and blocks are each read in full), so the slots need not
         /// be cleared or zeroed first. A JIT-time constant.
@@ -274,6 +285,10 @@ namespace Nino.Core.Internal
                 typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoSlots<T, TFormatter>.FixedStride > 0;
 
             public static readonly int MinWireSize = Math.Max(BlockStride<T, TFormatter>(), 1);
+
+            public static readonly bool FlatClass = typeof(T).IsSealed && !typeof(T).IsValueType &&
+                                                    default(TFormatter) is INinoBodyFormatter<T> body &&
+                                                    (body.Traits & NinoBodyTraits.Nests) == 0;
         }
 
         /// <summary>
@@ -317,7 +332,7 @@ namespace Nino.Core.Internal
             // The loop stays in this method: a helper of its own was not inlined where the element's formatter
             // writes a collection of its own type (a tree), which added a call per level (SelfTree serialize 0.86x on
             // EPYC 9V74, runner A/B of the rc.10 review head against main 51a7bd18).
-            if (WritesOnLocal<T>())
+            if (WritesOnLocal<T, TFormatter>())
             {
                 if (!values.IsEmpty)
                     writer = WriteOnLocal<T, TFormatter>(values, writer);
