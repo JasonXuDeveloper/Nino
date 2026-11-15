@@ -422,3 +422,43 @@ func BenchmarkNullableSlots(b *testing.B) {
 		return &v.Value
 	}, writeSlotPointers, readSlotPointers)
 }
+
+// BenchmarkSlotSets reads 1000 distinct elements as a set, the check for an element read twice included: a
+// HashSet<int?> (slots, one of them null; and with a zero beside the null, which checks the values present a second
+// time) beside a HashSet<int> (the cost every set's check has), and both read as lists (no check).
+func BenchmarkSlotSets(b *testing.B) {
+	rnd := rand.New(rand.NewSource(7))
+	ints := make([]int32, 1000)
+	slots := make([]NullableSlot[int32], len(ints))
+	for i, k := range rnd.Perm(1 << 20)[:len(ints)] {
+		ints[i], slots[i] = int32(k), NullableSlotOf(int32(k))
+	}
+	slots[500] = NullableSlot[int32]{}
+	w := NewWriter(0)
+	WritePrimitives(w, ints)
+	intData := bytes.Clone(w.Bytes())
+	w.Reset()
+	WriteNullableSlots(w, slots)
+	slotData := bytes.Clone(w.Bytes())
+	slots[0] = NullableSlotOf[int32](0)
+	w.Reset()
+	WriteNullableSlots(w, slots)
+	zeroData := bytes.Clone(w.Bytes())
+	run := func(name string, data []byte, read func(r *Reader) int) {
+		b.Run(name, func(b *testing.B) {
+			r := NewReader(nil)
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				r.Reset(data)
+				if read(r) != len(ints) || r.Err() != nil {
+					b.Fatal(r.Err())
+				}
+			}
+		})
+	}
+	run("int-set", intData, func(r *Reader) int { return len(CheckUniqueValues(r, ReadPrimitives[int32](r))) })
+	run("slot-set", slotData, func(r *Reader) int { return len(CheckUniqueValues(r, ReadNullableSlots[int32](r))) })
+	run("slot-set-null-and-zero", zeroData, func(r *Reader) int { return len(CheckUniqueValues(r, ReadNullableSlots[int32](r))) })
+	run("int-list", intData, func(r *Reader) int { return len(ReadPrimitives[int32](r)) })
+	run("slot-list", slotData, func(r *Reader) int { return len(ReadNullableSlots[int32](r)) })
+}

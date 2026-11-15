@@ -1145,3 +1145,59 @@ func TestTagBlocks(t *testing.T) {
 		}
 	})
 }
+
+// A set of T? of a raw T (HashSet<T?>) is a map keyed by nino.NullableSlot[T]: the slots of a T?[], written null
+// first and then in the values' order, and an element read twice (null, or a value) is rejected, with or without a
+// layout.
+type tagSlotSet struct {
+	Ints  map[NullableSlot[int32]]struct{}   `nino:"0"`
+	Wide  map[NullableSlot[Int128]]struct{}  `nino:"1"`
+	Reals map[NullableSlot[float64]]struct{} `nino:"2"`
+}
+
+type tagSlotSetLaidOut struct {
+	Ints map[NullableSlot[int32]]struct{} `nino:"0"`
+}
+
+func (tagSlotSetLaidOut) NinoLayout() string {
+	return "header=None; members=Ints:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+}
+
+func TestTagSlotSets(t *testing.T) {
+	const ints = "03000000 0000000000000000 01000000FEFFFFFF 0100000007000000"
+	bothModes(t, func(t *testing.T) {
+		v := tagSlotSet{
+			Ints:  map[NullableSlot[int32]]struct{}{NullableSlotOf[int32](7): {}, {}: {}, NullableSlotOf[int32](-2): {}},
+			Wide:  map[NullableSlot[Int128]]struct{}{NullableSlotOf(Int128{Lo: 5}): {}},
+			Reals: map[NullableSlot[float64]]struct{}{},
+		}
+		want := mustHex(t, ints+"01000000 01"+strings.Repeat("00", 15)+"05"+strings.Repeat("00", 15)+"00000000")
+		got, err := Marshal(v)
+		if err != nil || !bytes.Equal(got, want) {
+			t.Fatalf("got %X, %v\nwant %X", got, err, want)
+		}
+		var back tagSlotSet
+		if err := UnmarshalExact(got, &back); err != nil || !reflect.DeepEqual(back, v) {
+			t.Fatalf("read back: %v, %+v", err, back)
+		}
+		laidOut := tagSlotSetLaidOut{Ints: v.Ints}
+		if got, err := Marshal(laidOut); err != nil || !bytes.Equal(got, mustHex(t, ints)) {
+			t.Fatalf("with a layout: got %X, %v", got, err)
+		}
+		// Null twice (whatever lies under the second), a value twice, two NaNs.
+		for name, bad := range map[string]string{
+			"null twice":    "02000000 0000000000000000 0000000007000000" + "00000000 00000000",
+			"a value twice": "02000000 0100000007000000 0100000007000000" + "00000000 00000000",
+			"a NaN twice":   "00000000 00000000 02000000 0100000000000000 000000000000F87F 0100000000000000 010000000000F07F",
+		} {
+			var e *Error
+			if err := Unmarshal(mustHex(t, bad), &back); !errors.As(err, &e) || e.Code != CodeDuplicateKey {
+				t.Fatalf("%s: %v", name, err)
+			}
+		}
+		var one tagSlotSetLaidOut
+		if err := Unmarshal(mustHex(t, "02000000 0000000000000000 0000000000000000"), &one); err == nil {
+			t.Fatal("null twice with a layout was read")
+		}
+	})
+}

@@ -20,6 +20,7 @@ var fuzzTargets = []reflect.Type{
 	reflect.TypeFor[[]tagPacked](),
 	reflect.TypeFor[map[string][]*tagKeyed](),
 	reflect.TypeFor[*tagNinoNullables](),
+	reflect.TypeFor[tagSlotSetLaidOut](),
 }
 
 // FuzzTagged reads arbitrary bytes into tag-mapped types (the first byte picks one). Reading must never panic, must
@@ -53,6 +54,12 @@ func FuzzTagged(f *testing.F) {
 		One: NinoNullableOf[int32](7), Run: []NinoNullable[int32]{NinoNullableOf[int32](5), {}},
 		Map: map[int32]NinoNullable[int64]{1: {}}, Fields: tagNinoNullableFields{Tag: 2, Count: NinoNullableOf[int32](3)},
 	})
+	// Sets of T?: distinct (a null beside a zero), then null twice and a value twice, which are rejected.
+	seed(10, tagSlotSetLaidOut{
+		Ints: map[NullableSlot[int32]]struct{}{{}: {}, NullableSlotOf[int32](0): {}, NullableSlotOf[int32](7): {}},
+	})
+	f.Add(append([]byte{10}, hx("02000000 0000000000000000 0000000007000000")...))
+	f.Add(append([]byte{10}, hx("02000000 0100000007000000 0100000007000000")...))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if len(data) == 0 {
 			return

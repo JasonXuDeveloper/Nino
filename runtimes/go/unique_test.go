@@ -434,3 +434,88 @@ func TestMapNaNKeys(t *testing.T) {
 		t.Fatalf("one NaN: %v", r.Err())
 	}
 }
+
+// TestUniqueNullableSlots: a set of T? (CheckUniqueValues of NullableSlots) is compared as .NET's Nullable<T>: two
+// nulls are equal, a null and a zero are not, the values present as numbers are (two NaNs equal, -0 equal to 0),
+// and what an absent slot holds in Value is no key. Small and large sets (pair by pair, the table, the bitmap of
+// narrow keys' wider copies), and slots of a value that is no number.
+func TestUniqueNullableSlots(t *testing.T) {
+	accepted := func(v any, r *Reader, got bool) {
+		t.Helper()
+		if !got || r.Err() != nil {
+			t.Fatalf("%v: rejected (%v)", v, r.Err())
+		}
+	}
+	rejected := func(what string, r *Reader, got bool) {
+		t.Helper()
+		var e *Error
+		if got || !errors.As(r.Err(), &e) || e.Code != CodeDuplicateKey {
+			t.Fatalf("%s: accepted (%v)", what, r.Err())
+		}
+	}
+	for _, n := range []int{2, 3, 16, 17, 18, 300, 5000} {
+		ints := make([]NullableSlot[int32], n)
+		for i := range ints {
+			ints[i] = NullableSlotOf(int32(i - 1)) // 0 among them
+		}
+		r := NewReader(nil)
+		accepted(n, r, CheckUniqueValues(r, slices.Clone(ints)) != nil)
+		// One null, beside the value 0 and holding a value of the set where it is absent.
+		v := slices.Clone(ints)
+		v[n-1] = NullableSlot[int32]{Value: 0}
+		r = NewReader(nil)
+		accepted(n, r, CheckUniqueValues(r, v) != nil)
+		if n > 2 {
+			v[n-2] = NullableSlot[int32]{Value: 7}
+			r = NewReader(nil)
+			rejected("null twice", r, CheckUniqueValues(r, v) != nil)
+			v = slices.Clone(ints)
+			v[n-1] = v[1]
+			r = NewReader(nil)
+			rejected("a value twice", r, CheckUniqueValues(r, v) != nil)
+		}
+		// Every size of number, as a set's elements and as a dictionary's keys.
+		bytes, longs, floats := make([]NullableSlot[uint8], min(n, 200)), make([]NullableSlot[int64], n), make([]NullableSlot[float64], n)
+		keys := make([]Entry[NullableSlot[int16], int32], n)
+		for i := range longs {
+			longs[i], floats[i] = NullableSlotOf(int64(i)<<33), NullableSlotOf(float64(i)+0.5)
+			keys[i].Key = NullableSlotOf(int16(i))
+		}
+		for i := range bytes {
+			bytes[i] = NullableSlotOf(uint8(i))
+		}
+		longs[0], floats[0], bytes[0], keys[0].Key = NullableSlot[int64]{}, NullableSlot[float64]{}, NullableSlot[uint8]{}, NullableSlot[int16]{}
+		r = NewReader(nil)
+		accepted("longs", r, CheckUniqueValues(r, slices.Clone(longs)) != nil)
+		accepted("floats", r, CheckUniqueValues(r, slices.Clone(floats)) != nil)
+		accepted("bytes", r, CheckUniqueValues(r, slices.Clone(bytes)) != nil)
+		accepted("keys", r, CheckUniqueKeys(r, slices.Clone(keys)) != nil)
+		longs[n-1], bytes[len(bytes)-1], keys[n-1].Key = longs[n/2], bytes[len(bytes)/2], keys[n/2].Key
+		if n > 2 {
+			r = NewReader(nil)
+			rejected("a long twice", r, CheckUniqueValues(r, longs) != nil)
+			r = NewReader(nil)
+			rejected("a byte twice", r, CheckUniqueValues(r, bytes) != nil)
+			r = NewReader(nil)
+			rejected("a key twice", r, CheckUniqueKeys(r, keys) != nil)
+		}
+		for _, pair := range [][2]float64{{math.NaN(), math.Float64frombits(0x7FF0000000000001)}, {0, math.Copysign(0, -1)}} {
+			f := slices.Clone(floats)
+			f[n-1] = NullableSlotOf(pair[0])
+			r = NewReader(nil)
+			accepted(pair[0], r, CheckUniqueValues(r, slices.Clone(f)) != nil)
+			if n > 2 {
+				f[1] = NullableSlotOf(pair[1])
+				r = NewReader(nil)
+				rejected("equal floats", r, CheckUniqueValues(r, f) != nil)
+			}
+		}
+	}
+	// A slot of a value that is no number: Go's comparison of the slots the reader returns.
+	wide := []NullableSlot[Int128]{NullableSlotOf(Int128{Lo: 1}), {}, NullableSlotOf(Int128{Hi: 1})}
+	r := NewReader(nil)
+	accepted("Int128 slots", r, CheckUniqueValues(r, slices.Clone(wide)) != nil)
+	rejected("an Int128 twice", r, CheckUniqueValues(r, append(wide, wide[2])) != nil)
+	r = NewReader(nil)
+	rejected("an Int128 null twice", r, CheckUniqueValues(r, append(wide, NullableSlot[Int128]{})) != nil)
+}

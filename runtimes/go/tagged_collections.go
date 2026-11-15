@@ -139,19 +139,26 @@ func (b *builder) slice(c *codec) error {
 	return nil
 }
 
-// stride: a sequence of T? of a raw T (spec §6.2: T?[], List<T?>, HashSet<T?>, Queue<T?>, ...), a slice of
-// nino.NullableSlot[T]: a slot of a fixed size each (builder.slot).
+// slotOf: the codec of the nino.NullableSlot[T] et, the element of the collection t (a slice, or a set's key), and
+// of its value.
+func (b *builder) slotOf(t, et reflect.Type) (slot, value *codec, err error) {
+	if value, err = b.codec(et.Field(1).Type, variantDefault, nil); err != nil {
+		return nil, nil, err
+	}
+	if !value.rawCapable() || value.kind == kDTO {
+		return nil, nil, typeErr(t, "a NullableSlot holds a raw value (a number, a date, a raw struct), not %s", value.typ)
+	}
+	slot, err = b.slot(et, value)
+	return slot, value, err
+}
+
+// stride: a sequence of T? of a raw T (spec §6.2: T?[], List<T?>, Queue<T?>, ...), a slice of
+// nino.NullableSlot[T]: a slot of a fixed size each (builder.slot). A set of them is a map (mapCodec), which
+// rejects an element read twice.
 func (b *builder) stride(c *codec) error {
 	t := c.typ
 	et := t.Elem()
-	value, err := b.codec(et.Field(1).Type, variantDefault, nil)
-	if err != nil {
-		return err
-	}
-	if !value.rawCapable() || value.kind == kDTO {
-		return typeErr(t, "a NullableSlot holds a raw value (a number, a date, a raw struct), not %s", value.typ)
-	}
-	e, err := b.slot(et, value)
+	e, value, err := b.slotOf(t, et)
 	if err != nil {
 		return err
 	}
@@ -192,13 +199,20 @@ func (b *builder) stride(c *codec) error {
 
 func (b *builder) mapCodec(c *codec) error {
 	t := c.typ
-	kc, err := b.codec(t.Key(), variantDefault, nil)
+	kt, vt := t.Key(), t.Elem()
+	set := vt.Kind() == reflect.Struct && vt.NumField() == 0
+	var kc *codec
+	var err error
+	if set && isNullableSlotType(kt) {
+		// A set of T? of a raw T (HashSet<T?>): its elements are slots, as in every sequence.
+		kc, _, err = b.slotOf(t, kt)
+	} else {
+		kc, err = b.codec(kt, variantDefault, nil)
+	}
 	if err != nil {
 		return err
 	}
 	c.key, c.min = kc, 4
-	kt, vt := t.Key(), t.Elem()
-	set := vt.Kind() == reflect.Struct && vt.NumField() == 0
 	var vc *codec
 	if !set {
 		if vc, err = b.codec(vt, variantDefault, nil); err != nil {
@@ -469,6 +483,26 @@ func keyOrder(keys reflect.Value) []int {
 			}
 			return 0
 		})
+	case reflect.Struct:
+		if isNullableSlotType(keys.Type().Elem()) {
+			// A set of T?: null first, then the values (their own order when they are numbers).
+			present := make([]int, 0, n)
+			order = order[:0]
+			for i := 0; i < n; i++ {
+				if keys.Index(i).Field(0).Bool() {
+					present = append(present, i)
+				} else {
+					order = append(order, i)
+				}
+			}
+			values := reflect.MakeSlice(reflect.SliceOf(keys.Type().Elem().Field(1).Type), len(present), len(present))
+			for at, i := range present {
+				values.Index(at).Set(keys.Index(i).Field(1))
+			}
+			for _, at := range keyOrder(values) {
+				order = append(order, present[at])
+			}
+		}
 	}
 	return order
 }

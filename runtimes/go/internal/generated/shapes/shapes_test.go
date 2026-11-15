@@ -269,6 +269,18 @@ func TestNullableSlotsAsDotNetWritesThem(t *testing.T) {
 			t.Fatalf("a presence of 2 at %d was read", at)
 		}
 	}
+	// A set of slots rejects an element read twice: the sorted set's third slot made the second (-1), and the set
+	// inside a type argument made two nulls (its first slot, 4, cleared).
+	twice := append([]byte(nil), data...)
+	copy(twice[85:93], data[77:85])
+	nulls := append([]byte(nil), data...)
+	clear(nulls[158:166])
+	for name, bad := range map[string][]byte{"a value": twice, "null": nulls} {
+		var e *nino.Error
+		if _, err := nino.DeserializeExact(bad, ReadNullableSlots); !errors.As(err, &e) || e.Code != nino.CodeDuplicateKey {
+			t.Fatalf("%s twice in a set: %v", name, err)
+		}
+	}
 }
 
 // The elements of arrays of two and three dimensions are slots too: the bytes .NET writes for the NullableGrids of

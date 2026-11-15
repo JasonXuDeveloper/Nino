@@ -818,8 +818,13 @@ func writeNullablesBody(w *nino.Writer, v *Nullables) {
 	writeI32NullableInt32Entries(w, v.Map)
 }
 
-// Sets of a raw T? are the slots of an array of them (nino.ReadNullableSlots); a grid's elements are the same slots, read
+// Sets of a raw T? are the slots of an array of them (nino.ReadNullableSlots), checked for an element read twice, null
+// included (nino.CheckUniqueValues); a grid's elements are the same slots, read
 // one after another as every grid's elements are.
+
+func readSlotInt32Set(r *nino.Reader) []nino.NullableSlot[int32] {
+	return nino.CheckUniqueValues(r, nino.ReadNullableSlots[int32](r))
+}
 
 func readSlotInt32(r *nino.Reader) nino.NullableSlot[int32] {
 	var v nino.NullableSlot[int32]
@@ -894,11 +899,11 @@ func writeSlotPaddedGrid(w *nino.Writer, g *Grid[nino.NullableSlot[Padded]]) {
 }
 
 func readNullableSequencesBody(r *nino.Reader, v *NullableSequences) {
-	v.IntSet = nino.ReadNullableSlots[int32](r)
-	v.LongSet = nino.ReadNullableSlots[int64](r)
+	v.IntSet = readSlotInt32Set(r)
+	v.LongSet = nino.CheckUniqueValues(r, nino.ReadNullableSlots[int64](r))
 	v.Grid = readSlotInt32Grid(r)
 	v.PaddedGrid = readSlotPaddedGrid(r)
-	v.Nested = readSlotInt32Lists(r)
+	v.Nested = readSlotInt32Sets(r)
 	v.Values = readI32NullableInt64Entries(r)
 	v.Pairs = readI32NullableInt32Pairs(r)
 }
@@ -908,7 +913,7 @@ func writeNullableSequencesBody(w *nino.Writer, v *NullableSequences) {
 	nino.WriteNullableSlots(w, v.LongSet)
 	writeSlotInt32Grid(w, v.Grid)
 	writeSlotPaddedGrid(w, v.PaddedGrid)
-	writeSlotInt32Lists(w, v.Nested)
+	writeSlotInt32Sets(w, v.Nested)
 	writeI32NullableInt64Entries(w, v.Values)
 	writeI32NullableInt32Entries(w, v.Pairs)
 }

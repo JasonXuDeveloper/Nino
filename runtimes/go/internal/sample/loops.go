@@ -246,7 +246,7 @@ func readInt32Lists(r *nino.Reader) [][]int32 {
 	return v
 }
 
-func readSlotInt32Lists(r *nino.Reader) [][]nino.NullableSlot[int32] {
+func readSlotInt32Sets(r *nino.Reader) [][]nino.NullableSlot[int32] {
 	n := r.Length(4)
 	if n < 0 {
 		return nil
@@ -254,7 +254,7 @@ func readSlotInt32Lists(r *nino.Reader) [][]nino.NullableSlot[int32] {
 	var e []nino.NullableSlot[int32]
 	v := make([][]nino.NullableSlot[int32], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for range n {
-		e = nino.ReadNullableSlots[int32](r)
+		e = readSlotInt32Set(r)
 		if r.Failed() {
 			return nil
 		}
@@ -612,7 +612,7 @@ func writeInt32Lists(w *nino.Writer, v [][]int32) {
 	}
 }
 
-func writeSlotInt32Lists(w *nino.Writer, v [][]nino.NullableSlot[int32]) {
+func writeSlotInt32Sets(w *nino.Writer, v [][]nino.NullableSlot[int32]) {
 	if v == nil {
 		w.NullLength()
 		return

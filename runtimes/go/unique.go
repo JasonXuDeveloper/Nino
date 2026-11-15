@@ -11,7 +11,8 @@ import (
 // Sets and dictionaries read in the order of the data (CheckUniqueValues, CheckUniqueKeys, CheckUniqueStrings and the
 // readers built on them) fail on a key read twice. The keys are checked once all are read, compared as .NET's default
 // comparer compares them: integers and floating-point numbers by their bits (every NaN equal to every other, -0 equal
-// to 0, as double.Equals has it, where Go's == and maps keep NaNs apart), strings by their text. Up to 16 keys are
+// to 0, as double.Equals has it, where Go's == and maps keep NaNs apart), strings by their text, a NullableSlot of a
+// number as .NET's Nullable<T> (null equal to null, else the numbers). Up to 16 keys are
 // compared pair by pair; more go into an open-addressing table of their own (no map to allocate and fill), indexed by a
 // hash seeded per process: integers multiplied by a random odd number, strings through hash/maphash. Data cannot choose
 // keys that share a slot without knowing the seed, and a key that still probes past maxProbes slots sends the whole
@@ -29,16 +30,34 @@ var (
 )
 
 // keyKind is how a key type is compared: size is its size in bytes for an integer or floating-point type (0
-// otherwise), float says it is floating-point, text that it is a string.
+// otherwise), float says it is floating-point, text that it is a string. slot is the offset of Value in a
+// NullableSlot of such a number (0 for any other type): the key is then null, or that number.
 type keyKind struct {
 	size  int
 	float bool
 	text  bool
+	slot  uintptr
 }
 
 // kindOf returns how keys of type K are compared.
 func kindOf[K comparable]() keyKind {
-	switch reflect.TypeFor[K]().Kind() {
+	t := reflect.TypeFor[K]()
+	if t.Kind() == reflect.Struct && isNullableSlotType(t) {
+		// A T? of a number, compared as .NET's Nullable<T> is: null equals null, a value as T's values are. A slot
+		// of any other T takes the default below (HasValue and Value as Go compares them: what the reader
+		// returns holds the zero Value in every absent slot, so two nulls are equal there too).
+		value := t.Field(1)
+		if k := kindOfType(value.Type); k.size != 0 {
+			k.slot = value.Offset
+			return k
+		}
+		return keyKind{}
+	}
+	return kindOfType(t)
+}
+
+func kindOfType(t reflect.Type) keyKind {
+	switch t.Kind() {
 	case reflect.Int8, reflect.Uint8:
 		return keyKind{size: 1}
 	case reflect.Int16, reflect.Uint16:
@@ -64,12 +83,52 @@ func repeated[K comparable](p unsafe.Pointer, n, stride int, scratch *[]uint64) 
 		return false
 	}
 	switch k := kindOf[K](); {
+	case k.slot != 0:
+		return repeatedSlots(p, n, stride, k, scratch)
 	case k.size != 0:
 		return repeatedBits(p, n, stride, k.size, k.float, scratch)
 	case k.text:
 		return repeatedStrings(p, n, stride, false, scratch)
 	}
 	return repeatedValues[K](p, n, stride)
+}
+
+// repeatedSlots is repeated for NullableSlots of a number (k): two nulls are equal, and the values present are
+// compared as repeatedBits compares numbers. The Values are checked where they lie, an absent slot's with them (zero
+// in what the reader returns); only when that finds two equal and one slot is null (a null beside a zero, in honest
+// data) are the values present copied out and checked alone, so the cost stays within a constant of a set of
+// numbers whatever the data.
+func repeatedSlots(p unsafe.Pointer, n, stride int, k keyKind, scratch *[]uint64) bool {
+	nulls := 0
+	for i := 0; i < n; i++ {
+		if !*(*bool)(unsafe.Add(p, i*stride)) { // HasValue, the first field
+			nulls++
+		}
+	}
+	if nulls > 1 {
+		return true
+	}
+	if !repeatedBits(unsafe.Add(p, k.slot), n, stride, k.size, k.float, scratch) {
+		return false
+	}
+	if nulls == 0 {
+		return true
+	}
+	return repeatedPresent(p, n, stride, k, scratch)
+}
+
+// repeatedPresent is repeatedSlots on a copy of the values present alone (their bits, canonical already, 8 bytes
+// each whatever the number's size).
+//
+//go:noinline
+func repeatedPresent(p unsafe.Pointer, n, stride int, k keyKind, scratch *[]uint64) bool {
+	keys := make([]uint64, 0, n)
+	for i := 0; i < n; i++ {
+		if e := unsafe.Add(p, i*stride); *(*bool)(e) {
+			keys = append(keys, keyBits(unsafe.Add(e, k.slot), k.size, k.float))
+		}
+	}
+	return repeatedBits(unsafe.Pointer(unsafe.SliceData(keys)), len(keys), 8, 8, false, scratch)
 }
 
 // repeatedValues is repeated for keys compared as Go compares them, through a map.

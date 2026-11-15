@@ -34,3 +34,8 @@ or a dictionary.
   Chromium 1.05 EPYC 7763, 0.96 9V45, 1.00 9V74, 0.95 Xeon 6973P (one job), 1.00 8370C, 1.07 Neoverse-N2; Node
   1.07-1.14 on every CPU; StringSet 1.16-1.28 in both engines. msgpackr reads an array and the bench makes it a Set
   with the constructor, so in Chromium it gets the fast path on exactly this data.
+- Check a set of Go `nino.NullableSlot[T]` of numbers where the values lie, not on a copy of the present ones:
+  `repeatedBits` runs over the slots' value words, and only a set whose absent slot (0 in memory) collides with a
+  real 0 copies the present values out and checks again (`repeatedPresent`). A copy first took 14.8 µs for 1,000
+  distinct `int?` against 7.7 µs in place (the read alone 4.1 µs; local Xeon, `BenchmarkSlotSets`, a decision only;
+  issue #298).

@@ -117,6 +117,14 @@ func seeds() []seed {
 	add("Conformance.KeyedHolder", b, err)
 	b, err = nino.Serialize(&TreeHolder{Tree: Tree{Tree{}, nil}, DictTree: DictTree{{Key: "a", Value: nil}}}, WriteTreeHolder)
 	add("Conformance.TreeHolder", b, err)
+	// A HashSet<int?>: null, 0 and 7; then null twice and 7 twice, which every reader rejects.
+	for _, slots := range [][]nino.NullableSlot[int32]{{{}, nino.NullableSlotOf[int32](0), slot}, {{}, {}}, {slot, slot}} {
+		b, err = nino.Serialize(slots, func(w *nino.Writer, v []nino.NullableSlot[int32]) {
+			w.Present(true)
+			nino.WriteNullableSlots(w, v)
+		})
+		add("Conformance.Targets.MaybeIntSet", b, err)
+	}
 	return out
 }
 

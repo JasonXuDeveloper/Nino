@@ -65,6 +65,8 @@ func ReadMaybeIntArray(r *nino.Reader) []nino.NullableSlot[int32] {
 	return nino.ReadNullableSlots[int32](r)
 }
 
+func ReadMaybeIntSet(r *nino.Reader) []nino.NullableSlot[int32] { return readSlotInt32Set(r) }
+
 func WriteMaybeIntArray(w *nino.Writer, v []nino.NullableSlot[int32]) {
 	nino.WriteNullableSlots(w, v)
 }

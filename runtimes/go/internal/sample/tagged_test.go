@@ -74,7 +74,7 @@ var tagRoots = map[string]reflect.Type{
 	"Conformance.Targets.MaybeInt":      reflect.TypeFor[*tagValue[*int32]](),
 	"Conformance.Targets.MaybeIntArray": reflect.TypeFor[*tagValues[[]nino.NullableSlot[int32]]](),
 	"Conformance.Targets.MaybeIntGrid":  nil,
-	"Conformance.Targets.MaybeIntSet":   reflect.TypeFor[*tagValues[[]nino.NullableSlot[int32]]](), // the slots of an int?[]
+	"Conformance.Targets.MaybeIntSet":   reflect.TypeFor[*tagValues[map[nino.NullableSlot[int32]]struct{}]](),
 	"Conformance.Targets.ObjectSlot":    reflect.TypeFor[*tagValue[nino.Typed]](),
 	"Conformance.Targets.PaddedArray":   reflect.TypeFor[*tagValues[[]Padded]](),
 	"Conformance.Targets.PointList":     reflect.TypeFor[*tagValues[[]*Point]](),

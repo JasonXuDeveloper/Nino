@@ -96,6 +96,13 @@ namespace Nino.Codegen.Targets
         /// </summary>
         public string? Mode { get; internal set; }
 
+        /// <summary>
+        /// A <c>seq</c> that is a set of <c>T?</c> slots (<c>nullableslots</c> or <c>fixed</c>): read as the
+        /// sequence is, then checked for an element read twice (<c>nino.CheckUniqueValues</c>, which compares a
+        /// <c>nino.NullableSlot</c> as .NET's <c>Nullable&lt;T&gt;</c>).
+        /// </summary>
+        public bool UniqueSlots { get; internal set; }
+
         public int FlagOffset { get; internal set; }
 
         public int ValueOffset { get; internal set; }
@@ -134,7 +141,7 @@ namespace Nino.Codegen.Targets
             yield return Struct?.FullName ?? "";
             yield return Type?.FullName ?? "";
             yield return Named?.FullName ?? "";
-            yield return Mode ?? "";
+            yield return (Mode ?? "") + (UniqueSlots ? "/unique" : "");
             yield return Pair ? "pair" : "";
             yield return FlagOffset + "/" + ValueOffset + "/" + Rank + (Clean ? "/clean" : "") + (SlotElement ? "/slot" : "");
             yield return string.Join("/", Offsets);
