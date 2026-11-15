@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Globalization;
 using MemberRange = Nino.Generator.Generation.Emit.RawBlock.MemberRange;
 using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
@@ -379,12 +380,25 @@ internal sealed partial class BodyEmitter
         _w.Line();
         _w.Line(_names.Inline);
         _w.Open($"public void WriteRawBody({T} value, ref byte destination, int offset)");
+        bool fieldBlock = CopiesFieldBlock;
+        if (fieldBlock)
+        {
+            _w.Line("if (__FieldBlock)");
+            _w.Open();
+            _w.Line($"{CoreCompilerServices}NinoFieldBlock.Write(in {MemberCode.Ref(_m, _m.Members[0], "value")}, ref destination, offset, {block.Total});");
+            _w.Line("return;");
+            _w.Close();
+            _w.Line();
+        }
+
         for (int i = 0; i < _m.Members.Length; i++)
             _w.Line(RawWrite(_m.Members[i], "destination", block.Offsets[i] == "0" ? "offset" : "offset + " + block.Offsets[i]));
         _w.Close();
         _w.Line();
         _w.Line(_names.Inline);
         _w.Line($"{Signature.WriteBody(T)} => WriteRawBody(value, ref writer.Reserve(BodySize), 0);");
+        if (fieldBlock)
+            EmitFieldBlockCheck(block);
         if (!_m.Inheritance.EmitMembers)
             return;
         _w.Line();
@@ -394,6 +408,40 @@ internal sealed partial class BodyEmitter
         _w.Line(_names.Inline);
         _w.Open(Signature.ReadMembers(T));
         EmitMemberReads("reader", inPlace: true, eof: "return;");
+        _w.Close();
+    }
+
+    /// <summary>
+    /// Whether a raw body's members are all fields generated code can take a reference to: then <c>WriteRawBody</c>
+    /// copies them as one block where the runtime lays them out as the body does (<see cref="EmitFieldBlockCheck"/>).
+    /// </summary>
+    private bool CopiesFieldBlock =>
+        _m.Members.All(static x => !x.IsProperty && x.Access != MemberAccess.Partial);
+
+    /// <summary>
+    /// <c>__FieldBlock</c>: whether this runtime lays the body's fields out in the object as the body lays them out on
+    /// the wire (each at its offset from the first, values without padding), measured once on an uninitialized
+    /// instance (<c>NinoFieldBlock</c>); a JIT-time constant at Tier1.
+    /// </summary>
+    private void EmitFieldBlockCheck(RawBlock block)
+    {
+        string services = CoreCompilerServices;
+        _w.Line();
+        _w.Line("private static readonly bool __FieldBlock = __IsFieldBlock();");
+        _w.Line();
+        _w.Open("private static bool __IsFieldBlock()");
+        _w.Line($"var value = {services}NinoFieldBlock.Probe<{T}>();");
+        _w.Line("return value != null");
+        string first = MemberCode.Ref(_m, _m.Members[0], "value")!;
+        for (int i = 0; i < _m.Members.Length; i++)
+        {
+            var member = _m.Members[i];
+            var raw = member.Raw!;
+            string bytes = raw.IsConstant ? raw.Bytes.ToString(CultureInfo.InvariantCulture) : raw.Expression;
+            string end = i == _m.Members.Length - 1 ? ";" : "";
+            _w.Line($"    && {services}NinoFieldBlock.IsAt(in {first}, in {MemberCode.Ref(_m, member, "value")}, {block.Offsets[i]}, {bytes}){end}");
+        }
+
         _w.Close();
     }
 
