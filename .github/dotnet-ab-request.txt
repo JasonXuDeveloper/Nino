@@ -332,6 +332,11 @@
 # GF(2^8) clear of any stride moved no T? case (the stores bound it, #282). The series after 606e8d09: a raw T? as a
 # slot in every collection, read and written as runs (Queue, HashSet through its entries, Collection through its
 # list, grids, ...), NinoNullable<T> as its memory, and nullable runs stored at whole vectors of the destination.
-cpu='EPYC|Xeon|Neoverse' 606e8d09 df8a40f2 3 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*RawNullable* *NullableTest.Nino*NullableStruct*
-cpu='EPYC|Xeon|Neoverse' 606e8d09 606e8d09 3 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*RawNullable* *NullableTest.Nino*NullableStruct*
-cpu='EPYC|Xeon|Neoverse' df8a40f2 df8a40f2 2 *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *NullableTest.*RawNullable*
+# done (run 43630719107): cpu='EPYC|Xeon|Neoverse' 606e8d09 df8a40f2 3 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*RawNullable* *NullableTest.Nino*NullableStruct*
+# done (run 43630719107): cpu='EPYC|Xeon|Neoverse' 606e8d09 606e8d09 3 *CollectionsTest.Nino*Nullable* *NullableTest.Nino*RawNullable* *NullableTest.Nino*NullableStruct*
+# done (run 43630719107): cpu='EPYC|Xeon|Neoverse' df8a40f2 df8a40f2 2 *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *NullableTest.*RawNullable*
+# Nino's own buffers start where a top-level collection's elements start a cache line (9d97ff20), and 24-byte
+# nullable elements go three aligned vectors a step again (fcf4da23): the T? writes, and SimpleTest beside them,
+# since every top-level call resets a buffer. With the floor.
+cpu='EPYC|Xeon|Neoverse' df8a40f2 fcf4da23 4 *CollectionsTest.NinoSerializeNullable* *NullableTest.NinoSerialize* *SimpleTest.Nino*
+cpu='EPYC|Xeon|Neoverse' df8a40f2 df8a40f2 3 *CollectionsTest.NinoSerializeNullable* *NullableTest.NinoSerialize* *SimpleTest.Nino*
