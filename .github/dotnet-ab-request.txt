@@ -347,4 +347,9 @@
 
 # The kernels after the lead revert: unified cleared copy (vpermb/vpermt2b, Arm64 tbl), vpermt2d realignment on
 # AVX-512 (bbb6eba2) against 5094e1d0 (with the lead). MemoryPack rides along as the floor.
-cpu='EPYC|Xeon|Neoverse' 5094e1d0 bbb6eba2 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *SimpleTest.Nino*
+# done (run 43694806821): cpu='EPYC|Xeon|Neoverse' 5094e1d0 bbb6eba2 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *SimpleTest.Nino*
+# Run 43694806821 timed Nino.Core's net8.0 build: Nino.Immutable (net8.0 only) brought it into BenchmarkDotNet's runner
+# project (f01a8d3c). This and every line from now on have Nino.Immutable built for net10.0 on both sides: base is
+# bbb6eba2 with only that fix (0ec9f5af), head the reads checked then copied by Memmove (9b378a07) and a single raw
+# struct's T? fields cleared with constant stores (0c9d573b). MemoryPack rides along as the floor.
+cpu='EPYC|Xeon|Neoverse' 0ec9f5af 6df65975 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *SimpleTest.Nino*
