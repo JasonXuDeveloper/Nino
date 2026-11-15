@@ -172,11 +172,10 @@ namespace Nino.Core
         /// Whether a 16-byte element is cleared by a multiplication (GFNI): its bytes are kept whole or cleared whole
         /// (no byte keeps only some of its bits).
         /// </summary>
-        // Strides of 2 to 8 bytes are one lane of a mask register an element: a test and a masked AND, two
-        // operations already. Without AVX-512 (VL) they are a compare, an AND NOT and an AND, and take this too.
+        // Strides of 2 to 8 bytes too, with AVX-512 (VL) as well: their lane test (the flags ANDed, vptestm, a masked
+        // AND) is three operations to this two, 1,000 int? 99-115 ns against 117-125 (local AVX-512 Xeon, in process).
         private static readonly bool Multiplies = Gfni.IsSupported && WholeBytes &&
-                                                  (Stride == 16 ||
-                                                   (Stride is 2 or 4 or 8 && !Avx512F.VL.IsSupported));
+                                                  (Stride is 2 or 4 or 8 or 16);
 
         /// <summary>
         /// The elements of a 16-byte stride as the wire holds them, in two operations: every byte multiplied in GF(2^8)
@@ -403,7 +402,7 @@ namespace Nino.Core
                 if (Gfni.IsSupported)
                     return Gfni.GaloisFieldMultiply(value, flags);
 #endif
-                return Sse2.AndNot(Sse2.CompareEqual(flags, Vector128<byte>.Zero), value);
+                return Ssse3.Sign(value.AsSByte(), flags.AsSByte()).AsByte();
             }
 
             return value;
@@ -478,6 +477,48 @@ namespace Nino.Core
         private static readonly int Pieces32 = PieceWidth >= 32 ? (Stride - 64 * Pieces64) / 32 : 0;
 
         private static readonly int Pieces16 = (Stride - 64 * Pieces64 - 32 * Pieces32) / 16;
+
+        /// <summary>
+        /// For a 24-byte stride with a shuffle within 16-byte lanes (pshufb), the indices that give each byte an element
+        /// keeps its element's flag, for the three vectors of a period (<paramref name="k"/>) of
+        /// <paramref name="width"/> bytes: from the vector itself (the flag in the byte's own 16-byte lane) or, with
+        /// <paramref name="previous"/>, from the vector loaded 16 bytes earlier (the flag in the lane before); zero
+        /// (an index with the top bit) elsewhere.
+        /// </summary>
+        private static Vector256<byte> Spread24(int width, int k, bool previous)
+        {
+            var bytes = new byte[32];
+            bytes.AsSpan().Fill(0x80);
+            if (Stride != 24)
+                return Vector256.Create(bytes);
+            var keep = Keeps();
+            for (int p = 0; p < width; p++)
+            {
+                int at = k * width + p, flag = at - at % 24, lane = k * width + (p & ~15);
+                if (keep[at % 24] == 0)
+                    continue;
+                if (flag >= lane)
+                {
+                    if (!previous)
+                        bytes[p] = (byte)(flag - lane);
+                }
+                else if (previous)
+                {
+                    bytes[p] = (byte)(flag - (lane - 16));
+                }
+            }
+
+            return Vector256.Create(bytes);
+        }
+
+        private static readonly Vector256<byte> Own0 = Spread24(32, 0, false), Own1 = Spread24(32, 1, false),
+            Own2 = Spread24(32, 2, false), Before0 = Spread24(32, 0, true), Before1 = Spread24(32, 1, true),
+            Before2 = Spread24(32, 2, true);
+
+        private static readonly Vector128<byte> Own16_0 = Spread24(16, 0, false).GetLower(),
+            Own16_1 = Spread24(16, 1, false).GetLower(), Own16_2 = Spread24(16, 2, false).GetLower(),
+            Before16_0 = Spread24(16, 0, true).GetLower(), Before16_1 = Spread24(16, 1, true).GetLower(),
+            Before16_2 = Spread24(16, 2, true).GetLower();
 
         /// <summary>The bytes one element keeps, and where its last cleared byte ends: pieces from there on keep every byte.</summary>
         private static readonly byte[] PieceKeeps = Keeps();
@@ -613,6 +654,13 @@ namespace Nino.Core
                     Lanes512.CopyRealigned(ref destination, ref source, total, head);
                     return;
                 }
+#if NET10_0_OR_GREATER
+                else if (typeof(TVector) == typeof(Vector512<byte>) && Stride == 24 && head % 4 == 0 &&
+                         Avx512Vbmi.IsSupported && Gfni.V512.IsSupported && WholeBytes)
+                {
+                    i = Lanes512.CopyRealigned24(ref destination, ref source, total, head);
+                }
+#endif
             }
 
             if (Stride != 24)
@@ -698,6 +746,47 @@ namespace Nino.Core
                 Cleaned(Vector512.LoadUnsafe(ref source, total - 64)).StoreUnsafe(ref destination, total - 64);
             }
 
+#if NET10_0_OR_GREATER
+            /// <summary>
+            /// <see cref="CopyRealigned"/> for a 24-byte stride (AVX-512 VBMI and GFNI): each vector of a 192-byte
+            /// period cleaned where it lies (vpermb or vpermt2b, vpandd, vgf2p8mulb), the stores on the destination's
+            /// 64-byte boundaries from two consecutive results (vpermt2d); returns the period from which the caller's
+            /// loop writes the rest (its first step writes again bytes this wrote, the same).
+            /// </summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static nuint CopyRealigned24(ref byte destination, ref byte source, nuint total, nuint head)
+            {
+                var index = Vector512.Create(0u, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) +
+                            Vector512.Create((uint)head >> 2);
+                Vector512<byte> f0 = FlagBytes0, f1 = FlagBytes1, f2 = FlagBytes2, k0 = Keep, k1 = Keep1, k2 = Keep2;
+                var r0 = Vector512.LoadUnsafe(ref source);
+                var previous = Gfni.V512.GaloisFieldMultiply(r0, Avx512Vbmi.PermuteVar64x8(r0, f0) & k0);
+                previous.StoreUnsafe(ref destination);
+                nuint i = 0;
+                // previous is the vector at i (a period's first); the store at i + head takes its last bytes and the
+                // next one's first.
+                for (; i + 256 <= total; i += 192)
+                {
+                    var a = Vector512.LoadUnsafe(ref source, i);
+                    var b = Vector512.LoadUnsafe(ref source, i + 64);
+                    var c = Vector512.LoadUnsafe(ref source, i + 128);
+                    var d = Vector512.LoadUnsafe(ref source, i + 192);
+                    var cb = Gfni.V512.GaloisFieldMultiply(b, Avx512Vbmi.PermuteVar64x8x2(a, f1, b) & k1);
+                    var cc = Gfni.V512.GaloisFieldMultiply(c, Avx512Vbmi.PermuteVar64x8x2(b, f2, c) & k2);
+                    var cd = Gfni.V512.GaloisFieldMultiply(d, Avx512Vbmi.PermuteVar64x8(d, f0) & k0);
+                    Avx512F.PermuteVar16x32x2(previous.AsUInt32(), index, cb.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + head);
+                    Avx512F.PermuteVar16x32x2(cb.AsUInt32(), index, cc.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + 64 + head);
+                    Avx512F.PermuteVar16x32x2(cc.AsUInt32(), index, cd.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + 128 + head);
+                    previous = cd;
+                }
+
+                return i;
+            }
+#endif
+
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Copy(ref byte destination, ref byte source, nuint offset)
             {
@@ -720,6 +809,20 @@ namespace Nino.Core
                 // vector starts in up to two lanes before it (in the vector before, within the period).
                 var b = Vector512.LoadUnsafe(ref source, offset + 64);
                 var c = Vector512.LoadUnsafe(ref source, offset + 128);
+#if NET10_0_OR_GREATER
+                if (Avx512Vbmi.IsSupported && Gfni.V512.IsSupported && WholeBytes)
+                {
+                    // Every byte multiplied by its element's flag (vpermb, vpermt2b), the padding by 0 (the flags
+                    // ANDed with the bytes kept): the permutation alone on port 5 where the test took it twice.
+                    Gfni.V512.GaloisFieldMultiply(a, Avx512Vbmi.PermuteVar64x8(a, FlagBytes0) & Keep)
+                        .StoreUnsafe(ref destination, offset);
+                    Gfni.V512.GaloisFieldMultiply(b, Avx512Vbmi.PermuteVar64x8x2(a, FlagBytes1, b) & Keep1)
+                        .StoreUnsafe(ref destination, offset + 64);
+                    Gfni.V512.GaloisFieldMultiply(c, Avx512Vbmi.PermuteVar64x8x2(b, FlagBytes2, c) & Keep2)
+                        .StoreUnsafe(ref destination, offset + 128);
+                    return;
+                }
+#endif
                 if (Avx512Vbmi.IsSupported)
                 {
                     // Every byte of each 8-byte lane takes its element's flag (vpermb, vpermt2b), so the lanes are
@@ -813,14 +916,32 @@ namespace Nino.Core
 
                 if (Stride != 24)
                 {
-                    Present(a, Tile(a), Keep.GetLower()).StoreUnsafe(ref destination, offset);
+                    Cleaned(a).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+
+                var b = Vector256.LoadUnsafe(ref source, offset + 32);
+                var c = Vector256.LoadUnsafe(ref source, offset + 64);
+                if (Avx2.IsSupported && WholeBytes)
+                {
+                    // Each byte its element's flag from its own 16-byte lane or, through the vector loaded 16 bytes
+                    // earlier, the lane before (two pshufb, por), then the multiplication: four operations a vector
+                    // within lanes, where moving the lanes took six with a cross-lane permutation in most.
+                    var w = offset >= 16
+                        ? Vector256.LoadUnsafe(ref source, offset - 16)
+                        : Vector256.Create(a.GetLower(), a.GetLower());
+                    Times(a, Avx2.Shuffle(a, Own0) | Avx2.Shuffle(w, Before0)).StoreUnsafe(ref destination, offset);
+                    w = Vector256.LoadUnsafe(ref source, offset + 16);
+                    Times(b, Avx2.Shuffle(b, Own1) | Avx2.Shuffle(w, Before1))
+                        .StoreUnsafe(ref destination, offset + 32);
+                    w = Vector256.LoadUnsafe(ref source, offset + 48);
+                    Times(c, Avx2.Shuffle(c, Own2) | Avx2.Shuffle(w, Before2))
+                        .StoreUnsafe(ref destination, offset + 64);
                     return;
                 }
 
                 // As Lanes512's: elements start at lanes 0, 3, 6 and 9 of the three vectors (lanes 4 and 5 take lane
                 // 3's, lane 8 lane 6's).
-                var b = Vector256.LoadUnsafe(ref source, offset + 32);
-                var c = Vector256.LoadUnsafe(ref source, offset + 64);
                 var a8 = a.AsUInt64();
                 var b8 = b.AsUInt64();
                 var c8 = c.AsUInt64();
@@ -848,7 +969,6 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void CopyFour(ref byte destination, ref byte source, nuint offset)
             {
-                var keep = Keep.GetLower();
                 var a = Vector256.LoadUnsafe(ref source, offset);
                 var b = Vector256.LoadUnsafe(ref source, offset + 32);
                 var c = Vector256.LoadUnsafe(ref source, offset + 64);
@@ -863,10 +983,42 @@ namespace Nino.Core
                     return;
                 }
 #endif
-                Present(a, Tile(a), keep).StoreUnsafe(ref destination, offset);
-                Present(b, Tile(b), keep).StoreUnsafe(ref destination, offset + 32);
-                Present(c, Tile(c), keep).StoreUnsafe(ref destination, offset + 64);
-                Present(d, Tile(d), keep).StoreUnsafe(ref destination, offset + 96);
+                Cleaned(a).StoreUnsafe(ref destination, offset);
+                Cleaned(b).StoreUnsafe(ref destination, offset + 32);
+                Cleaned(c).StoreUnsafe(ref destination, offset + 64);
+                Cleaned(d).StoreUnsafe(ref destination, offset + 96);
+            }
+
+            /// <summary>
+            /// One vector of a stride that tiles it (2 to 16 bytes) as the wire holds it, without GFNI: with AVX2 each
+            /// byte takes its element's flag (vpshufb, zero in the padding) and keeps its value by its sign (vpsignb:
+            /// kept where 1, cleared where 0; a flag is 0 or 1 in every <c>Nullable</c> the runtime makes), two
+            /// operations where the lane test took four, as fast as GFNI's multiplication: 16,000 bytes of a 16-byte
+            /// stride 297-309 ns against 332-342 with the destination 4 bytes past a line (186 against 277 on the
+            /// line), 1,000 <c>int?</c> serialized 174-179 against 193-196 (local Xeon, DOTNET_EnableAVX512=0
+            /// DOTNET_EnableGFNI=0; not timed on AMD).
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector256<byte> Cleaned(Vector256<byte> a)
+            {
+                if (Avx2.IsSupported)
+                {
+                    var spread = SpreadFlags;
+                    return Avx2.Sign(a.AsSByte(), Avx2.Shuffle(a, Vector256.Create(spread, spread)).AsSByte()).AsByte();
+                }
+
+                return Present(a, Tile(a), Keep.GetLower());
+            }
+
+            /// <summary><paramref name="value"/>'s bytes times <paramref name="by"/>'s, each 0 or 1: vgf2p8mulb, else vpsignb.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector256<byte> Times(Vector256<byte> value, Vector256<byte> by)
+            {
+#if NET10_0_OR_GREATER
+                if (Gfni.V256.IsSupported)
+                    return Gfni.V256.GaloisFieldMultiply(value, by);
+#endif
+                return Avx2.Sign(value.AsSByte(), by.AsSByte()).AsByte();
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -905,13 +1057,24 @@ namespace Nino.Core
                 var a = Vector128.LoadUnsafe(ref source, offset);
                 if (Stride != 24)
                 {
-                    (a & Present(Tile(a)) & keep).StoreUnsafe(ref destination, offset);
+                    Cleaned(a).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+
+                var b = Vector128.LoadUnsafe(ref source, offset + 16);
+                var c = Vector128.LoadUnsafe(ref source, offset + 32);
+                if (Ssse3.IsSupported && WholeBytes)
+                {
+                    // As Lanes256's: each byte its element's flag from its own vector or the one before.
+                    Times(a, Ssse3.Shuffle(a, Own16_0)).StoreUnsafe(ref destination, offset);
+                    Times(b, Ssse3.Shuffle(b, Own16_1) | Ssse3.Shuffle(a, Before16_1))
+                        .StoreUnsafe(ref destination, offset + 16);
+                    Times(c, Ssse3.Shuffle(c, Own16_2) | Ssse3.Shuffle(b, Before16_2))
+                        .StoreUnsafe(ref destination, offset + 32);
                     return;
                 }
 
                 // Two elements: the first in lanes 0 to 2, the second in lanes 3 to 5 of the three vectors.
-                var b = Vector128.LoadUnsafe(ref source, offset + 16);
-                var c = Vector128.LoadUnsafe(ref source, offset + 32);
                 var first = Present(a).AsUInt64();
                 var second = Present(b).AsUInt64();
                 (a & Vector128.Shuffle(first, Vector128.Create(0UL, 0)).AsByte() & keep)
@@ -925,15 +1088,36 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void CopyFour(ref byte destination, ref byte source, nuint offset)
             {
-                var keep = Keep.GetLower().GetLower();
                 var a = Vector128.LoadUnsafe(ref source, offset);
                 var b = Vector128.LoadUnsafe(ref source, offset + 16);
                 var c = Vector128.LoadUnsafe(ref source, offset + 32);
                 var d = Vector128.LoadUnsafe(ref source, offset + 48);
-                (a & Present(Tile(a)) & keep).StoreUnsafe(ref destination, offset);
-                (b & Present(Tile(b)) & keep).StoreUnsafe(ref destination, offset + 16);
-                (c & Present(Tile(c)) & keep).StoreUnsafe(ref destination, offset + 32);
-                (d & Present(Tile(d)) & keep).StoreUnsafe(ref destination, offset + 48);
+                Cleaned(a).StoreUnsafe(ref destination, offset);
+                Cleaned(b).StoreUnsafe(ref destination, offset + 16);
+                Cleaned(c).StoreUnsafe(ref destination, offset + 32);
+                Cleaned(d).StoreUnsafe(ref destination, offset + 48);
+            }
+
+            /// <summary>
+            /// One vector of a stride that tiles it as the wire holds it: with SSSE3 each byte its element's flag
+            /// (pshufb), then the multiplication (GFNI) or a compare and an AND NOT
+            /// (<see cref="Spread(Vector128{byte}, Vector128{byte})"/>): two or three operations where the lane test
+            /// took five.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector128<byte> Cleaned(Vector128<byte> a) => Ssse3.IsSupported
+                ? Spread(a, SpreadFlags)
+                : a & Present(Tile(a)) & Keep.GetLower().GetLower();
+
+            /// <summary><paramref name="value"/>'s bytes times <paramref name="by"/>'s, each 0 or 1: gf2p8mulb, else psignb.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector128<byte> Times(Vector128<byte> value, Vector128<byte> by)
+            {
+#if NET10_0_OR_GREATER
+                if (Gfni.IsSupported)
+                    return Gfni.GaloisFieldMultiply(value, by);
+#endif
+                return Ssse3.Sign(value.AsSByte(), by.AsSByte()).AsByte();
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -41,6 +41,13 @@ namespace Nino.Core.Internal
         private readonly int _laneDistance;
         private readonly byte[] _laneMask, _laneValues;
         private readonly int _lanePeriod;
+
+        // For a mask of whole bytes, the tables of the shorter kernels: x64 (SSSE3) the pshufb indices that give
+        // each value byte its flag from the vector loaded d bytes earlier (a row per phase of the vectors within a
+        // 16-byte lane: the run's offset of the vectors modulo 16, over d) and 1 in every other byte kept; Arm64 the
+        // flag byte of each value lane (cmtst) and the mask of the bytes outside the values.
+        private readonly byte[][] _laneIndex;
+        private readonly byte[] _laneOnes, _laneFlags, _laneOthers;
 #endif
 #if !NET8_0_OR_GREATER
         // For the registered kernels (NinoKernels.Permute): each byte from itself, padding cleared (0xFF). Zero for
@@ -123,6 +130,32 @@ namespace Nino.Core.Internal
                     values.AsSpan(absent[i + 1], absent[i + 2]).Fill(0xFF);
                 _laneMask = Repeat(mask, laneWidth, laneWidth, out _lanePeriod);
                 _laneValues = Repeat(values, laneWidth, laneWidth, out _);
+                bool whole = Array.TrueForAll(mask, b => b == 0 || b == 0xFF);
+                if (whole && Ssse3.IsSupported)
+                {
+                    int d = _laneDistance;
+                    _laneIndex = new byte[16 / d][];
+                    for (int row = 0; row < _laneIndex.Length; row++)
+                    {
+                        var index = _laneIndex[row] = new byte[_laneValues.Length];
+                        for (int s = 0; s < index.Length; s++)
+                            index[s] = _laneValues[s] != 0 ? (byte)((s - s % d - row * d) & 15) : (byte)0x80;
+                    }
+
+                    _laneOnes = new byte[_laneValues.Length];
+                    for (int s = 0; s < _laneOnes.Length; s++)
+                        _laneOnes[s] = _laneMask[s] != 0 && _laneValues[s] == 0 ? (byte)1 : (byte)0;
+                }
+                else if (whole && AdvSimd.Arm64.IsSupported)
+                {
+                    _laneFlags = new byte[_laneValues.Length];
+                    _laneOthers = new byte[_laneValues.Length];
+                    for (int s = 0; s < _laneFlags.Length; s++)
+                    {
+                        _laneFlags[s] = _laneValues[s] != 0 && s % _laneDistance == 0 ? (byte)0xFF : (byte)0;
+                        _laneOthers[s] = _laneValues[s] != 0 ? (byte)0 : _laneMask[s];
+                    }
+                }
             }
 #endif
             var words = Repeat(mask, 8, 0, out _);
@@ -646,6 +679,25 @@ namespace Nino.Core.Internal
             }
 
             nuint m = i >= period ? i - period : i; // i % period (i < 2 * width <= 2 * period)
+            if (_laneIndex != null)
+            {
+                // x64 with SSSE3: three operations a vector (pshufb, por, psignb) where the compare took five.
+                CopyTabled<TVector, TLanes, Signs>(ref destination, ref source, i, end, period, m,
+                    ref NinoUnsafe.GetArrayDataReference(_laneIndex[(int)(i & 15) / (int)d]),
+                    ref NinoUnsafe.GetArrayDataReference(_laneIndex[(int)(end & 15) / (int)d]),
+                    ref NinoUnsafe.GetArrayDataReference(_laneOnes));
+                return;
+            }
+
+            if (_laneFlags != null)
+            {
+                // Arm64: three operations a vector (cmtst, orr, and) where the compare took five.
+                ref byte flags = ref NinoUnsafe.GetArrayDataReference(_laneFlags);
+                CopyTabled<TVector, TLanes, Tests>(ref destination, ref source, i, end, period, m, ref flags,
+                    ref flags, ref NinoUnsafe.GetArrayDataReference(_laneOthers));
+                return;
+            }
+
             for (; i <= end; i += width)
             {
                 Lane<TVector, TLanes>(ref destination, ref source, i, ref mask, ref values, m);
@@ -691,6 +743,211 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
+        /// The loop of <see cref="CopyLanes{TLanes}"/> through the shorter kernels (<typeparamref name="TOp"/>), each
+        /// vector with two tables at its place in the period: from <paramref name="i"/> (<paramref name="m"/> its
+        /// place) to the vector at <paramref name="end"/> (<paramref name="first"/> the first table there, for x64's
+        /// rows by phase). A period of up to five vectors keeps its tables in registers, whole periods a step: with
+        /// the tables loaded per vector, 300 structs of an int, a long? and a double? took 500 ns against 310 (local,
+        /// DOTNET_EnableAVX512=0).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyTabled<TVector, TLanes, TOp>(ref byte destination, ref byte source, nuint i, nuint end,
+            nuint period, nuint m, ref byte first, ref byte firstAtEnd, ref byte second)
+            where TVector : struct where TLanes : struct, ILaneWidth where TOp : struct, ILaneOp
+        {
+            nuint width = (nuint)Unsafe.SizeOf<TVector>();
+            switch (period / width)
+            {
+                case 1:
+                    i = CopyPeriods<TVector, TLanes, TOp, LanePeriod1>(ref destination, ref source, i, end, period, m,
+                        ref first, ref second);
+                    break;
+                case 2:
+                    i = CopyPeriods<TVector, TLanes, TOp, LanePeriod2>(ref destination, ref source, i, end, period, m,
+                        ref first, ref second);
+                    break;
+                case 3:
+                    i = CopyPeriods<TVector, TLanes, TOp, LanePeriod3>(ref destination, ref source, i, end, period, m,
+                        ref first, ref second);
+                    break;
+                case 4:
+                    i = CopyPeriods<TVector, TLanes, TOp, LanePeriod4>(ref destination, ref source, i, end, period, m,
+                        ref first, ref second);
+                    break;
+                case 5:
+                    i = CopyPeriods<TVector, TLanes, TOp, LanePeriod5>(ref destination, ref source, i, end, period, m,
+                        ref first, ref second);
+                    break;
+            }
+
+            for (; i <= end; i += width)
+            {
+                Step<TVector, TLanes, TOp>(ref destination, ref source, i, Load<TVector>(ref first, m),
+                    Load<TVector>(ref second, m));
+                m += width;
+                if (m >= period)
+                    m -= period;
+            }
+
+            nuint last = TailOffset(m, i, end, period);
+            Step<TVector, TLanes, TOp>(ref destination, ref source, end, Load<TVector>(ref firstAtEnd, last),
+                Load<TVector>(ref second, last));
+        }
+
+        /// <summary>Whole periods of <typeparamref name="TPeriod"/> vectors, their tables in registers; returns where it stopped.</summary>
+        // Out of line and fully optimized from the first call: five of them inlined into CopyLanes ran out of its
+        // inlining budget and left some as calls anyway.
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static nuint CopyPeriods<TVector, TLanes, TOp, TPeriod>(ref byte destination, ref byte source, nuint i,
+            nuint end, nuint period, nuint m, ref byte first, ref byte second)
+            where TVector : struct where TLanes : struct, ILaneWidth where TOp : struct, ILaneOp
+            where TPeriod : struct, ILanePeriod
+        {
+            nuint width = (nuint)Unsafe.SizeOf<TVector>();
+            int vectors = TPeriod.Vectors;
+            nuint m1 = Wrap(m + width, period), m2 = Wrap(m1 + width, period), m3 = Wrap(m2 + width, period),
+                m4 = Wrap(m3 + width, period);
+            TVector a0 = Load<TVector>(ref first, m), b0 = Load<TVector>(ref second, m);
+            TVector a1 = vectors > 1 ? Load<TVector>(ref first, m1) : default,
+                b1 = vectors > 1 ? Load<TVector>(ref second, m1) : default;
+            TVector a2 = vectors > 2 ? Load<TVector>(ref first, m2) : default,
+                b2 = vectors > 2 ? Load<TVector>(ref second, m2) : default;
+            TVector a3 = vectors > 3 ? Load<TVector>(ref first, m3) : default,
+                b3 = vectors > 3 ? Load<TVector>(ref second, m3) : default;
+            TVector a4 = vectors > 4 ? Load<TVector>(ref first, m4) : default,
+                b4 = vectors > 4 ? Load<TVector>(ref second, m4) : default;
+            nuint span = (nuint)vectors * width;
+            for (; i + span - width <= end; i += span)
+            {
+                Step<TVector, TLanes, TOp>(ref destination, ref source, i, a0, b0);
+                if (vectors > 1)
+                    Step<TVector, TLanes, TOp>(ref destination, ref source, i + width, a1, b1);
+                if (vectors > 2)
+                    Step<TVector, TLanes, TOp>(ref destination, ref source, i + 2 * width, a2, b2);
+                if (vectors > 3)
+                    Step<TVector, TLanes, TOp>(ref destination, ref source, i + 3 * width, a3, b3);
+                if (vectors > 4)
+                    Step<TVector, TLanes, TOp>(ref destination, ref source, i + 4 * width, a4, b4);
+            }
+
+            return i;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static nuint Wrap(nuint m, nuint period) => m >= period ? m - period : m;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static TVector Load<TVector>(ref byte table, nuint m) where TVector : struct
+        {
+            if (typeof(TVector) == typeof(Vector256<byte>))
+            {
+                var v = Vector256.LoadUnsafe(ref table, m);
+                return Unsafe.As<Vector256<byte>, TVector>(ref v);
+            }
+
+            var w = Vector128.LoadUnsafe(ref table, m);
+            return Unsafe.As<Vector128<byte>, TVector>(ref w);
+        }
+
+        /// <summary>One vector at <paramref name="offset"/> through <typeparamref name="TOp"/> with its tables.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Step<TVector, TLanes, TOp>(ref byte destination, ref byte source, nuint offset, TVector a,
+            TVector b) where TVector : struct where TLanes : struct, ILaneWidth where TOp : struct, ILaneOp
+        {
+            nuint d = (nuint)default(TLanes).Distance;
+            if (typeof(TVector) == typeof(Vector256<byte>))
+                default(TOp).Apply<TLanes>(Vector256.LoadUnsafe(ref source, offset),
+                        Vector256.LoadUnsafe(ref source, offset - d), Unsafe.As<TVector, Vector256<byte>>(ref a),
+                        Unsafe.As<TVector, Vector256<byte>>(ref b))
+                    .StoreUnsafe(ref destination, offset);
+            else
+                default(TOp).Apply<TLanes>(Vector128.LoadUnsafe(ref source, offset),
+                        Vector128.LoadUnsafe(ref source, offset - d), Unsafe.As<TVector, Vector128<byte>>(ref a),
+                        Unsafe.As<TVector, Vector128<byte>>(ref b))
+                    .StoreUnsafe(ref destination, offset);
+        }
+
+        /// <summary>The vectors of a period whose tables <see cref="CopyPeriods{TVector, TLanes, TOp, TPeriod}"/> keeps in registers.</summary>
+        private interface ILanePeriod
+        {
+            static abstract int Vectors { get; }
+        }
+
+        private readonly struct LanePeriod1 : ILanePeriod
+        {
+            public static int Vectors => 1;
+        }
+
+        private readonly struct LanePeriod2 : ILanePeriod
+        {
+            public static int Vectors => 2;
+        }
+
+        private readonly struct LanePeriod3 : ILanePeriod
+        {
+            public static int Vectors => 3;
+        }
+
+        private readonly struct LanePeriod4 : ILanePeriod
+        {
+            public static int Vectors => 4;
+        }
+
+        private readonly struct LanePeriod5 : ILanePeriod
+        {
+            public static int Vectors => 5;
+        }
+
+        /// <summary>
+        /// A vector of <paramref name="value"/> as the wire holds it, from <paramref name="flags"/> (the vector one
+        /// lane earlier, where each value lane finds its flag) and the two tables at its place.
+        /// </summary>
+        private interface ILaneOp
+        {
+            Vector256<byte> Apply<TLanes>(Vector256<byte> value, Vector256<byte> flags, Vector256<byte> a,
+                Vector256<byte> b) where TLanes : struct, ILaneWidth;
+
+            Vector128<byte> Apply<TLanes>(Vector128<byte> value, Vector128<byte> flags, Vector128<byte> a,
+                Vector128<byte> b) where TLanes : struct, ILaneWidth;
+        }
+
+        /// <summary>
+        /// x64 with SSSE3: each value byte takes its flag (pshufb with the indices <c>a</c>, 0 elsewhere), every other
+        /// kept byte 1 (por <c>b</c>), and the bytes keep their sign by it (psignb: kept where 1, cleared where 0; a
+        /// flag is 0 or 1 in every <c>Nullable</c> the runtime makes).
+        /// </summary>
+        private readonly struct Signs : ILaneOp
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector256<byte> Apply<TLanes>(Vector256<byte> value, Vector256<byte> flags, Vector256<byte> a,
+                Vector256<byte> b) where TLanes : struct, ILaneWidth =>
+                Avx2.Sign(value.AsSByte(), (Avx2.Shuffle(flags, a) | b).AsSByte()).AsByte();
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Apply<TLanes>(Vector128<byte> value, Vector128<byte> flags, Vector128<byte> a,
+                Vector128<byte> b) where TLanes : struct, ILaneWidth =>
+                Ssse3.Sign(value.AsSByte(), (Ssse3.Shuffle(flags, a) | b).AsSByte()).AsByte();
+        }
+
+        /// <summary>
+        /// Arm64: the value lanes whose flag is set (cmtst with <c>a</c>, a flag byte in each value lane), with the
+        /// mask of the other bytes (orr <c>b</c>), keep their bytes (and).
+        /// </summary>
+        private readonly struct Tests : ILaneOp
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector256<byte> Apply<TLanes>(Vector256<byte> value, Vector256<byte> flags, Vector256<byte> a,
+                Vector256<byte> b) where TLanes : struct, ILaneWidth =>
+                Vector256.Create(Apply<TLanes>(value.GetLower(), flags.GetLower(), a.GetLower(), b.GetLower()),
+                    Apply<TLanes>(value.GetUpper(), flags.GetUpper(), a.GetUpper(), b.GetUpper()));
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Apply<TLanes>(Vector128<byte> value, Vector128<byte> flags, Vector128<byte> a,
+                Vector128<byte> b) where TLanes : struct, ILaneWidth =>
+                value & (default(TLanes).Present(flags, a) | b);
+        }
+
+        /// <summary>
         /// The lanes of <see cref="CopyLanes{TLanes}"/>: their width (the distance from a value to its flag) and the
         /// lanes whose first byte is 0 (all ones), from the vector loaded that far before.
         /// </summary>
@@ -699,10 +956,19 @@ namespace Nino.Core.Internal
             int Distance { get; }
             Vector256<byte> Absent(Vector256<byte> flags);
             Vector128<byte> Absent(Vector128<byte> flags);
+
+            /// <summary>All ones in the lanes where <paramref name="flags"/> and <paramref name="test"/> share a bit (cmtst).</summary>
+            Vector128<byte> Present(Vector128<byte> flags, Vector128<byte> test);
         }
 
         private readonly struct Lanes64 : ILaneWidth
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Present(Vector128<byte> flags, Vector128<byte> test) =>
+                (AdvSimd.Arm64.IsSupported
+                    ? AdvSimd.Arm64.CompareTest(flags.AsUInt64(), test.AsUInt64())
+                    : ~Vector128.Equals(flags.AsUInt64() & test.AsUInt64(), Vector128<ulong>.Zero)).AsByte();
+
             public int Distance => 8;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -716,6 +982,12 @@ namespace Nino.Core.Internal
 
         private readonly struct Lanes32 : ILaneWidth
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Present(Vector128<byte> flags, Vector128<byte> test) =>
+                (AdvSimd.Arm64.IsSupported
+                    ? AdvSimd.CompareTest(flags.AsUInt32(), test.AsUInt32())
+                    : ~Vector128.Equals(flags.AsUInt32() & test.AsUInt32(), Vector128<uint>.Zero)).AsByte();
+
             public int Distance => 4;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -729,6 +1001,12 @@ namespace Nino.Core.Internal
 
         private readonly struct Lanes16 : ILaneWidth
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Present(Vector128<byte> flags, Vector128<byte> test) =>
+                (AdvSimd.Arm64.IsSupported
+                    ? AdvSimd.CompareTest(flags.AsUInt16(), test.AsUInt16())
+                    : ~Vector128.Equals(flags.AsUInt16() & test.AsUInt16(), Vector128<ushort>.Zero)).AsByte();
+
             public int Distance => 2;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -742,6 +1020,12 @@ namespace Nino.Core.Internal
 
         private readonly struct Lanes8 : ILaneWidth
         {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Present(Vector128<byte> flags, Vector128<byte> test) =>
+                (AdvSimd.Arm64.IsSupported
+                    ? AdvSimd.CompareTest(flags, test)
+                    : ~Vector128.Equals(flags & test, Vector128<byte>.Zero)).AsByte();
+
             public int Distance => 1;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
