@@ -115,6 +115,21 @@ where that is so, and its x64 sizes are listings, not throughput.
   position. So the sequence overloads copy data that spans segments once, out of line (to the stack up to 1,024 bytes,
   else a pooled array: `NinoSequences`), and read one segment in place (Nino `d275a71e`). How that copy is sized,
   shared and looped, and the two-segment fast paths: [jit-io.md](jit-io.md), "ReadOnlySequence input and output".
+- Copy only the cursor into and out of a generated body's local writer or reader (`Writer.CopyCursorTo`,
+  `Reader.CopyCursorTo`) where the body touches nothing else: every `TypeModel.LocalWriter` body (flat: raw members
+  and `FormatterTraits.Flat` ones) and the local reader of a positional body (a version-tolerant one keeps the full
+  `CopyTo`: its regions may read a deferred section through the other fields). Why: the full copy loaded `Depth`,
+  the region count and the context per body, held them across it (spilled where registers ran out) and stored them
+  back, for every element of a collection of such classes. Evidence (local Xeon, AVX-512, processes alternated):
+  `CombatEventLog.__WriteBody` 1,766 to 1,533 bytes and 57 to 25 stack accesses; LuminPack's `CharacterSaveData`
+  serialize 0.89-0.92 of the base, a `List<ItemBase>` of 40 subtypes 0.88-0.91, `GuildInfo` 0.89, the whole read
+  0.97. A region a flat body opens ends the same with the default fields (nothing was deferred inside it).
+- Read a gap between a type written whole and the sum of its members written alone as the members' code and data
+  mixed, not as waste in the outer body, until a sequence of the members' own top-level calls says otherwise. Why:
+  LuminPack's `CharacterSaveData` took 3.3 µs against 2.5 µs summed, but the thirteen holder calls back to back took
+  3.3-3.4 µs too, and with a quarter of the elements (all of the data in L1) the gap stayed at 26 %: it is the larger
+  hot code (instruction cache, predictors), so shrink the code each element runs. Cumulative types (one member more
+  each) charge that cost to whichever member comes last, in either order.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
