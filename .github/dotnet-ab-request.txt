@@ -360,4 +360,8 @@
 # ObservableCollection read into its list (428634e1), the dispatch's raw subtypes reserved inline (46df2c82, 2043ec21),
 # raw class bodies copied as one block both ways (39e26e27, 0d46d3f0), dictionary pairs from the entries array and
 # string keys into free space (53d7a97d). MemoryPack rides along as the floor.
-cpu='EPYC|Xeon|Neoverse' aa686088 53d7a97d 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino* *SimpleTest.MemoryPack* *CollectionsTest.*Dictionary *CollectionsTest.*HashSet *CollectionsTest.*Observable*
+# done (run 43755946645): cpu='EPYC|Xeon|Neoverse' aa686088 53d7a97d 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino* *SimpleTest.MemoryPack* *CollectionsTest.*Dictionary *CollectionsTest.*HashSet *CollectionsTest.*Observable*
+# Arrays of flat sealed classes through a local writer (52c04c5b) and the subtype reads inlined into the dispatch and
+# the dispatch into its caller (98518d32), against 53d7a97d; GenericOpenClassTupleBase serialize again (9V74 +21 %,
+# 9V45 +38 % in run 43755946645, both CPUs noisy there). MemoryPack rides along as the floor.
+cpu='EPYC|Xeon|Neoverse' 53d7a97d 98518d32 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino* *SimpleTest.MemoryPack*
