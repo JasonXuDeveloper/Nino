@@ -353,3 +353,6 @@
 # bbb6eba2 with only that fix (0ec9f5af), head the reads checked then copied by Memmove (9b378a07) and a single raw
 # struct's T? fields cleared with constant stores (0c9d573b). MemoryPack rides along as the floor.
 # done (run 43714421476): cpu='EPYC|Xeon|Neoverse' 0ec9f5af 6df65975 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *SimpleTest.Nino*
+# Writes of raw struct runs holding T? fields without VBMI cleared in the masked copy's pass (56346978), raw T? runs read
+# by the checking copy on AMD and Arm64 (aa686088), against 779e01fd. The CPUs without VBMI decide (7763, 8370C, N2).
+cpu='EPYC|Xeon|Neoverse' 779e01fd aa686088 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
