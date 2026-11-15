@@ -73,6 +73,13 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    - **Reach the commits** with `git merge -s ours --no-edit <ref>` (history only: the test branch keeps main's code,
      so its CI runs main's code; merging an experiment's code ran CI on it, and a Go test that overflowed `int` on 386
      and a Windows stack test mailed the owner a failure per push).
+   - **Time the Nino.Core build you mean.** BenchmarkDotNet's runner project (`Nino.Benchmark-<job>`) gets Nino.Core
+     only through Nino.Benchmark's references, so a referenced package built for fewer frameworks than Nino.Core brings
+     an older build into it: until f01a8d3c Nino.Immutable (net8.0 only) made every runner process load Nino.Core's
+     net8.0 build, and every A/B and release number timed Nino without its .NET 10 paths (1,000 structs of an int, a
+     long? and a double? 3.4 µs out of process, 1.2 in process; #301). `Harness/NinoCoreBuild.cs` now throws in such
+     a process. A base commit before f01a8d3c needs that commit cherry-picked onto it (0ec9f5af is bbb6eba2 with
+     it), or its side times net8.0. A new package Nino.Benchmark references targets every framework Nino.Core does.
    - **Runtime lines** go into `.github/ab-request.txt` and run `runtime-ab.yml`:
      `<go|go:<dir>|go#<rounds>|rust|rust:<bench>|typescript|generator|generator#<rounds>> <base sha> <head sha> [filter] [<base env> <head env>]`.
      At most 8 lines per push, 10 jobs each (the workflow measures the first 8 and warns; `[ab: new lines only]` in the
