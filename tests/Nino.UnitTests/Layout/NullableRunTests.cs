@@ -320,15 +320,15 @@ namespace Nino.UnitTests
         }
 
         /// <summary>
-        /// A long run of raw T? checks its presence bytes while copying, a group of vectors at a time: an invalid one
-        /// throws wherever it lies, and a collection read into holds valid values only (new before the bad group, old
-        /// after it), never the invalid byte.
+        /// A run of raw T? with an invalid presence byte throws wherever the byte lies, and the run is cleared first,
+        /// so neither a collection read into nor a new array allocated uninitialized (Memory, List) is left with the
+        /// invalid byte or stale memory.
         /// </summary>
         [TestMethod]
-        public void InvalidPresenceInALongRunThrowsAndLeavesOnlyValidValues()
+        public void InvalidPresenceInARunThrowsAndLeavesNoInvalidOrStaleBytes()
         {
-            foreach (int length in new[] { 128, 129, 200, 1000 })
-            foreach (int bad in new[] { 0, 1, 63, length / 2, length - 1 })
+            foreach (int length in new[] { 5, 127, 128, 129, 200, 1000 })
+            foreach (int bad in new[] { 0, 1, length / 2, length - 1 })
             {
                 var values = Enumerable.Range(0, length).Select(i => i % 3 == 0 ? (long?)null : i).ToArray();
                 byte[] bytes = NinoSerializer.Serialize(values);
@@ -338,12 +338,18 @@ namespace Nino.UnitTests
                 Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref list));
                 var target = new long?[length];
                 Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref target));
+                Memory<long?> memory = default;
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref memory));
                 foreach (var held in new[] { list.ToArray(), target })
-                    for (int i = 0; i < length; i++)
+                    for (int i = 0; i < held.Length; i++)
                     {
                         byte flag = Unsafe.As<long?, byte>(ref held[i]);
                         Assert.IsTrue(flag <= 1, $"length {length}, bad {bad}: element {i} holds flag {flag}");
                     }
+
+                // A new array that the read published before rejecting the data holds zeros, not the heap's memory.
+                Assert.IsTrue(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<long?, byte>(ref MemoryMarshal.GetReference(memory.Span)), memory.Length * 16).IndexOfAnyExcept((byte)0) < 0,
+                    $"length {length}, bad {bad}: the new array holds stale bytes");
             }
         }
     }

@@ -260,12 +260,15 @@ namespace Nino.Core.Internal
         private static class Traits<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
         {
             // Block reads write every byte of a value, padding as 0 (NinoBlockCollections.ReadEach); values read a
-            // field at a time (ReadSize -1, Untrusted mode) leave their padding as it was. Slots never: their
-            // presence bytes are checked before any is copied, so data they reject would leave the new array as it
+            // field at a time (ReadSize -1, Untrusted mode) leave their padding as it was. Slots that are memory copy
+            // every byte and clear the run when they reject it (NinoNullables.ReadPrechecked); other slots are read
+            // one by one after the presence bytes are checked, so data they reject would leave the new array as it
             // was allocated.
             public static readonly bool CopiedWhole = RawFormatter.Is<T, TFormatter>()
                 ? NinoLayout<T>.CopiesAsIs
-                : NinoSlots<T, TFormatter>.Stride <= 0 && NinoBlockCollections.ReadSize<T, TFormatter>() > 0;
+                : NinoSlots<T, TFormatter>.Stride > 0
+                    ? NinoSlots<T, TFormatter>.Formatter.SlotsAreMemory
+                    : NinoBlockCollections.ReadSize<T, TFormatter>() > 0;
 
             public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
                 typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoSlots<T, TFormatter>.FixedStride > 0;

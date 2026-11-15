@@ -57,9 +57,17 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void Flags(ref byte first, int count, int stride)
         {
+            if (!ValidFlags(ref first, count, stride))
+                NinoThrow.InvalidPresence(Strided(ref first, count, stride));
+        }
+
+        /// <summary>Whether every presence byte <see cref="Flags"/> checks is 0 or 1.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static bool ValidFlags(ref byte first, int count, int stride)
+        {
 #if NET8_0_OR_GREATER
             if (count >= 128 && TryValidateStrided(ref first, count * stride, stride))
-                return;
+                return true;
 #endif
             int any;
             if (count is 2 or 3)
@@ -72,8 +80,7 @@ namespace Nino.Core.Internal
             {
                 any = Strided(ref first, count, stride);
             }
-            if ((any & 0xFE) != 0)
-                NinoThrow.InvalidPresence(any);
+            return (any & 0xFE) == 0;
         }
 
 #if NET8_0_OR_GREATER
@@ -86,22 +93,6 @@ namespace Nino.Core.Internal
                 return ValidFlagBlocks<Vector256<byte>, NinoVectors256>(ref first, bytes, stride);
             return Vector128.IsHardwareAccelerated &&
                    ValidFlagBlocks<Vector128<byte>, NinoVectors128>(ref first, bytes, stride);
-        }
-
-        /// <summary>
-        /// Copies the <paramref name="bytes"/> of raw nullables <paramref name="stride"/> bytes apart, checking their
-        /// presence bytes in the same pass; false where the stride has no vector form. Throws on a presence byte
-        /// other than 0 or 1, with every group of vectors checked before it is stored: the destination may be a
-        /// collection read into, which then holds valid values only (some new, the rest old).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        internal static bool TryCopyFlags(ref byte target, ref byte source, int bytes, int stride)
-        {
-            if (!TryFlagMask(stride, out var mask) || !Vector128.IsHardwareAccelerated)
-                return false;
-            if (!CopyFlagsBest(ref target, ref source, bytes, mask))
-                Flags(ref source, bytes / stride, stride);
-            return true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -127,42 +118,40 @@ namespace Nino.Core.Internal
             var ops = default(TOps);
             int width = Unsafe.SizeOf<TVector>();
             int group = 4 * width;
+            TVector any = default;
             for (; bytes >= group; bytes -= group)
             {
                 var a = ops.Load(ref source, 0);
                 var b = ops.Load(ref source, (nuint)width);
                 var c = ops.Load(ref source, (nuint)(2 * width));
                 var d = ops.Load(ref source, (nuint)(3 * width));
-                if (ops.HasMaskedBits(ops.Or(ops.Or(a, b), ops.Or(c, d)), mask))
-                    return false;
                 ops.Store(a, ref target, 0);
                 ops.Store(b, ref target, (nuint)width);
                 ops.Store(c, ref target, (nuint)(2 * width));
                 ops.Store(d, ref target, (nuint)(3 * width));
+                any = ops.Or(any, ops.Or(ops.Or(a, b), ops.Or(c, d)));
                 source = ref Unsafe.Add(ref source, group);
                 target = ref Unsafe.Add(ref target, group);
             }
 
-            // The rest (under a group) checked whole before any of it is stored. A partial final vector overlaps the
-            // previous one at the same mask phase.
-            ref byte last = ref Unsafe.Add(ref source, bytes - width);
-            TVector any = default;
-            for (int at = 0; at + width <= bytes; at += width)
-                any = ops.Or(any, ops.Load(ref source, (nuint)at));
-            if (bytes % width != 0)
-                any = ops.Or(any, ops.Load(ref last, 0));
-            if (ops.HasMaskedBits(any, mask))
-                return false;
             for (; bytes >= width; bytes -= width)
             {
-                ops.Store(ops.Load(ref source, 0), ref target, 0);
+                var bits = ops.Load(ref source, 0);
+                ops.Store(bits, ref target, 0);
+                any = ops.Or(any, bits);
                 source = ref Unsafe.Add(ref source, width);
                 target = ref Unsafe.Add(ref target, width);
             }
 
+            // A partial final vector overlaps the previous one at the same mask phase.
             if (bytes != 0)
-                ops.Store(ops.Load(ref Unsafe.Add(ref source, bytes - width), 0), ref Unsafe.Add(ref target, bytes - width), 0);
-            return true;
+            {
+                var tail = ops.Load(ref Unsafe.Add(ref source, bytes - width), 0);
+                ops.Store(tail, ref Unsafe.Add(ref target, bytes - width), 0);
+                any = ops.Or(any, tail);
+            }
+
+            return !ops.HasMaskedBits(any, mask);
         }
 
         // Tier 0 leaves calls inside the scan, so compile this validator with its helpers inlined from the start.
