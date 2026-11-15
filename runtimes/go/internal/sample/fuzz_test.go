@@ -84,12 +84,14 @@ func seeds() []seed {
 	b, err = nino.Serialize(&Collections{Ints: []int32{1}, StringSet: []*string{&s, nil}, Grid: &Grid[int32]{Lengths: [2]int{1, 2}, Items: []int32{1, 2}}}, WriteCollections)
 	add("Conformance.Collections", b, err)
 	one := int32(1)
-	b, err = nino.Serialize(&Nullables{Int: &one, IntArray: []*int32{&one, nil}, PaddedArray: []*Padded{{1, 2}, nil}}, WriteNullables)
+	slot := nino.NullableSlotOf(one)
+	b, err = nino.Serialize(&Nullables{Int: &one, IntArray: []nino.NullableSlot[int32]{slot, {}}, PaddedArray: []nino.NullableSlot[Padded]{nino.NullableSlotOf(Padded{1, 2}), {}}}, WriteNullables)
 	add("Conformance.Nullables", b, err)
 	b, err = nino.Serialize(&NullableSequences{
-		IntSet: []*int32{&one, nil}, Grid: &Grid[*int32]{Lengths: [2]int{1, 2}, Items: []*int32{nil, &one}},
-		PaddedGrid: &Grid[*Padded]{Lengths: [2]int{1, 1}, Items: []*Padded{{1, 2}}}, Nested: [][]*int32{{&one}, nil},
-		Values: []nino.Entry[int32, *int64]{{Key: 1}}, Pairs: []nino.Entry[int32, *int32]{{Key: 1, Value: &one}},
+		IntSet: []nino.NullableSlot[int32]{slot, {}}, Grid: &Grid[nino.NullableSlot[int32]]{Lengths: [2]int{1, 2}, Items: []nino.NullableSlot[int32]{{}, slot}},
+		PaddedGrid: &Grid[nino.NullableSlot[Padded]]{Lengths: [2]int{1, 1}, Items: []nino.NullableSlot[Padded]{nino.NullableSlotOf(Padded{1, 2})}},
+		Nested:     [][]nino.NullableSlot[int32]{{slot}, nil},
+		Values:     []nino.Entry[int32, *int64]{{Key: 1}}, Pairs: []nino.Entry[int32, *int32]{{Key: 1, Value: &one}},
 	}, WriteNullableSequences)
 	add("Conformance.NullableSequences", b, err)
 	count := nino.NinoNullableOf[int32](3)

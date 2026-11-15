@@ -25,7 +25,8 @@ A C# member is the TypeScript type the guide's [Type Mapping](https://nino.xgame
 lists. A `T?` is `T | null`: a presence byte and the value when it is a single value (a member, a map's key or value,
 a tuple's item), and for a `T` .NET writes as raw memory (a number, a date, a raw struct) a slot of a fixed size as
 the element of any sequence (an array, a `Set`: `T`'s alignment plus its size, zeros when null; `Queue<int?> {5, null}`
-is `02000000 01000000 05000000 00000000 00000000`), which the generated code reads and writes from the type's layout.
+is `02000000 01000000 05000000 00000000 00000000`), which the generated code reads and writes from the type's layout
+and declares as `NullableSlot<T>`.
 .NET's `NinoNullable<T>` has bytes of its own: its memory wherever it is, a presence and a value of a `T` each
 (`2 * size(T)` bytes: `01000000 05000000` for a `NinoNullable<int>` of 5, zeros for none), alone, as an element of
 any collection and inside a raw struct. Reading rejects a presence other than 0 or 1, a byte set above it and a value
@@ -34,12 +35,13 @@ that is not zeros where it is absent (`NinoReader.ninoNullableAt`), as .NET does
 | .NET | Bytes | TypeScript |
 | --- | --- | --- |
 | `T?`, a single value | a presence byte, then the value when present | `T \| null` |
-| `T?` of a raw `T`, the element of a sequence | a slot of `T`'s alignment plus its size | `T \| null` (`(number \| null)[]`, `Set<number \| null>`) |
+| `T?` of a raw `T`, the element of a sequence | a slot of `T`'s alignment plus its size | `NullableSlot<T>` (`NullableSlot<number>[]`, `Set<NullableSlot<number>>`) |
 | `NinoNullable<T>`, wherever it is | its memory, `2 * size(T)` bytes | `NinoNullable<T>` |
 
-`NinoNullable<T>` is a type alias the runtime exports, `type NinoNullable<T> = T | null`: the generated members say
-which encoding they have (`count: NinoNullable<number> = null`), and nothing exists at run time: no wrapper object,
-no allocation, the same values as a `T?` member.
+`NinoNullable<T>` and `NullableSlot<T>` are type aliases the runtime exports, `type NinoNullable<T> = T | null` and
+`type NullableSlot<T> = T | null`: the generated members say which encoding they have
+(`count: NinoNullable<number> = null`, `scores: NullableSlot<number>[] | null = null`), and nothing exists at run
+time: no wrapper object, no allocation, the same values as a `T?` member (`scores = [5, null]`).
 
 `deserialize` reads one value and leaves any bytes after it unread; `deserializeExact` also throws a `NinoError`
 when bytes follow the value (Go's `DeserializeExact`, Rust's `deserialize_exact`).

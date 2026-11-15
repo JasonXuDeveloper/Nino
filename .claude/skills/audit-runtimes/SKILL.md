@@ -70,7 +70,13 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   them in 1.4 µs against 3.3 µs, no allocation an element (748 to 1; local Xeon, `BenchmarkNinoNullables`, a decision
   only). TypeScript's types cannot carry a second encoding at run time without a wrapper object, so there it is a
   name alone (`type NinoNullable<T> = T | null`, the owner's decision), and Rust has `NinoNullable<T>` and
-  `NullableSlot<T>`. The proof is `TargetTests.NinoNullableIsGeneratedInEveryLanguage`, Go's `TestTagNinoNullable`
+  `NullableSlot<T>`. The element of a `T?` sequence has the same three names everywhere (the owner's rule: the
+  languages follow Rust's naming): Go `nino.NullableSlot[T]` (a value; `[]nino.NullableSlot[int32]` read as one
+  block by `ReadNullableSlots` in 4.2 µs against 18.5 µs for the `[]*int32` it replaced, written in 1.5 µs against
+  3.4 µs, 748 allocations to 1; `BenchmarkNullableSlots`, local, a decision only), TypeScript the alias
+  `NullableSlot<T>`; a single `T?` stays `*T` and `T | null`. Struct tags take `[]nino.NullableSlot[T]` as the one
+  way to hold slots: a `[]*T` is a single `T?` an element, and under a layout that declares slots a `TagError`
+  (`variantElementNullable`, which picked the encoding from the layout's text, is gone). The proof is `TargetTests.NinoNullableIsGeneratedInEveryLanguage`, Go's `TestTagNinoNullable`
   (no layout and layout) and `TestNinoNullables` (each block against `NinoNullableAt` an element, every byte
   changed).
 - Resolve a raw field's type from the layout when the name it publishes is canonical rather than declared:

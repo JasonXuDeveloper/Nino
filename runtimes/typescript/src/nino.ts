@@ -153,10 +153,20 @@ function makeScratch(): NinoReader {
 /**
  * A member that is .NET's `NinoNullable<T>` (`Nino.Core`): the value or `null`, as a `T?` member is (`T | null`), under
  * the name that says which bytes it has: its memory wherever it is, a presence and a value of a `T` each
- * (`NinoReader.ninoNullableAt`), where a `T?` is a presence byte and the value, or a slot in a sequence. An alias
- * only: no wrapper object and nothing at run time.
+ * (`NinoReader.ninoNullableAt`), where a `T?` is a presence byte and the value, or a slot in a sequence
+ * (`NullableSlot`). An alias only: no wrapper object and nothing at run time.
  */
 export type NinoNullable<T> = T | null;
+
+/**
+ * A .NET `T?` of a fixed-size `T` (a number, a date, a raw struct) as the element of a sequence: the value or `null`,
+ * under the name that says which bytes it has: a slot of `T`'s alignment plus its size in every sequence, the presence
+ * byte first, zeros up to the alignment, then the value, zeros when absent. `NullableSlot<number>[]` is an `int?[]`, a
+ * `List<int?>` or a `Queue<int?>`, `Set<NullableSlot<number>>` a `HashSet<int?>`. A single `T?` (a member, a map's
+ * key or value, a tuple's item) is not these bytes: it is a presence byte and the value only when present, declared
+ * `T | null`. An alias only: no wrapper object and nothing at run time.
+ */
+export type NullableSlot<T> = T | null;
 
 /**
  * A typed array of a fixed-size number type: how generated code holds an array or list of `sbyte`, `byte`, `short`,

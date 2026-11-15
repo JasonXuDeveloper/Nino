@@ -112,10 +112,14 @@ the layout publishes as `seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})`
 IR gives a sequence inside a type argument too (`CodegenModel.NullableSlot`). As a single value (a member, a
 dictionary's key or value, a pair's or a tuple's item) it is a presence byte and the value only when present:
 `ValueKind.Nullable`. `Queue<int?> {5, null}` is `02000000 01000000 05000000 00000000 00000000`;
-`Dictionary<int, long?> {1: null, 2: 7}` is `02000000 01000000 00 02000000 01 0700000000000000`. TypeScript holds both
-as `T | null` and Go as `*T` (a set and a queue of slots are a `Set<T | null>` and a `[]*T`); Rust's codecs go by the
-type, so a single value is an `Option<T>` and a slot a `nino::NullableSlot<T>`, the element of every container
-(`Vec<nino::NullableSlot<i32>>`, `IndexSet<nino::NullableSlot<i32>>`, `nino::Grid<nino::NullableSlot<i32>, 2>`).
+`Dictionary<int, long?> {1: null, 2: 7}` is `02000000 01000000 00 02000000 01 0700000000000000`. Every language names
+the slot `NullableSlot`, the element type of every container of them, apart from the single value: Rust's
+`nino::NullableSlot<T>` beside `Option<T>` (`Vec<nino::NullableSlot<i32>>`, `IndexSet<nino::NullableSlot<i32>>`,
+`nino::Grid<nino::NullableSlot<i32>, 2>`), Go's `nino.NullableSlot[T]` beside `*T` (a value, `HasValue` and `Value`,
+whose slices hold no pointer: `[]nino.NullableSlot[int32]`, `*NinoGrid[nino.NullableSlot[int32]]`; a run of a number
+is one block, `nino.ReadNullableSlots`), and TypeScript's `NullableSlot<T>` beside `T | null`, an alias of it that
+only names the encoding (`NullableSlot<number>[]`, `Set<NullableSlot<number>>`). A `T?` field of a raw struct is the
+same slot at the field's offset and stays the single value's type (`*T`, `Option<T>`, `T | null`).
 Every reader rejects a slot whose presence byte is not 0 or 1
 (`ModelTests.RawNullablesAreSlotsInEverySequenceAndSingleValuesElsewhere`,
 `TargetTests.RawNullableSlotsAreGeneratedInEveryLanguage`; the corpus's `nullable-sequences`, `presence-nullable-set-*`
@@ -143,7 +147,8 @@ The three encodings of a nullable raw `T` and how each target spells them:
 | .NET | Bytes | TypeScript | Go | Rust |
 |---|---|---|---|---|
 | `T?`, a single value | a presence byte, then `T` when present | `T \| null` | `*T` | `Option<T>` |
-| `T?`, the element of a sequence or a grid | a slot: `align(T) + size(T)` bytes | `T \| null` | `*T` (`[]*T`) | `nino::NullableSlot<T>` |
+| `T?`, the element of a sequence or a grid | a slot: `align(T) + size(T)` bytes | `NullableSlot<T>` (an alias of `T \| null`) | `nino.NullableSlot[T]` | `nino::NullableSlot<T>` |
+| `T?`, a field of a raw struct | the same slot, at the field's offset | `T \| null` | `*T` | `Option<T>` |
 | `NinoNullable<T>`, wherever it is | its memory: `2 * size(T)` bytes, checked | `NinoNullable<T>` (an alias of `T \| null`) | `nino.NinoNullable[T]` | `nino::NinoNullable<T>` |
 
 A generic type that holds itself with other arguments (`Nest<T>` holding `Nest<List<T>>`) needs a new instantiation for

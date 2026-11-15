@@ -83,7 +83,7 @@ tracked objects are read new. On a failure the value holds what was read before 
 | BCL values | `Decimal`, `Guid`, `DateTime`, `TimeSpan`, `DateTimeOffset`, `DateOnly`, `TimeOnly`, `BigInteger` (`*big.Int`), `Version` |
 | Strings | `String`, `NullableString`, `StringPtr` (default encoding); `UTF8`, `NullableUTF8`, `UTF8Ptr` (`[NinoUtf8]`); `UTF16` (code units) |
 | Raw runs | `Reader.Take(n)`, `Writer.Extend(n)` / `ExtendZero(n)`, `BoolAt` for a bool inside a raw struct |
-| Collections | `Length`, `ByteArray`, `ReadPrimitives` / `WritePrimitives` (one block copy), `WriteStrings` / `WriteStringPtrs`, `ReadBools`, `ReadBlock` (dates, decimals, Guids, 128-bit integers: one block copy, then checked), `ReadNinoNullables` / `WriteNinoNullables` (`NinoNullable<T>` of a number: one block), `CheckUniqueKeys`, `CheckUniqueValues` and `CheckUniqueStrings` (the duplicate check for the pairs or set elements read by your own loop, `CheckUniqueStrings` for a set of nullable strings: numbers and strings compared as .NET compares them, a NaN equal to every NaN, in a seeded table of the reader's own, no map), `ReadPrimitiveEntries` (dictionaries of primitive keys and values: one block copy on little-endian hosts where a pair has no padding), `ReadPrimitiveMap` (the same into a Go map: one bounds check for the block, no call per pair), `ReadRaw` (raw structs whose Go memory is their bytes: one block copy on little-endian hosts), `ReadShape` (multi-dimensional arrays) and their writers. Other collections are loops of your own with a direct call per element, as nino-gen writes them (`internal/sample/loops.go`); the helpers that took each element's code as a function value (`ReadSlice`, `ReadMap`, `ReadEntries`, `ReadSet`, `ReadUnique`, `ReadUniqueEntries`, `ReadFixed` and their writers, `WritePrimitivesRaw`, `ReadPrimitivesInto`, `ReadSealedInto`) were removed in 4.0.0-rc.8 |
+| Collections | `Length`, `ByteArray`, `ReadPrimitives` / `WritePrimitives` (one block copy), `WriteStrings` / `WriteStringPtrs`, `ReadBools`, `ReadBlock` (dates, decimals, Guids, 128-bit integers: one block copy, then checked), `ReadNullableSlots` / `WriteNullableSlots` (a sequence of `T?` of a number: one block), `ReadNinoNullables` / `WriteNinoNullables` (`NinoNullable<T>` of a number: one block), `CheckUniqueKeys`, `CheckUniqueValues` and `CheckUniqueStrings` (the duplicate check for the pairs or set elements read by your own loop, `CheckUniqueStrings` for a set of nullable strings: numbers and strings compared as .NET compares them, a NaN equal to every NaN, in a seeded table of the reader's own, no map), `ReadPrimitiveEntries` (dictionaries of primitive keys and values: one block copy on little-endian hosts where a pair has no padding), `ReadPrimitiveMap` (the same into a Go map: one bounds check for the block, no call per pair), `ReadRaw` (raw structs whose Go memory is their bytes: one block copy on little-endian hosts), `ReadShape` (multi-dimensional arrays) and their writers. Other collections are loops of your own with a direct call per element, as nino-gen writes them (`internal/sample/loops.go`); the helpers that took each element's code as a function value (`ReadSlice`, `ReadMap`, `ReadEntries`, `ReadSet`, `ReadUnique`, `ReadUniqueEntries`, `ReadFixed` and their writers, `WritePrimitivesRaw`, `ReadPrimitivesInto`, `ReadSealedInto`) were removed in 4.0.0-rc.8 |
 | Classes | `Class[T]`, `ReadClass`, `WriteClass`, `ReadSealed`, `WriteSealed` (depth and deferral, below); `EnterBody` / `ExitBody` on the reader and the writer, to call a body's code directly and fall back to `ReadClassInto` / `WriteClass` from 128 open bodies on, as generated code does |
 | Regions | `BeginRegion` / `EndRegion` (version-tolerant and keyed bodies), `More`, `BeginMember` / `EndMember` / `SkipMember`, `KeyedSeen` |
 | Polymorphism | `TypeID(name)`, `WriteTyped`, `UnknownType`; or `TypeSet`, `ClassType`, `StructType`, `ReadAny`, `WriteAny` |
@@ -210,7 +210,7 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 | `nino.DateTimeOffset`, `*big.Int`, `*nino.Version` | `datetimeoffset`, `bigint`, `version` |
 | `string`, `*string` | `string` (or `utf8`); a `string` reads null as `""`, a `*string` keeps it |
 | `[]byte`, `[]T` | `seq(...)`; nil is null; numbers are one block copy |
-| `[]*T` of a fixed-size `T` | a sequence of `T?` (`T?[]`, `List<T?>`, `HashSet<T?>`, `Queue<T?>`, any other, also nested): a slot of a fixed size an element, `T`'s alignment plus its size (§6.2: `int?` 8 bytes, `long?` 16); `seq(nullable(...))` in the layout selects one `T?` per element (a `T` .NET does not write as raw memory) |
+| `[]nino.NullableSlot[T]` of a fixed-size `T` | a sequence of `T?` (`T?[]`, `List<T?>`, `HashSet<T?>`, `Queue<T?>`, any other, also nested): a slot of a fixed size an element, `T`'s alignment plus its size (§6.2: `int?` 8 bytes, `long?` 16). A `[]*T` is one single `T?` per element (`seq(nullable(...))`: a `T` .NET does not write as raw memory), and a `nino.NullableSlot[T]` anywhere but as the element of a slice is a `*TagError` |
 | `map[K]V`, `map[K]struct{}` | `map(K,V)`, a set `seq(K)`: written in key order, a repeated key fails on read |
 | `[]nino.Entry[K, V]` | `map(K,V)` in the order of the data (no check for repeated keys); a `nino.Entry` alone is a `pair` |
 | `*T` (struct) | a class: presence byte, or type id with `header=TypeId`; `Nullable<T>` when `T` is a struct (`header=None`) |
@@ -223,12 +223,23 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
 | .NET | Bytes | Go |
 | --- | --- | --- |
 | `T?`, a single value (a member, a map's key or value, a tuple's item) | a presence byte, then the value when present | `*T` |
-| `T?`, the element of a sequence (`T?[]`, `List<T?>`, `HashSet<T?>`, nested ones) | a slot of `T`'s alignment plus its size: the presence byte, zeros, then the value, zeros when absent | `[]*T` |
+| `T?`, the element of a sequence (`T?[]`, `List<T?>`, `HashSet<T?>`, `T?[,]`, nested ones) | a slot of `T`'s alignment plus its size: the presence byte, zeros, then the value, zeros when absent | `nino.NullableSlot[T]` (`[]nino.NullableSlot[T]`) |
 | `T?`, a field of a raw struct (an unmanaged `[NinoType]` struct, written as its memory) | the same slot, at the field's offset | `*T`, a field of a struct held by value whose every field is fixed-size |
 | `NinoNullable<T>`, wherever it is | its memory, `2 * size(T)` bytes: a presence as wide as `T` (0 or 1), then the value, zeros when absent | `nino.NinoNullable[T]` |
 
-`nino.NinoNullable[T]` is a value, `struct { HasValue bool; Value T }`, whose zero value is absent:
-`nino.NinoNullableOf(v)` holds `v`, and `Get()` returns the value and whether there is one. A `NinoNullable<int>` of 5
+`nino.NullableSlot[T]` and `nino.NinoNullable[T]` are values of the same shape, `struct { HasValue bool; Value T }`,
+whose zero value is absent: `nino.NullableSlotOf(v)` and `nino.NinoNullableOf(v)` hold `v`, and `Get()` returns the
+value and whether there is one. Neither holds a pointer, so a slice of them is one allocation.
+
+Generated code declares the elements of every sequence of `T?` as `nino.NullableSlot[T]` (`[]nino.NullableSlot[int32]`
+for an `int?[]`, a `List<int?>` or a `HashSet<int?>`, `*NinoGrid[nino.NullableSlot[int32]]` for an `int?[,]`), and
+struct tags know the type as the element of a slice. An `int?[] {5, null}` is
+`02000000 01000000 05000000 00000000 00000000`. A slice of a number's slots is read and written as one block
+(`ReadNullableSlots` / `WriteNullableSlots`, copied as memory where Go lays the struct out as the wire does, with no
+allocation an element); any other `T` at its offsets from one bounds check. Reading rejects a presence byte other
+than 0 or 1 and leaves an absent `Value` zero whatever the data holds under it, as .NET does.
+
+A `NinoNullable<int>` of 5
 is `01000000 05000000` alone, as an element of any collection and inside a raw struct; `Value` is written only when
 `HasValue` is set. Generated code declares .NET's `NinoNullable<T>` members with it, and struct tags know the type by
 itself, with or without a `NinoLayout` (a layout that names the other nullable is a `*TagError`: a run of a narrow

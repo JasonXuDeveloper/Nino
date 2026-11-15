@@ -167,6 +167,8 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Sequence:
                 {
                     var element = Shape(value.Element!);
+                    // A raw T? is a slot there, which its declared type says (NullableSlot<T>).
+                    element.SlotElement = element is { Kind: "rawnullable", Clean: false };
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     if (value.IsByteArray)

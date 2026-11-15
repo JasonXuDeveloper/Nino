@@ -61,15 +61,17 @@ func ReadIntGrid(r *nino.Reader) *Grid[int32] { return readIntGrid(r) }
 
 func WriteIntGrid(w *nino.Writer, v *Grid[int32]) { writeIntGrid(w, v) }
 
-func ReadMaybeIntArray(r *nino.Reader) []*int32 { return readStrideInt32s(r) }
-
-func WriteMaybeIntArray(w *nino.Writer, v []*int32) {
-	writeStrideInt32s(w, v)
+func ReadMaybeIntArray(r *nino.Reader) []nino.NullableSlot[int32] {
+	return nino.ReadNullableSlots[int32](r)
 }
 
-func ReadMaybeIntGrid(r *nino.Reader) *Grid[*int32] { return readStrideInt32Grid(r) }
+func WriteMaybeIntArray(w *nino.Writer, v []nino.NullableSlot[int32]) {
+	nino.WriteNullableSlots(w, v)
+}
 
-func WriteMaybeIntGrid(w *nino.Writer, v *Grid[*int32]) { writeStrideInt32Grid(w, v) }
+func ReadMaybeIntGrid(r *nino.Reader) *Grid[nino.NullableSlot[int32]] { return readSlotInt32Grid(r) }
+
+func WriteMaybeIntGrid(w *nino.Writer, v *Grid[nino.NullableSlot[int32]]) { writeSlotInt32Grid(w, v) }
 
 func ReadMaybeInt(r *nino.Reader) *int32 { return readNullableInt32(r) }
 

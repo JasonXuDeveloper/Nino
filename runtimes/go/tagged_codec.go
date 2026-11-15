@@ -31,11 +31,11 @@ const (
 	kBytes
 	kPrimSlice // slice of fixed-size numbers: one block
 	kSlice
-	kStride // slice of nullable raw values (any sequence of T?): a slot of a fixed size each (spec §6.2)
+	kStride // slice of nino.NullableSlot (any sequence of T? of a raw T): a slot of a fixed size each (spec §6.2)
 	kSet
 	kMap
 	kNullable
-	kSlot         // a T? of a raw T where it has a fixed size: an element of a kStride, a field of a raw struct
+	kSlot         // a T? of a raw T where it has a fixed size: an element of a kStride, a field of a raw struct (a *T)
 	kNinoNullable // .NET's NinoNullable<T>: raw memory, a presence and a value of a T each
 	kClass        // pointer to a class: presence byte or type id, then the body
 	kStruct       // a struct written member by member
