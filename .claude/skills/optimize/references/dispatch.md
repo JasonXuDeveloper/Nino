@@ -173,4 +173,8 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   (`DispatchEmitter.EmitReadSwitch`). Nor through a table of delegates, one generated lambda per subtype found by that hash (what injecting a
   virtual method gives LuminPack without making the user's classes partial): 5.0 to 5.7 us for the same list,
   fixed order, since each element pays a delegate call and the writer's cursor goes back to memory across it
-  (local x64, after 98518d32).
+  (local x64, after 98518d32). Nor through a virtual method generated into partial classes (LuminPack's form: the base declares it, each
+  subtype overrides it with its id and raw body), though the owner would accept requiring `partial` for a gain: on
+  the same list, bytes identical, the chain took 4.93 us in a fixed order and 4.84 shuffled, the virtual calls 5.15
+  and 6.95 (LuminPack 4.40): the indirect call mispredicts once the order is mixed and the writer leaves registers
+  across it (local x64, 13b9a7b3). LuminPack's lead is not its dispatch.
