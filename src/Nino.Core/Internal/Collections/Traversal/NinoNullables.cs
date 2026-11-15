@@ -110,9 +110,9 @@ namespace Nino.Core
 
         /// <summary>
         /// Whether the masked copy clears absent values in its one pass, a 64-byte vector at a time, whatever the
-        /// stride (<see cref="NinoMask.ClearsByVector"/>: AVX-512 VBMI with GFNI, .NET 10).
+        /// stride (<see cref="NinoMask.ClearsByVector"/>: AVX-512 VBMI, with GFNI on .NET 10).
         /// </summary>
-#if NET10_0_OR_GREATER
+#if NET8_0_OR_GREATER
         private static readonly bool ClearedByVector = Mask.ClearsByVector;
 #else
         private const bool ClearedByVector = false;
