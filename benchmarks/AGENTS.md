@@ -21,7 +21,8 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              CollectionsTest, BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest), Workloads/ (WorkloadTest: 12 real-world
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
-                             Harness/Verify.cs (--verify: every case reads back right), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
+                             Harness/Verify.cs (--verify: every case reads back right), Harness/NinoCoreBuild.cs (stops a process that
+                             loaded another Nino.Core build than its framework's), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
                              Fixtures/ contains shared models and payloads (ProtobufModel.cs: protobuf-net's model, the
                              .proto files --write-proto generates, the read-back of Google.Protobuf's messages;
                              NullableBenchmarkData.cs: NullableTest's models, NullableFields, RawNullable, a raw
