@@ -21,8 +21,10 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   timings; x64 listings only).
 - Share that validator with strided bools, bounded at the last flag; keep its scalar tail with the early exit; unroll
   two- and three-element scans; keep the indexed scalar conversion (M4).
-- Fuse the flag scan and copy for fresh raw nullable arrays of at least 128 slots with strides of 8 or 16, inline the
-  fresh entry into `ReadNew`, broadcast the AVX-512 mask with a lane shuffle (M4; native x64 and AVX-512 unmeasured).
+- Read raw `T?` runs by checking the presence bytes first (the read-only vector scan) and moving them with
+  `CopyToNew` (Memmove), never with a vector loop that checks while it copies, and clear the run before throwing, so
+  every collection allocates its array uninitialized (`NinoElements.CopiedWhole`) (Xeon, `9b378a07`; details under
+  Fresh reads).
 - Write nullable bools without the converter: lane masks from presence bits in 512/256/128-bit groups, 64-bit groups
   for four to seven slots on Arm64, one word store a slot for one to three, an overlapping final vector; keep the bulk
   clear for converted writes (M4; native AVX-512 unmeasured).
@@ -127,8 +129,16 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
 
 ## Fresh reads
 
-- Fuse the flag scan and copy for fresh raw nullable arrays of at least 128 slots with strides of eight or sixteen
-  bytes. The destination is unpublished until all flags pass. Reuse the width-specific loads, masks and CPU policy.
+- Check a raw `T?` run, then move it with `CopyToNew`; do not fuse the check into a vector copy. Memmove's rep movsb
+  writes a new array's lines without reading them first, and the fused loop (`f8d9e34d`, every run of 128 slots or
+  more, each group checked before it was stored) read 1,000 int? 5 to 15 % slower into `Memory`, `IList` and grids
+  (local Xeon, two interleaved rounds). What `Memory<T?>`, `List<T?>` and `IList<T?>` lost to MemoryPack (7 to 34 %
+  on runners, run 43681837258) was zeroing their new arrays: `ReadPrechecked` clears the run when it rejects the data,
+  so `CopiedWhole` holds for raw slots and the arrays come uninitialized without ever showing stale memory
+  (`9b378a07`: `Memory<int?>` 804-834 ns instead of 879-897, `IList<int?>` 961-982 instead of 1,022-1,029, local;
+  runner numbers owed). The fused path below was removed with it.
+- (Removed in `9b378a07`, kept for its measurements.) Fuse the flag scan and copy for fresh raw nullable arrays of at
+  least 128 slots with strides of eight or sixteen bytes. The destination is unpublished until all flags pass. Reuse the width-specific loads, masks and CPU policy.
   Four-vector groups emit paired loads and stores on Arm64. The single-vector candidate lost on long inputs, and the
   short-stride candidates slowed reuse. Keep those reads on the existing path. The final version's default-JIT
   cache-boundary timings varied alongside A/A. The aligned 4,092 Int32 and 2,044 Int64 cases took less time in all
@@ -150,6 +160,11 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
 
 ## Writes
 
+- Read a `NinoNullable<T>` collection's gap to MemoryPack's `T?` against the bytes and the L1 cache before tuning its
+  copy: it is a plain copy of 2 x sizeof(T) an element, and once source and buffer pass the core's L1 the copy runs at
+  L2 speed. 1,000 `NinoNullable<decimal>` (32 KB) wrote in 822 ns against MemoryPack's 262 on the Xeon 8573C (48 KB
+  L1) and on par on Neoverse-N2 (64 KB L1: 377 against 375, run 43681837258); locally a plain `decimal[2000]` (32 KB)
+  wrote in 870 ns, 24 KB in 232, 16 KB in 114. The cost is the format's, for the docs, not a kernel to fix.
 - Clear the absent values of raw `T?` runs in the copy's one pass, at the masked copy's widths, and read the listing
   for the uops a vector costs. Why: the first form (a751e6c2, bb63a255) made `NinoSerializeNullableInts`, `...Longs`
   and `...Decimals` about 2x slower on every runner CPU (A/B 43264755384: 0.29-0.65 of the base's speed) though it
