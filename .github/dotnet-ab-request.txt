@@ -343,4 +343,8 @@
 
 # Every nullable form beside MemoryPack on the head (raw [NinoType] structs with T? members 85962450), for the
 # audit of what still trails it.
-cpu='EPYC|Xeon|Neoverse' 5094e1d0 5094e1d0 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# done (run 43681837258): cpu='EPYC|Xeon|Neoverse' 5094e1d0 5094e1d0 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+
+# The kernels after the lead revert: unified cleared copy (vpermb/vpermt2b, Arm64 tbl), vpermt2d realignment on
+# AVX-512 (bbb6eba2) against 5094e1d0 (with the lead). MemoryPack rides along as the floor.
+cpu='EPYC|Xeon|Neoverse' 5094e1d0 bbb6eba2 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *SimpleTest.Nino*
