@@ -373,7 +373,9 @@ internal sealed partial class BodyEmitter
     {
         var block = new RawBlock(AllMembers);
         string self = _m.Self;
-        _w.Line($"public int BodySize => {block.Total};");
+        // Marked to inline: a dispatch that writes many subtypes inline used up the JIT's budget before this
+        // constant, and called it per element through a zeroed stack slot (#305).
+        _w.Line($"public int BodySize {{ {_names.Inline} get => {block.Total}; }}");
         _w.Line();
         _w.Line(_names.Inline);
         _w.Open($"public void WriteRawBody({T} value, ref byte destination, int offset)");
