@@ -348,8 +348,12 @@ namespace Nino.UnitTests
                     }
 
                 // A new array that the read published before rejecting the data holds zeros, not the heap's memory.
-                Assert.IsTrue(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<long?, byte>(ref MemoryMarshal.GetReference(memory.Span)), memory.Length * 16).IndexOfAnyExcept((byte)0) < 0,
-                    $"length {length}, bad {bad}: the new array holds stale bytes");
+                // Spans have no IndexOfAnyExcept in netstandard2.1, which this suite also compiles for.
+                var published = MemoryMarshal.CreateReadOnlySpan(
+                    ref Unsafe.As<long?, byte>(ref MemoryMarshal.GetReference(memory.Span)), memory.Length * 16);
+                for (int i = 0; i < published.Length; i++)
+                    Assert.AreEqual((byte)0, published[i],
+                        $"length {length}, bad {bad}: the new array holds stale byte {published[i]} at {i}");
             }
         }
     }
