@@ -168,7 +168,7 @@ namespace Nino.Core.CompilerServices
                         return;
                     }
                 }
-                else if ((Vector512.IsHardwareAccelerated
+                else if (size <= 4096 && (Vector512.IsHardwareAccelerated
                               ? size <= (NinoSimd.Amd ? MaxVectorCopy : MaxVector256Copy)
                               : size - 256 <= MaxVector256Copy - 256) &&
                          !(IceLakeMemmove && size - MinIceLakeMemmove <= MaxVectorCopy - MinIceLakeMemmove))
