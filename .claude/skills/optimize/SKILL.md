@@ -18,6 +18,15 @@ techniques are `optimize-runtimes`.
   dispatch, then retest both; record a tradeoff that remains next to its evidence. Why: one inlining budget covers
   everything a top-level call reaches, so the slowdown usually sits in the caller, not in the loop's extra
   instructions (compare Tier0, Tier1 and the caller first).
+- **Build a fast path for the oldest framework whose APIs it needs, and let a newer one swap only the instruction
+  it adds** (the owner's rule). The kernel sits under `#if NET8_0_OR_GREATER`; inside it, a small helper takes the
+  newer instruction under `#if NET10_0_OR_GREATER` with the net8.0 form beside it, one implementation either way.
+  Why: net8.0 users get the gain, and dropping a framework later (net8.0 once net12.0 ships) is deleting the `#if`
+  lines, not merging two kernels. Code that needs a newer API for the whole path stays under that framework's `#if`
+  (`CollectionsMarshal.AsBytes(BitArray)`, `PriorityQueue`'s internals). Evidence: `NinoMask.CopyCleared` was
+  .NET 10 only for GFNI's `vgf2p8mulb`, so net8.0 cleared a raw struct's absent `T?` values element by element
+  (1,000 structs of an int, a long? and a double?: 3.4 µs); with `Multiply` (GFNI on .NET 10, else `vpsubb` and
+  `vpandq`) the net8.0 build writes them in 1.25 µs, MemoryPack 1.23-1.27 (local, quick job, #301).
 - **Diagnose a flat or failed first result before shelving a sound candidate.** When an experiment removes real
   work and the first A/B shows nothing, find where the cost moved (caller and loop listings: cursor register
   pressure, spills, frame size, helper inlining, tier promotion) and try a materially different variant; a build or
