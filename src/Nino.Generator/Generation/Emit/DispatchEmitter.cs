@@ -260,19 +260,21 @@ internal static class DispatchEmitter
         }
 
         w.Line();
+        w.Line(GeneratedCode.Inline);
         w.Open(ReadSubtype(t));
         EmitReadSwitch(w, subtypes);
         w.Line(ReadOther(t, services) + ";");
         w.Close();
 
-        // Each subtype's instance check and body, out of line in a method of this non-generic struct, where
-        // NinoObject.ReadExact is not shared code (see there). Inlined into the switch, every subtype's body would be
-        // copied into it.
+        // Each subtype's instance check and body in a method of this non-generic struct, where NinoObject.ReadExact is
+        // not shared code (see there), inlined into the switch, and the switch into the element loop, as LuminPack
+        // reads its unions: out of line, each element took a call and two jumps (LuminPack's List<IFoo> of 1,000 read
+        // in 21.0 us against 18.1 inlined, LuminPack 17.5; Dictionary<int, IFoo> 362 against 314 ns; local x64, #305).
         w.Line();
         for (int i = 0; i < subtypes.Count; i++)
         {
             var s = subtypes[i];
-            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
+            w.Line($"{GeneratedCode.Inline} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
         }
     }
 
