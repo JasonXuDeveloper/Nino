@@ -256,7 +256,8 @@ NinoLayout.Convert.cs        conversion field by field where the runtime differs
 NinoLayout.Measure.cs        offsets read from an instance (MeasureMemory)
 NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
                              (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
-NinoMask.cs                  NinoMask: padding cleared while copying values to the wire (vector masks, 8-byte words)
+NinoMask.cs                  NinoMask: padding, and Nullable values without one, cleared while copying values to the wire
+                             (vector masks, 8-byte words; CopyCleared: both in one pass with AVX-512 VBMI and GFNI)
 ObjectFields.cs              an object's fields at byte offsets
 ObjectTypes.cs               mirror-class instances retyped to the runtime's class (also compiled into Nino.Immutable)
 ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset: UTC ticks, minutes and their
