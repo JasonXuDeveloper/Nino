@@ -49,6 +49,12 @@ namespace Nino.Core
         /// </summary>
         internal static readonly bool InPlace = Raw && Stride is 2 or 4 or 8 or 16;
 
+#if NET8_0_OR_GREATER
+        /// <summary>Whether raw runs are read by a loop that checks their flags while it copies (ReadPrechecked).</summary>
+        private static readonly bool FusesCheck = Vector128.IsHardwareAccelerated &&
+                                                  (NinoSimd.Amd || AdvSimd.Arm64.IsSupported);
+#endif
+
         /// <summary>Whether T holds a <c>Nullable</c> itself: only the masked copy clears a value inside a value.</summary>
         private static readonly bool HoldsNullables = NinoLayout<T>.Info.Absent != null;
 
@@ -1241,6 +1247,18 @@ namespace Nino.Core
             if (Raw)
             {
                 ref byte destination = ref Unsafe.As<T?, byte>(ref item);
+#if NET8_0_OR_GREATER
+                // On AMD and Arm64 a vector loop checks while it copies: Memmove (rep movsb on AMD) gains nothing there
+                // over Nino's own copy, and a separate check pass cost long? and Vec3? runs 10-20 % on EPYC 7763 and
+                // Neoverse-N2 (1,000 elements, run 43714421476 against the fused kernel of f8d9e34d).
+                if (FusesCheck && count >= 128 && NinoChecks.TryFlagMask(Stride, out var mask))
+                {
+                    if (NinoChecks.CopyFlagsBest(ref destination, ref src, bytes, mask))
+                        return;
+                    Unsafe.InitBlockUnaligned(ref destination, 0, (uint)bytes);
+                    NinoChecks.Flags(ref src, count, Stride);
+                }
+#endif
                 if (NinoChecks.ValidFlags(ref src, count, Stride))
                 {
                     NinoUnsafe.CopyToNew(ref destination, ref src, (uint)bytes);
