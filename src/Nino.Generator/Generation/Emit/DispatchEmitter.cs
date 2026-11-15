@@ -267,14 +267,17 @@ internal static class DispatchEmitter
         w.Close();
 
         // Each subtype's instance check and body in a method of this non-generic struct, where NinoObject.ReadExact is
-        // not shared code (see there), inlined into the switch, and the switch into the element loop, as LuminPack
-        // reads its unions: out of line, each element took a call and two jumps (LuminPack's List<IFoo> of 1,000 read
-        // in 21.0 us against 18.1 inlined, LuminPack 17.5; Dictionary<int, IFoo> 362 against 314 ns; local x64, #305).
+        // not shared code (see there), and the switch inlined into the element loop, as LuminPack reads its unions: out
+        // of line, each element took a call and two jumps (LuminPack's List<IFoo> of 1,000 read in 21.0 us against 18.1
+        // inlined, LuminPack 17.5; Dictionary<int, IFoo> 362 against 314 ns; local x64, #305). Only flat bodies (no
+        // class body inside, DispatchEntry.Flat) are inlined into the switch: subtypes holding a class each, inlined
+        // too, read 3-14 % slower on every runner CPU (GenericSealedClassTupleBase, GenericOpenClassTupleBase, run
+        // 43764424839), the rest 11-20 % faster.
         w.Line();
         for (int i = 0; i < subtypes.Count; i++)
         {
             var s = subtypes[i];
-            w.Line($"{GeneratedCode.Inline} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
+            w.Line($"{(s.Flat ? GeneratedCode.Inline : GeneratedCode.NoInline)} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
         }
     }
 
