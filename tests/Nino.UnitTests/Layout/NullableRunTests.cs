@@ -318,5 +318,33 @@ namespace Nino.UnitTests
             NullableRuns<NullableOfNullables>(EveryOffset);
             NullableRuns<FarNullable>(EveryOffset);
         }
+
+        /// <summary>
+        /// A long run of raw T? checks its presence bytes while copying, a group of vectors at a time: an invalid one
+        /// throws wherever it lies, and a collection read into holds valid values only (new before the bad group, old
+        /// after it), never the invalid byte.
+        /// </summary>
+        [TestMethod]
+        public void InvalidPresenceInALongRunThrowsAndLeavesOnlyValidValues()
+        {
+            foreach (int length in new[] { 128, 129, 200, 1000 })
+            foreach (int bad in new[] { 0, 1, 63, length / 2, length - 1 })
+            {
+                var values = Enumerable.Range(0, length).Select(i => i % 3 == 0 ? (long?)null : i).ToArray();
+                byte[] bytes = NinoSerializer.Serialize(values);
+                bytes[4 + bad * 16] = 2;
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<long?[]>(bytes));
+                var list = Enumerable.Repeat((long?)-1, length).ToList();
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref list));
+                var target = new long?[length];
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref target));
+                foreach (var held in new[] { list.ToArray(), target })
+                    for (int i = 0; i < length; i++)
+                    {
+                        byte flag = Unsafe.As<long?, byte>(ref held[i]);
+                        Assert.IsTrue(flag <= 1, $"length {length}, bad {bad}: element {i} holds flag {flag}");
+                    }
+            }
+        }
     }
 }
