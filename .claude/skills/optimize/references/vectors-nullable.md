@@ -340,3 +340,37 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   both to retire (a store-forwarding stall for every value). `NinoNullable<T>`'s constructor did, and its single
   values and non-block arrays took 1.3 to 10 times as long as `T?` on the runners; keep such a constant in a
   `static readonly` field per `T`, and fill arrays with stores into the destination, never through a local.
+- Align the stores of a slot kernel to the destination, never the loads: write the first step as it lies and go on
+  from the first slot that starts a vector of the destination, where whole slots lead to one
+  (`NinoUnsafe.BytesToAligned`, `CopyLanes`; for 24 bytes a step is three vectors and one or two slots may lead
+  there). Why: the kernels are two or three operations a vector and their stores bound them, and a 64-byte store
+  that is not aligned straddles two lines. Evidence (local AVX-512 Xeon with VBMI and GFNI, 1,000 elements, one
+  process a build): `long?` 230 ns unaligned, 154 aligned, a copy 115; `int?` 131 and 96; 256-bit vectors slower at
+  every position (309 and 216). The GF(2^8) clear itself moved no case on runners (43581721720, 43600970932).
+  Where whole slots never lead to a line (a 4-byte phase for 16-byte slots), a second shuffle to re-cut the stores
+  (`vpermt2d`) gained 8 % for `long?` and nothing for `int?` in a standalone kernel: owed on the real path (#282).
+- Let Nino's own buffer start where the run does: `NinoArrayBufferWriter.Start` puts the byte after a length on a
+  line's start whenever the output is empty, so a top-level collection's slots are aligned without a head step
+  (`long?[1000]` 261 -> 171 ns, `int?[1000]` 147 -> 110, local). A top-level array's elements are otherwise never a
+  multiple of 8 bytes from a line: 4 bytes of length into array data that is 8-byte aligned.
+- Keep 24-byte slots on `CopyLanes` (three whole vectors a step), not on the permutation of whole elements
+  (`CopyPermuted`, 48 bytes a step, so no store is ever aligned): 1,000 `decimal?` 482 to 532 ns against 584 to 715
+  at every position, 393 against 583 on a line's start (local); ee3456d4, which moved them, measured 0.999 to 1.027
+  on five runner CPUs.
+- Write a run over itself only where its slots tile a vector (2, 4, 8, 16 bytes: `NinoNullables<T>.InPlace`).
+  The kernels of other strides store a whole vector past their last whole element and read those bytes again from
+  the source in the next step: in place they lost data (`HashSet<decimal?>` and a 12-byte struct, caught by
+  `NullableSlotTests` when the set's values were packed out of its entries and cleaned where they lay).
+- Never read or write slots one at a time through the slot formatter: each goes through its interface and the
+  run's kernel (about 7 ns). A collection that takes elements one by one reads the run into a rented array
+  (`NinoCollections.AddSlots`) or, where a slot is its value's memory, moves it as raw elements are
+  (`INinoSlotFormatter.SlotsAreMemory`: a `HashSet<int?>` out of and into its entries, write 1,140 -> 225 ns, read
+  into a new set 5,848 -> 4,100, local; one at a time it read in 12,174).
+- Not taken: a presence bitmap with dense values in place of the slots. Both tuned (4-way unrolled, aligned,
+  143,000 round-trip checks), 1,008 elements, local: it halves the bytes and writes 9 to 30 % faster where slots
+  cannot be aligned, but reads 60 to 75 % slower than a slot read that checks only its flags (the values go back
+  into `T?` memory interleaved), writes 15 to 30 % slower with AVX2 and 8 to 36 % slower without SIMD, and
+  `decimal?` slower everywhere (#295). Arm64 not measured.
+- Not taken: the aligned head step in the fused check-and-copy of a fresh `T?[]` read (`NinoChecks.CopyFlags`).
+  The read of 1,000 `long?` into a new array is its allocation (2,560 ns against 236 into an existing one, local,
+  workstation GC), and the step changed nothing measurable.

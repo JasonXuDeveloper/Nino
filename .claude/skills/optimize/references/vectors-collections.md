@@ -197,3 +197,14 @@ queues](#priority-queues).
   withdrawn. The offset-zero 33-node read lost in all four emulated AVX2 comparisons for each variant, and the
   4,080/4,100-node cases straddling 64 KiB were mixed. Wire, generated files, rejected heap order and truncation
   matched. Steady reuse allocated 0 B. The 512-bit probe passed in software and needs native throughput evidence.
+- Go through the storage a collection wraps before its interface: a `Collection<T>` is written and read through
+  the `List<T>` it holds (`CollectionViews.Collection`, one field; a new one is made around the list read), for
+  every element type. Reading its items runs none of a subclass's code, so writes take any subclass; reads take the
+  type itself only, since a subclass may override `InsertItem` (`ObservableCollection` raises its events there).
+  Local, 1,000 elements: `Collection<int?>` write 919 -> 144 ns, read into an existing one 4,539 -> 136;
+  `Collection<int>` write 95 -> 46, a new one read 3,934 -> 523 (962da24b).
+- Build a new concurrent collection from the run read for it, through its constructor: `ConcurrentBag` as
+  `ConcurrentQueue` and `ConcurrentStack` (`BclCollections.TryCreate`). Not found: a faster write of a
+  `ConcurrentQueue` than its enumerator into a rented array (4,200 ns for 1,000 `int?` against 3,760 for the
+  element-by-element write it replaced; `ToArray` 5,000; `CopyTo` does not say how many it copied; not sizing by
+  `Count` 4,500): the queue's own snapshot is the cost.
