@@ -48,6 +48,18 @@ namespace Nino.Core
                 }
             }
 
+            if (typeof(TKeyFormatter) == typeof(StringFormatter) && RawFormatter.Is<TValue, TValueFormatter>())
+            {
+                // Strings and raw values: as above, the other way round.
+                int written = WriteStringKeyPairs(Unsafe.As<Dictionary<string, TValue>>(value),
+                    ref writer.FreeSpace(out int available), available);
+                if (written >= 0)
+                {
+                    writer.Commit(written);
+                    return;
+                }
+            }
+
             // An empty dictionary skips the call and the copies of the writer in and out (as NinoElements.Read).
             if (value.Count == 0)
             {
@@ -68,30 +80,120 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int WriteStringPairs(Dictionary<TKey, string> value, ref byte dst, int available)
         {
-            int keySize = Unsafe.SizeOf<TKey>();
             int count = value.Count;
             if (available < NinoWire.LengthSize)
                 return -1;
             NinoUnsafe.Write(ref dst, count);
             nuint pos = NinoWire.LengthSize;
             nuint end = (nuint)(uint)available;
+            var entries = InUse(Unsafe.As<Dictionary<TKey, TValue>>(value), count);
+            if (entries != null)
+            {
+                ref var first = ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntry<TKey, string>>(
+                    ref NinoUnsafe.GetArrayDataReference(entries));
+                for (int i = 0; i < count; i++)
+                {
+                    ref var pair = ref Unsafe.Add(ref first, i);
+                    if (!TryWriteStringPair(ref dst, ref pos, end, pair.Key, pair.Value))
+                        return -1;
+                }
+
+                return (int)pos;
+            }
+
             int written = 0;
             foreach (var pair in value)
             {
                 if (++written > count)
                     NinoThrow.ModifiedDuringWrite();
-                string s = pair.Value;
-                // Room for the longest form of the string; only what it takes is kept.
-                nuint size = (nuint)(uint)(keySize + NinoStrings.MaxSize(s));
-                if (size > end - pos)
+                if (!TryWriteStringPair(ref dst, ref pos, end, pair.Key, pair.Value))
                     return -1;
-                ref byte entry = ref Unsafe.Add(ref dst, (nint)pos);
-                NinoUnsafe.Write(ref entry, 0, pair.Key);
-                NinoLayout<TKey>.ClearPadding(ref entry);
-                pos += (nuint)(uint)(keySize + NinoStrings.Write(ref Unsafe.Add(ref entry, keySize), s));
             }
 
             return (int)pos;
+        }
+
+        /// <summary>
+        /// As <see cref="WriteStringPairs"/>, for string keys and raw values: the bytes of <see cref="WritePairs"/>
+        /// written into <paramref name="dst"/>, or -1 when they do not fit.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int WriteStringKeyPairs(Dictionary<string, TValue> value, ref byte dst, int available)
+        {
+            int count = value.Count;
+            if (available < NinoWire.LengthSize)
+                return -1;
+            NinoUnsafe.Write(ref dst, count);
+            nuint pos = NinoWire.LengthSize;
+            nuint end = (nuint)(uint)available;
+            var entries = InUse(Unsafe.As<Dictionary<TKey, TValue>>(value), count);
+            if (entries != null)
+            {
+                ref var first = ref Unsafe.As<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntry<string, TValue>>(
+                    ref NinoUnsafe.GetArrayDataReference(entries));
+                for (int i = 0; i < count; i++)
+                {
+                    ref var pair = ref Unsafe.Add(ref first, i);
+                    if (!TryWriteStringKeyPair(ref dst, ref pos, end, pair.Key, pair.Value))
+                        return -1;
+                }
+
+                return (int)pos;
+            }
+
+            int written = 0;
+            foreach (var pair in value)
+            {
+                if (++written > count)
+                    NinoThrow.ModifiedDuringWrite();
+                if (!TryWriteStringKeyPair(ref dst, ref pos, end, pair.Key, pair.Value))
+                    return -1;
+            }
+
+            return (int)pos;
+        }
+
+        /// <summary>A string and its raw value at <paramref name="pos"/>, when the longest form of the string fits.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryWriteStringKeyPair(ref byte dst, ref nuint pos, nuint end, string s, TValue item)
+        {
+            nuint size = (nuint)(uint)(NinoStrings.MaxSize(s) + Unsafe.SizeOf<TValue>());
+            if (size > end - pos)
+                return false;
+            ref byte entry = ref Unsafe.Add(ref dst, (nint)pos);
+            int length = NinoStrings.Write(ref entry, s);
+            NinoUnsafe.Write(ref entry, length, item);
+            NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref entry, length));
+            pos += (nuint)(uint)(length + Unsafe.SizeOf<TValue>());
+            return true;
+        }
+
+        /// <summary>A raw key and its string at <paramref name="pos"/>, when the longest form of the string fits.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryWriteStringPair(ref byte dst, ref nuint pos, nuint end, TKey key, string s)
+        {
+            int keySize = Unsafe.SizeOf<TKey>();
+            // Room for the longest form of the string; only what it takes is kept.
+            nuint size = (nuint)(uint)(keySize + NinoStrings.MaxSize(s));
+            if (size > end - pos)
+                return false;
+            ref byte entry = ref Unsafe.Add(ref dst, (nint)pos);
+            NinoUnsafe.Write(ref entry, 0, key);
+            NinoLayout<TKey>.ClearPadding(ref entry);
+            pos += (nuint)(uint)(keySize + NinoStrings.Write(ref Unsafe.Add(ref entry, keySize), s));
+            return true;
+        }
+
+        /// <summary>
+        /// The entries of <paramref name="value"/> when its first <paramref name="count"/> are all in use (none removed
+        /// since), read in place of the enumerator: a loop over an array, where the enumerator stays in memory and
+        /// checks the version per pair. Else null.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static CollectionFields.MapEntry<TKey, TValue>[] InUse(Dictionary<TKey, TValue> value, int count)
+        {
+            var entries = CollectionViews.Dictionary ? CollectionFields.Entries(value, count) : null;
+            return entries != null && count <= entries.Length ? entries : null;
         }
 
         /// <summary>Writes the <paramref name="count"/> raw pairs at <paramref name="pairs"/> (after the
@@ -102,8 +204,8 @@ namespace Nino.Core
             int keySize = Unsafe.SizeOf<TKey>();
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
             // The dictionary's own entries when none is free (as HashSetFormatter's); the enumerator out of line.
-            var entries = CollectionViews.Dictionary ? CollectionFields.Entries(value, count) : null;
-            if (entries == null || count > entries.Length)
+            var entries = InUse(value, count);
+            if (entries == null)
             {
                 WriteEnumerated(value, ref pairs, count);
                 return;
@@ -140,11 +242,26 @@ namespace Nino.Core
             // A local writer, so its fields stay in registers inside the loop.
             Writer writer = default;
             target.CopyTo(ref writer);
-            writer.WriteLength(value.Count);
-            foreach (var pair in value)
+            int count = value.Count;
+            writer.WriteLength(count);
+            var entries = InUse(value, count);
+            if (entries != null)
             {
-                default(TKeyFormatter).Serialize(pair.Key, ref writer);
-                default(TValueFormatter).Serialize(pair.Value, ref writer);
+                ref var first = ref NinoUnsafe.GetArrayDataReference(entries);
+                for (int i = 0; i < count; i++)
+                {
+                    ref var pair = ref Unsafe.Add(ref first, i);
+                    default(TKeyFormatter).Serialize(pair.Key, ref writer);
+                    default(TValueFormatter).Serialize(pair.Value, ref writer);
+                }
+            }
+            else
+            {
+                foreach (var pair in value)
+                {
+                    default(TKeyFormatter).Serialize(pair.Key, ref writer);
+                    default(TValueFormatter).Serialize(pair.Value, ref writer);
+                }
             }
 
             writer.CopyTo(ref target);

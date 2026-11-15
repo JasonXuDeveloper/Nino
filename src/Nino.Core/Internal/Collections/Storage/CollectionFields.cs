@@ -123,7 +123,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The entries of <paramref name="set"/> when all of its first Count are in use (none removed since), else
-        /// null. Read for element types without references only, whose entries are laid out in field order.
+        /// null. The entries' layout is the runtime's for the element type, the same as the mirror's (references included).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static SetEntry<T>[] Entries<T>(HashSet<T> set, int count) =>
