@@ -379,6 +379,12 @@ internal sealed partial class BodyEmitter
             var block = new RawBlock(group);
             if (!Tolerant)
             {
+                if (inPlace && !delegates && group.Count == _m.Members.Length && ReadsFieldBlock)
+                {
+                    EmitFieldBlockRead(group, block, r);
+                    continue;
+                }
+
                 EmitRawBlockRead(group, block, r, inPlace);
                 continue;
             }
@@ -419,6 +425,26 @@ internal sealed partial class BodyEmitter
             // Untrusted mode through theirs.
             _w.Line(Store(_m, group[i], inPlace, ReadRaw(group[i], p, block.Offsets[i]), _mode.Target));
         }
+    }
+
+    /// <summary>
+    /// Whether the whole raw body can be read as one block into the instance where the fields lie in order
+    /// (<c>__FieldBlockRead</c>): no bool among them, whose byte is checked on read.
+    /// </summary>
+    private bool ReadsFieldBlock =>
+        _m.RawBody && CopiesFieldBlock && _m.Members.All(static x => x.Raw!.Read != RawRead.Bool);
+
+    /// <summary>The raw body read as one block into the instance, else member by member (<see cref="EmitRawBlockRead"/>).</summary>
+    private void EmitFieldBlockRead(MemberRange group, RawBlock block, string r)
+    {
+        string p = "__p" + _blocks++;
+        _w.Line($"ref byte {p} = ref {r}.ReadBlock({block.Total});");
+        _w.Line($"if ({_m.Self}.__FieldBlockRead)");
+        _w.Line($"    {CoreCompilerServices}NinoFieldBlock.Read(ref {Ref(_m, group[0], _mode.Target)}, ref {p}, {block.Total});");
+        _w.Open("else");
+        for (int i = 0; i < group.Count; i++)
+            _w.Line(Store(_m, group[i], true, ReadRaw(group[i], p, block.Offsets[i]), _mode.Target));
+        _w.Close();
     }
 
     /// <summary>Reads one member: raw members directly, others through their formatter.</summary>

@@ -76,5 +76,19 @@ namespace Nino.UnitTests
             if (Type.GetType("Mono.Runtime") == null)
                 Assert.AreEqual(true, FieldBlock<FieldBlockDerived>());
         }
+
+        [TestMethod]
+        public void BlockReadsFillAnExistingInstance()
+        {
+            var bytes = NinoSerializer.Serialize(new FieldBlockInOrder { A = 1, B = 2.5f, C = 3 });
+            var target = new FieldBlockInOrder { A = 9, B = 9, C = 9 };
+            var same = target;
+
+            NinoDeserializer.Deserialize(bytes, ref target);
+
+            Assert.AreSame(same, target);
+            Assert.AreEqual((1, 2.5f, 3), (target.A, target.B, target.C));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<FieldBlockInOrder>(bytes[..^1]));
+        }
     }
 }

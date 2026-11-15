@@ -427,7 +427,7 @@ internal sealed partial class BodyEmitter
     {
         string services = CoreCompilerServices;
         _w.Line();
-        _w.Line("private static readonly bool __FieldBlock = __IsFieldBlock();");
+        _w.Line("internal static readonly bool __FieldBlock = __IsFieldBlock();");
         _w.Line();
         _w.Open("private static bool __IsFieldBlock()");
         _w.Line($"var value = {services}NinoFieldBlock.Probe<{T}>();");
@@ -443,6 +443,16 @@ internal sealed partial class BodyEmitter
         }
 
         _w.Close();
+        if (!ReadsFieldBlock)
+            return;
+
+        // Read as one block only where no value is checked on read either (Untrusted mode's checks of a struct's
+        // fields: ReadChecked).
+        _w.Line();
+        var checkedMembers = _m.Members.Where(static x => x.Raw!.Read == RawRead.Checked).ToArray();
+        _w.Line(checkedMembers.Length == 0
+            ? "internal static readonly bool __FieldBlockRead = __FieldBlock;"
+            : $"internal static readonly bool __FieldBlockRead = __FieldBlock && {string.Join(" && ", checkedMembers.Select(x => $"{services}NinoFieldBlock.ReadsAsIs<{x.TypeName}>()"))};");
     }
 
     /// <summary>Static member (de)serializers that derived types call instead of repeating these members.</summary>
