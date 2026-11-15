@@ -153,3 +153,15 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   GenericIntBase 1.27 to 1.46x and NonGenericBase 1.19 to 1.49x on every CPU, PolymorphicClassArray, FooArray and
   every deserialize on par; GenericSealedClassTupleBase serialize 1.04 to 1.16x except 0.93x on EPYC 9V45 and 9V74,
   CPUs whose floor reaches 0.87 there. Landed in 558b2a59.
+
+- Keep the write dispatch a chain of exact type checks; never replace it with a jump table through a hash of the type
+  handle (the method table pointer read from the object, a multiply, a shift, one compare, then a `switch`). Why: the
+  chain's conditional branches predict well even in a random order of subtypes, while the table's indirect jump
+  mispredicts once the case bodies are real, and the chain's compares are not where the time goes. Evidence (#305,
+  1,000 values of LuminPack's 20-subtype `IFoo` list, local x64): a standalone probe with tiny bodies showed the table
+  at 3.5 µs against 4.7 (fixed order) and 3.8 against 4.9 (random), but the generated dispatch measured 6.4 against 6.9
+  in a fixed order and 16.0 against 6.5 in a random one; `Type.GetTypeHandle(value)` instead of the header read is a
+  call (random 10 µs even in the probe). Writing only the first subtype (3.9 µs) against only the 19th (6.9) did not
+  change with the table, so that difference is the 19th subtype's larger body, not its place in the chain: close the
+  gap in the bodies (`WriteRawBody`), not in the dispatch. The read side's switch on ids measured the same way
+  (`DispatchEmitter.EmitReadSwitch`).
