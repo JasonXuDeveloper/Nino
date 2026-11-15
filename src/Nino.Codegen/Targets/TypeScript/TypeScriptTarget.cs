@@ -111,17 +111,18 @@ namespace Nino.Codegen.Targets
             renderer.Function("helper", new Func<TsShape, string, string>(Helper));
             renderer.Function("helper_count", new Func<int>(() => _helpers.Count));
             renderer.Function("helper_at", new Func<int, TsHelper>(i => _helpers[i]));
-            // The runtime's NinoNullable<T> is imported only by a file that names it (an import nothing uses fails a
-            // build with noUnusedLocals), which is known once every type is spelled: the import line holds a mark.
-            bool usesNinoNullable = false;
+            // The runtime's aliases of T | null (NinoNullable<T>, NullableSlot<T>) are imported only by a file that
+            // names them (an import nothing uses fails a build with noUnusedLocals), which is known once every type
+            // is spelled: the import line holds a mark.
+            var aliases = new SortedSet<string>(StringComparer.Ordinal);
             renderer.Set("more_imports", MoreImports);
-            renderer.Function("nino_nullable", new Func<string, string>(inner =>
+            renderer.Function("nullable_alias", new Func<string, string, string>((alias, inner) =>
             {
-                usesNinoNullable = true;
-                return "NinoNullable<" + inner + ">";
+                aliases.Add(alias);
+                return alias + "<" + inner + ">";
             }));
             string text = renderer.Render("types.sbn").TrimEnd('\n') + "\n";
-            return text.Replace(MoreImports, usesNinoNullable ? ", type NinoNullable" : "");
+            return text.Replace(MoreImports, string.Concat(aliases.Select(a => ", type " + a)));
         }
 
         // ---------------------------------------------------------------- which types

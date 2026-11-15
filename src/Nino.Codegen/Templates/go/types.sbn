@@ -139,9 +139,10 @@ func helper_body(h)
   if h.mode == "decode"
     $o = "func " + $n + "(r *nino.Reader, b []byte) " + $t + " {\n\t_ = b[" + ($s.size - 1) + "]\n"
     if $s.kind == "rawnullable"
-      # A NinoNullable<T>: its whole presence and an absent value are checked. A T?: its flag.
+      # A NinoNullable<T>: its whole presence and an absent value are checked. A T?: its flag. Held as the runtime's
+      # value type (a NinoNullable<T>, the element of a sequence of T?) or as a pointer (a single T?).
       $present = $s.clean ? "r.NinoNullableAt(b[" + $s.flag_offset + ":" + $s.value_offset + "], b[" + $s.value_offset + ":" + $s.size + "])" : "r.BoolAt(b[" + $s.flag_offset + "])"
-      if $s.clean
+      if $s.holder
         ret $o + "\tif !" + $present + " {\n\t\treturn " + $t + "{}\n\t}\n\treturn " + $t + "{HasValue: true, Value: " + decode($s.inner, $s.value_offset) + "}\n}\n"
       end
       ret $o + "\tif !" + $present + " {\n\t\treturn nil\n\t}\n\tx := " + decode($s.inner, $s.value_offset) + "\n\treturn &x\n}\n"
@@ -154,7 +155,7 @@ func helper_body(h)
   else if h.mode == "encode"
     $o = "func " + $n + "(b []byte, v " + $t + ") {\n\t_ = b[" + ($s.size - 1) + "]\n"
     if $s.kind == "rawnullable"
-      ret $o + "\tif " + ($s.clean ? "v.HasValue" : "v != nil") + " {\n\t\tb[" + $s.flag_offset + "] = 1\n\t\tx := " + ($s.clean ? "v.Value" : "*v") + "\n" + lines(encode($s.inner, $s.value_offset, "x"), "\t\t") + "\t}\n}\n"
+      ret $o + "\tif " + ($s.holder ? "v.HasValue" : "v != nil") + " {\n\t\tb[" + $s.flag_offset + "] = 1\n\t\tx := " + ($s.holder ? "v.Value" : "*v") + "\n" + lines(encode($s.inner, $s.value_offset, "x"), "\t\t") + "\t}\n}\n"
     end
     for $i in $s.items
       $o = $o + lines(encode($i, $s.offsets[for.index], "v." + item($s, for.index)), "\t")

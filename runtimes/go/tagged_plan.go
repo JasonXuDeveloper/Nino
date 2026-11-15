@@ -138,8 +138,9 @@ func isEntryType(t reflect.Type) bool {
 }
 
 // nullablesIn reports which nullable values t holds as itself, its elements, keys or values (a nino.Entry's
-// included): a nino.NinoNullable[T], and a pointer to a value that is no struct of the caller's (a *int32, a
-// *nino.Decimal: a T?; a pointer to a caller's struct may be a class). depth bounds a slice type that holds itself.
+// included): a nino.NinoNullable[T] (value), and a T? (pointer): a nino.NullableSlot[T], or a pointer to a value
+// that is no struct of the caller's (a *int32, a *nino.Decimal; a pointer to a caller's struct may be a class).
+// depth bounds a slice type that holds itself.
 func nullablesIn(t reflect.Type, depth int) (value, pointer bool) {
 	if depth == 0 {
 		return false, false
@@ -161,6 +162,9 @@ func nullablesIn(t reflect.Type, depth int) (value, pointer bool) {
 		if isNinoNullableType(t) {
 			return true, false
 		}
+		if isNullableSlotType(t) {
+			return false, true
+		}
 		if isEntryType(t) {
 			return both(t.Field(0).Type, t.Field(1).Type)
 		}
@@ -171,6 +175,11 @@ func nullablesIn(t reflect.Type, depth int) (value, pointer bool) {
 // isNinoNullableType reports whether t is a nino.NinoNullable[T].
 func isNinoNullableType(t reflect.Type) bool {
 	return t.PkgPath() == ninoPkg && strings.HasPrefix(t.Name(), "NinoNullable[")
+}
+
+// isNullableSlotType reports whether t is a nino.NullableSlot[T].
+func isNullableSlotType(t reflect.Type) bool {
+	return t.PkgPath() == ninoPkg && strings.HasPrefix(t.Name(), "NullableSlot[")
 }
 
 // plan returns the plan of the struct type t (built at most once per build; in progress when t holds itself).
@@ -387,7 +396,7 @@ func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field, 
 		// A run of a narrow T has the bytes of a T? run, so the sizes alone would let the wrong one through.
 		value, pointer := nullablesIn(fi.sf.Type, 8)
 		if named := strings.Contains(declared, ninoNullableName); (named && pointer) || (!named && value) {
-			return &TagError{Type: t, Field: fi.path, Detail: "the layout declares " + declared + ": a .NET NinoNullable<T> is a nino.NinoNullable[T], a T? a *T"}
+			return &TagError{Type: t, Field: fi.path, Detail: "the layout declares " + declared + ": a .NET NinoNullable<T> is a nino.NinoNullable[T], a T? a *T (a nino.NullableSlot[T] as the element of a sequence)"}
 		}
 	}
 	variant := variantDefault
@@ -396,9 +405,6 @@ func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field, 
 	}
 	if enc != nil && enc.kind == "utf8" && !fi.tag.utf8 {
 		variant = variantUTF8 // the layout says utf8: follow it
-	}
-	if enc != nil && enc.kind == "seq" && len(enc.args) == 1 && enc.args[0].kind == "nullable" {
-		variant = variantElementNullable
 	}
 	if enc != nil {
 		switch enc.kind {
@@ -668,6 +674,9 @@ func checkEncoding(c *codec, e *encoding) error {
 			ec := c.elem
 			if c.kind == kSet {
 				ec = c.key
+			}
+			if ec.kind == kNullable && e.args[0].kind == "raw" {
+				return fmt.Errorf("a slot of %d bytes an element: a sequence of T? of a raw T is a []nino.NullableSlot[T], a *T a single T?", e.args[0].size)
 			}
 			return checkEncoding(ec, e.args[0])
 		case kStride:

@@ -2,7 +2,7 @@
 // writes for it.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deserializeExact, NinoError, serialize, type NinoNullable } from "../src/nino.ts";
+import { deserializeExact, NinoError, serialize, type NinoNullable, type NullableSlot } from "../src/nino.ts";
 import {
   Box, Flags, HoldsNinoNullable, HoldsWideNinoNullable, NinoNullableArgs, NinoNullableArgsCodec, NinoNullableRaw,
   NinoNullableRawCodec, NinoNullableRawWide, NinoNullableRawWideCodec, NullableSlots, NullableSlotsCodec, Strides,
@@ -23,7 +23,7 @@ describe("Shapes", () => {
       a: 1,
       inside: Object.assign(new TupleInside(), { a: 2, t: [3, -4] as [number, number] }),
     });
-    const boxed = Object.assign(new Box<(TupleCell | null)[] | null>(), { value: [null, cell] });
+    const boxed = Object.assign(new Box<NullableSlot<TupleCell>[] | null>(), { value: [null, cell] });
     const strides = Object.assign(new Strides(), { cells: [cell, null], boxed });
     const data = serialize(StridesCodec, strides);
     assert.equal(hex(data), want);
@@ -45,12 +45,14 @@ describe("Shapes", () => {
       queue: [5, null],
       stack: [null, 7n],
       linked: [null, 9],
-      sorted: new Set<number | null>([null, -1, 3]),
+      sorted: new Set<NullableSlot<number>>([null, -1, 3]),
       readOnly: [Object.assign(new TupleCell(), { a: 1 }), null],
       nested: [[1], null, []],
-      boxedSet: Object.assign(new Box<Set<number | null> | null>(), { value: new Set<number | null>([4, null]) }),
-      boxedNested: Object.assign(new Box<(Set<bigint | null> | null)[] | null>(), {
-        value: [new Set<bigint | null>([null, -2n])],
+      boxedSet: Object.assign(new Box<Set<NullableSlot<number>> | null>(), {
+        value: new Set<NullableSlot<number>>([4, null]),
+      }),
+      boxedNested: Object.assign(new Box<(Set<NullableSlot<bigint>> | null)[] | null>(), {
+        value: [new Set<NullableSlot<bigint>>([null, -2n])],
       }),
       map: new Map<number, bigint | null>([[1, null], [2, 7n]]),
       boxedMap: Object.assign(new Box<Map<number, bigint | null> | null>(), {
@@ -58,6 +60,10 @@ describe("Shapes", () => {
       }),
       tuples: [[1, null], [2, 9]],
     });
+    // The declared types say which form a member has, and are the values themselves: nothing wraps a slot.
+    const slots: NullableSlot<number>[] | null = value.queue;
+    const single: Map<number, bigint | null> | null = value.map;
+    assert.deepEqual([slots, single?.get(2)], [[5, null], 7n]);
     const data = serialize(NullableSlotsCodec, value);
     assert.equal(hex(data), want);
     assert.equal(hex(data.subarray(1, 21)), queue);

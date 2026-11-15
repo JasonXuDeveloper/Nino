@@ -91,6 +91,12 @@ mod protocol;
   not `[...]`, and `slice()` one read before transferring its `.buffer` (they share a 64 KB buffer). Faster to
   serialize everywhere and to deserialize in Node; Chromium deserializes them 2-3x slower than arrays.
 - Go: a C# `string` member is `*string` (null stays null); a TypeScript `Date` reads every `DateTime` as UTC.
+- A nullable number, date or unmanaged struct has a type for each of its formats, the same names in every language: a
+  single `T?` (a member, a dictionary's key or value, a tuple's item) is `T | null`, `*T`, `Option<T>`; a `T?` as the
+  element of a sequence (`int?[]`, `List<int?>`, `HashSet<int?>`, `int?[,]`) is a `NullableSlot`: TypeScript
+  `NullableSlot<number>[]` (an alias of `T | null`, plain values), Go `[]nino.NullableSlot[int32]` (a value,
+  `HasValue` and `Value`, `nino.NullableSlotOf(v)`), Rust `Vec<nino::NullableSlot<i32>>`; a `NinoNullable<T>` is
+  `NinoNullable<T>`, `nino.NinoNullable[T]`, `nino::NinoNullable<T>`.
 - `deserialize` leaves trailing bytes unread; the `Exact` variants reject them.
 - Caller-owned buffers, as `NinoSerializer.Serialize(value, bufferWriter)` with a reused `NinoArrayBufferWriter`:
   TypeScript `serializeInto` into a `NinoWriter` reset per value (in Node, a new `ArrayBuffer` per value adds up to

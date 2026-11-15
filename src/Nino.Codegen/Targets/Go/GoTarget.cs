@@ -68,8 +68,9 @@ namespace Nino.Codegen.Targets
                 {
                     added.Add(closed);
                     var shape = ClosedShape(closed);
-                    // Two .NET types of one Go type (Box<int?[]> and Box<List<int?>> are both Box[[]*int32]): a
-                    // writer cannot tell them apart, so only the first is in the slots.
+                    // Two .NET types of one Go type (Box<int?[]> and Box<List<int?>> are both
+                    // Box[[]nino.NullableSlot[int32]]): a writer cannot tell them apart, so only the first is in the
+                    // slots.
                     if (goTypes.TryGetValue(GoTypeKey(shape), out var same))
                     {
                         Warnings.Add($"{closed.RuntimeName} is left out of the polymorphic slots in Go: it is the same " +

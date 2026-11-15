@@ -85,9 +85,12 @@ func ts(s)
   when "rawstruct"
     ret name(s.struct)
   when "rawnullable", "nullable"
-    # A .NET NinoNullable<T> is spelled with the runtime's alias of `T | null`, which says which bytes it has.
+    # A .NET NinoNullable<T> and a T? as the element of a sequence are spelled with the runtime's aliases of
+    # `T | null`, which say which bytes they have.
     if s.clean
-      ret nino_nullable(ts(s.inner))
+      ret nullable_alias("NinoNullable", ts(s.inner))
+    else if s.slot_element
+      ret nullable_alias("NullableSlot", ts(s.inner))
     end
     ret ts(s.inner) + " | null"
   when "fixedtuple", "tuple"

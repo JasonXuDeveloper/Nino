@@ -663,24 +663,27 @@ func writeNullableInt64(w *nino.Writer, v *int64) {
 }
 
 // A raw T? as the element of any sequence (an array, a list, a set, a grid, nested ones) is a slot of a fixed size
-// (spec §6.2): the flag, padding up to T's alignment, then T (zeros when null).
+// (spec §6.2), a nino.NullableSlot[T]: the flag, padding up to T's alignment, then T (zeros when null). Slots of a
+// number are one block (nino.ReadNullableSlots); any other is decoded at its offsets.
 
-func decodeStrideInt32(r *nino.Reader, b []byte) *int32 {
+func decodeSlotInt32(r *nino.Reader, b []byte) nino.NullableSlot[int32] {
 	_ = b[7]
 	if !r.BoolAt(b[0]) {
-		return nil
+		return nino.NullableSlot[int32]{}
 	}
-	x := int32(le.Uint32(b[4:]))
-	return &x
+	return nino.NullableSlot[int32]{HasValue: true, Value: int32(le.Uint32(b[4:]))}
 }
 
-func encodeStrideInt32(b []byte, v *int32) {
+func encodeSlotInt32(b []byte, v nino.NullableSlot[int32]) {
 	_ = b[7]
-	if v != nil {
+	if v.HasValue {
 		b[0] = 1
-		le.PutUint32(b[4:], uint32(*v))
+		x := v.Value
+		le.PutUint32(b[4:], uint32(x))
 	}
 }
+
+// A raw struct holds its T? fields as pointers, each the same slot at the field's offset.
 
 func decodeStrideInt64(r *nino.Reader, b []byte) *int64 {
 	_ = b[15]
@@ -699,20 +702,20 @@ func encodeStrideInt64(b []byte, v *int64) {
 	}
 }
 
-func decodeStridePadded(r *nino.Reader, b []byte) *Padded {
+func decodeSlotPadded(r *nino.Reader, b []byte) nino.NullableSlot[Padded] {
 	_ = b[23]
 	if !r.BoolAt(b[0]) {
-		return nil
+		return nino.NullableSlot[Padded]{}
 	}
-	x := decodePadded(r, b[8:24])
-	return &x
+	return nino.NullableSlot[Padded]{HasValue: true, Value: decodePadded(r, b[8:24])}
 }
 
-func encodeStridePadded(b []byte, v *Padded) {
+func encodeSlotPadded(b []byte, v nino.NullableSlot[Padded]) {
 	_ = b[23]
-	if v != nil {
+	if v.HasValue {
 		b[0] = 1
-		encodePadded(b[8:24], *v)
+		x := v.Value
+		encodePadded(b[8:24], x)
 	}
 }
 
@@ -777,9 +780,9 @@ func readNullablesBody(r *nino.Reader, v *Nullables) {
 		x := readLabel(r)
 		v.Label = &x
 	}
-	v.IntArray = readStrideInt32s(r)
-	v.LongList = readStrideInt64s(r)
-	v.PaddedArray = readStridePaddeds(r)
+	v.IntArray = nino.ReadNullableSlots[int32](r)
+	v.LongList = nino.ReadNullableSlots[int64](r)
+	v.PaddedArray = readSlotPaddeds(r)
 	v.Map = readI32NullableInt32Entries(r)
 }
 
@@ -809,64 +812,50 @@ func writeNullablesBody(w *nino.Writer, v *Nullables) {
 	if w.Present(v.Label != nil); v.Label != nil {
 		writeLabel(w, *v.Label)
 	}
-	writeStrideInt32s(w, v.IntArray)
-	writeStrideInt64s(w, v.LongList)
-	writeStridePaddeds(w, v.PaddedArray)
+	nino.WriteNullableSlots(w, v.IntArray)
+	nino.WriteNullableSlots(w, v.LongList)
+	writeSlotPaddeds(w, v.PaddedArray)
 	writeI32NullableInt32Entries(w, v.Map)
 }
 
-// Sets of a raw T? are the slots of an array of them (readStrideInt32s); a grid's elements are the same slots, read
+// Sets of a raw T? are the slots of an array of them (nino.ReadNullableSlots); a grid's elements are the same slots, read
 // one after another as every grid's elements are.
 
-func readStrideInt64(r *nino.Reader) *int64 {
-	var v *int64
-	if b := r.Take(16); len(b) == 16 {
-		v = decodeStrideInt64(r, b)
-	}
-	return v
-}
-
-func writeStrideInt64(w *nino.Writer, v *int64) {
-	if b := w.ExtendZero(16); len(b) == 16 {
-		encodeStrideInt64(b, v)
-	}
-}
-
-func readStrideInt32(r *nino.Reader) *int32 {
-	var v *int32
+func readSlotInt32(r *nino.Reader) nino.NullableSlot[int32] {
+	var v nino.NullableSlot[int32]
 	if b := r.Take(8); len(b) == 8 {
-		v = decodeStrideInt32(r, b)
+		v = decodeSlotInt32(r, b)
 	}
 	return v
 }
 
-func writeStrideInt32(w *nino.Writer, v *int32) {
+func writeSlotInt32(w *nino.Writer, v nino.NullableSlot[int32]) {
 	if b := w.ExtendZero(8); len(b) == 8 {
-		encodeStrideInt32(b, v)
+		encodeSlotInt32(b, v)
 	}
 }
 
-func readStridePadded(r *nino.Reader) *Padded {
-	var v *Padded
+func readSlotPadded(r *nino.Reader) nino.NullableSlot[Padded] {
+	var v nino.NullableSlot[Padded]
 	if b := r.Take(24); len(b) == 24 {
-		v = decodeStridePadded(r, b)
+		v = decodeSlotPadded(r, b)
 	}
 	return v
 }
 
-func writeStridePadded(w *nino.Writer, v *Padded) {
+func writeSlotPadded(w *nino.Writer, v nino.NullableSlot[Padded]) {
 	if b := w.ExtendZero(24); len(b) == 24 {
-		encodeStridePadded(b, v)
+		encodeSlotPadded(b, v)
 	}
 }
 
-func readStrideInt32Grid(r *nino.Reader) *Grid[*int32] {
-	g := readGrid[*int32](r, 8)
+func readSlotInt32Grid(r *nino.Reader) *Grid[nino.NullableSlot[int32]] {
+	g := readGrid[nino.NullableSlot[int32]](r, 8)
 	if g == nil {
 		return nil
 	}
 	for i := range g.Items {
-		g.Items[i] = readStrideInt32(r)
+		g.Items[i] = readSlotInt32(r)
 		if r.Failed() {
 			return nil
 		}
@@ -874,21 +863,21 @@ func readStrideInt32Grid(r *nino.Reader) *Grid[*int32] {
 	return g
 }
 
-func writeStrideInt32Grid(w *nino.Writer, g *Grid[*int32]) {
+func writeSlotInt32Grid(w *nino.Writer, g *Grid[nino.NullableSlot[int32]]) {
 	if writeGrid(w, g) {
 		for _, e := range g.Items {
-			writeStrideInt32(w, e)
+			writeSlotInt32(w, e)
 		}
 	}
 }
 
-func readStridePaddedGrid(r *nino.Reader) *Grid[*Padded] {
-	g := readGrid[*Padded](r, 24)
+func readSlotPaddedGrid(r *nino.Reader) *Grid[nino.NullableSlot[Padded]] {
+	g := readGrid[nino.NullableSlot[Padded]](r, 24)
 	if g == nil {
 		return nil
 	}
 	for i := range g.Items {
-		g.Items[i] = readStridePadded(r)
+		g.Items[i] = readSlotPadded(r)
 		if r.Failed() {
 			return nil
 		}
@@ -896,30 +885,30 @@ func readStridePaddedGrid(r *nino.Reader) *Grid[*Padded] {
 	return g
 }
 
-func writeStridePaddedGrid(w *nino.Writer, g *Grid[*Padded]) {
+func writeSlotPaddedGrid(w *nino.Writer, g *Grid[nino.NullableSlot[Padded]]) {
 	if writeGrid(w, g) {
 		for _, e := range g.Items {
-			writeStridePadded(w, e)
+			writeSlotPadded(w, e)
 		}
 	}
 }
 
 func readNullableSequencesBody(r *nino.Reader, v *NullableSequences) {
-	v.IntSet = readStrideInt32s(r)
-	v.LongSet = readStrideInt64s(r)
-	v.Grid = readStrideInt32Grid(r)
-	v.PaddedGrid = readStridePaddedGrid(r)
-	v.Nested = readStrideInt32Lists(r)
+	v.IntSet = nino.ReadNullableSlots[int32](r)
+	v.LongSet = nino.ReadNullableSlots[int64](r)
+	v.Grid = readSlotInt32Grid(r)
+	v.PaddedGrid = readSlotPaddedGrid(r)
+	v.Nested = readSlotInt32Lists(r)
 	v.Values = readI32NullableInt64Entries(r)
 	v.Pairs = readI32NullableInt32Pairs(r)
 }
 
 func writeNullableSequencesBody(w *nino.Writer, v *NullableSequences) {
-	writeStrideInt32s(w, v.IntSet)
-	writeStrideInt64s(w, v.LongSet)
-	writeStrideInt32Grid(w, v.Grid)
-	writeStridePaddedGrid(w, v.PaddedGrid)
-	writeStrideInt32Lists(w, v.Nested)
+	nino.WriteNullableSlots(w, v.IntSet)
+	nino.WriteNullableSlots(w, v.LongSet)
+	writeSlotInt32Grid(w, v.Grid)
+	writeSlotPaddedGrid(w, v.PaddedGrid)
+	writeSlotInt32Lists(w, v.Nested)
 	writeI32NullableInt64Entries(w, v.Values)
 	writeI32NullableInt32Entries(w, v.Pairs)
 }

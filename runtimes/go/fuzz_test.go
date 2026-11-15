@@ -210,11 +210,26 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 		fuzzNinoNullables[int32](r, check)
 	case 31:
 		fuzzNinoNullables[float64](r, check)
+	case 32:
+		fuzzNullableSlots[uint8](r, check)
+	case 33:
+		fuzzNullableSlots[int16](r, check)
+	case 34:
+		fuzzNullableSlots[int32](r, check)
+	case 35:
+		fuzzNullableSlots[float64](r, check)
 	}
 }
 
 // fuzzOps is the number of ops fuzzOp runs.
-const fuzzOps = 32
+const fuzzOps = 36
+
+// fuzzNullableSlots reads a block of the slots of T?; what it accepts is written back as the same values, bit for
+// bit: the padding and the absent values of the slots read are zeros in memory, whatever the data held there.
+func fuzzNullableSlots[T Primitive](r *Reader, check func(write func(*Writer), read func(*Reader) bool)) {
+	v := ReadNullableSlots[T](r)
+	check(func(w *Writer) { WriteNullableSlots(w, v) }, func(b *Reader) bool { return equalSlices(ReadNullableSlots[T](b), v) })
+}
 
 // fuzzNinoNullables reads a block of NinoNullable<T>; what it accepts is written back as the same bytes and values
 // (the padding of a value read is zeros: the bytes above the presence's first, checked, or untouched memory).

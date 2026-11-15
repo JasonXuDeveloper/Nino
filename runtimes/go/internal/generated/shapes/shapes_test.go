@@ -199,8 +199,11 @@ func writeEach[T any](w *nino.Writer, v []T, write func(*nino.Writer, T)) {
 func TestNullableStridesAsDotNetWritesThem(t *testing.T) {
 	const want = "01" + "02000000" + "01000000" + "0100000002000000fcff0300" + "00000000000000000000000000000000" +
 		"01" + "02000000" + "00000000000000000000000000000000" + "01000000" + "0100000002000000fcff0300"
-	cell := &TupleCell{A: 1, Inside: TupleInside{A: 2, T: NinoTuple2[uint8, int16]{Item1: 3, Item2: -4}}}
-	strides := &Strides{Cells: []*TupleCell{cell, nil}, Boxed: &Box[[]*TupleCell]{Value: []*TupleCell{nil, cell}}}
+	cell := nino.NullableSlotOf(TupleCell{A: 1, Inside: TupleInside{A: 2, T: NinoTuple2[uint8, int16]{Item1: 3, Item2: -4}}})
+	strides := &Strides{
+		Cells: []nino.NullableSlot[TupleCell]{cell, {}},
+		Boxed: &Box[[]nino.NullableSlot[TupleCell]]{Value: []nino.NullableSlot[TupleCell]{{}, cell}},
+	}
 	data, err := nino.Serialize(strides, WriteStrides)
 	if err != nil {
 		t.Fatal(err)
@@ -226,21 +229,21 @@ func TestNullableSlotsAsDotNetWritesThem(t *testing.T) {
 		"00010100000003000000010800000000000000020000000100000000020000000109000000"
 	// Queue<int?> {5, null}: the two slots of an int?[]. Dictionary<int, long?> {1: null, 2: 7}: single values.
 	const queue, dictionary = "0200000001000000050000000000000000000000", "02000000010000000002000000010700000000000000"
-	i32 := func(v int32) *int32 { return &v }
-	i64 := func(v int64) *int64 { return &v }
-	nine := uint8(9)
+	// The elements of the sequences are slots; a dictionary's value and a tuple's item are single values, pointers.
+	i32, i64 := nino.NullableSlotOf[int32], nino.NullableSlotOf[int64]
+	seven, eight, nine := int64(7), int64(8), int32(9)
 	value := &NullableSlots{
-		Queue:       []*int32{i32(5), nil},
-		Stack:       []*int64{nil, i64(7)},
-		Linked:      []*uint8{nil, &nine},
-		Sorted:      []*int32{nil, i32(-1), i32(3)},
-		ReadOnly:    []*TupleCell{{A: 1}, nil},
-		Nested:      [][]*int32{{i32(1)}, nil, {}},
-		BoxedSet:    &Box[[]*int32]{Value: []*int32{i32(4), nil}},
-		BoxedNested: &Box[[][]*int64]{Value: [][]*int64{{nil, i64(-2)}}},
-		Map:         []nino.Entry[int32, *int64]{{Key: 1}, {Key: 2, Value: i64(7)}},
-		BoxedMap:    &Box[[]nino.Entry[int32, *int64]]{Value: []nino.Entry[int32, *int64]{{Key: 3, Value: i64(8)}}},
-		Tuples:      []NinoTuple2[int32, *int32]{{Item1: 1}, {Item1: 2, Item2: i32(9)}},
+		Queue:       []nino.NullableSlot[int32]{i32(5), {}},
+		Stack:       []nino.NullableSlot[int64]{{}, i64(7)},
+		Linked:      []nino.NullableSlot[uint8]{{}, nino.NullableSlotOf[uint8](9)},
+		Sorted:      []nino.NullableSlot[int32]{{}, i32(-1), i32(3)},
+		ReadOnly:    []nino.NullableSlot[TupleCell]{nino.NullableSlotOf(TupleCell{A: 1}), {}},
+		Nested:      [][]nino.NullableSlot[int32]{{i32(1)}, nil, {}},
+		BoxedSet:    &Box[[]nino.NullableSlot[int32]]{Value: []nino.NullableSlot[int32]{i32(4), {}}},
+		BoxedNested: &Box[[][]nino.NullableSlot[int64]]{Value: [][]nino.NullableSlot[int64]{{{}, i64(-2)}}},
+		Map:         []nino.Entry[int32, *int64]{{Key: 1}, {Key: 2, Value: &seven}},
+		BoxedMap:    &Box[[]nino.Entry[int32, *int64]]{Value: []nino.Entry[int32, *int64]{{Key: 3, Value: &eight}}},
+		Tuples:      []NinoTuple2[int32, *int32]{{Item1: 1}, {Item1: 2, Item2: &nine}},
 	}
 	data, err := nino.Serialize(value, WriteNullableSlots)
 	if err != nil {
@@ -273,11 +276,10 @@ func TestNullableSlotsAsDotNetWritesThem(t *testing.T) {
 func TestNullableGridsAsDotNetWritesThem(t *testing.T) {
 	const want = "0101000000020000000100000005000000000000000000000001000000020000000100000000000000000000000000000000000000010000000000" +
 		"0000070000000000000002000000010000000000000000000000000000000000000001000000010000000000000000000000"
-	five, seven := int32(5), int64(7)
 	value := &NullableGrids{
-		Grid:  &NinoGrid[*int32]{Lengths: []int{1, 2}, Items: []*int32{&five, nil}},
-		Cube:  &NinoGrid[*int64]{Lengths: []int{1, 2, 1}, Items: []*int64{nil, &seven}},
-		Cells: &NinoGrid[*TupleCell]{Lengths: []int{2, 1}, Items: []*TupleCell{nil, {A: 1}}},
+		Grid:  &NinoGrid[nino.NullableSlot[int32]]{Lengths: []int{1, 2}, Items: []nino.NullableSlot[int32]{nino.NullableSlotOf[int32](5), {}}},
+		Cube:  &NinoGrid[nino.NullableSlot[int64]]{Lengths: []int{1, 2, 1}, Items: []nino.NullableSlot[int64]{{}, nino.NullableSlotOf[int64](7)}},
+		Cells: &NinoGrid[nino.NullableSlot[TupleCell]]{Lengths: []int{2, 1}, Items: []nino.NullableSlot[TupleCell]{{}, nino.NullableSlotOf(TupleCell{A: 1})}},
 	}
 	data, err := nino.Serialize(value, WriteNullableGrids)
 	if err != nil {

@@ -181,7 +181,7 @@ type tagAll struct {
 	Label   tagLabel                `nino:"17"`
 	OptInt  *int32                  `nino:"18"`
 	OptRaw  *tagRaw                 `nino:"19"`
-	Stride  []*int32                `nino:"20"`
+	Stride  []NullableSlot[int32]   `nino:"20"`
 	Map     map[string]int32        `nino:"21"`
 	Set     map[int32]struct{}      `nino:"22"`
 	Pairs   []Entry[int32, *string] `nino:"23"`
@@ -226,13 +226,13 @@ func writeAllByHand(w *Writer, v *tagAll) {
 		w.I64(v.OptRaw.B)
 	}
 	w.Length(len(v.Stride))
-	for _, p := range v.Stride {
-		if p == nil {
+	for _, e := range v.Stride {
+		if !e.HasValue {
 			w.ExtendZero(8)
 		} else {
 			w.U8(1)
 			w.ExtendZero(3)
-			w.I32(*p)
+			w.I32(e.Value)
 		}
 	}
 	w.Length(len(v.Map)) // one key: no order to choose
@@ -262,7 +262,7 @@ func sampleAll() *tagAll {
 		Off: DateTimeOffset{UtcTicks: 638000000000000000, OffsetMinutes: -60}, Text: "héllo", Utf: str("é😀"),
 		Bytes: []byte{1, 2, 3}, Ints: []int32{1, -1, 1 << 30}, Bools: []bool{true, false},
 		Raw: tagRaw{1, 2}, Raws: []tagRaw{{3, 4}, {5, 6}}, Label: tagLabel{"x", 9}, OptInt: &seven,
-		OptRaw: &tagRaw{7, 8}, OptVec: &tagRawStruct{9, 10}, Stride: []*int32{&seven, nil}, Map: map[string]int32{"k": 1},
+		OptRaw: &tagRaw{7, 8}, OptVec: &tagRawStruct{9, 10}, Stride: []NullableSlot[int32]{NullableSlotOf(seven), {}}, Map: map[string]int32{"k": 1},
 		Set: map[int32]struct{}{5: {}}, Pairs: []Entry[int32, *string]{{1, str("a")}, {2, nil}},
 		Small: &tagSmall{A: 1, B: str("b")}, Skipped: 99,
 	}
@@ -514,9 +514,9 @@ func TestTagRaw(t *testing.T) {
 			// The bytes .NET writes: B at 16, 48 bytes; Int128? and UInt128? elements at a stride of 16 + 16.
 			{tagWide{1, Int128{Lo: ^uint64(1), Hi: ^uint64(0)}, 3},
 				"01 000000000000000000000000000000 FEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF 03000000 000000000000000000000000"},
-			{[]*Int128{{Lo: 5}, nil}, "02000000 01 000000000000000000000000000000 05000000000000000000000000000000" +
+			{[]NullableSlot[Int128]{NullableSlotOf(Int128{Lo: 5}), {}}, "02000000 01 000000000000000000000000000000 05000000000000000000000000000000" +
 				" 00000000000000000000000000000000 00000000000000000000000000000000"},
-			{[]*UInt128{nil, {Lo: 6}}, "02000000 00000000000000000000000000000000 00000000000000000000000000000000" +
+			{[]NullableSlot[UInt128]{{}, NullableSlotOf(UInt128{Lo: 6})}, "02000000 00000000000000000000000000000000 00000000000000000000000000000000" +
 				" 01 000000000000000000000000000000 06000000000000000000000000000000"},
 		} {
 			got, err := Marshal(c.v)
@@ -793,6 +793,15 @@ func TestTagNinoNullable(t *testing.T) {
 // run, so the sizes would let either through.
 type (
 	badNinoNullablePointer struct {
+		Run []NullableSlot[int32] `nino:"0"`
+	}
+	badNullableSlotAlone struct {
+		One NullableSlot[int32] `nino:"0"`
+	}
+	badNullableSlotText struct {
+		Run []NullableSlot[string] `nino:"0"`
+	}
+	badPointerRun struct {
 		Run []*int32 `nino:"0"`
 	}
 	badNullableValue struct {
@@ -805,6 +814,10 @@ type (
 
 func (badNinoNullablePointer) NinoLayout() string {
 	return "members=Run:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+}
+
+func (badPointerRun) NinoLayout() string {
+	return "members=Run:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
 }
 
 func (badNullableValue) NinoLayout() string {
@@ -842,6 +855,9 @@ func TestTagErrors(t *testing.T) {
 		{badPtrPtr{}, "P", "pointer to a ptr"},
 		{badNinoNullablePointer{}, "Run", "is a nino.NinoNullable[T]"},
 		{badNullableValue{}, "Run", "a T? a *T"},
+		{badNullableSlotAlone{}, "One", "a single T? is a *T"},
+		{badNullableSlotText{}, "Run", "a NullableSlot holds a raw value"},
+		{badPointerRun{}, "Run", "nino.NullableSlot"},
 		{badNinoNullableText{}, "S", "holds a raw value"},
 	} {
 		err := Check(reflect.TypeOf(c.v))

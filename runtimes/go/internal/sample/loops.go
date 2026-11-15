@@ -246,15 +246,15 @@ func readInt32Lists(r *nino.Reader) [][]int32 {
 	return v
 }
 
-func readStrideInt32Lists(r *nino.Reader) [][]*int32 {
+func readSlotInt32Lists(r *nino.Reader) [][]nino.NullableSlot[int32] {
 	n := r.Length(4)
 	if n < 0 {
 		return nil
 	}
-	var e []*int32
-	v := make([][]*int32, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	var e []nino.NullableSlot[int32]
+	v := make([][]nino.NullableSlot[int32], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for range n {
-		e = readStrideInt32s(r)
+		e = nino.ReadNullableSlots[int32](r)
 		if r.Failed() {
 			return nil
 		}
@@ -280,51 +280,7 @@ func readShapes(r *nino.Reader) []Shape {
 	return v
 }
 
-func readStrideInt32s(r *nino.Reader) []*int32 {
-	n := r.Length(8)
-	if n < 0 {
-		return nil
-	}
-	b := r.Take(n * 8)
-	if len(b) != n*8 {
-		return nil
-	}
-	var e *int32
-	v := make([]*int32, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
-	for len(b) >= 8 {
-		e = decodeStrideInt32(r, b[:8:8])
-		if r.Failed() {
-			return nil
-		}
-		v = append(v, e)
-		b = b[8:]
-	}
-	return v
-}
-
-func readStrideInt64s(r *nino.Reader) []*int64 {
-	n := r.Length(16)
-	if n < 0 {
-		return nil
-	}
-	b := r.Take(n * 16)
-	if len(b) != n*16 {
-		return nil
-	}
-	var e *int64
-	v := make([]*int64, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
-	for len(b) >= 16 {
-		e = decodeStrideInt64(r, b[:16:16])
-		if r.Failed() {
-			return nil
-		}
-		v = append(v, e)
-		b = b[16:]
-	}
-	return v
-}
-
-func readStridePaddeds(r *nino.Reader) []*Padded {
+func readSlotPaddeds(r *nino.Reader) []nino.NullableSlot[Padded] {
 	n := r.Length(24)
 	if n < 0 {
 		return nil
@@ -333,10 +289,10 @@ func readStridePaddeds(r *nino.Reader) []*Padded {
 	if len(b) != n*24 {
 		return nil
 	}
-	var e *Padded
-	v := make([]*Padded, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	var e nino.NullableSlot[Padded]
+	v := make([]nino.NullableSlot[Padded], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 24 {
-		e = decodeStridePadded(r, b[:24:24])
+		e = decodeSlotPadded(r, b[:24:24])
 		if r.Failed() {
 			return nil
 		}
@@ -656,14 +612,14 @@ func writeInt32Lists(w *nino.Writer, v [][]int32) {
 	}
 }
 
-func writeStrideInt32Lists(w *nino.Writer, v [][]*int32) {
+func writeSlotInt32Lists(w *nino.Writer, v [][]nino.NullableSlot[int32]) {
 	if v == nil {
 		w.NullLength()
 		return
 	}
 	w.Length(len(v))
 	for _, e := range v {
-		writeStrideInt32s(w, e)
+		nino.WriteNullableSlots(w, e)
 	}
 }
 
@@ -678,39 +634,7 @@ func writeShapes(w *nino.Writer, v []Shape) {
 	}
 }
 
-func writeStrideInt32s(w *nino.Writer, v []*int32) {
-	if v == nil {
-		w.NullLength()
-		return
-	}
-	w.Length(len(v))
-	b := w.ExtendZero(len(v) * 8)
-	if len(b) != len(v)*8 {
-		return
-	}
-	for _, e := range v {
-		encodeStrideInt32(b[:8:8], e)
-		b = b[8:]
-	}
-}
-
-func writeStrideInt64s(w *nino.Writer, v []*int64) {
-	if v == nil {
-		w.NullLength()
-		return
-	}
-	w.Length(len(v))
-	b := w.ExtendZero(len(v) * 16)
-	if len(b) != len(v)*16 {
-		return
-	}
-	for _, e := range v {
-		encodeStrideInt64(b[:16:16], e)
-		b = b[16:]
-	}
-}
-
-func writeStridePaddeds(w *nino.Writer, v []*Padded) {
+func writeSlotPaddeds(w *nino.Writer, v []nino.NullableSlot[Padded]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -721,7 +645,7 @@ func writeStridePaddeds(w *nino.Writer, v []*Padded) {
 		return
 	}
 	for _, e := range v {
-		encodeStridePadded(b[:24:24], e)
+		encodeSlotPadded(b[:24:24], e)
 		b = b[24:]
 	}
 }

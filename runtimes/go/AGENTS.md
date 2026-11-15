@@ -23,8 +23,10 @@ types_time.go                DateTime, TimeSpan, DateTimeOffset, DateOnly, TimeO
 raw.go                       blocks of primitives as one copy (ReadPrimitives / WritePrimitives), bools checked 0 or 1
 block.go                     ReadBlock / WriteBlock: lists of dates, Decimal, Guid and Int128 (BlockValue) as one block,
                              each value checked as when read alone
-nullable.go                  NinoNullable[T], .NET's NinoNullable<T> as a value (HasValue, Value), and its blocks of
-                             numbers (ReadNinoNullables / WriteNinoNullables: one copy where Go's layout is the wire's)
+nullable.go                  NullableSlot[T] (a T? as the element of a sequence) and NinoNullable[T] (.NET's
+                             NinoNullable<T>), values of one shape (HasValue, Value), and their blocks of numbers
+                             (ReadNullableSlots, ReadNinoNullables and their writers, one implementation: one copy
+                             where Go's layout is the wire's)
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
 unique.go                    duplicate keys of sets and maps read in data order: numbers and strings compared as .NET
@@ -66,8 +68,9 @@ marshal.go                   Marshal / Unmarshal through the tag plans
 block_test.go                block sizes and ReadBlock / WriteBlock against element-by-element reads; BenchmarkBlocks
                              (checked blocks: dates, decimals, bools, raw structs with a bool; Guids as the copy alone)
 raw_test.go                  bool blocks, raw struct blocks and padded structs
-nullable_test.go             NinoNullable blocks against NinoNullableAt on each element; BenchmarkNinoNullables (the
-                             block, the element loop and the []*T it replaced)
+nullable_test.go             NinoNullable blocks against NinoNullableAt on each element, NullableSlot blocks byte by
+                             byte; BenchmarkNinoNullables and BenchmarkNullableSlots (the block against the element
+                             loop and the []*T it replaced)
 unique_test.go               duplicate keys: integer keys, large sets, primitive entries
 collections_ref_test.go      the func-value collection helpers the runtime dropped, as the tests' references
 reader_test.go               the Reader and Writer against hand-written bytes
@@ -136,8 +139,11 @@ requirements:
   above hold there too. The sample types carry the tags and `NinoLayout` a generator emits (README, "Tags on
   generated structs"); keep them and `internal/sample/tagged_test.go` in step with the hand-written codecs.
   A type decides its own encoding wherever the wire has two for one .NET shape: `nino.NinoNullable[T]` is .NET's
-  `NinoNullable<T>` and a `*T` its `T?`, with or without a layout (`ninoNullable`, `nullablesIn`); never let a layout's
-  text pick the encoding of a Go type, since a type without a layout then has no way to say it.
+  `NinoNullable<T>`, a `*T` a single `T?` (a slot at its offset as a field of a raw struct) and a
+  `nino.NullableSlot[T]` a `T?` as the element of a sequence, with or without a layout (`ninoNullable`, `slot`,
+  `stride`, `nullablesIn`); never let a layout's text pick the encoding of a Go type, since a type without a layout
+  then has no way to say it (a `[]*T` was the slots of a `T?[]` unless a layout said `seq(nullable(...))`: it is now
+  always one single `T?` per element, and a layout of slots over it is a `TagError` naming `nino.NullableSlot`).
 - Before committing: `go vet ./...`, `go test -race ./...` with the conformance corpus present, a short run of
   `FuzzReader`, `FuzzDecode`, `FuzzTagged` and `FuzzTaggedDecode`, and the benchmarks back to back against the
   previous commit for a change to a read or write path. The runtime's module has no dependencies; competitors live in the `bench` module.

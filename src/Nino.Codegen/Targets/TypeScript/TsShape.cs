@@ -115,6 +115,13 @@ namespace Nino.Codegen.Targets
         /// </summary>
         public bool Clean { get; internal set; }
 
+        /// <summary>
+        /// A <c>rawnullable</c> that is a <c>T?</c> as the element of a sequence (wire-format spec §6.2): declared
+        /// as the runtime's <c>NullableSlot&lt;T&gt;</c>, an alias of <c>T | null</c>; a name only, the code is that
+        /// of any <c>rawnullable</c>.
+        /// </summary>
+        public bool SlotElement { get; internal set; }
+
         /// <summary>Whether the value may hold a class body (a class, <c>object</c> or an interface) itself.</summary>
         internal bool Opens { get; set; }
 

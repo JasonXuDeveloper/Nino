@@ -84,7 +84,7 @@ namespace Nino.Codegen.Targets
                 }
                 case ValueKind.Sequence:
                 {
-                    var element = Shape(value.Element!, false);
+                    var element = Element(value.Element!);
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     string mode =
@@ -95,6 +95,7 @@ namespace Nino.Codegen.Targets
                         : element.Block ? "block"
                         : element.Kind == "prim" && BlockValues.Contains(element.Primitive!) ? "values"
                         : element is { Kind: "rawnullable", Clean: true, Inner.Block: true } ? "ninonullables"
+                        : element is { Kind: "rawnullable", SlotElement: true, Inner.Block: true } ? "nullableslots"
                         : element.Kind is "rawstruct" or "rawnullable" or "rawtuple" ? "fixed"
                         : "slice";
                     return Open(value, new GoShape("seq") { Element = element, Mode = mode, MinSize = 4 }, false);
@@ -123,7 +124,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Grid:
                     _usesGrid = true;
                     return Open(value,
-                        new GoShape("grid") { Element = Shape(value.Element!, false), Rank = value.Rank, MinSize = 4 }, false);
+                        new GoShape("grid") { Element = Element(value.Element!), Rank = value.Rank, MinSize = 4 }, false);
                 case ValueKind.BigInteger:
                     return new GoShape("bigint") { MinSize = 4 };
                 case ValueKind.Version:
@@ -135,6 +136,19 @@ namespace Nino.Codegen.Targets
                 default:
                     throw new UnsupportedException($"{value.ClrName} ({value.Encoding}) has no Go form");
             }
+        }
+
+        /// <summary>
+        /// The shape of the element of a sequence or a grid: a raw <c>T?</c> is a <c>nino.NullableSlot[T]</c> there
+        /// (the slot, where a <c>*T</c> is the single value: a presence byte, then the value). A
+        /// <c>NinoNullable&lt;T&gt;</c> is an element like any raw struct.
+        /// </summary>
+        private GoShape Element(ValueModel element)
+        {
+            var shape = Shape(element, false);
+            if (element.Kind == ValueKind.RawNullable && !shape.Clean)
+                shape.SlotElement = true;
+            return shape;
         }
 
         /// <summary>
@@ -199,7 +213,7 @@ namespace Nino.Codegen.Targets
             "prim" => s.Primitive!,
             "enum" => "enum:" + s.Enum!.FullName,
             "rawstruct" or "emptystruct" => "struct:" + s.Struct!.FullName,
-            "rawnullable" when s.Clean => "ninonullable[" + GoTypeKey(s.Inner!) + "]",
+            "rawnullable" when s.Holder != null => s.Holder + "[" + GoTypeKey(s.Inner!) + "]",
             "rawnullable" or "nullable" => "*" + GoTypeKey(s.Inner!),
             "rawtuple" or "tuple" => (s.Pair ? "entry" : "tuple") + "[" + string.Join(",", s.Items.Select(GoTypeKey)) + "]",
             "string" or "utf8" => "*string",

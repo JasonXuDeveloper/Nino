@@ -5,10 +5,14 @@ import (
 	"unsafe"
 )
 
+// .NET writes a nullable raw T (a number, a date, a raw struct) in three ways, and the Go type says which: a *T is a
+// single T? (a presence byte, then the value when present; in a raw struct's memory, a slot at its offset), a
+// NullableSlot[T] a T? as the element of a sequence, and a NinoNullable[T] a NinoNullable<T> wherever it is.
+
 // NinoNullable is .NET's Nino.Core.NinoNullable<T>: a nullable raw T (a number, a date, a raw struct) that is written
 // as its memory wherever it is (a member, an element of any collection, a field of a raw struct), 2 * size(T)
 // bytes: the presence, as wide as T (0 or 1 in its first byte, zeros above), then the value, zeros when absent.
-// The zero value is absent. A .NET T? is not these bytes and stays a *T.
+// The zero value is absent. A .NET T? is not these bytes: it is a *T alone and a [NullableSlot] in a sequence.
 //
 // Value is written only when HasValue is set: an absent value is zeros on the wire whatever Value holds. Reading
 // rejects a presence other than 0 or 1, a byte set above it and an absent value that is not zeros, as .NET's
@@ -32,10 +36,68 @@ func (n NinoNullable[T]) Get() (T, bool) {
 	return n.Value, true
 }
 
+// NullableSlot is a .NET T? of a raw T (a number, a date, a raw struct) as the element of a sequence (the
+// wire-format specification, 6.2): a slot of align(T) + size(T) bytes, the presence byte first, zeros up to T's
+// alignment, then the value, zeros when absent. It is the element type of every collection of them:
+// []NullableSlot[int32] is an int?[], a List<int?>, a HashSet<int?> or a Queue<int?>, and a grid of them an int?[,].
+// The zero value is absent. A single T? (a member, a map's key or value, a tuple's item, a field of a raw struct) is
+// not this type: it is a *T. Nor is a NinoNullable<T>, a [NinoNullable].
+//
+// Value is written only when HasValue is set: an absent value is zeros on the wire whatever Value holds. Reading
+// rejects a presence other than 0 or 1 and leaves Value zero when absent, whatever the data holds there, as .NET
+// does.
+type NullableSlot[T any] struct {
+	HasValue bool
+	Value    T
+}
+
+// NullableSlotOf returns the NullableSlot that holds value.
+func NullableSlotOf[T any](value T) NullableSlot[T] {
+	return NullableSlot[T]{HasValue: true, Value: value}
+}
+
+// Get returns the value and whether there is one (the zero T when absent).
+func (n NullableSlot[T]) Get() (T, bool) {
+	return NinoNullable[T](n).Get()
+}
+
+// A NullableSlot[T] and a NinoNullable[T] have the same fields, so a slice of one is the memory of a slice of the
+// other (nil for nil): the blocks of both are one implementation.
+
+func asNinoNullables[T any](v []NullableSlot[T]) []NinoNullable[T] {
+	return unsafe.Slice((*NinoNullable[T])(unsafe.Pointer(unsafe.SliceData(v))), len(v))
+}
+
+func asNullableSlots[T any](v []NinoNullable[T]) []NullableSlot[T] {
+	return unsafe.Slice((*NullableSlot[T])(unsafe.Pointer(unsafe.SliceData(v))), len(v))
+}
+
+// ReadNullableSlots reads a sequence of T? of a primitive T (an array, a list, a set, a queue): length, then the
+// slots as one block (nil for null). A primitive is as large as its alignment, so a slot is 2 * size(T) bytes.
+// Where the memory of a NullableSlot[T] is its bytes (little-endian hosts that align T to its size) the block is
+// copied as memory, then each presence checked and each slot's padding and absent value cleared in one pass.
+func ReadNullableSlots[T Primitive](r *Reader) []NullableSlot[T] {
+	return asNullableSlots(readNullables[T](r, false))
+}
+
+// WriteNullableSlots writes a sequence of T? of a primitive T: length, then the slots as one block (nil is null),
+// an absent element as zeros.
+func WriteNullableSlots[T Primitive](w *Writer, v []NullableSlot[T]) {
+	// The bytes of a NinoNullable<T> of a primitive: its presence is as wide as the slot's byte and padding.
+	WriteNinoNullables(w, asNinoNullables(v))
+}
+
 // ReadNinoNullables reads an array or list of NinoNullable<T> of a primitive T: length, then the elements as one
 // block (nil for null), checked as [Reader.NinoNullableAt] checks each. Where the memory of a NinoNullable[T] is
 // its bytes (little-endian hosts that align T to its size) the block is copied as memory.
 func ReadNinoNullables[T Primitive](r *Reader) []NinoNullable[T] {
+	return readNullables[T](r, true)
+}
+
+// readNullables reads a block of presence and value pairs of a primitive T, size(T) bytes each: NinoNullable<T>s
+// (whole: every byte of the presence and of an absent value is checked) or the slots of T? (the presence byte is
+// checked, an absent value read as zero).
+func readNullables[T Primitive](r *Reader, whole bool) []NinoNullable[T] {
 	var zero NinoNullable[T]
 	size := int(unsafe.Sizeof(zero.Value))
 	wire := 2 * size
@@ -47,7 +109,7 @@ func ReadNinoNullables[T Primitive](r *Reader) []NinoNullable[T] {
 	if len(b) != n*wire {
 		return nil
 	}
-	if !ninoNullablesValid(b, size) {
+	if whole && !ninoNullablesValid(b, size) {
 		failNinoNullables(r, b, size)
 		return nil
 	}
@@ -58,15 +120,26 @@ func ReadNinoNullables[T Primitive](r *Reader) []NinoNullable[T] {
 	}
 	if littleEndian && int(unsafe.Sizeof(zero)) == wire && int(unsafe.Offsetof(zero.Value)) == size {
 		// The presence's first byte (0 or 1, checked) is HasValue, the bytes above it padding.
-		copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*wire), b)
+		m := unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), n*wire)
+		copy(m, b)
+		if !whole && !clearAbsentSlots(m, size) {
+			failNullableSlots(r, b, wire)
+			return nil
+		}
 		return v
 	}
+	var presence byte
 	for i := range v {
 		e := b[i*wire : (i+1)*wire : (i+1)*wire]
+		presence |= e[0]
 		if e[0] == 1 {
 			v[i].HasValue = true
 			decodePrimitives(unsafe.Slice(&v[i].Value, 1), e[size:])
 		}
+	}
+	if presence > 1 { // slots only: a NinoNullable's is checked above
+		failNullableSlots(r, b, wire)
+		return nil
 	}
 	return v
 }
@@ -165,5 +238,54 @@ func ninoNullablesValid(b []byte, size int) bool {
 func failNinoNullables(r *Reader, b []byte, size int) {
 	for ; len(b) >= 2*size && r.err == nil; b = b[2*size:] {
 		r.NinoNullableAt(b[:size], b[size:2*size])
+	}
+}
+
+// clearAbsentSlots clears the padding of each slot of m and the value of each absent one, m the memory of
+// NullableSlots of a primitive of size bytes on a host where it is their bytes, and reports whether every presence
+// byte is 0 or 1. One pass with no branch an element: -p is all ones for a presence of 1 and zero for 0.
+//
+//go:noinline
+func clearAbsentSlots(m []byte, size int) bool {
+	var presence uint64
+	switch size {
+	case 1:
+		for ; len(m) >= 2; m = m[2:] {
+			p := m[0]
+			presence |= uint64(p)
+			m[1] &= -p
+		}
+	case 2:
+		for ; len(m) >= 4; m = m[4:] {
+			e := binary.LittleEndian.Uint32(m)
+			p := e & 0xFF
+			presence |= uint64(p)
+			binary.LittleEndian.PutUint32(m, e&(-p<<16|0xFF))
+		}
+	case 4:
+		for ; len(m) >= 8; m = m[8:] {
+			e := binary.LittleEndian.Uint64(m)
+			p := e & 0xFF
+			presence |= p
+			binary.LittleEndian.PutUint64(m, e&(-p<<32|0xFF))
+		}
+	case 8:
+		for ; len(m) >= 16; m = m[16:] {
+			e := m[:16:16]
+			p := uint64(e[0])
+			presence |= p
+			binary.LittleEndian.PutUint64(e, p)
+			binary.LittleEndian.PutUint64(e[8:], binary.LittleEndian.Uint64(e[8:])&-p)
+		}
+	}
+	return presence <= 1
+}
+
+// failNullableSlots fails r with the error of the first presence byte of b (slots of wire bytes) that is not 0 or 1.
+//
+//go:noinline
+func failNullableSlots(r *Reader, b []byte, wire int) {
+	for ; len(b) >= wire && r.err == nil; b = b[wire:] {
+		r.BoolAt(b[0])
 	}
 }
