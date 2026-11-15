@@ -34,6 +34,13 @@ namespace Nino.Core.Internal
         // CopyCleared: whether it takes these elements (ClearedRows.Plan), and its tables, built by the first long run.
         private readonly bool _clears;
         private ClearedRows _rows;
+
+        // CopyLanes: the distance from each absent value to its flag, which is also the value's size and alignment
+        // (1, 2, 4 or 8: a Nullable of a primitive), 0 where the values differ or CopyCleared takes them; the mask and
+        // the values' bytes repeated over their period at the lane width (32 bytes with AVX2, 16 else) and a vector more.
+        private readonly int _laneDistance;
+        private readonly byte[] _laneMask, _laneValues;
+        private readonly int _lanePeriod;
 #endif
 #if !NET8_0_OR_GREATER
         // For the registered kernels (NinoKernels.Permute): each byte from itself, padding cleared (0xFF). Zero for
@@ -53,6 +60,12 @@ namespace Nino.Core.Internal
         /// (<see cref="CopyCleared"/>: AVX-512 VBMI, with GFNI on .NET 10); elsewhere it clears them element by element after.
         /// </summary>
         public bool ClearsByVector => _clears;
+
+        /// <summary>
+        /// Whether <see cref="Copy"/> clears absent values a vector at a time without CopyCleared (CopyLanes: every
+        /// value a Nullable of a primitive, its flag in the lane before it).
+        /// </summary>
+        public bool ClearsByLanes => _laneDistance != 0;
 #endif
 
         /// <summary>
@@ -101,6 +114,16 @@ namespace Nino.Core.Internal
 #endif
 #if NET8_0_OR_GREATER
             _clears = ClearedRows.Plan(mask, absent, out _, out _, out _);
+            _laneDistance = _clears || !Vector128.IsHardwareAccelerated ? 0 : LaneDistance(absent, mask.Length);
+            if (_laneDistance != 0)
+            {
+                int laneWidth = Vector256.IsHardwareAccelerated ? 32 : 16;
+                var values = new byte[mask.Length];
+                for (int i = 0; i < absent.Length; i += 3)
+                    values.AsSpan(absent[i + 1], absent[i + 2]).Fill(0xFF);
+                _laneMask = Repeat(mask, laneWidth, laneWidth, out _lanePeriod);
+                _laneValues = Repeat(values, laneWidth, laneWidth, out _);
+            }
 #endif
             var words = Repeat(mask, 8, 0, out _);
             _words = new ulong[words.Length / 8];
@@ -167,6 +190,30 @@ namespace Nino.Core.Internal
                     return;
                 destination = ref Unsafe.Add(ref destination, done * _mask.Length);
                 source = ref Unsafe.Add(ref source, done * _mask.Length);
+            }
+
+            if (_laneDistance != 0 && count * _mask.Length >= 3 * Vector256<byte>.Count)
+            {
+                int total = count * _mask.Length;
+                switch (_laneDistance)
+                {
+                    case 8:
+                        CopyLanes<Lanes64>(ref destination, ref source, total);
+                        break;
+                    case 4:
+                        CopyLanes<Lanes32>(ref destination, ref source, total);
+                        break;
+                    case 2:
+                        CopyLanes<Lanes16>(ref destination, ref source, total);
+                        break;
+                    default:
+                        CopyLanes<Lanes8>(ref destination, ref source, total);
+                        break;
+                }
+                // The first vector, stored without its flags (they may lie before the run), cleared after.
+                int first = Math.Min(count, (Unsafe.SizeOf<Vector256<byte>>() + _mask.Length - 1) / _mask.Length);
+                ClearAbsent(ref destination, first);
+                return;
             }
 #endif
             CopyMasked(ref destination, ref source, count);
@@ -523,6 +570,185 @@ namespace Nino.Core.Internal
         {
             row += step;
             return row >= wrap ? row - all : row;
+        }
+#endif
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// The distance from each absent value to its flag where it equals the value's size for every value, a
+        /// power of two up to 8 (a <c>Nullable</c> of a primitive: its flag, padding up to the value's alignment, the
+        /// value), every value at a multiple of it in an element of <paramref name="size"/> bytes, a multiple too (so
+        /// lanes of that width from a run's start are the values' lanes in every element: not a packed struct), and
+        /// no value holds another's flag; 0 otherwise.
+        /// </summary>
+        private static int LaneDistance(int[] absent, int size)
+        {
+            if (absent == null)
+                return 0;
+            int distance = absent[2];
+            if (distance is not (1 or 2 or 4 or 8) || size % distance != 0)
+                return 0;
+            for (int i = 0; i < absent.Length; i += 3)
+            {
+                if (absent[i + 2] != distance || absent[i + 1] - absent[i] != distance || absent[i + 1] % distance != 0)
+                    return 0;
+                for (int j = 0; j < absent.Length; j += 3)
+                    if (absent[j] >= absent[i + 1] && absent[j] < absent[i + 1] + distance)
+                        return 0;
+            }
+
+            return distance;
+        }
+
+        /// <summary>
+        /// The masked copy (<see cref="CopyVectors{TVector, TOps}"/>, aligned to the source) with the absent values cleared
+        /// in the same pass, for elements whose values are lanes of <see cref="_laneDistance"/> bytes each with its
+        /// flag at the start of the lane before: each vector is also loaded that many bytes earlier, where every
+        /// value lane finds its flag lane, tested by one compare of lanes of that width. Without it the values were
+        /// cleared element by element after the copy: 1,000 structs of an int, a long? and a double? took 3.3 us on
+        /// EPYC 7763 (AVX2) and 3.1 on Neoverse-N2, against 0.8 and 0.6 for MemoryPack's plain copy (run
+        /// 43714421476). The first vector is stored without the clear (its flags may lie before the run): the
+        /// caller clears its elements after.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+        private unsafe void CopyLanes<TLanes>(ref byte destination, ref byte source, int total)
+            where TLanes : struct, ILaneWidth
+        {
+            if (Vector256.IsHardwareAccelerated)
+                CopyLanes<Vector256<byte>, TLanes>(ref destination, ref source, total);
+            else
+                CopyLanes<Vector128<byte>, TLanes>(ref destination, ref source, total);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private unsafe void CopyLanes<TVector, TLanes>(ref byte destination, ref byte source, int total)
+            where TVector : struct
+            where TLanes : struct, ILaneWidth
+        {
+            nuint width = (nuint)Unsafe.SizeOf<TVector>();
+            nuint period = (nuint)_lanePeriod;
+            nuint d = (nuint)default(TLanes).Distance;
+            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_laneMask);
+            ref byte values = ref NinoUnsafe.GetArrayDataReference(_laneValues);
+            And<TVector>(ref destination, ref source, 0, ref mask, 0);
+
+            nuint end = (nuint)total - width;
+            // Every vector at a multiple of d into the run, so its lanes are the values' lanes: aligned to the source
+            // (whose values are aligned to d, so aligned loads keep that), not the destination, which follows a
+            // 4-byte length and would put the lanes 4 bytes off; rounded down for a source that is not.
+            nuint i = width - ((nuint)Unsafe.AsPointer(ref source) & (width - 1));
+            i -= i & (d - 1);
+            if (i < d)
+            {
+                // The first vector's flags would lie before the run: one vector from d first.
+                Lane<TVector, TLanes>(ref destination, ref source, d, ref mask, ref values, d);
+                i += width;
+            }
+
+            nuint m = i >= period ? i - period : i; // i % period (i < 2 * width <= 2 * period)
+            for (; i <= end; i += width)
+            {
+                Lane<TVector, TLanes>(ref destination, ref source, i, ref mask, ref values, m);
+                m += width;
+                if (m >= period)
+                    m -= period;
+            }
+
+            Lane<TVector, TLanes>(ref destination, ref source, end, ref mask, ref values, TailOffset(m, i, end, period));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void And<TVector>(ref byte destination, ref byte source, nuint offset, ref byte mask, nuint m)
+            where TVector : struct
+        {
+            if (typeof(TVector) == typeof(Vector256<byte>))
+                (Vector256.LoadUnsafe(ref source, offset) & Vector256.LoadUnsafe(ref mask, m))
+                    .StoreUnsafe(ref destination, offset);
+            else
+                (Vector128.LoadUnsafe(ref source, offset) & Vector128.LoadUnsafe(ref mask, m))
+                    .StoreUnsafe(ref destination, offset);
+        }
+
+        /// <summary>One vector of <see cref="CopyLanes{TLanes}"/> at <paramref name="offset"/>, its tables at <paramref name="m"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Lane<TVector, TLanes>(ref byte destination, ref byte source, nuint offset, ref byte mask,
+            ref byte values, nuint m) where TVector : struct where TLanes : struct, ILaneWidth
+        {
+            var lanes = default(TLanes);
+            nuint d = (nuint)lanes.Distance;
+            if (typeof(TVector) == typeof(Vector256<byte>))
+            {
+                var absent = lanes.Absent(Vector256.LoadUnsafe(ref source, offset - d));
+                var kept = Vector256.LoadUnsafe(ref source, offset) & Vector256.LoadUnsafe(ref mask, m);
+                Vector256.AndNot(kept, absent & Vector256.LoadUnsafe(ref values, m)).StoreUnsafe(ref destination, offset);
+            }
+            else
+            {
+                var absent = lanes.Absent(Vector128.LoadUnsafe(ref source, offset - d));
+                var kept = Vector128.LoadUnsafe(ref source, offset) & Vector128.LoadUnsafe(ref mask, m);
+                Vector128.AndNot(kept, absent & Vector128.LoadUnsafe(ref values, m)).StoreUnsafe(ref destination, offset);
+            }
+        }
+
+        /// <summary>
+        /// The lanes of <see cref="CopyLanes{TLanes}"/>: their width (the distance from a value to its flag) and the
+        /// lanes whose first byte is 0 (all ones), from the vector loaded that far before.
+        /// </summary>
+        private interface ILaneWidth
+        {
+            int Distance { get; }
+            Vector256<byte> Absent(Vector256<byte> flags);
+            Vector128<byte> Absent(Vector128<byte> flags);
+        }
+
+        private readonly struct Lanes64 : ILaneWidth
+        {
+            public int Distance => 8;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector256<byte> Absent(Vector256<byte> flags) =>
+                Vector256.Equals(flags.AsUInt64() & Vector256.Create(0xFFUL), Vector256<ulong>.Zero).AsByte();
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Absent(Vector128<byte> flags) =>
+                Vector128.Equals(flags.AsUInt64() & Vector128.Create(0xFFUL), Vector128<ulong>.Zero).AsByte();
+        }
+
+        private readonly struct Lanes32 : ILaneWidth
+        {
+            public int Distance => 4;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector256<byte> Absent(Vector256<byte> flags) =>
+                Vector256.Equals(flags.AsUInt32() & Vector256.Create(0xFFu), Vector256<uint>.Zero).AsByte();
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Absent(Vector128<byte> flags) =>
+                Vector128.Equals(flags.AsUInt32() & Vector128.Create(0xFFu), Vector128<uint>.Zero).AsByte();
+        }
+
+        private readonly struct Lanes16 : ILaneWidth
+        {
+            public int Distance => 2;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector256<byte> Absent(Vector256<byte> flags) =>
+                Vector256.Equals(flags.AsUInt16() & Vector256.Create((ushort)0xFF), Vector256<ushort>.Zero).AsByte();
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Absent(Vector128<byte> flags) =>
+                Vector128.Equals(flags.AsUInt16() & Vector128.Create((ushort)0xFF), Vector128<ushort>.Zero).AsByte();
+        }
+
+        private readonly struct Lanes8 : ILaneWidth
+        {
+            public int Distance => 1;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector256<byte> Absent(Vector256<byte> flags) => Vector256.Equals(flags, Vector256<byte>.Zero);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Vector128<byte> Absent(Vector128<byte> flags) => Vector128.Equals(flags, Vector128<byte>.Zero);
         }
 #endif
 
