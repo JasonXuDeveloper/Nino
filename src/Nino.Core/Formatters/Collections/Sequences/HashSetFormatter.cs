@@ -159,8 +159,11 @@ namespace Nino.Core
             {
                 int size = Unsafe.SizeOf<T>();
                 ref byte src = ref reader.ReadElements(length, size);
-                // Filled directly where it can be, else added out of line (each checks bools: 0 or 1).
-                if (created && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
+                // Filled directly where it can be, a new set or a plain one read into (cleared), else added out of
+                // line (each checks bools: 0 or 1).
+                if (HashTables.Set && (created ? HashTables.TryFill(set, ref src, length, size)
+                        : typeof(TSet) == typeof(HashSet<T>) && set.Count == 0 &&
+                          HashTables.TryRefill(set, ref src, length, size)))
                     return;
                 AddRaw(set, ref src, length);
                 return;
@@ -252,7 +255,18 @@ namespace Nino.Core
             slots.CheckSlots(ref src, length);
             if (created && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
                 return;
-            // An existing set: each added as AddEach adds it, from the data.
+            AddFrom(set, ref src, length);
+        }
+
+        /// <summary>
+        /// Adds <paramref name="length"/> elements from their checked bytes as <see cref="AddEach"/> adds them: inserted
+        /// where the set is empty, with the default comparer and sized for them (an existing set read into, cleared),
+        /// else added by the set, its bucket walked after.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void AddFrom(TSet set, ref byte src, int length)
+        {
+            int size = Unsafe.SizeOf<T>();
             bool insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
             bool walk = HashTables.Plan<T>.Walks;
             for (int i = 0; i < length; i++)
@@ -293,17 +307,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void AddRaw(TSet set, ref byte src, int length)
         {
-            int size = Unsafe.SizeOf<T>();
             if (!NinoLayout<T>.CopiesAsIs)
-                NinoChecks.Values<T>(ref src, length, size);
-            for (int i = 0; i < length; i++)
-            {
-                T item = NinoUnsafe.Read<T>(ref src);
-                if (!set.Add(item))
-                    NinoThrow.DuplicateKey(set.GetType());
-                HashTables.Added(set, item);
-                src = ref Unsafe.Add(ref src, size);
-            }
+                NinoChecks.Values<T>(ref src, length, Unsafe.SizeOf<T>());
+            AddFrom(set, ref src, length);
         }
     }
 }
