@@ -347,8 +347,22 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   that is not aligned straddles two lines. Evidence (local AVX-512 Xeon with VBMI and GFNI, 1,000 elements, one
   process a build): `long?` 230 ns unaligned, 154 aligned, a copy 115; `int?` 131 and 96; 256-bit vectors slower at
   every position (309 and 216). The GF(2^8) clear itself moved no case on runners (43581721720, 43600970932).
-  Where whole slots never lead to a line (a 4-byte phase for 16-byte slots), a second shuffle to re-cut the stores
-  (`vpermt2d`) gained 8 % for `long?` and nothing for `int?` in a standalone kernel: owed on the real path (#282).
+  Where whole slots never lead to a line (a top-level run: 4 bytes of length into an 8-byte aligned array), clear
+  each vector where it lies in the source and join the bytes of two consecutive results that fall on one line of
+  the destination with one `vpermt2d` (index `j + head / 4`, built once a call; one uop on Ice Lake, Sapphire
+  Rapids and Zen 4, where `vpermt2b` is three): `Lanes512.CopyRealigned`, strides 2 to 16 from 8 vectors, every
+  store but the first and the last two aligned. 1,000 elements, three interleaved processes a build, ns, 68291cde
+  (the buffer lead) / c1ccaebf / this, misaligned phases: `long?[]` 250 / 250 / 191, `Vec3?[]` 270 / 270 / 207,
+  `List<long?>` 234-250 / 250 / 193, a class with that list second 234-256 / 250 / 195, `int?[,]` 122 / 122 / 114,
+  `int?[]` 130 / 130 / 116 (at a 28-byte phase c1ccaebf 139, this 135); where elements start a line all three
+  164 / 168 / 102 (`long?`, `Vec3?`, `int?`);
+  a copy of the bytes 116 and 62; the 16-byte struct into a writer 3.34-3.40 in all. Not 24 bytes: its kernel is
+  already four or five operations a vector (`vpermb` and `vpermt2b` for the flags) and the realigned period took
+  513 against 510-560. AVX2 has no one-uop dword shift across a 32-byte vector, so it keeps the split stores. What
+  is left to a copy is the kernel's ALU work: four operations a vector on ports 0 and 5 (`vpshufb`, `vgf2p8mulb`,
+  `vpermt2d`, and for 8 bytes the masked AND) against none. Short runs (under 256 elements) could not be timed on
+  that shared machine: identical processes read 19 or 298 ns for 128 `int?`, so the gate is the alignment
+  rule's 8 vectors, not a measured threshold.
 - Do not move where Nino's own buffer starts to align a run (`NinoArrayBufferWriter.Start`/`Lead`, 9d97ff20,
   reverted): it puts a top-level collection's slots on a line's start, and runner A/B 43660200531 measured that as
   20 to 36 % on Xeon 8573C / 6975P-C and 8 to 20 % on EPYC 9V74 (`NullableLongs` 191 -> 151 ns), nothing on
@@ -360,8 +374,8 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   two-vector permutation at the destination's phase (`NinoMask.CopyCleared`, five operations a vector) took 143 to
   164, 275 to 350, 280 and 605; on 32-byte vectors a second load 4 bytes back for the flags of an 8-byte stride
   took 213 against 180 with GFNI and 212 to 240 against 204 to 209 without (`DOTNET_EnableAVX512=0`). Arm64 needs
-  none: the lead changed nothing on Neoverse-N2. Still owed (#282): one `vpermt2d` of each dword's flag at the
-  destination's phase, 8 % for `long?` in a standalone kernel.
+  none: the lead changed nothing on Neoverse-N2. What took back most of it for strides 2 to 16 is the realignment
+  of the results (`vpermt2d`, the bullet above).
 - Keep 24-byte slots on `CopyLanes` (three whole vectors a step), not on the permutation of whole elements
   (`NinoMask.CopyCleared`'s overlapping form, 48 bytes a step, so no store is ever aligned): 1,000 `decimal?` 482 to 532 ns against 584 to 715
   at every position, 393 against 583 on a line's start (local); ee3456d4, which moved them, measured 0.999 to 1.027
@@ -429,3 +443,9 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   2.8 cycles for two elements on neoverse-n2 against 3.9 with the sign shifted down, 4.5 for `tbl`/`mul` over three
   vectors). Words for 16 bytes model at 2.4 against 3.0 on neoverse-n2 and 1.7 against 2.0 on neoverse-v2 but 4.0
   on neoverse-n1 and apple-m1: not taken. None timed on hardware: owed a runner A/B.
+- Time end to end with one non-generic call site per case and many short rounds that interleave every case and
+  destination phase, keeping each one's minimum. Why: through one generic lambda `NinoSerializer.Serialize<T>` ran
+  as shared code whose profile depended on the case mix (a 16,000-byte copy read 115 ns in one process and 871 in
+  the next), a single destination phase per process left the profile one-sided (1 KB copied in 110 ns, 14-15 with
+  ten phases mixed), and back-to-back rounds carried a busy sibling hyperthread into every round of one case. With
+  both fixes three processes a build agreed within 2 % at 1,000 elements.
