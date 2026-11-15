@@ -221,7 +221,7 @@ internal static class LayoutRules
             {
                 if (!m.Same(member, same))
                     findings.Add(Breaking(same.Name,
-                        $"changed what key {keyText} is written as from {member.Encoding} to {same.Encoding}",
+                        $"changed what key {keyText} is written as {FromTo(member, same)}",
                         "give the member a new name (a new key) and keep the old one, or " + Accept));
                 continue;
             }
@@ -231,7 +231,7 @@ internal static class LayoutRules
             {
                 if (!m.Same(member, renamed))
                     findings.Add(Breaking(renamed.Name,
-                        $"is read from '{member.Name}' (key {keyText}, its [NinoFormerName]), but changed what it is written as from {member.Encoding} to {renamed.Encoding}",
+                        $"is read from '{member.Name}' (key {keyText}, its [NinoFormerName]), but changed what it is written as {FromTo(member, renamed)}",
                         Accept));
                 else
                     findings.Add(new LayoutFinding(LayoutSeverity.Info, renamed.Name,
@@ -293,7 +293,7 @@ internal static class LayoutRules
                     $"keep the member (mark it [NinoIgnore] only once no data holds it), or {Accept}"));
             else if (!m.Same(old.Members[i], now.Members[match[i]]))
                 findings.Add(Breaking(now.Members[match[i]].Name,
-                    $"changed what it is written as from {old.Members[i].Encoding} to {now.Members[match[i]].Encoding}",
+                    $"changed what it is written as {FromTo(old.Members[i], now.Members[match[i]])}",
                     $"add a new member at the end instead, or {Accept}"));
         }
 
@@ -337,7 +337,7 @@ internal static class LayoutRules
             if (m.Same(old.Members[i], now.Members[i]))
                 continue;
             findings.Add(Breaking(now.Members[i].Name,
-                $"is written as {now.Members[i].Encoding} where '{old.Members[i].Name}' was written as {old.Members[i].Encoding} (a positional type, held by stored data, writes its members in order with nothing to tell them apart)",
+                $"is written as {now.Members[i].Encoding} where '{old.Members[i].Name}' was written as {old.Members[i].Encoding}{Formats(old.Members[i], now.Members[i])} (a positional type, held by stored data, writes its members in order with nothing to tell them apart)",
                 $"make the type version tolerant or keyed if it changes, or {Accept}"));
             return;
         }
@@ -395,6 +395,28 @@ internal static class LayoutRules
 
             return true;
         }
+    }
+
+    /// <summary>
+    /// "from <c>old</c> to <c>now</c>" of a member's encodings, with why where the member went between <c>T?</c> and
+    /// <c>NinoNullable&lt;T&gt;</c>: the two read as one type and are two formats, and the encodings alone
+    /// (<c>raw(24){...}</c> against <c>raw(32){...}</c>) do not say that the type's own bytes are the difference.
+    /// </summary>
+    private static string FromTo(LayoutMember old, LayoutMember now) =>
+        $"from {old.Encoding} to {now.Encoding}{Formats(old, now)}";
+
+    /// <summary>The clause of <see cref="FromTo"/> for a member that went between the two types, else nothing.</summary>
+    private static string Formats(LayoutMember old, LayoutMember now)
+    {
+        const string Nullable = "System.Nullable<", NinoNullable = "Nino.Core.NinoNullable<";
+        bool between = old.Type.Contains(Nullable) && now.Type.Contains(NinoNullable) ||
+                       old.Type.Contains(NinoNullable) && now.Type.Contains(Nullable);
+        return between
+            ? " (T? and NinoNullable<T> are two formats: a NinoNullable<T> is two T, its presence and its value; a " +
+              "T? is a presence byte and the value when there is one, or in a collection T's alignment and a T. " +
+              "Only a collection of a T as large as its alignment, such as long, is the same bytes; convert the " +
+              "values where old data must be read)"
+            : "";
     }
 
     /// <summary><paramref name="encoding"/> with every raw struct's size and fields left out (<c>raw(8){...}</c> → <c>raw</c>).</summary>
