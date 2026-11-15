@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <Nullable>disable</Nullable>
-        <TargetFrameworks>netstandard2.1;net8.0</TargetFrameworks>
+        <TargetFrameworks>netstandard2.1;net8.0;net10.0</TargetFrameworks>
         <PackageId>Nino.Immutable</PackageId>
         <Description>Nino formatters for System.Collections.Immutable (ImmutableArray, ImmutableList, ImmutableHashSet, ImmutableSortedSet, ImmutableQueue, ImmutableStack, ImmutableDictionary, ImmutableSortedDictionary).</Description>
         <PackageTags>Nino;Serialization;Binary;Immutable</PackageTags>
@@ -10,9 +10,9 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
-    <!-- Trim and NativeAOT safe, like Nino.Core: the analyzers check the net8.0 build (netstandard2.1 has no
-         annotations to check). -->
-    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <!-- Trim and NativeAOT safe, like Nino.Core: the analyzers check the net8.0 and net10.0 builds (netstandard2.1 has
+         no annotations to check). -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net10.0'">
         <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
