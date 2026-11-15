@@ -100,7 +100,7 @@ namespace Nino.Core.Internal
             CopyFlagsBest(ref target, ref source, bytes, Vector128.Create(0xFEFE_FEFE_FEFE_FEFEUL));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool CopyFlagsBest(ref byte target, ref byte source, int bytes, Vector128<ulong> mask)
+        internal static bool CopyFlagsBest(ref byte target, ref byte source, int bytes, Vector128<ulong> mask)
         {
             if (NinoSimd.Prefer512)
                 return CopyFlags<Vector512<byte>, NinoVectors512>(ref target, ref source, bytes, mask);
