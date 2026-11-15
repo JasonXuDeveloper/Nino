@@ -1,0 +1,1 @@
+Fixed: nino-gen's TypeScript code for a type holding a list of lists or of maps read with `deserializeInto` now compiles (it failed with TS2345).
