@@ -340,3 +340,7 @@
 # since every top-level call resets a buffer. With the floor.
 # done (run 43660200531): cpu='EPYC|Xeon|Neoverse' df8a40f2 fcf4da23 4 *CollectionsTest.NinoSerializeNullable* *NullableTest.NinoSerialize* *SimpleTest.Nino*
 # done (run 43660200531): cpu='EPYC|Xeon|Neoverse' df8a40f2 df8a40f2 3 *CollectionsTest.NinoSerializeNullable* *NullableTest.NinoSerialize* *SimpleTest.Nino*
+
+# Every nullable form beside MemoryPack on the head (raw [NinoType] structs with T? members 85962450), for the
+# audit of what still trails it.
+cpu='EPYC|Xeon|Neoverse' 5094e1d0 5094e1d0 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
