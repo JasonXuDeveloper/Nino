@@ -85,6 +85,61 @@ namespace Nino.UnitTests
             }
         }
 
+        public struct HoldsTwo { public int Id; public long? Total; public double? Score; }
+        public struct HoldsDecimal { public int Id; public decimal? Price; }
+        public struct HoldsSmall { public byte A; public short? B; public int? C; public byte? D; }
+        public struct HoldsNested { public int Id; public HoldsDecimal? Inner; }
+
+        /// <summary>
+        /// A run of raw structs that hold <c>T?</c> fields is the bytes of each written alone, wherever whole
+        /// vectors of them are cleared in one step (padding and absent values by one multiplication, AVX-512) and
+        /// for the elements after them: stale memory in the padding and in the absent values never reaches the
+        /// bytes, a value inside another's (which that step refuses) included.
+        /// </summary>
+        [TestMethod]
+        public void RunsOfStructsHoldingNullablesClearEachValue()
+        {
+            Each(i => new HoldsTwo { Id = i, Total = i % 5 == 0 ? null : i * 3L, Score = i % 3 == 0 ? null : i + 0.5 });
+            Each(i => new HoldsDecimal { Id = -i, Price = i % 4 == 1 ? null : i + 0.25m });
+            Each(i => new HoldsSmall { A = (byte)i, B = i % 2 == 0 ? null : (short)-i, C = i % 3 == 0 ? null : i, D = i % 7 == 0 ? null : (byte)i });
+            Each(i => new HoldsNested { Id = i, Inner = i % 3 == 0 ? null : new HoldsDecimal { Id = i, Price = i % 2 == 0 ? null : 1.5m } });
+
+            static void Each<T>(Func<int, T> make) where T : unmanaged
+            {
+                int size = Unsafe.SizeOf<T>();
+                foreach (int count in new[] { 1, 2, 3, 5, 16, 17, 100, 1001 })
+                {
+                    var values = new T[count];
+                    var memory = MemoryMarshal.AsBytes(values.AsSpan());
+                    var expected = new byte[4 + count * size];
+                    BitConverter.TryWriteBytes(expected, count);
+                    var info = Nino.Core.Internal.NinoLayout<T>.Info;
+                    for (int i = 0; i < count; i++)
+                    {
+                        values[i] = make(i);
+                        byte[] one = NinoSerializer.Serialize(values[i]);
+                        Assert.AreEqual(size, one.Length);
+                        one.CopyTo(expected, 4 + i * size);
+                        // Old bytes in the padding and under each absent value (inner ones first, so an absent
+                        // outer value covers them).
+                        var element = memory.Slice(i * size, size);
+                        for (int b = 0; b < size; b++)
+                            if (info.Mask != null && info.Mask[b] == 0)
+                                element[b] = 0xA5;
+                        for (int a = 0; a < info.Absent.Length; a += 3)
+                            if (element[info.Absent[a]] == 0)
+                                element.Slice(info.Absent[a + 1], info.Absent[a + 2]).Fill(0x5A);
+                    }
+
+                    CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values), $"{typeof(T).Name}[{count}]");
+                    CollectionAssert.AreEqual(expected,
+                        NinoSerializer.Serialize(new System.Collections.Generic.List<T>(values)), "List");
+                    CollectionAssert.AreEqual(expected,
+                        NinoSerializer.Serialize(NinoDeserializer.Deserialize<T[]>(expected)), "read back and written");
+                }
+            }
+        }
+
         private const string Source = @"
 using System.Collections.Generic;
 using Nino.Core;
