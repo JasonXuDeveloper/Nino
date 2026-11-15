@@ -355,4 +355,9 @@
 # done (run 43714421476): cpu='EPYC|Xeon|Neoverse' 0ec9f5af 6df65975 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *SimpleTest.Nino*
 # Writes of raw struct runs holding T? fields without VBMI cleared in the masked copy's pass (56346978), raw T? runs read
 # by the checking copy on AMD and Arm64 (aa686088), against 779e01fd. The CPUs without VBMI decide (7763, 8370C, N2).
-cpu='EPYC|Xeon|Neoverse' 779e01fd aa686088 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# done (run 43739748813): cpu='EPYC|Xeon|Neoverse' 779e01fd aa686088 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
+# Polymorphic and class bodies, dictionaries and sets against aa686088 (#305): HashSet refilled in place (6adc0647),
+# ObservableCollection read into its list (428634e1), the dispatch's raw subtypes reserved inline (46df2c82, 2043ec21),
+# raw class bodies copied as one block both ways (39e26e27, 0d46d3f0), dictionary pairs from the entries array and
+# string keys into free space (53d7a97d). MemoryPack rides along as the floor.
+cpu='EPYC|Xeon|Neoverse' aa686088 53d7a97d 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino* *SimpleTest.MemoryPack* *CollectionsTest.*Dictionary *CollectionsTest.*HashSet *CollectionsTest.*Observable*
