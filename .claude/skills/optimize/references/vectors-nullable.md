@@ -447,7 +447,8 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   against 0.8 and 0.6 for MemoryPack (run 43714421476); locally with AVX-512 disabled 3.6 us became 2.1 to 2.4, the
   extra vector load and four ALU operations still a cycle a vector over the plain masked copy (1.2). Not kept: a
   second pass per 2 KB chunk with the offsets as `NinoLayout<T>` constants and branchless clears (2.44 us, the same
-  gain for a second mechanism).
+  gain for a second mechanism). Runner A/B 43739748813 (56346978): RawNullables serialize 3,293 to 1,299 ns on EPYC
+  7763 and 3,091 to 2,396 on Neoverse-N2, unchanged on the VBMI CPUs; still 1.6x and 4.1x MemoryPack's there.
 - Write a `T?` run that no vector clears across elements an element at a time, in pieces that tile it
   (`NinoNullables.CopyPieces`: vectors of 64, 32 and 16 bytes, then one word of 8, 4, 2 and 1 bytes as its length
   needs), each ANDed with the element's flag spread over it, on every ISA with plain ANDs: stores in address order,
