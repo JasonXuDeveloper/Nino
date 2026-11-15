@@ -87,7 +87,7 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            if (NinoElements.WritesOnLocal<T>())
+            if (NinoElements.WritesOnLocal<T, TFormatter>())
                 writer = WriteEnumerated<T, TFormatter>(values, count, writer);
             else
                 WriteEnumerated<T, TFormatter>(values, count, ref writer);
