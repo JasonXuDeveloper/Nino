@@ -8,6 +8,7 @@ using Nino.Core.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
 #endif
 
 namespace Nino.Core.Internal
@@ -29,6 +30,12 @@ namespace Nino.Core.Internal
 #endif
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
         private readonly int[] _absent; // NinoLayout.Info.Absent: values cleared when their flag is 0
+#if NET10_0_OR_GREATER
+        // CopyCleared: the whole elements a 64-byte vector holds (0: not taken), and for each of its bytes the byte
+        // of its value's flag (_flagIndex, kept by _flagged) or 1 for a byte kept whatever the data (_kept).
+        private readonly int _perVector;
+        private readonly Vector512<byte> _flagIndex, _flagged, _kept;
+#endif
 #if !NET8_0_OR_GREATER
         // For the registered kernels (NinoKernels.Permute): each byte from itself, padding cleared (0xFF). Zero for
         // elements above 64 bytes.
@@ -85,6 +92,9 @@ namespace Nino.Core.Internal
                 }
             }
 #endif
+#if NET10_0_OR_GREATER
+            _perVector = ClearedPlan(mask, absent, out _flagIndex, out _flagged, out _kept);
+#endif
             var words = Repeat(mask, 8, 0, out _);
             _words = new ulong[words.Length / 8];
             for (int i = 0; i < _words.Length; i++)
@@ -140,10 +150,96 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public void Copy(ref byte destination, ref byte source, int count)
         {
+#if NET10_0_OR_GREATER
+            if (_perVector != 0 && count * _mask.Length >= 64)
+            {
+                // The elements that fill whole vectors; the last few take the path below.
+                int done = CopyCleared(ref destination, ref source, count * _mask.Length);
+                count -= done;
+                if (count == 0)
+                    return;
+                destination = ref Unsafe.Add(ref destination, done * _mask.Length);
+                source = ref Unsafe.Add(ref source, done * _mask.Length);
+            }
+#endif
             CopyMasked(ref destination, ref source, count);
             if (_absent != null)
                 ClearAbsent(ref destination, count);
         }
+
+#if NET10_0_OR_GREATER
+        /// <summary>
+        /// Whether elements that hold <c>Nullable</c> values are copied with their padding and their absent values
+        /// cleared by one multiplication a vector (<see cref="CopyCleared"/>), and how: the whole elements a vector
+        /// holds, else 0. Needs a permutation across the vector (AVX-512 VBMI) and GFNI, an element of 64 bytes at
+        /// most, a mask of whole bytes, and no value inside another's (a byte would follow two flags).
+        /// </summary>
+        private static int ClearedPlan(byte[] mask, int[] absent, out Vector512<byte> flagIndex,
+            out Vector512<byte> flagged, out Vector512<byte> kept)
+        {
+            flagIndex = flagged = kept = default;
+            int length = mask.Length;
+            if (absent == null || length > 64 || !Avx512Vbmi.IsSupported || !Gfni.V512.IsSupported)
+                return 0;
+            // The flag each byte of an element follows: -1 none (kept or cleared by the mask alone).
+            var flagOf = new int[length];
+            flagOf.AsSpan().Fill(-1);
+            for (int i = 0; i < absent.Length; i += 3)
+                for (int b = absent[i + 1]; b < absent[i + 1] + absent[i + 2]; b++)
+                {
+                    if (flagOf[b] >= 0)
+                        return 0;
+                    flagOf[b] = absent[i];
+                }
+
+            int perVector = 64 / length;
+            byte[] index = new byte[64], follows = new byte[64], keeps = new byte[64];
+            for (int i = 0; i < perVector * length; i++)
+            {
+                int at = i % length;
+                if (mask[at] == 0)
+                    continue;
+                if (mask[at] != 0xFF || flagOf[at] >= 0 && (mask[flagOf[at]] != 0xFF || flagOf[flagOf[at]] >= 0))
+                    return 0;
+                if (flagOf[at] < 0)
+                {
+                    keeps[i] = 1;
+                    continue;
+                }
+
+                index[i] = (byte)(i - at + flagOf[at]);
+                follows[i] = 0xFF;
+            }
+
+            flagIndex = Vector512.Create(index);
+            flagged = Vector512.Create(follows);
+            kept = Vector512.Create(keeps);
+            return perVector;
+        }
+
+        /// <summary>
+        /// Copies the elements of <paramref name="total"/> bytes that fill whole 64-byte loads and stores, and returns
+        /// how many: each byte multiplied in GF(2^8) by its value's flag (1 keeps it, 0 clears it), by 1 where it is
+        /// kept whatever the data and by 0 where it is padding, the flags gathered by one permutation. A store writes
+        /// the whole vector; what lies past its whole elements is written again by the next one or by the caller.
+        /// Element by element after the masked copy, the absent values of 1,000 structs of an int, a long? and a
+        /// double? took three times the copy (3,344 ns against 1,126 for the same struct without them, local).
+        /// </summary>
+        private int CopyCleared(ref byte destination, ref byte source, int total)
+        {
+            int step = _perVector * _mask.Length;
+            Vector512<byte> index = _flagIndex, flagged = _flagged, kept = _kept;
+            int i = 0;
+            for (; i + 64 <= total; i += step)
+            {
+                var elements = Vector512.LoadUnsafe(ref source, (nuint)i);
+                var by = Avx512Vbmi.PermuteVar64x8(elements, index) & flagged | kept;
+                Gfni.V512.GaloisFieldMultiply(elements, by).StoreUnsafe(ref destination, (nuint)i);
+            }
+
+            return i / _mask.Length;
+        }
+#endif
 
         /// <summary>
         /// Zeroes the <c>Nullable</c> values without one in <paramref name="count"/> elements, after their bytes are in
