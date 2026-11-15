@@ -164,4 +164,7 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   call (random 10 µs even in the probe). Writing only the first subtype (3.9 µs) against only the 19th (6.9) did not
   change with the table, so that difference is the 19th subtype's larger body, not its place in the chain: close the
   gap in the bodies (`WriteRawBody`), not in the dispatch. The read side's switch on ids measured the same way
-  (`DispatchEmitter.EmitReadSwitch`).
+  (`DispatchEmitter.EmitReadSwitch`). Nor through a table of delegates, one generated lambda per subtype found by that hash (what injecting a
+  virtual method gives LuminPack without making the user's classes partial): 5.0 to 5.7 us for the same list,
+  fixed order, since each element pays a delegate call and the writer's cursor goes back to memory across it
+  (local x64, after 98518d32).
