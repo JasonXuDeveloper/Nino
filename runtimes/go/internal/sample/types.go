@@ -290,6 +290,23 @@ type NinoNullables struct {
 	FieldsArray  []NinoNullableFields                                 `nino:"15" json:"fieldsArray" yaml:"fieldsArray"`
 }
 
+// RawOptional is a raw struct holding nullables, each where it lies in .NET's memory: Id at 0, Total (a long?: flag at
+// 8, value at 16), Price (a decimal?: flag at 24, value at 32), Count (a NinoNullable<int>) at 48, 56 bytes.
+type RawOptional struct {
+	Id    int32                    `nino:"0" json:"id" yaml:"id"`
+	Total *int64                   `nino:"1" json:"total" yaml:"total"`
+	Price *nino.Decimal            `nino:"2" json:"price" yaml:"price"`
+	Count nino.NinoNullable[int32] `nino:"3" json:"count" yaml:"count"`
+}
+
+// RawOptionals is RawOptional as a member, in sequences and as the value of a nullable member.
+type RawOptionals struct {
+	One   RawOptional   `nino:"0" json:"one" yaml:"one"`
+	Array []RawOptional `nino:"1" json:"array" yaml:"array"`
+	List  []RawOptional `nino:"2" json:"list" yaml:"list"`
+	Maybe *RawOptional  `nino:"3" json:"maybe" yaml:"maybe"`
+}
+
 // NinoNullableRuns is runs of NinoNullable<T> of a T as large as its alignment: the bytes of the T? runs.
 type NinoNullableRuns struct {
 	LongArray []nino.NinoNullable[int64] `nino:"0" json:"longArray" yaml:"longArray"`

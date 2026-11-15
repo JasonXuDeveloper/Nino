@@ -234,7 +234,8 @@ class Gen:
             if name.startswith(NINO_NULLABLE):
                 return f"nino::NinoNullable<{self.rust(c[1][0], ('raw', None, None))}>"
             if name.startswith(NULLABLE):
-                raise ValueError(name)
+                # A T? field of a raw struct: its slot there (the specification, 6.2), `Raw for Option<T>`.
+                return f"Option<{self.rust(c[1][0], ('raw', None, None))}>"
             return self.raw_struct(name)
         if kind == "string":
             return "Option<nino::WideString>" if (owner, member) in WIDE_STRINGS else "Option<String>"
@@ -334,8 +335,11 @@ class Gen:
     def leaf_align(self, ftype, fenc):
         if ftype in self.layouts and self.layouts[ftype]["raw"] == "true":
             return self.struct_align(ftype)
-        if re.match(r"System\.(ValueTuple|Collections\.Generic\.KeyValuePair|Nullable|DateTimeOffset)\b", ftype):
+        if re.match(r"System\.(ValueTuple|Collections\.Generic\.KeyValuePair|DateTimeOffset)\b", ftype):
             raise ValueError(f"{ftype}: a BCL struct in a raw struct, left to the code nino-gen writes")
+        if ftype.startswith(NULLABLE):
+            # A T? slot is aligned as its T, which is where it publishes its value.
+            return int(re.search(r"value:[^@]+@(\d+):", fenc[2]).group(1))
         if ftype.startswith(NINO_NULLABLE):
             return self.leaf_align(ftype[len(NINO_NULLABLE):-1], ("raw", fenc[1] // 2, None))
         return LEAF_ALIGNS.get(ftype, fenc[1])

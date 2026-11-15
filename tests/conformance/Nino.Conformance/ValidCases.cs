@@ -346,6 +346,22 @@ namespace Conformance
                     },
                 }, "raw-struct", "struct", "seq");
 
+            Add("struct-root-raw-optional", "A raw [NinoType] struct that holds nullables, at the top level: its " +
+                                            "memory, each nullable where it lies, padding and absent values zero.",
+                new RawOptional { Id = 7, Total = null, Price = 1.5m, Count = 3 }, "raw-struct", "nullable");
+            Add("struct-raw-optionals", "Raw structs that hold nullables as a member, in an array and a list, and " +
+                                        "as the value of a nullable member (a presence byte, then the struct).",
+                new RawOptionals
+                {
+                    One = new RawOptional { Id = 1, Total = long.MinValue },
+                    Array = new[]
+                    {
+                        new RawOptional { Id = 2, Total = 5, Price = -0.001m, Count = -1 }, default,
+                        new RawOptional { Id = 3, Count = int.MaxValue },
+                    },
+                    List = new List<RawOptional> { new() { Price = decimal.MaxValue } },
+                    Maybe = new RawOptional { Id = 4, Total = 0 },
+                }, "raw-struct", "nullable", "seq");
             Add("struct-root-raw", "A raw struct at the top level: its bytes alone, no header.",
                 new Padded { A = 1, B = -2 }, "raw-struct");
             Add("struct-root-nested-raw", "A raw struct holding raw structs at the top level.", new Nested

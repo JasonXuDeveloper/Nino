@@ -31,6 +31,7 @@ var (
 	nullableSequencesClass nino.Class[NullableSequences]
 	ninoNullablesClass     nino.Class[NinoNullables]
 	ninoNullableRunsClass  nino.Class[NinoNullableRuns]
+	rawOptionalsClass      nino.Class[RawOptionals]
 	emptyClass             nino.Class[Empty]
 	emptiesClass           nino.Class[Empties]
 )
@@ -55,6 +56,7 @@ func init() {
 	nullableSequencesClass = nino.Class[NullableSequences]{Read: readNullableSequencesBody, Write: writeNullableSequencesBody, Deferrable: true}
 	ninoNullablesClass = nino.Class[NinoNullables]{Read: readNinoNullablesBody, Write: writeNinoNullablesBody, Deferrable: true}
 	ninoNullableRunsClass = nino.Class[NinoNullableRuns]{Read: readNinoNullableRunsBody, Write: writeNinoNullableRunsBody, Deferrable: true}
+	rawOptionalsClass = nino.Class[RawOptionals]{Read: readRawOptionalsBody, Write: writeRawOptionalsBody, Deferrable: true}
 	emptyClass = nino.Class[Empty]{Read: func(*nino.Reader, *Empty) {}, Write: func(*nino.Writer, *Empty) {}, Deferrable: true}
 	emptiesClass = nino.Class[Empties]{Read: readEmptiesBody, Write: writeEmptiesBody, Deferrable: true}
 }
@@ -119,6 +121,8 @@ func ReadNinoNullableRuns(r *nino.Reader) *NinoNullableRuns {
 func WriteNinoNullableRuns(w *nino.Writer, v *NinoNullableRuns) {
 	nino.WriteSealed(w, v, &ninoNullableRunsClass)
 }
+func ReadRawOptionals(r *nino.Reader) *RawOptionals     { return nino.ReadSealed(r, &rawOptionalsClass) }
+func WriteRawOptionals(w *nino.Writer, v *RawOptionals) { nino.WriteSealed(w, v, &rawOptionalsClass) }
 
 func readIntegersBody(r *nino.Reader, v *Integers) {
 	b := r.Take(62)
@@ -712,6 +716,33 @@ func encodeStridePadded(b []byte, v *Padded) {
 	}
 }
 
+// decimalAt is the decimal at the start of b, checked as (*nino.Reader).Decimal checks one.
+func decimalAt(r *nino.Reader, b []byte) nino.Decimal {
+	x := nino.DecimalAt(b)
+	if !x.Valid() {
+		r.Fail(nino.CodeInvalidData, "invalid decimal")
+		return nino.Decimal{}
+	}
+	return x
+}
+
+func decodeStrideDecimal(r *nino.Reader, b []byte) *nino.Decimal {
+	_ = b[23]
+	if !r.BoolAt(b[0]) {
+		return nil
+	}
+	x := decimalAt(r, b[8:])
+	return &x
+}
+
+func encodeStrideDecimal(b []byte, v *nino.Decimal) {
+	_ = b[23]
+	if v != nil {
+		b[0] = 1
+		v.Put(b[8:])
+	}
+}
+
 func readNullablesBody(r *nino.Reader, v *Nullables) {
 	v.Int = readNullableInt32(r)
 	if r.Present() {
@@ -972,12 +1003,7 @@ func decodeNinoNullableDecimal(r *nino.Reader, b []byte) nino.NinoNullable[nino.
 	if !r.NinoNullableAt(b[0:16], b[16:32]) {
 		return nino.NinoNullable[nino.Decimal]{}
 	}
-	x := nino.DecimalAt(b[16:])
-	if !x.Valid() {
-		r.Fail(nino.CodeInvalidData, "invalid decimal")
-		return nino.NinoNullable[nino.Decimal]{}
-	}
-	return nino.NinoNullableOf(x)
+	return nino.NinoNullableOf(decimalAt(r, b[16:]))
 }
 
 func encodeNinoNullableDecimal(b []byte, v nino.NinoNullable[nino.Decimal]) {
@@ -999,6 +1025,45 @@ func encodeNinoNullableFields(b []byte, v NinoNullableFields) {
 	b[0] = v.Tag
 	encodeNinoNullableInt32(b[4:12], v.Count)
 	encodeNinoNullableDecimal(b[16:48], v.Price)
+}
+
+// RawOptional: a raw struct's nullables are the slots they are in a sequence, at the offsets .NET's memory gives
+// them: Id, 4 bytes of padding, Total at 8 (16 bytes), Price at 24 (24 bytes), Count at 48 (8 bytes).
+func decodeRawOptional(r *nino.Reader, b []byte) RawOptional {
+	_ = b[55]
+	return RawOptional{
+		Id:    int32(le.Uint32(b)),
+		Total: decodeStrideInt64(r, b[8:24]),
+		Price: decodeStrideDecimal(r, b[24:48]),
+		Count: decodeNinoNullableInt32(r, b[48:56]),
+	}
+}
+
+func encodeRawOptional(b []byte, v RawOptional) {
+	_ = b[55]
+	le.PutUint32(b, uint32(v.Id))
+	encodeStrideInt64(b[8:24], v.Total)
+	encodeStrideDecimal(b[24:48], v.Price)
+	encodeNinoNullableInt32(b[48:56], v.Count)
+}
+
+func readRawOptionalsBody(r *nino.Reader, v *RawOptionals) {
+	v.One = readRawOptional(r)
+	v.Array = readRawOptionalSlice(r)
+	v.List = readRawOptionalSlice(r)
+	if r.Present() {
+		x := readRawOptional(r)
+		v.Maybe = &x
+	}
+}
+
+func writeRawOptionalsBody(w *nino.Writer, v *RawOptionals) {
+	writeRawOptional(w, v.One)
+	writeRawOptionalSlice(w, v.Array)
+	writeRawOptionalSlice(w, v.List)
+	if w.Present(v.Maybe != nil); v.Maybe != nil {
+		writeRawOptional(w, *v.Maybe)
+	}
 }
 
 func readNinoNullablesBody(r *nino.Reader, v *NinoNullables) {
@@ -1085,6 +1150,8 @@ func ReadPadded(r *nino.Reader) Padded               { return readPadded(r) }
 func WritePadded(w *nino.Writer, v Padded)           { writePadded(w, v) }
 func ReadNested(r *nino.Reader) Nested               { return readNested(r) }
 func WriteNested(w *nino.Writer, v Nested)           { writeNested(w, v) }
+func ReadRawOptional(r *nino.Reader) RawOptional     { return readRawOptional(r) }
+func WriteRawOptional(w *nino.Writer, v RawOptional) { writeRawOptional(w, v) }
 func ReadLabel(r *nino.Reader) Label                 { return readLabel(r) }
 func WriteLabel(w *nino.Writer, v Label)             { writeLabel(w, v) }
 func ReadEmptyStruct(r *nino.Reader) EmptyStruct     { return readEmptyStruct(r) }

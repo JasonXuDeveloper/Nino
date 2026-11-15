@@ -1,6 +1,6 @@
 # Nino v4 wire format
 
-**Specification version 4.6 (draft), for Nino 4.0.0-rc.10.**
+**Specification version 4.7 (draft), for Nino 4.0.0-rc.11.**
 
 This document specifies the bytes Nino v4 writes and reads. A reader and a writer built from it, in any language,
 exchange data with the .NET implementation (`Nino.Core` plus the code `Nino.Generator` emits). Every rule here was
@@ -356,6 +356,10 @@ raw:
    raw too. Its layout metadata has `raw=true`. A closed generic `[NinoType]` struct (`Pad<int>`) is raw exactly
    when its definition is, whatever its type arguments: a field of a type parameter makes every instance member by
    member, as the definition's layout metadata says.
+   A `T?` field (`T` raw) and a `NinoNullable<T>` field do not make it member by member: they are part of its raw
+   bytes, the `T?` in the canonical `Nullable<T>` layout of §5.2 (the element of §6.2: a flag byte, padding to `T`'s
+   alignment, the value, all `0` when there is none), not the presence byte and optional value a `T?` member of a
+   member-by-member type takes (§6.5).
 
 Every other struct is written member by member (§7.4), with no padding.
 
@@ -441,6 +445,8 @@ runtime that writes or reads it. Implementations MUST compute it as follows (`Ni
 | `{ int A; nint B; }` = `{1, -1}` | `01 00 00 00 00 00 00 00 FF FF FF FF FF FF FF FF` (16, on every host) |
 | `{ byte A; Vector256<long> B; }` = `{1, (1, 2, 3, 4)}` | `01`, 31 × `00`, `\|`, `01`, 7 × `00`, `02`, 7 × `00`, `03`, 7 × `00`, `04`, 7 × `00` (64) |
 | `[NinoType] { int X; byte Y; }` = `{1, 2}` | `01 00 00 00 02 00 00 00` (8) |
+| `[NinoType] { int Id; long? Total; }` = `{1, 2}` | `01 00 00 00 00 00 00 00 \| 01 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00` (24) |
+| same, `Total` = null | `01 00 00 00`, 20 × `00` (24) |
 
 The bytes of a raw value are copied as they are. Readers MUST NOT normalize them: a `bool` field holding `2` is
 written as `02`.
@@ -589,8 +595,8 @@ PriorityQueue {("a",2), ("b",1)}    02 00 00 00 | 03 62 01 00 00 00 | 03 61 02 0
 ### 6.5 Nullable values, `Lazy<T>` and `Tuple<...>`
 
 - `T?` (a nullable value type): a presence byte, then `T` when present. This holds at every place a single `T?`
-  appears: members, the keys and values of maps, the items of pairs and tuples. The elements of a sequence are the
-  only exception, where `T` is raw (§6.2).
+  appears: members, the keys and values of maps, the items of pairs and tuples. The exceptions, where `T` is raw, are
+  the places a `T?` is copied as memory: the elements of a sequence (§6.2) and the fields of a raw struct (§5.1).
 - `Lazy<T>`: the same as `T?`, holding the lazy's `Value`.
 - `Tuple<T1, ...>` (a class): a presence byte, then the items in order.
 

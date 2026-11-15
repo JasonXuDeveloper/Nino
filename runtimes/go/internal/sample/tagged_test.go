@@ -54,6 +54,8 @@ var tagRoots = map[string]reflect.Type{
 	"Conformance.Vec2":              reflect.TypeFor[Vec2](),
 	"Conformance.Padded":            reflect.TypeFor[Padded](),
 	"Conformance.Nested":            reflect.TypeFor[Nested](),
+	"Conformance.RawOptional":       reflect.TypeFor[RawOptional](),
+	"Conformance.RawOptionals":      reflect.TypeFor[*RawOptionals](),
 	"Conformance.Label":             reflect.TypeFor[Label](),
 	"Conformance.KeyedStruct":       reflect.TypeFor[KeyedStruct](),
 	"Conformance.EmptyStruct":       reflect.TypeFor[EmptyStruct](),

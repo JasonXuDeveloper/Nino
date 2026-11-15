@@ -369,6 +369,30 @@ function writePadded(w: NinoWriter, at: number, v: Padded): void {
   w.view.setBigInt64(at + 8, v.B, true);
 }
 
+/** `Conformance.RawOptional`, copied as raw memory (56 bytes). */
+export class RawOptional {
+  Id: number = 0;
+  Total: bigint | null = null;
+  Price: string | null = null;
+  Count: NinoNullable<number> = null;
+}
+
+function readRawOptional(r: NinoReader, at: number): RawOptional {
+  const v = new RawOptional();
+  v.Id = r.view.getInt32(at, true);
+  v.Total = (r.presentAt(at + 8) ? r.view.getBigInt64(at + 16, true) : null);
+  v.Price = (r.presentAt(at + 24) ? r.decimalAt(at + 32) : null);
+  v.Count = (r.ninoNullableAt(at + 48, 4) ? r.view.getInt32(at + 52, true) : null);
+  return v;
+}
+
+function writeRawOptional(w: NinoWriter, at: number, v: RawOptional): void {
+  w.view.setInt32(at, v.Id, true);
+  if (v.Total !== null && v.Total !== undefined) { w.view.setUint8(at + 8, 1); w.view.setBigInt64(at + 16, v.Total, true); }
+  if (v.Price !== null && v.Price !== undefined) { w.view.setUint8(at + 24, 1); w.decimalAt(at + 32, v.Price); }
+  if (v.Count !== null && v.Count !== undefined) { w.view.setUint8(at + 48, 1); w.view.setInt32(at + 52, v.Count, true); }
+}
+
 /** `Conformance.Sized`, copied as raw memory (16 bytes). */
 export class Sized {
   A: number = 0;
@@ -2006,6 +2030,39 @@ function writeBody$PointList(w: NinoWriter, v: PointList): void {
   write$31(w, v.Values);
 }
 
+/** `Conformance.RawOptionals`. */
+export class RawOptionals {
+  One: RawOptional = new RawOptional();
+  Array: RawOptional[] | null = null;
+  List: RawOptional[] | null = null;
+  Maybe: RawOptional | null = null;
+}
+
+function readRawOptionals(r: NinoReader, v: RawOptionals = new RawOptionals()): RawOptionals {
+  if (r.depth >= 128) return r.defer(v, readBody$RawOptionals);
+  readBody$RawOptionals(r, v);
+  return v;
+}
+
+function writeRawOptionals(w: NinoWriter, v: RawOptionals): void {
+  if (w.depth >= 128) w.defer(v, writeBody$RawOptionals);
+  else writeBody$RawOptionals(w, v);
+}
+
+function readBody$RawOptionals(r: NinoReader, v: RawOptionals): void {
+  v.One = readRawOptional(r, r.take(56));
+  v.Array = (v.Array == null ? read$32(r) : readInto$32(r, v.Array));
+  v.List = (v.List == null ? read$32(r) : readInto$32(r, v.List));
+  v.Maybe = (r.present() ? readRawOptional(r, r.take(56)) : null);
+}
+
+function writeBody$RawOptionals(w: NinoWriter, v: RawOptionals): void {
+  writeRawOptional(w, w.raw(56), v.One);
+  write$32(w, v.Array);
+  write$32(w, v.List);
+  if (v.Maybe === null || v.Maybe === undefined) w.u8(0); else { w.u8(1); writeRawOptional(w, w.raw(56), v.Maybe); }
+}
+
 /** `Conformance.RecordChain`. */
 export class RecordChain {
   Value: number = 0;
@@ -2158,16 +2215,16 @@ function writeStringCollections(w: NinoWriter, v: StringCollections): void {
 }
 
 function readBody$StringCollections(r: NinoReader, v: StringCollections): void {
-  v.Array = (v.Array == null ? read$32(r) : readInto$32(r, v.Array));
-  v.List = (v.List == null ? read$32(r) : readInto$32(r, v.List));
+  v.Array = (v.Array == null ? read$33(r) : readInto$33(r, v.Array));
+  v.List = (v.List == null ? read$33(r) : readInto$33(r, v.List));
   v.Utf8A = r.utf8();
   v.Plain = r.string();
   v.Utf8B = r.utf8();
 }
 
 function writeBody$StringCollections(w: NinoWriter, v: StringCollections): void {
-  write$32(w, v.Array);
-  write$32(w, v.List);
+  write$33(w, v.Array);
+  write$33(w, v.List);
   w.utf8(v.Utf8A);
   w.string(v.Plain);
   w.utf8(v.Utf8B);
@@ -2190,11 +2247,11 @@ function writeStringList(w: NinoWriter, v: StringList): void {
 }
 
 function readBody$StringList(r: NinoReader, v: StringList): void {
-  v.Values = (v.Values == null ? read$32(r) : readInto$32(r, v.Values));
+  v.Values = (v.Values == null ? read$33(r) : readInto$33(r, v.Values));
 }
 
 function writeBody$StringList(w: NinoWriter, v: StringList): void {
-  write$32(w, v.Values);
+  write$33(w, v.Values);
 }
 
 /** `Conformance.Targets.StringMap`. */
@@ -2214,11 +2271,11 @@ function writeStringMap(w: NinoWriter, v: StringMap): void {
 }
 
 function readBody$StringMap(r: NinoReader, v: StringMap): void {
-  v.Values = (v.Values == null ? read$33(r) : readInto$33(r, v.Values));
+  v.Values = (v.Values == null ? read$34(r) : readInto$34(r, v.Values));
 }
 
 function writeBody$StringMap(w: NinoWriter, v: StringMap): void {
-  write$33(w, v.Values);
+  write$34(w, v.Values);
 }
 
 /** `Conformance.Targets.StringSet`. */
@@ -2238,11 +2295,11 @@ function writeStringSet(w: NinoWriter, v: StringSet): void {
 }
 
 function readBody$StringSet(r: NinoReader, v: StringSet): void {
-  v.Values = (v.Values == null ? read$34(r) : readInto$34(r, v.Values));
+  v.Values = (v.Values == null ? read$35(r) : readInto$35(r, v.Values));
 }
 
 function writeBody$StringSet(w: NinoWriter, v: StringSet): void {
-  write$34(w, v.Values);
+  write$35(w, v.Values);
 }
 
 /** `Conformance.Strings`. */
@@ -2310,11 +2367,11 @@ function readBody$Structs(r: NinoReader, v: Structs): void {
   v.Sized = readSized(r, at + 47);
   v.Nested = readNested(r, at + 63);
   v.Label = readLabel(r, v.Label);
-  v.VecArray = (v.VecArray == null ? read$35(r) : readInto$35(r, v.VecArray));
+  v.VecArray = (v.VecArray == null ? read$36(r) : readInto$36(r, v.VecArray));
   v.PaddedList = (v.PaddedList == null ? read$30(r) : readInto$30(r, v.PaddedList));
-  v.MixedArray = (v.MixedArray == null ? read$36(r) : readInto$36(r, v.MixedArray));
-  v.Labels = (v.Labels == null ? read$37(r) : readInto$37(r, v.Labels));
-  v.RawTuple = read$38(r);
+  v.MixedArray = (v.MixedArray == null ? read$37(r) : readInto$37(r, v.MixedArray));
+  v.Labels = (v.Labels == null ? read$38(r) : readInto$38(r, v.Labels));
+  v.RawTuple = read$39(r);
   v.Tuple = [r.i32(), r.string()];
   v.Pair = [r.string(), readVec2(r, r.take(8))];
 }
@@ -2328,11 +2385,11 @@ function writeBody$Structs(w: NinoWriter, v: Structs): void {
   writeSized(w, at + 47, v.Sized);
   writeNested(w, at + 63, v.Nested);
   writeLabel(w, v.Label);
-  write$35(w, v.VecArray);
+  write$36(w, v.VecArray);
   write$30(w, v.PaddedList);
-  write$36(w, v.MixedArray);
-  write$37(w, v.Labels);
-  write$38(w, v.RawTuple);
+  write$37(w, v.MixedArray);
+  write$38(w, v.Labels);
+  write$39(w, v.RawTuple);
   w.i32(v.Tuple[0]); w.string(v.Tuple[1]);
   w.string(v.Pair[0]); writeVec2(w, w.reserve(8), v.Pair[1]);
 }
@@ -2688,14 +2745,14 @@ function writeTrackedHolder(w: NinoWriter, v: TrackedHolder): void {
 function readBody$TrackedHolder(r: NinoReader, v: TrackedHolder): void {
   v.A = (v.A == null ? TrackedCodec.read(r) : r.into(TrackedCodec, v.A));
   v.B = (v.B == null ? TrackedCodec.read(r) : r.into(TrackedCodec, v.B));
-  v.All = (v.All == null ? read$39(r) : readInto$39(r, v.All));
+  v.All = (v.All == null ? read$40(r) : readInto$40(r, v.All));
   v.Any = types.read(r, null);
 }
 
 function writeBody$TrackedHolder(w: NinoWriter, v: TrackedHolder): void {
   TrackedCodec.write(w, v.A);
   TrackedCodec.write(w, v.B);
-  write$39(w, v.All);
+  write$40(w, v.All);
   types.write(w, v.Any, null);
 }
 
@@ -2733,8 +2790,8 @@ function readBody$TrackedMix(r: NinoReader, v: TrackedMix): void {
   v.Any = types.read(r, null);
   v.Node = r.tracked(TrackedNode, readTrackedNode);
   v.Base = (v.Base == null ? TrackedCodec.read(r) : r.into(TrackedCodec, v.Base));
-  v.Nodes = (v.Nodes == null ? read$40(r) : readInto$40(r, v.Nodes));
-  v.ById = (v.ById == null ? read$41(r) : readInto$41(r, v.ById));
+  v.Nodes = (v.Nodes == null ? read$41(r) : readInto$41(r, v.Nodes));
+  v.ById = (v.ById == null ? read$42(r) : readInto$42(r, v.ById));
   v.Tolerant = r.tracked(TrackedTolerant, readTrackedTolerant);
 }
 
@@ -2742,8 +2799,8 @@ function writeBody$TrackedMix(w: NinoWriter, v: TrackedMix): void {
   types.write(w, v.Any, null);
   if (w.ref(v.Node)) writeTrackedNode(w, v.Node);
   TrackedCodec.write(w, v.Base);
-  write$40(w, v.Nodes);
-  write$41(w, v.ById);
+  write$41(w, v.Nodes);
+  write$42(w, v.ById);
   if (w.ref(v.Tolerant)) writeTrackedTolerant(w, v.Tolerant);
 }
 
@@ -2853,12 +2910,12 @@ function writeTreeNode(w: NinoWriter, v: TreeNode): void {
 
 function readBody$TreeNode(r: NinoReader, v: TreeNode): void {
   v.Value = r.i32();
-  v.Children = (v.Children == null ? read$42(r) : readInto$42(r, v.Children));
+  v.Children = (v.Children == null ? read$43(r) : readInto$43(r, v.Children));
 }
 
 function writeBody$TreeNode(w: NinoWriter, v: TreeNode): void {
   w.i32(v.Value);
-  write$42(w, v.Children);
+  write$43(w, v.Children);
 }
 
 /** `Conformance.Targets.Utf8Value`. */
@@ -3005,25 +3062,25 @@ function writeZoo(w: NinoWriter, v: Zoo): void {
 function readBody$Zoo(r: NinoReader, v: Zoo): void {
   v.Star = (v.Star == null ? AnimalCodec.read(r) : r.into(AnimalCodec, v.Star));
   v.Dog = (v.Dog == null ? DogCodec.read(r) : r.into(DogCodec, v.Dog));
-  v.Animals = (v.Animals == null ? read$43(r) : readInto$43(r, v.Animals));
-  v.Cages = (v.Cages == null ? read$43(r) : readInto$43(r, v.Cages));
+  v.Animals = (v.Animals == null ? read$44(r) : readInto$44(r, v.Animals));
+  v.Cages = (v.Cages == null ? read$44(r) : readInto$44(r, v.Cages));
   v.Shape = (v.Shape == null ? IShapeCodec.read(r) : r.into(IShapeCodec, v.Shape));
-  v.Shapes = (v.Shapes == null ? read$44(r) : readInto$44(r, v.Shapes));
+  v.Shapes = (v.Shapes == null ? read$45(r) : readInto$45(r, v.Shapes));
   v.Plain = (v.Plain == null ? PlainCodec.read(r) : r.into(PlainCodec, v.Plain));
   v.Anything = types.read(r, null);
-  v.ByName = (v.ByName == null ? read$45(r) : readInto$45(r, v.ByName));
+  v.ByName = (v.ByName == null ? read$46(r) : readInto$46(r, v.ByName));
 }
 
 function writeBody$Zoo(w: NinoWriter, v: Zoo): void {
   AnimalCodec.write(w, v.Star);
   DogCodec.write(w, v.Dog);
-  write$43(w, v.Animals);
-  write$43(w, v.Cages);
+  write$44(w, v.Animals);
+  write$44(w, v.Cages);
   IShapeCodec.write(w, v.Shape);
-  write$44(w, v.Shapes);
+  write$45(w, v.Shapes);
   PlainCodec.write(w, v.Plain);
   types.write(w, v.Anything, null);
-  write$45(w, v.ByName);
+  write$46(w, v.ByName);
 }
 
 /** `Conformance.Bag`. */
@@ -3251,7 +3308,7 @@ function writeKeyedBag(w: NinoWriter, v: KeyedBag): void {
 
 function readBody$KeyedBag(r: NinoReader, v: KeyedBag): void {
   const end = r.beginRegion();
-  v.$elements = r.elements((v.$elements == null ? read$33(r) : readInto$33(r, v.$elements)));
+  v.$elements = r.elements((v.$elements == null ? read$34(r) : readInto$34(r, v.$elements)));
   while (r.pos < end) {
     const key = r.i32(), member = r.beginRegion();
     switch (key) {
@@ -3267,7 +3324,7 @@ function readBody$KeyedBag(r: NinoReader, v: KeyedBag): void {
 
 function writeBody$KeyedBag(w: NinoWriter, v: KeyedBag): void {
   const start = w.beginRegion();
-  write$33(w, v.$elements);
+  write$34(w, v.$elements);
   w.i32(-1909720929);
   const Version$ = w.beginRegion();
   w.i32(v.Version);
@@ -3407,12 +3464,12 @@ function writeListShelf<T>(w: NinoWriter, v: ListShelf<T>, c: ListShelf$Codecs<T
 
 function readBody$ListShelf<T>(r: NinoReader, v: ListShelf<T>, c: ListShelf$Codecs<T>): void {
   v.Item = (v.Item == null ? c.p0.read(r) : r.into(c.p0, v.Item));
-  v.More = (v.More == null ? read$46(r, c) : readInto$46(r, c, v.More));
+  v.More = (v.More == null ? read$47(r, c) : readInto$47(r, c, v.More));
 }
 
 function writeBody$ListShelf<T>(w: NinoWriter, v: ListShelf<T>, c: ListShelf$Codecs<T>): void {
   c.p0.write(w, v.Item);
-  write$46(w, v.More, c);
+  write$47(w, v.More, c);
 }
 
 /** `Conformance.PointSet`. */
@@ -3503,14 +3560,14 @@ function writeTolerantBag(w: NinoWriter, v: TolerantBag): void {
 }
 
 function readBody$TolerantBag(r: NinoReader, v: TolerantBag): void {
-  v.$elements = r.elements((v.$elements == null ? read$32(r) : readInto$32(r, v.$elements)));
+  v.$elements = r.elements((v.$elements == null ? read$33(r) : readInto$33(r, v.$elements)));
   const end = r.beginRegion();
   if (r.pos < end) v.Tag = r.string();
   r.endRegion(end);
 }
 
 function writeBody$TolerantBag(w: NinoWriter, v: TolerantBag): void {
-  write$32(w, v.$elements);
+  write$33(w, v.$elements);
   const start = w.beginRegion();
   w.string(v.Tag);
   w.endRegion(start);
@@ -3687,6 +3744,8 @@ types.add(-1773443910, Point, readPoint, writePoint);
 types.add(782324428, PointList, readPointList, writePointList);
 types.add(350728288, PointSet, readPointSet, writePointSet);
 types.add(-1808724502, Puppy, readPuppy, writePuppy);
+types.add(471508404, RawOptional, (r) => readRawOptional(r, r.take(56)), (w, v) => writeRawOptional(w, w.raw(56), v));
+types.add(259839135, RawOptionals, readRawOptionals, writeRawOptionals);
 types.add(552666118, RecordChain, readRecordChain, writeRecordChain);
 types.add(-1617946819, RedLink, readRedLink, writeRedLink);
 types.add(-39134015, ShapeSlot, readShapeSlot, writeShapeSlot);
@@ -4445,6 +4504,17 @@ export const PuppyCodec: NinoCodec<Puppy | null> = {
   },
   readInto: (r, v) => (r.present() ? (v == null ? readPuppy(r) : readPuppy(r, v!)) : null),
 };
+export const RawOptionalCodec: NinoCodec<RawOptional> = {
+  read: (r) => readRawOptional(r, r.take(56)),
+  write: (w, v) => writeRawOptional(w, w.raw(56), v),
+};
+export const RawOptionalsCodec: NinoCodec<RawOptionals | null> = {
+  read: (r) => (r.present() ? readRawOptionals(r) : null),
+  write: (w, v) => {
+    if (v === null || v === undefined) w.u8(0); else { w.u8(1); writeRawOptionals(w, v); }
+  },
+  readInto: (r, v) => (r.present() ? (v == null ? readRawOptionals(r) : readRawOptionals(r, v!)) : null),
+};
 export const RecordChainCodec: NinoCodec<RecordChain | null> = {
   read: (r) => (r.present() ? readRecordChain(r) : null),
   write: (w, v) => {
@@ -4873,7 +4943,7 @@ function Nest$codecs<T>(p0: NinoCodec<T>, type: new () => Nest<T>): Nest$Codecs<
     },
   };
   let d0: NinoCodec<Nest<T[] | null> | null> | undefined;
-  Object.defineProperty(c, "d0", { get: () => (d0 ??= NestCodec<T[] | null>({ read: (r) => read$47(r, c), write: (w, v) => { write$47(w, v, c); } })) });
+  Object.defineProperty(c, "d0", { get: () => (d0 ??= NestCodec<T[] | null>({ read: (r) => read$48(r, c), write: (w, v) => { write$48(w, v, c); } })) });
   return c;
 }
 
@@ -5072,10 +5142,10 @@ const slot$4: NinoCodec<IHolder<bigint> | null> = {
 const codec$0 = NestCodec<number>({ read: (r) => r.i32(), write: (w, v) => { w.i32(v); } }, NestInt32);
 const codec$1 = WrapCodec<(number | null)[] | null>({ read: (r) => read$16(r), write: (w, v) => { write$16(w, v); } }, WrapListNullableInt32);
 const codec$2 = WrapCodec<Set<number | null> | null>({ read: (r) => read$17(r), write: (w, v) => { write$17(w, v); } }, WrapHashSetNullableInt32);
-const codec$3 = WrapCodec<(Vec2 | null)[] | null>({ read: (r) => read$48(r), write: (w, v) => { write$48(w, v); } }, WrapListNullableVec2);
-const codec$4 = WrapCodec<Map<number, number | null> | null>({ read: (r) => read$49(r), write: (w, v) => { write$49(w, v); } }, WrapDictionaryInt32NullableDouble);
-const codec$5 = WrapCodec<([number, string | null])[] | null>({ read: (r) => read$50(r), write: (w, v) => { write$50(w, v); } }, WrapListKeyValuePairInt32String);
-const codec$6 = WrapCodec<([string | null, number | null])[] | null>({ read: (r) => read$51(r), write: (w, v) => { write$51(w, v); } }, WrapKeyValuePair);
+const codec$3 = WrapCodec<(Vec2 | null)[] | null>({ read: (r) => read$49(r), write: (w, v) => { write$49(w, v); } }, WrapListNullableVec2);
+const codec$4 = WrapCodec<Map<number, number | null> | null>({ read: (r) => read$50(r), write: (w, v) => { write$50(w, v); } }, WrapDictionaryInt32NullableDouble);
+const codec$5 = WrapCodec<([number, string | null])[] | null>({ read: (r) => read$51(r), write: (w, v) => { write$51(w, v); } }, WrapListKeyValuePairInt32String);
+const codec$6 = WrapCodec<([string | null, number | null])[] | null>({ read: (r) => read$52(r), write: (w, v) => { write$52(w, v); } }, WrapKeyValuePair);
 
 const closed$0 = Box$codecs<Vec2>({ read: (r) => readVec2(r, r.take(8)), write: (w, v) => { writeVec2(w, w.reserve(8), v); } }, BoxVec2);
 const closed$1 = Box$codecs<(Point | null)[] | null>({ read: (r) => read$31(r), write: (w, v) => { write$31(w, v); } }, BoxListPoint);
@@ -5088,16 +5158,16 @@ const closed$7 = LabeledCrate$codecs<number>({ read: (r) => r.i32(), write: (w, 
 const closed$8 = LabeledCrate$codecs<string | null>({ read: (r) => r.string(), write: (w, v) => { w.string(v); } }, LabeledCrateString);
 const closed$9 = ListShelf$codecs<number>({ read: (r) => r.i32(), write: (w, v) => { w.i32(v); } }, ListShelfInt32);
 const closed$10 = ListShelf$codecs<string | null>({ read: (r) => r.string(), write: (w, v) => { w.string(v); } }, ListShelfString);
-const closed$11 = Nest$codecs<(((number[] | null)[] | null)[] | null)[] | null>({ read: (r) => read$54(r), write: (w, v) => { write$54(w, v); } }, NestListListListListInt32);
-const closed$12 = Nest$codecs<((number[] | null)[] | null)[] | null>({ read: (r) => read$53(r), write: (w, v) => { write$53(w, v); } }, NestListListListInt32);
-const closed$13 = Nest$codecs<(number[] | null)[] | null>({ read: (r) => read$52(r), write: (w, v) => { write$52(w, v); } }, NestListListInt32);
+const closed$11 = Nest$codecs<(((number[] | null)[] | null)[] | null)[] | null>({ read: (r) => read$55(r), write: (w, v) => { write$55(w, v); } }, NestListListListListInt32);
+const closed$12 = Nest$codecs<((number[] | null)[] | null)[] | null>({ read: (r) => read$54(r), write: (w, v) => { write$54(w, v); } }, NestListListListInt32);
+const closed$13 = Nest$codecs<(number[] | null)[] | null>({ read: (r) => read$53(r), write: (w, v) => { write$53(w, v); } }, NestListListInt32);
 const closed$14 = Nest$codecs<number[] | null>({ read: (r) => read$11(r), write: (w, v) => { write$11(w, v); } }, NestListInt32);
 const closed$15 = Nest$codecs<number>({ read: (r) => r.i32(), write: (w, v) => { w.i32(v); } }, NestInt32);
-const closed$16 = Wrap$codecs<Map<number, number | null> | null>({ read: (r) => read$49(r), write: (w, v) => { write$49(w, v); } }, WrapDictionaryInt32NullableDouble);
+const closed$16 = Wrap$codecs<Map<number, number | null> | null>({ read: (r) => read$50(r), write: (w, v) => { write$50(w, v); } }, WrapDictionaryInt32NullableDouble);
 const closed$17 = Wrap$codecs<Set<number | null> | null>({ read: (r) => read$17(r), write: (w, v) => { write$17(w, v); } }, WrapHashSetNullableInt32);
-const closed$18 = Wrap$codecs<([string | null, number | null])[] | null>({ read: (r) => read$51(r), write: (w, v) => { write$51(w, v); } }, WrapKeyValuePair);
-const closed$19 = Wrap$codecs<([number, string | null])[] | null>({ read: (r) => read$50(r), write: (w, v) => { write$50(w, v); } }, WrapListKeyValuePairInt32String);
-const closed$20 = Wrap$codecs<(Vec2 | null)[] | null>({ read: (r) => read$48(r), write: (w, v) => { write$48(w, v); } }, WrapListNullableVec2);
+const closed$18 = Wrap$codecs<([string | null, number | null])[] | null>({ read: (r) => read$52(r), write: (w, v) => { write$52(w, v); } }, WrapKeyValuePair);
+const closed$19 = Wrap$codecs<([number, string | null])[] | null>({ read: (r) => read$51(r), write: (w, v) => { write$51(w, v); } }, WrapListKeyValuePairInt32String);
+const closed$20 = Wrap$codecs<(Vec2 | null)[] | null>({ read: (r) => read$49(r), write: (w, v) => { write$49(w, v); } }, WrapListNullableVec2);
 const closed$21 = Wrap$codecs<(number | null)[] | null>({ read: (r) => read$16(r), write: (w, v) => { write$16(w, v); } }, WrapListNullableInt32);
 const closed$22 = Wrap$codecs<(number | null)[] | null>({ read: (r) => read$16(r), write: (w, v) => { write$16(w, v); } }, WrapNullable);
 types.add(-1580784064, BoxVec2, (r) => readBox(r, closed$0), (w, v) => writeBox(w, v, closed$0));
@@ -6133,7 +6203,38 @@ function write$31(w: NinoWriter, values: readonly (Point | null)[] | null): void
   }
 }
 
-function read$32(r: NinoReader): (string | null)[] | null {
+function read$32(r: NinoReader): RawOptional[] | null {
+  const length = r.length();
+  if (length < 0) return null;
+  const values = new Array<RawOptional>(r.capacity(length));
+  for (let i = 0, at = r.take(length * 56); i < length; i++, at += 56) values[i] = readRawOptional(r, at);
+  return values;
+}
+
+function readInto$32(r: NinoReader, cur: RawOptional[]): RawOptional[] | null {
+  const length = r.length();
+  if (length < 0) return null;
+  const values = cur;
+  for (let i = 0, at = r.take(length * 56); i < length; i++, at += 56) values[i] = readRawOptional(r, at);
+  if (values.length !== length) values.length = length;
+  return values;
+}
+
+function write$32(w: NinoWriter, values: readonly RawOptional[] | null): void {
+  if (values === null || values === undefined) {
+    w.i32(-1);
+    return;
+  }
+  w.i32(values.length);
+  let at = w.raw(values.length * 56);
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    writeRawOptional(w, at, value);
+    at += 56;
+  }
+}
+
+function read$33(r: NinoReader): (string | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<string | null>(r.capacity(length));
@@ -6141,7 +6242,7 @@ function read$32(r: NinoReader): (string | null)[] | null {
   return values;
 }
 
-function readInto$32(r: NinoReader, cur: (string | null)[]): (string | null)[] | null {
+function readInto$33(r: NinoReader, cur: (string | null)[]): (string | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6150,7 +6251,7 @@ function readInto$32(r: NinoReader, cur: (string | null)[]): (string | null)[] |
   return values;
 }
 
-function write$32(w: NinoWriter, values: readonly (string | null)[] | null): void {
+function write$33(w: NinoWriter, values: readonly (string | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6162,7 +6263,7 @@ function write$32(w: NinoWriter, values: readonly (string | null)[] | null): voi
   }
 }
 
-function read$33(r: NinoReader): Map<string | null, number> | null {
+function read$34(r: NinoReader): Map<string | null, number> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<string | null, number>();
@@ -6175,7 +6276,7 @@ function read$33(r: NinoReader): Map<string | null, number> | null {
   return map;
 }
 
-function readInto$33(r: NinoReader, cur: Map<string | null, number>): Map<string | null, number> | null {
+function readInto$34(r: NinoReader, cur: Map<string | null, number>): Map<string | null, number> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = cur;
@@ -6189,7 +6290,7 @@ function readInto$33(r: NinoReader, cur: Map<string | null, number>): Map<string
   return map;
 }
 
-function write$33(w: NinoWriter, map: ReadonlyMap<string | null, number> | null): void {
+function write$34(w: NinoWriter, map: ReadonlyMap<string | null, number> | null): void {
   if (map === null || map === undefined) {
     w.i32(-1);
     return;
@@ -6202,7 +6303,7 @@ function write$33(w: NinoWriter, map: ReadonlyMap<string | null, number> | null)
   }
 }
 
-function read$34(r: NinoReader): Set<string | null> | null {
+function read$35(r: NinoReader): Set<string | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Set<string | null>();
@@ -6212,7 +6313,7 @@ function read$34(r: NinoReader): Set<string | null> | null {
   return values;
 }
 
-function readInto$34(r: NinoReader, cur: Set<string | null>): Set<string | null> | null {
+function readInto$35(r: NinoReader, cur: Set<string | null>): Set<string | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6223,7 +6324,7 @@ function readInto$34(r: NinoReader, cur: Set<string | null>): Set<string | null>
   return values;
 }
 
-function write$34(w: NinoWriter, values: ReadonlySet<string | null> | null): void {
+function write$35(w: NinoWriter, values: ReadonlySet<string | null> | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6234,7 +6335,7 @@ function write$34(w: NinoWriter, values: ReadonlySet<string | null> | null): voi
   }
 }
 
-function read$35(r: NinoReader): Vec2[] | null {
+function read$36(r: NinoReader): Vec2[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<Vec2>(r.capacity(length));
@@ -6242,7 +6343,7 @@ function read$35(r: NinoReader): Vec2[] | null {
   return values;
 }
 
-function readInto$35(r: NinoReader, cur: Vec2[]): Vec2[] | null {
+function readInto$36(r: NinoReader, cur: Vec2[]): Vec2[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6251,7 +6352,7 @@ function readInto$35(r: NinoReader, cur: Vec2[]): Vec2[] | null {
   return values;
 }
 
-function read$36(r: NinoReader): Mixed[] | null {
+function read$37(r: NinoReader): Mixed[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<Mixed>(r.capacity(length));
@@ -6259,7 +6360,7 @@ function read$36(r: NinoReader): Mixed[] | null {
   return values;
 }
 
-function readInto$36(r: NinoReader, cur: Mixed[]): Mixed[] | null {
+function readInto$37(r: NinoReader, cur: Mixed[]): Mixed[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6268,7 +6369,7 @@ function readInto$36(r: NinoReader, cur: Mixed[]): Mixed[] | null {
   return values;
 }
 
-function read$37(r: NinoReader): Label[] | null {
+function read$38(r: NinoReader): Label[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<Label>(r.capacity(length));
@@ -6276,7 +6377,7 @@ function read$37(r: NinoReader): Label[] | null {
   return values;
 }
 
-function readInto$37(r: NinoReader, cur: Label[]): Label[] | null {
+function readInto$38(r: NinoReader, cur: Label[]): Label[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6285,12 +6386,12 @@ function readInto$37(r: NinoReader, cur: Label[]): Label[] | null {
   return values;
 }
 
-function read$38(r: NinoReader): [number, bigint] {
+function read$39(r: NinoReader): [number, bigint] {
   const at = r.take(9);
   return [r.view.getUint8(at), r.view.getBigInt64(at + 1, true)];
 }
 
-function write$35(w: NinoWriter, values: readonly Vec2[] | null): void {
+function write$36(w: NinoWriter, values: readonly Vec2[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6304,7 +6405,7 @@ function write$35(w: NinoWriter, values: readonly Vec2[] | null): void {
   }
 }
 
-function write$36(w: NinoWriter, values: readonly Mixed[] | null): void {
+function write$37(w: NinoWriter, values: readonly Mixed[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6318,7 +6419,7 @@ function write$36(w: NinoWriter, values: readonly Mixed[] | null): void {
   }
 }
 
-function write$37(w: NinoWriter, values: readonly Label[] | null): void {
+function write$38(w: NinoWriter, values: readonly Label[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6330,12 +6431,12 @@ function write$37(w: NinoWriter, values: readonly Label[] | null): void {
   }
 }
 
-function write$38(w: NinoWriter, v: [number, bigint]): void {
+function write$39(w: NinoWriter, v: [number, bigint]): void {
   const at = w.reserve(9);
   w.view.setUint8(at, v[0]); w.view.setBigInt64(at + 1, v[1], true);
 }
 
-function read$39(r: NinoReader): (Tracked | null)[] | null {
+function read$40(r: NinoReader): (Tracked | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<Tracked | null>(r.capacity(length));
@@ -6343,7 +6444,7 @@ function read$39(r: NinoReader): (Tracked | null)[] | null {
   return values;
 }
 
-function readInto$39(r: NinoReader, cur: (Tracked | null)[]): (Tracked | null)[] | null {
+function readInto$40(r: NinoReader, cur: (Tracked | null)[]): (Tracked | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6352,7 +6453,7 @@ function readInto$39(r: NinoReader, cur: (Tracked | null)[]): (Tracked | null)[]
   return values;
 }
 
-function write$39(w: NinoWriter, values: readonly (Tracked | null)[] | null): void {
+function write$40(w: NinoWriter, values: readonly (Tracked | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6364,7 +6465,7 @@ function write$39(w: NinoWriter, values: readonly (Tracked | null)[] | null): vo
   }
 }
 
-function read$40(r: NinoReader): (TrackedNode | null)[] | null {
+function read$41(r: NinoReader): (TrackedNode | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<TrackedNode | null>(r.capacity(length));
@@ -6372,7 +6473,7 @@ function read$40(r: NinoReader): (TrackedNode | null)[] | null {
   return values;
 }
 
-function readInto$40(r: NinoReader, cur: (TrackedNode | null)[]): (TrackedNode | null)[] | null {
+function readInto$41(r: NinoReader, cur: (TrackedNode | null)[]): (TrackedNode | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6381,7 +6482,7 @@ function readInto$40(r: NinoReader, cur: (TrackedNode | null)[]): (TrackedNode |
   return values;
 }
 
-function read$41(r: NinoReader): Map<number, TrackedNode | null> | null {
+function read$42(r: NinoReader): Map<number, TrackedNode | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<number, TrackedNode | null>();
@@ -6394,7 +6495,7 @@ function read$41(r: NinoReader): Map<number, TrackedNode | null> | null {
   return map;
 }
 
-function readInto$41(r: NinoReader, cur: Map<number, TrackedNode | null>): Map<number, TrackedNode | null> | null {
+function readInto$42(r: NinoReader, cur: Map<number, TrackedNode | null>): Map<number, TrackedNode | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = cur;
@@ -6408,7 +6509,7 @@ function readInto$41(r: NinoReader, cur: Map<number, TrackedNode | null>): Map<n
   return map;
 }
 
-function write$40(w: NinoWriter, values: readonly (TrackedNode | null)[] | null): void {
+function write$41(w: NinoWriter, values: readonly (TrackedNode | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6420,7 +6521,7 @@ function write$40(w: NinoWriter, values: readonly (TrackedNode | null)[] | null)
   }
 }
 
-function write$41(w: NinoWriter, map: ReadonlyMap<number, TrackedNode | null> | null): void {
+function write$42(w: NinoWriter, map: ReadonlyMap<number, TrackedNode | null> | null): void {
   if (map === null || map === undefined) {
     w.i32(-1);
     return;
@@ -6433,7 +6534,7 @@ function write$41(w: NinoWriter, map: ReadonlyMap<number, TrackedNode | null> | 
   }
 }
 
-function read$42(r: NinoReader): (TreeNode | null)[] | null {
+function read$43(r: NinoReader): (TreeNode | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<TreeNode | null>(r.capacity(length));
@@ -6441,7 +6542,7 @@ function read$42(r: NinoReader): (TreeNode | null)[] | null {
   return values;
 }
 
-function readInto$42(r: NinoReader, cur: (TreeNode | null)[]): (TreeNode | null)[] | null {
+function readInto$43(r: NinoReader, cur: (TreeNode | null)[]): (TreeNode | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6450,7 +6551,7 @@ function readInto$42(r: NinoReader, cur: (TreeNode | null)[]): (TreeNode | null)
   return values;
 }
 
-function write$42(w: NinoWriter, values: readonly (TreeNode | null)[] | null): void {
+function write$43(w: NinoWriter, values: readonly (TreeNode | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6462,7 +6563,7 @@ function write$42(w: NinoWriter, values: readonly (TreeNode | null)[] | null): v
   }
 }
 
-function read$43(r: NinoReader): (Animal | null)[] | null {
+function read$44(r: NinoReader): (Animal | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<Animal | null>(r.capacity(length));
@@ -6470,7 +6571,7 @@ function read$43(r: NinoReader): (Animal | null)[] | null {
   return values;
 }
 
-function readInto$43(r: NinoReader, cur: (Animal | null)[]): (Animal | null)[] | null {
+function readInto$44(r: NinoReader, cur: (Animal | null)[]): (Animal | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6479,7 +6580,7 @@ function readInto$43(r: NinoReader, cur: (Animal | null)[]): (Animal | null)[] |
   return values;
 }
 
-function read$44(r: NinoReader): (IShape | null)[] | null {
+function read$45(r: NinoReader): (IShape | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<IShape | null>(r.capacity(length));
@@ -6487,7 +6588,7 @@ function read$44(r: NinoReader): (IShape | null)[] | null {
   return values;
 }
 
-function readInto$44(r: NinoReader, cur: (IShape | null)[]): (IShape | null)[] | null {
+function readInto$45(r: NinoReader, cur: (IShape | null)[]): (IShape | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6496,7 +6597,7 @@ function readInto$44(r: NinoReader, cur: (IShape | null)[]): (IShape | null)[] |
   return values;
 }
 
-function read$45(r: NinoReader): Map<string | null, Animal | null> | null {
+function read$46(r: NinoReader): Map<string | null, Animal | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<string | null, Animal | null>();
@@ -6509,7 +6610,7 @@ function read$45(r: NinoReader): Map<string | null, Animal | null> | null {
   return map;
 }
 
-function readInto$45(r: NinoReader, cur: Map<string | null, Animal | null>): Map<string | null, Animal | null> | null {
+function readInto$46(r: NinoReader, cur: Map<string | null, Animal | null>): Map<string | null, Animal | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = cur;
@@ -6523,7 +6624,7 @@ function readInto$45(r: NinoReader, cur: Map<string | null, Animal | null>): Map
   return map;
 }
 
-function write$43(w: NinoWriter, values: readonly (Animal | null)[] | null): void {
+function write$44(w: NinoWriter, values: readonly (Animal | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6535,7 +6636,7 @@ function write$43(w: NinoWriter, values: readonly (Animal | null)[] | null): voi
   }
 }
 
-function write$44(w: NinoWriter, values: readonly (IShape | null)[] | null): void {
+function write$45(w: NinoWriter, values: readonly (IShape | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6547,7 +6648,7 @@ function write$44(w: NinoWriter, values: readonly (IShape | null)[] | null): voi
   }
 }
 
-function write$45(w: NinoWriter, map: ReadonlyMap<string | null, Animal | null> | null): void {
+function write$46(w: NinoWriter, map: ReadonlyMap<string | null, Animal | null> | null): void {
   if (map === null || map === undefined) {
     w.i32(-1);
     return;
@@ -6560,7 +6661,7 @@ function write$45(w: NinoWriter, map: ReadonlyMap<string | null, Animal | null> 
   }
 }
 
-function read$46<T>(r: NinoReader, c: ListShelf$Codecs<T>): T[] | null {
+function read$47<T>(r: NinoReader, c: ListShelf$Codecs<T>): T[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<T>(r.capacity(length));
@@ -6568,7 +6669,7 @@ function read$46<T>(r: NinoReader, c: ListShelf$Codecs<T>): T[] | null {
   return values;
 }
 
-function readInto$46<T>(r: NinoReader, c: ListShelf$Codecs<T>, cur: T[]): T[] | null {
+function readInto$47<T>(r: NinoReader, c: ListShelf$Codecs<T>, cur: T[]): T[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
@@ -6577,7 +6678,7 @@ function readInto$46<T>(r: NinoReader, c: ListShelf$Codecs<T>, cur: T[]): T[] | 
   return values;
 }
 
-function write$46<T>(w: NinoWriter, values: readonly T[] | null, c: ListShelf$Codecs<T>): void {
+function write$47<T>(w: NinoWriter, values: readonly T[] | null, c: ListShelf$Codecs<T>): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6589,7 +6690,7 @@ function write$46<T>(w: NinoWriter, values: readonly T[] | null, c: ListShelf$Co
   }
 }
 
-function read$47<T>(r: NinoReader, c: Nest$Codecs<T>): T[] | null {
+function read$48<T>(r: NinoReader, c: Nest$Codecs<T>): T[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<T>(r.capacity(length));
@@ -6597,7 +6698,7 @@ function read$47<T>(r: NinoReader, c: Nest$Codecs<T>): T[] | null {
   return values;
 }
 
-function write$47<T>(w: NinoWriter, values: readonly T[] | null, c: Nest$Codecs<T>): void {
+function write$48<T>(w: NinoWriter, values: readonly T[] | null, c: Nest$Codecs<T>): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6609,7 +6710,7 @@ function write$47<T>(w: NinoWriter, values: readonly T[] | null, c: Nest$Codecs<
   }
 }
 
-function read$48(r: NinoReader): (Vec2 | null)[] | null {
+function read$49(r: NinoReader): (Vec2 | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<Vec2 | null>(r.capacity(length));
@@ -6617,7 +6718,7 @@ function read$48(r: NinoReader): (Vec2 | null)[] | null {
   return values;
 }
 
-function write$48(w: NinoWriter, values: readonly (Vec2 | null)[] | null): void {
+function write$49(w: NinoWriter, values: readonly (Vec2 | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6631,7 +6732,7 @@ function write$48(w: NinoWriter, values: readonly (Vec2 | null)[] | null): void 
   }
 }
 
-function read$49(r: NinoReader): Map<number, number | null> | null {
+function read$50(r: NinoReader): Map<number, number | null> | null {
   const length = r.length();
   if (length < 0) return null;
   const map = new Map<number, number | null>();
@@ -6644,7 +6745,7 @@ function read$49(r: NinoReader): Map<number, number | null> | null {
   return map;
 }
 
-function write$49(w: NinoWriter, map: ReadonlyMap<number, number | null> | null): void {
+function write$50(w: NinoWriter, map: ReadonlyMap<number, number | null> | null): void {
   if (map === null || map === undefined) {
     w.i32(-1);
     return;
@@ -6657,7 +6758,7 @@ function write$49(w: NinoWriter, map: ReadonlyMap<number, number | null> | null)
   }
 }
 
-function read$50(r: NinoReader): ([number, string | null])[] | null {
+function read$51(r: NinoReader): ([number, string | null])[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<[number, string | null]>(r.capacity(length));
@@ -6665,7 +6766,7 @@ function read$50(r: NinoReader): ([number, string | null])[] | null {
   return values;
 }
 
-function write$50(w: NinoWriter, values: readonly ([number, string | null])[] | null): void {
+function write$51(w: NinoWriter, values: readonly ([number, string | null])[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6677,7 +6778,7 @@ function write$50(w: NinoWriter, values: readonly ([number, string | null])[] | 
   }
 }
 
-function read$51(r: NinoReader): ([string | null, number | null])[] | null {
+function read$52(r: NinoReader): ([string | null, number | null])[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<[string | null, number | null]>(r.capacity(length));
@@ -6685,7 +6786,7 @@ function read$51(r: NinoReader): ([string | null, number | null])[] | null {
   return values;
 }
 
-function write$51(w: NinoWriter, values: readonly ([string | null, number | null])[] | null): void {
+function write$52(w: NinoWriter, values: readonly ([string | null, number | null])[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6697,7 +6798,7 @@ function write$51(w: NinoWriter, values: readonly ([string | null, number | null
   }
 }
 
-function read$52(r: NinoReader): (number[] | null)[] | null {
+function read$53(r: NinoReader): (number[] | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<number[] | null>(r.capacity(length));
@@ -6705,23 +6806,23 @@ function read$52(r: NinoReader): (number[] | null)[] | null {
   return values;
 }
 
-function read$53(r: NinoReader): ((number[] | null)[] | null)[] | null {
+function read$54(r: NinoReader): ((number[] | null)[] | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = new Array<(number[] | null)[] | null>(r.capacity(length));
-  for (let i = 0; i < length; i++) values[i] = read$52(r);
-  return values;
-}
-
-function read$54(r: NinoReader): (((number[] | null)[] | null)[] | null)[] | null {
-  const length = r.length();
-  if (length < 0) return null;
-  const values = new Array<((number[] | null)[] | null)[] | null>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = read$53(r);
   return values;
 }
 
-function write$52(w: NinoWriter, values: readonly (number[] | null)[] | null): void {
+function read$55(r: NinoReader): (((number[] | null)[] | null)[] | null)[] | null {
+  const length = r.length();
+  if (length < 0) return null;
+  const values = new Array<((number[] | null)[] | null)[] | null>(r.capacity(length));
+  for (let i = 0; i < length; i++) values[i] = read$54(r);
+  return values;
+}
+
+function write$53(w: NinoWriter, values: readonly (number[] | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6733,19 +6834,7 @@ function write$52(w: NinoWriter, values: readonly (number[] | null)[] | null): v
   }
 }
 
-function write$53(w: NinoWriter, values: readonly ((number[] | null)[] | null)[] | null): void {
-  if (values === null || values === undefined) {
-    w.i32(-1);
-    return;
-  }
-  w.i32(values.length);
-  for (let i = 0; i < values.length; i++) {
-    const value = values[i];
-    write$52(w, value);
-  }
-}
-
-function write$54(w: NinoWriter, values: readonly (((number[] | null)[] | null)[] | null)[] | null): void {
+function write$54(w: NinoWriter, values: readonly ((number[] | null)[] | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -6754,5 +6843,17 @@ function write$54(w: NinoWriter, values: readonly (((number[] | null)[] | null)[
   for (let i = 0; i < values.length; i++) {
     const value = values[i];
     write$53(w, value);
+  }
+}
+
+function write$55(w: NinoWriter, values: readonly (((number[] | null)[] | null)[] | null)[] | null): void {
+  if (values === null || values === undefined) {
+    w.i32(-1);
+    return;
+  }
+  w.i32(values.length);
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    write$54(w, value);
   }
 }

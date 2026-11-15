@@ -59,7 +59,9 @@ slot is the element in every collection: `Vec<NullableSlot<i32>>` for an `int?[]
 `02000000 01000000 05000000 00000000 00000000`; `Vec<Option<i32>>` is not those bytes (a presence byte and the value
 an element: what .NET writes for a `T?` whose `T` is not raw). A `NinoNullable<int>` of 5 is `01000000 05000000`
 alone, as an element of any collection (`Vec<NinoNullable<T>>`) and inside a raw struct, in the code nino-gen writes
-and with the derive alike: the bytes of a slot only for a `T` as large as its alignment.
+and with the derive alike: the bytes of a slot only for a `T` as large as its alignment. A `T?` field of a raw
+`[NinoType]` struct lies in the struct's memory as the same slot, at its offset: there it is an `Option<T>` field
+(`Raw for Option<T>`), in the code nino-gen writes and in a derived `kind = "raw"` struct.
 
 A polymorphic declared type (an abstract class, an interface, or a class that is not sealed) becomes a Rust enum with
 one variant per concrete type. The reader rejects any type id that is not one of the variants

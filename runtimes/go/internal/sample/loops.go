@@ -1047,6 +1047,44 @@ func writeNinoNullableFieldsSlice(w *nino.Writer, v []NinoNullableFields) {
 	}
 }
 
+func readRawOptionalSlice(r *nino.Reader) []RawOptional {
+	n := r.Length(56)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * 56)
+	if len(b) != n*56 {
+		return nil
+	}
+	var e RawOptional
+	v := make([]RawOptional, 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
+	for len(b) >= 56 {
+		e = decodeRawOptional(r, b[:56:56])
+		if r.Failed() {
+			return nil
+		}
+		v = append(v, e)
+		b = b[56:]
+	}
+	return v
+}
+
+func writeRawOptionalSlice(w *nino.Writer, v []RawOptional) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	b := w.ExtendZero(len(v) * 56)
+	if len(b) != len(v)*56 {
+		return
+	}
+	for _, e := range v {
+		encodeRawOptional(b[:56:56], e)
+		b = b[56:]
+	}
+}
+
 func readNinoNullableInt64(r *nino.Reader) (v nino.NinoNullable[int64]) {
 	if b := r.Take(16); len(b) == 16 {
 		v = decodeNinoNullableInt64(r, b)
@@ -1109,6 +1147,20 @@ func readNinoNullableFields(r *nino.Reader) (v NinoNullableFields) {
 func writeNinoNullableFields(w *nino.Writer, v NinoNullableFields) {
 	if b := w.ExtendZero(48); len(b) == 48 {
 		encodeNinoNullableFields(b, v)
+	}
+}
+
+// readRawOptional and writeRawOptional are one RawOptional (raw, 56 bytes), from one Take or ExtendZero.
+func readRawOptional(r *nino.Reader) (v RawOptional) {
+	if b := r.Take(56); len(b) == 56 {
+		v = decodeRawOptional(r, b)
+	}
+	return v
+}
+
+func writeRawOptional(w *nino.Writer, v RawOptional) {
+	if b := w.ExtendZero(56); len(b) == 56 {
+		encodeRawOptional(b, v)
 	}
 }
 

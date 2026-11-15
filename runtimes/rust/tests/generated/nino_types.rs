@@ -890,6 +890,61 @@ impl Padded {
     nino::type_consts!(0x2ACAE976u32 as i32, "Conformance.Padded", "format=Positional; header=None; trackReferences=false; raw=true; id=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}");
 }
 
+/// `Conformance.RawOptional`: raw, 56 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct RawOptional {
+    pub id: i32,
+    pub total: Option<i64>,
+    pub price: Option<nino::Decimal>,
+    pub count: nino::NinoNullable<i32>,
+}
+
+impl nino::Raw for RawOptional {
+    const SIZE: usize = 56;
+    const ALIGN: usize = 8;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..56).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        if [4, 5, 6, 7].iter().any(|&i| b.get(i) != Some(&0)) {
+            return Err(nino::Error::of(nino::ErrorKind::InvalidBits));
+        }
+        Ok(Self {
+            id: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            total: <Option<i64> as nino::Raw>::decode_raw(b.get(8..).unwrap_or_default())?,
+            price: <Option<nino::Decimal> as nino::Raw>::decode_raw(b.get(24..).unwrap_or_default())?,
+            count: <nino::NinoNullable<i32> as nino::Raw>::decode_raw(b.get(48..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.id, o);
+        }
+        if let Some(o) = out.get_mut(8..) {
+            nino::Raw::encode_raw(&self.total, o);
+        }
+        if let Some(o) = out.get_mut(24..) {
+            nino::Raw::encode_raw(&self.price, o);
+        }
+        if let Some(o) = out.get_mut(48..) {
+            nino::Raw::encode_raw(&self.count, o);
+        }
+    }
+}
+
+impl NinoRead for RawOptional {
+    nino::raw_read!();
+}
+
+impl NinoWrite for RawOptional {
+    nino::raw_write!();
+}
+
+impl RawOptional {
+    nino::type_consts!(0x1C1AA5B4u32 as i32, "Conformance.RawOptional", "format=Positional; header=None; trackReferences=false; raw=true; id=0x1C1AA5B4; deferrable=false; members=raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}");
+}
+
 /// `Conformance.Sized`: raw, 16 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -4869,6 +4924,70 @@ impl Puppy {
     nino::type_consts!(0x94310DEAu32 as i32, "Conformance.Puppy", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x94310DEA; deferrable=true; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)");
 }
 
+/// `Conformance.RawOptionals`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct RawOptionals {
+    pub one: RawOptional,
+    pub array: Option<Vec<RawOptional>>,
+    pub list: Option<Vec<RawOptional>>,
+    pub maybe: Option<RawOptional>,
+}
+
+impl NinoReadBody for RawOptionals {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.one)?;
+        r.read_into(&mut self.array)?;
+        r.read_into(&mut self.list)?;
+        r.read_into(&mut self.maybe)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for RawOptionals {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.one)?;
+        w.write(&self.array)?;
+        w.write(&self.list)?;
+        w.write(&self.maybe)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for RawOptionals {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for RawOptionals {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<Vec<RawOptional>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<RawOptional>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<RawOptional> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.array.prefetch();
+        self.list.prefetch();
+        self.maybe.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.array.prefetch_members();
+        self.list.prefetch_members();
+        self.maybe.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl RawOptionals {
+    nino::type_consts!(0x0F7CD49Fu32 as i32, "Conformance.RawOptionals", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x0F7CD49F; deferrable=true; members=One:Conformance.RawOptional:raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}};Array:Conformance.RawOptional[]:seq(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}});List:System.Collections.Generic.List<Conformance.RawOptional>:seq(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}});Maybe:System.Nullable<Conformance.RawOptional>:nullable(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}})");
+}
+
 /// `Conformance.RecordChain`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -6873,6 +6992,8 @@ pub enum AnyObject {
     PointList(Box<PointList>),
     PointSet(Box<PointSet>),
     Puppy(Box<Puppy>),
+    RawOptional(Box<RawOptional>),
+    RawOptionals(Box<RawOptionals>),
     RecordChain(Box<RecordChain>),
     RedLink(Box<RedLink>),
     Scalars(Box<Scalars>),
@@ -7015,6 +7136,8 @@ impl AnyObject {
             Self::PointList(v) => &mut **v,
             Self::PointSet(v) => &mut **v,
             Self::Puppy(v) => &mut **v,
+            Self::RawOptional(v) => &mut **v,
+            Self::RawOptionals(v) => &mut **v,
             Self::RecordChain(v) => &mut **v,
             Self::RedLink(v) => &mut **v,
             Self::Scalars(v) => &mut **v,
@@ -7356,6 +7479,14 @@ impl NinoRead for AnyObject {
                 r.read_class_into(&mut **v)?;
                 true
             }
+            Some(Self::RawOptional(v)) if id == RawOptional::NINO_TYPE_ID => {
+                r.read_into(&mut **v)?;
+                true
+            }
+            Some(Self::RawOptionals(v)) if id == RawOptionals::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
             Some(Self::RecordChain(v)) if id == RecordChain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
@@ -7625,6 +7756,8 @@ impl NinoRead for AnyObject {
                 PointList::NINO_TYPE_ID => Self::PointList(Box::new(r.read_class()?)),
                 PointSet::NINO_TYPE_ID => Self::PointSet(Box::new(r.read_class()?)),
                 Puppy::NINO_TYPE_ID => Self::Puppy(Box::new(r.read_class()?)),
+                RawOptional::NINO_TYPE_ID => Self::RawOptional(Box::new(r.read()?)),
+                RawOptionals::NINO_TYPE_ID => Self::RawOptionals(Box::new(r.read_class()?)),
                 RecordChain::NINO_TYPE_ID => Self::RecordChain(Box::new(r.read_class()?)),
                 RedLink::NINO_TYPE_ID => Self::RedLink(Box::new(r.read_class()?)),
                 Scalars::NINO_TYPE_ID => Self::Scalars(Box::new(r.read_class()?)),
@@ -7948,6 +8081,14 @@ impl NinoWrite for AnyObject {
             }
             Self::Puppy(v) => {
                 w.i32(Puppy::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::RawOptional(v) => {
+                w.i32(RawOptional::NINO_TYPE_ID);
+                w.write(&**v)
+            }
+            Self::RawOptionals(v) => {
+                w.i32(RawOptionals::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::RecordChain(v) => {
@@ -9405,6 +9546,8 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.Point" => f.visit::<Option<Box<Point>>>(),
         "Conformance.PointSet" => f.visit::<Option<Box<PointSet>>>(),
         "Conformance.Puppy" => f.visit::<Option<Box<Puppy>>>(),
+        "Conformance.RawOptional" => f.visit::<RawOptional>(),
+        "Conformance.RawOptionals" => f.visit::<Option<Box<RawOptionals>>>(),
         "Conformance.RecordChain" => f.visit::<Option<Box<RecordChain>>>(),
         "Conformance.RedLink" => f.visit::<Option<Box<RedLink>>>(),
         "Conformance.Scalars" => f.visit::<Option<Box<Scalars>>>(),

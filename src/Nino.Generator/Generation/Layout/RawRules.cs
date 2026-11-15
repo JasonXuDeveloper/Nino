@@ -261,6 +261,11 @@ internal sealed class RawRules
         return _rawStructs.GetOrAdd(type, _computeRawStruct);
     }
 
+    /// <summary>Whether <paramref name="type"/> is a <c>T?</c> of a T written as its raw bytes.</summary>
+    private bool IsRawNullable(ITypeSymbol type) =>
+        type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable &&
+        IsRawUnmanaged(nullable.TypeArguments[0]);
+
     private bool ComputeIsRawStruct(INamedTypeSymbol type)
     {
         // A generic struct has one formatter, generated for its definition: an instance is raw exactly when that
@@ -286,8 +291,11 @@ internal sealed class RawRules
             if (MemberCollector.StoredMember(field, members.Contains) is not { } member ||
                 _symbols.HasCustomFormatter(member))
                 return false;
-            // Every field must itself be raw: Nullable, tuples, nint or DateTimeOffset have their own formats.
-            if (!IsRawUnmanaged(field.Type))
+            // Every field must itself be raw, or a T? of a raw T, which is part of the struct's memory as it is of a
+            // plain struct's (its flag, its padding and its value where they lie, cleared when written). Tuples,
+            // pairs, nint and DateTimeOffset keep the struct member by member: fixed-size, without padding, and
+            // with its bools checked in every mode (BlockStructTests).
+            if (!IsRawUnmanaged(field.Type) && !IsRawNullable(field.Type))
                 return false;
         }
 

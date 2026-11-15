@@ -41,7 +41,7 @@ func (b *builder) slice(c *codec, variant uint8) error {
 			return err
 		}
 		if pe.kind == kNullable && pe.elem.rawCapable() {
-			return b.stride(c, pe.elem)
+			return b.stride(c, pe)
 		}
 	}
 	e, err := b.codec(et, variantDefault, nil)
@@ -145,17 +145,16 @@ func (b *builder) slice(c *codec, variant uint8) error {
 	return nil
 }
 
-// stride: a sequence of T? of a raw T (spec §6.2: T?[], List<T?>, HashSet<T?>, Queue<T?>, ...): a slot of a fixed
-// size each, hasValue, padding to T's alignment, then T (zero when absent).
-func (b *builder) stride(c *codec, e *codec) error {
+// stride: a sequence of T? of a raw T (spec §6.2: T?[], List<T?>, HashSet<T?>, Queue<T?>, ...), pe its element's
+// codec as a single T?: a slot of a fixed size each (builder.slot).
+func (b *builder) stride(c *codec, pe *codec) error {
 	t := c.typ
-	if e.align == 0 {
-		return typeErr(t, "the stride of a Nullable<%s> element has no canonical alignment", e.typ)
+	e, err := b.slot(pe.typ, pe.elem)
+	if err != nil {
+		return err
 	}
-	a := e.align
-	stride := a + e.size
-	c.kind, c.elem, c.size, c.min = kStride, e, stride, 4
-	et := t.Elem()
+	stride := e.size
+	c.kind, c.elem, c.size, c.min = kStride, pe.elem, stride, 4
 	c.read = func(r *Reader, v reflect.Value) {
 		n := r.Length(stride)
 		if n < 0 {
@@ -164,15 +163,7 @@ func (b *builder) stride(c *codec, e *codec) error {
 		}
 		s := reflect.MakeSlice(t, n, n)
 		for i := 0; i < n && r.err == nil; i++ {
-			present := r.Present()
-			r.Skip(a - 1)
-			if !present {
-				r.Skip(e.size)
-				continue
-			}
-			p := reflect.New(et.Elem())
-			e.read(r, p.Elem())
-			s.Index(i).Set(p)
+			e.read(r, s.Index(i))
 		}
 		if r.err == nil {
 			v.Set(s)
@@ -186,14 +177,7 @@ func (b *builder) stride(c *codec, e *codec) error {
 		n := v.Len()
 		w.Length(n)
 		for i := 0; i < n && w.err == nil; i++ {
-			p := v.Index(i)
-			if p.IsNil() {
-				w.ExtendZero(stride)
-				continue
-			}
-			w.U8(1)
-			w.ExtendZero(a - 1)
-			e.write(w, p.Elem())
+			e.write(w, v.Index(i))
 		}
 	}
 	return nil

@@ -392,6 +392,40 @@ func (b *builder) nullable(c *codec) error {
 	return nil
 }
 
+// slot: the codec of t, a *T of a raw T (e), where a T? has a fixed size (spec §6.2: an element of a sequence, a
+// field of a raw struct): hasValue (0 or 1, checked as every bool), padding to T's alignment, then T (zeros when
+// absent).
+func (b *builder) slot(t reflect.Type, e *codec) (*codec, error) {
+	if e.align == 0 {
+		return nil, typeErr(t, "the slot of a Nullable<%s> has no canonical alignment", e.typ)
+	}
+	a := e.align
+	et := t.Elem()
+	c := &codec{typ: t, kind: kSlot, elem: e, size: a + e.size, align: a, min: a + e.size}
+	c.read = func(r *Reader, v reflect.Value) {
+		present := r.Present()
+		r.Skip(a - 1)
+		if !present {
+			r.Skip(e.size)
+			v.SetZero()
+			return
+		}
+		p := reflect.New(et)
+		e.read(r, p.Elem())
+		v.Set(p)
+	}
+	c.write = func(w *Writer, v reflect.Value) {
+		if v.IsNil() {
+			w.ExtendZero(a + e.size)
+			return
+		}
+		w.U8(1)
+		w.ExtendZero(a - 1)
+		e.write(w, v.Elem())
+	}
+	return c, nil
+}
+
 // ninoNullable: a nino.NinoNullable[T], .NET's NinoNullable<T> of a raw T, its memory wherever it is: the presence,
 // a whole T (0 or 1 in its first byte, zeros above), then the value, zeros when absent. Reading checks all of it
 // (NinoNullableAt). The type says so by itself, whatever the layout.

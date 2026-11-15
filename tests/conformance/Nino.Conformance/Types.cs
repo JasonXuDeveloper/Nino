@@ -146,6 +146,30 @@ namespace Conformance
         public long B;
     }
 
+    /// <summary>
+    /// Raw although it holds nullables: an unmanaged struct is its memory (spec 5.1). 4 bytes, 4 of padding, a
+    /// <c>long?</c> (flag, 7 of padding, the value), a <c>decimal?</c> (flag, 7 of padding, 16 bytes) and a
+    /// <c>NinoNullable&lt;int&gt;</c> (two ints), 4 of padding at the end: 56 bytes.
+    /// </summary>
+    [NinoType]
+    public struct RawOptional
+    {
+        public int Id;
+        public long? Total;
+        public decimal? Price;
+        public NinoNullable<int> Count;
+    }
+
+    /// <summary><see cref="RawOptional"/> as a member and in runs.</summary>
+    [NinoType]
+    public sealed class RawOptionals
+    {
+        public RawOptional One;
+        public RawOptional[] Array;
+        public List<RawOptional> List;
+        public RawOptional? Maybe;
+    }
+
     /// <summary>Raw with padding in the middle and at the end: byte, pad 1, short, int, byte, pad 3.</summary>
     [NinoType]
     public struct Mixed

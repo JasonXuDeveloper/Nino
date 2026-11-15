@@ -279,6 +279,9 @@ namespace Conformance
                 AddUntrusted<BclRawNullables>("presence", $"raw-nullable-flag-{hex}",
                     $"bcl-raw-nullables with the has-value byte of Nullables.B (an int? at byte 4 of the raw struct) 0x{hex}.",
                     Patched("bcl-raw-nullables", 1 + 4, b));
+                AddUntrusted<RawOptional>("presence", $"raw-optional-flag-{hex}",
+                    $"struct-root-raw-optional with the has-value byte of Total (a long? at byte 8 of the raw [NinoType] struct) 0x{hex}.",
+                    Patched("struct-root-raw-optional", 8, b));
                 AddUntrusted<BclRawNullables>("presence", $"raw-nullable-tuple-flag-{hex}",
                     $"bcl-raw-nullables with the has-value byte of Nullables.C (an (int, long)? at byte 16) 0x{hex}.",
                     Patched("bcl-raw-nullables", 1 + 16, b));

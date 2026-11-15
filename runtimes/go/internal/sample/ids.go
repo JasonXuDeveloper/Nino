@@ -45,6 +45,8 @@ const (
 	idPlain              int32 = 824449116   // Conformance.Plain, 0x3124185C
 	idPoint              int32 = -1773443910 // Conformance.Point, 0x964B64BA
 	idPuppy              int32 = -1808724502 // Conformance.Puppy, 0x94310DEA
+	idRawOptional        int32 = 471508404   // Conformance.RawOptional, 0x1C1AA5B4
+	idRawOptionals       int32 = 259839135   // Conformance.RawOptionals, 0x0F7CD49F
 	idRecordChain        int32 = 552666118   // Conformance.RecordChain, 0x20F10406
 	idRedLink            int32 = -1617946819 // Conformance.RedLink, 0x9F90173D
 	idScalars            int32 = -764251517  // Conformance.Scalars, 0xD2727283
@@ -115,6 +117,8 @@ var typeNames = map[int32]string{
 	idPlain:              "Conformance.Plain",
 	idPoint:              "Conformance.Point",
 	idPuppy:              "Conformance.Puppy",
+	idRawOptional:        "Conformance.RawOptional",
+	idRawOptionals:       "Conformance.RawOptionals",
 	idRecordChain:        "Conformance.RecordChain",
 	idRedLink:            "Conformance.RedLink",
 	idScalars:            "Conformance.Scalars",
