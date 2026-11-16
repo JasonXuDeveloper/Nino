@@ -10,7 +10,7 @@ using ProtoBuf;
 #nullable disable
 namespace Nino.Benchmark;
 
-// VersionTolerantTest's type, shared with its v3 port (V3/VersionTolerantTest.cs), which builds it in the project
+// VersionTolerantTest's type, shared with its v3 build (the v3 part of VersionTolerantTest.Cases.g.cs), which builds it in the project
 // that turns on v3's version tolerance (V3/Versioned).
 
 /// <summary>
@@ -44,7 +44,7 @@ public sealed partial class TolerantClass
 
 #if !NINO_BENCH_V3
     // The v3 project of this type has no SimpleClass (it would build in v3's version-tolerant format there too):
-    // V3/VersionTolerantTest.cs copies the members itself.
+    // VersionTolerantTest copies the members itself in the v3 build.
     public static TolerantClass From(SimpleClass c) => new()
     {
         Id = c.Id, Tag = c.Tag, Guid = c.Guid, CreateTime = c.CreateTime, Name = c.Name, Desc = c.Desc,
