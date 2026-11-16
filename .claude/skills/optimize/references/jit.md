@@ -239,7 +239,10 @@ where that is so, and its x64 sizes are listings, not throughput.
   identical-binary control in all four local rounds at each offset; the x64 offline entry retained both settings
   branches and tail-jumped into the validated reader with no large stack slot. Arm64 only; x64 unmeasured.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
-  down.
+  down. A `fixed` (a pinned slot) is such a local too: two stack stores where it is used and frame zeroing in the
+  prolog of every call, so keep it in the paths that need it and out of an entry other paths share (the AVX-512
+  string writer: a masked helper inside the shared out-of-line entry made 32-63-char writes 1.15 times as long;
+  [vectors-strings.md](vectors-strings.md#narrowing-writes)).
 - A smaller listing is not a faster one: measure. Reading TimeZoneInfo's two strings through one out-of-line helper
   with two `out` strings cut the listing but put both on the stack: 7.5 to 12.8 % slower on runners. A constant
   parameter at each call site (`share: false`) let the inliner drop the dead branch per caller instead, with the
