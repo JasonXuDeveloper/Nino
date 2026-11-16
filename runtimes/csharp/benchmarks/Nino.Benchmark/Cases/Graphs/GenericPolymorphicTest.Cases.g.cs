@@ -82,31 +82,31 @@ partial class GenericPolymorphicTest
         MemoryPackGenericOpenClassTupleBaseBytes = MemoryPackSerializer.Serialize(GenericOpenClassTupleBase);
         ProtobufGenericOpenClassTupleBaseBytes = ProtobufModel.Serialize(GenericOpenClassTupleBase);
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNonGenericBase), NinoNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericIntBase), NinoGenericIntBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericUnmanagedTupleBase), NinoGenericUnmanagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericManagedTupleBase), NinoGenericManagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericSealedClassTupleBase), NinoGenericSealedClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericOpenClassTupleBase), NinoGenericOpenClassTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNonGenericBase), NinoNonGenericBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericIntBase), NinoGenericIntBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericUnmanagedTupleBase), NinoGenericUnmanagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericManagedTupleBase), NinoGenericManagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericSealedClassTupleBase), NinoGenericSealedClassTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericOpenClassTupleBase), NinoGenericOpenClassTupleBaseBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNonGenericBase), MemoryPackNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericIntBase), MemoryPackGenericIntBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericUnmanagedTupleBase), MemoryPackGenericUnmanagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericManagedTupleBase), MemoryPackGenericManagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericSealedClassTupleBase), MemoryPackGenericSealedClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericOpenClassTupleBase), MemoryPackGenericOpenClassTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNonGenericBase), MemoryPackNonGenericBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericIntBase), MemoryPackGenericIntBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericUnmanagedTupleBase), MemoryPackGenericUnmanagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericManagedTupleBase), MemoryPackGenericManagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericSealedClassTupleBase), MemoryPackGenericSealedClassTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericOpenClassTupleBase), MemoryPackGenericOpenClassTupleBaseBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeNonGenericBase), MessagePackNonGenericBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeNonGenericBase), MessagePackNonGenericBaseBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeNonGenericBase), ProtobufNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericIntBase), ProtobufGenericIntBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericUnmanagedTupleBase), ProtobufGenericUnmanagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericManagedTupleBase), ProtobufGenericManagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericSealedClassTupleBase), ProtobufGenericSealedClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericOpenClassTupleBase), ProtobufGenericOpenClassTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeNonGenericBase), ProtobufNonGenericBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericIntBase), ProtobufGenericIntBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericUnmanagedTupleBase), ProtobufGenericUnmanagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericManagedTupleBase), ProtobufGenericManagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericSealedClassTupleBase), ProtobufGenericSealedClassTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericOpenClassTupleBase), ProtobufGenericOpenClassTupleBaseBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNonGenericBase), LuminPackNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeGenericIntBase), LuminPackGenericIntBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNonGenericBase), LuminPackNonGenericBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeGenericIntBase), LuminPackGenericIntBaseBytes);
     }
 
     [GlobalSetup]
@@ -470,19 +470,19 @@ partial class GenericPolymorphicTest
         NinoGenericOpenClassTupleBaseBytes = NinoGen.Serializer.Serialize(GenericOpenClassTupleBase);
         MemoryPackGenericOpenClassTupleBaseBytes = MemoryPackSerializer.Serialize(GenericOpenClassTupleBase);
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNonGenericBase), NinoNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericIntBase), NinoGenericIntBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericUnmanagedTupleBase), NinoGenericUnmanagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericManagedTupleBase), NinoGenericManagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericSealedClassTupleBase), NinoGenericSealedClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericOpenClassTupleBase), NinoGenericOpenClassTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNonGenericBase), NinoNonGenericBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericIntBase), NinoGenericIntBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericUnmanagedTupleBase), NinoGenericUnmanagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericManagedTupleBase), NinoGenericManagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericSealedClassTupleBase), NinoGenericSealedClassTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericOpenClassTupleBase), NinoGenericOpenClassTupleBaseBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNonGenericBase), MemoryPackNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericIntBase), MemoryPackGenericIntBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericUnmanagedTupleBase), MemoryPackGenericUnmanagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericManagedTupleBase), MemoryPackGenericManagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericSealedClassTupleBase), MemoryPackGenericSealedClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericOpenClassTupleBase), MemoryPackGenericOpenClassTupleBaseBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNonGenericBase), MemoryPackNonGenericBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericIntBase), MemoryPackGenericIntBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericUnmanagedTupleBase), MemoryPackGenericUnmanagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericManagedTupleBase), MemoryPackGenericManagedTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericSealedClassTupleBase), MemoryPackGenericSealedClassTupleBaseBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericOpenClassTupleBase), MemoryPackGenericOpenClassTupleBaseBytes);
     }
 
     [GlobalSetup]

@@ -26,6 +26,7 @@ internal static class Program
 {
     private const string Project = "benchmarks/Nino.Benchmark";
     private const string Suffix = ".Cases.g.cs";
+    private const string Manifest = "benchmarks/bench-cases.json";
 
     private static readonly (string Name, string Symbol)[] Builds = [("v4", ""), ("v3", "NINO_BENCH_V3")];
 
@@ -50,8 +51,17 @@ internal static class Program
             .Order(StringComparer.Ordinal).ToList();
 
         var expected = new Dictionary<string, string>();
-        foreach (var (path, text) in Generate(sources, adapters))
+        var manifest = new List<ManifestCase>[Builds.Length];
+        foreach (var (path, text) in Generate(sources, adapters, manifest))
             expected[path] = text;
+        foreach (var unknown in manifest.SelectMany(m => m).SelectMany(c => c.Broken.Select(b => (c, b)))
+                     .Where(x => adapters.All(a => a.Name != x.b.Library)))
+        {
+            Console.Error.WriteLine($"{unknown.c.Class}: case {unknown.c.Case}: Broken names {unknown.b.Library}, no adapter's name");
+            return 1;
+        }
+
+        expected[Path.Combine(root, Manifest)] = WriteManifest(manifest);
 
         int stale = 0;
         foreach (string file in Directory.GetFiles(project, "*" + Suffix, SearchOption.AllDirectories)
@@ -106,8 +116,10 @@ internal static class Program
     }
 
     /// <summary>The generated file of each class that declares cases: its path and text.</summary>
-    private static IEnumerable<(string Path, string Text)> Generate(List<string> sources, List<Adapter> adapters)
+    private static IEnumerable<(string Path, string Text)> Generate(List<string> sources, List<Adapter> adapters,
+        List<ManifestCase>[] manifest)
     {
+        for (int b = 0; b < Builds.Length; b++) manifest[b] = [];
         var texts = sources.ToDictionary(s => s, File.ReadAllText);
         // Per build, every partial declaration of every class, by its full name.
         var views = new List<Dictionary<string, List<Part>>>();
@@ -159,7 +171,9 @@ internal static class Program
                 {
                     // The class's own file first, then its other parts in the order of their names.
                     parts = parts.OrderBy(p => p.File == main ? 0 : 1).ThenBy(p => p.File, StringComparer.Ordinal).ToList();
-                    sb.Append(new BenchClass(parts, Builds[b].Name, adapters.Where(a => a.Builds.Contains(Builds[b].Name)).ToList()).Write());
+                    var benchClass = new BenchClass(parts, Builds[b].Name, adapters.Where(a => a.Builds.Contains(Builds[b].Name)).ToList());
+                    sb.Append(benchClass.Write());
+                    manifest[b].AddRange(benchClass.Cases);
                 }
             }
 
@@ -167,6 +181,44 @@ internal static class Program
             if (condition != null) sb.Append("#endif\n");
             yield return (Path.Combine(Path.GetDirectoryName(main)!, name + Suffix), sb.ToString());
         }
+    }
+
+    /// <summary>
+    /// bench-cases.json: every case of the classes that declare them, in their order, one a line: the class, the case,
+    /// whether it is in the quick subset, the libraries with methods per build, and the libraries that break on it
+    /// (library, kind, reason). The reports draw a broken case as error with its reason (reports/readme.py), report.yml
+    /// attaches the file to a release, and ci.yml runs the quick subset of a pull request labeled benchmark.
+    /// </summary>
+    private static string WriteManifest(List<ManifestCase>[] manifest)
+    {
+        var options = new System.Text.Json.JsonSerializerOptions
+        {
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+        var keys = manifest.SelectMany(m => m).Select(c => (c.Class, c.Case)).Distinct().ToList();
+        var lines = keys.Select(key =>
+        {
+            var builds = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
+            ManifestCase? first = null;
+            for (int b = 0; b < Builds.Length; b++)
+                if (manifest[b].FirstOrDefault(c => (c.Class, c.Case) == key) is { } found)
+                {
+                    first ??= found;
+                    builds[Builds[b].Name] = found.Libraries;
+                }
+
+            var broken = manifest.SelectMany(m => m).Where(c => (c.Class, c.Case) == key).SelectMany(c => c.Broken)
+                .Distinct().Select(x => new { library = x.Library, kind = x.Kind, reason = x.Reason });
+            return "    " + System.Text.Json.JsonSerializer.Serialize(new
+            {
+                @class = key.Class,
+                @case = key.Case,
+                quick = first!.Quick,
+                libraries = builds,
+                broken,
+            }, options);
+        });
+        return "{\n  \"cases\": [\n" + string.Join(",\n", lines) + "\n  ]\n}\n";
     }
 
     internal static IEnumerable<AttributeSyntax> Attributes(SyntaxList<AttributeListSyntax> lists, string name) =>
@@ -189,6 +241,12 @@ internal static class Program
         _ => e.ToString(),
     };
 }
+
+/// <summary>A library that breaks on a case ([BenchCase(Broken = ...)]).</summary>
+internal sealed record Breakage(string Library, string Kind, string Reason);
+
+/// <summary>A case of one build as bench-cases.json lists it: the libraries with methods, and those that break.</summary>
+internal sealed record ManifestCase(string Class, string Case, bool Quick, List<string> Libraries, List<Breakage> Broken);
 
 /// <summary>One partial declaration of a class and the file it is in.</summary>
 internal sealed record Part(string File, ClassDeclarationSyntax Class, CompilationUnitSyntax Unit);
@@ -416,7 +474,9 @@ internal sealed class BenchClass
             }
 
             var libraries = benchCase.Get("Libraries")?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var without = benchCase.Get("Without")?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
+            var broken = Breaks(benchCase, adapters);
+            var without = (benchCase.Get("Without")?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [])
+                .Concat(broken.Select(b => b.Library)).ToList();
             var rows = new List<Row>();
             foreach (var adapter in adapters.OrderBy(a => a.Order))
             {
@@ -432,6 +492,8 @@ internal sealed class BenchClass
             }
 
             _cases.Add((benchCase, rows));
+            Cases.Add(new ManifestCase(_name, benchCase.Name, benchCase.Get("Quick") == "true",
+                rows.Select(r => r.Adapter.Name).ToList(), broken));
         }
 
         _buffer = classProperties["Buffer"];
@@ -440,6 +502,30 @@ internal sealed class BenchClass
             .Concat(_adapters.SelectMany(a => a.Usings)).Distinct()
             .OrderBy(u => u.Contains(" = ") ? 2 : Namespace(u) == "System" || Namespace(u).StartsWith("System.") ? 0 : 1)
             .ThenBy(Namespace, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>The cases of this build, as bench-cases.json lists them.</summary>
+    public readonly List<ManifestCase> Cases = [];
+
+    private static readonly string[] Kinds = ["compile", "throws", "crash", "wrong-read"];
+
+    /// <summary>The case's Broken entries ("Library kind: reason; ..."), checked against the adapters and the kinds.</summary>
+    private List<Breakage> Breaks(BenchCase c, List<Adapter> adapters)
+    {
+        var list = new List<Breakage>();
+        if (c.Get("Broken") is not { } text) return list;
+        foreach (string entry in text.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            int colon = entry.IndexOf(':');
+            string[] head = colon < 0 ? [] : entry[..colon].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string reason = colon < 0 ? "" : entry[(colon + 1)..].Trim();
+            if (head.Length != 2 || !Kinds.Contains(head[1]) || reason.Length == 0)
+                throw new InvalidOperationException(
+                    $"{_name}: case {c.Name}: Broken entry \"{entry}\" is not \"<Library> <{string.Join("|", Kinds)}>: <reason>\"");
+            list.Add(new Breakage(head[0], head[1], reason));
+        }
+
+        return list;
     }
 
     /// <summary>The case's arguments ([BenchArg] with its properties put in), or null when it lacks one.</summary>
@@ -558,7 +644,7 @@ internal sealed class BenchClass
         foreach (var adapter in _adapters)
         {
             foreach (var (c, _) in _cases.Where(c => c.Rows.Any(r => r.Adapter == adapter)))
-                sb.Append($"        BenchmarkPayloadRegistry.Register(nameof({adapter.Name}Serialize{c.Name}), {Bytes(c, adapter)}.Length);\n");
+                sb.Append($"        BenchmarkPayloadRegistry.Register(nameof({adapter.Name}Serialize{c.Name}), {Bytes(c, adapter)});\n");
             if (adapter != _adapters[^1]) sb.Append('\n');
         }
 

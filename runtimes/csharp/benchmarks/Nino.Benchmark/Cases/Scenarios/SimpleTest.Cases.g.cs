@@ -99,47 +99,47 @@ partial class SimpleTest
         SerializedVectors[5] = JsonSerializer.SerializeToUtf8Bytes(Vectors, CaseJson.Default.Vector4Array);
         SerializedVectors[9] = LuminPackBuffers.Bytes(Vectors, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClass), SerializedSimpleClass[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStruct), SerializedSimpleStruct[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClasses), SerializedSimpleClasses[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStructs), SerializedSimpleStructs[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeVectors), SerializedVectors[2].Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClass), SerializedSimpleClass[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStruct), SerializedSimpleStruct[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClasses), SerializedSimpleClasses[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStructs), SerializedSimpleStructs[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeVectors), SerializedVectors[2]);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleClass), SerializedSimpleClass[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleStruct), SerializedSimpleStruct[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleClasses), SerializedSimpleClasses[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleStructs), SerializedSimpleStructs[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeVectors), SerializedVectors[1].Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleClass), SerializedSimpleClass[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleStruct), SerializedSimpleStruct[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleClasses), SerializedSimpleClasses[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleStructs), SerializedSimpleStructs[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeVectors), SerializedVectors[1]);
 
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleClass), SerializedSimpleClass[0].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleStruct), SerializedSimpleStruct[0].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleClasses), SerializedSimpleClasses[0].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleStructs), SerializedSimpleStructs[0].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeVectors), SerializedVectors[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleClass), SerializedSimpleClass[0]);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleStruct), SerializedSimpleStruct[0]);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleClasses), SerializedSimpleClasses[0]);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSimpleStructs), SerializedSimpleStructs[0]);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeVectors), SerializedVectors[0]);
 
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleClass), SerializedSimpleClass[3].Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleStruct), SerializedSimpleStruct[3].Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleClasses), SerializedSimpleClasses[3].Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleStructs), SerializedSimpleStructs[3].Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeVectors), SerializedVectors[3].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleClass), SerializedSimpleClass[3]);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleStruct), SerializedSimpleStruct[3]);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleClasses), SerializedSimpleClasses[3]);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSimpleStructs), SerializedSimpleStructs[3]);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeVectors), SerializedVectors[3]);
 
-        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeSimpleClass), SerializedSimpleClass[4].Length);
-        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeSimpleStruct), SerializedSimpleStruct[4].Length);
-        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeSimpleClasses), SerializedSimpleClasses[4].Length);
-        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeSimpleStructs), SerializedSimpleStructs[4].Length);
-        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeVectors), SerializedVectors[4].Length);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeSimpleClass), SerializedSimpleClass[4]);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeSimpleStruct), SerializedSimpleStruct[4]);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeSimpleClasses), SerializedSimpleClasses[4]);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeSimpleStructs), SerializedSimpleStructs[4]);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeVectors), SerializedVectors[4]);
 
-        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleClass), SerializedSimpleClass[5].Length);
-        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleStruct), SerializedSimpleStruct[5].Length);
-        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleClasses), SerializedSimpleClasses[5].Length);
-        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleStructs), SerializedSimpleStructs[5].Length);
-        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeVectors), SerializedVectors[5].Length);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleClass), SerializedSimpleClass[5]);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleStruct), SerializedSimpleStruct[5]);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleClasses), SerializedSimpleClasses[5]);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleStructs), SerializedSimpleStructs[5]);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializeVectors), SerializedVectors[5]);
 
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleClass), SerializedSimpleClass[9].Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleStruct), SerializedSimpleStruct[9].Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleClasses), SerializedSimpleClasses[9].Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleStructs), SerializedSimpleStructs[9].Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeVectors), SerializedVectors[9].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleClass), SerializedSimpleClass[9]);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleStruct), SerializedSimpleStruct[9]);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleClasses), SerializedSimpleClasses[9]);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleStructs), SerializedSimpleStructs[9]);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeVectors), SerializedVectors[9]);
     }
 
     [GlobalSetup]
@@ -710,17 +710,17 @@ partial class SimpleTest
         SerializedVectors[1] = MemoryPackSerializer.Serialize(Vectors);
         SerializedVectors[2] = NinoGen.Serializer.Serialize(Vectors);
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClass), SerializedSimpleClass[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStruct), SerializedSimpleStruct[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClasses), SerializedSimpleClasses[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStructs), SerializedSimpleStructs[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeVectors), SerializedVectors[2].Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClass), SerializedSimpleClass[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStruct), SerializedSimpleStruct[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClasses), SerializedSimpleClasses[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStructs), SerializedSimpleStructs[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeVectors), SerializedVectors[2]);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleClass), SerializedSimpleClass[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleStruct), SerializedSimpleStruct[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleClasses), SerializedSimpleClasses[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleStructs), SerializedSimpleStructs[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeVectors), SerializedVectors[1].Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleClass), SerializedSimpleClass[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleStruct), SerializedSimpleStruct[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleClasses), SerializedSimpleClasses[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSimpleStructs), SerializedSimpleStructs[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeVectors), SerializedVectors[1]);
     }
 
     [GlobalSetup]

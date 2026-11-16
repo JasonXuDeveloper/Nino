@@ -14,7 +14,7 @@ namespace Nino.Benchmark;
 /// cases call the serializers v3 generates there (V3Versioned.NinoGen), as WorkloadTest's versioned workloads do.
 /// </summary>
 [BenchCase("TolerantClass")]
-[BenchCase("TolerantClasses")]
+[BenchCase("TolerantClasses", Quick = true)]
 [BenchClass(Bytes = "{Library}{Case}Bytes", NinoGen = "V3Versioned.NinoGen")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]

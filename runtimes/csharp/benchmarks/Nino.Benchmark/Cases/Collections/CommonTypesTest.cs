@@ -14,9 +14,9 @@ namespace Nino.Benchmark;
 /// The timed methods are CommonTypesTest.Cases.g.cs, generated from the cases below and the adapters (Adapters/,
 /// runtimes/csharp/tools/BenchGen); the v3 build times Nino 3.3.13 and MemoryPack on the same values.
 /// </summary>
-[BenchCase("Tree", Without = "Protobuf")]
-[BenchCase("Inventory")]
-[BenchCase("Waypoints", Without = "LuminPack")] // LuminPack 1.1.9: its generator writes ReadValue and WriteValue twice (CS0111)
+[BenchCase("Tree", Quick = true, Without = "Protobuf")]
+[BenchCase("Inventory", Quick = true)]
+[BenchCase("Waypoints", Broken = "LuminPack compile: its generator writes ReadValue and WriteValue of Waypoint (a value tuple member) twice (CS0111)")]
 [BenchCase("StringDictionary", Value = "Strings")]
 [BenchClass(Buffer = "1 << 20", Bytes = "{Library}{Case}Bytes", Order = "case")]
 [PayloadColumn]

@@ -21,21 +21,19 @@ namespace Nino.Benchmark.Workloads;
 /// and a new object where v4 reads in place (no overload reads into an existing [NinoType] object).
 /// </summary>
 [BenchClass(Buffer = "1 << 20", Value = "{Case}Value", Bytes = "{Library}{Case}Payload", Order = "case", JsonContext = "WorkloadJson")]
-// LuminPack 1.1.9 cannot run every workload but MediaContent: its generator fails on their models or it reads its own
-// bytes back wrong (runtimes/csharp/benchmarks/README.md, LuminPack; #356).
-[BenchCase("MediaContent", Proto = "MediaContent", Json = "MediaContent")]
-[BenchCase("StackOverflowPage", Without = "LuminPack", Proto = "StackOverflowPage", Json = "StackOverflowPage")]
-[BenchCase("RpcCall", Without = "LuminPack", Proto = "RpcCall", Json = "RpcCall")]
-[BenchCase("ProfileCache", Without = "LuminPack", Proto = "ProfileV2", Json = "ProfileV2",
+[BenchCase("MediaContent", Quick = true, Proto = "MediaContent", Json = "MediaContent")]
+[BenchCase("StackOverflowPage", Quick = true, Broken = "LuminPack compile: its generator declares element twice for a list of objects inside an element of a list of objects (CS0136)", Proto = "StackOverflowPage", Json = "StackOverflowPage")]
+[BenchCase("RpcCall", Broken = "LuminPack compile: a generic type as a union member of a non-generic base (LuminPack015)", Proto = "RpcCall", Json = "RpcCall")]
+[BenchCase("ProfileCache", Broken = "LuminPack throws: its version-tolerant reader indexes past the members the previous version wrote", Proto = "ProfileV2", Json = "ProfileV2",
     Old = "ProfileCacheOld", OldProto = "ProfileV1", OldJson = "ProfileV1", NinoGen = "V3Versioned.NinoGen")]
-[BenchCase("EventStream", Without = "LuminPack", Proto = "EventStream", Json = "EventStream")]
-[BenchCase("LogBatch", Without = "LuminPack", Proto = "LogBatch", Json = "LogBatch")]
-[BenchCase("StateSnapshot", Without = "LuminPack", Proto = "StateSnapshot", Json = "StateSnapshot", InPlace = true)]
-[BenchCase("LockstepFrames", Without = "LuminPack", Proto = "LockstepFrames", Json = "LockstepFrames")]
-[BenchCase("AoiUpdate", Without = "LuminPack", Proto = "AoiUpdate", Json = "AoiUpdate")]
-[BenchCase("WorldRegion", Without = "LuminPack", Proto = "WorldRegion", Json = "WorldRegion", JsonContext = "WorkloadReferenceJson")]
-[BenchCase("CardBattleLog", Without = "LuminPack", Proto = "CardBattleLog", Json = "CardBattleLog", JsonContext = "WorkloadReferenceJson")]
-[BenchCase("IdleSave", Without = "LuminPack", Proto = "IdleSaveV2", Json = "IdleSaveV2",
+[BenchCase("EventStream", Broken = "LuminPack compile: a generic type as a union member of a non-generic base (LuminPack015)", Proto = "EventStream", Json = "EventStream")]
+[BenchCase("LogBatch", Quick = true, Broken = "LuminPack throws: reading its own bytes, length larger than buffer", Proto = "LogBatch", Json = "LogBatch")]
+[BenchCase("StateSnapshot", Quick = true, Broken = "LuminPack throws: reading its own bytes, tag 10 not found in IComponent", Proto = "StateSnapshot", Json = "StateSnapshot", InPlace = true)]
+[BenchCase("LockstepFrames", Broken = "LuminPack compile: its generator declares element twice for a list of objects inside an element of a list of objects (CS0136)", Proto = "LockstepFrames", Json = "LockstepFrames")]
+[BenchCase("AoiUpdate", Broken = "LuminPack throws: reading its own bytes, invalid collection length", Proto = "AoiUpdate", Json = "AoiUpdate")]
+[BenchCase("WorldRegion", Broken = "LuminPack throws: reading its own bytes, invalid collection length", Proto = "WorldRegion", Json = "WorldRegion", JsonContext = "WorkloadReferenceJson")]
+[BenchCase("CardBattleLog", Broken = "LuminPack compile: its generator declares element twice for a list of objects inside an element of a list of objects (CS0136)", Proto = "CardBattleLog", Json = "CardBattleLog", JsonContext = "WorkloadReferenceJson")]
+[BenchCase("IdleSave", Broken = "LuminPack throws: its version-tolerant reader indexes past the members the previous version wrote", Proto = "IdleSaveV2", Json = "IdleSaveV2",
     Old = "IdleSaveOld", OldProto = "IdleSaveV1", OldJson = "IdleSaveV1", InPlace = true, NinoGen = "V3Versioned.NinoGen")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]

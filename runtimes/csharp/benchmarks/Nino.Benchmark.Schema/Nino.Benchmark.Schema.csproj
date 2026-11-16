@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!-- The benchmark models (Nino.Benchmark's Fixtures/ and Workloads/*Models.cs) in C# 9, the language Unity compiles,
+         with the other libraries' attributes as no-op stand-ins (CompetitorAttributes.cs): the one model build that
+         nino-gen (the Go, Rust and TypeScript benchmarks' codecs) and Unity's benchmark read, so every platform times the
+         same types. ci.yml builds it and checks that its types' layouts are Nino.Benchmark's (#335). -->
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <LangVersion>9</LangVersion>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <RootNamespace>Nino.Benchmark</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
+        <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+        <Compile Include="..\Nino.Benchmark\Fixtures\*.cs" Exclude="..\Nino.Benchmark\Fixtures\CaseFormats.cs;..\Nino.Benchmark\Fixtures\ProtobufModel.cs"
+                 Link="Models\%(Filename)%(Extension)"/>
+        <Compile Include="..\Nino.Benchmark\Workloads\*Models.cs;..\Nino.Benchmark\Workloads\Common.cs" Link="Models\%(Filename)%(Extension)"/>
+    </ItemGroup>
+    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
+</Project>

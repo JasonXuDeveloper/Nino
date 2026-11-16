@@ -27,12 +27,15 @@ namespace Nino.Benchmark;
 /// (a base and its subtypes need nothing more), and MemoryPack on the same values.
 /// </summary>
 [BenchCase("NonGenericBase")]
-[BenchCase("GenericIntBase", Without = "MessagePack")]
-// LuminPack 1.1.9 throws writing a generic base over a tuple: "Type ProbeTupF is not annotated in ProbeBox<(int, long)>".
-[BenchCase("GenericUnmanagedTupleBase", Without = "MessagePack LuminPack")]
-[BenchCase("GenericManagedTupleBase", Without = "MessagePack LuminPack")]
-[BenchCase("GenericSealedClassTupleBase", Without = "MessagePack LuminPack")]
-[BenchCase("GenericOpenClassTupleBase", Without = "MessagePack LuminPack")]
+[BenchCase("GenericIntBase", Quick = true, Without = "MessagePack")]
+[BenchCase("GenericUnmanagedTupleBase", Without = "MessagePack",
+    Broken = "LuminPack throws: writing a generic base over a tuple, Type ProbeTupF is not annotated in ProbeBox<(int, long)>")]
+[BenchCase("GenericManagedTupleBase", Without = "MessagePack",
+    Broken = "LuminPack throws: writing a generic base over a tuple, Type ProbeTupF is not annotated in ProbeBox<(int, long)>")]
+[BenchCase("GenericSealedClassTupleBase", Without = "MessagePack",
+    Broken = "LuminPack throws: writing a generic base over a tuple, Type ProbeTupF is not annotated in ProbeBox<(int, long)>")]
+[BenchCase("GenericOpenClassTupleBase", Without = "MessagePack",
+    Broken = "LuminPack throws: writing a generic base over a tuple, Type ProbeTupF is not annotated in ProbeBox<(int, long)>")]
 [BenchClass(Buffer = "1 << 16", Bytes = "{Library}{Case}Bytes", Condition = "!NINO_BENCH_LEGACY")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]

@@ -31,23 +31,22 @@ namespace Nino.Benchmark;
 /// Memory or an IList of a nullable value (CS8377: only its overload of unmanaged values is left, which takes none of
 /// them).
 /// </summary>
-// LuminPack 1.1.9 reads back other values than it wrote for every collection here but the Queue (--verify).
 [BenchCase("NullableQueueInts", MemoryPackValue = "{Case}AsSafeNullable", NinoNullableValue = "{Case}AsNinoNullable",
     NullableForms = true, ProtobufValue = "{Case}Protobuf", Json = "QueueNullableInt32")]
 [BenchCase("NullableHashSetInts", MemoryPackValue = "{Case}AsSafeNullable", NinoNullableValue = "{Case}AsNinoNullable",
-    NullableForms = true, Without = "LuminPack", ProtobufValue = "{Case}Protobuf", Json = "HashSetNullableInt32")]
+    NullableForms = true, Broken = "LuminPack wrong-read: reads back other values than it wrote (its Queue<int?> reads back right)", ProtobufValue = "{Case}Protobuf", Json = "HashSetNullableInt32")]
 [BenchCase("NullableGridInts", MemoryPackValue = "{Case}AsSafeNullable", NinoNullableValue = "{Case}AsNinoNullable",
-    NullableForms = true, Without = "Protobuf LuminPack", Builds = "v4")]
+    NullableForms = true, Without = "Protobuf", Broken = "LuminPack wrong-read: reads back other values than it wrote (its Queue<int?> reads back right)", Builds = "v4")]
 [BenchCase("NullableLinkedListInts", MemoryPackValue = "{Case}AsSafeNullable", NinoNullableValue = "{Case}AsNinoNullable",
-    NullableForms = true, Without = "LuminPack", ProtobufValue = "{Case}Protobuf", Json = "LinkedListNullableInt32")]
+    NullableForms = true, Broken = "LuminPack wrong-read: reads back other values than it wrote (its Queue<int?> reads back right)", ProtobufValue = "{Case}Protobuf", Json = "LinkedListNullableInt32")]
 [BenchCase("NullableCollectionInts", MemoryPackValue = "{Case}AsSafeNullable", NinoNullableValue = "{Case}AsNinoNullable",
-    NullableForms = true, Without = "LuminPack", ProtobufValue = "{Case}Protobuf", Json = "CollectionNullableInt32")]
+    NullableForms = true, Broken = "LuminPack wrong-read: reads back other values than it wrote (its Queue<int?> reads back right)", ProtobufValue = "{Case}Protobuf", Json = "CollectionNullableInt32")]
 [BenchCase("NullableConcurrentQueueInts", MemoryPackValue = "{Case}AsSafeNullable", NinoNullableValue = "{Case}AsNinoNullable",
-    NullableForms = true, Without = "LuminPack", ProtobufValue = "{Case}Protobuf", Json = "ConcurrentQueueNullableInt32")]
+    NullableForms = true, Broken = "LuminPack wrong-read: reads back other values than it wrote (its Queue<int?> reads back right)", ProtobufValue = "{Case}Protobuf", Json = "ConcurrentQueueNullableInt32")]
 [BenchCase("NullableMemoryInts", MemoryPackValue = "{Case}AsSafeNullable", NinoNullableValue = "{Case}AsNinoNullable",
-    NullableForms = true, Without = "Protobuf LuminPack", Json = "MemoryNullableInt32", Builds = "v4")]
+    NullableForms = true, Without = "Protobuf", Broken = "LuminPack wrong-read: reads back other values than it wrote (its Queue<int?> reads back right)", Json = "MemoryNullableInt32", Builds = "v4")]
 [BenchCase("NullableIListInts", MemoryPackValue = "{Case}AsSafeNullable", NinoNullableValue = "{Case}AsNinoNullable",
-    NullableForms = true, Without = "LuminPack", ProtobufValue = "{Case}Protobuf", Json = "IListNullableInt32", Builds = "v4")]
+    NullableForms = true, Broken = "LuminPack wrong-read: reads back other values than it wrote (its Queue<int?> reads back right)", ProtobufValue = "{Case}Protobuf", Json = "IListNullableInt32", Builds = "v4")]
 public partial class CollectionsTest
 {
     private static readonly Queue<int?> NullableQueueInts = NullableIntCollections.Queue();

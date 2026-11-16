@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Columns;
@@ -13,11 +14,23 @@ public class PayloadColumnAttribute() : ColumnConfigBaseAttribute(new PayloadCol
 public static class BenchmarkPayloadRegistry
 {
     private static readonly ConcurrentDictionary<string, int> PayloadSizes = new();
+    private static readonly ConcurrentDictionary<string, byte[]> PayloadBytes = new();
 
     public static void Register(string methodName, int size)
     {
         PayloadSizes[methodName] = size;
     }
+
+    /// <summary>A serialize method's bytes (the bytes its library's deserialize method reads): their size, and the bytes
+    /// for --write-data. The classes BenchGen writes register these.</summary>
+    public static void Register(string methodName, byte[] bytes)
+    {
+        PayloadSizes[methodName] = bytes.Length;
+        PayloadBytes[methodName] = bytes;
+    }
+
+    /// <summary>Every serialize method's registered bytes, by method name.</summary>
+    public static IEnumerable<KeyValuePair<string, byte[]>> Bytes => PayloadBytes;
 
     public static bool TryGet(string methodName, out int size)
     {

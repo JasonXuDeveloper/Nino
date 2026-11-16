@@ -186,13 +186,15 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   `src/components/home-sections.tsx`, the benchmark and `vs-*` pages in both languages, `scripts/csharp-check`). Why:
   the site syncs the numbers from the release's assets but writes each library's version by hand, so new numbers would
   sit next to the old version.
-- On a LuminPack upgrade, drop each `Without = "LuminPack"` (benchmarks/README.md, LuminPack, lists them; #356), run
-  BenchGen, the build and `--verify`, and keep only the ones that still fail. Every one is a 1.1.9 bug, not a case it
-  cannot express.
+- Declare a case a library breaks on with `Broken = "<Library> <compile|throws|crash|wrong-read>: <reason>"`, never
+  leave it out with `Without` (which means the library has no form of the case) or silently. Why: BenchGen lists it in
+  `bench-cases.json`, and the charts, tables and the docs site draw it as error with the reason, while a missing row
+  reads as n/a (#368). On a LuminPack upgrade, drop each LuminPack `Broken` (`bench-cases.json` lists them; #356),
+  run BenchGen, the build and `--verify`, and keep only the ones that still fail.
 - Add a competitor as LuminPack was (#304): one adapter in `Nino.Benchmark/Adapters/` with a method prefix no other
   library's starts with, its fastest documented calls into a reused writer sized like the others', its attributes on
   the models (never on MemoryPack's own copies, `SafeNullable<T>`), BenchGen, then the build and `--verify`, and a
-  `Without` with the reason on every case that fails, listed in benchmarks/README.md. Then the report shards'
+  `Broken` with its kind and reason on every case that fails. Then the report shards'
   explicit-prefix globs (`shards.json`, SimpleTest's; keep each report shard under about 70 cases),
   `compare/ab.py`'s `RIVALS`, `reports/readme.py`'s `OTHERS` (the charts' order) and `NA` (when its missing cases are
   bugs to show n/a rather than cases it cannot express), and the docs site's `otherLibs` (Nino.Docs
@@ -213,7 +215,11 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   Untrusted, ExternalBuffer and Scattered, stay hand-written with their `V3/` ports): add the attribute and
   the value's field, run `dotnet run --project runtimes/csharp/tools/BenchGen`, never edit a `.Cases.g.cs` by hand;
   the methods of every library and the v3 part follow from the adapters (`Nino.Benchmark/Adapters/`), and a new
-  library is one adapter. The rest of this list (`Verify.cs`, chart groups, `shards.json`) still applies.
+  library is one adapter. The rest of this list (`Verify.cs`, chart groups, `shards.json`) still applies. Mark a case
+  `Quick = true` when a labeled pull request's trend run should cover its kind of data (29 cases, about one per kind
+  of shape: the subset ci.yml runs, `bench-cases.json`), and write its models in C# 9 in `Fixtures/` (block-scoped
+  namespaces, no collection expressions or primary constructors): `Nino.Benchmark.Schema` builds them for nino-gen
+  and Unity, and ci.yml checks its types against the benchmark's.
   `runtimes/csharp/benchmarks/README.md`, "Cases and adapters", has the details. Why: a hand-written method per
   library and case is about 4,000 lines that drift apart; the generated ones compile to the IL of the hand-written
   ones (identical IL in all 240 v4 and 80 v3 methods of the first three classes, and identical Tier1 code of their

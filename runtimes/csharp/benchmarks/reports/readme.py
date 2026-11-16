@@ -36,6 +36,7 @@ Every multiple is written by bdn.times: one decimal below 10, a whole number fro
 one value when both ends round alike).
 """
 import argparse
+import json
 import math
 import os
 import re
@@ -85,10 +86,61 @@ FORM_NOTE_ZH = ("可空值：MemoryPack 写的是模型里已备好的 SafeNulla
 # it leaves out is one its 1.1.9 cannot run (runtimes/csharp/benchmarks/README.md, LuminPack; #356). MessagePack,
 # protobuf and JSON leave out a case they cannot express: no bar.
 NA = ("LuminPack",)
-NA_NOTE = ("LuminPack n/a: a case its 1.1.9 cannot run (a generator error, its own bytes read back wrong, a crash), "
-           "or a scenario the suite times through each library's own API, which has no LuminPack form.")
-NA_NOTE_ZH = ("LuminPack 标 n/a 的用例：它的 1.1.9 跑不了（生成器报错、读不对自己写的字节、进程崩溃），"
-              "或是套件按各库自己 API 计时的场景，没有 LuminPack 的写法。")
+NA_NOTE = ("LuminPack n/a: a scenario the suite times through each library's own API, which has no LuminPack form "
+           "(or, in a release before bench-cases.json, a case its 1.1.9 cannot run).")
+NA_NOTE_ZH = ("LuminPack 标 n/a 的用例：套件按各库自己 API 计时的场景，没有 LuminPack 的写法"
+              "（没有 bench-cases.json 的旧版本里，也包括它的 1.1.9 跑不了的用例）。")
+
+# The libraries that break on a case, from the case manifest (runtimes/csharp/benchmarks/bench-cases.json, BenchGen;
+# a release's asset of that name): {method: (library, case, kind, reason)} for both operations. Such a bar or cell is
+# "error" (charts.svg), with the reason in the chart's note, once the report has any row of that library; n/a is left for
+# a case the suite has no form of. load_cases fills it; without a manifest it stays empty (n/a by inference, NA).
+CASES = Path(__file__).resolve().parents[1] / "bench-cases.json"
+BROKEN = {}
+ERROR_KINDS = {"compile": "its generator cannot build the model", "throws": "it throws",
+               "crash": "the process dies", "wrong-read": "it reads back other values than it wrote"}
+ERROR_KINDS_ZH = {"compile": "生成器编译不过模型", "throws": "抛异常", "crash": "进程崩溃", "wrong-read": "读回的值和写入的不同"}
+
+
+def load_cases(path=CASES):
+    """Reads the case manifest's broken entries into BROKEN (none: a missing file leaves it empty)."""
+    BROKEN.clear()
+    if not path or not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        for c in json.load(f)["cases"]:
+            for b in c["broken"]:
+                for verb in VERBS:
+                    BROKEN[f"{b['library']}{verb}{c['case']}"] = (b["library"], c["case"], b["kind"], b["reason"])
+
+
+def broken(v4, method):
+    """The manifest's (library, case, kind, reason) of a method the report has no row of, once the report ran that
+    library and Nino has the case; else None."""
+    entry = BROKEN.get(method)
+    if entry is None or method in v4 or not ran(v4, entry[0]):
+        return None
+    verb = next(v for v in VERBS if method[len(entry[0]):].startswith(v))
+    return entry if f"Nino{verb}{entry[1]}" in v4 else None
+
+
+def error_note(chart, zh=False):
+    """The note of a chart's error bars: per library, each case with its kind and reason (None without any)."""
+    seen = {}
+    for pair in chart:
+        for half in pair:
+            for row in half[1] if half else []:
+                if len(row) > 3 and row[3]:
+                    seen.setdefault(row[0], {})[row[3][1]] = row[3]
+    if not seen:
+        return None
+    kinds = ERROR_KINDS_ZH if zh else ERROR_KINDS
+    parts = []
+    for name, cases in seen.items():
+        items = "; ".join(f"{case} ({kinds[kind]}: {reason})" for case, (_, _, kind, reason) in cases.items())
+        parts.append(f"{name} 标 error 的用例，跑不了的原因：{items}。" if zh else
+                     f"{name} error, a case it breaks on: {items}.")
+    return " ".join(parts)
 
 
 def ran(v4, other):
@@ -107,9 +159,10 @@ def missing(v4, other, method_of):
 
 
 def has_na(chart):
-    """Whether a chart (pairs of (title, rows) or None) has a bar of NA without a time."""
+    """Whether a chart (pairs of (title, rows) or None) has a bar of NA without a time or an error."""
     names = {name for other, _, name in OTHERS if other in NA}
-    return any(name in names and ns is None for pair in chart for half in pair if half for name, ns, *_ in half[1])
+    return any(name in names and ns is None and not rest for pair in chart for half in pair if half
+               for name, ns, *rest in half[1])
 
 
 def has_forms(chart):
@@ -315,6 +368,8 @@ def bars(v4, v3, method_of, first="Nino v4"):
         method = method_of(lib)
         if method and method in v4:
             out.append((names[lib], v4[method]["mean"]))
+        elif method and broken(v4, method):
+            out.append((names[lib], None, "error", broken(v4, method)))
         elif method and missing(v4, lib, method_of):
             out.append((names[lib], None))
     return out
@@ -391,8 +446,14 @@ def overview_chart(v4, v3, cases=CHART_CASES, in_place=True):
         rows = [("Nino v4", v4[f"Nino{verb}{key}"]["mean"])]
         if v3 is not None:
             rows.append(("Nino v3", v3.get(f"Nino{verb}{key}")))
-        rows += [(name, v4[f"{other}{verb}{key}"]["mean"] if f"{other}{verb}{key}" in v4 else None) for other, _, name in OTHERS
-                 if f"{other}{verb}{key}" in v4 or missing(v4, other, lambda lib: f"{lib}{verb}{key}")]
+        for other, _, name in OTHERS:
+            method = f"{other}{verb}{key}"
+            if method in v4:
+                rows.append((name, v4[method]["mean"]))
+            elif broken(v4, method):
+                rows.append((name, None, "error", broken(v4, method)))
+            elif missing(v4, other, lambda lib: f"{lib}{verb}{key}"):
+                rows.append((name, None))
         return f"{verb} · {title}", rows
 
     chart = [tuple(group(verb, key, title.replace("`", "")) for verb in ("Serialize", "Deserialize"))
@@ -476,7 +537,7 @@ def tables(v4, v3, v3_runs, env, tag):
 
     def cell(n, verb, key):
         if f"{n}{verb}{key}" not in v4:
-            return "n/a"
+            return "error" if broken(v4, f"{n}{verb}{key}") else "n/a"
         return time(mean(f"{n}{verb}{key}")) + ("" if n == "Nino" else
                                                 f" ({versus(mean(f'{n}{verb}{key}'), mean(f'Nino{verb}{key}'))})")
     for verb in ("Serialize", "Deserialize"):
@@ -484,7 +545,8 @@ def tables(v4, v3, v3_runs, env, tag):
             ["Workload"] + head, [[label] + [cell(n, verb, key) for n in names] for key, label in WORKLOADS])
     out["table.workloads.payload"] = table(
         ["Workload"] + head,
-        [[label] + [v4[f"{n}Serialize{key}"]["payload"] if f"{n}Serialize{key}" in v4 else "n/a" for n in names]
+        [[label] + [v4[f"{n}Serialize{key}"]["payload"] if f"{n}Serialize{key}" in v4 else
+                    "error" if broken(v4, f"{n}Serialize{key}") else "n/a" for n in names]
          for key, label in WORKLOADS])
     # The other libraries' times, for reference, in OTHERS' order ("—" where a release did not run one): MemoryPack,
     # MessagePack and protobuf-net always, Google.Protobuf and System.Text.Json once a report has them in these cases
@@ -586,10 +648,12 @@ def write_charts(overview, groups, render_png=False, chrome=None):
         fallback = f"{ASSETS}/benchmark.png" if i == 0 else None
         alt = f"{title}: time per operation of Nino v4, v3 and every library, serialize and deserialize"
         # README opens only the first group, so the page stays short; docs/v4-benchmarks.md opens them all.
+        errors, errors_zh = error_note(chart), error_note(chart, zh=True)
         note = (f"\n\n<sub>{FORM_NOTE}</sub>" if has_forms(chart) else "") + \
-            (f"\n\n<sub>{NA_NOTE}</sub>" if has_na(chart) else "")
+            (f"\n\n<sub>{NA_NOTE}</sub>" if has_na(chart) else "") + (f"\n\n<sub>{errors}</sub>" if errors else "")
         note_zh = (f"\n\n<sub>{FORM_NOTE_ZH}</sub>" if has_forms(chart) else "") + \
-            (f"\n\n<sub>{NA_NOTE_ZH}</sub>" if has_na(chart) else "")
+            (f"\n\n<sub>{NA_NOTE_ZH}</sub>" if has_na(chart) else "") + \
+            (f"\n\n<sub>{errors_zh}</sub>" if errors_zh else "")
         en.append(details(title, picture(light, dark, alt, fallback) + note, i == 0))
         doc.append(details(title, picture(light, dark, alt, fallback) + note, True))
         zh.append(details(title_zh, picture(light, dark, f"{title_zh}：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化",
@@ -641,7 +705,7 @@ def main():
     if args.release:
         args.assets = tempfile.mkdtemp(prefix="nino-assets-")
         if release_assets.fetch(release_assets.release(args.release), args.assets,
-                                ["dotnet-x64.md", "dotnet-v3-x64.md", "build-x64.md"]) is None:
+                                ["dotnet-x64.md", "dotnet-v3-x64.md", "build-x64.md", "bench-cases.json"]) is None:
             sys.exit(f"{args.release} has no {release_assets.MANIFEST}")
     if args.assets:
         args.v4, args.v3, build_asset, tag = from_assets(args.assets)
@@ -649,6 +713,10 @@ def main():
         args.tag = args.tag or tag
     if not args.v4 and not args.build:
         parser.error("give --v4, --build, both, or --assets/--release with either")
+    # The release's case manifest, else this checkout's (a release from before it: n/a by inference).
+    assets_cases = os.path.join(args.assets, "bench-cases.json") if args.assets else None
+    load_cases(assets_cases if assets_cases and os.path.isfile(assets_cases) else
+               None if args.assets else CASES)
 
     values = {}
     if args.v4:

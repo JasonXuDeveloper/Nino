@@ -236,6 +236,30 @@ class Groups(unittest.TestCase):
         self.assertEqual(reuse[1][0], ("Nino v4", 300.0, "300 ns, 0 B"))
         self.assertEqual(reuse[1][2][0], "MemoryPack")
 
+    def test_a_broken_case_is_error_with_its_reason(self):
+        # The manifest declares LuminPack broken on HashSet; it ran SimpleClass, so it has rows: error there, its reason
+        # in the note, and n/a (by inference) only where the manifest says nothing.
+        cases = os.path.join(self.tmp.name, "bench-cases.json")
+        with open(cases, "w", encoding="utf-8") as f:
+            json.dump({"cases": [{"class": "CollectionsTest", "case": "HashSet", "quick": False, "libraries": {},
+                                  "broken": [{"library": "LuminPack", "kind": "wrong-read", "reason": "reads it wrong"}]}]}, f)
+        path = os.path.join(self.tmp.name, "lumin.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(report(self.ROWS + [("SimpleTest", f"LuminPack{v}SimpleClass", 150.0) for v in ("Serialize", "Deserialize")]))
+        v4 = readme.parse(path)[1]
+        readme.load_cases(cases)
+        try:
+            charts_of = {gid: chart for gid, _, _, chart in readme.chart_groups(v4, None)}
+            hash_set = next(p for p in charts_of["collections"] if p[0][0].endswith("HashSet"))
+            lumin = [row for row in hash_set[0][1] if row[0] == "LuminPack"]
+            self.assertEqual(lumin, [("LuminPack", None, "error", ("LuminPack", "HashSet", "wrong-read", "reads it wrong"))])
+            self.assertFalse(readme.has_na(charts_of["collections"]))
+            self.assertIn("HashSet (it reads back other values than it wrote: reads it wrong)",
+                          readme.error_note(charts_of["collections"]))
+            self.assertIn(">error</text>", charts.svg(charts_of["collections"])[0])
+        finally:
+            readme.load_cases(None)
+
     def test_without_v3_its_bars_are_left_out(self):
         for _, _, _, chart in readme.chart_groups(self.v4, None):
             for pair in chart:

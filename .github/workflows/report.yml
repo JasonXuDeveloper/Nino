@@ -438,6 +438,8 @@ jobs:
       # This workflow's shards.json and report scripts (layout.py, the target job's "Find the paths").
       SHARDS_JSON: ${{ fromJSON(needs.target.outputs.own).SHARDS }}
       REPORTS: ${{ fromJSON(needs.target.outputs.own).BENCH_REPORTS }}
+      # The measured tag's case manifest (empty before #335): the libraries that break on a case, drawn as error.
+      BENCH_CASES: ${{ fromJSON(needs.target.outputs.layout).BENCH_CASES }}
 
     steps:
       # This workflow's commit, for its scripts (merge_reports.py, release_body.py, readme.py), whichever tag was measured,
@@ -503,16 +505,22 @@ jobs:
             done
           fi
 
-      # The merged reports as assets (dotnet-x64.md, dotnet-v3-x64.md, dotnet-arm64.md; a re-run replaces them), their
-      # charts on the release-notes branch, and the body's benchmark part (runtimes/csharp/benchmarks/reports/release_body.py publish).
+      # The merged reports as assets (dotnet-x64.md, dotnet-v3-x64.md, dotnet-arm64.md; a re-run replaces them), the
+      # tag's case manifest (bench-cases.json), their charts on the release-notes branch, and the body's benchmark part
+      # (runtimes/csharp/benchmarks/reports/release_body.py publish).
       - name: Publish the results
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          CASES=""
+          if [[ -n $BENCH_CASES ]]; then
+            CASES="$RUNNER_TEMP/bench-cases.json"
+            git show "$TAG_NAME:$BENCH_CASES" > "$CASES"
+          fi
           python3 "$REPORTS/release_body.py" publish --tag "$TAG_NAME" --dir "$RUNNER_TEMP/assets" \
             dotnet-x64.md="$BENCHMARK_FILE" ${V3_REPORT:+dotnet-v3-x64.md="$V3_REPORT"} \
-            ${ARM64_REPORT:+dotnet-arm64.md="$ARM64_REPORT"}
+            ${ARM64_REPORT:+dotnet-arm64.md="$ARM64_REPORT"} ${CASES:+bench-cases.json="$CASES"}
           echo "✅ Release assets and notes updated with benchmark results"
 
       # README.md, README.zh.md, their charts and the charts and runtime tables of docs/v4-benchmarks.md show the

@@ -36,7 +36,7 @@ def old_layout(**changes):
         "BENCHMARKS": "benchmarks", "BENCH": "benchmarks/Nino.Benchmark", "BENCH_V3": "",
         "GENERATOR_BENCH": "benchmarks/Nino.GeneratorBenchmark", "MEMBERS": "benchmarks/members",
         "BENCH_REPORTS": "benchmarks/reports", "BENCH_COMPARE": "benchmarks/compare",
-        "SHARDS": "benchmarks/shards.json", **RUNTIMES,
+        "SHARDS": "benchmarks/shards.json", "BENCH_CASES": "", **RUNTIMES,
     }
     paths.update(changes)
     return paths
@@ -97,7 +97,7 @@ class Moved(unittest.TestCase):
         "BENCH_V3": "", "GENERATOR_BENCH": "runtimes/csharp/benchmarks/Nino.GeneratorBenchmark",
         "MEMBERS": "runtimes/csharp/benchmarks/members", "BENCH_REPORTS": "runtimes/csharp/benchmarks/reports",
         "BENCH_COMPARE": "runtimes/csharp/benchmarks/compare", "SHARDS": "runtimes/csharp/benchmarks/shards.json",
-        **RUNTIMES,
+        "BENCH_CASES": "runtimes/csharp/benchmarks/bench-cases.json", **RUNTIMES,
     }
 
     SYNTHETIC = [
@@ -111,6 +111,7 @@ class Moved(unittest.TestCase):
         "runtimes/csharp/benchmarks/Nino.GeneratorBenchmark/Nino.GeneratorBenchmark.csproj",
         "runtimes/csharp/benchmarks/members/run.sh", "runtimes/csharp/benchmarks/reports/bdn.py",
         "runtimes/csharp/benchmarks/compare/ab.py", "runtimes/csharp/benchmarks/shards.json",
+        "runtimes/csharp/benchmarks/bench-cases.json",
         "runtimes/go/bench/go.mod", "runtimes/rust/bench/Cargo.toml", "runtimes/typescript/bench/Bench.csproj",
     ]
 

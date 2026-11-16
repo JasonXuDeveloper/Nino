@@ -53,20 +53,20 @@ partial class VersionTolerantTest
         ProtobufTolerantClassesBytes = ProtobufModel.Serialize(TolerantClasses);
         LuminPackTolerantClassesBytes = LuminPackBuffers.Bytes(TolerantClasses, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClass), NinoTolerantClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClasses), NinoTolerantClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClass), NinoTolerantClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClasses), NinoTolerantClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTolerantClass), MemoryPackTolerantClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTolerantClasses), MemoryPackTolerantClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTolerantClass), MemoryPackTolerantClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTolerantClasses), MemoryPackTolerantClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeTolerantClass), MessagePackTolerantClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeTolerantClasses), MessagePackTolerantClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeTolerantClass), MessagePackTolerantClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeTolerantClasses), MessagePackTolerantClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeTolerantClass), ProtobufTolerantClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeTolerantClasses), ProtobufTolerantClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeTolerantClass), ProtobufTolerantClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeTolerantClasses), ProtobufTolerantClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTolerantClass), LuminPackTolerantClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTolerantClasses), LuminPackTolerantClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTolerantClass), LuminPackTolerantClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTolerantClasses), LuminPackTolerantClassesBytes);
     }
 
     [GlobalSetup]
@@ -254,11 +254,11 @@ partial class VersionTolerantTest
         NinoTolerantClassesBytes = V3Versioned.NinoGen.Serializer.Serialize(TolerantClasses);
         MemoryPackTolerantClassesBytes = MemoryPackSerializer.Serialize(TolerantClasses);
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClass), NinoTolerantClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClasses), NinoTolerantClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClass), NinoTolerantClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClasses), NinoTolerantClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTolerantClass), MemoryPackTolerantClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTolerantClasses), MemoryPackTolerantClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTolerantClass), MemoryPackTolerantClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTolerantClasses), MemoryPackTolerantClassesBytes);
     }
 
     [GlobalSetup]
