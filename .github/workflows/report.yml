@@ -230,6 +230,7 @@ jobs:
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: |
+            11.0.x
             10.0.x
             8.0.x
 
@@ -550,6 +551,7 @@ jobs:
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: |
+            11.0.x
             10.0.x
             8.0.x
 
@@ -693,6 +695,7 @@ jobs:
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: |
+            11.0.x
             10.0.x
             8.0.x
 
