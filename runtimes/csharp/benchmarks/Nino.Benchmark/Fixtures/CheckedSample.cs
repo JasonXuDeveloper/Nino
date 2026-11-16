@@ -8,15 +8,17 @@ using Nino.Core;
 using ProtoBuf;
 
 #nullable disable
-namespace Nino.Benchmark;
-
-// UntrustedTest's element, shared with its v3 port (V3/UntrustedTest.cs).
-
-/// <summary>A raw struct (no [NinoType]) with fields Untrusted mode checks: a DateTime and a bool.</summary>
-public struct CheckedSample
+namespace Nino.Benchmark
 {
-    public DateTime At;
-    public double Value;
-    public int Id;
-    public bool Valid;
+
+    // UntrustedTest's element, shared with its v3 port (V3/UntrustedTest.cs).
+
+    /// <summary>A raw struct (no [NinoType]) with fields Untrusted mode checks: a DateTime and a bool.</summary>
+    public struct CheckedSample
+    {
+        public DateTime At;
+        public double Value;
+        public int Id;
+        public bool Valid;
+    }
 }

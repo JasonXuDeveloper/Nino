@@ -2,13 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using BenchmarkDotNet.Configs;
-#if !NINO_BENCH_V3
-using LuminPack.Attribute;
-using MemoryPack;
-using MessagePack;
-using Nino.Core;
-using ProtoBuf;
-#endif
 
 #nullable disable
 namespace Nino.Benchmark;
@@ -81,25 +74,3 @@ public partial class StringsTest
     private static readonly Utf8Text Utf8CjkString1000 = new() { Text = Cjk(1000) };
 #endif
 }
-
-#if !NINO_BENCH_V3
-/// <summary>A [NinoUtf8] string (StringsTest): Nino writes it as UTF-8, as the other libraries write every string.</summary>
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public sealed partial class Utf8Text
-{
-    [Key(0)] [ProtoMember(1)] [NinoUtf8] public string Text;
-}
-
-/// <summary>A [NinoUtf8] string[] (StringsTest): each element UTF-8, Go's and Rust's strings-mixed-utf8 case.</summary>
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public sealed partial class Utf8Strings
-{
-    [Key(0)] [ProtoMember(1)] [NinoUtf8] public string[] Values;
-}
-#endif

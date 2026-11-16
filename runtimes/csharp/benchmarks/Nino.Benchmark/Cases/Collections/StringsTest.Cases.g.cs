@@ -13,7 +13,6 @@ using System.IO;
 using System.Linq;
 using BenchmarkDotNet.Configs;
 using LuminPack;
-using LuminPack.Attribute;
 using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;

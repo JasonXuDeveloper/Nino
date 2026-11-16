@@ -8,575 +8,577 @@ using MessagePack;
 using Nino.Core;
 using ProtoBuf;
 
-namespace Nino.Benchmark;
+namespace Nino.Benchmark
+{
 
 #nullable disable
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[MemoryPackUnion(1, typeof(PolymorphicClass)), LuminPackUnion(1, typeof(PolymorphicClass))]
-[Union(1, typeof(PolymorphicClass))]
-[ProtoContract]
-[ProtoInclude(100, typeof(PolymorphicClass))]
-[JsonPolymorphic]
-[JsonDerivedType(typeof(PolymorphicClass), 1)]
-public abstract partial class PolymorphicClassBase
-{
-    [Key(10)] [ProtoMember(1)]
-    public int BaseId;
-
-    public abstract void Write();
-}
-
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[NinoType]
-[ProtoContract]
-public sealed partial class PolymorphicClass : PolymorphicClassBase, IPolymorphicWriter
-{
-    [Key(0)] [ProtoMember(1)] public int Id;
-    [Key(1)] [ProtoMember(2)] public bool Tag;
-    [Key(2)] [ProtoMember(3)] public int[] Numbers;
-    [Key(3)] [ProtoMember(4)] public List<PolymorphicFooBase> Numbers2;
-    [Key(4)] [ProtoMember(5)] public Dictionary<int, PolymorphicFooBase> Map1;
-    [Key(5)] [ProtoMember(6)] public FooD Foo;
-    [Key(6)] [ProtoMember(7)] public HashSet<int> Set;
-
-    public static PolymorphicClass Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [MemoryPackUnion(1, typeof(PolymorphicClass)), LuminPackUnion(1, typeof(PolymorphicClass))]
+    [Union(1, typeof(PolymorphicClass))]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(PolymorphicClass))]
+    [JsonPolymorphic]
+    [JsonDerivedType(typeof(PolymorphicClass), 1)]
+    public abstract partial class PolymorphicClassBase
     {
-        Random random = BenchmarkRandom.Shared;
-        return new PolymorphicClass
+        [Key(10)] [ProtoMember(1)]
+        public int BaseId;
+
+        public abstract void Write();
+    }
+
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [NinoType]
+    [ProtoContract]
+    public sealed partial class PolymorphicClass : PolymorphicClassBase, IPolymorphicWriter
+    {
+        [Key(0)] [ProtoMember(1)] public int Id;
+        [Key(1)] [ProtoMember(2)] public bool Tag;
+        [Key(2)] [ProtoMember(3)] public int[] Numbers;
+        [Key(3)] [ProtoMember(4)] public List<PolymorphicFooBase> Numbers2;
+        [Key(4)] [ProtoMember(5)] public Dictionary<int, PolymorphicFooBase> Map1;
+        [Key(5)] [ProtoMember(6)] public FooD Foo;
+        [Key(6)] [ProtoMember(7)] public HashSet<int> Set;
+
+        public static PolymorphicClass Create()
         {
-            Id = random.Next(),
-            BaseId = random.Next(),
-            Tag = random.Next() % 2 == 0,
-            Numbers = Enumerable.Range(0, 100).Select(_ => random.Next()).ToArray(),
-            Numbers2 = new List<PolymorphicFooBase>(),
-            Map1 = new Dictionary<int, PolymorphicFooBase>
+            Random random = BenchmarkRandom.Shared;
+            return new PolymorphicClass
             {
-                {1, FooA.Create()},
-                {2, FooB.Create()},
-                {3, FooC.Create()},
-                {4, FooD.Create()},
-                {5, FooA.Create()},
-                {6, FooB.Create()},
-                {7, FooC.Create()},
-                {8, FooD.Create()},
-                {9, FooA.Create()},
-                {10, FooB.Create()},
-                {11, FooC.Create()},
-                {12, FooD.Create()}
-            },
-            Foo = new FooD
+                Id = random.Next(),
+                BaseId = random.Next(),
+                Tag = random.Next() % 2 == 0,
+                Numbers = Enumerable.Range(0, 100).Select(_ => random.Next()).ToArray(),
+                Numbers2 = new List<PolymorphicFooBase>(),
+                Map1 = new Dictionary<int, PolymorphicFooBase>
+                {
+                    {1, FooA.Create()},
+                    {2, FooB.Create()},
+                    {3, FooC.Create()},
+                    {4, FooD.Create()},
+                    {5, FooA.Create()},
+                    {6, FooB.Create()},
+                    {7, FooC.Create()},
+                    {8, FooD.Create()},
+                    {9, FooA.Create()},
+                    {10, FooB.Create()},
+                    {11, FooC.Create()},
+                    {12, FooD.Create()}
+                },
+                Foo = new FooD
+                {
+                    Id = 1000,
+                    Card = new PolymorphicTransform(random.Next(), random.Next(), random.Next()),
+                    CardB = new PolymorphicTransform(random.Next(), random.Next(), random.Next()),
+                    CardC = new PolymorphicTransform(random.Next(), random.Next(), random.Next()),
+                    CardD = new PolymorphicTransform(random.Next(), random.Next(), random.Next())
+                },
+                Set = new HashSet<int>(Enumerable.Range(0, 100).Select(_ => random.Next()).ToList())
+            };
+        }
+
+        public override void Write() => Console.WriteLine("PolymorphicClass says hello!");
+    }
+
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MemoryPackUnion(1, typeof(FooA)), LuminPackUnion(1, typeof(FooA))]
+    [MemoryPackUnion(2, typeof(FooB)), LuminPackUnion(2, typeof(FooB))]
+    [MemoryPackUnion(3, typeof(FooC)), LuminPackUnion(3, typeof(FooC))]
+    [MemoryPackUnion(4, typeof(FooD)), LuminPackUnion(4, typeof(FooD))]
+    [MemoryPackUnion(5, typeof(FooE)), LuminPackUnion(5, typeof(FooE))]
+    [MemoryPackUnion(6, typeof(FooF)), LuminPackUnion(6, typeof(FooF))]
+    [MemoryPackUnion(7, typeof(FooG)), LuminPackUnion(7, typeof(FooG))]
+    [MemoryPackUnion(8, typeof(FooH)), LuminPackUnion(8, typeof(FooH))]
+    [MemoryPackUnion(9, typeof(FooI)), LuminPackUnion(9, typeof(FooI))]
+    [MemoryPackUnion(10, typeof(FooJ)), LuminPackUnion(10, typeof(FooJ))]
+    [MemoryPackUnion(11, typeof(FooK)), LuminPackUnion(11, typeof(FooK))]
+    [MemoryPackUnion(12, typeof(FooL)), LuminPackUnion(12, typeof(FooL))]
+    [MemoryPackUnion(13, typeof(FooM)), LuminPackUnion(13, typeof(FooM))]
+    [MemoryPackUnion(14, typeof(FooN)), LuminPackUnion(14, typeof(FooN))]
+    [MemoryPackUnion(15, typeof(FooO)), LuminPackUnion(15, typeof(FooO))]
+    [MemoryPackUnion(16, typeof(FooP)), LuminPackUnion(16, typeof(FooP))]
+    [MemoryPackUnion(17, typeof(FooQ)), LuminPackUnion(17, typeof(FooQ))]
+    [MemoryPackUnion(18, typeof(FooR)), LuminPackUnion(18, typeof(FooR))]
+    [MemoryPackUnion(19, typeof(FooS)), LuminPackUnion(19, typeof(FooS))]
+    [MemoryPackUnion(20, typeof(FooZ)), LuminPackUnion(20, typeof(FooZ))]
+    [Union(1, typeof(FooA))]
+    [Union(2, typeof(FooB))]
+    [Union(3, typeof(FooC))]
+    [Union(4, typeof(FooD))]
+    [Union(5, typeof(FooE))]
+    [Union(6, typeof(FooF))]
+    [Union(7, typeof(FooG))]
+    [Union(8, typeof(FooH))]
+    [Union(9, typeof(FooI))]
+    [Union(10, typeof(FooJ))]
+    [Union(11, typeof(FooK))]
+    [Union(12, typeof(FooL))]
+    [Union(13, typeof(FooM))]
+    [Union(14, typeof(FooN))]
+    [Union(15, typeof(FooO))]
+    [Union(16, typeof(FooP))]
+    [Union(17, typeof(FooQ))]
+    [Union(18, typeof(FooR))]
+    [Union(19, typeof(FooS))]
+    [Union(20, typeof(FooZ))]
+    // protobuf-net: each type names its direct subtypes, one level of nesting per level of the hierarchy.
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooA))]
+    // System.Text.Json: the base names every subtype, with MemoryPack's numbers as the "$type" discriminator.
+    [JsonPolymorphic]
+    [JsonDerivedType(typeof(FooA), 1)]
+    [JsonDerivedType(typeof(FooB), 2)]
+    [JsonDerivedType(typeof(FooC), 3)]
+    [JsonDerivedType(typeof(FooD), 4)]
+    [JsonDerivedType(typeof(FooE), 5)]
+    [JsonDerivedType(typeof(FooF), 6)]
+    [JsonDerivedType(typeof(FooG), 7)]
+    [JsonDerivedType(typeof(FooH), 8)]
+    [JsonDerivedType(typeof(FooI), 9)]
+    [JsonDerivedType(typeof(FooJ), 10)]
+    [JsonDerivedType(typeof(FooK), 11)]
+    [JsonDerivedType(typeof(FooL), 12)]
+    [JsonDerivedType(typeof(FooM), 13)]
+    [JsonDerivedType(typeof(FooN), 14)]
+    [JsonDerivedType(typeof(FooO), 15)]
+    [JsonDerivedType(typeof(FooP), 16)]
+    [JsonDerivedType(typeof(FooQ), 17)]
+    [JsonDerivedType(typeof(FooR), 18)]
+    [JsonDerivedType(typeof(FooS), 19)]
+    [JsonDerivedType(typeof(FooZ), 20)]
+    public abstract partial class PolymorphicFooBase
+    {
+        [Key(0)] [ProtoMember(1)] public int Id;
+    }
+
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooB))]
+    public partial class FooA : PolymorphicFooBase, IPolymorphicWriter
+    {
+        [Key(1)] [ProtoMember(1)] public PolymorphicTransform Card;
+
+        public void Write() => Console.WriteLine("FooA says hello!");
+
+        public static FooA Create()
+        {
+            return new FooA
             {
                 Id = 1000,
-                Card = new PolymorphicTransform(random.Next(), random.Next(), random.Next()),
-                CardB = new PolymorphicTransform(random.Next(), random.Next(), random.Next()),
-                CardC = new PolymorphicTransform(random.Next(), random.Next(), random.Next()),
-                CardD = new PolymorphicTransform(random.Next(), random.Next(), random.Next())
-            },
-            Set = new HashSet<int>(Enumerable.Range(0, 100).Select(_ => random.Next()).ToList())
-        };
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
 
-    public override void Write() => Console.WriteLine("PolymorphicClass says hello!");
-}
-
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MemoryPackUnion(1, typeof(FooA)), LuminPackUnion(1, typeof(FooA))]
-[MemoryPackUnion(2, typeof(FooB)), LuminPackUnion(2, typeof(FooB))]
-[MemoryPackUnion(3, typeof(FooC)), LuminPackUnion(3, typeof(FooC))]
-[MemoryPackUnion(4, typeof(FooD)), LuminPackUnion(4, typeof(FooD))]
-[MemoryPackUnion(5, typeof(FooE)), LuminPackUnion(5, typeof(FooE))]
-[MemoryPackUnion(6, typeof(FooF)), LuminPackUnion(6, typeof(FooF))]
-[MemoryPackUnion(7, typeof(FooG)), LuminPackUnion(7, typeof(FooG))]
-[MemoryPackUnion(8, typeof(FooH)), LuminPackUnion(8, typeof(FooH))]
-[MemoryPackUnion(9, typeof(FooI)), LuminPackUnion(9, typeof(FooI))]
-[MemoryPackUnion(10, typeof(FooJ)), LuminPackUnion(10, typeof(FooJ))]
-[MemoryPackUnion(11, typeof(FooK)), LuminPackUnion(11, typeof(FooK))]
-[MemoryPackUnion(12, typeof(FooL)), LuminPackUnion(12, typeof(FooL))]
-[MemoryPackUnion(13, typeof(FooM)), LuminPackUnion(13, typeof(FooM))]
-[MemoryPackUnion(14, typeof(FooN)), LuminPackUnion(14, typeof(FooN))]
-[MemoryPackUnion(15, typeof(FooO)), LuminPackUnion(15, typeof(FooO))]
-[MemoryPackUnion(16, typeof(FooP)), LuminPackUnion(16, typeof(FooP))]
-[MemoryPackUnion(17, typeof(FooQ)), LuminPackUnion(17, typeof(FooQ))]
-[MemoryPackUnion(18, typeof(FooR)), LuminPackUnion(18, typeof(FooR))]
-[MemoryPackUnion(19, typeof(FooS)), LuminPackUnion(19, typeof(FooS))]
-[MemoryPackUnion(20, typeof(FooZ)), LuminPackUnion(20, typeof(FooZ))]
-[Union(1, typeof(FooA))]
-[Union(2, typeof(FooB))]
-[Union(3, typeof(FooC))]
-[Union(4, typeof(FooD))]
-[Union(5, typeof(FooE))]
-[Union(6, typeof(FooF))]
-[Union(7, typeof(FooG))]
-[Union(8, typeof(FooH))]
-[Union(9, typeof(FooI))]
-[Union(10, typeof(FooJ))]
-[Union(11, typeof(FooK))]
-[Union(12, typeof(FooL))]
-[Union(13, typeof(FooM))]
-[Union(14, typeof(FooN))]
-[Union(15, typeof(FooO))]
-[Union(16, typeof(FooP))]
-[Union(17, typeof(FooQ))]
-[Union(18, typeof(FooR))]
-[Union(19, typeof(FooS))]
-[Union(20, typeof(FooZ))]
-// protobuf-net: each type names its direct subtypes, one level of nesting per level of the hierarchy.
-[ProtoContract]
-[ProtoInclude(100, typeof(FooA))]
-// System.Text.Json: the base names every subtype, with MemoryPack's numbers as the "$type" discriminator.
-[JsonPolymorphic]
-[JsonDerivedType(typeof(FooA), 1)]
-[JsonDerivedType(typeof(FooB), 2)]
-[JsonDerivedType(typeof(FooC), 3)]
-[JsonDerivedType(typeof(FooD), 4)]
-[JsonDerivedType(typeof(FooE), 5)]
-[JsonDerivedType(typeof(FooF), 6)]
-[JsonDerivedType(typeof(FooG), 7)]
-[JsonDerivedType(typeof(FooH), 8)]
-[JsonDerivedType(typeof(FooI), 9)]
-[JsonDerivedType(typeof(FooJ), 10)]
-[JsonDerivedType(typeof(FooK), 11)]
-[JsonDerivedType(typeof(FooL), 12)]
-[JsonDerivedType(typeof(FooM), 13)]
-[JsonDerivedType(typeof(FooN), 14)]
-[JsonDerivedType(typeof(FooO), 15)]
-[JsonDerivedType(typeof(FooP), 16)]
-[JsonDerivedType(typeof(FooQ), 17)]
-[JsonDerivedType(typeof(FooR), 18)]
-[JsonDerivedType(typeof(FooS), 19)]
-[JsonDerivedType(typeof(FooZ), 20)]
-public abstract partial class PolymorphicFooBase
-{
-    [Key(0)] [ProtoMember(1)] public int Id;
-}
-
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-[ProtoInclude(100, typeof(FooB))]
-public partial class FooA : PolymorphicFooBase, IPolymorphicWriter
-{
-    [Key(1)] [ProtoMember(1)] public PolymorphicTransform Card;
-
-    public void Write() => Console.WriteLine("FooA says hello!");
-
-    public static FooA Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooC))]
+    public partial class FooB : FooA
     {
-        return new FooA
+        [Key(2)] [ProtoMember(1)] public PolymorphicTransform CardB;
+
+        public static new FooB Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooB
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-[ProtoInclude(100, typeof(FooC))]
-public partial class FooB : FooA
-{
-    [Key(2)] [ProtoMember(1)] public PolymorphicTransform CardB;
-
-    public static new FooB Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooD))]
+    public partial class FooC : FooB
     {
-        return new FooB
+        [Key(3)] [ProtoMember(1)] public PolymorphicTransform CardC;
+
+        public static new FooC Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooC
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-[ProtoInclude(100, typeof(FooD))]
-public partial class FooC : FooB
-{
-    [Key(3)] [ProtoMember(1)] public PolymorphicTransform CardC;
-
-    public static new FooC Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooE))]
+    public partial class FooD : FooC
     {
-        return new FooC
+        [Key(4)] [ProtoMember(1)] public PolymorphicTransform CardD;
+
+        public static new FooD Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooD
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-[ProtoInclude(100, typeof(FooE))]
-public partial class FooD : FooC
-{
-    [Key(4)] [ProtoMember(1)] public PolymorphicTransform CardD;
-
-    public static new FooD Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooF))]
+    public partial class FooE : FooD
     {
-        return new FooD
+        public static new FooE Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooE
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-[ProtoInclude(100, typeof(FooF))]
-public partial class FooE : FooD
-{
-    public static new FooE Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooG))]
+    public partial class FooF : FooE
     {
-        return new FooE
+        public static new FooF Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooF
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-[ProtoInclude(100, typeof(FooG))]
-public partial class FooF : FooE
-{
-    public static new FooF Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooH))]
+    public partial class FooG : FooF
     {
-        return new FooF
+        public static new FooG Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooG
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-[ProtoInclude(100, typeof(FooH))]
-public partial class FooG : FooF
-{
-    public static new FooG Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    [ProtoInclude(100, typeof(FooI))]
+    [ProtoInclude(101, typeof(FooJ))]
+    [ProtoInclude(102, typeof(FooK))]
+    [ProtoInclude(103, typeof(FooL))]
+    [ProtoInclude(104, typeof(FooM))]
+    [ProtoInclude(105, typeof(FooN))]
+    [ProtoInclude(106, typeof(FooO))]
+    [ProtoInclude(107, typeof(FooP))]
+    [ProtoInclude(108, typeof(FooQ))]
+    [ProtoInclude(109, typeof(FooR))]
+    [ProtoInclude(110, typeof(FooS))]
+    [ProtoInclude(111, typeof(FooZ))]
+    public partial class FooH : FooG
     {
-        return new FooG
+        public static new FooH Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooH
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-[ProtoInclude(100, typeof(FooI))]
-[ProtoInclude(101, typeof(FooJ))]
-[ProtoInclude(102, typeof(FooK))]
-[ProtoInclude(103, typeof(FooL))]
-[ProtoInclude(104, typeof(FooM))]
-[ProtoInclude(105, typeof(FooN))]
-[ProtoInclude(106, typeof(FooO))]
-[ProtoInclude(107, typeof(FooP))]
-[ProtoInclude(108, typeof(FooQ))]
-[ProtoInclude(109, typeof(FooR))]
-[ProtoInclude(110, typeof(FooS))]
-[ProtoInclude(111, typeof(FooZ))]
-public partial class FooH : FooG
-{
-    public static new FooH Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooI : FooH
     {
-        return new FooH
+        public static new FooI Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooI
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooI : FooH
-{
-    public static new FooI Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooJ : FooH
     {
-        return new FooI
+        public static new FooJ Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooJ
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooJ : FooH
-{
-    public static new FooJ Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooK : FooH
     {
-        return new FooJ
+        public static new FooK Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooK
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooK : FooH
-{
-    public static new FooK Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooL : FooH
     {
-        return new FooK
+        public static new FooL Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooL
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooL : FooH
-{
-    public static new FooL Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooM : FooH
     {
-        return new FooL
+        public static new FooM Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooM
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooM : FooH
-{
-    public static new FooM Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooN : FooH
     {
-        return new FooM
+        public static new FooN Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooN
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooN : FooH
-{
-    public static new FooN Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooO : FooH
     {
-        return new FooN
+        public static new FooO Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooO
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooO : FooH
-{
-    public static new FooO Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooP : FooH
     {
-        return new FooO
+        public static new FooP Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooP
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooP : FooH
-{
-    public static new FooP Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooQ : FooH
     {
-        return new FooP
+        public static new FooQ Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooQ
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooQ : FooH
-{
-    public static new FooQ Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooR : FooH
     {
-        return new FooQ
+        public static new FooR Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooR
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooR : FooH
-{
-    public static new FooR Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooS : FooH
     {
-        return new FooR
+        public static new FooS Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooS
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooS : FooH
-{
-    public static new FooS Create()
+    [NinoType]
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [ProtoContract]
+    public partial class FooZ : FooH
     {
-        return new FooS
+        public static new FooZ Create()
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
+            return new FooZ
+            {
+                Id = 1000,
+                Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
+                CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
+            };
+        }
     }
-}
 
-[NinoType]
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[ProtoContract]
-public partial class FooZ : FooH
-{
-    public static new FooZ Create()
+    public interface IPolymorphicWriter
     {
-        return new FooZ
+        public void Write();
+    }
+
+    [MemoryPackable, LuminPackable]
+    [MessagePackObject]
+    [NinoType]
+    [ProtoContract]
+    public partial struct PolymorphicTransform
+    {
+        [Key(0)] [ProtoMember(1)] public float X;
+        [Key(1)] [ProtoMember(2)] public float Y;
+        [Key(2)] [ProtoMember(3)] public float Z;
+
+        public PolymorphicTransform(float x, float y, float z)
         {
-            Id = 1000,
-            Card = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardB = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardC = new PolymorphicTransform { X = 1, Y = 2, Z = 3 },
-            CardD = new PolymorphicTransform { X = 1, Y = 2, Z = 3 }
-        };
-    }
-}
-
-public interface IPolymorphicWriter
-{
-    public void Write();
-}
-
-[MemoryPackable, LuminPackable]
-[MessagePackObject]
-[NinoType]
-[ProtoContract]
-public partial struct PolymorphicTransform
-{
-    [Key(0)] [ProtoMember(1)] public float X;
-    [Key(1)] [ProtoMember(2)] public float Y;
-    [Key(2)] [ProtoMember(3)] public float Z;
-
-    public PolymorphicTransform(float x, float y, float z)
-    {
-        X = x;
-        Y = y;
-        Z = z;
+            X = x;
+            Y = y;
+            Z = z;
+        }
     }
 }
