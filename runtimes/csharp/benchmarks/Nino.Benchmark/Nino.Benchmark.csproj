@@ -60,6 +60,8 @@
         <PackageReference Include="Nino" VersionOverride="3.3.13"/>
         <Compile Remove="**/*.cs"/>
         <Compile Include="Program.cs;Harness/Verify.cs;Harness/PayloadColumn.cs;Harness/NinoJobAttribute.cs;Harness/BenchCase.cs;V3/*.cs"/>
+        <!-- The classes whose cases BenchGen writes: the same file for both builds, the v3 part under NINO_BENCH_V3. -->
+        <Compile Include="Cases/Scenarios/SimpleTest.cs;Cases/Scenarios/SimpleTest.Cases.g.cs"/>
         <!-- The data and models every class shares with v4, but protobuf's and JSON's (CaseFormats.cs,
              ProtobufModel.cs: the v3 run times Nino and MemoryPack) and TolerantClass.cs (built by V3/Versioned). -->
         <Compile Include="Fixtures/*.cs" Exclude="Fixtures/CaseFormats.cs;Fixtures/ProtobufModel.cs;Fixtures/TolerantClass.cs"/>
