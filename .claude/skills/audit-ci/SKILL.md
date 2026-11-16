@@ -163,7 +163,13 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   secret; the SDK is installed from `.github/scripts/triage/requirements.txt` with `--require-hashes` (regenerate it
   with the command in its header after changing `requirements.in`). A failed model call leaves the deterministic
   labels and milestone applied and the job green (`triage.py`'s `classify`), so a broken credential never fails or
-  spams an issue; check the run's log for `triage: model call failed`.
+  spams an issue; check the run's log for `triage: model call failed`, and the reason in the Console's Workload
+  identity > Authentication events (the run's log says only HTTP 401). Scope the federation rule to one workspace,
+  or set `ANTHROPIC_WORKSPACE_ID` in the job: a rule enabled in all workspaces rejects an exchange that names none
+  (`workspace_id_required`; #313 and #320 got no model answer until the rule was scoped to Default on 2026-11-16).
+  The "Could not fetch the OIDC token" in the log is the step's echoed script; the step failed only if a
+  `::warning::` line follows. Suggestions (a duplicate, a split) are comments only on issues from outside the
+  maintainers, since a comment emails the author; a maintainer's own go to the run's summary (`wants_comment`).
 - **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
   10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` and ci.yml's pull-request benchmark 6 (shards.json),
   `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines). A push to main
