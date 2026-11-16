@@ -127,10 +127,20 @@ jobs:
             git cat-file -e "$ref^{commit}"
             git worktree add -q --detach "$RUNNER_TEMP/$side" "$ref"
           done
-          rm -rf "$RUNNER_TEMP/base/benchmarks/Nino.Benchmark"
-          cp -r "$RUNNER_TEMP/head/benchmarks/Nino.Benchmark" "$RUNNER_TEMP/base/benchmarks/Nino.Benchmark"
+          # Head's benchmark project, put under base's .NET root where head has it under its own: each tree's paths from
+          # this branch's .github/scripts/layout.py, so base and head may lie on either side of a move (the .NET
+          # projects into runtimes/csharp, #273).
+          LAYOUT=$GITHUB_WORKSPACE/.github/scripts/layout.py
+          head_root=$(python3 "$LAYOUT" "$RUNNER_TEMP/head" --get CSHARP_ROOT)
+          head_bench=$(python3 "$LAYOUT" "$RUNNER_TEMP/head" --get BENCH)
+          base_root=$(python3 "$LAYOUT" "$RUNNER_TEMP/base" --get CSHARP_ROOT)
+          declare -A project=([head]="$RUNNER_TEMP/head/$head_bench"
+            [base]="$RUNNER_TEMP/base/$base_root/${head_bench#"$head_root/"}")
+          rm -rf "${project[base]}"
+          mkdir -p "$(dirname "${project[base]}")"
+          cp -r "${project[head]}" "${project[base]}"
           for side in base head; do
-            dotnet build -c Release "$RUNNER_TEMP/$side/benchmarks/Nino.Benchmark" -v q -nologo < /dev/null
+            dotnet build -c Release "${project[$side]}" -v q -nologo < /dev/null
           done
           report() {
             local files
@@ -141,7 +151,7 @@ jobs:
           echo "## $RUNNER line $LINE slot $SLOT ($model): ${base:0:7} -> ${head:0:7}, $rounds rounds: $filters" | tee -a "$GITHUB_STEP_SUMMARY"
           for round in $(seq "$rounds"); do
             for side in base head; do
-              (cd "$RUNNER_TEMP/$side/benchmarks/Nino.Benchmark" && NINO_BENCH_QUICK=1 dotnet bin/Release/net10.0/Nino.Benchmark.dll \
+              (cd "${project[$side]}" && NINO_BENCH_QUICK=1 dotnet bin/Release/net10.0/Nino.Benchmark.dll \
                 --filter "${F[@]}" --artifacts "$out/$side-$round" < /dev/null) > "$out/$side-$round.log" 2>&1 ||
                 { tail -50 "$out/$side-$round.log"; exit 1; }
               report "$out/$side-$round" "$out/$side-$round.md"
