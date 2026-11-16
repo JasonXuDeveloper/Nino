@@ -167,6 +167,12 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
     members; the constant header and raw value checked together (bools as validated bytes).
   - Give a single-use read body one method (the instance method, or the twin's no-inline `Read` with an early return
     on an absent value); keep the unchanged-string check at the field assignment.
+  - Dispatch reads: inline a subtype's read into the base's switch only when its body opens no class body
+    (`DispatchEntry.Flat`), and the switch into its caller; nesting subtypes stay out of line (98518d32, 3dd9df2b;
+    the numbers in `DispatchEmitter.EmitBase` and #305).
+  - A local reader copies only the cursor (`Reader.CopyCursorTo`) for a positional body; a version-tolerant one keeps
+    `CopyTo` (its regions may read a deferred section). The rule and its numbers: `optimize`'s
+    [references/jit.md](../optimize/references/jit.md), Registers.
 - **Measured write-path rules**, one line each; the numbers and the attempts that lost are in
   [references/write-paths.md](references/write-paths.md) (read it before changing `BodyEmitter`'s writes, the
   top-level writes or `DispatchEmitter`, or when a generated serializer got slower or larger):
@@ -180,6 +186,13 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
     formatter members of at most eight), so a loop over `T[]` or `T?[]` keeps its cursor in registers.
   - Dispatch: outline exact writes only for nesting subtypes; every comparison `GetType() == typeof(...)`, never
     `is`, `GetType()` never hoisted.
+  - Every local writer copies only the cursor in and out (`Writer.CopyCursorTo`): its bodies are flat, so `Depth`, the
+    region count and the context stay untouched (`optimize`'s jit.md, Registers).
+  - Keep the write dispatch a chain of type checks: a hashed jump table and a delegate per subtype both measured
+    slower (`optimize`'s [references/dispatch.md](../optimize/references/dispatch.md)).
+  - Arrays and lists of a polymorphic base go through the base's generated `WriteElements` loop (the chain inline, the
+    writer local); any other collection loop that calls a large formatter per element is a candidate for the same
+    form (`optimize`'s jit.md, the rule on generated loops).
 - **Reach an interface member a struct implements explicitly through a generic accessor constrained to the
   interface** (`MemberAccess.Interface`: `__G_X<__TI>(ref __TI o) where __TI : IFoo => o.X` in the formatter), a
   class's through a cast (`MemberAccess.Cast`, `((IFoo)value).X`): a cast of a struct boxes a copy and loses a write.

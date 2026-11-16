@@ -115,6 +115,26 @@ where that is so, and its x64 sizes are listings, not throughput.
   position. So the sequence overloads copy data that spans segments once, out of line (to the stack up to 1,024 bytes,
   else a pooled array: `NinoSequences`), and read one segment in place (Nino `d275a71e`). How that copy is sized,
   shared and looped, and the two-segment fast paths: [jit-io.md](jit-io.md), "ReadOnlySequence input and output".
+- Copy only the cursor into and out of a generated body's local writer or reader (`Writer.CopyCursorTo`,
+  `Reader.CopyCursorTo`) where the body touches nothing else: every `TypeModel.LocalWriter` body (flat: raw members
+  and `FormatterTraits.Flat` ones) and the local reader of a positional body (a version-tolerant one keeps the full
+  `CopyTo`: its regions may read a deferred section through the other fields). Why: the full copy loaded `Depth`,
+  the region count and the context per body, held them across it (spilled where registers ran out) and stored them
+  back, for every element of a collection of such classes. Evidence (local Xeon, AVX-512, processes alternated):
+  `CombatEventLog.__WriteBody` 1,766 to 1,533 bytes and 57 to 25 stack accesses; LuminPack's `CharacterSaveData`
+  serialize 0.89-0.92 of the base, a `List<ItemBase>` of 40 subtypes 0.88-0.91, `GuildInfo` 0.89, the whole read
+  0.97. A region a flat body opens ends the same with the default fields (nothing was deferred inside it).
+- Give a collection loop whose element formatter is a call (a dispatch, a body too large to inline) a generated loop
+  of its own with that work inline and the writer or reader in a local, instead of a call per element with the cursor
+  in memory. Why: the call and the cursor's round trip through memory cost more than the work they wrap. Evidence:
+  arrays and lists of a polymorphic base, 5.0 to 3.7-3.9 us for 1,000 values (`dispatch.md`, e178937c). Check every
+  collection loop the generator's types reach this way (`NinoElements.Write`/`Read`, dictionary pair loops, sets).
+- Read a gap between a type written whole and the sum of its members written alone as the members' code and data
+  mixed, not as waste in the outer body, until a sequence of the members' own top-level calls says otherwise. Why:
+  LuminPack's `CharacterSaveData` took 3.3 µs against 2.5 µs summed, but the thirteen holder calls back to back took
+  3.3-3.4 µs too, and with a quarter of the elements (all of the data in L1) the gap stayed at 26 %: it is the larger
+  hot code (instruction cache, predictors), so shrink the code each element runs. Cumulative types (one member more
+  each) charge that cost to whichever member comes last, in either order.
 - Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
@@ -219,7 +239,10 @@ where that is so, and its x64 sizes are listings, not throughput.
   identical-binary control in all four local rounds at each offset; the x64 offline entry retained both settings
   branches and tail-jumped into the validated reader with no large stack slot. Arm64 only; x64 unmeasured.
 - Past the JIT's tracking limit, locals are zeroed in the prolog: rare paths out of line also keep the local count
-  down.
+  down. A `fixed` (a pinned slot) is such a local too: two stack stores where it is used and frame zeroing in the
+  prolog of every call, so keep it in the paths that need it and out of an entry other paths share (the AVX-512
+  string writer: a masked helper inside the shared out-of-line entry made 32-63-char writes 1.15 times as long;
+  [vectors-strings.md](vectors-strings.md#narrowing-writes)).
 - A smaller listing is not a faster one: measure. Reading TimeZoneInfo's two strings through one out-of-line helper
   with two `out` strings cut the listing but put both on the stack: 7.5 to 12.8 % slower on runners. A constant
   parameter at each call site (`share: false`) let the inliner drop the dead branch per caller instead, with the

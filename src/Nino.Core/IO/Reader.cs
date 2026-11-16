@@ -111,6 +111,23 @@ namespace Nino.Core
         [EditorBrowsable(EditorBrowsableState.Never)]
         public readonly void CopyTo(ref Reader target)
         {
+            CopyCursorTo(ref target);
+            target.Depth = Depth;
+            target._regions = _regions;
+            target._context = _context;
+        }
+
+        /// <summary>
+        /// Copies only the data and the position into <paramref name="target"/>, for a positional body that opens no
+        /// class body and tracks no reference (generated code's local copy of a flat body, and back): its reads touch
+        /// nothing else (no region, so no deferred section either). The three other fields were loaded, held (spilled
+        /// where registers ran out) and stored back per body, every element of a collection of such classes. For
+        /// generated code.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public readonly void CopyCursorTo(ref Reader target)
+        {
 #if NET8_0_OR_GREATER
             target._cur = ref _cur;
             target._avail = _avail;
@@ -119,9 +136,6 @@ namespace Nino.Core
             target._data = _data;
             target._pos = _pos;
 #endif
-            target.Depth = Depth;
-            target._regions = _regions;
-            target._context = _context;
         }
 
         /// <summary>The next byte.</summary>
