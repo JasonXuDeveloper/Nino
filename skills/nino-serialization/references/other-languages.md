@@ -37,11 +37,16 @@ nino-gen --assembly bin/Release/net8.0/MyGame.Shared.dll --lang go --out ../serv
 ```
 
 ```
-nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [--name <file name>]
+nino-gen --assembly <dll> --lang ts|go|rust --out <dir> [--references <file>] [--name <file name>] [--roots <Name=Type;...>]
   ts:   [--names camel|keep] [--import-extension <.js|.ts|.mjs|.mts>] [--runtime <module>] [--numeric-arrays plain|typed]
   go:   [--package <name>] [--tags json,yaml] [--tag-names camel|snake|original]
   rust: [--serde] [--serde-names camel|snake|original] [--strings string|wide] [--maps indexmap|std]
 ```
+
+A `[NinoType]` gets its codec by itself. A payload sent as a bare collection or nullable (`List<int>`,
+`Dictionary<string, Item>`, `long?`) needs a name: `--roots "Items=System.Collections.Generic.List<MyGame.Item>"`
+(`Roots="..."` on the item; `;` between entries, .NET type names with `<...>`) writes `ItemsCodec` in TypeScript,
+`ReadItems`/`WriteItems` in Go and `type Items` in Rust.
 
 A class library's `bin/` has no copy of its packages (`Nino.Core.dll`): pass them with `--references` (a file with
 one path per line).
