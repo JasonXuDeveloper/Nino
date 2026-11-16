@@ -25,6 +25,11 @@
         <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     </PropertyGroup>
 
+    <!-- C# 15 union fixtures are compiled only in the .NET 11 test build. -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0'">
+        <LangVersion>preview</LangVersion>
+    </PropertyGroup>
+
     <!-- netstandard2.1 is only compiled, never run: it checks the generated code builds the way Unity builds it. It
          gets no test runner packages, dotnet test skips it, and the assembly version conflicts a netstandard2.1
          library cannot redirect (System.Memory and System.ValueTuple from packages vs. the facades) only matter at

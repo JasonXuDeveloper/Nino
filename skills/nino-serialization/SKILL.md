@@ -147,6 +147,9 @@ record's primary constructor); structs fall back to `new T()`; otherwise NINO004
   for a type known only as a `Type`, read with the same type.
 - Subtypes in other assemblies (plugins, HybridCLR) are found once the assembly is loaded; the generator must run
   there too.
+- On .NET 11 with C# 15, declare `[NinoType] public union Result(int, string);`. Each case needs a Nino formatter
+  and is written with its Nino type id, so case order does not determine its id. An empty union writes id zero.
+  The Go, Rust and TypeScript generators report NINOGEN002 for these unions.
 - Without tracking, a shared object is written twice and a cycle throws `InvalidOperationException` while writing.
   `[NinoType(trackReferences: true)]` on the shared or cyclic class (classes only, NINO015) keeps identity: 4 bytes
   and a lookup per tracked object. Collections are never tracked. Trees need no tracking.

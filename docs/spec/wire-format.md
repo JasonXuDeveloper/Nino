@@ -981,6 +981,25 @@ graphs MUST be trees.
 
 ---
 
+### 7.12 C# union structs
+
+A C# 15 `union` declaration marked `[NinoType]` uses a little-endian `i32` Nino type id (§7.2) for the declared
+case type. Id `0` represents an empty union and has no payload. The payload uses the selected case type's normal
+Nino formatter, including any header that formatter writes. When the union itself is stored in an `object` slot,
+the union's own type id precedes the case id.
+
+Writers pick an exact match for the type of the boxed `Value` first, then the first assignable case in declaration
+order. A non-null `Nullable<T>` case matches the boxed `T`. A case constructor given a null value produces the same
+encoding as the default union. Reordering cases preserves the meaning of existing ids. Removing a case makes its
+id invalid. Two distinct case types with the same id make the union ambiguous and are rejected.
+
+For example, `[NinoType] union Result(int, string);` writes `new Result(42)` as
+`A4 A2 97 20 2A 00 00 00` and `default(Result)` as `00 00 00 00`.
+
+The published layout uses `format=Positional`, `header=TypeId` and
+`members=[elements]::union(type(int),type(string))`. The `union` encoding lists the case types in sorted name order.
+Go, Rust and TypeScript generation reports NINOGEN002 for layouts that use this encoding.
+
 ## 8. Type layout metadata and its grammar
 
 For every `[NinoType]` it generates a formatter for, the generator adds `[assembly: NinoTypeLayout(...)]` to the
@@ -1033,9 +1052,11 @@ encoding      = raw_encoding
               | "pair(" , encoding , "," , encoding , ")"
               | "tuple(" , encoding , { "," , encoding } , ")"
               | "group(" , encoding , "," , encoding , ")"
+              | "union(" , union_case , { "," , union_case } , ")"
               | "grid(" , digit , "," , encoding , ")"
               | "datetimeoffset" | "bigint" | "version" | "bits" | "timezone"
               | "formatter(" , type , ")" ;
+union_case    = "type(" , type , ")" ;
 raw_encoding  = "raw" , [ "(" , size , ")" , [ "{" , field , { "," , field } , "}" ] ] ;
 field         = name , ":" , type , "@" , size , ":" , encoding ;
 
@@ -1075,6 +1096,7 @@ hexdigit      = digit | "A" | "B" | "C" | "D" | "E" | "F" ;
 | `pair(K,V)`, `tuple(E,...)` | the items, no header, no padding (§6.6) |
 | `group(K,E)` | `i32 count`, key, elements (§6.4) |
 | `grid(r,E)` | §6.7 |
+| `union(type(T),...)` | case type id and selected payload (§7.12) |
 | `datetimeoffset`, `bigint`, `version`, `bits`, `timezone` | §3.4, §3.5 |
 | `formatter(F)` | written by `F` (§7.11) |
 
@@ -1156,6 +1178,8 @@ surrogates in the default encoding MUST be accepted (§4.1). **.NET:** done.
 
 - An id MUST be `0` (where null is allowed) or a known type that is assignable to the declared type.
 - Unknown ids MUST be rejected.
+- Ids outside a union's declared case set MUST be rejected. A nonzero case id MUST have a non-null payload,
+  and its formatter runs within the normal depth limit (§9.9).
 - Readers SHOULD restrict `object` slots to an allow-list.
 
 **.NET:** unknown ids and non-subtypes throw.

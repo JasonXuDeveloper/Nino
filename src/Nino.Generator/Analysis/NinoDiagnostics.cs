@@ -226,6 +226,10 @@ internal static class NinoDiagnostics
         "Serialization callback on a struct copied as raw memory",
         "'{0}' is marked [{1}] but Nino writes '{2}' as its raw memory (and an array of it as one copy), which runs no code, so it is never called; call it from a callback of the type that holds the struct");
 
+    public static readonly DiagnosticDescriptor UnsupportedUnionCase = Error("NINO045",
+        "Union case cannot be serialized",
+        "Nino has no formatter for case '{0}' of union '{1}'; use a serializable case type or register a formatter for it");
+
     /// <summary>Every descriptor above, which the analyzer reports. Last: static fields initialize in order.</summary>
     public static readonly ImmutableArray<DiagnosticDescriptor> All = typeof(NinoDiagnostics)
         .GetFields(BindingFlags.Public | BindingFlags.Static)

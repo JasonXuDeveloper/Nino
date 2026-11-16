@@ -20,8 +20,10 @@ internal sealed class TypeShape
         Options = attr;
         Generic = TypeNames.AllTypeArguments(type).Count != 0;
         Tracked = TypeRules.IsTracked(type);
-        Format = attr.Format;
+        Format = Kind == FormatterKind.Union ? NinoFormat.Positional : attr.Format;
         GeneratedHere = facts.Visibility.IsGeneratedHere(type);
+        if (Kind == FormatterKind.Union)
+            return;
         RawStruct = facts.Raw.IsRawStruct(type);
         HasCallbacks = Kind != FormatterKind.Polymorphic && !RawStruct &&
             Callbacks.HasInHierarchy(type, facts.Symbols);
@@ -47,7 +49,7 @@ internal sealed class TypeShape
     public bool Tracked { get; }
 
     /// <summary>Whether objects of it are written with a reference header: tracked, and not a struct.</summary>
-    public bool TrackReferences => Tracked && Kind != FormatterKind.Struct;
+    public bool TrackReferences => Tracked && Kind is not (FormatterKind.Struct or FormatterKind.Union);
 
     /// <summary>The format it is written in (its <c>[NinoType]</c>'s, its own or inherited).</summary>
     public NinoFormat Format { get; }
@@ -85,7 +87,8 @@ internal sealed class TypeShape
     /// Whether its body may hold class bodies (<c>NinoBodyTraits.Nests</c>, <see cref="DepthModel.Nests"/>): any type
     /// but a class or struct whose members and elements open none.
     /// </summary>
-    public bool Nests => Kind == FormatterKind.Polymorphic || Collection is { OpensBodies: true } || MembersOpenBodies;
+    public bool Nests => Kind is FormatterKind.Polymorphic or FormatterKind.Union ||
+                         Collection is { OpensBodies: true } || MembersOpenBodies;
 }
 
 /// <summary>
@@ -100,7 +103,7 @@ internal static class TypeRules
         type.TypeKind == TypeKind.Interface || type.IsAbstract
             ? FormatterKind.Polymorphic
             : type.IsValueType
-                ? FormatterKind.Struct
+                ? UnionCases.IsUnion(type) ? FormatterKind.Union : FormatterKind.Struct
                 : type.IsSealed
                     ? FormatterKind.SealedClass
                     : FormatterKind.Class;

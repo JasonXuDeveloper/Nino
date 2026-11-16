@@ -19,6 +19,9 @@ internal enum FormatterKind
 
     /// <summary>Abstract class or interface: always dispatched through the registry.</summary>
     Polymorphic,
+
+    /// <summary>C# union struct: case type id followed by the selected case's value.</summary>
+    Union,
 }
 
 internal enum MemberAccess
@@ -212,6 +215,9 @@ internal sealed record RegistrationModel(
     // The nesting formatters its formatters name (FormatterResolver.NestingFormattersNamedIn), declared once per assembly.
     EquatableArray<NestingModel> Nesting);
 
+// A null id depends on the closed formatter's type arguments.
+internal sealed record UnionCase(string TypeName, string MatchType, FormatterRef Formatter, bool CanMatchSubtype, int? TypeId);
+
 internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
     string TypeName,
@@ -271,7 +277,8 @@ internal sealed record TypeModel(
     // The serialization callbacks its bodies call (Callbacks.Build), or null for none: then nothing in its formatter
     // differs from a type without the feature.
     CallbackModel? Callbacks = null,
-    bool ObjectOnlyPrefetch = false)
+    bool ObjectOnlyPrefetch = false,
+    EquatableArray<UnionCase> Cases = default)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 

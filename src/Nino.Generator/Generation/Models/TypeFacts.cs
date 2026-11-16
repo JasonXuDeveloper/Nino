@@ -84,6 +84,8 @@ internal sealed class TypeFacts
         Resolver = new FormatterResolver(compilation, Symbols, Raw, Visibility);
     }
 
+    public INamedTypeSymbol ObjectType => _compilation.GetSpecialType(SpecialType.System_Object);
+
     /// <summary>Registrations for a closed type named by a top-level call, shared by calls to that type.</summary>
     public UsageRegistration? TopLevelUsage(ITypeSymbol type) =>
         LazyInitializer.EnsureInitialized(ref _topLevelUsages,
@@ -307,7 +309,8 @@ internal sealed class TypeFacts
 
     private bool ComputeIsFixedSize(INamedTypeSymbol type)
     {
-        if (Shape(type) is not { GeneratedHere: true, Keyed: false, Tolerant: false } shape)
+        if (Shape(type) is not { GeneratedHere: true, Keyed: false, Tolerant: false } shape ||
+            shape.Kind == FormatterKind.Union)
             return false;
         bool isStruct = shape.Kind == FormatterKind.Struct;
         if (isStruct ? shape.RawStruct : shape.Tracked || shape.Collection != null)

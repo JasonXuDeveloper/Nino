@@ -24,3 +24,4 @@ NINO041 | Nino | Error | Two methods for one serialization callback
 NINO042 | Nino | Error | Serialization callback must be an instance method
 NINO043 | Nino | Error | No instance exists before the members are read
 NINO044 | Nino | Error | Serialization callback on a struct copied as raw memory
+NINO045 | Nino | Error | Union case cannot be serialized

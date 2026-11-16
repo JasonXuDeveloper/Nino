@@ -19,7 +19,7 @@ namespace Nino.Generator.Generation.Emit;
 internal static class DispatchEmitter
 {
     /// <summary>Above this many subtypes, writes go through the registry rather than a chain of type checks.</summary>
-    private const int MaxWriteChain = 64;
+    internal const int MaxWriteChain = 64;
 
     /// <summary>
     /// A bucket of at most this many subtypes with distinct ids compares the ids directly, without the collision
