@@ -7,9 +7,9 @@ namespace Nino.Benchmark.Adapters;
 [BenchLibrary("Nino", Order = 0, Slot = 2, Baseline = true, Builds = "v4")]
 internal static class NinoAdapter
 {
-    public static void Setup(out NinoArrayBufferWriter buffer)
+    public static void Setup(out NinoArrayBufferWriter buffer, int capacity)
     {
-        buffer = new NinoArrayBufferWriter(320 * 1024);
+        buffer = new NinoArrayBufferWriter(capacity);
     }
 
     public static byte[] ToBytes<T>(T value) => NinoSerializer.Serialize(value);
@@ -22,4 +22,11 @@ internal static class NinoAdapter
     }
 
     public static T Deserialize<T>(byte[] bytes) => NinoDeserializer.Deserialize<T>(bytes);
+
+    // [BenchCase(InPlace = true)]: into the object Setup read first.
+    public static T DeserializeInto<T>(byte[] bytes, ref T target)
+    {
+        NinoDeserializer.Deserialize(bytes, ref target);
+        return target;
+    }
 }

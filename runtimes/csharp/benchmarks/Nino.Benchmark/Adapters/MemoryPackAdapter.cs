@@ -8,9 +8,9 @@ namespace Nino.Benchmark.Adapters;
 [BenchLibrary("MemoryPack", Order = 1, Slot = 1, Builds = "v4 v3")]
 internal static class MemoryPackAdapter
 {
-    public static void Setup(out ArrayBufferWriter<byte> buffer)
+    public static void Setup(out ArrayBufferWriter<byte> buffer, int capacity)
     {
-        buffer = new ArrayBufferWriter<byte>(320 * 1024);
+        buffer = new ArrayBufferWriter<byte>(capacity);
     }
 
     public static byte[] ToBytes<T>(T value) => MemoryPackSerializer.Serialize(value);
@@ -23,4 +23,11 @@ internal static class MemoryPackAdapter
     }
 
     public static T Deserialize<T>(byte[] bytes) => MemoryPackSerializer.Deserialize<T>(bytes);
+
+    // [BenchCase(InPlace = true)]: its overwrite of the object Setup read first.
+    public static T DeserializeInto<T>(byte[] bytes, ref T target)
+    {
+        MemoryPackSerializer.Deserialize(bytes, ref target);
+        return target;
+    }
 }
