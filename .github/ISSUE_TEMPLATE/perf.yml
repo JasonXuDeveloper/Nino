@@ -1,0 +1,45 @@
+# Each option of the Area dropdown is an "area: <option>" label; .github/scripts/triage/triage.py applies it.
+name: Performance report
+description: Nino is slower or allocates more than it should, or than another serializer.
+type: Task
+labels: ["kind: perf"]
+body:
+  - type: textarea
+    id: case
+    attributes:
+      label: Case
+      description: The types and the operation (serialize, deserialize, into an existing instance) that are slow.
+    validations:
+      required: true
+  - type: textarea
+    id: numbers
+    attributes:
+      label: Numbers
+      description: The measurements, how they were taken (BenchmarkDotNet, go test -bench, ...) and what they are compared with.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Nino version, runtime, CPU and operating system.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Nino is this about? Pick every one that applies, or leave it empty if unsure.
+      multiple: true
+      options:
+        - core
+        - generator
+        - analyzer
+        - codegen
+        - unity
+        - go
+        - rust
+        - typescript
+        - docs
+        - benchmarks
+        - dotnet-11
