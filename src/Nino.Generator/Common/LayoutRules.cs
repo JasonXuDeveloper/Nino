@@ -147,7 +147,9 @@ internal static class LayoutRules
                 " when nested deeper than 128 bodies (its deferrable changed, by its construction or by becoming abstract), " +
                 "so data nesting it that deep is laid out differently on either side of the change",
                 "if no data nests it that deep, accept the change into the layout baseline (code fix, or nino-gen layouts)"));
-        if (!m.Same(old.Elements ?? "", now.Elements ?? ""))
+        if (UnionCases(old.Elements) is { } wasCases && UnionCases(now.Elements) is { } nowCases)
+            Union(wasCases, nowCases, m, findings);
+        else if (!m.Same(old.Elements ?? "", now.Elements ?? ""))
             findings.Add(Breaking(null,
                 $"changed what its elements are written as from {old.Elements ?? "none"} to {now.Elements ?? "none"}",
                 Accept));
@@ -160,6 +162,59 @@ internal static class LayoutRules
         else
             Positional(old, now, m, findings);
         return findings;
+    }
+
+    /// <summary>
+    /// The case types of a C# union's encoding (<c>union(type(A),type(B))</c>, spec §7.12), or null for any other
+    /// encoding.
+    /// </summary>
+    private static List<string>? UnionCases(string? elements)
+    {
+        const string prefix = "union(";
+        if (elements == null || !elements.StartsWith(prefix, StringComparison.Ordinal) || elements[elements.Length - 1] != ')')
+            return null;
+        var cases = new List<string>();
+        int depth = 0, start = prefix.Length;
+        for (int i = prefix.Length; i < elements.Length - 1; i++)
+        {
+            char c = elements[i];
+            if (c is '(' or '<' or '[')
+                depth++;
+            else if (c is ')' or '>' or ']')
+                depth--;
+            else if (c == ',' && depth == 0)
+            {
+                cases.Add(elements.Substring(start, i - start));
+                start = i + 1;
+            }
+        }
+
+        if (start < elements.Length - 1)
+            cases.Add(elements.Substring(start, elements.Length - 1 - start));
+        return cases;
+    }
+
+    /// <summary>
+    /// A union's cases compared one by one, each case written with its own type id: a removed case leaves data that
+    /// selected it unreadable by this build; an added one, data selecting it unreadable by builds before; the cases'
+    /// order is not in the bytes.
+    /// </summary>
+    private static void Union(List<string> was, List<string> now, Matcher m, List<LayoutFinding> findings)
+    {
+        var removed = new List<string>();
+        foreach (var item in was)
+            if (!now.Exists(x => m.Same(item, x)))
+                removed.Add(item);
+        var added = new List<string>();
+        foreach (var item in now)
+            if (!was.Exists(x => m.Same(x, item)))
+                added.Add(item);
+        if (removed.Count != 0)
+            findings.Add(Breaking(null, $"no longer has the union case {string.Join(", ", removed)}", Accept,
+                LayoutDirections.NewReadsOld));
+        if (added.Count != 0)
+            findings.Add(Breaking(null, $"has the new union case {string.Join(", ", added)}", Accept,
+                LayoutDirections.OldReadsNew));
     }
 
     /// <summary>The finding for a type whose section has no type in the code any more.</summary>

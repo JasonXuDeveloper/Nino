@@ -137,9 +137,10 @@ internal static partial class ModelBuilder
                     caseType.ToDisplayString(), type.ToDisplayString());
             int? id = ContainsTypeParameter(caseType) ? null :
                 caseType is INamedTypeSymbol named ? facts.Ids(named).Id : facts.TypeId(caseType);
+            bool leaf = matchType.SpecialType == SpecialType.System_String || facts.Raw.IsRawUnmanaged(matchType);
             cases.Add(new UnionCase(Global(caseType), Global(matchType),
                 resolved?.Code ?? FormatterResolver.Cached(caseType),
-                !matchType.IsValueType && matchType is not INamedTypeSymbol { IsSealed: true }, id));
+                !matchType.IsValueType && matchType is not INamedTypeSymbol { IsSealed: true }, id, leaf));
         }
         return new EquatableArray<UnionCase>(cases);
     }
