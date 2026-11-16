@@ -1,0 +1,1 @@
+Performance: Dictionaries whose values are a polymorphic base (with string keys or 4- and 8-byte keys) are written in one generated loop with the subtype tests inline: a class holding such a dictionary and a list of 1,000 polymorphic values serializes 12 to 20 % faster on GitHub's Xeon 6975P, EPYC 9V74, 9V45 and 7763 and Neoverse-N2 runners.
