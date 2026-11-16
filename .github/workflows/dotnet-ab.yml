@@ -89,13 +89,13 @@ jobs:
           echo "go=$go" >> "$GITHUB_OUTPUT"
       # dotnet-install.sh with each channel's latest version from builds.dotnet.microsoft.com: the aka.ms links it (and
       # setup-dotnet) resolve a channel to point at dotnetorigin.blob.core.windows.net, which answers 409.
-      - name: Install .NET 10 and 8
+      - name: Install .NET 11, 10 and 8
         if: steps.check.outputs.go == 'true'
         run: |
           set -euo pipefail
           script="$RUNNER_TEMP/dotnet-install.sh"
           curl -sSfL --retry 3 https://dot.net/v1/dotnet-install.sh -o "$script"
-          for channel in 10.0 8.0; do
+          for channel in 11.0 10.0 8.0; do
             version=$(bash "$script" --channel "$channel" --dry-run | sed -n 's/.*--version "\([^"]*\)".*/\1/p' | head -1)
             [[ -n $version ]] || { echo "::error::no version for channel $channel"; exit 1; }
             bash "$script" --version "$version" --install-dir "$HOME/.dotnet" --azure-feed https://builds.dotnet.microsoft.com/dotnet
