@@ -1,6 +1,6 @@
 ---
 name: verify
-description: "The full Nino gate before anything reaches main or the test branch - build, the unit test matrix, runtime internals, AOT, fuzz, conformance, Go/Rust/TypeScript checks, codegen, actionlint, agent instructions, the docs site - then landing by fast-forward and how the owner cuts a release. Use before any push to main or the test branch, after landing other branches, and before a release. Triggers: push, landing, land on main, merge to main, fast-forward, cherry-pick, release, \"is it ready\", all checks, 合入, 合进, 合到 main, 分支能不能合, 推送, 推到, 发版, 发布, 全部检查."
+description: "The full Nino gate before anything reaches main or the test branch - build, the unit test matrix, runtime internals, AOT, fuzz, conformance, Go/Rust/TypeScript checks, codegen, actionlint, agent instructions, the docs site - then landing through a pull request and how the owner cuts a release. Use before opening a pull request to main or pushing to the test branch, after landing other branches, and before a release. Triggers: push, pull request, PR, landing, land on main, merge to main, fast-forward, cherry-pick, release, \"is it ready\", all checks, 合入, 合进, 提 PR, 合并 PR, 合到 main, 分支能不能合, 推送, 推到, 发版, 发布, 全部检查."
 metadata:
   internal: true
 ---
@@ -68,10 +68,11 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`, and 
   tokens of `RequiresDynamicCodeAttribute`), while two warm builds were identical.
 - Check `git status --short` before pushing. Run `tools/agents.sh --check` against a clean checkout when local
   generated files are present: the check also includes untracked, non-ignored files.
-- Cherry-pick or merge workers' branches onto `origin/main`, drop session lines from their messages, add the trailers
-  a user-facing change needs; then fast-forward `main` (AGENTS.md, Rules). The test branch takes merges only.
-- Watch the runs of the pushed commit to the end, and fix a red one at once (`audit-ci` when the workflow itself is
-  at fault).
+- Cherry-pick or merge workers' branches onto the working branch, drop session lines from their messages, add the
+  trailers a user-facing change needs, merge `origin/main` into it; then open the pull request to `main` (AGENTS.md,
+  Rules, Landing: a merge commit, never squash). The test branch takes merges only.
+- Watch the pull request's runs to the end and fix a red one at once on the same branch (`audit-ci` when the workflow
+  itself is at fault); after the owner merges, watch `main`'s runs the same way.
 - After landing a user-facing change, the nino.docs changelog gets its entry (`audit-docs`).
 
 ## Releases (the owner's)
