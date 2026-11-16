@@ -161,6 +161,10 @@ reusing is written down before the task ends, in the same series of commits as t
 - **Commits**: Conventional Commits, `type(scope): summary` and a body that says why (types `feat`, `fix`, `perf`,
   `refactor`, `docs`, `test`, `ci`, `build`, `chore`; scope = area). Author: the owner's own sessions commit as the
   owner, `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`;
+  every command that makes a commit (`merge`, `cherry-pick`, `revert`, `commit --amend`) takes the same three `-c`
+  options: this environment signs with a key that is not on the owner's account, so a signed commit shows
+  Unverified on GitHub (78 of main's last 100 did), while an unsigned one shows no badge and a pull request's merge
+  commit, which GitHub signs, shows Verified;
   anyone else, and an agent working for anyone else, commits under that person's own name and email, never the
   owner's (PR #309's commit was authored as the owner by a contributor's agent that followed this line, and lost its
   author's credit). A contributor's work that lands under another author carries `Co-authored-by: <name>
