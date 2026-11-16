@@ -340,11 +340,9 @@
 # since every top-level call resets a buffer. With the floor.
 # done (run 43660200531): cpu='EPYC|Xeon|Neoverse' df8a40f2 fcf4da23 4 *CollectionsTest.NinoSerializeNullable* *NullableTest.NinoSerialize* *SimpleTest.Nino*
 # done (run 43660200531): cpu='EPYC|Xeon|Neoverse' df8a40f2 df8a40f2 3 *CollectionsTest.NinoSerializeNullable* *NullableTest.NinoSerialize* *SimpleTest.Nino*
-
 # Every nullable form beside MemoryPack on the head (raw [NinoType] structs with T? members 85962450), for the
 # audit of what still trails it.
 # done (run 43681837258): cpu='EPYC|Xeon|Neoverse' 5094e1d0 5094e1d0 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable*
-
 # The kernels after the lead revert: unified cleared copy (vpermb/vpermt2b, Arm64 tbl), vpermt2d realignment on
 # AVX-512 (bbb6eba2) against 5094e1d0 (with the lead). MemoryPack rides along as the floor.
 # done (run 43694806821): cpu='EPYC|Xeon|Neoverse' 5094e1d0 bbb6eba2 2 *NullableTest.Nino* *NullableTest.MemoryPack* *CollectionsTest.Nino*Nullable* *CollectionsTest.MemoryPack*Nullable* *SimpleTest.Nino*
@@ -385,4 +383,6 @@
 cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *NullableTest.NinoNullable*
 # done (run 43803558705): short-string writer d0135190 -> 07cc0cf1: InterfaceStrings writes -21..-61%, LogBatch -4..-17%; kept.
 # done (run 43803558705): GenericSealedClassTupleBase level on 9V45; NinoNullable Memory<int?>/Vec3? writes +17..26% on 9V45 (#306).
-cpu='9V45|9V74|Xeon' 745c59d0 745c59d0 1 *AlignedCopyProbe*
+# done (run 43817418473): NinoUnsafe.Copy is flat across source alignments on 9V45 (8 KB 33-36 ns, 24 KB 110-122) and
+# beats aligned loads, 256-bit loops and Memmove there; the 9V45 swing is not source alignment. Next: the 4K gap.
+cpu='9V45|9V74' 745c59d0 745c59d0 1 *CopyGapProbe*
