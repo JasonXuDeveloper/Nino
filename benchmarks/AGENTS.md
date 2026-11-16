@@ -7,21 +7,23 @@ every option, class and environment variable: read it instead of guessing. The r
 benchmarks in `runtimes/*/bench`. `audit-code` audits the scripts, `benchmark` runs them, `audit-perf` and `optimize` use them.
 
 ```
-README.md                    options of run.sh, the classes, MessagePack / protobuf-net / Google.Protobuf / JSON, member
-                             by member, machine code
+README.md                    options of run.sh, the classes, MessagePack / protobuf-net / Google.Protobuf / JSON /
+                             LuminPack (its cases and the ones it cannot run), member by member, machine code
                              (asm/asm.py, cross JIT), the runtimes' benchmarks
 run.sh                       the published runtime benchmark: v3 3.3.13 then the full v4 suite on one machine (QUICK=1,
                              FILTER=...); writes benchmarks/results/ (ignored)
 Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases/Graphs and Cases/Scenarios compare Nino
                              against MemoryPack, MessagePack and protobuf-net per class (SimpleTest, PolymorphicTest,
                              NullableTest and CollectionsTest's nullable collections against Google.Protobuf, through
-                             Fixtures/cases.proto, and System.Text.Json too)
+                             Fixtures/cases.proto, and System.Text.Json too; LuminPack in SimpleTest, PolymorphicTest,
+                             GenericPolymorphicTest, CollectionsTest and WorkloadTest where its 1.1.9 can)
                              (SimpleTest, PolymorphicTest, NullableTest, GenericPolymorphicTest, PooledTest,
                              PooledGraphTest, ReferenceTest, VersionTolerantTest, FixedSizeTest, CommonTypesTest,
                              CollectionsTest, BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest), Workloads/ (WorkloadTest: 12 real-world
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
-                             Harness/Verify.cs (--verify: every case reads back right), Harness/NinoCoreBuild.cs (stops a process that
+                             Harness/Verify.cs (--verify: every case reads back right), Harness/LuminPackBuffers.cs
+                             (LuminPack's writers, grown up front, and its cases' bytes), Harness/NinoCoreBuild.cs (stops a process that
                              loaded another Nino.Core build than its framework's), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
                              Fixtures/ contains shared models and payloads (ProtobufModel.cs: protobuf-net's model, the
                              .proto files --write-proto generates, the read-back of Google.Protobuf's messages;
@@ -44,8 +46,8 @@ Nino.GeneratorBenchmark/     the source generator on a synthetic workload: gener
 shards.json                  the classes and the filters of each CI shard: "report" (report.yml, x64 and Arm64) and
                              "ab" (ab-bench.yml)
 compare/                     comparisons of two runs, for development (never published on their own)
-  ab.py                      two github reports of the same benchmarks (base, head): head against base and MemoryPack;
-                             head alone (one report): head against MemoryPack (ab-bench.yml)
+  ab.py                      two github reports of the same benchmarks (base, head): head against base, MemoryPack and
+                             LuminPack (when head ran it); head alone (one report): head against them (ab-bench.yml)
   compare_v3.py              v3 3.3.13 against v4 from a v3 and a v4 report (every case of V3/), with both MemoryPack runs (run.sh, and
                              the release body's v3 section)
 asm/                         the machine code of the cases
@@ -95,10 +97,11 @@ reports/                     what a release publishes: the results of runners as
   v4.0.0-rc.9 too: change one only together with its parser there.
 - The models (`Fixtures/*.cs` but `CaseFormats.cs`, `ProtobufModel.cs` and `TolerantClass.cs`, and
   `Workloads/*Models.cs`) compile in the v3 build too: a class's models go in `Fixtures/`, never in its `Cases/` file,
-  an attribute or member 3.3.13 lacks goes behind `#if NINO_BENCH_V3` (the v3 form first), and a version-tolerant
-  model goes in the v3 project that tolerates versions (`V3/Versioned`: `VersionedModels.cs`, `TolerantClass.cs`; a
-  collection of one that a case reads, such as `TolerantClass[]`, named in its `CollectionTypes.cs`, since v3 writes
-  overloads only for the collection types its project names). A type v3's generator cannot take stays in its v4
+  an attribute or member 3.3.13 lacks goes behind `#if NINO_BENCH_V3` (the v3 form first; another library's attribute
+  needs none: the v3 builds reference its package, LuminPack's without its generator, `Directory.Build.props`), and a
+  version-tolerant model goes in the v3 project that tolerates versions (`V3/Versioned`: `VersionedModels.cs`,
+  `TolerantClass.cs`; a collection of one that a case reads, such as `TolerantClass[]`, named in its
+  `CollectionTypes.cs`, since v3 writes overloads only for the collection types its project names). A type v3's generator cannot take stays in its v4
   `Cases/` file, which the v3 build does not compile (CollectionsTest's `SelfTree`).
 - Program.cs and the Harness files the v3 build lists (`Nino.Benchmark.csproj`, `NinoBenchV3`) compile against Nino
   3.3.13 with only those files: guard what they reach outside them with `#if !NINO_BENCH_V3`, and build
