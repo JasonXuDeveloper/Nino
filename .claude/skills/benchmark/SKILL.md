@@ -48,6 +48,12 @@ runners measure. Runners still decide (round 123).
   controls reproduce it: the string-miss probe timed a seven-char ASCII hit at 29–44 ns after 100 ms per case, and
   near 3.7 ns on both builds after an isolated one-second warmup (Tier1 listings). The fixture that held validates
   first, warms every case path and its wrapper for two seconds, then alternates complete processes over four rounds.
+- Never read a gap off a hand-timed loop that calls one method over and over (a Stopwatch around `b.NinoX()`) until
+  the same loop, run after other calls, agrees: the method can stay on its on-stack-replacement code (`Tier1-OSR` in
+  `DOTNET_JitDisasmSummary`) for the whole process. LuminPack's `ActiveBuff[]` serialize measured 985 to 1,097 ns
+  against LuminPack's 475 in three such probes, and 475 to 481 against 505 once the probe first wrote other arrays;
+  a reflection sweep of every pair with `DOTNET_TC_CallCountingDelayMs=0` showed `Scalars` at 9.5x and
+  `SkillLevels` reads at 4.8x, each within 10 % when timed alone (#305).
 
 In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
 6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused
@@ -73,6 +79,13 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    - **Reach the commits** with `git merge -s ours --no-edit <ref>` (history only: the test branch keeps main's code,
      so its CI runs main's code; merging an experiment's code ran CI on it, and a Go test that overflowed `int` on 386
      and a Windows stack test mailed the owner a failure per push).
+   - **Time the Nino.Core build you mean.** BenchmarkDotNet's runner project (`Nino.Benchmark-<job>`) gets Nino.Core
+     only through Nino.Benchmark's references, so a referenced package built for fewer frameworks than Nino.Core brings
+     an older build into it: until f01a8d3c Nino.Immutable (net8.0 only) made every runner process load Nino.Core's
+     net8.0 build, and every A/B and release number timed Nino without its .NET 10 paths (1,000 structs of an int, a
+     long? and a double? 3.4 µs out of process, 1.2 in process; #301). `Harness/NinoCoreBuild.cs` now throws in such
+     a process. A base commit before f01a8d3c needs that commit cherry-picked onto it (0ec9f5af is bbb6eba2 with
+     it), or its side times net8.0. A new package Nino.Benchmark references targets every framework Nino.Core does.
    - **Runtime lines** go into `.github/ab-request.txt` and run `runtime-ab.yml`:
      `<go|go:<dir>|go#<rounds>|rust|rust:<bench>|typescript|generator|generator#<rounds>> <base sha> <head sha> [filter] [<base env> <head env>]`.
      At most 8 lines per push, 10 jobs each (the workflow measures the first 8 and warns; `[ab: new lines only]` in the
@@ -184,7 +197,12 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   shard picked by the minutes each shard's "Run benchmarks" step took in the last report, and at most about 70 cases
   of v4 and v3 together (`--list flat` of both builds with the shard's globs; about 15 minutes a shard plus half a
   minute a case, under report.yml's 150-minute timeout): a new shard (the next letter) rather than an overfull one
-  (`audit-ci`, Fast and parallel). Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
+  (`audit-ci`, Fast and parallel). Name a case so that no other shard's glob matches it, and check that
+  every case of both builds is in exactly one report shard (`fnmatch` of the `--list flat` names against every
+  shard's globs): `CollectionsTest`'s globs end at the case (`*.CollectionsTest.*Queue`), so a `NullableIntQueue`
+  would have run in shard i too (the collections of `int?` are `NullableQueueInts`, ...), and an A/B shard takes a
+  class by prefix, so their 80 Nino and MemoryPack cases all landed in A/B shard e (187 cases, the others about 50)
+  until CollectionsTest was split by verb between a and e. Setup that calls an ISA's API (a probe's `X86Base.CpuId`) checks `IsSupported`:
   ci.yml runs `--verify` on x64 and on Arm64 (`audit-ci`, Scripts only a release runs).
 - A case that needs a process-wide setting frozen on first use (`NinoSettings.Untrusted`, `UntrustedTest`) sets it in
   its class's static constructor inside `try`/`catch (InvalidOperationException)` and never throws from
@@ -219,7 +237,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   `[NullWrappedValue]` at `CompatibilityLevel.Level300` (`google.protobuf.Int32Value`, ...: Google.Protobuf's `int?`).
   Keep such contracts at Level300: at the default level `GetSchema` names `decimal?`'s wrapper `Wrapped.bcl.Decimal`,
   which protoc rejects, and `[NullWrappedValue]` on an enum writes a message while the schema keeps the bare enum
-  (Google.Protobuf would misread it), so a nullable enum stays bare with a zero member the data never uses. A
+  (Google.Protobuf would misread it), so a nullable enum stays bare with a zero member the data never uses. `GetSchema`
+  writes the message of a wrapped scalar once for every kind of member that needs it (`Wrappedstring` for a Level300
+  `decimal?` and again for a null-wrapped `string`), and protoc rejects the second definition ("already defined in
+  nino.cases"): `ProtoFile.Generate` keeps each identical top-level message once. A
   `Nullable<T>` of a message type cannot be wrapped in a repeated field at all ("No serializer for type
   System.Nullable`1[SimpleStruct]"): write an array of a contract with one optional field (`OptionalSimpleStruct`,
   the same bytes), made outside the timed region; a top-level null is such a contract with the field absent. A

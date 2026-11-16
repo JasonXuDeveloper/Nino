@@ -13,6 +13,12 @@ using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
+    /// <summary>How a collection takes one element read for it (<see cref="NinoCollections.AddSlots"/>).</summary>
+    internal interface INinoAdder<TTarget, T>
+    {
+        void Add(TTarget target, T item);
+    }
+
     /// <summary>Shared helpers for collection formatters.</summary>
     internal static class NinoCollections
     {
@@ -87,7 +93,7 @@ namespace Nino.Core.Internal
                 return;
             }
 
-            if (NinoElements.WritesOnLocal<T>())
+            if (NinoElements.WritesOnLocal<T, TFormatter>())
                 writer = WriteEnumerated<T, TFormatter>(values, count, writer);
             else
                 WriteEnumerated<T, TFormatter>(values, count, ref writer);
@@ -111,7 +117,7 @@ namespace Nino.Core.Internal
             int written = 0;
             foreach (var item in values)
             {
-                default(TFormatter).Serialize(item, ref writer);
+                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
                 written++;
             }
 
@@ -302,6 +308,30 @@ namespace Nino.Core.Internal
             WriteCopied<KeyValuePair<TKey, TValue>,
                 KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(
                 source, root, ref writer);
+
+        /// <summary>
+        /// Reads <paramref name="length"/> slots (<see cref="NinoElements.SlotStride{T,TFormatter}"/>: a raw
+        /// <c>T?</c>) as one run into a rented array, checked and converted by the run's kernels, and gives each to
+        /// <typeparamref name="TAdder"/>: what a collection that takes its elements one at a time reads slots
+        /// through. A slot read alone goes through the run's kernel once an element (1,000 <c>int?</c> into a
+        /// <c>Collection</c>: 10,486 ns, against 4,552 before slots; a <c>HashSet</c> 12,174 against 4,842, local).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void AddSlots<TTarget, T, TFormatter, TAdder>(TTarget target, int length, ref Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+            where TAdder : struct, INinoAdder<TTarget, T>
+        {
+            var rented = ReadRented<T, TFormatter>(length, ref reader);
+            try
+            {
+                for (int i = 0; i < length; i++)
+                    default(TAdder).Add(target, rented[i]);
+            }
+            finally
+            {
+                ReturnRented(rented);
+            }
+        }
 
         /// <summary><see cref="ReadRented{T,TFormatter}"/> for pairs.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

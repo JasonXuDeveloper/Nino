@@ -195,6 +195,14 @@ namespace Nino.Codegen.Model
         /// <summary>The value's offset in a <see cref="ValueKind.RawNullable"/>.</summary>
         public int ValueOffset { get; internal set; }
 
+        /// <summary>
+        /// A <see cref="ValueKind.RawNullable"/> that is a <c>NinoNullable&lt;T&gt;</c>: its presence is a whole
+        /// <c>T</c> (the bytes from the flag to the value, zeros above the flag) and its value is zeros when absent.
+        /// A reader rejects anything else, as Nino.Core does in untrusted mode; the same bytes of a <c>T?</c> are
+        /// padding and a stale value, which .NET writes from memory as they are, so they are read as they come.
+        /// </summary>
+        public bool Clean { get; internal set; }
+
         /// <summary>The element (sequence, grid), the value of a nullable or raw nullable.</summary>
         public ValueModel? Element { get; internal set; }
 

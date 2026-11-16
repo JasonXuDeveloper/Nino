@@ -82,7 +82,7 @@ namespace Nino.Codegen.Model
                 return RawShapeIn(type.GetElementType()!);
             if (!type.IsGenericType)
                 return null;
-            if (type.IsValueType && !IsNullable(type) && Find(type.GetGenericTypeDefinition()) == null)
+            if (type.IsValueType && Generic(type) is not (Nullable or NinoNullable) && Find(type.GetGenericTypeDefinition()) == null)
                 return type;
             return type.GetGenericArguments().Select(RawShapeIn).FirstOrDefault(t => t != null);
         }

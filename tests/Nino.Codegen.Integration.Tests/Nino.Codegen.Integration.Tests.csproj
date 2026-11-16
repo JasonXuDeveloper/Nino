@@ -3,11 +3,9 @@
     <!-- Nino.Codegen in builds: TypeScriptTests runs the TypeScript generated for Samples.cs under Node against the bytes
          .NET writes; BuildTests builds scratch projects with build/Nino.Codegen.targets, for every language. -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <!-- With a .NET 11 SDK, net11.0 and C# 15: the C# unions of Samples.cs. The committed generated files are written with it;
-             CI's integrations job installs that SDK. -->
-        <TargetFramework Condition=" $([MSBuild]::VersionGreaterThanOrEquals('$(NETCoreSdkVersion)', '11.0')) ">net11.0</TargetFramework>
-        <LangVersion Condition=" $([MSBuild]::VersionGreaterThanOrEquals('$(NETCoreSdkVersion)', '11.0')) ">preview</LangVersion>
+        <!-- net11.0 and C# 15: the C# unions of Samples.cs. -->
+        <TargetFramework>net11.0</TargetFramework>
+        <LangVersion>preview</LangVersion>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <OutputType>Library</OutputType>

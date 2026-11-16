@@ -6,8 +6,8 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::types::{
-    BigInteger, BitArray, DateOnly, DateTime, DateTimeKind, DateTimeOffset, Decimal, Grid, Guid, Half, RawNullables,
-    Rune, TimeOnly, TimeSpan, Utf8, Version, WideString,
+    BigInteger, BitArray, DateOnly, DateTime, DateTimeKind, DateTimeOffset, Decimal, Grid, Guid, Half, NinoNullable,
+    NullableSlot, Rune, TimeOnly, TimeSpan, Utf8, Version, WideString,
 };
 
 fn invalid<E: serde::de::Error>(what: &str, e: crate::Error) -> E {
@@ -212,15 +212,27 @@ impl<'de> Deserialize<'de> for Utf8 {
     }
 }
 
-impl<T: Serialize> Serialize for RawNullables<T> {
+impl<T: Serialize> Serialize for NinoNullable<T> {
     fn serialize<S: Serializer>(&self, s: S) -> core::result::Result<S::Ok, S::Error> {
         self.0.serialize(s)
     }
 }
 
-impl<'de, T: Deserialize<'de>> Deserialize<'de> for RawNullables<T> {
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for NinoNullable<T> {
     fn deserialize<D: Deserializer<'de>>(d: D) -> core::result::Result<Self, D::Error> {
-        Vec::deserialize(d).map(RawNullables)
+        Option::deserialize(d).map(NinoNullable)
+    }
+}
+
+impl<T: Serialize> Serialize for NullableSlot<T> {
+    fn serialize<S: Serializer>(&self, s: S) -> core::result::Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for NullableSlot<T> {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> core::result::Result<Self, D::Error> {
+        Option::deserialize(d).map(NullableSlot)
     }
 }
 

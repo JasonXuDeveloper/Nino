@@ -5,6 +5,63 @@ using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
+    /// <summary>
+    /// A formatter whose values take a slot of a fixed size as the elements of a collection, where a single value
+    /// (a member, a tuple's item, a dictionary's key or value) is written another way: a raw <c>T?</c>
+    /// (a presence byte and the value only when present as a single value; a slot of
+    /// <see cref="NinoNullables{T}"/>.Stride bytes, zero where absent, as an element). Every sequence then moves them
+    /// as one block (<see cref="NinoElements.BlockStride{T,TFormatter}"/>), and writes or reads one that it holds
+    /// apart through <see cref="NinoElements.WriteOne{T,TFormatter}"/> and
+    /// <see cref="NinoElements.ReadOne{T,TFormatter}"/>, never through the formatter's own Serialize.
+    /// </summary>
+    internal interface INinoSlotFormatter<T>
+    {
+        /// <summary>The bytes of a slot.</summary>
+        int SlotStride { get; }
+
+        /// <summary>Writes <paramref name="values"/> (not empty) into the slots at <paramref name="destination"/>.</summary>
+        void WriteSlots(ref byte destination, ReadOnlySpan<T> values);
+
+        /// <summary>
+        /// Reads <paramref name="values"/> from their slots, which the caller checked are there, and moves the reader
+        /// past them. Overwrites every value; rejects a presence byte other than 0 or 1.
+        /// </summary>
+        void ReadSlots(Span<T> values, ref Reader reader);
+
+        /// <summary>
+        /// Whether a slot is its value as it lies in memory on this runtime (then also <see cref="SlotStride"/> is the
+        /// value's size): a collection that keeps its elements in storage of its own (a set's entries) then moves
+        /// them as raw elements are moved, checked by <see cref="CheckSlots"/> on the way in.
+        /// </summary>
+        bool SlotsAreMemory { get; }
+
+        /// <summary>
+        /// Whether <see cref="WriteSlots"/> may write a run over itself (values moved to the wire as they lie, then
+        /// made the wire's bytes in place): <see cref="SlotsAreMemory"/>, and every step of its kernels reads only
+        /// the bytes it writes.
+        /// </summary>
+        bool SlotsWriteInPlace { get; }
+
+        /// <summary>Rejects a presence byte other than 0 or 1 in <paramref name="count"/> slots (not zero).</summary>
+        void CheckSlots(ref byte slots, int count);
+    }
+
+    /// <summary>
+    /// <typeparamref name="TFormatter"/> as an <see cref="INinoSlotFormatter{T}"/> (null when it is none), boxed once:
+    /// Tier 1 code knows the exact class behind a static readonly field and calls its methods directly, and the
+    /// calls are one per collection.
+    /// </summary>
+    internal static class NinoSlots<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
+    {
+        public static readonly INinoSlotFormatter<T> Formatter = default(TFormatter) as INinoSlotFormatter<T>;
+
+        /// <summary>The slot's bytes, -1 for a formatter that is no <see cref="INinoSlotFormatter{T}"/>.</summary>
+        public static readonly int Stride = Formatter != null ? Formatter.SlotStride : -1;
+
+        /// <summary>The stride of elements that are slots or blocks (NinoBlockCollections.FixedSize), else -1.</summary>
+        public static readonly int FixedStride = Stride > 0 ? Stride : NinoBlockPlan<T, TFormatter>.Size;
+    }
+
     /// <summary>Shared element loops for array-like formatters.</summary>
     internal static class NinoElements
     {
@@ -36,6 +93,17 @@ namespace Nino.Core.Internal
         public static bool WritesOnLocal<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>();
 
         /// <summary>
+        /// <see cref="WritesOnLocal{T}"/>, and also for sealed classes whose generated body opens no class body
+        /// (<see cref="NinoBodyTraits.Nests"/> clear: raw members and strings), which inline into the loop and never
+        /// recurse through it. Through the caller's writer by reference, the cursor was loaded from and stored to
+        /// memory for every member (LuminPack's ActiveBuff[], four raw members and a string: four reservations an
+        /// element, each a load, a compare and two stores; #305). A JIT-time constant at Tier1.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool WritesOnLocal<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            WritesOnLocal<T>() || Traits<T, TFormatter>.FlatClass;
+
+        /// <summary>
         /// Whether <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> overwrites every element
         /// whatever it held (raw elements, DateTimeOffsets and blocks are each read in full), so the slots need not
         /// be cleared or zeroed first. A JIT-time constant.
@@ -56,6 +124,15 @@ namespace Nino.Core.Internal
             // Elements with references are never one block: 1 without the static field (a shared generic's runtime
             // lookup).
             NinoUnsafe.IsReferenceOrContainsReferences<T>() ? 1 : Traits<T, TFormatter>.MinWireSize;
+
+        /// <summary>
+        /// <see cref="MinWireSize{T,TFormatter}"/> of a value written through its formatter rather than as an element
+        /// of a sequence (a dictionary's key or value, a pair's item): 1 for a slot, whose single value is a presence
+        /// byte when absent. A JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int MinSingleSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            SlotStride<T, TFormatter>() > 0 ? 1 : MinWireSize<T, TFormatter>();
 
         /// <summary>
         /// The most memory a collection read allocates ahead of its elements, per byte of data left. A count is
@@ -106,11 +183,12 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The fewest bytes an element of a hash set takes, which its count is checked with: raw elements their
-        /// size, others (strings included: null is one byte) 1. A JIT-time constant.
+        /// size, slots (<see cref="SlotStride{T,TFormatter}"/>) theirs, others (strings included: null is one byte)
+        /// 1. A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int MinHashedSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            RawFormatter.Is<T, TFormatter>() ? Unsafe.SizeOf<T>() : 1;
+            RawFormatter.Is<T, TFormatter>() ? Unsafe.SizeOf<T>() : Math.Max(SlotStride<T, TFormatter>(), 1);
 
         /// <summary>
         /// <see cref="Heavy(int, int)"/> for a hash set's entries (<see cref="HashSlot"/> bytes beyond the element,
@@ -193,15 +271,28 @@ namespace Nino.Core.Internal
         private static class Traits<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
         {
             // Block reads write every byte of a value, padding as 0 (NinoBlockCollections.ReadEach); values read a
-            // field at a time (ReadSize -1, Untrusted mode) leave their padding as it was.
+            // field at a time (ReadSize -1, Untrusted mode) leave their padding as it was. Slots that are memory copy
+            // every byte and clear the run when they reject it (NinoNullables.ReadPrechecked); other slots are read
+            // one by one after the presence bytes are checked, so data they reject would leave the new array as it
+            // was allocated.
             public static readonly bool CopiedWhole = RawFormatter.Is<T, TFormatter>()
                 ? NinoLayout<T>.CopiesAsIs
-                : NinoBlockCollections.ReadSize<T, TFormatter>() > 0;
+                : NinoSlots<T, TFormatter>.Stride > 0
+                    ? NinoSlots<T, TFormatter>.Formatter.SlotsAreMemory
+                    : NinoBlockCollections.ReadSize<T, TFormatter>() > 0;
 
             public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
-                typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlockCollections.FixedSize<T, TFormatter>() > 0;
+                typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoSlots<T, TFormatter>.FixedStride > 0;
 
             public static readonly int MinWireSize = Math.Max(BlockStride<T, TFormatter>(), 1);
+
+            public static readonly bool FlatClass = typeof(T).IsSealed && !typeof(T).IsValueType &&
+                                                    default(TFormatter) is INinoBodyFormatter<T> body &&
+                                                    (body.Traits & NinoBodyTraits.Nests) == 0;
+
+#if !NET8_0_OR_GREATER
+            public static readonly INinoElementsFormatter<T> Elements = default(TFormatter) as INinoElementsFormatter<T>;
+#endif
         }
 
         /// <summary>
@@ -245,7 +336,26 @@ namespace Nino.Core.Internal
             // The loop stays in this method: a helper of its own was not inlined where the element's formatter
             // writes a collection of its own type (a tree), which added a call per level (SelfTree serialize 0.86x on
             // EPYC 9V74, runner A/B of the rc.10 review head against main 51a7bd18).
-            if (WritesOnLocal<T>())
+            // A polymorphic base: its generated loop, with the dispatch inline (INinoElementsFormatter). The
+            // netstandard2.1 build reads the formatter boxed once: IL2CPP and Mono box default(TFormatter) at each
+            // test and cast, a GC allocation per collection of any element type that reaches here.
+#if NET8_0_OR_GREATER
+            if (default(TFormatter) is INinoElementsFormatter<T>)
+            {
+                if (!values.IsEmpty)
+                    ((INinoElementsFormatter<T>)default(TFormatter)).WriteElements(values, ref writer);
+                return;
+            }
+#else
+            if (Traits<T, TFormatter>.Elements is { } elements)
+            {
+                if (!values.IsEmpty)
+                    elements.WriteElements(values, ref writer);
+                return;
+            }
+#endif
+
+            if (WritesOnLocal<T, TFormatter>())
             {
                 if (!values.IsEmpty)
                     writer = WriteOnLocal<T, TFormatter>(values, writer);
@@ -276,13 +386,62 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The wire size of each element when a span of them is written as one block, else -1: raw elements
-        /// (unmanaged values and raw [NinoType] structs), DateTimeOffsets and tuples of raw items. A JIT-time constant.
+        /// (unmanaged values and raw [NinoType] structs), DateTimeOffsets, slots (raw <c>T?</c>:
+        /// <see cref="SlotStride{T,TFormatter}"/>) and tuples of raw items. A JIT-time
+        /// constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int BlockStride<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             RawFormatter.Is<T, TFormatter>() ? Unsafe.SizeOf<T>()
             : typeof(TFormatter) == typeof(DateTimeOffsetFormatter) ? NinoWire.DateTimeOffsetSize
-            : NinoBlockCollections.FixedSize<T, TFormatter>();
+            // Slots and blocks: one field, as the block size alone was (never for references: shared code).
+            : !NinoUnsafe.IsReferenceOrContainsReferences<T>() ? NinoSlots<T, TFormatter>.FixedStride : -1;
+
+        /// <summary>
+        /// The bytes each element takes as a slot (<see cref="INinoSlotFormatter{T}"/>), else -1. A JIT-time constant;
+        /// -1 without a lookup for references (shared code).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int SlotStride<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            !NinoUnsafe.IsReferenceOrContainsReferences<T>() ? NinoSlots<T, TFormatter>.Stride : -1;
+
+        /// <summary>
+        /// Writes one element of a sequence that is not written from a span (an enumerator, a node): its slot where
+        /// elements are slots, so that it is the bytes <see cref="Write{T,TFormatter}(ReadOnlySpan{T}, ref Writer)"/>
+        /// writes for it, else through its formatter.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteOne<T, TFormatter>(T item, ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int slot = SlotStride<T, TFormatter>();
+            if (slot > 0)
+                NinoSlots<T, TFormatter>.Formatter.WriteSlots(ref writer.Reserve(slot),
+                    MemoryMarshal.CreateReadOnlySpan(ref item, 1));
+            else
+                default(TFormatter).Serialize(item, ref writer);
+        }
+
+        /// <summary><see cref="WriteOne{T,TFormatter}"/> the other way.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ReadOne<T, TFormatter>(ref Reader reader, ref T item)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int slot = SlotStride<T, TFormatter>();
+            if (slot > 0)
+                ReadSlots<T, TFormatter>(MemoryMarshal.CreateSpan(ref item, 1), ref reader, slot, prechecked: false);
+            else
+                default(TFormatter).Deserialize(ref reader, ref item);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadSlots<T, TFormatter>(Span<T> values, ref Reader reader, int slot, bool prechecked)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (!prechecked && (ulong)(uint)values.Length * (uint)slot > (uint)reader.Remaining)
+                NinoThrow.EndOfData();
+            NinoSlots<T, TFormatter>.Formatter.ReadSlots(values, ref reader);
+        }
 
         /// <summary>Writes <paramref name="values"/> (not empty) as one block of <see cref="BlockStride"/> bytes
         /// each.</summary>
@@ -301,6 +460,9 @@ namespace Nino.Core.Internal
             else if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
                 DateTimeOffsetFormatter.WriteAll(ref destination,
                     ref Unsafe.As<T, DateTimeOffset>(ref first), count);
+            else if (SlotStride<T, TFormatter>() > 0)
+                NinoSlots<T, TFormatter>.Formatter.WriteSlots(ref destination,
+                    MemoryMarshal.CreateReadOnlySpan(ref first, count));
             else
                 NinoBlockCollections.WriteAll<T, TFormatter>(ref destination, ref first,
                     count, NinoBlockCollections.FixedSize<T, TFormatter>());
@@ -368,6 +530,15 @@ namespace Nino.Core.Internal
                 DateTimeOffsetFormatter.ReadAll(
                     ref TakeElements(ref reader, values.Length, NinoWire.DateTimeOffsetSize, prechecked),
                     ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
+                return;
+            }
+
+            int slot = SlotStride<T, TFormatter>();
+            if (slot > 0)
+            {
+                // The kernels check the presence bytes and take the slots in one pass over the block.
+                if (!values.IsEmpty)
+                    ReadSlots<T, TFormatter>(values, ref reader, slot, prechecked);
                 return;
             }
 

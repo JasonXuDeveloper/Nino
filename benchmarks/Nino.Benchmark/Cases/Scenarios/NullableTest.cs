@@ -23,7 +23,9 @@ namespace Nino.Benchmark;
 ///    (<see cref="NullableFields"/>), alone and in an array of 100 whose objects alternate which half is null;
 ///  - nullable values on their own: one <c>SimpleStruct?</c> that holds a value, <c>SimpleStruct?[100]</c> and
 ///    <c>SimpleClass[100]</c> with every fifth element null, and one <c>SimpleClass</c> reference that is null (SimpleTest's
-///    SimpleClass case is its counterpart with a value);
+///    SimpleClass case is its counterpart with a value), and <c>string[1000]</c> with every fifth element null
+///    (NullableTest.NullableStrings.cs);
+///  - a raw struct with nullable members, alone and in an array of 1,000 (NullableTest.RawNullable.cs);
 ///  - a struct that holds a reference, with a value and nullable, alone and in an array of 100
 ///    (NullableTest.ManagedStruct.cs).
 /// MemoryPack writes the nullable structs as <c>SafeNullable&lt;T&gt;</c> (<see cref="NullableFieldsMemoryPack"/> says
@@ -163,6 +165,8 @@ public partial class NullableTest : IReadBack
 
         InitManagedStructs(libraries);
         InitNullableForms();
+        InitRawNullables();
+        InitNullableStrings();
     }
 
     [GlobalSetup]
@@ -190,6 +194,7 @@ public partial class NullableTest : IReadBack
             ((OptionalSimpleStructList)ProtobufModel.ReadBack(result, typeof(OptionalSimpleStructList))).Items),
         P.OptionalSimpleClass => ((OptionalSimpleClass)ProtobufModel.ReadBack(result, typeof(OptionalSimpleClass))).Value,
         P.NullableObjectList => ((NullableObjectList)ProtobufModel.ReadBack(result, typeof(NullableObjectList))).Items,
+        P.NullableStringList => ((NullableStringList)ProtobufModel.ReadBack(result, typeof(NullableStringList))).Items,
         OptionalSimpleStruct[] items => OptionalSimpleStruct.ToNullable(items),
         P.OptionalManagedStruct => ((OptionalManagedStruct)ProtobufModel.ReadBack(result, typeof(OptionalManagedStruct))).Value,
         P.OptionalManagedStructList => OptionalManagedStruct.ToNullable(

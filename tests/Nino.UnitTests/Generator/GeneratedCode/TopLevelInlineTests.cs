@@ -164,22 +164,23 @@ namespace Top
         Assert.IsFalse(sources["NinoGen.Top_PairFormatter.g.cs"].Contains("__Top"));
         // A struct has no twin, but a body that opens no class body is a class's: inlined where it is small (Pair, into
         // the loop over its array or its nullable's), else out of line on a local copy of the reader and the writer
-        // (Wide). One holding a class (Holder) passes the reader and writer on, and stays as it was.
+        // (Wide), which copies only their cursors (CopyCursorTo). One holding a class (Holder) passes the reader and
+        // writer on, and stays as it was.
         string pair = sources["NinoGen.Top_PairFormatter.g.cs"];
         StringAssert.Contains(pair, "public int Traits => 0;");
         StringAssert.Contains(pair, "=> __WriteBodyInline(ref value, ref writer);");
         StringAssert.Contains(pair, "=> __ReadBodyInline(ref reader, ref value);");
         Assert.IsFalse(pair.Contains("NoInline"), pair);
         string wide = sources["NinoGen.Top_WideFormatter.g.cs"];
-        StringAssert.Contains(wide, "writer.CopyTo(ref __w);");
-        StringAssert.Contains(wide, "reader.CopyTo(ref __r);");
+        StringAssert.Contains(wide, "writer.CopyCursorTo(ref __w);");
+        StringAssert.Contains(wide, "reader.CopyCursorTo(ref __r);");
         string holder = sources["NinoGen.Top_HolderFormatter.g.cs"];
         StringAssert.Contains(holder, "public int Traits => 1;");
         Assert.IsFalse(holder.Contains("CopyTo") || holder.Contains("Inline("), holder);
         // Nullable raw members write through the writer inline (Flat): the body runs on a local copy of the writer.
         // A null value is handled in the twin's inlined Write and Read, the rest out of line.
         string nullables = sources["NinoGen.Top_NullablesFormatter.g.cs"];
-        StringAssert.Contains(nullables, "writer.CopyTo(ref __w);");
+        StringAssert.Contains(nullables, "writer.CopyCursorTo(ref __w);");
         StringAssert.Contains(nullables, "{ if (value == null) __CS.NinoDirect.WriteNull(buffer); else __WriteTop(value, buffer); }");
         StringAssert.Contains(nullables, "=> !data.IsEmpty && data[0] == 0 ? null : __ReadTop(data);");
         StringAssert.Contains(nullables, "private static __T __ReadTop(global::System.ReadOnlySpan<byte> data)");

@@ -91,7 +91,7 @@ The generated API of each language is on the site; these are the decisions behin
   fields the layout publishes at their canonical offsets (spec §5.2, §8.3). `nint` becomes a signed 64-bit integer
   (`int64`, `i64`, `bigint`) and `nuint`, pointers and function pointers (`delegate*`) an unsigned one (`uint64`, `u64`, `bigint`), because the wire
   holds them as 8 bytes, sign- or zero-extended; `Int128` sits at its 16-byte-aligned offset, and a `Nullable<Int128>`
-  element of a fixed-stride array has a stride of 32. `DateTimeOffset` is a struct `{ dateTime, offsetMinutes }` in Go
+  element of a sequence is a slot of 32 bytes. `DateTimeOffset` is a struct `{ dateTime, offsetMinutes }` in Go
   and Rust; TypeScript leaves it out with NINOGEN002, since a `Date` holds milliseconds as UTC and cannot give back
   the ticks and kind. `Vector64<T>` to `Vector512<T>` (the bare `raw`) and layouts from an older build that hold a
   `System.Numerics.Vector<T>` (`IsHostSizedVector`) are NINOGEN002 too.
@@ -100,19 +100,56 @@ The generated API of each language is on the site; these are the decisions behin
 
 A generic `[NinoType]` is a generic type in each language, whose codec is built from the codecs of its type arguments,
 as .NET builds the formatter of `Box<T>` from the formatter of `T`. The IR gives each type argument the encoding .NET's
-formatter for it writes: a `T?[]` or `List<T?>` of an unmanaged `T` as raw `T`s with a flag each, a `HashSet<T?>` or
-a dictionary's values item by item, a `KeyValuePair` as its key then its value (`CodegenModel.Generic`).
+formatter for it writes: a `T?` of a raw `T` as a slot of a fixed size where it is the element of a sequence (an
+array, a `List<T?>`, a `HashSet<T?>`), a dictionary's values item by item, a `KeyValuePair` as its key then its value
+(`CodegenModel.Generic`).
 
-`NinoNullable<T>` is `T?` to nino-gen wherever it is declared (`CodegenModel.IsNullable`): the generator publishes it
-with the encodings of `T?` (`nullable(...)` alone, the fixed stride in an array or a `List`), and inside a type
-argument the IR gives it the encoding of `T?` as well, so every target writes the member types and the codec of the
-same type declared with `T?` (`ModelTests.NinoNullableIsTheValueOfNullable`,
-`TargetTests.NinoNullableIsGeneratedAsNullable`; the corpus's `ninonullables-*` cases). Inside a plain struct copied as
-raw memory it is not the bytes of `T?`: .NET holds its presence as a whole `T` (1 in its first byte), so the value
-follows at `T`'s size, and the layout publishes those two fields. The IR reads them as a nullable value with the flag
-and the value at those offsets (`ValueKind.RawNullable`); TypeScript and Go read any offsets, while Rust's `Option<T>`
-in raw memory is the layout of `T?` (the value at `T`'s alignment), which is the same only for a `T` as large as its
-alignment, so Rust leaves out a type holding a wider one there (a decimal, a Guid) with NINOGEN002.
+A raw `T?` has two encodings, and the IR tells them apart for every language (wire-format spec §6.2, §6.5). As the
+element of a sequence (an array, a list, a set, a queue, a stack, a linked list, the collection interfaces, the
+elements of a multi-dimensional array; nested ones too) it is a slot of `T`'s alignment plus `T`'s size, the flag
+first and the value after its padding (`int?` 8 bytes, `long?` 16, `decimal?` 24): `ValueKind.RawNullable`, which
+the layout publishes as `seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})` or `grid(2,raw(8){...})` and the
+IR gives a sequence inside a type argument too (`CodegenModel.NullableSlot`). As a single value (a member, a
+dictionary's key or value, a pair's or a tuple's item) it is a presence byte and the value only when present:
+`ValueKind.Nullable`. `Queue<int?> {5, null}` is `02000000 01000000 05000000 00000000 00000000`;
+`Dictionary<int, long?> {1: null, 2: 7}` is `02000000 01000000 00 02000000 01 0700000000000000`. Every language names
+the slot `NullableSlot`, the element type of every container of them, apart from the single value: Rust's
+`nino::NullableSlot<T>` beside `Option<T>` (`Vec<nino::NullableSlot<i32>>`, `IndexSet<nino::NullableSlot<i32>>`,
+`nino::Grid<nino::NullableSlot<i32>, 2>`), Go's `nino.NullableSlot[T]` beside `*T` (a value, `HasValue` and `Value`,
+whose slices hold no pointer: `[]nino.NullableSlot[int32]`, `*NinoGrid[nino.NullableSlot[int32]]`; a run of a number
+is one block, `nino.ReadNullableSlots`), and TypeScript's `NullableSlot<T>` beside `T | null`, an alias of it that
+only names the encoding (`NullableSlot<number>[]`, `Set<NullableSlot<number>>`). A `T?` field of a raw struct is the
+same slot at the field's offset and stays the single value's type (`*T`, `Option<T>`, `T | null`).
+Every reader rejects a slot whose presence byte is not 0 or 1
+(`ModelTests.RawNullablesAreSlotsInEverySequenceAndSingleValuesElsewhere`,
+`TargetTests.RawNullableSlotsAreGeneratedInEveryLanguage`; the corpus's `nullable-sequences`, `presence-nullable-set-*`
+and `presence-nullable-grid-*` cases).
+
+`NinoNullable<T>` is to nino-gen what it is to .NET: a raw struct wherever it is declared, a presence and a value of
+a `T` each (`2 * size(T)` bytes, the presence's first byte 0 or 1). The generator publishes it as a `T?` in raw memory
+is, a flag at 0 and the value, here at `T`'s size (`raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)}`), alone, as
+an element of any collection and as a field of a raw struct; inside a type argument, which no layout describes, the
+IR gives it that encoding too (`CodegenModel.RawArgument`). The IR reads it as a nullable value with the flag and the
+value at those offsets (`ValueKind.RawNullable`), marked `Clean`: the generated readers reject a presence other than 0
+or 1, a byte set above it and a value that is not zeros where it is absent, as .NET does with `NinoSettings.Untrusted`
+(a `T?` in raw memory is checked for its flag only: .NET copies its padding and an absent value from memory as they
+are). Each language names it apart from a `T?`: Go's `nino.NinoNullable[T]`, a value (`HasValue`, `Value`) whose slices
+hold no pointer and are one block for a number (`nino.ReadNinoNullables`); Rust's `nino::NinoNullable<T>`, a wrapper
+of `Option<T>` with those bytes; and TypeScript's `NinoNullable<T>`, an alias of `T | null` that only names the
+encoding (`ModelTests.NinoNullableIsItsMemoryWhereverItIs`, `TargetTests.NinoNullableIsGeneratedInEveryLanguage`; the
+corpus's `ninonullables-*` cases). A run of a `T` as large
+as its alignment has the bytes of a `T?[]` run, which the corpus writes as one and reads as the other
+(`ninonullable-runs-from-nullable`); a wider `T` (a decimal, a Guid, a struct of several fields) and a single value
+never do.
+
+The three encodings of a nullable raw `T` and how each target spells them:
+
+| .NET | Bytes | TypeScript | Go | Rust |
+|---|---|---|---|---|
+| `T?`, a single value | a presence byte, then `T` when present | `T \| null` | `*T` | `Option<T>` |
+| `T?`, the element of a sequence or a grid | a slot: `align(T) + size(T)` bytes | `NullableSlot<T>` (an alias of `T \| null`) | `nino.NullableSlot[T]` | `nino::NullableSlot<T>` |
+| `T?`, a field of a raw struct | the same slot, at the field's offset | `T \| null` | `*T` | `Option<T>` |
+| `NinoNullable<T>`, wherever it is | its memory: `2 * size(T)` bytes, checked | `NinoNullable<T>` (an alias of `T \| null`) | `nino.NinoNullable[T]` | `nino::NinoNullable<T>` |
 
 A generic type that holds itself with other arguments (`Nest<T>` holding `Nest<List<T>>`) needs a new instantiation for
 every level of the data. TypeScript builds the codec of the next level when it first reads or writes one. Go and Rust

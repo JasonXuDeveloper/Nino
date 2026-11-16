@@ -1,0 +1,21 @@
+{
+  "case": "struct-root-raw-optional",
+  "description": "A raw [NinoType] struct that holds nullables, at the top level: its memory, each nullable where it lies, padding and absent values zero.",
+  "type": "Conformance.RawOptional",
+  "features": [
+    "raw-struct",
+    "nullable"
+  ],
+  "size": 56,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.RawOptional": "format=Positional; header=None; trackReferences=false; raw=true; id=0x1C1AA5B4; deferrable=false; members=raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}"
+  },
+  "value": {
+    "$type": "Conformance.RawOptional",
+    "Id": 7,
+    "Total": null,
+    "Price": "1.5",
+    "Count": 3
+  }
+}

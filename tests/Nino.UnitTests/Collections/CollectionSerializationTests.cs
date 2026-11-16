@@ -909,4 +909,26 @@ public class CollectionSerializationTests
 
         Console.WriteLine("Complex nested collection tests passed!");
     }
+
+    [TestMethod]
+    public void ObservableCollectionReadsNewAsAListAndRefillsAnExistingOneThroughItsEvents()
+    {
+        var ints = new System.Collections.ObjectModel.ObservableCollection<int>(Enumerable.Range(0, 1000));
+        var strings = new System.Collections.ObjectModel.ObservableCollection<string> { "a", null, "c" };
+        var readInts = NinoDeserializer.Deserialize<System.Collections.ObjectModel.ObservableCollection<int>>(
+            NinoSerializer.Serialize(ints));
+        CollectionAssert.AreEqual(ints, readInts);
+        CollectionAssert.AreEqual(strings, NinoDeserializer.Deserialize<
+            System.Collections.ObjectModel.ObservableCollection<string>>(NinoSerializer.Serialize(strings)));
+        Assert.IsNull(NinoDeserializer.Deserialize<System.Collections.ObjectModel.ObservableCollection<int>>(
+            NinoSerializer.Serialize((System.Collections.ObjectModel.ObservableCollection<int>)null)));
+
+        // An existing one is refilled through its own methods: its listeners see the changes.
+        int changes = 0;
+        readInts.CollectionChanged += (_, _) => changes++;
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(new System.Collections.ObjectModel
+            .ObservableCollection<int> { 7, 8 }), ref readInts);
+        CollectionAssert.AreEqual(new[] { 7, 8 }, readInts);
+        Assert.IsTrue(changes >= 3, $"{changes} change events");
+    }
 }

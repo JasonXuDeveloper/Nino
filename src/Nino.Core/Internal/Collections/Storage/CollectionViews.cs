@@ -123,6 +123,13 @@ namespace Nino.Core.Internal
             }
         }
 
+        private readonly struct CollectionOffsets
+        {
+            public readonly int Items;
+
+            public CollectionOffsets(int items) => Items = items;
+        }
+
         // The mirror layouts of List<T> and Stack<T>, which have the same fields: items, size, version.
         private static readonly Func<ListOffsets>[] ListMirrors =
         {
@@ -147,6 +154,19 @@ namespace Nino.Core.Internal
         public static readonly bool List = ListLayout.HasValue;
         public static readonly int ListItems = ListLayout?.Items ?? 0;
         public static readonly int ListSize = ListLayout?.Size ?? 0;
+
+        // Collection<T>: the IList<T> it wraps (CollectionFields.List: the List<T> it is, most of the time).
+        private static readonly CollectionOffsets? CollectionLayout = Find(CheckCollection, new Func<CollectionOffsets>[]
+        {
+            () =>
+            {
+                var m = new CollectionCore();
+                return new CollectionOffsets(At(m, ref m.items));
+            }
+        });
+
+        public static readonly bool Collection = CollectionLayout.HasValue;
+        public static readonly int CollectionItems = CollectionLayout?.Items ?? 0;
 
         // Stack<T>: array, size, version.
         private static readonly ListOffsets? StackLayout = Find(CheckStack, ListMirrors

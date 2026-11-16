@@ -288,9 +288,9 @@ namespace Samples
     }
 
     /// <summary>
-    /// <c>NinoNullable&lt;T&gt;</c> members, which Nino writes and publishes as <c>T?</c>: alone, in an array and a list
-    /// (the fixed stride, of a value as large as its alignment, of a Guid and of a raw struct) and inside type
-    /// arguments. <see cref="SparseTwin"/> is the same type with <c>T?</c>: each language reads either one's data.
+    /// <c>NinoNullable&lt;T&gt;</c> members, which Nino writes as their memory wherever they are (a presence and a
+    /// value of a <c>T</c> each): alone, in an array and a list (of a value as large as its alignment, of a Guid and
+    /// of a raw struct) and inside type arguments. Each language reads .NET's bytes and writes them back.
     /// </summary>
     [NinoType]
     public sealed class Sparse
@@ -305,18 +305,20 @@ namespace Samples
         public Box<List<NinoNullable<long>>> BoxedList;
     }
 
-    /// <summary><see cref="Sparse"/> declared with <c>T?</c>.</summary>
+    /// <summary>
+    /// Raw nullables as the elements of sequences other than arrays and lists (a queue, a set, a stack of a raw
+    /// struct, nested sets, a set inside type arguments): a slot of a fixed size each, as in an array; as a
+    /// dictionary's value, a presence byte and the value. Each language reads .NET's bytes and writes them back.
+    /// </summary>
     [NinoType]
-    public sealed class SparseTwin
+    public sealed class Slots
     {
-        public int? One;
-        public Vec2? Point;
-        public long?[] Array;
-        public List<Rank?> List;
-        public Guid?[] Guids;
-        public List<Vec2?> Points;
-        public Box<int?> Boxed;
-        public Box<List<long?>> BoxedList;
+        public Queue<long?> Queue;
+        public HashSet<int?> Set;
+        public Stack<Vec2?> Stack;
+        public List<SortedSet<int?>> Nested;
+        public Box<HashSet<int?>> BoxedSet;
+        public Dictionary<int, long?> Map;
     }
 
     /// <summary>
@@ -355,7 +357,6 @@ namespace Samples
         public Node Next;
     }
 
-#if NET11_0_OR_GREATER
     /// <summary>A C# union: the type id of the case it holds (0 when empty), then the case's value.</summary>
     [NinoType]
     public union Shot(int, string, Vec2, Animal, List<long>);
@@ -369,7 +370,6 @@ namespace Samples
         public List<Shot> Many;
     }
 
-#endif
     /// <summary>Left out of TypeScript (<c>Half</c> has no TypeScript form), with a warning.</summary>
     [NinoType]
     public sealed class Halves

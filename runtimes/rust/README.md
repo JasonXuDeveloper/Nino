@@ -40,13 +40,29 @@ let back: Vec<i32> = nino::deserialize_exact(&bytes)?;
 | `type_consts!(id, name, layout)` | The `NINO_TYPE_ID`, `NINO_TYPE_NAME` and `NINO_LAYOUT` constants nino-gen declares in each type's impl (`Cat::NINO_TYPE_ID`; the body traits' `TYPE_ID` is set from it), documented once here; a generic type passes no id (`type_consts!(name, layout)`). |
 | `Error`, `ErrorKind` | Every failure. `ErrorKind` is `#[non_exhaustive]`. |
 
-How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `RawNullables<T>`, the
-value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/rust#types).
-.NET's `NinoNullable<T>` is `T?` on the wire and in the layouts, so it maps to the same Rust types: `Option<T>` alone,
-and `RawNullables<T>` (the fixed stride) for `NinoNullable<T>[]` and `List<NinoNullable<T>>`, in the code nino-gen
-writes and with the derive alike. Inside a plain struct copied as raw memory .NET holds its presence as a whole `T`:
-that is the layout of `T?` (an `Option<T>` field) for a `T` as large as its alignment, and nino-gen leaves a type
-holding a wider one there (a decimal, a Guid) out of the Rust it writes (NINOGEN002).
+How C# types map to Rust types (`String`, `WideString` and `Utf8` for strings, `Grid<T, R>`, `NullableSlot<T>`,
+`NinoNullable<T>`, the value types of the same names as .NET's) is the guide's [Types](https://nino.xgamedev.net/en/docs/v4/advanced/rust#types).
+
+.NET writes a nullable raw `T` (a number, a date, a raw struct) in three ways, and Rust's codecs go by the type, so
+each has a type:
+
+| .NET | Bytes | Rust |
+|---|---|---|
+| `T?`, a single value (a member, a map's key or value, a tuple's item) | a presence byte, then the value when present | `Option<T>` |
+| `T?`, the element of a sequence (`T?[]`, `List<T?>`, `Queue<T?>`, `HashSet<T?>`, `T?[,]`, nested ones) | a slot of `T`'s alignment plus its size: the presence byte, zeros, then the value, zeros when absent (`int?` 8 bytes, `long?` 16, `decimal?` 24) | `nino::NullableSlot<T>` |
+| `NinoNullable<T>`, wherever it is | its memory, `2 * size(T)` bytes: a presence as wide as `T` (0 or 1), then the value, zeros when absent | `nino::NinoNullable<T>` |
+
+`NullableSlot<T>` and `NinoNullable<T>` wrap the `Option<T>` they stand for (`.0`, `From` both ways, `Deref`). The
+slot is the element in every collection: `Vec<NullableSlot<i32>>` for an `int?[]` or a `List<int?>`,
+`VecDeque<NullableSlot<i64>>` for a `Queue<long?>`, `HashSet<NullableSlot<i32>>` for a `HashSet<int?>`,
+`Grid<NullableSlot<i32>, 2>` for an `int?[,]`, each read and written as one block. `Queue<int?> {5, null}` is
+`02000000 01000000 05000000 00000000 00000000`; `Vec<Option<i32>>` is not those bytes (a presence byte and the value
+an element: what .NET writes for a `T?` whose `T` is not raw). A `NinoNullable<int>` of 5 is `01000000 05000000`
+alone, as an element of any collection (`Vec<NinoNullable<T>>`) and inside a raw struct, in the code nino-gen writes
+and with the derive alike: the bytes of a slot only for a `T` as large as its alignment. A `T?` field of a raw
+`[NinoType]` struct lies in the struct's memory as the same slot, at its offset: there it is an `Option<T>` field
+(`Raw for Option<T>`), in the code nino-gen writes and in a derived `kind = "raw"` struct.
+
 A polymorphic declared type (an abstract class, an interface, or a class that is not sealed) becomes a Rust enum with
 one variant per concrete type. The reader rejects any type id that is not one of the variants
 (`ErrorKind::UnknownTypeId`).
@@ -81,6 +97,8 @@ every mode, some only with `NinoSettings.Untrusted` set, and the rest not at all
 - A `BitArray` must have zeros in its unused bits (.NET: no).
 - A `BigInteger` must be in its minimal form. A count of 0 reads as zero (.NET: no).
 - The padding of raw structs must be zero (.NET: no).
+- A `NinoNullable<T>` must have a presence of 0 or 1 with zeros above its first byte, and a value of zeros where it is
+  absent (.NET: with `Untrusted`).
 - Sets and maps must not contain duplicate keys (.NET: in every mode).
 - A keyed member must use up its whole length (`end_member`) (.NET: in every mode).
 - A deferred-body section must be the outermost region, must be filled exactly by its entries, and every entry's key

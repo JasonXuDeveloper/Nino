@@ -346,6 +346,22 @@ namespace Conformance
                     },
                 }, "raw-struct", "struct", "seq");
 
+            Add("struct-root-raw-optional", "A raw [NinoType] struct that holds nullables, at the top level: its " +
+                                            "memory, each nullable where it lies, padding and absent values zero.",
+                new RawOptional { Id = 7, Total = null, Price = 1.5m, Count = 3 }, "raw-struct", "nullable");
+            Add("struct-raw-optionals", "Raw structs that hold nullables as a member, in an array and a list, and " +
+                                        "as the value of a nullable member (a presence byte, then the struct).",
+                new RawOptionals
+                {
+                    One = new RawOptional { Id = 1, Total = long.MinValue },
+                    Array = new[]
+                    {
+                        new RawOptional { Id = 2, Total = 5, Price = -0.001m, Count = -1 }, default,
+                        new RawOptional { Id = 3, Count = int.MaxValue },
+                    },
+                    List = new List<RawOptional> { new() { Price = decimal.MaxValue } },
+                    Maybe = new RawOptional { Id = 4, Total = 0 },
+                }, "raw-struct", "nullable", "seq");
             Add("struct-root-raw", "A raw struct at the top level: its bytes alone, no header.",
                 new Padded { A = 1, B = -2 }, "raw-struct");
             Add("struct-root-nested-raw", "A raw struct holding raw structs at the top level.", new Nested
@@ -444,13 +460,14 @@ namespace Conformance
                 Map = new Dictionary<int, int?>(),
             }, "nullable", "seq", "map");
 
-            // ---------------------------------------------------------- NinoNullable<T>: the bytes of T?
+            // ---------------------------------------------------------- NinoNullable<T>: its memory, a raw struct
 
-            Add("ninonullables-null", "Every NinoNullable<T> without a value, every collection of them null.",
-                new NinoNullables(), "nullable");
-            Add("ninonullables-values", "NinoNullable<T> with values, alone (a presence byte, then the value) and in " +
-                                        "arrays and lists (the fixed stride of T?[]): long, decimal, Guid and a " +
-                                        "struct with padding, values present and absent.",
+            Add("ninonullables-null", "Every NinoNullable<T> without a value (2 x size(T) zero bytes each), every " +
+                                      "collection of them null.",
+                new NinoNullables(), "raw-struct");
+            Add("ninonullables-values", "NinoNullable<T> with values, alone, in arrays, lists, a queue, a dictionary " +
+                                        "and a raw struct, each 2 x size(T) bytes (the presence, then the value): " +
+                                        "long, decimal, Guid and a struct with padding, values present and absent.",
                 new NinoNullables
             {
                 Long = long.MinValue, Decimal = -1234.5600m, Guid = new Guid("00112233-4455-6677-8899-aabbccddeeff"),
@@ -463,31 +480,45 @@ namespace Conformance
                 GuidList = new List<NinoNullable<Guid>> { Guid.Empty, default, new Guid("01020304-0506-0708-090a-0b0c0d0e0f10") },
                 PaddedArray = new NinoNullable<Padded>[] { new Padded { A = 3, B = 4 }, default },
                 PaddedList = new List<NinoNullable<Padded>> { default, new Padded { A = 255, B = long.MinValue }, default },
-            }, "nullable", "seq", "raw-struct");
+                GuidQueue = new Queue<NinoNullable<Guid>>(new NinoNullable<Guid>[] { new Guid("0f0e0d0c-0b0a-0908-0706-050403020100"), default }),
+                DecimalMap = new Dictionary<int, NinoNullable<decimal>> { [1] = 79.99m, [-2] = default },
+                Fields = new NinoNullableFields { Tag = 7, Count = 5, Price = 0.01m },
+                FieldsArray = new[]
+                {
+                    new NinoNullableFields { Tag = 1, Price = -1m }, default,
+                    new NinoNullableFields { Tag = 255, Count = int.MinValue },
+                },
+            }, "seq", "map", "raw-struct");
             Add("ninonullables-empty-collections", "Empty NinoNullable<T> collections.", new NinoNullables
             {
                 LongArray = Array.Empty<NinoNullable<long>>(), LongList = new List<NinoNullable<long>>(),
                 DecimalArray = Array.Empty<NinoNullable<decimal>>(), DecimalList = new List<NinoNullable<decimal>>(),
                 GuidArray = Array.Empty<NinoNullable<Guid>>(), GuidList = new List<NinoNullable<Guid>>(),
                 PaddedArray = Array.Empty<NinoNullable<Padded>>(), PaddedList = new List<NinoNullable<Padded>>(),
-            }, "nullable", "seq");
-            // The values of ninonullables-values declared with T? (NullableTwins): the same bytes, so the two .bin
-            // files are equal and it round-trips through NinoNullable<T>.
-            Across<NullableTwins, NinoNullables>("ninonullables-from-nullable",
-                "The values of ninonullables-values written from T? members: the same bytes, read as NinoNullable<T>.",
+                GuidQueue = new Queue<NinoNullable<Guid>>(), DecimalMap = new Dictionary<int, NinoNullable<decimal>>(),
+                FieldsArray = Array.Empty<NinoNullableFields>(),
+            }, "seq", "map", "raw-struct");
+            Add("ninonullable-runs", "Runs of NinoNullable<T> of a T as large as its alignment (long, int, byte): " +
+                                     "the bytes of the T? runs.",
+                new NinoNullableRuns
+            {
+                LongArray = new NinoNullable<long>[] { 1, default, long.MaxValue, 0 },
+                LongList = new List<NinoNullable<long>> { default, -1, default },
+                IntArray = new NinoNullable<int>[] { 5, default },
+                ByteList = new List<NinoNullable<byte>> { 255, default, 0 },
+            }, "seq", "raw-struct");
+            // The values of ninonullable-runs declared with T? (NullableTwins): the same bytes, so the two .bin files
+            // are equal and it round-trips through NinoNullable<T>.
+            Across<NullableTwins, NinoNullableRuns>("ninonullable-runs-from-nullable",
+                "The values of ninonullable-runs written from T?[] and List<T?> members: the same bytes, read as " +
+                "NinoNullable<T>.",
                 new NullableTwins
             {
-                Long = long.MinValue, Decimal = -1234.5600m, Guid = new Guid("00112233-4455-6677-8899-aabbccddeeff"),
-                Padded = new Padded { A = 1, B = 2 },
                 LongArray = new long?[] { 1, default, long.MaxValue, 0 },
                 LongList = new List<long?> { default, -1, default },
-                DecimalArray = new decimal?[] { decimal.MaxValue, default, 0.10m },
-                DecimalList = new List<decimal?> { default, decimal.MinValue },
-                GuidArray = new Guid?[] { default, new Guid("ffeeddcc-bbaa-9988-7766-554433221100") },
-                GuidList = new List<Guid?> { Guid.Empty, default, new Guid("01020304-0506-0708-090a-0b0c0d0e0f10") },
-                PaddedArray = new Padded?[] { new Padded { A = 3, B = 4 }, default },
-                PaddedList = new List<Padded?> { default, new Padded { A = 255, B = long.MinValue }, default },
-            }, "nullable", "seq", "raw-struct");
+                IntArray = new int?[] { 5, default },
+                ByteList = new List<byte?> { 255, default, 0 },
+            }, "nullable", "seq");
 
             // ---------------------------------------------------------- version tolerance and keyed members
 
@@ -766,7 +797,8 @@ namespace Conformance
             // ---------------------------------------------------------- nullables and pairs as type arguments
 
             Add("generic-nullable-arguments", "Nullables and pairs inside the type arguments of a generic type: raw " +
-                                              "nullables in arrays and lists at a fixed stride, item by item elsewhere.",
+                                              "nullables at a fixed stride as the elements of a sequence, item by " +
+                                              "item as a dictionary's value or a pair's item.",
                 new WrappedArgs
                 {
                     NullableArray = new Wrap<int?[]> { Value = new int?[] { 1, null, 3 } },
@@ -781,7 +813,25 @@ namespace Conformance
                     PairArray = new Wrap<KeyValuePair<string, int?>[]> { Value = new[] { new KeyValuePair<string, int?>("k", null) } },
                 }, "nullable", "seq", "map");
 
-#if NET11_0_OR_GREATER
+            // ---------------------------------------------------------- raw nullables as the elements of sequences
+
+            Add("nullable-sequences", "Raw nullables as the elements of sets, of a grid and of nested sequences: a " +
+                                      "fixed stride each (spec 6.2), as in an array; as a dictionary's value and a " +
+                                      "pair's item: a presence byte, then the value.",
+                new NullableSequences
+                {
+                    IntSet = new HashSet<int?> { 4, null, int.MinValue },
+                    LongSet = new HashSet<long?> { null, long.MaxValue },
+                    Grid = new int?[,] { { 1, null, 3 }, { null, 5, null } },
+                    PaddedGrid = new Padded?[,] { { new Padded { A = 3, B = 4 }, null } },
+                    Nested = new List<HashSet<int?>> { new HashSet<int?> { 1 }, new HashSet<int?>(), new HashSet<int?> { null } },
+                    Values = new Dictionary<int, long?> { [1] = null, [2] = 7 },
+                    Pairs = new List<KeyValuePair<int, int?>> { new(1, null), new(2, 9) },
+                }, "nullable", "seq", "map", "grid");
+            Add("nullable-sequences-empty", "Empty and null sequences of raw nullables.", new NullableSequences
+            {
+                IntSet = new HashSet<int?>(), Grid = new int?[0, 3], Nested = new List<HashSet<int?>>(),
+            }, "nullable", "seq", "grid");
             // ---------------------------------------------------------- C# unions (spec §7.12)
 
             Add("unions-values", "C# unions holding each case: an int, a string, a sealed class, a subtype behind its " +
@@ -802,7 +852,6 @@ namespace Conformance
             Add("unions-empty", "Every union empty (type id 0), and a null list of them.", new Unions(), "union");
             Add("union-root", "A union as the top-level value: the case's type id, then its value.", new Choice("root"),
                 "union");
-#endif
 
             return cases;
         }

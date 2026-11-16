@@ -21,11 +21,13 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              CollectionsTest, BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest), Workloads/ (WorkloadTest: 12 real-world
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
-                             Harness/Verify.cs (--verify: every case reads back right), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
+                             Harness/Verify.cs (--verify: every case reads back right), Harness/NinoCoreBuild.cs (stops a process that
+                             loaded another Nino.Core build than its framework's), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
                              Fixtures/ contains shared models and payloads (ProtobufModel.cs: protobuf-net's model, the
                              .proto files --write-proto generates, the read-back of Google.Protobuf's messages;
-                             NullableBenchmarkData.cs: NullableTest's models, NullableFields and ManagedStruct, a
-                             struct with a reference, and MemoryPack's SafeNullable copies).
+                             NullableBenchmarkData.cs: NullableTest's models, NullableFields, RawNullable, a raw
+                             struct with nullable members, and ManagedStruct, a struct with a reference,
+                             CollectionsTest's collections of int? and MemoryPack's SafeNullable copies).
                              Each class's models live in Fixtures/ (<Class>BenchmarkData.cs and the like), shared
                              with its v3 port. NINO_BENCH_V3=true: the v3 3.3.13 build of every class's Nino and
                              MemoryPack cases that 3.3.13 can express (V3/, each file listing what it does

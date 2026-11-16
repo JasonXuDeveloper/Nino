@@ -78,8 +78,9 @@ GENERIC_ARGS = {
         "System.Collections.Generic.List<Conformance.Point>", "seq(type(Conformance.Point))"),
 }
 
-# T? and .NET's NinoNullable<T>, which is published and written exactly as T?.
-NULLABLES = ("System.Nullable<", "Nino.Core.NinoNullable<")
+NULLABLE = "System.Nullable<"
+# .NET's NinoNullable<T>: its memory wherever it is (a presence and a value of a T each), nino::NinoNullable<T>.
+NINO_NULLABLE = "Nino.Core.NinoNullable<"
 
 PRIMS = {
     "sbyte": "i8", "byte": "u8", "short": "i16", "ushort": "u16", "int": "i32", "uint": "u32", "long": "i64",
@@ -200,10 +201,14 @@ class Gen:
         # Where a layout publishes a T?[] stride (the specification, 6.2), its value offset is T's alignment: each
         # raw struct's computed alignment is checked against it.
         self.published_aligns = {}
+        # A NinoNullable<T> publishes the same text with the value at T's size: its members say nothing of alignment.
         for text in layouts.values():
-            for t, off in re.findall(r"hasValue:bool@0:raw\(1\),value:([^@]+)@(\d+):", text):
-                if self.published_aligns.setdefault(t, int(off)) != int(off):
-                    raise ValueError(f"two strides published for {t}")
+            for member in text.split(";"):
+                if NINO_NULLABLE in member:
+                    continue
+                for t, off in re.findall(r"hasValue:bool@0:raw\(1\),value:([^@]+)@(\d+):", member):
+                    if self.published_aligns.setdefault(t, int(off)) != int(off):
+                        raise ValueError(f"two strides published for {t}")
         self.type_ids = type_ids
         self.out = []
         self.raw_structs = {}
@@ -226,8 +231,11 @@ class Gen:
                 return PRIMS[name]
             if name in ENUMS:
                 return PRIMS[ENUMS[name]]
-            if name.startswith(NULLABLES):
-                raise ValueError(name)
+            if name.startswith(NINO_NULLABLE):
+                return f"nino::NinoNullable<{self.rust(c[1][0], ('raw', None, None))}>"
+            if name.startswith(NULLABLE):
+                # A T? field of a raw struct: its slot there (the specification, 6.2), `Raw for Option<T>`.
+                return f"Option<{self.rust(c[1][0], ('raw', None, None))}>"
             return self.raw_struct(name)
         if kind == "string":
             return "Option<nino::WideString>" if (owner, member) in WIDE_STRINGS else "Option<String>"
@@ -248,22 +256,21 @@ class Gen:
             return f"Option<{self.rust(inner, enc[1], owner, member)}>"
         if kind == "seq":
             el = self.element(c)
-            if el is not None and cs_name(el).startswith(NULLABLES) and enc[1][0] == "raw":
-                inner = el[1][0]
-                return f"Option<nino::RawNullables<{self.rust(inner, ('raw', None, None))}>>"
             if name in SELF_COLLECTIONS:
                 return f"Option<{ident(name)}>"
+            # A raw T? is a slot in every sequence (the specification, 6.2): nino::NullableSlot<T>.
+            element = self.nullable_slot(el, enc[1]) or self.rust(el, enc[1], owner, member)
             if c[0].endswith("HashSet"):
                 # A set may hold null (.NET writes HashSet<string> { null }), so its strings are Options.
-                return f"Option<indexmap::IndexSet<{self.rust(el, enc[1], owner, member)}>>"
-            return f"Option<Vec<{self.rust(el, enc[1], owner, member)}>>"
+                return f"Option<indexmap::IndexSet<{element}>>"
+            return f"Option<Vec<{element}>>"
         if kind == "map":
             if name in SELF_COLLECTIONS:
                 return f"Option<{ident(name)}>"
             k, v = c[1]
             return f"Option<indexmap::IndexMap<{self.key(k, enc[1][0])}, {self.rust(v, enc[1][1])}>>"
         if kind == "grid":
-            return f"Option<nino::Grid<{self.rust(c[1], enc[2])}, {enc[1]}>>"
+            return f"Option<nino::Grid<{self.nullable_slot(c[1], enc[2]) or self.rust(c[1], enc[2])}, {enc[1]}>>"
         if kind in ("pair", "tuple"):
             items = [self.rust(a, e) for a, e in zip(c[1], enc[1])]
             return "(" + ", ".join(items) + ("," if len(items) == 1 else "") + ")"
@@ -282,6 +289,12 @@ class Gen:
                 return f"Option<{ident(target)}Ref>"
             return f"Option<Box<{ident(target)}>>"
         raise ValueError(kind)
+
+    def nullable_slot(self, el, enc):
+        """nino::NullableSlot<T> for a sequence's or a grid's element that is a T? of a raw T, else None."""
+        if el is None or not cs_name(el).startswith(NULLABLE) or enc[0] != "raw":
+            return None
+        return f"nino::NullableSlot<{self.rust(el[1][0], ('raw', None, None))}>"
 
     def key(self, c, enc):
         """A dictionary key: never null (.NET throws on a null key)."""
@@ -322,8 +335,13 @@ class Gen:
     def leaf_align(self, ftype, fenc):
         if ftype in self.layouts and self.layouts[ftype]["raw"] == "true":
             return self.struct_align(ftype)
-        if re.match(r"System\.(ValueTuple|Collections\.Generic\.KeyValuePair|Nullable|DateTimeOffset)\b", ftype):
+        if re.match(r"System\.(ValueTuple|Collections\.Generic\.KeyValuePair|DateTimeOffset)\b", ftype):
             raise ValueError(f"{ftype}: a BCL struct in a raw struct, left to the code nino-gen writes")
+        if ftype.startswith(NULLABLE):
+            # A T? slot is aligned as its T, which is where it publishes its value.
+            return int(re.search(r"value:[^@]+@(\d+):", fenc[2]).group(1))
+        if ftype.startswith(NINO_NULLABLE):
+            return self.leaf_align(ftype[len(NINO_NULLABLE):-1], ("raw", fenc[1] // 2, None))
         return LEAF_ALIGNS.get(ftype, fenc[1])
 
     def struct_align(self, name):

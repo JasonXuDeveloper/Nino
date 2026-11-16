@@ -243,26 +243,76 @@ type Nullables struct {
 	Vec         *Vec2                       `nino:"6" json:"vec" yaml:"vec"`
 	Padded      *Padded                     `nino:"7" json:"padded" yaml:"padded"`
 	Label       *Label                      `nino:"8" json:"label" yaml:"label"`
-	IntArray    []*int32                    `nino:"9" json:"intArray" yaml:"intArray"`
-	LongList    []*int64                    `nino:"10" json:"longList" yaml:"longList"`
-	PaddedArray []*Padded                   `nino:"11" json:"paddedArray" yaml:"paddedArray"`
+	IntArray    []nino.NullableSlot[int32]  `nino:"9" json:"intArray" yaml:"intArray"`
+	LongList    []nino.NullableSlot[int64]  `nino:"10" json:"longList" yaml:"longList"`
+	PaddedArray []nino.NullableSlot[Padded] `nino:"11" json:"paddedArray" yaml:"paddedArray"`
 	Map         []nino.Entry[int32, *int32] `nino:"12" json:"map" yaml:"map"`
 }
 
-// NinoNullables is .NET's NinoNullable<T> members: the bytes and the layout encodings of T?, so the Go types of T?.
+// NullableSequences is raw nullables as the elements of sets, grids and nested sequences (a slot of a fixed size each,
+// spec §6.2, as in an array), and as a dictionary's value and a pair's item (single values: a presence byte, then
+// the value).
+type NullableSequences struct {
+	IntSet     []nino.NullableSlot[int32]       `nino:"0" json:"intSet" yaml:"intSet"`
+	LongSet    []nino.NullableSlot[int64]       `nino:"1" json:"longSet" yaml:"longSet"`
+	Grid       *Grid[nino.NullableSlot[int32]]  `nino:"2" json:"grid" yaml:"grid"`
+	PaddedGrid *Grid[nino.NullableSlot[Padded]] `nino:"3" json:"paddedGrid" yaml:"paddedGrid"`
+	Nested     [][]nino.NullableSlot[int32]     `nino:"4" json:"nested" yaml:"nested"`
+	Values     []nino.Entry[int32, *int64]      `nino:"5" json:"values" yaml:"values"`
+	Pairs      []nino.Entry[int32, *int32]      `nino:"6" json:"pairs" yaml:"pairs"`
+}
+
+// NinoNullableFields is a raw struct holding .NET's NinoNullable<T>: each field its memory at its offset.
+type NinoNullableFields struct {
+	Tag   uint8                           `nino:"0" json:"tag" yaml:"tag"`
+	Count nino.NinoNullable[int32]        `nino:"1" json:"count" yaml:"count"`
+	Price nino.NinoNullable[nino.Decimal] `nino:"2" json:"price" yaml:"price"`
+}
+
+// NinoNullables is .NET's NinoNullable<T> members: its memory wherever it is, a presence and a value of a T each
+// (2 x size(T) bytes), which is not the bytes of a T?: a nino.NinoNullable[T] each, where a T? is a *T.
 type NinoNullables struct {
-	Long         *int64          `nino:"0" json:"long" yaml:"long"`
-	Decimal      *nino.Decimal   `nino:"1" json:"decimal" yaml:"decimal"`
-	Guid         *nino.Guid      `nino:"2" json:"guid" yaml:"guid"`
-	Padded       *Padded         `nino:"3" json:"padded" yaml:"padded"`
-	LongArray    []*int64        `nino:"4" json:"longArray" yaml:"longArray"`
-	LongList     []*int64        `nino:"5" json:"longList" yaml:"longList"`
-	DecimalArray []*nino.Decimal `nino:"6" json:"decimalArray" yaml:"decimalArray"`
-	DecimalList  []*nino.Decimal `nino:"7" json:"decimalList" yaml:"decimalList"`
-	GuidArray    []*nino.Guid    `nino:"8" json:"guidArray" yaml:"guidArray"`
-	GuidList     []*nino.Guid    `nino:"9" json:"guidList" yaml:"guidList"`
-	PaddedArray  []*Padded       `nino:"10" json:"paddedArray" yaml:"paddedArray"`
-	PaddedList   []*Padded       `nino:"11" json:"paddedList" yaml:"paddedList"`
+	Long         nino.NinoNullable[int64]                             `nino:"0" json:"long" yaml:"long"`
+	Decimal      nino.NinoNullable[nino.Decimal]                      `nino:"1" json:"decimal" yaml:"decimal"`
+	Guid         nino.NinoNullable[nino.Guid]                         `nino:"2" json:"guid" yaml:"guid"`
+	Padded       nino.NinoNullable[Padded]                            `nino:"3" json:"padded" yaml:"padded"`
+	LongArray    []nino.NinoNullable[int64]                           `nino:"4" json:"longArray" yaml:"longArray"`
+	LongList     []nino.NinoNullable[int64]                           `nino:"5" json:"longList" yaml:"longList"`
+	DecimalArray []nino.NinoNullable[nino.Decimal]                    `nino:"6" json:"decimalArray" yaml:"decimalArray"`
+	DecimalList  []nino.NinoNullable[nino.Decimal]                    `nino:"7" json:"decimalList" yaml:"decimalList"`
+	GuidArray    []nino.NinoNullable[nino.Guid]                       `nino:"8" json:"guidArray" yaml:"guidArray"`
+	GuidList     []nino.NinoNullable[nino.Guid]                       `nino:"9" json:"guidList" yaml:"guidList"`
+	PaddedArray  []nino.NinoNullable[Padded]                          `nino:"10" json:"paddedArray" yaml:"paddedArray"`
+	PaddedList   []nino.NinoNullable[Padded]                          `nino:"11" json:"paddedList" yaml:"paddedList"`
+	GuidQueue    []nino.NinoNullable[nino.Guid]                       `nino:"12" json:"guidQueue" yaml:"guidQueue"`
+	DecimalMap   []nino.Entry[int32, nino.NinoNullable[nino.Decimal]] `nino:"13" json:"decimalMap" yaml:"decimalMap"`
+	Fields       NinoNullableFields                                   `nino:"14" json:"fields" yaml:"fields"`
+	FieldsArray  []NinoNullableFields                                 `nino:"15" json:"fieldsArray" yaml:"fieldsArray"`
+}
+
+// RawOptional is a raw struct holding nullables, each where it lies in .NET's memory: Id at 0, Total (a long?: flag at
+// 8, value at 16), Price (a decimal?: flag at 24, value at 32), Count (a NinoNullable<int>) at 48, 56 bytes.
+type RawOptional struct {
+	Id    int32                    `nino:"0" json:"id" yaml:"id"`
+	Total *int64                   `nino:"1" json:"total" yaml:"total"`
+	Price *nino.Decimal            `nino:"2" json:"price" yaml:"price"`
+	Count nino.NinoNullable[int32] `nino:"3" json:"count" yaml:"count"`
+}
+
+// RawOptionals is RawOptional as a member, in sequences and as the value of a nullable member.
+type RawOptionals struct {
+	One   RawOptional   `nino:"0" json:"one" yaml:"one"`
+	Array []RawOptional `nino:"1" json:"array" yaml:"array"`
+	List  []RawOptional `nino:"2" json:"list" yaml:"list"`
+	Maybe *RawOptional  `nino:"3" json:"maybe" yaml:"maybe"`
+}
+
+// NinoNullableRuns is runs of NinoNullable<T> of a T as large as its alignment: the bytes of the T? runs.
+type NinoNullableRuns struct {
+	LongArray []nino.NinoNullable[int64] `nino:"0" json:"longArray" yaml:"longArray"`
+	LongList  []nino.NinoNullable[int64] `nino:"1" json:"longList" yaml:"longList"`
+	IntArray  []nino.NinoNullable[int32] `nino:"2" json:"intArray" yaml:"intArray"`
+	ByteList  []nino.NinoNullable[uint8] `nino:"3" json:"byteList" yaml:"byteList"`
 }
 
 // ---------------------------------------------------------------- version tolerant and keyed

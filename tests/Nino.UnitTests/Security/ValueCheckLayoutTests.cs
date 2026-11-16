@@ -91,6 +91,58 @@ public class ValueCheckLayoutTests
 #endif
     }
 
+    /// <summary>
+    /// A <see cref="NinoNullable{T}"/>, alone and inside a struct: a presence of 0 or 1 with zeros above it, an
+    /// absent value all zeros, and the value's own checks only where it is present.
+    /// </summary>
+    [TestMethod]
+    public void NinoNullablePresenceAndAbsentValueAreChecked()
+    {
+        void Check<T>(T[] values, bool valid, string what) where T : unmanaged
+        {
+            var checks = NinoLayout.ValueChecks(typeof(T), Unsafe.SizeOf<T>());
+            Assert.IsNotNull(checks, what);
+            var data = System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan());
+            Assert.AreEqual(valid, Passes(checks, ref data[0], values.Length, Unsafe.SizeOf<T>()), what);
+        }
+
+        T[] With<T>(T[] values, int offset, byte value) where T : unmanaged
+        {
+            var copy = (T[])values.Clone();
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(copy.AsSpan())[offset] = value;
+            return copy;
+        }
+
+        foreach (int count in new[] { 1, 3, 40 })
+        {
+            var longs = new NinoNullable<long>[count];
+            for (int i = 0; i < count; i++)
+                longs[i] = i % 3 == 0 ? default : new NinoNullable<long>(-i - 1);
+            int last = (count - 1) * 16;
+            Check(longs, true, "long");
+            Check(With(longs, last, 2), false, "a presence of 2");
+            Check(With(longs, last + 5, 1), false, "a presence with a byte above its first");
+            Check(With(longs, 8 + 3, 9), false, "a value without a presence");
+            Check(With(With(longs, 0, 1), 8 + 3, 9), true, "the same value, present");
+
+            // A decimal: its flags are checked where it is present, and its presence (a decimal too) never as one.
+            var decimals = new NinoNullable<decimal>[count];
+            for (int i = 0; i < count; i++)
+                decimals[i] = i % 3 == 1 ? default : new NinoNullable<decimal>(i + 0.5m);
+            Check(decimals, true, "decimal");
+            Check(With(decimals, 16 + 2, 200), false, "a decimal's scale");
+            Check(With(decimals, 15, 1), false, "the presence's last byte");
+
+            var inside = new (int Id, NinoNullable<int> Count, bool Flag)[count];
+            for (int i = 0; i < count; i++)
+                inside[i] = (i, i % 2 == 0 ? default : new NinoNullable<int>(i), true);
+            int at = (int)Unsafe.ByteOffset(ref Unsafe.As<(int, NinoNullable<int>, bool), byte>(ref inside[0]),
+                ref Unsafe.As<NinoNullable<int>, byte>(ref inside[0].Count));
+            Check(inside, true, "inside a struct");
+            Check(With(inside, at + 4, 7), false, "inside a struct, a value without a presence");
+        }
+    }
+
     private static bool Passes(NinoValueChecks checks, ref byte first, int count, int stride)
     {
         try

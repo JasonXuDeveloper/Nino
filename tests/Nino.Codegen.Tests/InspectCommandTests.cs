@@ -322,14 +322,15 @@ namespace Nino.Codegen.Tests
         [DataRow("references-shared", DisplayName = "reference tracking")]
         [DataRow("nino-collections", DisplayName = "[NinoType] collections")]
         [DataRow("bcl-raw-values", DisplayName = "BCL values in raw structs")]
-        [DataRow("ninonullables-values", DisplayName = "NinoNullable<T>: nullable values, alone and at a stride")]
+        [DataRow("ninonullables-values", DisplayName = "NinoNullable<T>: its memory, alone, in collections and in raw structs")]
+        [DataRow("nullable-sequences", DisplayName = "raw nullables: slots in sets, grids and nested sequences, single values in maps and pairs")]
         [DataRow("deep-tolerant-chain-129", DisplayName = "a section of deferred bodies")]
         [DataRow("presence-bool-02", DisplayName = "malformed: an invalid bool")]
         [DataRow("keyed-member-too-short", DisplayName = "malformed: a keyed entry too short")]
-#if NET11_0_OR_GREATER
+        [DataRow("presence-nullable-grid-flag-02", DisplayName = "malformed: the presence byte of a slot in a grid")]
+        [DataRow("length-nullable-set-single-values", DisplayName = "malformed: a set of raw nullables written as single values")]
         [DataRow("unions-values", DisplayName = "C# unions: case type ids, the empty union")]
         [DataRow("type-id-union-null-string", DisplayName = "malformed: a union case without a value")]
-#endif
         public void PrintsTheTree(string name)
         {
             string kind = File.Exists(Corpus("valid", name + ".bin")) ? "valid" : "malicious";
@@ -341,25 +342,73 @@ namespace Nino.Codegen.Tests
         }
 
         /// <summary>
-        /// A <c>NinoNullable&lt;T&gt;</c> member is printed as the nullable value a <c>T?</c> member is: the same tree
-        /// for the same bytes read as either declaration, but for the types' names.
+        /// A run of <c>NinoNullable&lt;T&gt;</c> of a <c>T</c> as large as its alignment is printed as the run of
+        /// <c>T?</c> it is: the same tree for the same bytes read as either declaration, but for the types' names.
         /// </summary>
         [TestMethod]
-        public void PrintsANinoNullableAsANullableValue()
+        public void PrintsANinoNullableRunAsARunOfNullables()
         {
             string Tree(string type)
             {
                 var (exit, output) = Run("--assembly", GeneratedFilesTests.Conformance, "--type", type,
-                    Corpus("valid", "ninonullables-values.bin"));
+                    Corpus("valid", "ninonullable-runs.bin"));
                 Assert.AreEqual(0, exit, output);
                 return output;
             }
 
-            string ninoNullable = Tree("Conformance.NinoNullables");
-            StringAssert.Contains(ninoNullable, "Long: Nino.Core.NinoNullable<long> [nullable(raw(8))]");
+            string ninoNullable = Tree("Conformance.NinoNullableRuns");
+            StringAssert.Contains(ninoNullable, "IntArray: Nino.Core.NinoNullable<int>[] [seq(raw(8){...}]  (2 elements)");
             Assert.AreEqual(Tree("Conformance.NullableTwins"),
-                ninoNullable.Replace("Conformance.NinoNullables", "Conformance.NullableTwins")
+                ninoNullable.Replace("Conformance.NinoNullableRuns", "Conformance.NullableTwins")
                     .Replace("Nino.Core.NinoNullable<", "System.Nullable<"));
+        }
+
+        /// <summary>
+        /// <c>NinoNullable&lt;T&gt;</c> in type arguments, a set and a tuple, whose encodings the
+        /// model works out or takes from the layout: .NET's bytes read back to the values written.
+        /// </summary>
+        [TestMethod]
+        public void ReadsNinoNullableWhereverNinoCoreWritesIt()
+        {
+            var bytes = NinoSerializer.Serialize(ModelTests.NinoNullableArgsValue());
+            var (exit, output) = Run(bytes, "--assembly", GeneratedFilesTests.Shapes, "--type",
+                "Shapes.NinoNullableArgs");
+            Assert.AreEqual(0, exit, output);
+            Golden("shapes-ninonullable-args", output);
+        }
+
+        /// <summary>
+        /// A raw <c>T?</c> in the sequences the corpus lacks (a queue, a stack, a linked list, a sorted set, a list
+        /// interface, nested, a set inside type arguments, grids of two and three dimensions): .NET's bytes read back
+        /// to the values written, a slot each; a presence byte other than 0 or 1 fails in any of them.
+        /// </summary>
+        [TestMethod]
+        public void ReadsRawNullableSlotsInEverySequence()
+        {
+            var slots = NinoSerializer.Serialize(ModelTests.NullableSlotsValue());
+            var (exit, output) = Run(slots, "--assembly", GeneratedFilesTests.Shapes, "--type", "Shapes.NullableSlots");
+            Assert.AreEqual(0, exit, output);
+            Golden("shapes-nullable-slots", output);
+            var grids = NinoSerializer.Serialize(ModelTests.NullableGridsValue());
+            (exit, output) = Run(grids, "--assembly", GeneratedFilesTests.Shapes, "--type", "Shapes.NullableGrids");
+            Assert.AreEqual(0, exit, output);
+            Golden("shapes-nullable-grids", output);
+
+            // The queue's first slot (at 5), the sorted set's second (at 77), the set's inside a type argument (at 158);
+            // the grid's first element (at 9), the cube's second (at 53).
+            foreach (var (data, type, offsets) in new[]
+                     {
+                         (slots, "Shapes.NullableSlots", new[] { 5, 77, 158 }),
+                         (grids, "Shapes.NullableGrids", new[] { 9, 53 }),
+                     })
+            foreach (int at in offsets)
+            {
+                var bad = (byte[])data.Clone();
+                bad[at] = 2;
+                (exit, output) = Run(bad, "--assembly", GeneratedFilesTests.Shapes, "--type", type);
+                Assert.AreEqual(InspectCommand.Malformed, exit, output);
+                StringAssert.Contains(output, $"malformed data at offset {at}: ", output);
+            }
         }
 
         private static void Golden(string name, string text)

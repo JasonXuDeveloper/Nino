@@ -1,0 +1,7 @@
+nino-gen inspect: Conformance.Targets.MaybeIntGrid, 17 byte(s) from offset 0
+  offset  length  value
+       0      17  value: Conformance.Targets.MaybeIntGrid
+       0       1    presence = 1
+       1      16    Values: System.Nullable<int>[,] [grid(2,raw(8){...}]  (1 x 1)
+       9       8      [0,0]
+nino-gen: malformed data at offset 9: invalid presence byte 2

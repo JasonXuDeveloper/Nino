@@ -87,16 +87,44 @@ namespace Nino.Codegen.Targets
 
         /// <summary>
         /// A sequence's way: <c>bytes</c>, <c>block</c>, <c>bools</c>, <c>values</c> (a block of dates, decimals,
-        /// Guids or 128-bit integers), <c>fixed</c> (raw values at their stride),
+        /// Guids or 128-bit integers), <c>ninonullables</c> (a block of <c>NinoNullable&lt;T&gt;</c> of a number),
+        /// <c>nullableslots</c> (a block of <c>T?</c> of a number, a slot each),
+        /// <c>fixed</c> (raw values at their stride),
         /// <c>unique</c> (a set of comparable values), <c>stringset</c>, <c>slice</c>; a map's: <c>block</c>
         /// (primitive keys and values, pairs copied as one block where their memory is their bytes; repeated keys
         /// fail), <c>unique</c> (repeated keys fail) or <c>entries</c>.
         /// </summary>
         public string? Mode { get; internal set; }
 
+        /// <summary>
+        /// A <c>seq</c> that is a set of <c>T?</c> slots (<c>nullableslots</c> or <c>fixed</c>): read as the
+        /// sequence is, then checked for an element read twice (<c>nino.CheckUniqueValues</c>, which compares a
+        /// <c>nino.NullableSlot</c> as .NET's <c>Nullable&lt;T&gt;</c>).
+        /// </summary>
+        public bool UniqueSlots { get; internal set; }
+
         public int FlagOffset { get; internal set; }
 
         public int ValueOffset { get; internal set; }
+
+        /// <summary>
+        /// A <c>rawnullable</c> that is a <c>NinoNullable&lt;T&gt;</c> (<see cref="ValueModel.Clean"/>): a
+        /// <c>nino.NinoNullable[T]</c>, where a <c>T?</c> is a <c>*T</c>.
+        /// </summary>
+        public bool Clean { get; internal set; }
+
+        /// <summary>
+        /// A <c>rawnullable</c> that is a <c>T?</c> as the element of a sequence or a grid (wire-format spec §6.2): a
+        /// <c>nino.NullableSlot[T]</c>, where a single <c>T?</c> (a field of a raw struct, a tuple's item) is a
+        /// <c>*T</c>.
+        /// </summary>
+        public bool SlotElement { get; internal set; }
+
+        /// <summary>
+        /// The runtime's value type that holds a <c>rawnullable</c> (<c>HasValue</c>, <c>Value</c>); null for one
+        /// held as a <c>*T</c>.
+        /// </summary>
+        public string? Holder => Clean ? "nino.NinoNullable" : SlotElement ? "nino.NullableSlot" : null;
 
         public int Rank { get; internal set; }
 
@@ -113,9 +141,9 @@ namespace Nino.Codegen.Targets
             yield return Struct?.FullName ?? "";
             yield return Type?.FullName ?? "";
             yield return Named?.FullName ?? "";
-            yield return Mode ?? "";
+            yield return (Mode ?? "") + (UniqueSlots ? "/unique" : "");
             yield return Pair ? "pair" : "";
-            yield return FlagOffset + "/" + ValueOffset + "/" + Rank;
+            yield return FlagOffset + "/" + ValueOffset + "/" + Rank + (Clean ? "/clean" : "") + (SlotElement ? "/slot" : "");
             yield return string.Join("/", Offsets);
             yield return Slot?.Name ?? "";
             yield return Field ?? "";

@@ -9,7 +9,6 @@ using Nino.Core;
 // Arrays: raw elements are copied as one block.
 [assembly: NinoFormatter(typeof(UnmanagedArrayFormatter<>), Priority = 2)]
 [assembly: NinoFormatter(typeof(NullableArrayFormatter<>), Priority = 1)]
-[assembly: NinoFormatter(typeof(NinoNullableArrayFormatter<>), Priority = 1)]
 [assembly: NinoFormatter(typeof(ArrayFormatter<,>))]
 [assembly: NinoFormatter(typeof(Array2DFormatter<,>))]
 [assembly: NinoFormatter(typeof(Array3DFormatter<,>))]
@@ -20,8 +19,8 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(IntPtrFormatter))]
 [assembly: NinoFormatter(typeof(UIntPtrFormatter))]
 [assembly: NinoFormatter(typeof(DateTimeOffsetFormatter))]
+[assembly: NinoFormatter(typeof(UnmanagedNullableFormatter<>), Priority = 1)]
 [assembly: NinoFormatter(typeof(NullableFormatter<,>))]
-[assembly: NinoFormatter(typeof(NinoNullableFormatter<>))]
 [assembly: NinoFormatter(typeof(KeyValuePairFormatter<,,,>))]
 [assembly: NinoFormatter(typeof(BigIntegerFormatter))]
 [assembly: NinoFormatter(typeof(LazyFormatter<,>))]
@@ -63,7 +62,6 @@ using Nino.Core;
 // Any other collection, by what it derives from or implements (higher priority wins).
 [assembly: NinoFormatter(typeof(UnmanagedListFormatter<,>), Priority = 60)]
 [assembly: NinoFormatter(typeof(NullableListFormatter<,>), Priority = 50)]
-[assembly: NinoFormatter(typeof(NinoNullableListFormatter<,>), Priority = 50)]
 [assembly: NinoFormatter(typeof(ListFormatter<,,>), Priority = 40)]
 [assembly: NinoFormatter(typeof(HashSetFormatter<,,>), Priority = 30)]
 [assembly: NinoFormatter(typeof(QueueFormatter<,,>), Priority = 25)]

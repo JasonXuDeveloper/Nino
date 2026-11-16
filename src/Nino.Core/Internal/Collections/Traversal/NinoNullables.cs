@@ -40,37 +40,69 @@ namespace Nino.Core
                                                        NullableLayout<T>.ValueOffset == 1 &&
                                                        Unsafe.SizeOf<T?>() == 2 && Stride == 2 && Offset == 1;
 
-        private static readonly NinoMask Mask = BuildMask();
+        /// <summary>
+        /// Whether a run may be written over itself (<see cref="WriteSlots(ref byte, ReadOnlySpan{T?})"/> with the
+        /// destination its own source): the slots are the values' memory and tile every vector (2, 4, 8 or 16
+        /// bytes), so each step reads exactly the bytes it writes and writing a step twice changes nothing. The
+        /// kernels of other strides store whole vectors past their last whole element and read those bytes again
+        /// from the source in the next step.
+        /// </summary>
+        internal static readonly bool InPlace = Raw && Stride is 2 or 4 or 8 or 16;
 
-        private static NinoMask BuildMask()
+#if NET8_0_OR_GREATER
+        /// <summary>Whether raw runs are read by a loop that checks their flags while it copies (ReadPrechecked).</summary>
+        private static readonly bool FusesCheck = Vector128.IsHardwareAccelerated &&
+                                                  (NinoSimd.Amd || AdvSimd.Arm64.IsSupported);
+#endif
+
+        /// <summary>Whether T holds a <c>Nullable</c> itself: only the masked copy clears a value inside a value.</summary>
+        private static readonly bool HoldsNullables = NinoLayout<T>.Info.Absent != null;
+
+        /// <summary>
+        /// One element as a masked copy takes it: the flag and T's bytes kept, the padding between them and T's own
+        /// cleared, and T (with any <c>Nullable</c> inside it) cleared where its flag is 0
+        /// (<see cref="NinoMask.Copy"/>): what writes the runs of strides the kernels below do not take where a
+        /// vector clears across elements, and every run of a T that holds a <c>Nullable</c> itself.
+        /// </summary>
+        private static readonly NinoMask Mask = BuildMask(true);
+
+        private static NinoMask BuildMask(bool withAbsent)
         {
             var mask = new byte[Stride];
             mask[0] = 0xFF;
             var value = NinoLayout<T>.Info.Mask;
             for (int i = 0; i < NinoLayout<T>.WireSize; i++)
                 mask[Offset + i] = value == null ? (byte)0xFF : value[i];
-            // A T holding a Nullable: its own absent values, past the element's flag (the element's own after them).
-            var inner = NinoLayout<T>.Info.Absent;
-            int[] absent = null;
-            if (inner != null)
+            // The element's own value first, then those of a T holding a Nullable, past the element's flag: outer
+            // before inner, as NinoLayout.Info.Absent lists them.
+            var inner = NinoLayout<T>.Info.Absent ?? Array.Empty<int>();
+            var absent = new int[3 + inner.Length];
+            absent[1] = Offset;
+            absent[2] = NinoLayout<T>.WireSize;
+            for (int i = 0; i < inner.Length; i += 3)
             {
-                absent = new int[inner.Length];
-                for (int i = 0; i < inner.Length; i += 3)
-                {
-                    absent[i] = Offset + inner[i];
-                    absent[i + 1] = Offset + inner[i + 1];
-                    absent[i + 2] = inner[i + 2];
-                }
+                absent[3 + i] = Offset + inner[i];
+                absent[4 + i] = Offset + inner[i + 1];
+                absent[5 + i] = inner[i + 2];
             }
 
-            return NinoMask.Create(mask, absent);
+            return NinoMask.Create(mask, withAbsent ? absent : null);
         }
+
+        /// <summary>
+        /// The element's padding alone (null without any), for runs no vector clears: copied with it, then cleared
+        /// by <see cref="ClearAbsent"/>, whose sizes are constants here. Through <see cref="Mask"/>'s list of
+        /// values instead, every run of a host without vectors (and of the netstandard2.1 build) took 1.3 to 2
+        /// times as long (1,000 <c>int?</c> 1,820 ns against 1,110, <c>Guid?</c> 5,200 against 3,600, local,
+        /// <c>DOTNET_EnableHWIntrinsic=0</c>).
+        /// </summary>
+        private static readonly NinoMask Padding = HoldsNullables ? null : BuildMask(false);
 
         /// <summary>
         /// Zeroes the value of each element written without one: memory a <c>T?</c> was never assigned in (a rented or
         /// uninitialized array) may hold old bytes behind a cleared flag, and the wire holds zeros there (spec §6.2).
         /// </summary>
-        // Out of line: a pass over the flags after the block copy, for the strides CopyLanes does not take.
+        // Out of line: a pass over the flags after the block copy, for the runs no kernel takes.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ClearAbsent(ref byte destination, int count)
         {
@@ -82,6 +114,16 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>
+        /// Whether the masked copy clears absent values in its one pass, a 64-byte vector at a time, whatever the
+        /// stride (<see cref="NinoMask.ClearsByVector"/>: AVX-512 VBMI, with GFNI on .NET 10).
+        /// </summary>
+#if NET8_0_OR_GREATER
+        private static readonly bool ClearedByVector = Mask.ClearsByVector;
+#else
+        private const bool ClearedByVector = false;
+#endif
+
 #if NET8_0_OR_GREATER
         /// <summary>
         /// Strides whose elements sit at fixed places in every vector of a period: 2, 4, 8 and 16 bytes (<c>byte?</c>
@@ -89,9 +131,23 @@ namespace Nino.Core
         /// lanes); 24 bytes (<c>decimal?</c>, a 16-byte struct with 8-byte alignment) repeats every three vectors of
         /// any width, each element three 8-byte lanes with its flag in the first.
         /// </summary>
-        private static readonly bool Lanes = Vector128.IsHardwareAccelerated && Mask?.ClearsAbsent != true &&
+        private static readonly bool Lanes = Vector128.IsHardwareAccelerated && !HoldsNullables &&
                                              (Stride == 2 || Stride == 4 || Stride == 8 || Stride == 16 ||
                                               Stride == 24);
+
+        /// <summary>
+        /// Whether every byte of an element is kept whole or cleared whole (no byte keeps only some of its bits):
+        /// what a kernel that clears by a multiplication or by its element's flag alone needs.
+        /// </summary>
+        private static readonly bool WholeBytes = KeepsWholeBytes();
+
+        private static bool KeepsWholeBytes()
+        {
+            foreach (byte keep in Keeps())
+                if (keep != 0 && keep != 0xFF)
+                    return false;
+            return true;
+        }
 
 #if NET10_0_OR_GREATER
         /// <summary>
@@ -116,70 +172,10 @@ namespace Nino.Core
         /// Whether a 16-byte element is cleared by a multiplication (GFNI): its bytes are kept whole or cleared whole
         /// (no byte keeps only some of its bits).
         /// </summary>
-        // Strides of 2 to 8 bytes are one lane of a mask register an element: a test and a masked AND, two
-        // operations already. Without AVX-512 (VL) they are a compare, an AND NOT and an AND, and take this too.
-        private static readonly bool Multiplies = Gfni.IsSupported && KeepsWholeBytes() &&
-                                                  (Stride == 16 ||
-                                                   (Stride is 2 or 4 or 8 && !Avx512F.VL.IsSupported));
-
-        /// <summary>The whole elements a 64-byte vector holds (0 for a stride over 64 bytes).</summary>
-        private static readonly int PerVector = Stride <= 64 ? 64 / Stride : 0;
-
-        /// <summary>
-        /// Whether a run of any other stride up to 64 bytes (12, 20, 24, 32, ...: a <c>decimal?</c>, a <c>Guid?</c>, a
-        /// struct of two or three words) is cleared the same way, a vector's whole elements at a time: their flags
-        /// lie anywhere in the vector, so a permutation across it (vpermb, AVX-512 VBMI) gives each byte its
-        /// element's flag.
-        /// </summary>
-        private static readonly bool Permutes = PerVector > 0 && Stride is not (2 or 4 or 8 or 16) &&
-                                                Mask?.ClearsAbsent != true && Avx512Vbmi.IsSupported &&
-                                                Gfni.V512.IsSupported && KeepsWholeBytes();
-
-        /// <summary>For <see cref="Permutes"/>: where in the vector the flag of each byte's element is.</summary>
-        private static readonly Vector512<byte> FlagIndex = Permutes ? FlagIndexes(false) : default;
-
-        /// <summary>For <see cref="Permutes"/>: the bytes of the vector's whole elements that the wire keeps.</summary>
-        private static readonly Vector512<byte> KeptBytes = Permutes ? FlagIndexes(true) : default;
-
-        private static Vector512<byte> FlagIndexes(bool kept)
-        {
-            var keep = Keeps();
-            var bytes = new byte[64];
-            for (int i = 0; i < PerVector * Stride; i++)
-                bytes[i] = kept ? keep[i % Stride] : (byte)(i - i % Stride);
-            return Vector512.Create(bytes);
-        }
-
-        /// <summary>
-        /// Copies the elements of <paramref name="total"/> bytes that fill whole 64-byte loads, as the wire holds
-        /// them: each vector's whole elements cleared by <see cref="Kept(Vector512{byte})"/>'s multiplication, the
-        /// flags gathered by a permutation. A store writes the whole vector; what lies past its whole elements is
-        /// written again by the next one, or by the caller, which copies the elements from the returned offset on.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static nuint CopyPermuted(ref byte destination, ref byte source, nuint total)
-        {
-            nuint step = (nuint)(PerVector * Stride);
-            var index = FlagIndex;
-            var kept = KeptBytes;
-            nuint i = 0;
-            for (; i + 64 <= total; i += step)
-            {
-                var elements = Vector512.LoadUnsafe(ref source, i);
-                var flags = Avx512Vbmi.PermuteVar64x8(elements, index) & kept;
-                Gfni.V512.GaloisFieldMultiply(elements, flags).StoreUnsafe(ref destination, i);
-            }
-
-            return i;
-        }
-
-        private static bool KeepsWholeBytes()
-        {
-            foreach (byte keep in Keeps())
-                if (keep != 0 && keep != 0xFF)
-                    return false;
-            return true;
-        }
+        // Strides of 2 to 8 bytes too, with AVX-512 (VL) as well: their lane test (the flags ANDed, vptestm, a masked
+        // AND) is three operations to this two, 1,000 int? 99-115 ns against 117-125 (local AVX-512 Xeon, in process).
+        private static readonly bool Multiplies = Gfni.IsSupported && WholeBytes &&
+                                                  (Stride is 2 or 4 or 8 or 16);
 
         /// <summary>
         /// The elements of a 16-byte stride as the wire holds them, in two operations: every byte multiplied in GF(2^8)
@@ -222,6 +218,44 @@ namespace Nino.Core
         /// For 24 with AVX-512 VBMI, the vpermb / vpermt2b indices that give each byte of the three vectors of a period
         /// its element's flag: from the first vector, then the first and second, then the second and third.
         /// </summary>
+        /// <summary>
+        /// For a 24-byte stride, by where a 64-byte line of the destination starts in an element (0, 4, ... 20 bytes
+        /// in, a sixth each): the dword permutation (vpermt2d) of the line before and the line that gives each dword
+        /// its element's first dword (the flag's), and the bytes the wire keeps there.
+        /// </summary>
+        private static readonly Vector512<uint>[] GatherIndex = Stride == 24 ? GatherIndexes() : null;
+
+        private static readonly Vector512<byte>[] GatherKeep = Stride == 24 ? GatherKeeps() : null;
+
+        private static Vector512<uint>[] GatherIndexes()
+        {
+            var rows = new Vector512<uint>[Stride / 4];
+            var dwords = new uint[16];
+            for (int p = 0; p < Stride; p += 4)
+            {
+                for (int d = 0; d < 16; d++)
+                    dwords[d] = (uint)(16 + d - (p + 4 * d) % Stride / 4);
+                rows[p / 4] = Vector512.Create(dwords);
+            }
+
+            return rows;
+        }
+
+        private static Vector512<byte>[] GatherKeeps()
+        {
+            var rows = new Vector512<byte>[Stride / 4];
+            var keep = Keeps();
+            var bytes = new byte[64];
+            for (int p = 0; p < Stride; p += 4)
+            {
+                for (int b = 0; b < 64; b++)
+                    bytes[b] = keep[(p + b) % Stride];
+                rows[p / 4] = Vector512.Create(bytes);
+            }
+
+            return rows;
+        }
+
         private static readonly Vector512<byte> FlagBytes0 = FlagBytes(0);
 
         private static readonly Vector512<byte> FlagBytes1 = FlagBytes(1);
@@ -280,7 +314,6 @@ namespace Nino.Core
         private static void CopyLanes(ref byte destination, ref byte source, int total)
         {
             nuint length = (nuint)total;
-#if NET9_0_OR_GREATER
             if (AdvSimd.Arm64.IsSupported)
             {
                 if (Stride <= 16)
@@ -290,12 +323,6 @@ namespace Nino.Core
                 return;
             }
 
-            if (AdvSimd.Arm64.IsSupported && length >= (nuint)PartStep)
-            {
-                CopyParts(ref destination, ref source, length);
-                return;
-            }
-#endif
             if (NinoSimd.Prefer512 && length >= 4 * (nuint)LaneStep)
                 CopyLanes<Vector512<byte>, Lanes512>(ref destination, ref source, length);
             else if (Vector256.IsHardwareAccelerated && length >= 2 * (nuint)LaneStep)
@@ -304,82 +331,72 @@ namespace Nino.Core
                 CopyLanes<Vector128<byte>, Lanes128>(ref destination, ref source, length);
         }
 
-#if NET9_0_OR_GREATER
         /// <summary>
-        /// The width of the parts an Arm64 structure load (ld2, ld3) splits each element into: half the stride, or
-        /// 8 bytes for 24 (three parts). The flag is the low byte of the first part.
+        /// The bytes of a 16-byte vector's whole elements, for strides up to 16 bytes: the vector where they tile
+        /// it (2, 4, 8, 16), else as many elements as it holds (15 bytes of 3 or 5, 12 of 6 or 12, ...).
         /// </summary>
-        private static readonly int PartWidth = Stride == 24 ? 8 : Stride / 2;
-
-        /// <summary>The bytes of one structure load: two 16-byte parts, three for 24.</summary>
-        private static readonly int PartStep = Stride == 24 ? 48 : 32;
-
-        /// <summary>The low byte of each lane of <see cref="PartWidth"/>: the flag in the first part.</summary>
-        private static readonly Vector128<byte> PartFlag = Part(Flag(), 0);
-
-        /// <summary>The bytes each part keeps of a present element (<see cref="Keeps"/>), lane by lane.</summary>
-        private static readonly Vector128<byte> PartKeep0 = Part(Keeps(), 0);
-
-        private static readonly Vector128<byte> PartKeep1 = Part(Keeps(), 1);
-
-        private static readonly Vector128<byte> PartKeep2 = Stride == 24 ? Part(Keeps(), 2) : default;
+        private static readonly int SpreadStep = Stride <= 16 ? 16 / Stride * Stride : 0;
 
         /// <summary>
-        /// Whether the first part keeps only the flag (its padding clears the rest), which is zero in an absent element,
-        /// and whether the other parts keep every byte: the ANDs these make redundant are left out.
-        /// </summary>
-        private static readonly bool FlagPartOnly = PartKeep0 == PartFlag;
-
-        private static readonly bool WholePart1 = PartKeep1 == Vector128<byte>.AllBitsSet;
-
-        private static readonly bool WholePart2 = PartKeep2 == Vector128<byte>.AllBitsSet;
-
-        private static Vector128<byte> Part(byte[] element, int part)
-        {
-            var bytes = new byte[16];
-            for (int i = 0; i < bytes.Length; i++)
-                bytes[i] = element[part * PartWidth + i % PartWidth];
-            return Vector128.Create(bytes);
-        }
-
-        /// <summary>
-        /// For strides of 2 to 16 bytes, the table lookup (tbl) that gives each byte of a 16-byte vector its element's
-        /// flag where a present element keeps it, and zero (an index out of the table) in the padding.
+        /// For strides up to 16 bytes, the shuffle (tbl, pshufb) that gives each byte of a 16-byte vector its
+        /// element's flag where a present element keeps it, and zero (an index out of the table) in the padding
+        /// and past the vector's whole elements.
         /// </summary>
         private static readonly Vector128<byte> SpreadFlags = Spread();
 
         private static Vector128<byte> Spread()
         {
             var bytes = new byte[16];
+            bytes.AsSpan().Fill(0xFF);
             if (Stride <= 16)
             {
                 var keep = Keeps();
-                for (int i = 0; i < bytes.Length; i++)
-                    bytes[i] = keep[i % Stride] != 0 ? (byte)(i - i % Stride) : (byte)0xFF;
+                for (int i = 0; i < SpreadStep; i++)
+                    if (keep[i % Stride] != 0)
+                        bytes[i] = (byte)(i - i % Stride);
             }
 
             return Vector128.Create(bytes);
         }
 
         /// <summary>
-        /// <see cref="CopyLanes"/> on Arm64 for strides of 2 to 16 bytes, which tile a 16-byte vector: each byte takes
-        /// its element's flag (tbl), the flags tested against themselves (cmtst) give the bytes to keep, and one AND
-        /// keeps them; vectors loaded and stored in pairs (ldp, stp). Three vector operations a vector, where the
-        /// structure loads and stores of <see cref="CopyParts"/> (ld2, st2) took the vector pipes too. The last vector
-        /// overlaps the one before it.
+        /// Whether a run of a stride under 16 bytes that does not tile a vector (3, 5, 6, 7, 9 to 15: a struct of
+        /// two bytes, of an int and a byte packed, of three ints packed to 2) is cleared by <see cref="CopySpread"/>,
+        /// a 16-byte vector's whole elements a step: where no wider vector clears it across elements
+        /// (<see cref="ClearedByVector"/>) and a shuffle exists (SSSE3, Arm64).
+        /// </summary>
+        private static readonly bool Spreads = Stride < 16 && SpreadStep != 16 && !HoldsNullables && WholeBytes &&
+                                               !ClearedByVector &&
+                                               (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported);
+
+        /// <summary>
+        /// Copies the elements of <paramref name="total"/> bytes (16 or more) that 16-byte vectors hold whole, for
+        /// strides up to 16 bytes, and returns the bytes it wrote: each byte takes its element's flag (tbl, pshufb)
+        /// and is multiplied by it (<see cref="Spread(Vector128{byte}, Vector128{byte})"/>). Strides that tile the
+        /// vector (Arm64's <see cref="CopyLanes"/>): every element, vectors loaded and stored in pairs (ldp, stp),
+        /// the last one overlapping the one before it. Other strides: a store writes zeros past its whole elements,
+        /// which the next step writes again, and the caller copies the elements after the last whole vector.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void CopySpread(ref byte destination, ref byte source, nuint total)
+        private static nuint CopySpread(ref byte destination, ref byte source, nuint total)
         {
-            // Cursors bumped, so the two vectors of a step are at constant offsets (ldp, stp).
             var spread = SpreadFlags;
+            if (SpreadStep != 16)
+            {
+                nuint step = (nuint)SpreadStep, i = 0;
+                for (; i + 16 <= total; i += step)
+                    Spread(Vector128.LoadUnsafe(ref source, i), spread).StoreUnsafe(ref destination, i);
+                return i;
+            }
+
+            // Cursors bumped, so the two vectors of a step are at constant offsets (ldp, stp).
             nuint left = total;
             for (; left >= 32; left -= 32)
             {
-                var a = Vector128.LoadUnsafe(ref source);
-                var b = Vector128.LoadUnsafe(ref source, 16);
-                Spread(a, spread).StoreUnsafe(ref destination);
-                Spread(b, spread).StoreUnsafe(ref destination, 16);
+                var a = Spread(Vector128.LoadUnsafe(ref source), spread);
+                var b = Spread(Vector128.LoadUnsafe(ref source, 16), spread);
+                a.StoreUnsafe(ref destination);
+                b.StoreUnsafe(ref destination, 16);
                 source = ref Unsafe.Add(ref source, 32);
                 destination = ref Unsafe.Add(ref destination, 32);
             }
@@ -394,13 +411,53 @@ namespace Nino.Core
 
             if (left != 0)
                 Spread(Vector128.LoadUnsafe(ref source, left - 16), spread).StoreUnsafe(ref destination, left - 16);
+            return total;
         }
 
+        /// <summary><see cref="CopySpread"/> out of line, for <see cref="WriteSlots(ref byte, ReadOnlySpan{T?})"/>.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int CopySpreads(ref byte destination, ref byte source, int total) =>
+            (int)CopySpread(ref destination, ref source, (nuint)total);
+
+        /// <summary>
+        /// A vector of elements as the wire holds them, in two operations: each byte multiplied by its element's
+        /// flag (times 1 it is kept, times 0 cleared; a flag is 0 or 1 in every <c>Nullable</c> the runtime makes),
+        /// the padding by 0. Arm64: tbl and a byte multiplication, where testing the flags (cmtst) and an AND were
+        /// three operations for the two vector pipes of a Neoverse core, which the store's data takes too (llvm-mca,
+        /// neoverse-n2, 32 bytes a step: 3.0 cycles against 4.0, a copy 1.0; neoverse-n1 3.0 against 4.0, neoverse-v2
+        /// 2.0 against 2.3, apple-m1 2.0 against 2.3; not timed on hardware). x64: pshufb, then the multiplication
+        /// in GF(2^8) with GFNI, else a compare and an AND NOT.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static Vector128<byte> Spread(Vector128<byte> value, Vector128<byte> spread)
         {
-            var flags = AdvSimd.Arm64.VectorTableLookup(value, spread);
-            return value & AdvSimd.CompareTest(flags, flags);
+            if (AdvSimd.Arm64.IsSupported)
+                return AdvSimd.Multiply(value, AdvSimd.Arm64.VectorTableLookup(value, spread));
+            if (Ssse3.IsSupported)
+                return Times(value, Ssse3.Shuffle(value, spread));
+            return value;
+        }
+
+        /// <summary><paramref name="value"/>'s bytes times <paramref name="by"/>'s, each 0 or 1: gf2p8mulb, else psignb.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Times(Vector128<byte> value, Vector128<byte> by)
+        {
+#if NET10_0_OR_GREATER
+            if (Gfni.IsSupported)
+                return Gfni.GaloisFieldMultiply(value, by);
+#endif
+            return Ssse3.Sign(value.AsSByte(), by.AsSByte()).AsByte();
+        }
+
+        /// <summary><see cref="Times(Vector128{byte}, Vector128{byte})"/> for 32-byte vectors: vgf2p8mulb, else vpsignb.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Times(Vector256<byte> value, Vector256<byte> by)
+        {
+#if NET10_0_OR_GREATER
+            if (Gfni.V256.IsSupported)
+                return Gfni.V256.GaloisFieldMultiply(value, by);
+#endif
+            return Avx2.Sign(value.AsSByte(), by.AsSByte()).AsByte();
         }
 
         /// <summary>The bytes the first, second and third 8-byte words of a present element keep.</summary>
@@ -417,24 +474,25 @@ namespace Nino.Core
 
         /// <summary>
         /// <see cref="CopyLanes"/> on Arm64 for a stride of 24 bytes (or 8 and 16), a word at a time in general-purpose
-        /// registers: each element's flag tested once, each word kept (ANDed with its bytes to keep) or zeroed by a
-        /// conditional select, loaded and stored in pairs (ldp, stp), where the structure loads and stores of
-        /// <see cref="CopyParts"/> (ld2, st2) take the vector pipes.
+        /// registers: each element's flag negated is the mask of its words (0 or all ones: a flag is 0 or 1 in
+        /// every <c>Nullable</c> the runtime makes), loaded and stored in pairs (ldp, stp), where three vectors of
+        /// tbl and a multiplication wait for the vector pipes (llvm-mca, neoverse-n2, two elements: 2.8 cycles
+        /// against 4.5; the mask as a sign shifted down, three operations instead of one, 3.9).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CopyWords(ref byte destination, ref byte source, nuint total)
         {
             // Cursors bumped by the stride, so each element's words are at constant offsets, read before any is written
-            // (ldp, stp); the presence a mask, all ones for a flag other than 0 (its negation shifted right
-            // arithmetically), ANDed into each word: a ternary compiled to a branch per element.
+            // (ldp, stp); a ternary on the flag compiled to a branch per element.
             ref byte end = ref Unsafe.Add(ref source, total);
             while (Unsafe.IsAddressLessThan(ref source, ref end))
             {
                 ulong w0 = Unsafe.ReadUnaligned<ulong>(ref source);
                 ulong w1 = Stride >= 16 ? Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, 8)) : 0;
                 ulong w2 = Stride == 24 ? Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, 16)) : 0;
-                ulong present = (ulong)(-(long)(byte)w0 >> 63);
-                Unsafe.WriteUnaligned(ref destination, FlagWordOnly ? w0 & 0xFF : w0 & KeepWord0 & present);
+                ulong flag = w0 & 0xFF;
+                ulong present = 0UL - flag;
+                Unsafe.WriteUnaligned(ref destination, FlagWordOnly ? flag : w0 & KeepWord0 & present);
                 if (Stride >= 16)
                     Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, 8), w1 & KeepWord1 & present);
                 if (Stride == 24)
@@ -445,79 +503,180 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// <see cref="CopyLanes"/> on Arm64: 32 bytes a step (48 for 24) loaded as structures, so each register holds
-        /// one part of every element (the flags in the first) and the flag test (cmtst) is one per step with no
-        /// shuffle; stored zipped back (st2, st3). <paramref name="total"/> is at least one step.
+        /// The widest vector one element holds whole, for strides the kernels above do not take: 64 bytes where
+        /// <see cref="NinoSimd.Prefer512"/>, 32, 16; 0 for a stride under 16 bytes or no vectors.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe void CopyParts(ref byte destination, ref byte source, nuint total)
+        private static readonly int PieceWidth = !Vector128.IsHardwareAccelerated || Stride < 16 ? 0
+            : Stride >= 64 && NinoSimd.Prefer512 ? 64
+            : Stride >= 32 && Vector256.IsHardwareAccelerated ? 32 : 16;
+
+        /// <summary>
+        /// Whether a run of any other stride from 17 bytes (20, 28, 40, 72, ...: a <c>Guid?</c>, a struct of four
+        /// or nine words) is written by <see cref="CopyPieces"/>, an element at a time in pieces that tile it: where
+        /// no vector clears it across elements (<see cref="ClearedByVector"/>: it takes every flag
+        /// that is at most 64 bytes before its value's end).
+        /// </summary>
+        // Not strides of 17 to 31 bytes where 32-byte vectors copy (AVX2): a 16-byte vector and a word an element
+        // took what the masked copy and the pass over the flags after it take (Guid?, 1,000: 1,510 to 1,590 ns
+        // both, local, DOTNET_EnableAVX512=0); with 16-byte vectors alone the pieces took 1,667 against 2,203.
+        private static readonly bool Pieces = PieceWidth != 0 && !Lanes && !HoldsNullables && WholeBytes &&
+                                              !ClearedByVector &&
+                                              (PieceWidth >= 32 || !Vector256.IsHardwareAccelerated);
+
+        /// <summary>The pieces of one element, widest first: vectors of 64, 32 and 16 bytes, then a word of each size its last 15 bytes need.</summary>
+        private static readonly int Pieces64 = PieceWidth == 64 ? Stride / 64 : 0;
+
+        private static readonly int Pieces32 = PieceWidth >= 32 ? (Stride - 64 * Pieces64) / 32 : 0;
+
+        private static readonly int Pieces16 = (Stride - 64 * Pieces64 - 32 * Pieces32) / 16;
+
+        /// <summary>
+        /// For a 24-byte stride with a shuffle within 16-byte lanes (pshufb), the indices that give each byte an element
+        /// keeps its element's flag, for the three vectors of a period (<paramref name="k"/>) of
+        /// <paramref name="width"/> bytes: from the vector itself (the flag in the byte's own 16-byte lane) or, with
+        /// <paramref name="previous"/>, from the vector loaded 16 bytes earlier (the flag in the lane before); zero
+        /// (an index with the top bit) elsewhere.
+        /// </summary>
+        private static Vector256<byte> Spread24(int width, int k, bool previous)
         {
-            nuint step = (nuint)PartStep;
-            nuint end = total - step;
-            var flag = PartFlag;
-            var keep0 = PartKeep0;
-            var keep1 = PartKeep1;
-            var keep2 = PartKeep2;
-            fixed (byte* d = &destination, s = &source)
+            var bytes = new byte[32];
+            bytes.AsSpan().Fill(0x80);
+            if (Stride != 24)
+                return Vector256.Create(bytes);
+            var keep = Keeps();
+            for (int p = 0; p < width; p++)
             {
-                for (nuint i = 0; i < end; i += step)
-                    CopyPart(d + i, s + i, flag, keep0, keep1, keep2);
-                CopyPart(d + end, s + end, flag, keep0, keep1, keep2);
+                int at = k * width + p, flag = at - at % 24, lane = k * width + (p & ~15);
+                if (keep[at % 24] == 0)
+                    continue;
+                if (flag >= lane)
+                {
+                    if (!previous)
+                        bytes[p] = (byte)(flag - lane);
+                }
+                else if (previous)
+                {
+                    bytes[p] = (byte)(flag - (lane - 16));
+                }
             }
+
+            return Vector256.Create(bytes);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe void CopyPart(byte* destination, byte* source, Vector128<byte> flag,
-            Vector128<byte> keep0, Vector128<byte> keep1, Vector128<byte> keep2)
+        private static readonly Vector256<byte> Own0 = Spread24(32, 0, false), Own1 = Spread24(32, 1, false),
+            Own2 = Spread24(32, 2, false), Before0 = Spread24(32, 0, true), Before1 = Spread24(32, 1, true),
+            Before2 = Spread24(32, 2, true);
+
+        private static readonly Vector128<byte> Own16_0 = Spread24(16, 0, false).GetLower(),
+            Own16_1 = Spread24(16, 1, false).GetLower(), Own16_2 = Spread24(16, 2, false).GetLower(),
+            Before16_0 = Spread24(16, 0, true).GetLower(), Before16_1 = Spread24(16, 1, true).GetLower(),
+            Before16_2 = Spread24(16, 2, true).GetLower();
+
+        /// <summary>The bytes one element keeps, and where its last cleared byte ends: pieces from there on keep every byte.</summary>
+        private static readonly byte[] PieceKeeps = Keeps();
+
+        private static readonly int PieceKeepEnd = Array.LastIndexOf(PieceKeeps, (byte)0) + 1;
+
+        /// <summary>
+        /// Copies <paramref name="count"/> elements (one or more) as the wire holds them, each in pieces that tile
+        /// it: vectors of <see cref="PieceWidth"/> bytes and narrower ones, then a word of 8, 4, 2 and 1 bytes as
+        /// its length needs, every piece ANDed with the element's flag spread over it (0 - flag: a flag is 0 or 1
+        /// in every <c>Nullable</c> the runtime makes) and, up to the element's last padding, with the bytes it
+        /// keeps. Stores in address order, none past the element: a last vector that ended with the element,
+        /// overlapping the piece before, and the first vector stored last, took 1.7 to 1.9 times as long for a
+        /// 72-byte stride (wip/simd-coverage, local); one 64-byte store an element of 40 bytes, 24 bytes into the
+        /// next, took twice the pieces' time. Read from the source, never from the destination.
+        /// </summary>
+        // Fully optimized from the first call (the class is initialized by then, so its fields are constants): the
+        // loops over an element's pieces have constant counts, and on-stack replacement spilled the vectors.
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static void CopyPieces(ref byte destination, ref byte source, int count)
         {
-            if (Stride == 2)
+            ref byte keep = ref MemoryMarshal.GetArrayDataReference(PieceKeeps);
+            ref byte end = ref Unsafe.Add(ref source, (nuint)(uint)count * (nuint)Stride);
+            do
             {
-                var (a, b) = AdvSimd.Arm64.Load2xVector128AndUnzip(source);
-                var present = AdvSimd.CompareTest(a, flag);
-                AdvSimd.Arm64.StoreVectorAndZip(destination,
-                    (First(a, keep0, present), Rest(b, keep1, present, WholePart1)));
-            }
-            else if (Stride == 4)
-            {
-                var (a, b) = AdvSimd.Arm64.Load2xVector128AndUnzip((ushort*)source);
-                var present = AdvSimd.CompareTest(a, flag.AsUInt16()).AsByte();
-                AdvSimd.Arm64.StoreVectorAndZip((ushort*)destination, (First(a.AsByte(), keep0, present).AsUInt16(),
-                    Rest(b.AsByte(), keep1, present, WholePart1).AsUInt16()));
-            }
-            else if (Stride == 8)
-            {
-                var (a, b) = AdvSimd.Arm64.Load2xVector128AndUnzip((uint*)source);
-                var present = AdvSimd.CompareTest(a, flag.AsUInt32()).AsByte();
-                AdvSimd.Arm64.StoreVectorAndZip((uint*)destination, (First(a.AsByte(), keep0, present).AsUInt32(),
-                    Rest(b.AsByte(), keep1, present, WholePart1).AsUInt32()));
-            }
-            else if (Stride == 16)
-            {
-                var (a, b) = AdvSimd.Arm64.Load2xVector128AndUnzip((ulong*)source);
-                var present = AdvSimd.Arm64.CompareTest(a, flag.AsUInt64()).AsByte();
-                AdvSimd.Arm64.StoreVectorAndZip((ulong*)destination, (First(a.AsByte(), keep0, present).AsUInt64(),
-                    Rest(b.AsByte(), keep1, present, WholePart1).AsUInt64()));
-            }
-            else
-            {
-                var (a, b, c) = AdvSimd.Arm64.Load3xVector128AndUnzip((ulong*)source);
-                var present = AdvSimd.Arm64.CompareTest(a, flag.AsUInt64()).AsByte();
-                AdvSimd.Arm64.StoreVectorAndZip((ulong*)destination, (First(a.AsByte(), keep0, present).AsUInt64(),
-                    Rest(b.AsByte(), keep1, present, WholePart1).AsUInt64(),
-                    Rest(c.AsByte(), keep2, present, WholePart2).AsUInt64()));
-            }
+                ulong present = 0UL - source;
+                nuint at = 0;
+                Vector256<byte> present32 = default;
+                Vector128<byte> present16;
+                if (PieceWidth == 64)
+                {
+                    var present64 = Vector512.Create((byte)present);
+                    for (int i = 0; i < Pieces64; i++, at += 64)
+                        (at < (nuint)PieceKeepEnd
+                            ? Vector512.LoadUnsafe(ref source, at) & present64 & Vector512.LoadUnsafe(ref keep, at)
+                            : Vector512.LoadUnsafe(ref source, at) & present64).StoreUnsafe(ref destination, at);
+                    present32 = present64.GetLower();
+                }
+                else if (PieceWidth == 32)
+                {
+                    present32 = Vector256.Create((byte)present);
+                }
+
+                if (PieceWidth >= 32)
+                {
+                    for (int i = 0; i < Pieces32; i++, at += 32)
+                        (at < (nuint)PieceKeepEnd
+                            ? Vector256.LoadUnsafe(ref source, at) & present32 & Vector256.LoadUnsafe(ref keep, at)
+                            : Vector256.LoadUnsafe(ref source, at) & present32).StoreUnsafe(ref destination, at);
+                    present16 = present32.GetLower();
+                }
+                else
+                {
+                    present16 = Vector128.Create((byte)present);
+                }
+
+                for (int i = 0; i < Pieces16; i++, at += 16)
+                    (at < (nuint)PieceKeepEnd
+                        ? Vector128.LoadUnsafe(ref source, at) & present16 & Vector128.LoadUnsafe(ref keep, at)
+                        : Vector128.LoadUnsafe(ref source, at) & present16).StoreUnsafe(ref destination, at);
+
+                if ((Stride & 8) != 0)
+                {
+                    ulong word = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, at)) & present;
+                    if (at < (nuint)PieceKeepEnd)
+                        word &= Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref keep, at));
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), word);
+                    at += 8;
+                }
+
+                if ((Stride & 4) != 0)
+                {
+                    uint word = Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref source, at)) & (uint)present;
+                    if (at < (nuint)PieceKeepEnd)
+                        word &= Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref keep, at));
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), word);
+                    at += 4;
+                }
+
+                if ((Stride & 2) != 0)
+                {
+                    ushort word = (ushort)(Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref source, at)) & (uint)present);
+                    if (at < (nuint)PieceKeepEnd)
+                        word &= Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref keep, at));
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), word);
+                    at += 2;
+                }
+
+                if ((Stride & 1) != 0)
+                {
+                    byte last = (byte)(Unsafe.Add(ref source, at) & (uint)present);
+                    if (at < (nuint)PieceKeepEnd)
+                        last &= Unsafe.Add(ref keep, at);
+                    Unsafe.Add(ref destination, at) = last;
+                }
+
+                source = ref Unsafe.Add(ref source, Stride);
+                destination = ref Unsafe.Add(ref destination, Stride);
+            } while (Unsafe.IsAddressLessThan(ref source, ref end));
         }
 
-        /// <summary>The first part of the elements: their flags, and what else it holds where present.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector128<byte> First(Vector128<byte> part, Vector128<byte> keep, Vector128<byte> present) =>
-            FlagPartOnly ? part & keep : part & keep & present;
-
-        /// <summary>Another part of the elements: kept where present.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector128<byte> Rest(Vector128<byte> part, Vector128<byte> keep, Vector128<byte> present,
-            bool whole) => whole ? part & present : part & keep & present;
-#endif
+        /// <summary>
+        /// The steps from which <see cref="CopyLanes{TVector, TLanes}"/> aligns its stores: below, the extra step costs
+        /// more than the split stores.
+        /// </summary>
+        private const int AlignFrom = 8;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CopyLanes<TVector, TLanes>(ref byte destination, ref byte source, nuint total)
@@ -528,6 +687,36 @@ namespace Nino.Core
             nuint step = (nuint)(LaneStep * Unsafe.SizeOf<TVector>() / 16);
             nuint end = total - step;
             nuint i = 0;
+            // Stores at whole vectors of the destination where whole elements lead there (for 24 bytes a step is
+            // three vectors, and one or two elements may lead to a line's start): the first step as it lies, then
+            // steps from the first aligned element on, which write its overlap again. A store that is not
+            // aligned to its width straddles two cache lines, and the stores bound this loop.
+            if (total >= AlignFrom * step)
+            {
+                nuint head = NinoUnsafe.BytesToAligned(ref destination, (nuint)Unsafe.SizeOf<TVector>());
+                if (head % (nuint)Stride == 0)
+                {
+                    lanes.Copy(ref destination, ref source, 0);
+                    i = head;
+                }
+                else if (typeof(TVector) == typeof(Vector512<byte>) && Stride != 24 && head % 4 == 0)
+                {
+                    // No element starts a line (a top-level run, 4 bytes of length into an 8-byte aligned array):
+                    // the results moved onto the lines instead.
+                    Lanes512.CopyRealigned(ref destination, ref source, total, head);
+                    return;
+                }
+                else if (typeof(TVector) == typeof(Vector512<byte>) && Stride == 24 && head % 4 == 0)
+                {
+                    // The first and the last step as they lie, the lines between them gathered at the
+                    // destination's phase.
+                    lanes.Copy(ref destination, ref source, 0);
+                    Lanes512.CopyGathered24(ref destination, ref source, total, head);
+                    lanes.Copy(ref destination, ref source, end);
+                    return;
+                }
+            }
+
             if (Stride != 24)
                 for (; i + 3 * step < end; i += 4 * step)
                     lanes.CopyFour(ref destination, ref source, i);
@@ -547,21 +736,129 @@ namespace Nino.Core
 
         private readonly struct Lanes512 : ILanes
         {
+            /// <summary>One vector of a stride that tiles it (2 to 16 bytes) as the wire holds it.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector512<byte> Cleaned(Vector512<byte> a)
+            {
+#if NET10_0_OR_GREATER
+                if (Multiplies && Gfni.V512.IsSupported)
+                    return Kept(a);
+#endif
+                return Present(a, Tile(a), Keep);
+            }
+
+            /// <summary>
+            /// The elements of <paramref name="total"/> bytes (a stride that tiles the vector, 8 vectors or more) with
+            /// every store but the first and the last two on the destination's 64-byte boundaries, where no element
+            /// starts one (<paramref name="head"/>, the bytes to the first, a multiple of 4): each vector cleared
+            /// where it lies, as the other loops do, then the bytes of two consecutive results that fall on one line
+            /// of the destination joined by a dword permutation across both (vpermt2d, one uop on Ice Lake, Sapphire
+            /// Rapids and Zen 4), with an index built once. Four operations a vector for strides up to 8 bytes
+            /// (vpshufb, vgf2p8mulb, vpermt2d, the store) where the split store cost more: 1,000 <c>long?</c> 191
+            /// ns against 250 unaligned and 164 where elements start a line, <c>Vec3?</c> 208 against 272,
+            /// <c>List&lt;long?&gt;</c> 197 against 249, <c>int?</c> 117 against 130 (local, AVX-512 Xeon). Not 24
+            /// bytes, whose kernel already spends four or five operations a vector and gained nothing (513 against
+            /// 510 to 560). AVX2 has no one-uop dword shift across a 32-byte vector.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void CopyRealigned(ref byte destination, ref byte source, nuint total, nuint head)
+            {
+                var index = Vector512.Create(0u, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) +
+                            Vector512.Create((uint)head >> 2);
+                var previous = Cleaned(Vector512.LoadUnsafe(ref source));
+                previous.StoreUnsafe(ref destination);
+                nuint i = 0;
+                // previous is the vector at i; the store at i + head takes its last bytes and the next one's first.
+                for (; i + 256 + 64 <= total; i += 256)
+                {
+                    var b = Cleaned(Vector512.LoadUnsafe(ref source, i + 64));
+                    var c = Cleaned(Vector512.LoadUnsafe(ref source, i + 128));
+                    var d = Cleaned(Vector512.LoadUnsafe(ref source, i + 192));
+                    var e = Cleaned(Vector512.LoadUnsafe(ref source, i + 256));
+                    Avx512F.PermuteVar16x32x2(previous.AsUInt32(), index, b.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + head);
+                    Avx512F.PermuteVar16x32x2(b.AsUInt32(), index, c.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + 64 + head);
+                    Avx512F.PermuteVar16x32x2(c.AsUInt32(), index, d.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + 128 + head);
+                    Avx512F.PermuteVar16x32x2(d.AsUInt32(), index, e.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + 192 + head);
+                    previous = e;
+                }
+
+                for (; i + 128 <= total; i += 64)
+                {
+                    var next = Cleaned(Vector512.LoadUnsafe(ref source, i + 64));
+                    Avx512F.PermuteVar16x32x2(previous.AsUInt32(), index, next.AsUInt32()).AsByte()
+                        .StoreUnsafe(ref destination, i + head);
+                    previous = next;
+                }
+
+                // Written up to i + head: the vector at i, and the last one, which ends the run (a whole element
+                // from its start, as the stride divides 64), cover the rest.
+                previous.StoreUnsafe(ref destination, i);
+                Cleaned(Vector512.LoadUnsafe(ref source, total - 64)).StoreUnsafe(ref destination, total - 64);
+            }
+
+            /// <summary>
+            /// The 64-byte lines of the destination from <c>head + 64</c> to the last whole one, for a 24-byte stride
+            /// whose elements never start a line (<paramref name="head"/>, the bytes to the first, a multiple of 4;
+            /// the caller writes the first and the last 192 bytes): each line loaded where it lies in the source, each
+            /// dword given its element's first dword from the line before and the line (vpermt2d, one uop), the
+            /// presence its bit 0 spread over the dword (vpslld 31, vpsrad 31: a flag is 0 or 1 in every
+            /// <c>Nullable</c> the runtime makes) and ANDed with the line and the bytes kept (vpternlogd). One port-5
+            /// operation a vector where the permutation of the flags (vpermb and two vpermt2b, three uops each on
+            /// Intel), the AND, the multiplication and the realignment (vpermt2d) took four or more, and every store
+            /// aligned. 1,000 <c>decimal?</c> in the kernel harness 381 ns against 475 for that form (a copy 248);
+            /// it needs AVX-512F alone.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void CopyGathered24(ref byte destination, ref byte source, nuint total, nuint head)
+            {
+                nuint at = head + 64;
+                var previous = Vector512.LoadUnsafe(ref source, head);
+                int p0 = (int)(at % 24), p1 = (int)((at + 64) % 24), p2 = (int)((at + 128) % 24);
+                Vector512<uint> i0 = GatherIndex[p0 / 4], i1 = GatherIndex[p1 / 4], i2 = GatherIndex[p2 / 4];
+                Vector512<byte> k0 = GatherKeep[p0 / 4], k1 = GatherKeep[p1 / 4], k2 = GatherKeep[p2 / 4];
+                for (; at + 192 <= total; at += 192)
+                {
+                    var a = Vector512.LoadUnsafe(ref source, at);
+                    var b = Vector512.LoadUnsafe(ref source, at + 64);
+                    var c = Vector512.LoadUnsafe(ref source, at + 128);
+                    Gathered(previous, a, i0, k0).StoreUnsafe(ref destination, at);
+                    Gathered(a, b, i1, k1).StoreUnsafe(ref destination, at + 64);
+                    Gathered(b, c, i2, k2).StoreUnsafe(ref destination, at + 128);
+                    previous = c;
+                }
+
+                for (; at + 64 <= total; at += 64)
+                {
+                    var a = Vector512.LoadUnsafe(ref source, at);
+                    Gathered(previous, a, i0, k0).StoreUnsafe(ref destination, at);
+                    previous = a;
+                    (i0, i1, i2) = (i1, i2, i0);
+                    (k0, k1, k2) = (k1, k2, k0);
+                }
+            }
+
+            /// <summary>One line of <see cref="CopyGathered24"/>.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector512<byte> Gathered(Vector512<byte> previous, Vector512<byte> line,
+                Vector512<uint> index, Vector512<byte> keep)
+            {
+                var first = Avx512F.PermuteVar16x32x2(previous.AsUInt32(), index, line.AsUInt32());
+                var present = Avx512F.ShiftRightArithmetic(Avx512F.ShiftLeftLogical(first, 31).AsInt32(), 31);
+                return Avx512F.TernaryLogic(line, present.AsByte(), keep, 0x80);
+            }
+
+
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Copy(ref byte destination, ref byte source, nuint offset)
             {
                 var a = Vector512.LoadUnsafe(ref source, offset);
-#if NET10_0_OR_GREATER
-                if (Multiplies && Gfni.V512.IsSupported)
-                {
-                    Kept(a).StoreUnsafe(ref destination, offset);
-                    return;
-                }
-#endif
-
                 if (Stride != 24)
                 {
-                    Present(a, Tile(a), Keep).StoreUnsafe(ref destination, offset);
+                    Cleaned(a).StoreUnsafe(ref destination, offset);
                     return;
                 }
 
@@ -569,6 +866,20 @@ namespace Nino.Core
                 // vector starts in up to two lanes before it (in the vector before, within the period).
                 var b = Vector512.LoadUnsafe(ref source, offset + 64);
                 var c = Vector512.LoadUnsafe(ref source, offset + 128);
+#if NET10_0_OR_GREATER
+                if (Avx512Vbmi.IsSupported && Gfni.V512.IsSupported && WholeBytes)
+                {
+                    // Every byte multiplied by its element's flag (vpermb, vpermt2b), the padding by 0 (the flags
+                    // ANDed with the bytes kept): the permutation alone on port 5 where the test took it twice.
+                    Gfni.V512.GaloisFieldMultiply(a, Avx512Vbmi.PermuteVar64x8(a, FlagBytes0) & Keep)
+                        .StoreUnsafe(ref destination, offset);
+                    Gfni.V512.GaloisFieldMultiply(b, Avx512Vbmi.PermuteVar64x8x2(a, FlagBytes1, b) & Keep1)
+                        .StoreUnsafe(ref destination, offset + 64);
+                    Gfni.V512.GaloisFieldMultiply(c, Avx512Vbmi.PermuteVar64x8x2(b, FlagBytes2, c) & Keep2)
+                        .StoreUnsafe(ref destination, offset + 128);
+                    return;
+                }
+#endif
                 if (Avx512Vbmi.IsSupported)
                 {
                     // Every byte of each 8-byte lane takes its element's flag (vpermb, vpermt2b), so the lanes are
@@ -599,20 +910,10 @@ namespace Nino.Core
                 var b = Vector512.LoadUnsafe(ref source, offset + 64);
                 var c = Vector512.LoadUnsafe(ref source, offset + 128);
                 var d = Vector512.LoadUnsafe(ref source, offset + 192);
-#if NET10_0_OR_GREATER
-                if (Multiplies && Gfni.V512.IsSupported)
-                {
-                    Kept(a).StoreUnsafe(ref destination, offset);
-                    Kept(b).StoreUnsafe(ref destination, offset + 64);
-                    Kept(c).StoreUnsafe(ref destination, offset + 128);
-                    Kept(d).StoreUnsafe(ref destination, offset + 192);
-                    return;
-                }
-#endif
-                Present(a, Tile(a), Keep).StoreUnsafe(ref destination, offset);
-                Present(b, Tile(b), Keep).StoreUnsafe(ref destination, offset + 64);
-                Present(c, Tile(c), Keep).StoreUnsafe(ref destination, offset + 128);
-                Present(d, Tile(d), Keep).StoreUnsafe(ref destination, offset + 192);
+                Cleaned(a).StoreUnsafe(ref destination, offset);
+                Cleaned(b).StoreUnsafe(ref destination, offset + 64);
+                Cleaned(c).StoreUnsafe(ref destination, offset + 128);
+                Cleaned(d).StoreUnsafe(ref destination, offset + 192);
             }
 
             /// <summary>
@@ -652,24 +953,34 @@ namespace Nino.Core
             public void Copy(ref byte destination, ref byte source, nuint offset)
             {
                 var a = Vector256.LoadUnsafe(ref source, offset);
-#if NET10_0_OR_GREATER
-                if (Multiplies && Gfni.V256.IsSupported)
-                {
-                    Kept(a).StoreUnsafe(ref destination, offset);
-                    return;
-                }
-#endif
-
                 if (Stride != 24)
                 {
-                    Present(a, Tile(a), Keep.GetLower()).StoreUnsafe(ref destination, offset);
+                    Cleaned(a).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+
+                var b = Vector256.LoadUnsafe(ref source, offset + 32);
+                var c = Vector256.LoadUnsafe(ref source, offset + 64);
+                if (Avx2.IsSupported && WholeBytes)
+                {
+                    // Each byte its element's flag from its own 16-byte lane or, through the vector loaded 16 bytes
+                    // earlier, the lane before (two pshufb, por), then the multiplication: four operations a vector
+                    // within lanes, where moving the lanes took six with a cross-lane permutation in most.
+                    var w = offset >= 16
+                        ? Vector256.LoadUnsafe(ref source, offset - 16)
+                        : Vector256.Create(a.GetLower(), a.GetLower());
+                    Times(a, Avx2.Shuffle(a, Own0) | Avx2.Shuffle(w, Before0)).StoreUnsafe(ref destination, offset);
+                    w = Vector256.LoadUnsafe(ref source, offset + 16);
+                    Times(b, Avx2.Shuffle(b, Own1) | Avx2.Shuffle(w, Before1))
+                        .StoreUnsafe(ref destination, offset + 32);
+                    w = Vector256.LoadUnsafe(ref source, offset + 48);
+                    Times(c, Avx2.Shuffle(c, Own2) | Avx2.Shuffle(w, Before2))
+                        .StoreUnsafe(ref destination, offset + 64);
                     return;
                 }
 
                 // As Lanes512's: elements start at lanes 0, 3, 6 and 9 of the three vectors (lanes 4 and 5 take lane
                 // 3's, lane 8 lane 6's).
-                var b = Vector256.LoadUnsafe(ref source, offset + 32);
-                var c = Vector256.LoadUnsafe(ref source, offset + 64);
                 var a8 = a.AsUInt64();
                 var b8 = b.AsUInt64();
                 var c8 = c.AsUInt64();
@@ -697,25 +1008,40 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void CopyFour(ref byte destination, ref byte source, nuint offset)
             {
-                var keep = Keep.GetLower();
                 var a = Vector256.LoadUnsafe(ref source, offset);
                 var b = Vector256.LoadUnsafe(ref source, offset + 32);
                 var c = Vector256.LoadUnsafe(ref source, offset + 64);
                 var d = Vector256.LoadUnsafe(ref source, offset + 96);
+                Cleaned(a).StoreUnsafe(ref destination, offset);
+                Cleaned(b).StoreUnsafe(ref destination, offset + 32);
+                Cleaned(c).StoreUnsafe(ref destination, offset + 64);
+                Cleaned(d).StoreUnsafe(ref destination, offset + 96);
+            }
+
+            /// <summary>
+            /// One vector of a stride that tiles it (2 to 16 bytes) as the wire holds it: multiplied by its flags with
+            /// GFNI (<see cref="Kept(Vector256{byte})"/>), else with AVX2 each
+            /// byte takes its element's flag (vpshufb, zero in the padding) and keeps its value by its sign (vpsignb:
+            /// kept where 1, cleared where 0; a flag is 0 or 1 in every <c>Nullable</c> the runtime makes), two
+            /// operations where the lane test took four, as fast as GFNI's multiplication: 16,000 bytes of a 16-byte
+            /// stride 297-309 ns against 332-342 with the destination 4 bytes past a line (186 against 277 on the
+            /// line), 1,000 <c>int?</c> serialized 174-179 against 193-196 (local Xeon, DOTNET_EnableAVX512=0
+            /// DOTNET_EnableGFNI=0; not timed on AMD).
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector256<byte> Cleaned(Vector256<byte> a)
+            {
 #if NET10_0_OR_GREATER
                 if (Multiplies && Gfni.V256.IsSupported)
-                {
-                    Kept(a).StoreUnsafe(ref destination, offset);
-                    Kept(b).StoreUnsafe(ref destination, offset + 32);
-                    Kept(c).StoreUnsafe(ref destination, offset + 64);
-                    Kept(d).StoreUnsafe(ref destination, offset + 96);
-                    return;
-                }
+                    return Kept(a);
 #endif
-                Present(a, Tile(a), keep).StoreUnsafe(ref destination, offset);
-                Present(b, Tile(b), keep).StoreUnsafe(ref destination, offset + 32);
-                Present(c, Tile(c), keep).StoreUnsafe(ref destination, offset + 64);
-                Present(d, Tile(d), keep).StoreUnsafe(ref destination, offset + 96);
+                if (Avx2.IsSupported)
+                {
+                    var spread = SpreadFlags;
+                    return Avx2.Sign(a.AsSByte(), Avx2.Shuffle(a, Vector256.Create(spread, spread)).AsSByte()).AsByte();
+                }
+
+                return Present(a, Tile(a), Keep.GetLower());
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -754,13 +1080,24 @@ namespace Nino.Core
                 var a = Vector128.LoadUnsafe(ref source, offset);
                 if (Stride != 24)
                 {
-                    (a & Present(Tile(a)) & keep).StoreUnsafe(ref destination, offset);
+                    Cleaned(a).StoreUnsafe(ref destination, offset);
+                    return;
+                }
+
+                var b = Vector128.LoadUnsafe(ref source, offset + 16);
+                var c = Vector128.LoadUnsafe(ref source, offset + 32);
+                if (Ssse3.IsSupported && WholeBytes)
+                {
+                    // As Lanes256's: each byte its element's flag from its own vector or the one before.
+                    Times(a, Ssse3.Shuffle(a, Own16_0)).StoreUnsafe(ref destination, offset);
+                    Times(b, Ssse3.Shuffle(b, Own16_1) | Ssse3.Shuffle(a, Before16_1))
+                        .StoreUnsafe(ref destination, offset + 16);
+                    Times(c, Ssse3.Shuffle(c, Own16_2) | Ssse3.Shuffle(b, Before16_2))
+                        .StoreUnsafe(ref destination, offset + 32);
                     return;
                 }
 
                 // Two elements: the first in lanes 0 to 2, the second in lanes 3 to 5 of the three vectors.
-                var b = Vector128.LoadUnsafe(ref source, offset + 16);
-                var c = Vector128.LoadUnsafe(ref source, offset + 32);
                 var first = Present(a).AsUInt64();
                 var second = Present(b).AsUInt64();
                 (a & Vector128.Shuffle(first, Vector128.Create(0UL, 0)).AsByte() & keep)
@@ -774,16 +1111,26 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void CopyFour(ref byte destination, ref byte source, nuint offset)
             {
-                var keep = Keep.GetLower().GetLower();
                 var a = Vector128.LoadUnsafe(ref source, offset);
                 var b = Vector128.LoadUnsafe(ref source, offset + 16);
                 var c = Vector128.LoadUnsafe(ref source, offset + 32);
                 var d = Vector128.LoadUnsafe(ref source, offset + 48);
-                (a & Present(Tile(a)) & keep).StoreUnsafe(ref destination, offset);
-                (b & Present(Tile(b)) & keep).StoreUnsafe(ref destination, offset + 16);
-                (c & Present(Tile(c)) & keep).StoreUnsafe(ref destination, offset + 32);
-                (d & Present(Tile(d)) & keep).StoreUnsafe(ref destination, offset + 48);
+                Cleaned(a).StoreUnsafe(ref destination, offset);
+                Cleaned(b).StoreUnsafe(ref destination, offset + 16);
+                Cleaned(c).StoreUnsafe(ref destination, offset + 32);
+                Cleaned(d).StoreUnsafe(ref destination, offset + 48);
             }
+
+            /// <summary>
+            /// One vector of a stride that tiles it as the wire holds it: with SSSE3 each byte its element's flag
+            /// (pshufb), then the multiplication (GFNI) or a compare and an AND NOT
+            /// (<see cref="Spread(Vector128{byte}, Vector128{byte})"/>): two or three operations where the lane test
+            /// took five.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector128<byte> Cleaned(Vector128<byte> a) => Ssse3.IsSupported
+                ? Spread(a, SpreadFlags)
+                : a & Present(Tile(a)) & Keep.GetLower().GetLower();
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private static Vector128<byte> Tile(Vector128<byte> value) => Stride != 16
@@ -792,17 +1139,12 @@ namespace Nino.Core
 
             /// <summary>
             /// All ones in the lanes (of the stride's width; 8 bytes for 16 and 24) whose <see cref="Flags"/> bytes are
-            /// not zero: one cmtst on Arm64.
+            /// not zero.
             /// </summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private static Vector128<byte> Present(Vector128<byte> value)
             {
-                var flags = Flags.GetLower().GetLower();
-                if (AdvSimd.Arm64.IsSupported)
-                    return Stride == 2 ? AdvSimd.CompareTest(value.AsUInt16(), flags.AsUInt16()).AsByte()
-                        : Stride == 4 ? AdvSimd.CompareTest(value.AsUInt32(), flags.AsUInt32()).AsByte()
-                        : AdvSimd.Arm64.CompareTest(value.AsUInt64(), flags.AsUInt64()).AsByte();
-                value &= flags;
+                value &= Flags.GetLower().GetLower();
                 return Stride == 2 ? ~Vector128.Equals(value.AsUInt16(), Vector128<ushort>.Zero).AsByte()
                     : Stride == 4 ? ~Vector128.Equals(value.AsUInt32(), Vector128<uint>.Zero).AsByte()
                     : ~Vector128.Equals(value.AsUInt64(), Vector128<ulong>.Zero).AsByte();
@@ -816,16 +1158,37 @@ namespace Nino.Core
             ref byte dst = ref writer.ReserveCounted(values.Length, Stride);
             if (values.IsEmpty)
                 return;
+            WriteSlots(ref dst, values);
+        }
+
+        /// <summary>
+        /// Writes the elements (at least one) into the <see cref="Stride"/> bytes each at <paramref name="dst"/>,
+        /// which the caller reserved: what any collection of them writes (NinoElements.WriteBlock).
+        /// </summary>
+        internal static void WriteSlots(ref byte dst, ReadOnlySpan<T?> values)
+        {
             ref T? item = ref MemoryMarshal.GetReference(values);
             if (Raw)
             {
                 ref byte src = ref Unsafe.As<T?, byte>(ref item);
                 int count = values.Length;
-#if NET10_0_OR_GREATER
-                if (Permutes && count * Stride >= 64)
+#if NET8_0_OR_GREATER
+                if (Lanes && count * Stride >= LaneStep)
                 {
-                    // The elements that fill whole vectors; the last few take the paths below.
-                    int done = (int)CopyPermuted(ref dst, ref src, (nuint)(count * Stride));
+                    CopyLanes(ref dst, ref src, count * Stride);
+                    return;
+                }
+
+                if (Pieces)
+                {
+                    CopyPieces(ref dst, ref src, count);
+                    return;
+                }
+
+                if (Spreads && count * Stride >= 16)
+                {
+                    // The elements that fill whole vectors; the last one or few take the masked copy.
+                    int done = CopySpreads(ref dst, ref src, count * Stride);
                     count -= done / Stride;
                     if (count == 0)
                         return;
@@ -833,15 +1196,16 @@ namespace Nino.Core
                     dst = ref Unsafe.Add(ref dst, done);
                 }
 #endif
-#if NET8_0_OR_GREATER
-                if (Lanes && count * Stride >= LaneStep)
+                // With a vector that clears across elements, every stride the kernels above left (64 bytes or
+                // more of them); else the masked copy, and then the absent values element by element.
+                if (HoldsNullables || (ClearedByVector && count * Stride >= 64))
                 {
-                    CopyLanes(ref dst, ref src, count * Stride);
+                    Mask.Copy(ref dst, ref src, count);
                     return;
                 }
-#endif
-                if (Mask != null)
-                    Mask.Copy(ref dst, ref src, count);
+
+                if (Padding != null)
+                    Padding.Copy(ref dst, ref src, count);
                 else
                     NinoUnsafe.Copy(ref dst, ref src, (uint)(count * Stride));
                 ClearAbsent(ref dst, count);
@@ -889,337 +1253,6 @@ namespace Nino.Core
                 ref byte slot = ref Unsafe.Add(ref dst, i * Stride);
                 slot = NinoWire.NotNull;
                 NinoLayout<T>.Write(ref Unsafe.Add(ref slot, Offset), element.GetValueOrDefault());
-            }
-        }
-
-        /// <summary>
-        /// Whether a run of <see cref="NinoNullable{T}"/> is its wire as it lies in memory: T as large as its alignment
-        /// (its presence a whole T, so the slot's padding is the presence's upper bytes) and the slots copied as they
-        /// are (<see cref="Raw"/>). Its memory is then the memory a <c>T?</c> run read as raw holds, byte for byte.
-        /// </summary>
-        internal static readonly bool Words = Raw && Unsafe.SizeOf<NinoNullable<T>>() == Stride &&
-                                             Unsafe.SizeOf<T?>() == Stride;
-
-        /// <summary>
-        /// Whether a <see cref="NinoNullable{T}"/> of a 16-byte <typeparamref name="T"/> with 8-byte alignment
-        /// (<c>decimal</c>, a struct of two words) is four words in memory and three on the wire (the flag's word,
-        /// then the value's two): a run is then written and read a word at a time, without converting each value.
-        /// </summary>
-#if NET8_0_OR_GREATER
-        internal static readonly bool Wide = Raw && Stride == 24 && Offset == 8 && Unsafe.SizeOf<T>() == 16 &&
-                                            Unsafe.SizeOf<NinoNullable<T>>() == 32;
-
-        /// <summary>The bytes the wire keeps of the two words of a <see cref="Wide"/> value.</summary>
-        private static readonly ulong WideKeep0 = Wide ? BitConverter.ToUInt64(Keeps(), 8) : 0;
-
-        private static readonly ulong WideKeep1 = Wide ? BitConverter.ToUInt64(Keeps(), 16) : 0;
-#else
-        // The netstandard build converts these slot by slot (Unity's Burst kernels take its block copies).
-        internal static bool Wide => false;
-
-        private static ulong WideKeep0 => 0;
-
-        private static ulong WideKeep1 => 0;
-#endif
-
-        /// <summary>
-        /// Writes <paramref name="count"/> <see cref="Wide"/> values: of each four-word slot the first (its presence,
-        /// a flag and zeros), the third and the fourth (the value, without the bytes the wire clears), two slots a
-        /// vector with AVX-512 (one permutation and one AND), one with AVX2. The type keeps an absent value zero.
-        /// </summary>
-        private static void WriteWide(ref byte destination, ref byte source, int count)
-        {
-            int i = 0;
-#if NET8_0_OR_GREATER
-            // A vector store writes past the words it keeps (16 bytes with AVX-512, 8 with AVX2): the last element
-            // is left to the words below, whose 24 bytes cover them.
-            if (Vector512.IsHardwareAccelerated && Avx512F.IsSupported)
-            {
-                var order = Vector512.Create(0UL, 2, 3, 4, 6, 7, 7, 7);
-                var keep = Vector512.Create(0xFFUL, WideKeep0, WideKeep1, 0xFF, WideKeep0, WideKeep1, 0, 0);
-                for (; i + 3 <= count; i += 2)
-                {
-                    var slots = Vector512.LoadUnsafe(ref Unsafe.As<byte, ulong>(ref source), (nuint)i * 4);
-                    (Avx512F.PermuteVar8x64(slots, order) & keep).AsByte()
-                        .StoreUnsafe(ref destination, (nuint)i * 24);
-                }
-            }
-            else if (Avx2.IsSupported)
-            {
-                var keep = Vector256.Create(0xFFUL, WideKeep0, WideKeep1, 0);
-                for (; i + 2 <= count; i++)
-                {
-                    var slot = Vector256.LoadUnsafe(ref Unsafe.As<byte, ulong>(ref source), (nuint)i * 4);
-                    (Avx2.Permute4x64(slot, 0b11_11_10_00) & keep).AsByte().StoreUnsafe(ref destination, (nuint)i * 24);
-                }
-            }
-#endif
-            for (; i < count; i++)
-            {
-                ref byte slot = ref Unsafe.Add(ref source, i * 32);
-                ref byte target = ref Unsafe.Add(ref destination, i * 24);
-                ulong value0 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref slot, 16));
-                ulong value1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref slot, 24));
-                Unsafe.WriteUnaligned(ref target, (ulong)slot);
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 8), value0 & WideKeep0);
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 16), value1 & WideKeep1);
-            }
-        }
-
-        /// <summary>
-        /// Reads <paramref name="count"/> <see cref="Wide"/> values whose presence bytes were checked (0 or 1): each
-        /// slot's four words stored (presence, zero, the value or zeros where the data has none).
-        /// </summary>
-        private static void ReadWide(ref byte destination, ref byte source, int count)
-        {
-            for (int i = 0; i < count; i++)
-            {
-                ref byte slot = ref Unsafe.Add(ref source, i * 24);
-                ref byte target = ref Unsafe.Add(ref destination, i * 32);
-                ulong flag = slot;
-                ulong present = 0UL - flag;
-                ulong value0 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref slot, 8));
-                ulong value1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref slot, 16));
-                Unsafe.WriteUnaligned(ref target, flag);
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 8), 0UL);
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 16), value0 & present);
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref target, 24), value1 & present);
-            }
-        }
-
-#if NET8_0_OR_GREATER
-        /// <summary>The bytes of a <see cref="NinoNullable{T}"/> in memory: its presence and its value, a T each.</summary>
-        private static readonly int SlotSize = Unsafe.SizeOf<NinoNullable<T>>();
-
-        /// <summary>
-        /// Whether a run of <see cref="NinoNullable{T}"/> that is not its wire as it lies (<see cref="Words"/>) is
-        /// packed into it by a permutation (vpermb, AVX-512 VBMI), a 64-byte load of whole slots at a time: of each
-        /// slot the presence byte, zeros up to T's alignment, then the value, without the bytes the wire clears.
-        /// Any T up to 32 bytes (<c>decimal</c>, <c>Guid</c>, a struct of three floats); read the other way.
-        /// </summary>
-        private static readonly bool Packs = Raw && !Words && SlotSize <= 64 && Mask?.ClearsAbsent != true &&
-                                             Unsafe.SizeOf<T>() == NinoLayout<T>.WireSize &&
-                                             Avx512Vbmi.IsSupported && Vector512.IsHardwareAccelerated;
-
-        /// <summary>The slots a 64-byte load holds whole.</summary>
-        private static readonly int SlotsPerVector = Packs ? 64 / SlotSize : 0;
-
-        private static readonly Vector512<byte> PackIndex = Packs ? Packing(true, false) : default;
-
-        private static readonly Vector512<byte> PackKeep = Packs ? Packing(true, true) : default;
-
-        private static readonly Vector512<byte> UnpackIndex = Packs ? Packing(false, false) : default;
-
-        private static readonly Vector512<byte> UnpackKeep = Packs ? Packing(false, true) : default;
-
-        /// <summary>
-        /// For each byte of the vector written (the wire when <paramref name="pack"/>, else the slots in memory): the
-        /// byte of the vector read that it takes, or with <paramref name="keep"/> whether it keeps it (the rest zero).
-        /// </summary>
-        private static Vector512<byte> Packing(bool pack, bool keep)
-        {
-            int size = Unsafe.SizeOf<T>();
-            var kept = Keeps();
-            var bytes = new byte[64];
-            int to = pack ? Stride : SlotSize, from = pack ? SlotSize : Stride;
-            for (int i = 0; i < SlotsPerVector * to; i++)
-            {
-                int element = i / to, at = i % to;
-                // On the wire: the flag, zeros to Offset, the value. In memory: the flag, zeros to size, the value.
-                int head = pack ? Offset : size;
-                bool value = at >= head;
-                bytes[i] = keep
-                    ? at == 0 ? (byte)0xFF : value ? (pack ? kept[at] : (byte)0xFF) : (byte)0
-                    : (byte)(element * from + (value ? (pack ? size : Offset) + at - head : 0));
-            }
-
-            return Vector512.Create(bytes);
-        }
-
-        /// <summary>
-        /// Packs the slots of <paramref name="count"/> values that fill whole 64-byte loads and stores, and returns how
-        /// many it wrote: a store writes the whole vector, and what lies past its elements is written again by the
-        /// next one or by the caller, which writes the rest.
-        /// </summary>
-        private static int WritePacked(ref byte destination, ref byte source, int count)
-        {
-            var index = PackIndex;
-            var keep = PackKeep;
-            int i = 0;
-            for (; (count - i) * Stride >= 64; i += SlotsPerVector)
-                (Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, (nuint)(i * SlotSize)), index) & keep)
-                    .StoreUnsafe(ref destination, (nuint)(i * Stride));
-            return i;
-        }
-
-        /// <summary><see cref="WritePacked"/> the other way, of values whose presence bytes were checked.</summary>
-        private static int ReadPacked(ref byte destination, ref byte source, int count)
-        {
-            var index = UnpackIndex;
-            var keep = UnpackKeep;
-            int i = 0;
-            for (; (count - i) * Stride >= 64; i += SlotsPerVector)
-                (Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, (nuint)(i * Stride)), index) & keep)
-                    .StoreUnsafe(ref destination, (nuint)(i * SlotSize));
-            return i;
-        }
-#endif
-
-        /// <summary>
-        /// Writes the count and the elements of a <see cref="NinoNullable{T}"/> run, the bytes of a <c>T?</c> run: as
-        /// one block copy where <see cref="Words"/> (the type keeps its memory clean), else slot by slot.
-        /// </summary>
-        public static void Write(ReadOnlySpan<NinoNullable<T>> values, ref Writer writer)
-        {
-            ref byte dst = ref writer.ReserveCounted(values.Length, Stride);
-            if (values.IsEmpty)
-                return;
-            ref NinoNullable<T> item = ref MemoryMarshal.GetReference(values);
-            if (Words)
-            {
-                NinoUnsafe.Copy(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), (uint)(values.Length * Stride));
-                return;
-            }
-
-            int count = values.Length;
-#if NET8_0_OR_GREATER
-            if (Packs)
-            {
-                int done = WritePacked(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), count);
-                count -= done;
-                item = ref Unsafe.Add(ref item, done);
-                dst = ref Unsafe.Add(ref dst, done * Stride);
-            }
-#endif
-
-            if (Wide)
-            {
-                WriteWide(ref dst, ref Unsafe.As<NinoNullable<T>, byte>(ref item), count);
-                return;
-            }
-
-            // Slot by slot without a branch: the presence byte with the slot's padding (Offset bytes), then the value,
-            // which the type keeps zero when it has none.
-            for (int i = 0; i < count; i++)
-            {
-                ref T presence = ref Unsafe.As<NinoNullable<T>, T>(ref Unsafe.Add(ref item, i));
-                ref byte slot = ref Unsafe.Add(ref dst, i * Stride);
-                WritePresence(ref slot, Unsafe.As<T, byte>(ref presence));
-                NinoLayout<T>.Write(ref Unsafe.Add(ref slot, Offset), in Unsafe.Add(ref presence, 1));
-            }
-        }
-
-        /// <summary>The first <see cref="Offset"/> bytes of a slot: the presence byte, then zeros.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WritePresence(ref byte slot, byte presence)
-        {
-            if (Offset == 8)
-                Unsafe.WriteUnaligned(ref slot, (ulong)presence);
-            else if (Offset == 4)
-                Unsafe.WriteUnaligned(ref slot, (uint)presence);
-            else if (Offset == 2)
-                Unsafe.WriteUnaligned(ref slot, (ushort)presence);
-            else
-                slot = presence;
-        }
-
-        /// <summary>
-        /// Writes one <see cref="NinoNullable{T}"/> as a <c>T?</c> (a presence byte, then the value when present) from
-        /// its memory.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteOne(ref NinoNullable<T> value, ref Writer writer)
-        {
-            ref T presence = ref Unsafe.As<NinoNullable<T>, T>(ref value);
-            if (Unsafe.As<T, byte>(ref presence) == NinoWire.Null)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
-                return;
-            }
-
-            ref byte dst = ref writer.Reserve(1 + NinoLayout<T>.Size);
-            dst = NinoWire.NotNull;
-            if (Wide)
-            {
-                // The value's two words, loaded before either is stored.
-                ref byte memory = ref Unsafe.As<NinoNullable<T>, byte>(ref value);
-                ulong value0 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref memory, 16));
-                ulong value1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref memory, 24));
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 1), value0 & WideKeep0);
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, 9), value1 & WideKeep1);
-                return;
-            }
-
-            NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), in Unsafe.Add(ref presence, 1));
-        }
-
-        /// <summary>
-        /// Stores a <see cref="Wide"/> value that has one, read from <paramref name="source"/> (its 16 bytes on the
-        /// wire), into <paramref name="value"/>: four words stored, none read back.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void StoreWide(ref NinoNullable<T> value, ref byte source)
-        {
-            ref byte memory = ref Unsafe.As<NinoNullable<T>, byte>(ref value);
-            ulong value0 = Unsafe.ReadUnaligned<ulong>(ref source);
-            ulong value1 = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, 8));
-            Unsafe.WriteUnaligned(ref memory, 1UL);
-            Unsafe.WriteUnaligned(ref Unsafe.Add(ref memory, 8), 0UL);
-            Unsafe.WriteUnaligned(ref Unsafe.Add(ref memory, 16), value0);
-            Unsafe.WriteUnaligned(ref Unsafe.Add(ref memory, 24), value1);
-        }
-
-        /// <summary>
-        /// Reads a <see cref="NinoNullable{T}"/> run whose count was checked: as a <c>T?</c> run (presence bytes
-        /// checked, then one block copy; in one pass into a <paramref name="fresh"/> array) where <see cref="Words"/>,
-        /// else slot by slot into values this type makes, which are clean whatever the data's padding held (also in
-        /// <see cref="NinoSettings.Untrusted"/> mode, which then never keeps the data's padding). Every byte of
-        /// <paramref name="destination"/> is written, so it may be uninitialized memory.
-        /// </summary>
-        public static void Read(Span<NinoNullable<T>> destination, ref Reader reader, bool fresh = false)
-        {
-            // The same memory as T?, so the T? read checks the presence bytes and copies the slots.
-            if (Words && !NinoLimits.Untrusted)
-            {
-                ref T? item = ref Unsafe.As<NinoNullable<T>, T?>(ref MemoryMarshal.GetReference(destination));
-#if NET8_0_OR_GREATER
-                if (fresh && destination.Length >= 128 && TryReadFresh(ref item, destination.Length, ref reader))
-                    return;
-#endif
-                ReadPrechecked(ref item, destination.Length, ref reader);
-                return;
-            }
-
-            ref byte src = ref reader.UnsafeAdvance(destination.Length * Stride);
-            if (destination.IsEmpty)
-                return;
-            NinoChecks.Flags(ref src, destination.Length, Stride);
-            ref NinoNullable<T> first = ref MemoryMarshal.GetReference(destination);
-            int count = destination.Length;
-#if NET8_0_OR_GREATER
-            if (Packs && !NinoLimits.Untrusted)
-            {
-                int done = ReadPacked(ref Unsafe.As<NinoNullable<T>, byte>(ref first), ref src, count);
-                count -= done;
-                first = ref Unsafe.Add(ref first, done);
-                src = ref Unsafe.Add(ref src, done * Stride);
-            }
-#endif
-
-            if (Wide && !NinoLimits.Untrusted)
-            {
-                ReadWide(ref Unsafe.As<NinoNullable<T>, byte>(ref first), ref src, count);
-                return;
-            }
-
-            for (int i = 0; i < count; i++)
-            {
-                ref byte slot = ref Unsafe.Add(ref src, i * Stride);
-                // Stores only: a value built in a local and copied here is read back over the stores that made it.
-                ref T presence = ref Unsafe.As<NinoNullable<T>, T>(ref Unsafe.Add(ref first, i));
-                presence = default;
-                Unsafe.As<T, byte>(ref presence) = slot;
-                Unsafe.Add(ref presence, 1) = slot != NinoWire.Null ? NinoLayout<T>.Read(ref Unsafe.Add(ref slot, Offset)) : default;
             }
         }
 
@@ -1382,41 +1415,17 @@ namespace Nino.Core
         }
 #endif
 
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool TryReadFresh(T?[] destination, int length, ref Reader reader) =>
-            TryReadFresh(ref NinoUnsafe.GetArrayDataReference(destination), length, ref reader);
-
-        /// <summary>
-        /// <see cref="TryReadFresh(T?[], int, ref Reader)"/> from <paramref name="item"/>: also a new
-        /// <see cref="NinoNullable{T}"/> array, its memory taken as <c>T?</c> (<see cref="Words"/>).
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TryReadFresh(ref T? item, int length, ref Reader reader)
-        {
-            if (!Vector128.IsHardwareAccelerated)
-                return false;
-
-            int stride = Unsafe.SizeOf<T?>();
-            int bytes = length * stride;
-            ref byte target = ref Unsafe.As<T?, byte>(ref item);
-            if (!NinoChecks.TryCopyFlags(ref target, ref reader.Peek(), bytes, stride))
-                return false;
-            reader.UnsafeAdvance(bytes);
-            return true;
-        }
-#endif
-
         /// <summary>Reads the elements after the count check has bounded the full fixed-stride payload.</summary>
-        public static void ReadPrechecked(Span<T?> destination, ref Reader reader) =>
-            ReadPrechecked(ref MemoryMarshal.GetReference(destination), destination.Length, ref reader);
+        /// <param name="reused">Whether <paramref name="destination"/> is storage that already held elements (an
+        /// existing array or list), not one just allocated.</param>
+        public static void ReadPrechecked(Span<T?> destination, ref Reader reader, bool reused = false) =>
+            ReadPrechecked(ref MemoryMarshal.GetReference(destination), destination.Length, ref reader, reused);
 
         /// <summary>
         /// <see cref="ReadPrechecked(Span{T?}, ref Reader)"/> of <paramref name="count"/> elements from
-        /// <paramref name="item"/>: also what reads a <see cref="NinoNullable{T}"/> run in place, its memory taken as
-        /// <c>T?</c> (<see cref="Words"/>).
+        /// <paramref name="item"/>.
         /// </summary>
-        private static void ReadPrechecked(ref T? item, int count, ref Reader reader)
+        internal static void ReadPrechecked(ref T? item, int count, ref Reader reader, bool reused = false)
         {
             int bytes = count * Stride;
             ref byte src = ref reader.UnsafeAdvance(bytes);
@@ -1429,13 +1438,43 @@ namespace Nino.Core
             }
 
             // Presence bytes other than 0 or 1 are invalid data (copied as they are, they would make HasValue true
-            // and the value unequal to any other).
-            NinoChecks.Flags(ref src, count, Stride);
+            // and the value unequal to any other). Raw runs are checked first, then copied by Memmove (CopyToNew), which writes a new array's lines without reading
+            // them: a vector loop that checks while it copies read 1,000 int? into a new array 5 to 15 % slower. Data
+            // they reject clears the destination before it throws, so a new array allocated uninitialized never shows
+            // stale memory (NinoElements.CopiedWhole).
             if (Raw)
             {
-                NinoUnsafe.CopyToNew(ref Unsafe.As<T?, byte>(ref item), ref src, (uint)bytes);
-                return;
+                ref byte destination = ref Unsafe.As<T?, byte>(ref item);
+#if NET8_0_OR_GREATER
+                // On AMD and Arm64 a vector loop checks while it copies: Memmove (rep movsb on AMD) gains nothing there
+                // over Nino's own copy, and a separate check pass cost long? and Vec3? runs 10-20 % on EPYC 7763 and
+                // Neoverse-N2 (1,000 elements, run 43714421476 against the fused kernel of f8d9e34d).
+                // Into an array that already holds elements (a reused destination), x64 checks while it copies with
+                // its stores on the destination's lines (NinoChecks.CopyFlagsLined): 1,000 int? 197 -> 126 ns, long?
+                // 380 -> 258 (local AVX-512 Xeon, in process). Not into a new array, whose lines Memmove writes
+                // without reading them: there the same loop took 1,222 ns against 961.
+                if ((FusesCheck || (reused && Vector128.IsHardwareAccelerated)) && count >= 128 &&
+                    NinoChecks.TryFlagMask(Stride, out var mask))
+                {
+                    if (reused && !AdvSimd.Arm64.IsSupported
+                            ? NinoChecks.CopyFlagsLinedBest(ref destination, ref src, bytes, mask)
+                            : NinoChecks.CopyFlagsBest(ref destination, ref src, bytes, mask))
+                        return;
+                    Unsafe.InitBlockUnaligned(ref destination, 0, (uint)bytes);
+                    NinoChecks.Flags(ref src, count, Stride);
+                }
+#endif
+                if (NinoChecks.ValidFlags(ref src, count, Stride))
+                {
+                    NinoUnsafe.CopyToNew(ref destination, ref src, (uint)bytes);
+                    return;
+                }
+
+                Unsafe.InitBlockUnaligned(ref destination, 0, (uint)bytes);
+                NinoChecks.Flags(ref src, count, Stride);
             }
+
+            NinoChecks.Flags(ref src, count, Stride);
 
             if (typeof(T) == typeof(bool))
             {

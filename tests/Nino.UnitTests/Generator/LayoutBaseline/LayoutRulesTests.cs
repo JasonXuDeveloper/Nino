@@ -160,15 +160,15 @@ public class LayoutRulesTests
     }
 
     /// <summary>
-    /// A member changed from <c>T?</c> to <c>NinoNullable&lt;T&gt;</c> (or back) is written the same way: only the type's
-    /// name differs, the encoding (what the rules compare) does not, in any format.
+    /// A run changed from <c>T?</c> to <c>NinoNullable&lt;T&gt;</c> (or back), T as large as its alignment, is
+    /// written the same way: only the type's name differs, the encoding (what the rules compare) does not, in any
+    /// format. A single value is a change (one presence byte and the value against two T).
     /// </summary>
     [TestMethod]
-    public void NinoNullableInPlaceOfNullableChangesNothing()
+    public void NinoNullableRunsInPlaceOfNullableRunsChangeNothing()
     {
         const string stride = "seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)})";
         string Members(string nullable, string key = "") =>
-            $"A:{nullable}<long>:nullable(raw(8)){(key.Length == 0 ? "" : ":key=" + K("A"))};" +
             $"B:{nullable}<long>[]:{stride}{(key.Length == 0 ? "" : ":key=" + K("B"))};" +
             $"C:System.Collections.Generic.List<{nullable}<long>>:{stride}{(key.Length == 0 ? "" : ":key=" + K("C"))}";
         const string old = "System.Nullable", now = "Nino.Core.NinoNullable";
@@ -176,9 +176,21 @@ public class LayoutRulesTests
         None(Positional(Members(now)), Positional(Members(old)));
         None(Tolerant(Members(old)), Tolerant(Members(now)));
         None(Keyed(Members(old, "key")), Keyed(Members(now, "key")));
-        // The same change with another T is a change of the bytes.
-        Breaks(One(Positional("A:System.Nullable<long>:nullable(raw(8))"),
-            Positional("A:Nino.Core.NinoNullable<int>:nullable(raw(4))")), "A");
+        var single = One(Positional("A:System.Nullable<long>:nullable(raw(8))"),
+            Positional("A:Nino.Core.NinoNullable<long>:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)}"));
+        Breaks(single, "A");
+        // The finding says the two are two formats, in both directions, for a member, an element and a keyed member;
+        // a change that is not between them says only the encodings.
+        const string two = "T? and NinoNullable<T> are two formats";
+        StringAssert.Contains(single.Change, two);
+        const string wide = "seq(raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)})",
+            twice = "seq(raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)})";
+        StringAssert.Contains(One(Tolerant($"A:Nino.Core.NinoNullable<decimal>[]:{twice}"),
+            Tolerant($"A:System.Nullable<decimal>[]:{wide}")).Change, two);
+        StringAssert.Contains(One(Keyed($"A:System.Nullable<decimal>[]:{wide}:key={K("A")}"),
+            Keyed($"A:Nino.Core.NinoNullable<decimal>[]:{twice}:key={K("A")}")).Change, two);
+        Assert.IsFalse(One(Positional("A:System.Nullable<long>:nullable(raw(8))"),
+            Positional("A:System.Nullable<int>:nullable(raw(4))")).Change.Contains(two));
     }
 
     [TestMethod]

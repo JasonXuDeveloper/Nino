@@ -48,7 +48,7 @@ Lossless: every value is encoded so that no JSON parser rounds or rewrites it.
 | .NET value | JSON |
 | --- | --- |
 | `null` (a class, string, collection or nullable) | `null` |
-| `NinoNullable<T>` | as `T?`: `null` without a value, else the value |
+| `NinoNullable<T>` | as `T?`: `null` without a value, else the value (on the wire it is its memory: a presence and a value of a `T` each) |
 | `bool` | `true` / `false` |
 | integers of any width, enums (their underlying value) | a number when \|n\| <= 2^53, else a decimal string (`"-9223372036854775808"`) |
 | `char` | its UTF-16 code unit as a number (lone surrogates included) |
@@ -92,7 +92,10 @@ is known to fall short of `expected` (see "Known .NET gaps").
 
 The `untrusted` cases today: bytes after the top-level value (`trailing-byte`); values outside their type's range
 (`decimal-bad-scale`, `datetime-ticks-past-max`, `dateonly-day-past-max`); and a `bool` or a `Nullable` flag other
-than 0 or 1 inside a raw struct, alone or in a block of them (`presence-raw-*`). In .NET's default mode such a flag is
+than 0 or 1 inside a raw struct, alone or in a block of them (`presence-raw-*`), and so the memory of a
+`NinoNullable<T>`, a raw struct wherever it is: its presence (0 or 1, zeros above its first byte), a value of zeros
+where it is absent, and the value's own range where it is present (`presence-ninonullable-*`,
+`decimal-ninonullable-bad-scale`). In .NET's default mode such a flag is
 undefined behavior to the JIT, not only a wrong value: a struct whose `long?` has a flag of 2 can compare unequal to
 itself once its code is recompiled, and be lost in a `Dictionary`. Data from an untrusted source is read with
 `NinoSettings.Untrusted`.
@@ -126,9 +129,6 @@ cases use are those of `tests/conformance/Nino.Conformance/Types.cs`.
 dotnet run --project tests/conformance/Nino.Conformance -c Release -- --out tests/conformance/corpus
 dotnet run --project tests/conformance/Nino.Conformance -c Release -- --verify tests/conformance/corpus
 ```
-
-Run both with a .NET 11 SDK: the C# unions of `Types.cs` and their cases are compiled only for net11.0 (C# 15), so a
-.NET 10 SDK writes a corpus without them, which the committed one does not match.
 
 `--out` rewrites the whole corpus; it is deterministic, so an unchanged Nino gives identical files. It probes each
 malicious input and the truncated prefixes in child processes of itself, so an input that crashes .NET does not stop

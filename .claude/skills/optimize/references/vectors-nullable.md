@@ -21,8 +21,10 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   timings; x64 listings only).
 - Share that validator with strided bools, bounded at the last flag; keep its scalar tail with the early exit; unroll
   two- and three-element scans; keep the indexed scalar conversion (M4).
-- Fuse the flag scan and copy for fresh raw nullable arrays of at least 128 slots with strides of 8 or 16, inline the
-  fresh entry into `ReadNew`, broadcast the AVX-512 mask with a lane shuffle (M4; native x64 and AVX-512 unmeasured).
+- Read raw `T?` runs by checking the presence bytes first (the read-only vector scan) and moving them with
+  `CopyToNew` (Memmove), never with a vector loop that checks while it copies, and clear the run before throwing, so
+  every collection allocates its array uninitialized (`NinoElements.CopiedWhole`) (Xeon, `9b378a07`; details under
+  Fresh reads).
 - Write nullable bools without the converter: lane masks from presence bits in 512/256/128-bit groups, 64-bit groups
   for four to seven slots on Arm64, one word store a slot for one to three, an overlapping final vector; keep the bulk
   clear for converted writes (M4; native AVX-512 unmeasured).
@@ -36,8 +38,10 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   (unmeasured; the netstandard builds keep their loops, where Mono turns unaligned 64-bit loads into memcpy calls).
 
 - Write raw `T?` runs (strides 2, 4, 8, 16, 24) with absent values zeroed in the same single pass as the padding,
-  as wide as the masked copy: AVX-512 test-into-mask plus masked AND, Arm64 structure loads; never a second pass
-  over the elements. Runner A/B 43264755384 showed the first form of this fix 2x slower than the masked copy (Writes).
+  as wide as the masked copy, each byte multiplied by its flag spread over its element (GFNI `vgf2p8mulb`, else
+  SSSE3/AVX2 `psignb`; Arm64 `tbl` and `mul`), never a second pass over the elements. Runner A/B 43264755384
+  showed the first form of this fix 2x slower than the masked copy (Writes; local only for the multiplication at
+  every width, owed a runner A/B).
 
 ## Layout and presence flags
 
@@ -127,8 +131,16 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
 
 ## Fresh reads
 
-- Fuse the flag scan and copy for fresh raw nullable arrays of at least 128 slots with strides of eight or sixteen
-  bytes. The destination is unpublished until all flags pass. Reuse the width-specific loads, masks and CPU policy.
+- Check a raw `T?` run, then move it with `CopyToNew`; do not fuse the check into a vector copy. Memmove's rep movsb
+  writes a new array's lines without reading them first, and the fused loop (`f8d9e34d`, every run of 128 slots or
+  more, each group checked before it was stored) read 1,000 int? 5 to 15 % slower into `Memory`, `IList` and grids
+  (local Xeon, two interleaved rounds). What `Memory<T?>`, `List<T?>` and `IList<T?>` lost to MemoryPack (7 to 34 %
+  on runners, run 43681837258) was zeroing their new arrays: `ReadPrechecked` clears the run when it rejects the data,
+  so `CopiedWhole` holds for raw slots and the arrays come uninitialized without ever showing stale memory
+  (`9b378a07`: `Memory<int?>` 804-834 ns instead of 879-897, `IList<int?>` 961-982 instead of 1,022-1,029, local;
+  runner numbers owed). The fused path below was removed with it.
+- (Removed in `9b378a07`, kept for its measurements.) Fuse the flag scan and copy for fresh raw nullable arrays of at
+  least 128 slots with strides of eight or sixteen bytes. The destination is unpublished until all flags pass. Reuse the width-specific loads, masks and CPU policy.
   Four-vector groups emit paired loads and stores on Arm64. The single-vector candidate lost on long inputs, and the
   short-stride candidates slowed reuse. Keep those reads on the existing path. The final version's default-JIT
   cache-boundary timings varied alongside A/A. The aligned 4,092 Int32 and 2,044 Int64 cases took less time in all
@@ -150,6 +162,11 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
 
 ## Writes
 
+- Read a `NinoNullable<T>` collection's gap to MemoryPack's `T?` against the bytes and the L1 cache before tuning its
+  copy: it is a plain copy of 2 x sizeof(T) an element, and once source and buffer pass the core's L1 the copy runs at
+  L2 speed. 1,000 `NinoNullable<decimal>` (32 KB) wrote in 822 ns against MemoryPack's 262 on the Xeon 8573C (48 KB
+  L1) and on par on Neoverse-N2 (64 KB L1: 377 against 375, run 43681837258); locally a plain `decimal[2000]` (32 KB)
+  wrote in 870 ns, 24 KB in 232, 16 KB in 114. The cost is the format's, for the docs, not a kernel to fix.
 - Clear the absent values of raw `T?` runs in the copy's one pass, at the masked copy's widths, and read the listing
   for the uops a vector costs. Why: the first form (a751e6c2, bb63a255) made `NinoSerializeNullableInts`, `...Longs`
   and `...Decimals` about 2x slower on every runner CPU (A/B 43264755384: 0.29-0.65 of the base's speed) though it
@@ -183,6 +200,28 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   same uops and reads a flag byte above 1 as absent where the copy reads it as present; masked stores
   (`vmovdqu8 {k}`) cannot skip absent lanes, the destination holds garbage that must become zeros. The JIT does
   not fold `Equals(x & m, 0)` into a two-operand `vptestmq x, m`. Arm64 timing: runners only (listings under qemu).
+- Clear raw `T?` runs by multiplying each byte by its flag spread over its element, two operations a vector, at
+  every width: GFNI's `vgf2p8mulb`, else SSSE3/AVX2's `psignb` (a byte keeps its value where the spread byte is 1 and
+  becomes 0 where it is 0; the spread is `pshufb` with zero in the padding), where a lane test took three (AVX-512:
+  `vpandd`, `vptestm`, masked AND) to five (SSE: a shuffle, an AND, `pcmpeqq`, `pandn`, an AND). For 24 bytes the
+  flag of a byte lies in its own 16-byte lane or the one before: two `pshufb` (the vector and the one loaded 16 bytes
+  earlier, the vector before it at 16 bytes) and a `por` replace the cross-lane `vpermq` moves; with AVX-512 VBMI the
+  flags permuted (`vpermb`/`vpermt2b`) are ANDed with the bytes kept and multiplied, and the results realigned onto
+  the destination's lines as the tiling strides are (`vpermt2d`, `CopyRealigned24`). The raw struct lanes
+  (`NinoMask.CopyLanes`) take the same form: `pshufb` from the vector loaded a lane earlier, `por` 1 into the other
+  kept bytes, `psignb` (Arm64: `cmtst`, `orr`, `and`), with the tables of a period of up to five vectors held in
+  registers (`CopyPeriods`). Local in-process A/B, each build in its own AssemblyLoadContext, destination phase
+  cycled, 1,000 elements, ns, base 98518d32 / this, memcpy of the bytes: SSE without GFNI (`DOTNET_EnableAVX2=0
+  DOTNET_EnableGFNI=0`) `int?` 250 / 194 (memcpy 76), `long?` 666 / 391 (128), `Vec3?` 666 / 388, `decimal?` 1,132 /
+  912 (194), `RawNullable` 2,730 / 1,605 (629); AVX2 without GFNI (Zen 3's ISA) `int?` 192 / 173, `decimal?` 958 /
+  900, `RawNullable` 2,151 / 1,643; AVX2 with GFNI `decimal?` 946 / 866, `RawNullable` 2,145 / 1,637; AVX-512 VBMI
+  `decimal?` 656 / 528, `int?` 108 / 102. `long?` and `Vec3?` under AVX2 moved within the placement noise (an
+  identical kernel in another load context read 6-14 % apart); the kernel harness (16,000 bytes, destination 4
+  bytes past a line) put `psignb` at 297-309 ns against the lane test's 332-342 and GFNI's 303-315. Arm64 by
+  llvm-mca only (`neoverse-n2`, the struct lanes): 2.0 cycles per 16 bytes against 3.0. Byte-identical on 110,080
+  runs (16 element types, lengths 0-79 and 100-1,001, 64 destination offsets, dirty padding and absent values)
+  under every ISA, tiering off and qemu Arm64. Not timed on AMD or Arm hardware: decide by runner A/B. What is
+  left to memcpy on x64 is the split store (the alignment bullet below).
 - Do not scan raw `T?` runs for dirty absent values and padding to take `NinoUnsafe.Copy` when clean (MemoryPack's
   `SafeNullable` is a plain memcpy because its memory is always clean): a read-only AVX-512 pass of the same
   test-and-masked-AND plus an XOR and OR into an accumulator, then the copy, took longer than the one-pass copy on a
@@ -340,3 +379,140 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   both to retire (a store-forwarding stall for every value). `NinoNullable<T>`'s constructor did, and its single
   values and non-block arrays took 1.3 to 10 times as long as `T?` on the runners; keep such a constant in a
   `static readonly` field per `T`, and fill arrays with stores into the destination, never through a local.
+- Align the stores of a slot kernel to the destination, never the loads: write the first step as it lies and go on
+  from the first slot that starts a vector of the destination, where whole slots lead to one
+  (`NinoUnsafe.BytesToAligned`, `CopyLanes`; for 24 bytes a step is three vectors and one or two slots may lead
+  there). Why: the kernels are two or three operations a vector and their stores bound them, and a 64-byte store
+  that is not aligned straddles two lines. Evidence (local AVX-512 Xeon with VBMI and GFNI, 1,000 elements, one
+  process a build): `long?` 230 ns unaligned, 154 aligned, a copy 115; `int?` 131 and 96; 256-bit vectors slower at
+  every position (309 and 216). The GF(2^8) clear itself moved no case on runners (43581721720, 43600970932).
+  Where whole slots never lead to a line (a top-level run: 4 bytes of length into an 8-byte aligned array), clear
+  each vector where it lies in the source and join the bytes of two consecutive results that fall on one line of
+  the destination with one `vpermt2d` (index `j + head / 4`, built once a call; one uop on Ice Lake, Sapphire
+  Rapids and Zen 4, where `vpermt2b` is three): `Lanes512.CopyRealigned`, strides 2 to 16 from 8 vectors, every
+  store but the first and the last two aligned. 1,000 elements, three interleaved processes a build, ns, 68291cde
+  (the buffer lead) / c1ccaebf / this, misaligned phases: `long?[]` 250 / 250 / 191, `Vec3?[]` 270 / 270 / 207,
+  `List<long?>` 234-250 / 250 / 193, a class with that list second 234-256 / 250 / 195, `int?[,]` 122 / 122 / 114,
+  `int?[]` 130 / 130 / 116 (at a 28-byte phase c1ccaebf 139, this 135); where elements start a line all three
+  164 / 168 / 102 (`long?`, `Vec3?`, `int?`);
+  a copy of the bytes 116 and 62; the 16-byte struct into a writer 3.34-3.40 in all. 24 bytes realign too
+  (`CopyRealigned24`) since their kernel is three operations a vector (the flags permuted, ANDed with the bytes kept,
+  multiplied): `decimal?` 656 to 528 ns with both, in-process A/B; at four or five operations (the lane test) the
+  realigned period took 513 against 510-560. AVX2 has no one-uop dword shift across a 32-byte vector, so it keeps the
+  split stores: a plain 32-byte copy 4 bytes past a line took 288-294 ns for 16,000 bytes against 100-103 on the
+  line (memcpy 123-129; local Xeon, `DOTNET_EnableAVX512=0`), and the clear adds only 10-20 ns to it; realigning
+  the results (`vperm2i128` and `vpalignr`) lost in L1 (350 against 303-315 ns) and matched memcpy only past it
+  (40,000 bytes: 1,055 against 1,314, memcpy 1,070-1,128), not tried in the code. What
+  is left to a copy is the kernel's ALU work: four operations a vector on ports 0 and 5 (`vpshufb`, `vgf2p8mulb`,
+  `vpermt2d`, and for 8 bytes the masked AND) against none. Short runs (under 256 elements) could not be timed on
+  that shared machine: identical processes read 19 or 298 ns for 128 `int?`, so the gate is the alignment
+  rule's 8 vectors, not a measured threshold.
+- Do not move where Nino's own buffer starts to align a run (`NinoArrayBufferWriter.Start`/`Lead`, 9d97ff20,
+  reverted): it puts a top-level collection's slots on a line's start, and runner A/B 43660200531 measured that as
+  20 to 36 % on Xeon 8573C / 6975P-C and 8 to 20 % on EPYC 9V74 (`NullableLongs` 191 -> 151 ns), nothing on
+  Neoverse-N2; but every tiny top-level write paid its bookkeeping (`SimpleStruct` 0.79 -> 1.16 ns; locally 3.55 ->
+  3.9 into a writer), a grid's header is not 4 bytes so its elements left the line (`NullableGridInts` 77 -> 107 ns),
+  and a member collection never sits at the lead. Without it a top-level run's slots are 4 bytes off every 8-byte
+  boundary, and nothing tried puts their stores on lines for less than the split costs (local, AVX-512 Xeon, 1,000
+  elements, led / not led: `int?` 108 / 130 ns, `long?` 174 / 246, `Vec3?` 186 / 264, `decimal?` 452 / 615): the
+  two-vector permutation at the destination's phase (`NinoMask.CopyCleared`, five operations a vector) took 143 to
+  164, 275 to 350, 280 and 605; on 32-byte vectors a second load 4 bytes back for the flags of an 8-byte stride
+  took 213 against 180 with GFNI and 212 to 240 against 204 to 209 without (`DOTNET_EnableAVX512=0`). Arm64 needs
+  none: the lead changed nothing on Neoverse-N2. What took back most of it for strides 2 to 16 is the realignment
+  of the results (`vpermt2d`, the bullet above).
+- Keep 24-byte slots on `CopyLanes` (three whole vectors a step), not on the permutation of whole elements
+  (`NinoMask.CopyCleared`'s overlapping form, 48 bytes a step, so no store is ever aligned): 1,000 `decimal?` 482 to 532 ns against 584 to 715
+  at every position, 393 against 583 on a line's start (local); ee3456d4, which moved them, measured 0.999 to 1.027
+  on five runner CPUs.
+- Write a run over itself only where its slots tile a vector (2, 4, 8, 16 bytes: `NinoNullables<T>.InPlace`).
+  The kernels of other strides store a whole vector past their last whole element and read those bytes again from
+  the source in the next step: in place they lost data (`HashSet<decimal?>` and a 12-byte struct, caught by
+  `NullableSlotTests` when the set's values were packed out of its entries and cleaned where they lay).
+- Never read or write slots one at a time through the slot formatter: each goes through its interface and the
+  run's kernel (about 7 ns). A collection that takes elements one by one reads the run into a rented array
+  (`NinoCollections.AddSlots`) or, where a slot is its value's memory, moves it as raw elements are
+  (`INinoSlotFormatter.SlotsAreMemory`: a `HashSet<int?>` out of and into its entries, write 1,140 -> 225 ns, read
+  into a new set 5,848 -> 4,100, local; one at a time it read in 12,174).
+- Not taken: a presence bitmap with dense values in place of the slots. Both tuned (4-way unrolled, aligned,
+  143,000 round-trip checks), 1,008 elements, local: it halves the bytes and writes 9 to 30 % faster where slots
+  cannot be aligned, but reads 60 to 75 % slower than a slot read that checks only its flags (the values go back
+  into `T?` memory interleaved), writes 15 to 30 % slower with AVX2 and 8 to 36 % slower without SIMD, and
+  `decimal?` slower everywhere (#295). Arm64 not measured.
+- Not taken: the aligned head step in the fused check-and-copy of a fresh `T?[]` read (`NinoChecks.CopyFlags`).
+  The read of 1,000 `long?` into a new array is its allocation (2,560 ns against 236 into an existing one, local,
+  workstation GC), and the step changed nothing measurable.
+- Clear a run whose elements do not tile a vector with `NinoMask.CopyCleared`, one kernel for every mask and every
+  set of flags (a `T?` element is its mask and the triplet `(0, alignment, size)`, a raw struct its fields'): AVX-512
+  VBMI with GFNI, each byte multiplied by its flag gathered by one permutation, rows of tables per phase (where in
+  an element a vector starts). Which loop, by what it measured (local, AVX-512 Xeon, 1,000 elements, serialize):
+  - elements under 16 bytes, or that divide 64: a vector's whole elements a step from the vector itself (`vpermb`,
+    three operations), the stores overlapping (or, dividing 64, aligned where whole elements lead to a line); 6
+    bytes 110 ns against 145 for the aligned loop below, 12 bytes 230 against 250, a 16-byte struct of two `int?`
+    258 against 300;
+  - longer ones: whole vectors on the destination's 64-byte boundaries at any phase, the flags from the vector
+    before and the vector (`vpermt2b`, three uops on Intel: five operations a vector); 20 bytes 343 against 365 for
+    the overlapping form, a 40-byte `T?` 1,190 against 2,200 to 2,800 (one element a 64-byte store, 24 bytes into
+    the next), a 40-byte struct of an int, a `long?` and a `double?` 1,185 against 2,190 to 2,500, a copy 1,050;
+    the rows of a period of 3 or 5 vectors stay in registers (20-byte elements 330 ns against 500 with rows loaded
+    per vector: kernel harness), longer periods and nested values load them (a 48-byte `T?` of that struct 2,140
+    to 2,260 against 2,500 to 3,400);
+  - the last vector ends the run at any phase, so nothing is left to the element-by-element path (five 12-byte
+    elements there took 30 ns of 245).
+  Keep the tables on 64-byte boundaries (a pinned array): a row loaded across two lines three times a vector took
+  2.2 ns a vector against 1.5. Time such kernels end to end, with the source array pinned at one phase in every
+  process: a kernel harness whose source and destination shared their low 12 address bits ranked the overlapping
+  form 30 % behind the aligned one (4K aliasing), the opposite of the real path, and an array the GC placed
+  elsewhere moved `long?` from 128 to 194 ns between two processes of one build.
+- Without VBMI, clear a raw struct run's absent values in the masked copy's pass where each is a `Nullable` of a
+  primitive (`NinoMask.CopyLanes`): each vector loaded again its lane width earlier, where every value lane finds its
+  flag lane, one lane compare and an AND-NOT. Three traps, each measured: the lane width must be a type parameter
+  (a `switch` on it per vector, though perfectly predicted, made the loop twice the masked copy's time: 2.5 us
+  against 1.2 for 1,000 40-byte structs); the vectors must sit at multiples of the lane width into the run, so align
+  them to the source, not to the destination, which follows a 4-byte length (aligned there, every lane compare read
+  half a flag lane and half a value: absent values went through uncleared, and only the tests at every offset
+  caught it); and a packed struct (`Pack = 1`, an `int?` at offset 1, a 9-byte stride) has no lanes, so the stride
+  and every value offset must be multiples of the width. Before, the copy then walked each element's absent table
+  (a flag read back, a branch and a variable-length clear per field): 3.3 us on EPYC 7763 and 3.1 on Neoverse-N2
+  against 0.8 and 0.6 for MemoryPack (run 43714421476); locally with AVX-512 disabled 3.6 us became 2.1 to 2.4, the
+  extra vector load and four ALU operations still a cycle a vector over the plain masked copy (1.2). Not kept: a
+  second pass per 2 KB chunk with the offsets as `NinoLayout<T>` constants and branchless clears (2.44 us, the same
+  gain for a second mechanism). Runner A/B 43739748813 (56346978): RawNullables serialize 3,293 to 1,299 ns on EPYC
+  7763 and 3,091 to 2,396 on Neoverse-N2, unchanged on the VBMI CPUs; still 1.6x and 4.1x MemoryPack's there.
+  Since then three operations a vector with the period's tables in registers (the multiplication bullet above).
+- Keep `Lanes512.CopyRealigned` for `int?` runs behind a 4-byte length; never replace its dword permutation with two
+  unaligned loads a vector (the vector at the destination's line and the one 4 bytes before it, whose value dwords
+  give each value its flag: a subtraction from zero and one ternary logic, no shuffle). Why: both loads straddle cache
+  lines, which costs more than the permutation saves. Evidence (#270, local AVX-512 Xeon, 1,000 `int?`): the kernel
+  alone took 131 to 174 ns against 122 to 126 for the whole `Serialize` through `CopyRealigned` (a plain copy of the
+  8,000 bytes about 96). The gap left on the VBMI runners (6975P 86 against MemoryPack's 59 ns, run 43739748813) is
+  the clearing itself.
+- Write a `T?` run that no vector clears across elements an element at a time, in pieces that tile it
+  (`NinoNullables.CopyPieces`: vectors of 64, 32 and 16 bytes, then one word of 8, 4, 2 and 1 bytes as its length
+  needs), each ANDed with the element's flag spread over it, on every ISA with plain ANDs: stores in address order,
+  none past the element, the values read from the source. Local, 1,000 elements, against the masked copy and the
+  pass over the flags after it: 72 bytes with AVX-512 (the flag is over 64 bytes before its value's end) 2,350 to
+  2,500 ns against 2,720 to 2,870, a copy 2,030; 144 bytes 4,310 to 4,600 against 5,550 to 5,620; with AVX2
+  (`DOTNET_EnableAVX512=0`) 40 bytes 1,790 to 1,860 against 2,010 to 2,190 and 72 bytes 2,290 to 2,740 against 3,000
+  to 3,150; with 16-byte vectors (`DOTNET_EnableAVX2=0`) 20 bytes 1,640 to 1,690 against 2,000 to 2,200, 40 bytes
+  2,300 to 2,370 against 2,550 to 3,700. Not strides of 17 to 31 bytes with AVX2: a 16-byte vector and a word an
+  element took what the masked copy and its pass take (`Guid?` 1,510 to 1,590 both). Strides under 16 bytes that
+  do not tile a vector take a 16-byte vector's whole elements a step (`CopySpread`, pshufb or tbl, then the
+  multiplication): 6 bytes 235 ns against 740 to 950 with AVX2, 12 bytes 440 to 460 against 950 to 1,650.
+  wip/simd-coverage stored the first vector last and ended with an overlapping one: 1.7 to 1.9 times the base for
+  72 bytes. Keep the element-by-element pass with its sizes as constants (`NinoNullables.ClearAbsent`) for hosts
+  without vectors and the netstandard2.1 build: through the mask's list of values every run took 1.3 to 2 times
+  as long (`int?` 1,820 ns against 1,110, `DOTNET_EnableHWIntrinsic=0`).
+- On Arm64 multiply by the flag instead of testing it: `tbl` then `mul` (two operations a vector) for strides up
+  to 16 bytes, where `tbl`, `cmtst` and `and` were three for the two vector pipes of a Neoverse core, which a
+  vector store's data takes too. llvm-mca, 32 bytes a step: neoverse-n2 3.0 cycles against 4.0 (a copy 1.0),
+  neoverse-n1 3.0 against 4.0, neoverse-v2 2.0 against 2.3, apple-m1 2.0 against 2.3; unrolled four ways it is the
+  same per byte (6.0 for 64). For 24 bytes the words in general registers with the mask `0 - flag` (`and`, `neg`:
+  2.8 cycles for two elements on neoverse-n2 against 3.9 with the sign shifted down, 4.5 for `tbl`/`mul` over three
+  vectors). Words for 16 bytes model at 2.4 against 3.0 on neoverse-n2 and 1.7 against 2.0 on neoverse-v2 but 4.0
+  on neoverse-n1 and apple-m1: not taken. None timed on hardware: owed a runner A/B.
+- Time end to end with one non-generic call site per case and many short rounds that interleave every case and
+  destination phase, keeping each one's minimum. Why: through one generic lambda `NinoSerializer.Serialize<T>` ran
+  as shared code whose profile depended on the case mix (a 16,000-byte copy read 115 ns in one process and 871 in
+  the next), a single destination phase per process left the profile one-sided (1 KB copied in 110 ns, 14-15 with
+  ten phases mixed), and back-to-back rounds carried a busy sibling hyperthread into every round of one case. With
+  both fixes three processes a build agreed within 2 % at 1,000 elements.

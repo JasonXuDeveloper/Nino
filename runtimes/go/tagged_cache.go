@@ -16,7 +16,6 @@ type codecKey struct {
 const (
 	variantDefault uint8 = iota
 	variantUTF8
-	variantElementNullable // []*T written as single T? per element (seq(nullable(...)))
 )
 
 // unsafeAccess selects pointer access to the fields of numbers instead of reflect's Set and Int (the unsafe path;

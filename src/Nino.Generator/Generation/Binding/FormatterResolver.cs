@@ -24,7 +24,7 @@ namespace Nino.Generator.Generation;
 internal readonly record struct ResolvedFormatter(FormatterRef Code, bool Registered, string Encoding,
     EquatableArray<FactoryRegistration> Factories = default, bool OpensBodies = true,
     INamedTypeSymbol? Body = null, ImmutableArray<ITypeSymbol> Elements = default,
-    FormatterTraits Traits = FormatterTraits.None);
+    FormatterTraits Traits = FormatterTraits.None, string? Slot = null);
 
 /// <summary>
 /// Chooses the formatter (as C# source) for a member type. Built in: strings, <c>object</c>, raw unmanaged values,
@@ -287,17 +287,24 @@ internal sealed class FormatterResolver
         if (!FormatterTraitsOf.IsCore(rule.Formatter))
             return new ResolvedFormatter(code, true, WireEncoding.Formatter(code.ToString()), factories);
         string encoding = WireEncoding.OfCore(rule.Formatter.Name, types,
-            ElementEncodings(formatters, parameters.Encodings), _compilation) ??
+            ElementEncodings(formatters, parameters.Encodings, parameters.Slots,
+                WireEncoding.SequenceElement(rule.Formatter.Name)), _compilation) ??
                           WireEncoding.Formatter(code.ToString());
         int count = formatters.Length;
         var traits = FormatterTraitsOf.Of(rule.Formatter.Name, count,
             count > 0 && formatters[count - 1] is { } last ? parameters.Traits[last] : FormatterTraits.None,
             count > 1 && formatters[count - 2] is { } previous ? parameters.Traits[previous] : FormatterTraits.None);
         return new ResolvedFormatter(code, true, encoding, factories, parameters.ElementsOpenBodies,
-            Elements: parameters.ElementTypes.ToImmutableArray(), Traits: traits);
+            Elements: parameters.ElementTypes.ToImmutableArray(), Traits: traits,
+            Slot: WireEncoding.SlotOf(rule.Formatter.Name, types, _compilation));
     }
 
-    private static string[] ElementEncodings(FormatterRef[] formatters, Dictionary<FormatterRef, string> encodings)
+    /// <summary>
+    /// The encodings of the element formatters, in order; the one at <paramref name="sequenceElement"/> (the element
+    /// of a sequence, -1 for none) as its slot where it has one (<see cref="WireEncoding.SlotOf"/>).
+    /// </summary>
+    private static string[] ElementEncodings(FormatterRef[] formatters, Dictionary<FormatterRef, string> encodings,
+        Dictionary<FormatterRef, string> slots, int sequenceElement)
     {
         int count = 0;
         foreach (var formatter in formatters)
@@ -310,7 +317,13 @@ internal sealed class FormatterResolver
         int index = 0;
         foreach (var formatter in formatters)
             if (formatter != null)
-                elements[index++] = encodings[formatter];
+            {
+                elements[index] = index == sequenceElement && slots.TryGetValue(formatter, out var slot)
+                    ? slot
+                    : encodings[formatter];
+                index++;
+            }
+
         return elements;
     }
 
@@ -375,6 +388,9 @@ internal sealed class FormatterResolver
         /// <summary>The encodings of the element formatters bound so far, by formatter.</summary>
         public Dictionary<FormatterRef, string> Encodings { get; } = new();
 
+        /// <summary>The slot encodings of the element formatters bound so far that have one, by formatter.</summary>
+        public Dictionary<FormatterRef, string> Slots { get; } = new();
+
         /// <summary>The traits of the element formatters bound so far, by formatter.</summary>
         public Dictionary<FormatterRef, FormatterTraits> Traits { get; } = new();
 
@@ -396,6 +412,8 @@ internal sealed class FormatterResolver
 
             formatter = resolved.Code;
             Encodings[formatter] = resolved.Encoding;
+            if (resolved.Slot != null)
+                Slots[formatter] = resolved.Slot;
             Traits[formatter] = resolved.Traits;
             if (resolved.Factories.Length != 0)
                 (_state.Created ??= new()).AddRange(resolved.Factories);

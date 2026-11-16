@@ -34,7 +34,7 @@ func unsupported(typeName string) string {
 
 // goTypeOf names the closed generic types that are one Go type with another (nino-gen's NINOGEN002 warnings: "left
 // out of the polymorphic slots in Go"): Wrap<int?[]>, Wrap<List<int?>> and Wrap<HashSet<int?>> are all
-// Wrap[[]*int32], whose NinoTypeName is the first one's. Their bytes are the same; only the name differs.
+// Wrap[[]nino.NullableSlot[int32]], whose NinoTypeName is the first one's. Their bytes are the same; only the name differs.
 var goTypeOf = map[string]string{
 	"Conformance.Wrap<System.Nullable<System.Int32>[]>":                                "Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>",
 	"Conformance.Wrap<System.Collections.Generic.List<System.Nullable<System.Int32>>>": "Conformance.Wrap<System.Collections.Generic.HashSet<System.Nullable<System.Int32>>>",

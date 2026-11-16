@@ -146,6 +146,30 @@ namespace Conformance
         public long B;
     }
 
+    /// <summary>
+    /// Raw although it holds nullables: an unmanaged struct is its memory (spec 5.1). 4 bytes, 4 of padding, a
+    /// <c>long?</c> (flag, 7 of padding, the value), a <c>decimal?</c> (flag, 7 of padding, 16 bytes) and a
+    /// <c>NinoNullable&lt;int&gt;</c> (two ints), 4 of padding at the end: 56 bytes.
+    /// </summary>
+    [NinoType]
+    public struct RawOptional
+    {
+        public int Id;
+        public long? Total;
+        public decimal? Price;
+        public NinoNullable<int> Count;
+    }
+
+    /// <summary><see cref="RawOptional"/> as a member and in runs.</summary>
+    [NinoType]
+    public sealed class RawOptionals
+    {
+        public RawOptional One;
+        public RawOptional[] Array;
+        public List<RawOptional> List;
+        public RawOptional? Maybe;
+    }
+
     /// <summary>Raw with padding in the middle and at the end: byte, pad 1, short, int, byte, pad 3.</summary>
     [NinoType]
     public struct Mixed
@@ -389,12 +413,25 @@ namespace Conformance
         public Dictionary<int, int?> Map;
     }
 
-    // ------------------------------------------------------------------ NinoNullable<T>: the bytes of T?
+    // ------------------------------------------------------------------ NinoNullable<T>: its memory, a raw struct
 
     /// <summary>
-    /// <see cref="NinoNullable{T}"/> alone, in arrays and in lists: a T as large as its alignment (long), larger than
-    /// it (decimal, Guid: 16 bytes aligned to 4) and a raw struct with padding. Its layout and bytes are those of
-    /// <see cref="NullableTwins"/>, the same members as <c>T?</c>.
+    /// A raw struct holding <see cref="NinoNullable{T}"/> fields: each is its memory at its offset (a presence and a
+    /// value of a T each), so 48 bytes: Tag, 3 padding bytes, Count (8), Price (32).
+    /// </summary>
+    [NinoType]
+    public struct NinoNullableFields
+    {
+        public byte Tag;
+        public NinoNullable<int> Count;
+        public NinoNullable<decimal> Price;
+    }
+
+    /// <summary>
+    /// <see cref="NinoNullable{T}"/> alone, in arrays, lists, a queue, a dictionary and a raw struct: a T as large as
+    /// its alignment (long), larger than it (decimal, Guid: 16 bytes aligned to 4) and a raw struct with padding.
+    /// Every one is 2 x size(T) bytes: the presence (a whole T: 0 or 1 in its first byte, zeros above), then the
+    /// value (zeros when absent).
     /// </summary>
     [NinoType]
     public sealed class NinoNullables
@@ -411,24 +448,33 @@ namespace Conformance
         public List<NinoNullable<Guid>> GuidList;
         public NinoNullable<Padded>[] PaddedArray;
         public List<NinoNullable<Padded>> PaddedList;
+        public Queue<NinoNullable<Guid>> GuidQueue;
+        public Dictionary<int, NinoNullable<decimal>> DecimalMap;
+        public NinoNullableFields Fields;
+        public NinoNullableFields[] FieldsArray;
     }
 
-    /// <summary><see cref="NinoNullables"/> declared with <c>T?</c>: either reads the other's data.</summary>
+    /// <summary>
+    /// Runs of <see cref="NinoNullable{T}"/> of a T as large as its alignment: the bytes of the <c>T?</c> runs of
+    /// <see cref="NullableTwins"/> (a T?[] element is the presence byte, zeros up to T's alignment, then T).
+    /// </summary>
+    [NinoType]
+    public sealed class NinoNullableRuns
+    {
+        public NinoNullable<long>[] LongArray;
+        public List<NinoNullable<long>> LongList;
+        public NinoNullable<int>[] IntArray;
+        public List<NinoNullable<byte>> ByteList;
+    }
+
+    /// <summary><see cref="NinoNullableRuns"/> declared with <c>T?</c>: either reads the other's data.</summary>
     [NinoType]
     public sealed class NullableTwins
     {
-        public long? Long;
-        public decimal? Decimal;
-        public Guid? Guid;
-        public Padded? Padded;
         public long?[] LongArray;
         public List<long?> LongList;
-        public decimal?[] DecimalArray;
-        public List<decimal?> DecimalList;
-        public Guid?[] GuidArray;
-        public List<Guid?> GuidList;
-        public Padded?[] PaddedArray;
-        public List<Padded?> PaddedList;
+        public int?[] IntArray;
+        public List<byte?> ByteList;
     }
 
     // ------------------------------------------------------------------ version tolerance and keyed members
@@ -881,7 +927,6 @@ namespace Conformance
         public Wrap<KeyValuePair<string, int?>[]> PairArray;
     }
 
-#if NET11_0_OR_GREATER
     // ------------------------------------------------------------------ C# unions (C# 15, .NET 11)
 
     /// <summary>
@@ -908,7 +953,27 @@ namespace Conformance
         public List<Choice> Many;
         public UnionTree Tree;
     }
-#endif
+}
+
+namespace Conformance
+{
+    // ------------------------------------------------------------------ raw nullables as the elements of sequences
+
+    /// <summary>
+    /// Raw nullables as the elements of sequences other than arrays and lists (a fixed stride each, spec 6.2), and
+    /// as single values inside collections (a presence byte, then the value).
+    /// </summary>
+    [NinoType]
+    public sealed class NullableSequences
+    {
+        public HashSet<int?> IntSet;
+        public HashSet<long?> LongSet;
+        public int?[,] Grid;
+        public Padded?[,] PaddedGrid;
+        public List<HashSet<int?>> Nested;
+        public Dictionary<int, long?> Values;
+        public List<KeyValuePair<int, int?>> Pairs;
+    }
 }
 
 // Small roots the malicious cases are forged against: one member each, after the sealed class's null flag.
@@ -938,4 +1003,6 @@ namespace Conformance.Targets
     [NinoType] public sealed class ObjectSlot { public object Value; }
     [NinoType] public sealed class BigSlot { public BigInteger Value; }
     [NinoType] public sealed class VersionSlot { public Version Value; }
+    [NinoType] public sealed class MaybeIntSet { public HashSet<int?> Values; }
+    [NinoType] public sealed class MaybeIntGrid { public int?[,] Values; }
 }

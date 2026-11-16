@@ -35,6 +35,12 @@ namespace Nino.Core
                     NinoCollections.WriteCopied<T, TFormatter>(sorted, root, ref writer);
                     return true;
                 case LinkedList<T> linked:
+                    // Slots (raw T?): copied out of the nodes and written as one block, as an array of them is.
+                    if (NinoElements.SlotStride<T, TFormatter>() > 0)
+                    {
+                        NinoCollections.WriteCopied<T, TFormatter>(linked, null, ref writer);
+                        return true;
+                    }
 #if NET8_0_OR_GREATER
                     if (linked.Count >= 32 && CollectionViews.LinkedList && RawFormatter.Is<T, TFormatter>())
                     {
@@ -43,6 +49,13 @@ namespace Nino.Core
                     }
 #endif
                     WriteLinked(linked, ref writer);
+                    return true;
+                case System.Collections.ObjectModel.Collection<T> wrapper:
+                    // The list it wraps, written as a list is (a subclass too: reading its items runs none of its
+                    // code). Through ICollection it was enumerated or copied out, an element at a time.
+                    if (!CollectionViews.Collection || CollectionFields.List(wrapper) is not { } wrapped)
+                        return false;
+                    NinoCollections.WriteSpan<T, TFormatter>(ListAccess.AsSpan<T>(wrapped), ref writer);
                     return true;
                 default:
                     return false;
@@ -83,12 +96,13 @@ namespace Nino.Core
 
         /// <summary>
         /// A new <typeparamref name="TCollection"/> of the <paramref name="length"/> elements that follow, if it is a
-        /// concurrent stack or queue, which the runtime builds faster from an array than element by element;
+        /// concurrent stack, queue or bag, which the runtime builds faster from an array than element by element;
         /// otherwise null, and nothing is read.
         /// </summary>
         public static TCollection TryCreate<TCollection>(int length, ref Reader reader) where TCollection : class
         {
-            if (typeof(TCollection) != typeof(ConcurrentStack<T>) && typeof(TCollection) != typeof(ConcurrentQueue<T>))
+            if (typeof(TCollection) != typeof(ConcurrentStack<T>) && typeof(TCollection) != typeof(ConcurrentQueue<T>) &&
+                typeof(TCollection) != typeof(ConcurrentBag<T>))
                 return null;
             var items = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
             try
@@ -96,6 +110,9 @@ namespace Nino.Core
                 if (typeof(TCollection) == typeof(ConcurrentQueue<T>))
                     // Its first segment sized for them, filled without contention.
                     return (TCollection)(object)new ConcurrentQueue<T>(new Run(items, length));
+                if (typeof(TCollection) == typeof(ConcurrentBag<T>))
+                    // Added to this thread's own queue by the constructor, in the order TryAdd would add them.
+                    return (TCollection)(object)new ConcurrentBag<T>(new Run(items, length));
                 // One linked chain swapped in at once, where a push per element swaps the top each time (2x faster).
                 var stack = new ConcurrentStack<T>();
                 if (length != 0)
@@ -173,7 +190,7 @@ namespace Nino.Core
             writer.CopyTo(ref local);
             local.WriteLength(count);
             for (var node = linked.First; node != null; node = node.Next)
-                default(TFormatter).Serialize(node.Value, ref local);
+                NinoElements.WriteOne<T, TFormatter>(node.Value, ref local);
             local.CopyTo(ref writer);
         }
 
@@ -221,6 +238,12 @@ namespace Nino.Core
         /// </summary>
         private static void ReadLinked(LinkedList<T> linked, int length, ref Reader reader)
         {
+            if (NinoElements.SlotStride<T, TFormatter>() > 0 && length != 0)
+            {
+                ReadLinkedSlots(linked, length, ref reader);
+                return;
+            }
+
             if (!CollectionViews.LinkedList || length == 0 || linked.Count != 0)
             {
                 reader = AddEach(linked, length, reader);
@@ -233,7 +256,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref local, ref item);
+                NinoElements.ReadOne<T, TFormatter>(ref local, ref item);
                 var node = new LinkedListNode<T>(item);
                 CollectionFields.Append(linked, node, last);
                 if (last == null)
@@ -248,6 +271,44 @@ namespace Nino.Core
             local.CopyTo(ref reader);
         }
 
+        /// <summary>
+        /// Slots (raw <c>T?</c>): read as an array is, as one block into a rented array, then linked node by node
+        /// as <see cref="ReadLinked"/> links them.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadLinkedSlots(LinkedList<T> linked, int length, ref Reader reader)
+        {
+            var items = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
+            try
+            {
+                if (!CollectionViews.LinkedList || linked.Count != 0)
+                {
+                    for (int i = 0; i < length; i++)
+                        linked.AddLast(items[i]);
+                    return;
+                }
+
+                LinkedListNode<T> first = null, last = null;
+                for (int i = 0; i < length; i++)
+                {
+                    var node = new LinkedListNode<T>(items[i]);
+                    CollectionFields.Append(linked, node, last);
+                    if (last == null)
+                        first = node;
+                    last = node;
+                }
+
+                CollectionFields.Close(first, last);
+                CollectionFields.Head(linked) = first;
+                CollectionFields.Count(linked) = length;
+                CollectionFields.Version(linked)++;
+            }
+            finally
+            {
+                NinoCollections.ReturnRented(items);
+            }
+        }
+
         /// <summary>Through AddLast, where the list's layout is not known.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Reader AddEach(LinkedList<T> linked, int length, Reader reader)
@@ -255,7 +316,7 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref reader, ref item);
+                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
                 linked.AddLast(item);
             }
 

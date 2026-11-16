@@ -43,6 +43,11 @@ func gotype(s)
   when "rawstruct", "emptystruct"
     ret name(s.struct)
   when "rawnullable", "nullable"
+    # A .NET NinoNullable<T> and a T? as the element of a sequence are the runtime's value types; a single T? a
+    # pointer.
+    if s.holder
+      ret s.holder + "[" + gotype(s.inner) + "]"
+    end
     ret "*" + gotype(s.inner)
   when "rawtuple", "tuple"
     if s.pair
@@ -125,6 +130,10 @@ func rfn(s)
       ret "nino.ReadBools"
     else if s.mode == "values"
       ret "nino.ReadBlock[" + gotype(s.element) + "]"
+    else if s.mode == "ninonullables"
+      ret "nino.ReadNinoNullables[" + gotype(s.element.inner) + "]"
+    else if s.mode == "nullableslots" && !s.unique_slots
+      ret "nino.ReadNullableSlots[" + gotype(s.element.inner) + "]"
     end
   when "map"
     if s.mode == "block"
@@ -193,7 +202,7 @@ func reads_into(s)
     ret false
   end
   if s.kind == "seq"
-    ret s.mode != "bytes" && s.mode != "block" && s.mode != "bools" && s.mode != "values" && s.mode != "unique" && s.mode != "stringset" && s.mode != "fixed"
+    ret s.mode != "bytes" && s.mode != "block" && s.mode != "bools" && s.mode != "values" && s.mode != "ninonullables" && s.mode != "nullableslots" && s.mode != "unique" && s.mode != "stringset" && s.mode != "fixed"
   else if s.kind == "map"
     ret s.mode != "block" && s.mode != "unique"
   end
@@ -241,6 +250,10 @@ func wfn(s)
       ret "nino.WriteBools"
     else if s.mode == "values"
       ret "nino.WriteBlock[" + gotype(s.element) + "]"
+    else if s.mode == "ninonullables"
+      ret "nino.WriteNinoNullables[" + gotype(s.element.inner) + "]"
+    else if s.mode == "nullableslots"
+      ret "nino.WriteNullableSlots[" + gotype(s.element.inner) + "]"
     end
   when "map"
     if s.mode == "block"

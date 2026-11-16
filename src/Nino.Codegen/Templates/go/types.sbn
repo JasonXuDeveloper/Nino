@@ -203,7 +203,13 @@ func helper_body(h)
   if h.mode == "decode"
     $o = "func " + $n + "(r *nino.Reader, b []byte) " + $t + " {\n\t_ = b[" + ($s.size - 1) + "]\n"
     if $s.kind == "rawnullable"
-      ret $o + "\tif !r.BoolAt(b[" + $s.flag_offset + "]) {\n\t\treturn nil\n\t}\n\tx := " + decode($s.inner, $s.value_offset) + "\n\treturn &x\n}\n"
+      # A NinoNullable<T>: its whole presence and an absent value are checked. A T?: its flag. Held as the runtime's
+      # value type (a NinoNullable<T>, the element of a sequence of T?) or as a pointer (a single T?).
+      $present = $s.clean ? "r.NinoNullableAt(b[" + $s.flag_offset + ":" + $s.value_offset + "], b[" + $s.value_offset + ":" + $s.size + "])" : "r.BoolAt(b[" + $s.flag_offset + "])"
+      if $s.holder
+        ret $o + "\tif !" + $present + " {\n\t\treturn " + $t + "{}\n\t}\n\treturn " + $t + "{HasValue: true, Value: " + decode($s.inner, $s.value_offset) + "}\n}\n"
+      end
+      ret $o + "\tif !" + $present + " {\n\t\treturn nil\n\t}\n\tx := " + decode($s.inner, $s.value_offset) + "\n\treturn &x\n}\n"
     end
     $o = $o + "\tvar v " + $t + "\n"
     for $i in $s.items
@@ -213,7 +219,7 @@ func helper_body(h)
   else if h.mode == "encode"
     $o = "func " + $n + "(b []byte, v " + $t + ") {\n\t_ = b[" + ($s.size - 1) + "]\n"
     if $s.kind == "rawnullable"
-      ret $o + "\tif v != nil {\n\t\tb[" + $s.flag_offset + "] = 1\n\t\tx := *v\n" + lines(encode($s.inner, $s.value_offset, "x"), "\t\t") + "\t}\n}\n"
+      ret $o + "\tif " + ($s.holder ? "v.HasValue" : "v != nil") + " {\n\t\tb[" + $s.flag_offset + "] = 1\n\t\tx := " + ($s.holder ? "v.Value" : "*v") + "\n" + lines(encode($s.inner, $s.value_offset, "x"), "\t\t") + "\t}\n}\n"
     end
     for $i in $s.items
       $o = $o + lines(encode($i, $s.offsets[for.index], "v." + item($s, for.index)), "\t")
@@ -267,6 +273,10 @@ func helper_body(h)
     when "stringset"
       # A set of strings in the order of the data: a string (or null) read twice fails.
       ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn nino.CheckUniqueStrings(r, v)\n}\n"
+    when "nullableslots"
+      # A set of the slots of a number (any other sequence of them calls the block directly): an element read twice
+      # fails, null included.
+      ret $o + "\treturn nino.CheckUniqueValues(r, nino.ReadNullableSlots[" + gotype($s.element.inner) + "](r))\n}\n"
     when "fixed"
       $b = $s.element.raw_block
       if $b
@@ -276,7 +286,7 @@ func helper_body(h)
       $z = $s.element.size
       $o = $o + "\tn := r.Length(" + $z + ")\n\tif n < 0 {\n\t\treturn nil\n\t}\n\tb := r.Take(n * " + $z + ")\n\tif len(b) != n*" + $z + " {\n\t\treturn nil\n\t}\n"
       $o = $o + make_slice(gotype($s.element)) + "\tfor len(b) >= " + $z + " {\n\t\te = " + decode_fn($s.element) + "(r, b[:" + $z + ":" + $z + "])\n"
-      ret $o + "\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t\tv = append(v, e)\n\t\tb = b[" + $z + ":]\n\t}\n\treturn v\n}\n"
+      ret $o + "\t\tif r.Failed() {\n\t\t\treturn nil\n\t\t}\n\t\tv = append(v, e)\n\t\tb = b[" + $z + ":]\n\t}\n\treturn " + ($s.unique_slots ? "nino.CheckUniqueValues(r, v)" : "v") + "\n}\n"
     end
     ret $o + read_loop(gotype($s.element), $s.element.min, "e = " + read($s.element)) + "\treturn v\n}\n"
   end

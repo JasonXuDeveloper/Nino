@@ -38,6 +38,9 @@
         <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
         <Compile Remove="V3/**"/>
+        <!-- The Nino.Core build the benchmarks must load (Harness/NinoCoreBuild.cs): BenchmarkDotNet's runner project
+             takes Nino.Core through this one only, and once took the net8.0 build Nino.Immutable referenced. -->
+        <AssemblyMetadata Include="NinoCoreTfm" Value="$(NinoCoreTfm)"/>
         <Protobuf Include="Workloads/workloads.proto" GrpcServices="None"/>
         <!-- SimpleTest's and PolymorphicTest's messages import protobuf-net's bcl.proto (DateTime, Guid) from Fixtures/. -->
         <Protobuf Include="Fixtures/cases.proto;Fixtures/protobuf-net/bcl.proto" ProtoRoot="Fixtures" GrpcServices="None"/>

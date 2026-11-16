@@ -1,0 +1,19 @@
+{
+  "case": "presence-raw-optional-flag-ff",
+  "type": "Conformance.RawOptional",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "struct-root-raw-optional with the has-value byte of Total (a long? at byte 8 of the raw [NinoType] struct) 0xff.",
+  "untrusted": true,
+  "size": 56,
+  "layouts": {
+    "Conformance.RawOptional": "format=Positional; header=None; trackReferences=false; raw=true; id=0x1C1AA5B4; deferrable=false; members=raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}"
+  },
+  "dotnet": {
+    "outcome": "returned"
+  },
+  "dotnetUntrusted": {
+    "outcome": "error",
+    "exception": "NinoDataException"
+  }
+}

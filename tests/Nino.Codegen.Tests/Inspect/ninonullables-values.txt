@@ -1,44 +1,71 @@
-nino-gen inspect: Conformance.NinoNullables, 545 byte(s) from offset 0
+nino-gen inspect: Conformance.NinoNullables, 1077 byte(s) from offset 0
   offset  length  value
-       0     545  value: Conformance.NinoNullables
+       0    1077  value: Conformance.NinoNullables
        0       1    presence = 1
-       1       9    Long: Nino.Core.NinoNullable<long> [nullable(raw(8))] = -9223372036854775808
-      10      17    Decimal: Nino.Core.NinoNullable<decimal> [nullable(raw(16))] = -1234.5600
-      27      17    Guid: Nino.Core.NinoNullable<System.Guid> [nullable(raw(16))] = 00112233-4455-6677-8899-aabbccddeeff
-      44      17    Padded: Nino.Core.NinoNullable<Conformance.Padded> [nullable(raw(16){...}]
-      45       1      A: System.Byte = 1
-      53       8      B: System.Int64 = 2
-      61      68    LongArray: Nino.Core.NinoNullable<long>[] [seq(raw(16){...}]  (4 elements)
-      65      16      [0] = 1
-      81      16      [1] = null
-      97      16      [2] = 9223372036854775807
-     113      16      [3] = 0
-     129      52    LongList: System.Collections.Generic.List<Nino.Core.NinoNullable<long>> [seq(raw(16){...}]  (3 elements)
-     133      16      [0] = null
-     149      16      [1] = -1
-     165      16      [2] = null
-     181      76    DecimalArray: Nino.Core.NinoNullable<decimal>[] [seq(raw(24){...}]  (3 elements)
-     185      24      [0] = 79228162514264337593543950335
-     209      24      [1] = null
-     233      24      [2] = 0.10
-     257      52    DecimalList: System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>> [seq(raw(24){...}]  (2 elements)
-     261      24      [0] = null
-     285      24      [1] = -79228162514264337593543950335
-     309      44    GuidArray: Nino.Core.NinoNullable<System.Guid>[] [seq(raw(20){...}]  (2 elements)
-     313      20      [0] = null
-     333      20      [1] = ffeeddcc-bbaa-9988-7766-554433221100
-     353      64    GuidList: System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>> [seq(raw(20){...}]  (3 elements)
-     357      20      [0] = 00000000-0000-0000-0000-000000000000
-     377      20      [1] = null
-     397      20      [2] = 01020304-0506-0708-090a-0b0c0d0e0f10
-     417      52    PaddedArray: Nino.Core.NinoNullable<Conformance.Padded>[] [seq(raw(24){...}]  (2 elements)
-     421      24      [0]
-     429       1        A: System.Byte = 3
-     437       8        B: System.Int64 = 4
-     445      24      [1] = null
-     469      76    PaddedList: System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>> [seq(raw(24){...}]  (3 elements)
-     473      24      [0] = null
-     497      24      [1]
-     505       1        A: System.Byte = 255
-     513       8        B: System.Int64 = -9223372036854775808
-     521      24      [2] = null
+       1      16    Long: Nino.Core.NinoNullable<long> [raw(16){...}] = -9223372036854775808
+      17      32    Decimal: Nino.Core.NinoNullable<decimal> [raw(32){...}] = -1234.5600
+      49      32    Guid: Nino.Core.NinoNullable<System.Guid> [raw(32){...}] = 00112233-4455-6677-8899-aabbccddeeff
+      81      32    Padded: Nino.Core.NinoNullable<Conformance.Padded> [raw(32){...}]
+      97       1      A: System.Byte = 1
+     105       8      B: System.Int64 = 2
+     113      68    LongArray: Nino.Core.NinoNullable<long>[] [seq(raw(16){...}]  (4 elements)
+     117      16      [0] = 1
+     133      16      [1] = null
+     149      16      [2] = 9223372036854775807
+     165      16      [3] = 0
+     181      52    LongList: System.Collections.Generic.List<Nino.Core.NinoNullable<long>> [seq(raw(16){...}]  (3 elements)
+     185      16      [0] = null
+     201      16      [1] = -1
+     217      16      [2] = null
+     233     100    DecimalArray: Nino.Core.NinoNullable<decimal>[] [seq(raw(32){...}]  (3 elements)
+     237      32      [0] = 79228162514264337593543950335
+     269      32      [1] = null
+     301      32      [2] = 0.10
+     333      68    DecimalList: System.Collections.Generic.List<Nino.Core.NinoNullable<decimal>> [seq(raw(32){...}]  (2 elements)
+     337      32      [0] = null
+     369      32      [1] = -79228162514264337593543950335
+     401      68    GuidArray: Nino.Core.NinoNullable<System.Guid>[] [seq(raw(32){...}]  (2 elements)
+     405      32      [0] = null
+     437      32      [1] = ffeeddcc-bbaa-9988-7766-554433221100
+     469     100    GuidList: System.Collections.Generic.List<Nino.Core.NinoNullable<System.Guid>> [seq(raw(32){...}]  (3 elements)
+     473      32      [0] = 00000000-0000-0000-0000-000000000000
+     505      32      [1] = null
+     537      32      [2] = 01020304-0506-0708-090a-0b0c0d0e0f10
+     569      68    PaddedArray: Nino.Core.NinoNullable<Conformance.Padded>[] [seq(raw(32){...}]  (2 elements)
+     573      32      [0]
+     589       1        A: System.Byte = 3
+     597       8        B: System.Int64 = 4
+     605      32      [1] = null
+     637     100    PaddedList: System.Collections.Generic.List<Nino.Core.NinoNullable<Conformance.Padded>> [seq(raw(32){...}]  (3 elements)
+     641      32      [0] = null
+     673      32      [1]
+     689       1        A: System.Byte = 255
+     697       8        B: System.Int64 = -9223372036854775808
+     705      32      [2] = null
+     737      68    GuidQueue: System.Collections.Generic.Queue<Nino.Core.NinoNullable<System.Guid>> [seq(raw(32){...}]  (2 elements)
+     741      32      [0] = 0f0e0d0c-0b0a-0908-0706-050403020100
+     773      32      [1] = null
+     805      76    DecimalMap: System.Collections.Generic.Dictionary<int, Nino.Core.NinoNullable<decimal>> [map(raw(4),raw(32){...}]  (2 entries)
+     809      36      [0]
+     809       4        key: System.Int32 = 1
+     813      32        value: Nino.Core.NinoNullable<System.Decimal> = 79.99
+     845      36      [1]
+     845       4        key: System.Int32 = -2
+     849      32        value: Nino.Core.NinoNullable<System.Decimal> = null
+     881      48    Fields: Conformance.NinoNullableFields [raw(48){...}]
+     881       1      Tag: System.Byte = 7
+     885       8      Count: Nino.Core.NinoNullable<System.Int32> = 5
+     897      32      Price: Nino.Core.NinoNullable<System.Decimal> = 0.01
+     929     148    FieldsArray: Conformance.NinoNullableFields[] [seq(raw(48){...}]  (3 elements)
+     933      48      [0]
+     933       1        Tag: System.Byte = 1
+     937       8        Count: Nino.Core.NinoNullable<System.Int32> = null
+     949      32        Price: Nino.Core.NinoNullable<System.Decimal> = -1
+     981      48      [1]
+     981       1        Tag: System.Byte = 0
+     985       8        Count: Nino.Core.NinoNullable<System.Int32> = null
+     997      32        Price: Nino.Core.NinoNullable<System.Decimal> = null
+    1029      48      [2]
+    1029       1        Tag: System.Byte = 255
+    1033       8        Count: Nino.Core.NinoNullable<System.Int32> = -2147483648
+    1045      32        Price: Nino.Core.NinoNullable<System.Decimal> = null

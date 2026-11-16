@@ -434,7 +434,10 @@ back, the member moved to the end), or, when old data or old builds no longer ma
 reported on the section of a type that is no longer a `[NinoType]` of the assembly (removed, or renamed or moved without a
 match). 🔧 Accept the change; and, as the finding says, add `[NinoFormerName("Old.Name")]` to a renamed or moved type,
 make the class sealed again or not sealed, or move a member inserted into a version-tolerant type to the end of the
-type (offered when the type collects its members in declaration order and is declared in one place).
+type (offered when the type collects its members in declaration order and is declared in one place). A member
+changed between `T?` and `NinoNullable<T>` is reported with why: the two are different formats (a `NinoNullable<T>` is two `T`; a `T?` a presence byte and the
+value, or in a collection `T`'s alignment and a `T`), the same bytes only in a collection of a `T` as large as its
+alignment (`long?[]` to `NinoNullable<long>[]`, not reported); convert the values where old data must be read.
 
 ### NINO035
 

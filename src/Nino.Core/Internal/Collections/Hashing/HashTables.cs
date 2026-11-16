@@ -116,6 +116,30 @@ namespace Nino.Core.Internal
             return Fill(set, ref source, count, size, SetMask, SetBias);
         }
 
+        /// <summary>
+        /// <see cref="TryFill{T}"/> for an existing set that was cleared (a read into it): data it rejects part way
+        /// leaves entries the set does not count yet, so the set is emptied again before the exception leaves (its
+        /// buckets and entries cleared, as <see cref="HashSet{T}.Clear"/> would have them).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static bool TryRefill<T>(HashSet<T> set, ref byte source, int count, int size)
+        {
+            try
+            {
+                return TryFill(set, ref source, count, size);
+            }
+            catch
+            {
+                var buckets = ObjectFields.At<int[]>(set, SetBuckets);
+                var entries = (Array)ObjectFields.At<object>(set, SetEntries);
+                Array.Clear(buckets, 0, buckets.Length);
+                Array.Clear(entries, 0, entries.Length);
+                ObjectFields.At<int>(set, SetBound) = 0;
+                ObjectFields.At<int>(set, SetCount) = 0;
+                throw;
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool Fill<T>(HashSet<T> set, ref byte source, int count, int size, int mask, int bias)
         {
