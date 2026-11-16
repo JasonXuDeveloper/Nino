@@ -47,6 +47,12 @@ Nino.GeneratorBenchmark/     the source generator on a synthetic workload: gener
                              --warmup's (60 s, at least one run),
                              --no-analyzers, --json (medians, sizes, machine: report.yml's build section); its restore
                              downloads v3 3.3.13's generator and runtime (PackageDownload) for --generator/--core
+Nino.Benchmark.Schema/       the models (Fixtures/, Workloads/*Models.cs) built in C# 9 with the other libraries'
+                             attributes as no-op stand-ins (CompetitorAttributes.cs): what nino-gen and Unity read
+                             for the other platforms' benchmarks; ci.yml checks its types against Nino.Benchmark's
+bench-cases.json             the case manifest BenchGen writes: every case, its libraries per build, the libraries
+                             that break on it (Broken) and the quick subset (ci.yml's labeled pull-request run);
+                             report.yml attaches it to a release, the reports draw broken cases as error
 shards.json                  the classes and the filters of each CI shard: "report" (report.yml, x64 and Arm64) and
                              "ab" (ab-bench.yml)
 compare/                     comparisons of two runs, for development (never published on their own)
@@ -100,9 +106,10 @@ reports/                     what a release publishes: the results of runners as
   runtimes_report.py, unity_report.py, generator_report.py) are read by the docs site (Nino.Docs
   `scripts/sync-benchmarks.ts`), which parses the old sections' headings in the bodies of releases up to
   v4.0.0-rc.9 too: change one only together with its parser there.
-- The models (`Fixtures/*.cs` but `CaseFormats.cs`, `ProtobufModel.cs` and `TolerantClass.cs`, and
-  `Workloads/*Models.cs`) compile in the v3 build too: a class's models go in `Fixtures/`, never in its `Cases/` file,
-  an attribute or member 3.3.13 lacks goes behind `#if NINO_BENCH_V3` (the v3 form first; another library's attribute
+- The models (`Fixtures/*.cs` but `CaseFormats.cs` and `ProtobufModel.cs`, and `Workloads/*Models.cs` and
+  `Common.cs`) are C# 9 (block-scoped namespaces, no collection expressions or primary constructors): the schema
+  project builds them so (`Nino.Benchmark.Schema`). They (but `TolerantClass.cs`) compile in the v3 build too: a
+  class's models go in `Fixtures/`, never in its `Cases/` file, an attribute or member 3.3.13 lacks goes behind `#if NINO_BENCH_V3` (the v3 form first; another library's attribute
   needs none: the v3 builds reference its package, LuminPack's without its generator, `Directory.Build.props`), and a version-tolerant
   model goes in the v3 project that tolerates versions (`V3/Versioned`: `VersionedModels.cs`, `TolerantClass.cs`; a
   collection of one that a case reads, such as `TolerantClass[]`, named in its `CollectionTypes.cs`, since v3 writes

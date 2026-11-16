@@ -1,7 +1,7 @@
 // A BenchGen template (runtimes/csharp/tools/BenchGen), not compiled: LuminPack, through its fastest documented calls:
 // into a reused LuminBufferWriter (ResetCore per operation), and from bytes into a new object. Its writers are sized up
 // front (Harness/LuminPackBuffers.cs: its 1.1.9 writes past the end of a writer that has to grow). A case it cannot
-// run (a 1.1.9 bug or limit) leaves it out with Without = "LuminPack" and a line in benchmarks/README.md, LuminPack.
+// run (a 1.1.9 bug) is declared with Broken = "LuminPack <kind>: <reason>" (bench-cases.json; the charts show error).
 using LuminPack;
 using LuminPack.Utility;
 

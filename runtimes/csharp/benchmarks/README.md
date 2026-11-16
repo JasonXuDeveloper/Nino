@@ -189,6 +189,8 @@ in, and default to the class's `[BenchClass]`:
 | `<Library>Value` | the field one library writes instead (`MemoryPackValue`: its `SafeNullable<T>` copy, `ProtobufValue`: a contract wrapping the value, `NinoNullableValue`, `MemoryPackUnsafeValue`) | `Value` |
 | `NullableForms` | also time the other forms of a nullable value: the adapters with `When = "NullableForms"` (`NinoNullable`, `MemoryPackConverted`, `MemoryPackUnsafe`) | false |
 | `Libraries`, `Without` | only these libraries, or not these (adapter names, space separated): a library without the type has no rows | every library that can |
+| `Broken` | the libraries that break on the case, `"<Library> <kind>: <reason>"` separated by `;`, kind `compile`, `throws`, `crash` or `wrong-read`: no rows, listed in `bench-cases.json`, drawn as error with the reason | none |
+| `Quick` | in the quick subset a pull request labeled `benchmark` runs (Nino and MemoryPack, quick mode) | false |
 | `Builds` | only in these builds (`v4`, `v3`): a type v3's generator cannot take | both |
 | `MessagePackOptions` | MessagePack's options for the value (a static field: the immutable collections' resolver); MessagePack's methods then come from `MessagePackOptionsAdapter` | none |
 | `Returns` | the deserialize methods' return type (`object` in `BclTypesTest`, whose lazy and enumerable results BenchmarkDotNet would not time) | the value's type |
@@ -225,6 +227,22 @@ of one file only).
 dotnet run --project runtimes/csharp/tools/BenchGen               # after changing a case or an adapter
 dotnet run --project runtimes/csharp/tools/BenchGen -- --check    # what ci.yml runs: fails while a file is out of date
 ```
+
+BenchGen also writes `runtimes/csharp/benchmarks/bench-cases.json`, the case manifest (`--check` covers it too): every
+case of these classes, one a line, with the libraries that have its methods in each build, the libraries that break on
+it (`Broken`: library, kind and reason) and whether it is `Quick`. Three things read it: the reports, which draw a
+broken case as error with its reason (`reports/readme.py`; report.yml attaches the measured tag's manifest to the
+release, where the docs site reads it); ci.yml, which runs the quick cases' Nino and MemoryPack methods in three
+shards for a pull request labeled `benchmark`; and the other platforms' benchmarks, which time the same cases (#331).
+
+`dotnet Nino.Benchmark.dll --write-data [DIR]` writes each of these cases' bytes, `<Case>.nino.bin` and
+`<Case>.protobuf.bin` (protobuf-net's), from the values the benchmarks time: the Go, Rust and TypeScript benchmarks
+read them as their cases' data.
+
+The models (`Fixtures/`, `Workloads/*Models.cs`) are C# 9: `Nino.Benchmark.Schema` (net11.0, `LangVersion` 9) builds
+the same files with the other libraries' attributes as no-op stand-ins (`CompetitorAttributes.cs`), the build nino-gen
+and Unity read for the other platforms' benchmarks, and ci.yml checks that nino-gen writes the same code for its types
+as for `Nino.Benchmark`'s. A model the schema should have goes in `Fixtures/`, never in a `Cases/` file.
 
 The scenario classes are written by hand, each with its own `V3/` port: they time one of Nino's features in the way
 each library has of doing it, not a serialize and a deserialize per library. `PooledTest` and `PooledGraphTest` (new,
@@ -420,9 +438,10 @@ calls, `LuminPackSerializer.Serialize(in value, LuminBufferWriter)` into a reuse
   can give different bytes: its bytes are not canonical, as MemoryPack's `T?` ones are not. It has no other form of a
   nullable value, so the nullable cases time its `T?`.
 
-`--verify` reads every case it runs back equal to Nino's. The cases it leaves out are 1.1.9 bugs, each a `Without =
-"LuminPack"` with its reason on the case (#356, which tracks reporting them upstream; retry each on an upgrade). The
-charts and tables show its bar or cell of such a case as n/a (`reports/readme.py`'s `NA`):
+`--verify` reads every case it runs back equal to Nino's. The cases it leaves out are 1.1.9 bugs, each declared on the
+case with `Broken = "LuminPack <kind>: <reason>"` (#356, which tracks reporting them upstream; retry each on an
+upgrade). `bench-cases.json` lists them, and the charts and tables show its bar or cell of such a case as error with
+the reason (`reports/readme.py`, #368):
 
 | Case | Why |
 |---|---|

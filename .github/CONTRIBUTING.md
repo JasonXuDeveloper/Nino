@@ -34,7 +34,7 @@ Mono's class libraries and the netstandard2.1 builds, is made only where Mono is
 API and find every path meant for it (`FastPaths` in its `Program.cs`). The unit tests skip a change that is only
 under `runtimes/` or `runtimes/csharp/benchmarks/`, and the push to `main` that merges an up-to-date pull request runs nothing that
 pull request's run already passed (`.github/scripts/changed_paths.py`). A pull request labeled `benchmark` also runs
-the A/B benchmark shards of `runtimes/csharp/benchmarks/shards.json`, and the benchmarks of the Go, Rust and TypeScript
+the quick subset of `runtimes/csharp/benchmarks/bench-cases.json` (the cases marked `Quick`), and the benchmarks of the Go, Rust and TypeScript
 runtimes it changes, all in quick mode. The short jobs of pushes and of pull requests from this
 repository's branches run on the maintainer's self-hosted runner; a pull request from a fork runs everything on
 GitHub's runners. Locally:
