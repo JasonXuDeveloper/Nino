@@ -215,8 +215,10 @@ internal sealed record RegistrationModel(
     // The nesting formatters its formatters name (FormatterResolver.NestingFormattersNamedIn), declared once per assembly.
     EquatableArray<NestingModel> Nesting);
 
-// A null id depends on the closed formatter's type arguments.
-internal sealed record UnionCase(string TypeName, string MatchType, FormatterRef Formatter, bool CanMatchSubtype, int? TypeId);
+// A null id depends on the closed formatter's type arguments. Leaf: a case that cannot hold the union again (raw
+// unmanaged, a string, a nullable of a raw value), so a union of leaves needs no depth count of its own.
+internal sealed record UnionCase(string TypeName, string MatchType, FormatterRef Formatter, bool CanMatchSubtype, int? TypeId,
+    bool Leaf);
 
 internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
