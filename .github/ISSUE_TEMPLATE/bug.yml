@@ -1,0 +1,53 @@
+# Each option of the Area dropdown is an "area: <option>" label; .github/scripts/triage/triage.py applies it.
+name: Bug report
+description: Wrong bytes, wrong behavior, a crash or a build error.
+type: Bug
+labels: ["kind: bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead. Paste errors and stack traces as text.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The smallest code that shows the bug, ideally the types and the call that serializes or reads them.
+      render: csharp
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Nino version
+      placeholder: 4.0.0-rc.10
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Runtime and platform, e.g. .NET 10 on Linux x64, Unity 6000.3 IL2CPP on Android Arm64, Go 1.26.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Nino is this about? Pick every one that applies, or leave it empty if unsure.
+      multiple: true
+      options:
+        - core
+        - generator
+        - analyzer
+        - codegen
+        - unity
+        - go
+        - rust
+        - typescript
+        - docs
+        - benchmarks
+        - dotnet-11
