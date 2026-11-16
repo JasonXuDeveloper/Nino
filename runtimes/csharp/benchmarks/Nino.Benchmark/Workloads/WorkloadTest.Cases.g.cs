@@ -13,6 +13,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using BenchmarkDotNet.Configs;
 using Google.Protobuf;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -30,6 +32,7 @@ partial class WorkloadTest
     private ArrayBufferWriter<byte> _googleProtobufBuffer;
     private ArrayBufferWriter<byte> _jsonBuffer;
     private Utf8JsonWriter _jsonWriter;
+    private LuminBufferWriter _luminPackBuffer;
     private StateSnapshot _ninoStateSnapshot;
     private StateSnapshot _memoryPackStateSnapshot;
     private IdleSaveV2 _ninoIdleSave;
@@ -41,6 +44,7 @@ partial class WorkloadTest
     private static readonly byte[] ProtobufMediaContentPayload;
     private static readonly byte[] GoogleProtobufMediaContentPayload;
     private static readonly byte[] JsonMediaContentPayload;
+    private static readonly byte[] LuminPackMediaContentPayload;
     private static readonly byte[] NinoStackOverflowPagePayload;
     private static readonly byte[] MemoryPackStackOverflowPagePayload;
     private static readonly byte[] MessagePackStackOverflowPagePayload;
@@ -128,6 +132,7 @@ partial class WorkloadTest
         ProtobufMediaContentPayload = ProtobufModel.Serialize(MediaContentValue);
         GoogleProtobufMediaContentPayload = MediaContentProto.ToByteArray();
         JsonMediaContentPayload = JsonSerializer.SerializeToUtf8Bytes(MediaContentValue, WorkloadJson.Default.MediaContent);
+        LuminPackMediaContentPayload = LuminPackBuffers.Bytes(MediaContentValue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoStackOverflowPagePayload = NinoSerializer.Serialize(StackOverflowPageValue);
         MemoryPackStackOverflowPagePayload = MemoryPackSerializer.Serialize(StackOverflowPageValue);
@@ -295,6 +300,8 @@ partial class WorkloadTest
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeWorldRegion), JsonWorldRegionPayload.Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeCardBattleLog), JsonCardBattleLogPayload.Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeIdleSave), JsonIdleSavePayload.Length);
+
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeMediaContent), LuminPackMediaContentPayload.Length);
     }
 
     [GlobalSetup]
@@ -309,6 +316,7 @@ partial class WorkloadTest
         _jsonBuffer = new ArrayBufferWriter<byte>(1 << 20);
         // What JsonSerializer's own writers use: no validation of the writer's calls.
         _jsonWriter = new Utf8JsonWriter(_jsonBuffer, new JsonWriterOptions { SkipValidation = true });
+        _luminPackBuffer = LuminPackBuffers.Rent();
         _ninoStateSnapshot = NinoDeserializer.Deserialize<StateSnapshot>(NinoStateSnapshotPayload);
         _memoryPackStateSnapshot = MemoryPackSerializer.Deserialize<StateSnapshot>(MemoryPackStateSnapshotPayload);
         _ninoIdleSave = NinoDeserializer.Deserialize<IdleSaveV2>(NinoIdleSaveOldBytes);
@@ -367,6 +375,14 @@ partial class WorkloadTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("MediaContentSerialize")]
+    public int LuminPackSerializeMediaContent()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(MediaContentValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("MediaContentDeserialize")]
     public MediaContent NinoDeserializeMediaContent()
     {
@@ -401,6 +417,14 @@ partial class WorkloadTest
     public MediaContent JsonDeserializeMediaContent()
     {
         return JsonSerializer.Deserialize(JsonMediaContentPayload, WorkloadJson.Default.MediaContent);
+    }
+
+    [Benchmark, BenchmarkCategory("MediaContentDeserialize")]
+    public MediaContent LuminPackDeserializeMediaContent()
+    {
+        MediaContent result = default;
+        LuminPackSerializer.Deserialize(LuminPackMediaContentPayload, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("StackOverflowPageSerialize")]

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -12,9 +13,9 @@ namespace Nino.Benchmark;
 #nullable disable
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
-[MemoryPackUnion(1, typeof(PolymorphicClass))]
+[MemoryPackUnion(1, typeof(PolymorphicClass)), LuminPackUnion(1, typeof(PolymorphicClass))]
 [Union(1, typeof(PolymorphicClass))]
 [ProtoContract]
 [ProtoInclude(100, typeof(PolymorphicClass))]
@@ -28,7 +29,7 @@ public abstract partial class PolymorphicClassBase
     public abstract void Write();
 }
 
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [NinoType]
 [ProtoContract]
@@ -83,27 +84,27 @@ public sealed partial class PolymorphicClass : PolymorphicClassBase, IPolymorphi
 }
 
 [NinoType]
-[MemoryPackable]
-[MemoryPackUnion(1, typeof(FooA))]
-[MemoryPackUnion(2, typeof(FooB))]
-[MemoryPackUnion(3, typeof(FooC))]
-[MemoryPackUnion(4, typeof(FooD))]
-[MemoryPackUnion(5, typeof(FooE))]
-[MemoryPackUnion(6, typeof(FooF))]
-[MemoryPackUnion(7, typeof(FooG))]
-[MemoryPackUnion(8, typeof(FooH))]
-[MemoryPackUnion(9, typeof(FooI))]
-[MemoryPackUnion(10, typeof(FooJ))]
-[MemoryPackUnion(11, typeof(FooK))]
-[MemoryPackUnion(12, typeof(FooL))]
-[MemoryPackUnion(13, typeof(FooM))]
-[MemoryPackUnion(14, typeof(FooN))]
-[MemoryPackUnion(15, typeof(FooO))]
-[MemoryPackUnion(16, typeof(FooP))]
-[MemoryPackUnion(17, typeof(FooQ))]
-[MemoryPackUnion(18, typeof(FooR))]
-[MemoryPackUnion(19, typeof(FooS))]
-[MemoryPackUnion(20, typeof(FooZ))]
+[MemoryPackable, LuminPackable]
+[MemoryPackUnion(1, typeof(FooA)), LuminPackUnion(1, typeof(FooA))]
+[MemoryPackUnion(2, typeof(FooB)), LuminPackUnion(2, typeof(FooB))]
+[MemoryPackUnion(3, typeof(FooC)), LuminPackUnion(3, typeof(FooC))]
+[MemoryPackUnion(4, typeof(FooD)), LuminPackUnion(4, typeof(FooD))]
+[MemoryPackUnion(5, typeof(FooE)), LuminPackUnion(5, typeof(FooE))]
+[MemoryPackUnion(6, typeof(FooF)), LuminPackUnion(6, typeof(FooF))]
+[MemoryPackUnion(7, typeof(FooG)), LuminPackUnion(7, typeof(FooG))]
+[MemoryPackUnion(8, typeof(FooH)), LuminPackUnion(8, typeof(FooH))]
+[MemoryPackUnion(9, typeof(FooI)), LuminPackUnion(9, typeof(FooI))]
+[MemoryPackUnion(10, typeof(FooJ)), LuminPackUnion(10, typeof(FooJ))]
+[MemoryPackUnion(11, typeof(FooK)), LuminPackUnion(11, typeof(FooK))]
+[MemoryPackUnion(12, typeof(FooL)), LuminPackUnion(12, typeof(FooL))]
+[MemoryPackUnion(13, typeof(FooM)), LuminPackUnion(13, typeof(FooM))]
+[MemoryPackUnion(14, typeof(FooN)), LuminPackUnion(14, typeof(FooN))]
+[MemoryPackUnion(15, typeof(FooO)), LuminPackUnion(15, typeof(FooO))]
+[MemoryPackUnion(16, typeof(FooP)), LuminPackUnion(16, typeof(FooP))]
+[MemoryPackUnion(17, typeof(FooQ)), LuminPackUnion(17, typeof(FooQ))]
+[MemoryPackUnion(18, typeof(FooR)), LuminPackUnion(18, typeof(FooR))]
+[MemoryPackUnion(19, typeof(FooS)), LuminPackUnion(19, typeof(FooS))]
+[MemoryPackUnion(20, typeof(FooZ)), LuminPackUnion(20, typeof(FooZ))]
 [Union(1, typeof(FooA))]
 [Union(2, typeof(FooB))]
 [Union(3, typeof(FooC))]
@@ -155,7 +156,7 @@ public abstract partial class PolymorphicFooBase
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [ProtoInclude(100, typeof(FooB))]
@@ -176,7 +177,7 @@ public partial class FooA : PolymorphicFooBase, IPolymorphicWriter
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [ProtoInclude(100, typeof(FooC))]
@@ -196,7 +197,7 @@ public partial class FooB : FooA
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [ProtoInclude(100, typeof(FooD))]
@@ -217,7 +218,7 @@ public partial class FooC : FooB
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [ProtoInclude(100, typeof(FooE))]
@@ -239,7 +240,7 @@ public partial class FooD : FooC
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [ProtoInclude(100, typeof(FooF))]
@@ -259,7 +260,7 @@ public partial class FooE : FooD
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [ProtoInclude(100, typeof(FooG))]
@@ -279,7 +280,7 @@ public partial class FooF : FooE
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [ProtoInclude(100, typeof(FooH))]
@@ -299,7 +300,7 @@ public partial class FooG : FooF
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [ProtoInclude(100, typeof(FooI))]
@@ -330,7 +331,7 @@ public partial class FooH : FooG
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooI : FooH
@@ -349,7 +350,7 @@ public partial class FooI : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooJ : FooH
@@ -368,7 +369,7 @@ public partial class FooJ : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooK : FooH
@@ -387,7 +388,7 @@ public partial class FooK : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooL : FooH
@@ -406,7 +407,7 @@ public partial class FooL : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooM : FooH
@@ -425,7 +426,7 @@ public partial class FooM : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooN : FooH
@@ -444,7 +445,7 @@ public partial class FooN : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooO : FooH
@@ -463,7 +464,7 @@ public partial class FooO : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooP : FooH
@@ -482,7 +483,7 @@ public partial class FooP : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooQ : FooH
@@ -501,7 +502,7 @@ public partial class FooQ : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooR : FooH
@@ -520,7 +521,7 @@ public partial class FooR : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooS : FooH
@@ -539,7 +540,7 @@ public partial class FooS : FooH
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial class FooZ : FooH
@@ -562,7 +563,7 @@ public interface IPolymorphicWriter
     public void Write();
 }
 
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [NinoType]
 [ProtoContract]

@@ -16,7 +16,7 @@ namespace Nino.Benchmark;
 /// </summary>
 [BenchCase("Tree", Without = "Protobuf")]
 [BenchCase("Inventory")]
-[BenchCase("Waypoints")]
+[BenchCase("Waypoints", Without = "LuminPack")] // LuminPack 1.1.9: its generator writes ReadValue and WriteValue twice (CS0111)
 [BenchCase("StringDictionary", Value = "Strings")]
 [BenchClass(Buffer = "1 << 20", Bytes = "{Library}{Case}Bytes", Order = "case")]
 [PayloadColumn]

@@ -10,4 +10,12 @@
         <BaseIntermediateOutputPath>obj/v3/</BaseIntermediateOutputPath>
         <BaseOutputPath>bin/v3/</BaseOutputPath>
     </PropertyGroup>
+
+    <!-- The v3 run times Nino and MemoryPack only: its models keep LuminPack's attributes (LuminPack.dll), without
+         LuminPack's source generator, which would write its serializers into the v3 projects too. -->
+    <Target Name="RemoveLuminPackGenerator" BeforeTargets="CoreCompile" Condition="'$(NinoBenchV3)' == 'true'">
+        <ItemGroup>
+            <Analyzer Remove="@(Analyzer)" Condition="'%(Filename)' == 'LuminPackGenerator'"/>
+        </ItemGroup>
+    </Target>
 </Project>

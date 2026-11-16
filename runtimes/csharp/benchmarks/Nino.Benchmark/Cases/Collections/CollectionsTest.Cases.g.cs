@@ -17,6 +17,8 @@ using System.Text.Json;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using Google.Protobuf;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Benchmark.Workloads;
@@ -35,6 +37,7 @@ partial class CollectionsTest
     private ArrayBufferWriter<byte> _googleProtobufBuffer;
     private ArrayBufferWriter<byte> _jsonBuffer;
     private Utf8JsonWriter _jsonWriter;
+    private LuminBufferWriter _luminPackBuffer;
 
     private static readonly P.NullableLongList NullableLongsProto;
     private static readonly byte[] NinoNullableLongsBytes;
@@ -45,6 +48,7 @@ partial class CollectionsTest
     private static readonly byte[] ProtobufNullableLongsBytes;
     private static readonly byte[] GoogleProtobufNullableLongsBytes;
     private static readonly byte[] JsonNullableLongsBytes;
+    private static readonly byte[] LuminPackNullableLongsBytes;
     private static readonly P.NullableIntList NullableIntsProto;
     private static readonly byte[] NinoNullableIntsBytes;
     private static readonly byte[] NinoNullableNullableIntsBytes;
@@ -54,6 +58,7 @@ partial class CollectionsTest
     private static readonly byte[] ProtobufNullableIntsBytes;
     private static readonly byte[] GoogleProtobufNullableIntsBytes;
     private static readonly byte[] JsonNullableIntsBytes;
+    private static readonly byte[] LuminPackNullableIntsBytes;
     private static readonly P.NullableDecimalList NullableDecimalsProto;
     private static readonly byte[] NinoNullableDecimalsBytes;
     private static readonly byte[] NinoNullableNullableDecimalsBytes;
@@ -63,6 +68,7 @@ partial class CollectionsTest
     private static readonly byte[] ProtobufNullableDecimalsBytes;
     private static readonly byte[] GoogleProtobufNullableDecimalsBytes;
     private static readonly byte[] JsonNullableDecimalsBytes;
+    private static readonly byte[] LuminPackNullableDecimalsBytes;
     private static readonly P.OptionalVec3List NullableVec3sProto;
     private static readonly byte[] NinoNullableVec3sBytes;
     private static readonly byte[] NinoNullableNullableVec3sBytes;
@@ -72,46 +78,57 @@ partial class CollectionsTest
     private static readonly byte[] ProtobufNullableVec3sBytes;
     private static readonly byte[] GoogleProtobufNullableVec3sBytes;
     private static readonly byte[] JsonNullableVec3sBytes;
+    private static readonly byte[] LuminPackNullableVec3sBytes;
     private static readonly byte[] NinoTupleListBytes;
     private static readonly byte[] MemoryPackTupleListBytes;
     private static readonly byte[] MessagePackTupleListBytes;
     private static readonly byte[] ProtobufTupleListBytes;
+    private static readonly byte[] LuminPackTupleListBytes;
     private static readonly byte[] NinoKeyValuePairsBytes;
     private static readonly byte[] MemoryPackKeyValuePairsBytes;
     private static readonly byte[] MessagePackKeyValuePairsBytes;
     private static readonly byte[] ProtobufKeyValuePairsBytes;
+    private static readonly byte[] LuminPackKeyValuePairsBytes;
     private static readonly byte[] NinoHashSetBytes;
     private static readonly byte[] MemoryPackHashSetBytes;
     private static readonly byte[] MessagePackHashSetBytes;
     private static readonly byte[] ProtobufHashSetBytes;
+    private static readonly byte[] LuminPackHashSetBytes;
     private static readonly byte[] NinoIntDictionaryBytes;
     private static readonly byte[] MemoryPackIntDictionaryBytes;
     private static readonly byte[] MessagePackIntDictionaryBytes;
     private static readonly byte[] ProtobufIntDictionaryBytes;
+    private static readonly byte[] LuminPackIntDictionaryBytes;
     private static readonly byte[] NinoQueueBytes;
     private static readonly byte[] MemoryPackQueueBytes;
     private static readonly byte[] MessagePackQueueBytes;
     private static readonly byte[] ProtobufQueueBytes;
+    private static readonly byte[] LuminPackQueueBytes;
     private static readonly byte[] NinoLinkedListBytes;
     private static readonly byte[] MemoryPackLinkedListBytes;
     private static readonly byte[] MessagePackLinkedListBytes;
     private static readonly byte[] ProtobufLinkedListBytes;
+    private static readonly byte[] LuminPackLinkedListBytes;
     private static readonly byte[] NinoSortedSetBytes;
     private static readonly byte[] MemoryPackSortedSetBytes;
     private static readonly byte[] MessagePackSortedSetBytes;
     private static readonly byte[] ProtobufSortedSetBytes;
+    private static readonly byte[] LuminPackSortedSetBytes;
     private static readonly byte[] NinoSortedDictionaryBytes;
     private static readonly byte[] MemoryPackSortedDictionaryBytes;
     private static readonly byte[] MessagePackSortedDictionaryBytes;
     private static readonly byte[] ProtobufSortedDictionaryBytes;
+    private static readonly byte[] LuminPackSortedDictionaryBytes;
     private static readonly byte[] NinoSortedListBytes;
     private static readonly byte[] MemoryPackSortedListBytes;
     private static readonly byte[] MessagePackSortedListBytes;
     private static readonly byte[] ProtobufSortedListBytes;
+    private static readonly byte[] LuminPackSortedListBytes;
     private static readonly byte[] NinoConcurrentDictionaryBytes;
     private static readonly byte[] MemoryPackConcurrentDictionaryBytes;
     private static readonly byte[] MessagePackConcurrentDictionaryBytes;
     private static readonly byte[] ProtobufConcurrentDictionaryBytes;
+    private static readonly byte[] LuminPackConcurrentDictionaryBytes;
     private static readonly byte[] NinoSelfTreeBytes;
     private static readonly byte[] MemoryPackSelfTreeBytes;
     private static readonly byte[] NinoNullableQueueIntsBytes;
@@ -121,6 +138,7 @@ partial class CollectionsTest
     private static readonly byte[] MessagePackNullableQueueIntsBytes;
     private static readonly byte[] ProtobufNullableQueueIntsBytes;
     private static readonly byte[] JsonNullableQueueIntsBytes;
+    private static readonly byte[] LuminPackNullableQueueIntsBytes;
     private static readonly byte[] NinoNullableHashSetIntsBytes;
     private static readonly byte[] NinoNullableNullableHashSetIntsBytes;
     private static readonly byte[] MemoryPackNullableHashSetIntsBytes;
@@ -179,6 +197,7 @@ partial class CollectionsTest
         ProtobufNullableLongsBytes = ProtobufModel.Serialize(NullableLongsProtobuf);
         GoogleProtobufNullableLongsBytes = NullableLongsProto.ToByteArray();
         JsonNullableLongsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableLongs, CaseJson.Default.NullableInt64Array);
+        LuminPackNullableLongsBytes = LuminPackBuffers.Bytes(NullableLongs, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableIntsProto = P.NullableIntList.Parser.ParseFrom(ProtobufModel.Serialize(NullableIntsProtobuf));
         NinoNullableIntsBytes = NinoSerializer.Serialize(NullableInts);
@@ -189,6 +208,7 @@ partial class CollectionsTest
         ProtobufNullableIntsBytes = ProtobufModel.Serialize(NullableIntsProtobuf);
         GoogleProtobufNullableIntsBytes = NullableIntsProto.ToByteArray();
         JsonNullableIntsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableInts, CaseJson.Default.ListNullableInt32);
+        LuminPackNullableIntsBytes = LuminPackBuffers.Bytes(NullableInts, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableDecimalsProto = P.NullableDecimalList.Parser.ParseFrom(ProtobufModel.Serialize(NullableDecimalsProtobuf));
         NinoNullableDecimalsBytes = NinoSerializer.Serialize(NullableDecimals);
@@ -199,6 +219,7 @@ partial class CollectionsTest
         ProtobufNullableDecimalsBytes = ProtobufModel.Serialize(NullableDecimalsProtobuf);
         GoogleProtobufNullableDecimalsBytes = NullableDecimalsProto.ToByteArray();
         JsonNullableDecimalsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableDecimals, CaseJson.Default.NullableDecimalArray);
+        LuminPackNullableDecimalsBytes = LuminPackBuffers.Bytes(NullableDecimals, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableVec3sProto = P.OptionalVec3List.Parser.ParseFrom(ProtobufModel.Serialize(NullableVec3sProtobuf));
         NinoNullableVec3sBytes = NinoSerializer.Serialize(NullableVec3s);
@@ -209,56 +230,67 @@ partial class CollectionsTest
         ProtobufNullableVec3sBytes = ProtobufModel.Serialize(NullableVec3sProtobuf);
         GoogleProtobufNullableVec3sBytes = NullableVec3sProto.ToByteArray();
         JsonNullableVec3sBytes = JsonSerializer.SerializeToUtf8Bytes(NullableVec3s, CaseJson.Default.NullableVec3Array);
+        LuminPackNullableVec3sBytes = LuminPackBuffers.Bytes(NullableVec3s, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoTupleListBytes = NinoSerializer.Serialize(TupleList);
         MemoryPackTupleListBytes = MemoryPackSerializer.Serialize(TupleList);
         MessagePackTupleListBytes = MessagePackSerializer.Serialize(TupleList);
         ProtobufTupleListBytes = ProtobufModel.Serialize(TupleList);
+        LuminPackTupleListBytes = LuminPackBuffers.Bytes(TupleList, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoKeyValuePairsBytes = NinoSerializer.Serialize(KeyValuePairs);
         MemoryPackKeyValuePairsBytes = MemoryPackSerializer.Serialize(KeyValuePairs);
         MessagePackKeyValuePairsBytes = MessagePackSerializer.Serialize(KeyValuePairs);
         ProtobufKeyValuePairsBytes = ProtobufModel.Serialize(KeyValuePairs);
+        LuminPackKeyValuePairsBytes = LuminPackBuffers.Bytes(KeyValuePairs, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoHashSetBytes = NinoSerializer.Serialize(HashSet);
         MemoryPackHashSetBytes = MemoryPackSerializer.Serialize(HashSet);
         MessagePackHashSetBytes = MessagePackSerializer.Serialize(HashSet);
         ProtobufHashSetBytes = ProtobufModel.Serialize(HashSet);
+        LuminPackHashSetBytes = LuminPackBuffers.Bytes(HashSet, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoIntDictionaryBytes = NinoSerializer.Serialize(IntDictionary);
         MemoryPackIntDictionaryBytes = MemoryPackSerializer.Serialize(IntDictionary);
         MessagePackIntDictionaryBytes = MessagePackSerializer.Serialize(IntDictionary);
         ProtobufIntDictionaryBytes = ProtobufModel.Serialize(IntDictionary);
+        LuminPackIntDictionaryBytes = LuminPackBuffers.Bytes(IntDictionary, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoQueueBytes = NinoSerializer.Serialize(Queue);
         MemoryPackQueueBytes = MemoryPackSerializer.Serialize(Queue);
         MessagePackQueueBytes = MessagePackSerializer.Serialize(Queue);
         ProtobufQueueBytes = ProtobufModel.Serialize(Queue);
+        LuminPackQueueBytes = LuminPackBuffers.Bytes(Queue, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoLinkedListBytes = NinoSerializer.Serialize(LinkedList);
         MemoryPackLinkedListBytes = MemoryPackSerializer.Serialize(LinkedList);
         MessagePackLinkedListBytes = MessagePackSerializer.Serialize(LinkedList);
         ProtobufLinkedListBytes = ProtobufModel.Serialize(LinkedList);
+        LuminPackLinkedListBytes = LuminPackBuffers.Bytes(LinkedList, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoSortedSetBytes = NinoSerializer.Serialize(SortedSet);
         MemoryPackSortedSetBytes = MemoryPackSerializer.Serialize(SortedSet);
         MessagePackSortedSetBytes = MessagePackSerializer.Serialize(SortedSet);
         ProtobufSortedSetBytes = ProtobufModel.Serialize(SortedSet);
+        LuminPackSortedSetBytes = LuminPackBuffers.Bytes(SortedSet, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoSortedDictionaryBytes = NinoSerializer.Serialize(SortedDictionary);
         MemoryPackSortedDictionaryBytes = MemoryPackSerializer.Serialize(SortedDictionary);
         MessagePackSortedDictionaryBytes = MessagePackSerializer.Serialize(SortedDictionary);
         ProtobufSortedDictionaryBytes = ProtobufModel.Serialize(SortedDictionary);
+        LuminPackSortedDictionaryBytes = LuminPackBuffers.Bytes(SortedDictionary, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoSortedListBytes = NinoSerializer.Serialize(SortedList);
         MemoryPackSortedListBytes = MemoryPackSerializer.Serialize(SortedList);
         MessagePackSortedListBytes = MessagePackSerializer.Serialize(SortedList);
         ProtobufSortedListBytes = ProtobufModel.Serialize(SortedList);
+        LuminPackSortedListBytes = LuminPackBuffers.Bytes(SortedList, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoConcurrentDictionaryBytes = NinoSerializer.Serialize(ConcurrentDictionary);
         MemoryPackConcurrentDictionaryBytes = MemoryPackSerializer.Serialize(ConcurrentDictionary);
         MessagePackConcurrentDictionaryBytes = MessagePackSerializer.Serialize(ConcurrentDictionary);
         ProtobufConcurrentDictionaryBytes = ProtobufModel.Serialize(ConcurrentDictionary);
+        LuminPackConcurrentDictionaryBytes = LuminPackBuffers.Bytes(ConcurrentDictionary, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoSelfTreeBytes = NinoSerializer.Serialize(SelfTree);
         MemoryPackSelfTreeBytes = MemoryPackSerializer.Serialize(SelfTree);
@@ -270,6 +302,7 @@ partial class CollectionsTest
         MessagePackNullableQueueIntsBytes = MessagePackSerializer.Serialize(NullableQueueInts);
         ProtobufNullableQueueIntsBytes = ProtobufModel.Serialize(NullableQueueIntsProtobuf);
         JsonNullableQueueIntsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableQueueInts, CaseJson.Default.QueueNullableInt32);
+        LuminPackNullableQueueIntsBytes = LuminPackBuffers.Bytes(NullableQueueInts, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoNullableHashSetIntsBytes = NinoSerializer.Serialize(NullableHashSetInts);
         NinoNullableNullableHashSetIntsBytes = NinoSerializer.Serialize(NullableHashSetIntsAsNinoNullable);
@@ -471,6 +504,22 @@ partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableConcurrentQueueInts), JsonNullableConcurrentQueueIntsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableMemoryInts), JsonNullableMemoryIntsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableIListInts), JsonNullableIListIntsBytes.Length);
+
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableLongs), LuminPackNullableLongsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableInts), LuminPackNullableIntsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableDecimals), LuminPackNullableDecimalsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableVec3s), LuminPackNullableVec3sBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTupleList), LuminPackTupleListBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeKeyValuePairs), LuminPackKeyValuePairsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeHashSet), LuminPackHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeIntDictionary), LuminPackIntDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeQueue), LuminPackQueueBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeLinkedList), LuminPackLinkedListBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSortedSet), LuminPackSortedSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSortedDictionary), LuminPackSortedDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSortedList), LuminPackSortedListBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeConcurrentDictionary), LuminPackConcurrentDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableQueueInts), LuminPackNullableQueueIntsBytes.Length);
     }
 
     [GlobalSetup]
@@ -485,6 +534,7 @@ partial class CollectionsTest
         _jsonBuffer = new ArrayBufferWriter<byte>(1 << 16);
         // What JsonSerializer's own writers use: no validation of the writer's calls.
         _jsonWriter = new Utf8JsonWriter(_jsonBuffer, new JsonWriterOptions { SkipValidation = true });
+        _luminPackBuffer = LuminPackBuffers.Rent();
     }
 
     /// <summary>The class's own setup, before the buffers'.</summary>
@@ -563,6 +613,14 @@ partial class CollectionsTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableLongsSerialize")]
+    public int LuminPackSerializeNullableLongs()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(NullableLongs, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableLongsDeserialize")]
     public long?[] NinoDeserializeNullableLongs()
     {
@@ -609,6 +667,14 @@ partial class CollectionsTest
     public long?[] JsonDeserializeNullableLongs()
     {
         return JsonSerializer.Deserialize(JsonNullableLongsBytes, CaseJson.Default.NullableInt64Array);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableLongsDeserialize")]
+    public long?[] LuminPackDeserializeNullableLongs()
+    {
+        long?[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableLongsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableIntsSerialize")]
@@ -684,6 +750,14 @@ partial class CollectionsTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableIntsSerialize")]
+    public int LuminPackSerializeNullableInts()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(NullableInts, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableIntsDeserialize")]
     public List<int?> NinoDeserializeNullableInts()
     {
@@ -730,6 +804,14 @@ partial class CollectionsTest
     public List<int?> JsonDeserializeNullableInts()
     {
         return JsonSerializer.Deserialize(JsonNullableIntsBytes, CaseJson.Default.ListNullableInt32);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableIntsDeserialize")]
+    public List<int?> LuminPackDeserializeNullableInts()
+    {
+        List<int?> result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableIntsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableDecimalsSerialize")]
@@ -805,6 +887,14 @@ partial class CollectionsTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableDecimalsSerialize")]
+    public int LuminPackSerializeNullableDecimals()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(NullableDecimals, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableDecimalsDeserialize")]
     public decimal?[] NinoDeserializeNullableDecimals()
     {
@@ -851,6 +941,14 @@ partial class CollectionsTest
     public decimal?[] JsonDeserializeNullableDecimals()
     {
         return JsonSerializer.Deserialize(JsonNullableDecimalsBytes, CaseJson.Default.NullableDecimalArray);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableDecimalsDeserialize")]
+    public decimal?[] LuminPackDeserializeNullableDecimals()
+    {
+        decimal?[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableDecimalsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableVec3sSerialize")]
@@ -926,6 +1024,14 @@ partial class CollectionsTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableVec3sSerialize")]
+    public int LuminPackSerializeNullableVec3s()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(NullableVec3s, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableVec3sDeserialize")]
     public Vec3?[] NinoDeserializeNullableVec3s()
     {
@@ -974,6 +1080,14 @@ partial class CollectionsTest
         return JsonSerializer.Deserialize(JsonNullableVec3sBytes, CaseJson.Default.NullableVec3Array);
     }
 
+    [Benchmark, BenchmarkCategory("NullableVec3sDeserialize")]
+    public Vec3?[] LuminPackDeserializeNullableVec3s()
+    {
+        Vec3?[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableVec3sBytes, ref result);
+        return result;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("TupleListSerialize")]
     public int NinoSerializeTupleList()
     {
@@ -1006,6 +1120,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("TupleListSerialize")]
+    public int LuminPackSerializeTupleList()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(TupleList, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("TupleListDeserialize")]
     public List<(int, long)> NinoDeserializeTupleList()
     {
@@ -1028,6 +1150,14 @@ partial class CollectionsTest
     public List<(int, long)> ProtobufDeserializeTupleList()
     {
         return Serializer.Deserialize<List<(int, long)>>(new ReadOnlySpan<byte>(ProtobufTupleListBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("TupleListDeserialize")]
+    public List<(int, long)> LuminPackDeserializeTupleList()
+    {
+        List<(int, long)> result = default;
+        LuminPackSerializer.Deserialize(LuminPackTupleListBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("KeyValuePairsSerialize")]
@@ -1062,6 +1192,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("KeyValuePairsSerialize")]
+    public int LuminPackSerializeKeyValuePairs()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(KeyValuePairs, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("KeyValuePairsDeserialize")]
     public KeyValuePair<int, int>[] NinoDeserializeKeyValuePairs()
     {
@@ -1084,6 +1222,14 @@ partial class CollectionsTest
     public KeyValuePair<int, int>[] ProtobufDeserializeKeyValuePairs()
     {
         return Serializer.Deserialize<KeyValuePair<int, int>[]>(new ReadOnlySpan<byte>(ProtobufKeyValuePairsBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("KeyValuePairsDeserialize")]
+    public KeyValuePair<int, int>[] LuminPackDeserializeKeyValuePairs()
+    {
+        KeyValuePair<int, int>[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackKeyValuePairsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("HashSetSerialize")]
@@ -1118,6 +1264,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("HashSetSerialize")]
+    public int LuminPackSerializeHashSet()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(HashSet, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("HashSetDeserialize")]
     public HashSet<int> NinoDeserializeHashSet()
     {
@@ -1140,6 +1294,14 @@ partial class CollectionsTest
     public HashSet<int> ProtobufDeserializeHashSet()
     {
         return Serializer.Deserialize<HashSet<int>>(new ReadOnlySpan<byte>(ProtobufHashSetBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("HashSetDeserialize")]
+    public HashSet<int> LuminPackDeserializeHashSet()
+    {
+        HashSet<int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackHashSetBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("IntDictionarySerialize")]
@@ -1174,6 +1336,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("IntDictionarySerialize")]
+    public int LuminPackSerializeIntDictionary()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(IntDictionary, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("IntDictionaryDeserialize")]
     public Dictionary<int, int> NinoDeserializeIntDictionary()
     {
@@ -1196,6 +1366,14 @@ partial class CollectionsTest
     public Dictionary<int, int> ProtobufDeserializeIntDictionary()
     {
         return Serializer.Deserialize<Dictionary<int, int>>(new ReadOnlySpan<byte>(ProtobufIntDictionaryBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("IntDictionaryDeserialize")]
+    public Dictionary<int, int> LuminPackDeserializeIntDictionary()
+    {
+        Dictionary<int, int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackIntDictionaryBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("QueueSerialize")]
@@ -1230,6 +1408,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("QueueSerialize")]
+    public int LuminPackSerializeQueue()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Queue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("QueueDeserialize")]
     public Queue<int> NinoDeserializeQueue()
     {
@@ -1252,6 +1438,14 @@ partial class CollectionsTest
     public Queue<int> ProtobufDeserializeQueue()
     {
         return Serializer.Deserialize<Queue<int>>(new ReadOnlySpan<byte>(ProtobufQueueBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("QueueDeserialize")]
+    public Queue<int> LuminPackDeserializeQueue()
+    {
+        Queue<int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackQueueBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("LinkedListSerialize")]
@@ -1286,6 +1480,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("LinkedListSerialize")]
+    public int LuminPackSerializeLinkedList()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(LinkedList, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("LinkedListDeserialize")]
     public LinkedList<int> NinoDeserializeLinkedList()
     {
@@ -1308,6 +1510,14 @@ partial class CollectionsTest
     public LinkedList<int> ProtobufDeserializeLinkedList()
     {
         return Serializer.Deserialize<LinkedList<int>>(new ReadOnlySpan<byte>(ProtobufLinkedListBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("LinkedListDeserialize")]
+    public LinkedList<int> LuminPackDeserializeLinkedList()
+    {
+        LinkedList<int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackLinkedListBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SortedSetSerialize")]
@@ -1342,6 +1552,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("SortedSetSerialize")]
+    public int LuminPackSerializeSortedSet()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(SortedSet, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SortedSetDeserialize")]
     public SortedSet<int> NinoDeserializeSortedSet()
     {
@@ -1364,6 +1582,14 @@ partial class CollectionsTest
     public SortedSet<int> ProtobufDeserializeSortedSet()
     {
         return Serializer.Deserialize<SortedSet<int>>(new ReadOnlySpan<byte>(ProtobufSortedSetBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("SortedSetDeserialize")]
+    public SortedSet<int> LuminPackDeserializeSortedSet()
+    {
+        SortedSet<int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackSortedSetBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SortedDictionarySerialize")]
@@ -1398,6 +1624,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("SortedDictionarySerialize")]
+    public int LuminPackSerializeSortedDictionary()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(SortedDictionary, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SortedDictionaryDeserialize")]
     public SortedDictionary<int, int> NinoDeserializeSortedDictionary()
     {
@@ -1420,6 +1654,14 @@ partial class CollectionsTest
     public SortedDictionary<int, int> ProtobufDeserializeSortedDictionary()
     {
         return Serializer.Deserialize<SortedDictionary<int, int>>(new ReadOnlySpan<byte>(ProtobufSortedDictionaryBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("SortedDictionaryDeserialize")]
+    public SortedDictionary<int, int> LuminPackDeserializeSortedDictionary()
+    {
+        SortedDictionary<int, int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackSortedDictionaryBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SortedListSerialize")]
@@ -1454,6 +1696,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("SortedListSerialize")]
+    public int LuminPackSerializeSortedList()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(SortedList, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SortedListDeserialize")]
     public SortedList<int, int> NinoDeserializeSortedList()
     {
@@ -1476,6 +1726,14 @@ partial class CollectionsTest
     public SortedList<int, int> ProtobufDeserializeSortedList()
     {
         return Serializer.Deserialize<SortedList<int, int>>(new ReadOnlySpan<byte>(ProtobufSortedListBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("SortedListDeserialize")]
+    public SortedList<int, int> LuminPackDeserializeSortedList()
+    {
+        SortedList<int, int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackSortedListBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ConcurrentDictionarySerialize")]
@@ -1510,6 +1768,14 @@ partial class CollectionsTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("ConcurrentDictionarySerialize")]
+    public int LuminPackSerializeConcurrentDictionary()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(ConcurrentDictionary, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("ConcurrentDictionaryDeserialize")]
     public ConcurrentDictionary<int, int> NinoDeserializeConcurrentDictionary()
     {
@@ -1532,6 +1798,14 @@ partial class CollectionsTest
     public ConcurrentDictionary<int, int> ProtobufDeserializeConcurrentDictionary()
     {
         return Serializer.Deserialize<ConcurrentDictionary<int, int>>(new ReadOnlySpan<byte>(ProtobufConcurrentDictionaryBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("ConcurrentDictionaryDeserialize")]
+    public ConcurrentDictionary<int, int> LuminPackDeserializeConcurrentDictionary()
+    {
+        ConcurrentDictionary<int, int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackConcurrentDictionaryBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SelfTreeSerialize")]
@@ -1627,6 +1901,14 @@ partial class CollectionsTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableQueueIntsSerialize")]
+    public int LuminPackSerializeNullableQueueInts()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(NullableQueueInts, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableQueueIntsDeserialize")]
     public Queue<int?> NinoDeserializeNullableQueueInts()
     {
@@ -1667,6 +1949,14 @@ partial class CollectionsTest
     public Queue<int?> JsonDeserializeNullableQueueInts()
     {
         return JsonSerializer.Deserialize(JsonNullableQueueIntsBytes, CaseJson.Default.QueueNullableInt32);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableQueueIntsDeserialize")]
+    public Queue<int?> LuminPackDeserializeNullableQueueInts()
+    {
+        Queue<int?> result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableQueueIntsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableHashSetIntsSerialize")]

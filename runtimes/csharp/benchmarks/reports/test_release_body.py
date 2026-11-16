@@ -307,6 +307,21 @@ class Charts(unittest.TestCase):
         self.assertEqual(charts.multiple(1.0549, 1.0), " · on par")
         self.assertEqual(charts.multiple(1.0551, 1.0), " · 1.1×")
 
+    def test_a_case_luminpack_cannot_run_is_na(self):
+        # LuminPack (readme.NA) ran SimpleClass only: SimpleStruct, which MemoryPack has, gets an n/a bar and the note;
+        # a report without any LuminPack row (a release before it joined) has no LuminPack bar at all.
+        rows = {m: {"mean": ns} for _, m, ns in X64 + [("SimpleTest", "LuminPackSerializeSimpleClass", 60.0)]}
+        bars = readme.bars(rows, None, lambda lib: f"{lib}SerializeSimpleStruct")
+        self.assertIn(("LuminPack", None), bars)
+        self.assertIn(("LuminPack", 60.0), readme.bars(rows, None, lambda lib: f"{lib}SerializeSimpleClass"))
+        self.assertTrue(readme.has_na([(("Serialize", bars), None)]))
+        without = {m: {"mean": ns} for _, m, ns in X64}
+        self.assertNotIn("LuminPack", [name for name, _ in readme.bars(without, None,
+                                                                       lambda lib: f"{lib}SerializeSimpleStruct")])
+        # A case MemoryPack does not run either is left out, as for every other library.
+        self.assertNotIn("LuminPack", [name for name, _ in readme.bars(rows, None, lambda lib: f"{lib}SerializeOther")
+                                       or []])
+
     def test_crop_keeps_the_first_rows(self):
         width, height = 3, 10
         raw = b"".join(b"\x02" + bytes([y] * width * 4) for y in range(height))  # filter Up on every row

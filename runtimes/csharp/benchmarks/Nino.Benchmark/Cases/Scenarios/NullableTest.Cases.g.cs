@@ -14,6 +14,8 @@ using System.Text.Json;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using Google.Protobuf;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -31,6 +33,7 @@ partial class NullableTest
     private ArrayBufferWriter<byte> _googleProtobufBuffer;
     private ArrayBufferWriter<byte> _jsonBuffer;
     private Utf8JsonWriter _jsonWriter;
+    private LuminBufferWriter _luminPackBuffer;
 
     private static readonly P.NullableFields NullableFieldsProto;
     private static readonly byte[] NinoNullableFieldsBytes;
@@ -41,6 +44,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableFieldsBytes;
     private static readonly byte[] GoogleProtobufNullableFieldsBytes;
     private static readonly byte[] JsonNullableFieldsBytes;
+    private static readonly byte[] LuminPackNullableFieldsBytes;
     private static readonly P.NullableFieldsList NullableFieldsArrayProto;
     private static readonly byte[] NinoNullableFieldsArrayBytes;
     private static readonly byte[] NinoNullableNullableFieldsArrayBytes;
@@ -59,6 +63,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableStructBytes;
     private static readonly byte[] GoogleProtobufNullableStructBytes;
     private static readonly byte[] JsonNullableStructBytes;
+    private static readonly byte[] LuminPackNullableStructBytes;
     private static readonly P.OptionalSimpleStructList NullableStructsProto;
     private static readonly byte[] NinoNullableStructsBytes;
     private static readonly byte[] NinoNullableNullableStructsBytes;
@@ -68,6 +73,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableStructsBytes;
     private static readonly byte[] GoogleProtobufNullableStructsBytes;
     private static readonly byte[] JsonNullableStructsBytes;
+    private static readonly byte[] LuminPackNullableStructsBytes;
     private static readonly P.OptionalSimpleClass NullableObjectProto;
     private static readonly byte[] NinoNullableObjectBytes;
     private static readonly byte[] MemoryPackNullableObjectBytes;
@@ -75,6 +81,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableObjectBytes;
     private static readonly byte[] GoogleProtobufNullableObjectBytes;
     private static readonly byte[] JsonNullableObjectBytes;
+    private static readonly byte[] LuminPackNullableObjectBytes;
     private static readonly P.NullableObjectList NullableObjectsProto;
     private static readonly byte[] NinoNullableObjectsBytes;
     private static readonly byte[] MemoryPackNullableObjectsBytes;
@@ -82,6 +89,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableObjectsBytes;
     private static readonly byte[] GoogleProtobufNullableObjectsBytes;
     private static readonly byte[] JsonNullableObjectsBytes;
+    private static readonly byte[] LuminPackNullableObjectsBytes;
     private static readonly P.ManagedStruct ManagedStructProto;
     private static readonly byte[] NinoManagedStructBytes;
     private static readonly byte[] MemoryPackManagedStructBytes;
@@ -89,6 +97,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufManagedStructBytes;
     private static readonly byte[] GoogleProtobufManagedStructBytes;
     private static readonly byte[] JsonManagedStructBytes;
+    private static readonly byte[] LuminPackManagedStructBytes;
     private static readonly P.ManagedStructList ManagedStructsProto;
     private static readonly byte[] NinoManagedStructsBytes;
     private static readonly byte[] MemoryPackManagedStructsBytes;
@@ -96,6 +105,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufManagedStructsBytes;
     private static readonly byte[] GoogleProtobufManagedStructsBytes;
     private static readonly byte[] JsonManagedStructsBytes;
+    private static readonly byte[] LuminPackManagedStructsBytes;
     private static readonly P.OptionalManagedStruct NullableManagedStructProto;
     private static readonly byte[] NinoNullableManagedStructBytes;
     private static readonly byte[] MemoryPackNullableManagedStructBytes;
@@ -103,6 +113,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableManagedStructBytes;
     private static readonly byte[] GoogleProtobufNullableManagedStructBytes;
     private static readonly byte[] JsonNullableManagedStructBytes;
+    private static readonly byte[] LuminPackNullableManagedStructBytes;
     private static readonly P.OptionalManagedStructList NullableManagedStructsProto;
     private static readonly byte[] NinoNullableManagedStructsBytes;
     private static readonly byte[] MemoryPackNullableManagedStructsBytes;
@@ -110,6 +121,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableManagedStructsBytes;
     private static readonly byte[] GoogleProtobufNullableManagedStructsBytes;
     private static readonly byte[] JsonNullableManagedStructsBytes;
+    private static readonly byte[] LuminPackNullableManagedStructsBytes;
     private static readonly P.NullableStringList NullableStringsProto;
     private static readonly byte[] NinoNullableStringsBytes;
     private static readonly byte[] MemoryPackNullableStringsBytes;
@@ -117,6 +129,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufNullableStringsBytes;
     private static readonly byte[] GoogleProtobufNullableStringsBytes;
     private static readonly byte[] JsonNullableStringsBytes;
+    private static readonly byte[] LuminPackNullableStringsBytes;
     private static readonly P.RawNullable RawNullableProto;
     private static readonly byte[] NinoRawNullableBytes;
     private static readonly byte[] NinoNullableRawNullableBytes;
@@ -126,6 +139,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufRawNullableBytes;
     private static readonly byte[] GoogleProtobufRawNullableBytes;
     private static readonly byte[] JsonRawNullableBytes;
+    private static readonly byte[] LuminPackRawNullableBytes;
     private static readonly P.RawNullableList RawNullablesProto;
     private static readonly byte[] NinoRawNullablesBytes;
     private static readonly byte[] NinoNullableRawNullablesBytes;
@@ -135,6 +149,7 @@ partial class NullableTest
     private static readonly byte[] ProtobufRawNullablesBytes;
     private static readonly byte[] GoogleProtobufRawNullablesBytes;
     private static readonly byte[] JsonRawNullablesBytes;
+    private static readonly byte[] LuminPackRawNullablesBytes;
 
     static NullableTest()
     {
@@ -147,6 +162,7 @@ partial class NullableTest
         ProtobufNullableFieldsBytes = ProtobufModel.Serialize(Fields);
         GoogleProtobufNullableFieldsBytes = NullableFieldsProto.ToByteArray();
         JsonNullableFieldsBytes = JsonSerializer.SerializeToUtf8Bytes(Fields, CaseJson.Default.NullableFields);
+        LuminPackNullableFieldsBytes = LuminPackBuffers.Bytes(Fields, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableFieldsArrayProto = P.NullableFieldsList.Parser.ParseFrom(ProtobufModel.Serialize(FieldsArray));
         NinoNullableFieldsArrayBytes = NinoSerializer.Serialize(FieldsArray);
@@ -167,6 +183,7 @@ partial class NullableTest
         ProtobufNullableStructBytes = ProtobufModel.Serialize(StructProtobuf);
         GoogleProtobufNullableStructBytes = NullableStructProto.ToByteArray();
         JsonNullableStructBytes = JsonSerializer.SerializeToUtf8Bytes(Struct, CaseJson.Default.NullableSimpleStruct);
+        LuminPackNullableStructBytes = LuminPackBuffers.Bytes(Struct, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableStructsProto = P.OptionalSimpleStructList.Parser.ParseFrom(ProtobufModel.Serialize(StructsProtobuf));
         NinoNullableStructsBytes = NinoSerializer.Serialize(Structs);
@@ -177,6 +194,7 @@ partial class NullableTest
         ProtobufNullableStructsBytes = ProtobufModel.Serialize(StructsProtobuf);
         GoogleProtobufNullableStructsBytes = NullableStructsProto.ToByteArray();
         JsonNullableStructsBytes = JsonSerializer.SerializeToUtf8Bytes(Structs, CaseJson.Default.NullableSimpleStructArray);
+        LuminPackNullableStructsBytes = LuminPackBuffers.Bytes(Structs, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableObjectProto = P.OptionalSimpleClass.Parser.ParseFrom(ProtobufModel.Serialize(NullObjectProtobuf));
         NinoNullableObjectBytes = NinoSerializer.Serialize(NullObject);
@@ -185,6 +203,7 @@ partial class NullableTest
         ProtobufNullableObjectBytes = ProtobufModel.Serialize(NullObjectProtobuf);
         GoogleProtobufNullableObjectBytes = NullableObjectProto.ToByteArray();
         JsonNullableObjectBytes = JsonSerializer.SerializeToUtf8Bytes(NullObject, CaseJson.Default.SimpleClass);
+        LuminPackNullableObjectBytes = LuminPackBuffers.Bytes(NullObject, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableObjectsProto = P.NullableObjectList.Parser.ParseFrom(ProtobufModel.Serialize(ObjectsProtobuf));
         NinoNullableObjectsBytes = NinoSerializer.Serialize(Objects);
@@ -193,6 +212,7 @@ partial class NullableTest
         ProtobufNullableObjectsBytes = ProtobufModel.Serialize(ObjectsProtobuf);
         GoogleProtobufNullableObjectsBytes = NullableObjectsProto.ToByteArray();
         JsonNullableObjectsBytes = JsonSerializer.SerializeToUtf8Bytes(Objects, CaseJson.Default.SimpleClassArray);
+        LuminPackNullableObjectsBytes = LuminPackBuffers.Bytes(Objects, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         ManagedStructProto = P.ManagedStruct.Parser.ParseFrom(ProtobufModel.Serialize(Managed));
         NinoManagedStructBytes = NinoSerializer.Serialize(Managed);
@@ -201,6 +221,7 @@ partial class NullableTest
         ProtobufManagedStructBytes = ProtobufModel.Serialize(Managed);
         GoogleProtobufManagedStructBytes = ManagedStructProto.ToByteArray();
         JsonManagedStructBytes = JsonSerializer.SerializeToUtf8Bytes(Managed, CaseJson.Default.ManagedStruct);
+        LuminPackManagedStructBytes = LuminPackBuffers.Bytes(Managed, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         ManagedStructsProto = P.ManagedStructList.Parser.ParseFrom(ProtobufModel.Serialize(Manageds));
         NinoManagedStructsBytes = NinoSerializer.Serialize(Manageds);
@@ -209,6 +230,7 @@ partial class NullableTest
         ProtobufManagedStructsBytes = ProtobufModel.Serialize(Manageds);
         GoogleProtobufManagedStructsBytes = ManagedStructsProto.ToByteArray();
         JsonManagedStructsBytes = JsonSerializer.SerializeToUtf8Bytes(Manageds, CaseJson.Default.ManagedStructArray);
+        LuminPackManagedStructsBytes = LuminPackBuffers.Bytes(Manageds, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableManagedStructProto = P.OptionalManagedStruct.Parser.ParseFrom(ProtobufModel.Serialize(NullableManagedProtobuf));
         NinoNullableManagedStructBytes = NinoSerializer.Serialize(NullableManaged);
@@ -217,6 +239,7 @@ partial class NullableTest
         ProtobufNullableManagedStructBytes = ProtobufModel.Serialize(NullableManagedProtobuf);
         GoogleProtobufNullableManagedStructBytes = NullableManagedStructProto.ToByteArray();
         JsonNullableManagedStructBytes = JsonSerializer.SerializeToUtf8Bytes(NullableManaged, CaseJson.Default.NullableManagedStruct);
+        LuminPackNullableManagedStructBytes = LuminPackBuffers.Bytes(NullableManaged, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableManagedStructsProto = P.OptionalManagedStructList.Parser.ParseFrom(ProtobufModel.Serialize(NullableManagedsProtobuf));
         NinoNullableManagedStructsBytes = NinoSerializer.Serialize(NullableManageds);
@@ -225,6 +248,7 @@ partial class NullableTest
         ProtobufNullableManagedStructsBytes = ProtobufModel.Serialize(NullableManagedsProtobuf);
         GoogleProtobufNullableManagedStructsBytes = NullableManagedStructsProto.ToByteArray();
         JsonNullableManagedStructsBytes = JsonSerializer.SerializeToUtf8Bytes(NullableManageds, CaseJson.Default.NullableManagedStructArray);
+        LuminPackNullableManagedStructsBytes = LuminPackBuffers.Bytes(NullableManageds, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NullableStringsProto = P.NullableStringList.Parser.ParseFrom(ProtobufModel.Serialize(StringsProtobuf));
         NinoNullableStringsBytes = NinoSerializer.Serialize(Strings);
@@ -233,6 +257,7 @@ partial class NullableTest
         ProtobufNullableStringsBytes = ProtobufModel.Serialize(StringsProtobuf);
         GoogleProtobufNullableStringsBytes = NullableStringsProto.ToByteArray();
         JsonNullableStringsBytes = JsonSerializer.SerializeToUtf8Bytes(Strings, CaseJson.Default.StringArray);
+        LuminPackNullableStringsBytes = LuminPackBuffers.Bytes(Strings, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         RawNullableProto = P.RawNullable.Parser.ParseFrom(ProtobufModel.Serialize(Raw));
         NinoRawNullableBytes = NinoSerializer.Serialize(Raw);
@@ -243,6 +268,7 @@ partial class NullableTest
         ProtobufRawNullableBytes = ProtobufModel.Serialize(Raw);
         GoogleProtobufRawNullableBytes = RawNullableProto.ToByteArray();
         JsonRawNullableBytes = JsonSerializer.SerializeToUtf8Bytes(Raw, CaseJson.Default.RawNullable);
+        LuminPackRawNullableBytes = LuminPackBuffers.Bytes(Raw, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         RawNullablesProto = P.RawNullableList.Parser.ParseFrom(ProtobufModel.Serialize(Raws));
         NinoRawNullablesBytes = NinoSerializer.Serialize(Raws);
@@ -253,6 +279,7 @@ partial class NullableTest
         ProtobufRawNullablesBytes = ProtobufModel.Serialize(Raws);
         GoogleProtobufRawNullablesBytes = RawNullablesProto.ToByteArray();
         JsonRawNullablesBytes = JsonSerializer.SerializeToUtf8Bytes(Raws, CaseJson.Default.RawNullableArray);
+        LuminPackRawNullablesBytes = LuminPackBuffers.Bytes(Raws, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableFields), NinoNullableFieldsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableFieldsArray), NinoNullableFieldsArrayBytes.Length);
@@ -358,6 +385,19 @@ partial class NullableTest
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeNullableStrings), JsonNullableStringsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeRawNullable), JsonRawNullableBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeRawNullables), JsonRawNullablesBytes.Length);
+
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableFields), LuminPackNullableFieldsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableStruct), LuminPackNullableStructBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableStructs), LuminPackNullableStructsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableObject), LuminPackNullableObjectBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableObjects), LuminPackNullableObjectsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeManagedStruct), LuminPackManagedStructBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeManagedStructs), LuminPackManagedStructsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableManagedStruct), LuminPackNullableManagedStructBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableManagedStructs), LuminPackNullableManagedStructsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeNullableStrings), LuminPackNullableStringsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeRawNullable), LuminPackRawNullableBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeRawNullables), LuminPackRawNullablesBytes.Length);
     }
 
     [GlobalSetup]
@@ -372,6 +412,7 @@ partial class NullableTest
         _jsonBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         // What JsonSerializer's own writers use: no validation of the writer's calls.
         _jsonWriter = new Utf8JsonWriter(_jsonBuffer, new JsonWriterOptions { SkipValidation = true });
+        _luminPackBuffer = LuminPackBuffers.Rent();
     }
 
     /// <summary>The class's own setup, before the buffers'.</summary>
@@ -442,6 +483,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableFieldsSerialize")]
+    public int LuminPackSerializeNullableFields()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Fields, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableFieldsDeserialize")]
     public NullableFields NinoDeserializeNullableFields()
     {
@@ -488,6 +537,14 @@ partial class NullableTest
     public NullableFields JsonDeserializeNullableFields()
     {
         return JsonSerializer.Deserialize(JsonNullableFieldsBytes, CaseJson.Default.NullableFields);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableFieldsDeserialize")]
+    public NullableFields LuminPackDeserializeNullableFields()
+    {
+        NullableFields result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableFieldsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableFieldsArraySerialize")]
@@ -676,6 +733,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableStructSerialize")]
+    public int LuminPackSerializeNullableStruct()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Struct, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableStructDeserialize")]
     public SimpleStruct? NinoDeserializeNullableStruct()
     {
@@ -716,6 +781,14 @@ partial class NullableTest
     public SimpleStruct? JsonDeserializeNullableStruct()
     {
         return JsonSerializer.Deserialize(JsonNullableStructBytes, CaseJson.Default.NullableSimpleStruct);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStructDeserialize")]
+    public SimpleStruct? LuminPackDeserializeNullableStruct()
+    {
+        SimpleStruct? result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableStructBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableStructsSerialize")]
@@ -791,6 +864,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableStructsSerialize")]
+    public int LuminPackSerializeNullableStructs()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Structs, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableStructsDeserialize")]
     public SimpleStruct?[] NinoDeserializeNullableStructs()
     {
@@ -837,6 +918,14 @@ partial class NullableTest
     public SimpleStruct?[] JsonDeserializeNullableStructs()
     {
         return JsonSerializer.Deserialize(JsonNullableStructsBytes, CaseJson.Default.NullableSimpleStructArray);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStructsDeserialize")]
+    public SimpleStruct?[] LuminPackDeserializeNullableStructs()
+    {
+        SimpleStruct?[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableStructsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableObjectSerialize")]
@@ -888,6 +977,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableObjectSerialize")]
+    public int LuminPackSerializeNullableObject()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(NullObject, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableObjectDeserialize")]
     [ReadsNull]
     public SimpleClass NinoDeserializeNullableObject()
@@ -917,6 +1014,14 @@ partial class NullableTest
     public SimpleClass JsonDeserializeNullableObject()
     {
         return JsonSerializer.Deserialize(JsonNullableObjectBytes, CaseJson.Default.SimpleClass);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableObjectDeserialize")]
+    public SimpleClass LuminPackDeserializeNullableObject()
+    {
+        SimpleClass result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableObjectBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableObjectsSerialize")]
@@ -968,6 +1073,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableObjectsSerialize")]
+    public int LuminPackSerializeNullableObjects()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Objects, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableObjectsDeserialize")]
     public SimpleClass[] NinoDeserializeNullableObjects()
     {
@@ -996,6 +1109,14 @@ partial class NullableTest
     public SimpleClass[] JsonDeserializeNullableObjects()
     {
         return JsonSerializer.Deserialize(JsonNullableObjectsBytes, CaseJson.Default.SimpleClassArray);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableObjectsDeserialize")]
+    public SimpleClass[] LuminPackDeserializeNullableObjects()
+    {
+        SimpleClass[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableObjectsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ManagedStructSerialize")]
@@ -1047,6 +1168,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("ManagedStructSerialize")]
+    public int LuminPackSerializeManagedStruct()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Managed, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("ManagedStructDeserialize")]
     public ManagedStruct NinoDeserializeManagedStruct()
     {
@@ -1081,6 +1210,14 @@ partial class NullableTest
     public ManagedStruct JsonDeserializeManagedStruct()
     {
         return JsonSerializer.Deserialize(JsonManagedStructBytes, CaseJson.Default.ManagedStruct);
+    }
+
+    [Benchmark, BenchmarkCategory("ManagedStructDeserialize")]
+    public ManagedStruct LuminPackDeserializeManagedStruct()
+    {
+        ManagedStruct result = default;
+        LuminPackSerializer.Deserialize(LuminPackManagedStructBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("ManagedStructsSerialize")]
@@ -1132,6 +1269,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("ManagedStructsSerialize")]
+    public int LuminPackSerializeManagedStructs()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Manageds, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("ManagedStructsDeserialize")]
     public ManagedStruct[] NinoDeserializeManagedStructs()
     {
@@ -1166,6 +1311,14 @@ partial class NullableTest
     public ManagedStruct[] JsonDeserializeManagedStructs()
     {
         return JsonSerializer.Deserialize(JsonManagedStructsBytes, CaseJson.Default.ManagedStructArray);
+    }
+
+    [Benchmark, BenchmarkCategory("ManagedStructsDeserialize")]
+    public ManagedStruct[] LuminPackDeserializeManagedStructs()
+    {
+        ManagedStruct[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackManagedStructsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableManagedStructSerialize")]
@@ -1217,6 +1370,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableManagedStructSerialize")]
+    public int LuminPackSerializeNullableManagedStruct()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(NullableManaged, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableManagedStructDeserialize")]
     public ManagedStruct? NinoDeserializeNullableManagedStruct()
     {
@@ -1245,6 +1406,14 @@ partial class NullableTest
     public ManagedStruct? JsonDeserializeNullableManagedStruct()
     {
         return JsonSerializer.Deserialize(JsonNullableManagedStructBytes, CaseJson.Default.NullableManagedStruct);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableManagedStructDeserialize")]
+    public ManagedStruct? LuminPackDeserializeNullableManagedStruct()
+    {
+        ManagedStruct? result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableManagedStructBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableManagedStructsSerialize")]
@@ -1296,6 +1465,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableManagedStructsSerialize")]
+    public int LuminPackSerializeNullableManagedStructs()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(NullableManageds, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableManagedStructsDeserialize")]
     public ManagedStruct?[] NinoDeserializeNullableManagedStructs()
     {
@@ -1324,6 +1501,14 @@ partial class NullableTest
     public ManagedStruct?[] JsonDeserializeNullableManagedStructs()
     {
         return JsonSerializer.Deserialize(JsonNullableManagedStructsBytes, CaseJson.Default.NullableManagedStructArray);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableManagedStructsDeserialize")]
+    public ManagedStruct?[] LuminPackDeserializeNullableManagedStructs()
+    {
+        ManagedStruct?[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableManagedStructsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("NullableStringsSerialize")]
@@ -1375,6 +1560,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("NullableStringsSerialize")]
+    public int LuminPackSerializeNullableStrings()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Strings, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("NullableStringsDeserialize")]
     public string[] NinoDeserializeNullableStrings()
     {
@@ -1403,6 +1596,14 @@ partial class NullableTest
     public string[] JsonDeserializeNullableStrings()
     {
         return JsonSerializer.Deserialize(JsonNullableStringsBytes, CaseJson.Default.StringArray);
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStringsDeserialize")]
+    public string[] LuminPackDeserializeNullableStrings()
+    {
+        string[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackNullableStringsBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("RawNullableSerialize")]
@@ -1470,6 +1671,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("RawNullableSerialize")]
+    public int LuminPackSerializeRawNullable()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Raw, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("RawNullableDeserialize")]
     public RawNullable NinoDeserializeRawNullable()
     {
@@ -1516,6 +1725,14 @@ partial class NullableTest
     public RawNullable JsonDeserializeRawNullable()
     {
         return JsonSerializer.Deserialize(JsonRawNullableBytes, CaseJson.Default.RawNullable);
+    }
+
+    [Benchmark, BenchmarkCategory("RawNullableDeserialize")]
+    public RawNullable LuminPackDeserializeRawNullable()
+    {
+        RawNullable result = default;
+        LuminPackSerializer.Deserialize(LuminPackRawNullableBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("RawNullablesSerialize")]
@@ -1591,6 +1808,14 @@ partial class NullableTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("RawNullablesSerialize")]
+    public int LuminPackSerializeRawNullables()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Raws, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("RawNullablesDeserialize")]
     public RawNullable[] NinoDeserializeRawNullables()
     {
@@ -1637,6 +1862,14 @@ partial class NullableTest
     public RawNullable[] JsonDeserializeRawNullables()
     {
         return JsonSerializer.Deserialize(JsonRawNullablesBytes, CaseJson.Default.RawNullableArray);
+    }
+
+    [Benchmark, BenchmarkCategory("RawNullablesDeserialize")]
+    public RawNullable[] LuminPackDeserializeRawNullables()
+    {
+        RawNullable[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackRawNullablesBytes, ref result);
+        return result;
     }
 }
 #else

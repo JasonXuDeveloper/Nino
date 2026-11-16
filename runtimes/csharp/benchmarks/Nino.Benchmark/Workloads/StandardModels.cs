@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -16,7 +17,7 @@ public enum MediaPlayer { Java, Flash }
 public enum ImageSize { Small, Large }
 
 /// <summary>jvm-serializers' Media (tpc/schema/media.proto), the payload every language's serializers are compared on.</summary>
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
 public partial class Media
 {
     [Key(0)] [ProtoMember(1)] public string Uri;
@@ -32,7 +33,7 @@ public partial class Media
     [Key(10)] [ProtoMember(11)] public string Copyright;
 }
 
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
 public partial class Image
 {
     [Key(0)] [ProtoMember(1)] public string Uri;
@@ -43,7 +44,7 @@ public partial class Image
 }
 
 /// <summary>jvm-serializers' MediaContent with its standard values (StdMediaSerializer's test data).</summary>
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract, CompatibilityLevel(CompatibilityLevel.Level300)]
 public partial class MediaContent
 {
     [Key(0)] [ProtoMember(1)] public List<Image> Images;

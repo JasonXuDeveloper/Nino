@@ -1,4 +1,5 @@
 using System;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -22,7 +23,7 @@ namespace Nino.Benchmark.Workloads;
 //    copies), and a library that cannot deserialize into an existing object reads a new one.
 
 /// <summary>An engine's own vector type (game engines bring their own math types).</summary>
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract]
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract]
 public partial struct Vec3
 {
     [Key(0)] [ProtoMember(1)] public float X;
