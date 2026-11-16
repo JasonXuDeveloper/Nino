@@ -159,10 +159,13 @@ reusing is written down before the task ends, in the same series of commits as t
   queued lines batched into the next push, fewest lines that decide the question, and one push to `main` per series
   (docs and skills commits ride along with code) (`benchmark`, "Spend CI as a budget").
 - **Commits**: Conventional Commits, `type(scope): summary` and a body that says why (types `feat`, `fix`, `perf`,
-  `refactor`, `docs`, `test`, `ci`, `build`, `chore`; scope = area). Author:
-  `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`.
-  No `Co-Authored-By` or other trailer naming an AI, no session links, no model ids (the owner's rule: authorship
-  stays in Git's author field).
+  `refactor`, `docs`, `test`, `ci`, `build`, `chore`; scope = area). Author: the owner's own sessions commit as the
+  owner, `git -c "user.name=JasonXuDeveloper - 傑" -c user.email=jason@xgamedev.net -c commit.gpgsign=false commit`;
+  anyone else, and an agent working for anyone else, commits under that person's own name and email, never the
+  owner's (PR #309's commit was authored as the owner by a contributor's agent that followed this line, and lost its
+  author's credit). A contributor's work that lands under another author carries `Co-authored-by: <name>
+  <id+login@users.noreply.github.com>` for them. No `Co-Authored-By` or other trailer naming an AI, no session links,
+  no model ids (the owner's rule: authorship stays in Git's author field).
 - **Release notes are trailers.** `.github/scripts/release_notes.py` groups commits by type (leaving out `docs(skills)` and `docs(agents)`, which users never read) and takes highlights
   from trailers in the last paragraph (the trailer block): `Wire-Format:` (bytes that change, for which
   types), `Added:` (API, attribute, behavior), `Performance:` (what, which types, how much, runner numbers),
