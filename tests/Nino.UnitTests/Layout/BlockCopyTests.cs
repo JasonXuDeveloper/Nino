@@ -23,6 +23,8 @@ namespace Nino.UnitTests
         [TestMethod]
         public void CopyWritesTheBlockAtEveryGap() => Check((ref byte d, ref byte s, uint n) => NinoUnsafe.Copy(ref d, ref s, n));
 
+#if !NINO_CORE_NETSTANDARD
+        // The downward copy is in Nino.Core's .NET 8+ builds only.
         [TestMethod]
         public void DownwardCopyWritesTheBlockAtEveryGap()
         {
@@ -36,6 +38,7 @@ namespace Nino.UnitTests
                     NinoUnsafe.Copy(ref d, ref s, n);
             });
         }
+#endif
 
         private static void Check(CopyFn copy)
         {
