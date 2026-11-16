@@ -10,7 +10,7 @@ using ProtoBuf;
 #nullable disable
 namespace Nino.Benchmark;
 
-// FixedSizeTest's types, shared with its v3 port (V3/FixedSizeTest.cs).
+// FixedSizeTest's types, shared with its v3 build (the v3 part of FixedSizeTest.Cases.g.cs).
 
 /// <summary>Unmanaged members only (40 bytes, no padding): every value serializes to the same number of bytes.</summary>
 [NinoType]
