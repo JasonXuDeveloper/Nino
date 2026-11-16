@@ -150,6 +150,11 @@ writers](#long-copies-and-writers), [Sequences](#sequences), [Masked copy](#mask
   Source alignment was not it (AlignedCopyProbe, run 43817418473: `NinoUnsafe.Copy` 33-36 ns for 8 KB at every source
   shift, faster than aligned loads, 32-byte loops and Memmove). An earlier downward copy for the 7763 and 9V74
   (df177383, never landed) used a 1 KB window and 32-byte vectors too.
+  Allocations in a class initializer move it too: `NinoNullables<T>`'s piece tables, built for every `T?` though only
+  strides from 17 bytes use them, made `int?` runs 0.93x against main on the EPYC 7763 with identical machine code
+  (run 43887807866, floor 1.00x); built only where `Pieces` holds, 1.00x (run 43894580385). So allocate a kernel's
+  tables only for the types that take it, and read a regression with unchanged listings on AMD as a buffer that moved
+  before suspecting the code.
 - Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
   (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations, at the cost
   of a larger native helper.

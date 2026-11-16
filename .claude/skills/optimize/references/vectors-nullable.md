@@ -166,7 +166,9 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   copy: it is a plain copy of 2 x sizeof(T) an element, and once source and buffer pass the core's L1 the copy runs at
   L2 speed. 1,000 `NinoNullable<decimal>` (32 KB) wrote in 822 ns against MemoryPack's 262 on the Xeon 8573C (48 KB
   L1) and on par on Neoverse-N2 (64 KB L1: 377 against 375, run 43681837258); locally a plain `decimal[2000]` (32 KB)
-  wrote in 870 ns, 24 KB in 232, 16 KB in 114. The cost is the format's, for the docs, not a kernel to fix.
+  wrote in 870 ns, 24 KB in 232, 16 KB in 114. The cost is the format's, for the docs, not a kernel to fix. Since
+  a7c326c9 such a run is its memory on every ISA, so it needs no pack or unpack kernel: wip/simd-coverage's (vpermd,
+  pshufb and tbl packs, windows of a vector for longer slots, #279) were dropped, not ported.
 - Clear the absent values of raw `T?` runs in the copy's one pass, at the masked copy's widths, and read the listing
   for the uops a vector costs. Why: the first form (a751e6c2, bb63a255) made `NinoSerializeNullableInts`, `...Longs`
   and `...Decimals` about 2x slower on every runner CPU (A/B 43264755384: 0.29-0.65 of the base's speed) though it
@@ -486,22 +488,37 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
   alone took 131 to 174 ns against 122 to 126 for the whole `Serialize` through `CopyRealigned` (a plain copy of the
   8,000 bytes about 96). The gap left on the VBMI runners (6975P 86 against MemoryPack's 59 ns, run 43739748813) is
   the clearing itself.
-- Write a `T?` run that no vector clears across elements an element at a time, in pieces that tile it
-  (`NinoNullables.CopyPieces`: vectors of 64, 32 and 16 bytes, then one word of 8, 4, 2 and 1 bytes as its length
-  needs), each ANDed with the element's flag spread over it, on every ISA with plain ANDs: stores in address order,
-  none past the element, the values read from the source. Local, 1,000 elements, against the masked copy and the
-  pass over the flags after it: 72 bytes with AVX-512 (the flag is over 64 bytes before its value's end) 2,350 to
-  2,500 ns against 2,720 to 2,870, a copy 2,030; 144 bytes 4,310 to 4,600 against 5,550 to 5,620; with AVX2
-  (`DOTNET_EnableAVX512=0`) 40 bytes 1,790 to 1,860 against 2,010 to 2,190 and 72 bytes 2,290 to 2,740 against 3,000
-  to 3,150; with 16-byte vectors (`DOTNET_EnableAVX2=0`) 20 bytes 1,640 to 1,690 against 2,000 to 2,200, 40 bytes
-  2,300 to 2,370 against 2,550 to 3,700. Not strides of 17 to 31 bytes with AVX2: a 16-byte vector and a word an
-  element took what the masked copy and its pass take (`Guid?` 1,510 to 1,590 both). Strides under 16 bytes that
-  do not tile a vector take a 16-byte vector's whole elements a step (`CopySpread`, pshufb or tbl, then the
-  multiplication): 6 bytes 235 ns against 740 to 950 with AVX2, 12 bytes 440 to 460 against 950 to 1,650.
-  wip/simd-coverage stored the first vector last and ended with an overlapping one: 1.7 to 1.9 times the base for
-  72 bytes. Keep the element-by-element pass with its sizes as constants (`NinoNullables.ClearAbsent`) for hosts
-  without vectors and the netstandard2.1 build: through the mask's list of values every run took 1.3 to 2 times
-  as long (`int?` 1,820 ns against 1,110, `DOTNET_EnableHWIntrinsic=0`).
+- Write a `T?` run that no vector clears across elements (any stride from 17 bytes without AVX-512 VBMI and GFNI:
+  a `Guid?`, a struct of several words) an element at a time (`NinoNullables.CopyPieces`): its whole vectors of 64,
+  32 or 16 bytes, then one more vector that runs at most 12 bytes into the next element (which writes those bytes
+  again; never the last element, so nothing goes past the run), else exact narrower pieces (a vector of 32 or 16
+  bytes, words of 8, 4, 2, 1). Each vector is multiplied by the flag spread from the vector itself (`vpbroadcastb`
+  from a register, `pshufb` with zero, `dup`; then `vgf2p8mulb`, `psignb`, Arm64 `mul`), ANDed with the bytes kept
+  only up to the element's last cleared byte, the keep rows in registers, up to four vectors loaded before the
+  first store; stores in address order, values read from the source. AVX2 takes strides of 17 to 31 bytes this way
+  too (one 32-byte vector an element). Local (Emerald Rapids, 1,000 elements, every fifth null, ns, main 8fa416bf
+  / faf9de98): `DOTNET_EnableAVX512=0` 20 bytes 1,170-1,330 / 830-990 (AVX2 used to take the masked copy and the
+  pass over the flags), 28 bytes 1,470 / 1,100, 32 bytes 1,380 / 1,230, 48 bytes 2,030-2,190 / 1,680, 56 bytes
+  2,680-2,810 / 2,260-2,310, 72 bytes 2,520-2,630 / 2,230-2,250; `DOTNET_EnableAVX2=0` 20 bytes 1,610-1,740 /
+  740-940, 28 bytes 2,930 / 1,020, 32 bytes 2,040 / 1,150, 48 bytes 3,100 / 1,730, 64 bytes 3,980 / 2,290, 72 bytes
+  4,240 / 3,240. Arm64 by llvm-mca on the qemu listings (cycles an element, main / this): 20 bytes neoverse-n1 6.0 /
+  3.5, neoverse-n2 5.8 / 3.0, neoverse-v1 4.8 / 1.4, apple-m1 9.5 / 2.5; 48 bytes 8.0 / 5.0, 6.5 / 4.0, 6.8 / 2.0,
+  10.0 / 3.5; owed a runner A/B (Neoverse-N2, EPYC 7763). What lost, so not retried: a vector further than 12 bytes
+  past the element (40 bytes as two 32-byte vectors, 24 past, 2,430 against 1,810 for a vector and a word; 48 bytes
+  as two, 16 past, 2,520 against 2,050; 72 as three 3,620 against 2,500); the loop before (453b953c: the flag spread
+  from a general register through `vmovd`, a loop over the element's vectors and a test per piece of whether it
+  keeps every byte, which the JIT compiled to two branches a vector); the flag as `0 - broadcast` and two ANDs a
+  vector instead of the multiplication (20 bytes with AVX2 930-1,060), and the keep rows loaded from the array per
+  vector (1,000-1,110). The earlier pieces' measurements, against the masked copy and its pass: 72 bytes with
+  AVX-512 (the flag over 64 bytes before its value's end) 2,350-2,500 against 2,720-2,870, a copy 2,030; 144 bytes
+  4,310-4,600 against 5,550-5,620. Strides under 16 bytes that do not tile a vector take a 16-byte vector's whole
+  elements a step (`CopySpread`, pshufb or tbl, then the multiplication): 6 bytes 235 ns against 740 to 950 with
+  AVX2, 12 bytes 440 to 460 against 950 to 1,650; a 32-byte step there needs a second `pshufb` for the bytes whose
+  flag is in the other 16-byte lane, as many port-5 operations an element as now on Intel (not tried; Zen 3's two
+  shuffle pipes might gain, an A/B question). wip/simd-coverage stored the first vector last and ended with an
+  overlapping one: 1.7 to 1.9 times the base for 72 bytes. Keep the element-by-element pass with its sizes as
+  constants (`NinoNullables.ClearAbsent`) for hosts without vectors and the netstandard2.1 build: through the mask's
+  list of values every run took 1.3 to 2 times as long (`int?` 1,820 ns against 1,110, `DOTNET_EnableHWIntrinsic=0`).
 - On Arm64 multiply by the flag instead of testing it: `tbl` then `mul` (two operations a vector) for strides up
   to 16 bytes, where `tbl`, `cmtst` and `and` were three for the two vector pipes of a Neoverse core, which a
   vector store's data takes too. llvm-mca, 32 bytes a step: neoverse-n2 3.0 cycles against 4.0 (a copy 1.0),
