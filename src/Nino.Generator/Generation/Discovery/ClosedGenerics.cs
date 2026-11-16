@@ -91,7 +91,12 @@ internal static class ClosedGenerics
                         Walk(b, facts, into, ref visited, depth + 1);
                 }
 
-                if (named.OriginalDefinition.GetNinoTypeOptions() is { } attr)
+                if (UnionCases.IsUnion(named))
+                {
+                    foreach (var item in UnionCases.Of(named))
+                        Walk(item, facts, into, ref visited, depth + 1);
+                }
+                else if (named.OriginalDefinition.GetNinoTypeOptions() is { } attr)
                 {
                     foreach (var member in facts.Members.Of(named.OriginalDefinition, attr))
                     {

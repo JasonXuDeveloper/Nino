@@ -73,6 +73,7 @@ Layout/                      raw structs, padding, the portable (canonical) layo
                              (BclStructLayoutTests: CoreCLR's auto layout of tuples, DateTimeOffset), block structs,
                              fixed-size types, the unmanaged constraint, top-level fast paths
 Polymorphism/                inheritance, dispatch, the registry, generic polymorphic bases, cross-assembly subtypes,
+                             C# union cases and their wire type ids (.NET 11),
                              what attributes on interface members do and explicit implementations of them
                              (InterfaceMemberAttributeTests)
 Versioning/                  version-tolerant and keyed types read across versions

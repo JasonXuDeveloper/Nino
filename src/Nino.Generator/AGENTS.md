@@ -70,6 +70,7 @@ InheritedCandidates.cs       types that may inherit [NinoType], found from synta
 NinoSymbols.cs               the Nino.Core types compared against, resolved once per compilation
 ProjectFacts.cs              what is read from the whole compilation in one step (enabled, options, referenced NinoTypes)
 Visibility.cs                what generated code in one assembly can name, read and assign
+UnionCases.cs                C# union declarations and their case constructor types
 ```
 
 ### Generation/Models/
@@ -145,6 +146,7 @@ RawBlock.cs                  consecutive raw members in one reservation (offsets
 MemberCode.cs                expressions and statements reading or assigning a member, whatever its accessibility
 AccessorEmitter.cs           non-public member access: [UnsafeAccessor] (.NET 8+, generic .NET 9+) or a partial class
 DispatchEmitter.cs           per-assembly subtype dispatch of base formatters (type checks on write, id switch on read)
+UnionEmitter.cs              C# union case dispatch and calls to the selected case's formatter
 RegistryEmitter.cs           the assembly registry and the registrations of built-in formatters it uses
 LayoutEmitter.cs             the [assembly: NinoTypeLayout] of a type
 NestingEmitter.cs            the nesting formatters: a struct per type that holds itself, counting each level

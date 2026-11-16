@@ -30,10 +30,13 @@ internal static partial class ModelBuilder
         var typeParameters = generic ? AllTypeParameters(type) : null;
         var (typeId, nameId) = generic ? (0, 0) : facts.Ids(type);
 
+        var cases = kind == FormatterKind.Union
+            ? BuildUnionCases(type, facts, diagnostics, ct)
+            : EquatableArray<UnionCase>.Empty;
         var built = BuildMembers(type, shape, facts, diagnostics, ct);
         var members = built.Models;
 
-        var construction = kind == FormatterKind.Polymorphic || rawStruct
+        var construction = kind is FormatterKind.Polymorphic or FormatterKind.Union || rawStruct
             ? new ConstructionModel(false, "", EquatableArray<string>.Empty, "")
             : ConstructionPlanner.Plan(type, members, facts, diagnostics);
 
@@ -49,7 +52,7 @@ internal static partial class ModelBuilder
         // Tracking is inherited: a tracked base's reference header is resolved by the subtype's body as soon as
         // the instance exists, so every subtype of a tracked type must record itself.
         bool trackReferences = shape.TrackReferences;
-        if (shape.Tracked && kind == FormatterKind.Struct)
+        if (shape.Tracked && kind is FormatterKind.Struct or FormatterKind.Union)
             diagnostics?.Report(NinoDiagnostics.TrackReferencesOnStruct, type, type.ToDisplayString());
         else if (trackReferences && construction.Recreate)
             diagnostics?.Report(NinoDiagnostics.TrackReferencesNeedsAssignableMembers, type, type.ToDisplayString());
@@ -94,7 +97,7 @@ internal static partial class ModelBuilder
             Pooled: pooled,
             Partial: partial,
             // The analyzer needs none of the types the registry names.
-            Registrations: BuildRegistrations(type, kind, generic, built, collection?.Code, facts,
+            Registrations: BuildRegistrations(type, kind, generic, built, collection?.Code, cases, facts,
                 namesTypes: diagnostics == null),
             FixedSize: fixedSize,
             Block: !rawStruct && facts.IsBlock(type),
@@ -109,7 +112,36 @@ internal static partial class ModelBuilder
             PrefetchMembers: prefetchBytes != 0
                 ? PrefetchRules.Members(built.Models, built.Symbols, ct)
                 : EquatableArray<string>.Empty,
-            Callbacks: Callbacks.Build(type, kind, rawStruct, construction, facts, diagnostics));
+            Callbacks: kind == FormatterKind.Union ? null :
+                Callbacks.Build(type, kind, rawStruct, construction, facts, diagnostics),
+            Cases: cases);
+    }
+
+    private static EquatableArray<UnionCase> BuildUnionCases(INamedTypeSymbol type, TypeFacts facts,
+        DiagnosticSink? diagnostics, CancellationToken ct)
+    {
+        var cases = new List<UnionCase>();
+        foreach (var item in UnionCases.Of(type))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (item.TypeKind == TypeKind.Error)
+                continue;
+            var caseType = item is IDynamicTypeSymbol ? facts.ObjectType : item;
+            // Nullable<T> boxes as T. Its formatter and constructor still take Nullable<T>.
+            var matchType =
+                caseType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable
+                ? nullable.TypeArguments[0] : caseType;
+            var resolved = facts.Resolver.Resolve(caseType, false);
+            if (resolved == null)
+                diagnostics?.Report(NinoDiagnostics.UnsupportedUnionCase, type,
+                    caseType.ToDisplayString(), type.ToDisplayString());
+            int? id = ContainsTypeParameter(caseType) ? null :
+                caseType is INamedTypeSymbol named ? facts.Ids(named).Id : facts.TypeId(caseType);
+            cases.Add(new UnionCase(Global(caseType), Global(matchType),
+                resolved?.Code ?? FormatterResolver.Cached(caseType),
+                !matchType.IsValueType && matchType is not INamedTypeSymbol { IsSealed: true }, id));
+        }
+        return new EquatableArray<UnionCase>(cases);
     }
 
     /// <summary>
@@ -206,6 +238,7 @@ internal static partial class ModelBuilder
     /// delegate to (<see cref="TypeFacts.IsDelegatable"/>), and raw structs never (they are copied whole).
     /// </summary>
     private static bool BuildsMembers(INamedTypeSymbol type, TypeShape shape, TypeFacts facts) =>
+        shape.Kind != FormatterKind.Union &&
         (shape.Kind != FormatterKind.Polymorphic || facts.IsDelegatable(type)) && !shape.RawStruct;
 
     /// <summary>
@@ -304,7 +337,7 @@ internal static partial class ModelBuilder
     /// measured structs and the nesting formatters (its members' and <paramref name="collection"/>'s) it names.
     /// </summary>
     private static RegistrationModel BuildRegistrations(INamedTypeSymbol type, FormatterKind kind, bool generic,
-        MemberSet members, FormatterRef? collection, TypeFacts facts,
+        MemberSet members, FormatterRef? collection, EquatableArray<UnionCase> cases, TypeFacts facts,
         bool namesTypes)
     {
         List<FormatterRegistration>? used = null;
@@ -336,6 +369,22 @@ internal static partial class ModelBuilder
             }
 
             ClosedGenerics.CollectBases(type, facts, genericTypes);
+            if (kind == FormatterKind.Union)
+            {
+                foreach (var item in UnionCases.Of(type))
+                {
+                    ClosedGenerics.Collect(item, facts, genericTypes);
+                    LayoutTypes.Collect(item, facts, layoutTypes);
+                    if (!generic && facts.Visibility.CanName(item) &&
+                        facts.Resolver.Resolve(item, false) is { Registered: true } formatter &&
+                        !facts.Raw.IsRawUnmanaged(item))
+                    {
+                        (used ??= new List<FormatterRegistration>()).Add(
+                            new FormatterRegistration(Global(item), formatter.Code, facts.TypeId(item)));
+                        members.AddFactories(formatter.Factories);
+                    }
+                }
+            }
             // The type itself (a raw struct has no member models) and what its base types name (List<Point>).
             for (ITypeSymbol? t = type; t != null; t = t.BaseType)
                 LayoutTypes.Collect(t, facts, layoutTypes);
@@ -355,15 +404,17 @@ internal static partial class ModelBuilder
                 : EquatableArray<TypeRegistration>.Empty,
             LayoutTypes: layoutTypes == null ? EquatableArray<string>.Empty : LayoutTypes.ToArray(layoutTypes),
             Nesting: genericTypes != null && facts.Resolver.HasNestingFormatters
-                ? facts.Resolver.NestingFormattersNamedIn(NestingSources(members.Models, genericTypes, collection))
+                ? facts.Resolver.NestingFormattersNamedIn(NestingSources(members.Models, genericTypes, collection, cases))
                 : EquatableArray<NestingModel>.Empty);
     }
 
     private static IEnumerable<string> NestingSources(List<MemberModel> members, List<TypeRegistration> genericTypes,
-        FormatterRef? collection)
+        FormatterRef? collection, EquatableArray<UnionCase> cases)
     {
         foreach (var member in members)
             yield return member.Formatter.ToString();
+        foreach (var item in cases)
+            yield return item.Formatter.ToString();
         foreach (var generic in genericTypes)
             yield return generic.Formatter;
         if (collection != null)

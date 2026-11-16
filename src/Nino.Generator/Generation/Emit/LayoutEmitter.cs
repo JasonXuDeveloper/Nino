@@ -53,7 +53,8 @@ internal static class LayoutEmitter
     {
         if (!section.MatchesHeader((int)m.Format, Header(m), m.TrackReferences, m.TypeId,
                 m.PublishesDeferrable ? m.Depth.Deferrable : null) ||
-            section.Raw != (m.RawStruct ? m.RawLayout : null) || section.Elements != m.Collection?.Encoding ||
+            section.Raw != (m.RawStruct ? m.RawLayout : null) ||
+            section.Elements != (m.Kind == FormatterKind.Union ? UnionEncoding(m) : m.Collection?.Encoding) ||
             section.Members.Count != m.Members.Length)
             return false;
 
@@ -89,7 +90,7 @@ internal static class LayoutEmitter
         if (m.RawStruct)
             return m.RawLayout;
 
-        if (m.Members.Length == 0 && m.Collection == null)
+        if (m.Members.Length == 0 && m.Collection == null && m.Kind != FormatterKind.Union)
             return "";
 
         var sb = TextScratch.Rent(64);
@@ -104,6 +105,12 @@ internal static class LayoutEmitter
         if (m.RawStruct)
         {
             sb.Append(m.RawLayout);
+            return;
+        }
+
+        if (m.Kind == FormatterKind.Union)
+        {
+            sb.Append("[elements]::").Append(UnionEncoding(m));
             return;
         }
 
@@ -124,6 +131,10 @@ internal static class LayoutEmitter
                     member.FormerKeys.Select(LayoutBaseline.Hex)));
         }
     }
+
+    private static string UnionEncoding(TypeModel m) => m.Cases.Length == 0 ? "union" :
+        $"union({string.Join(",", m.Cases.Select(item => $"type({Plain(item.TypeName)})")
+            .OrderBy(static name => name, System.StringComparer.Ordinal))})";
 
     private static string Bool(bool value) => value ? "true" : "false";
 }
