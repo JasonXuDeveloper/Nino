@@ -71,7 +71,8 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              sorted collections and lists; CollectionFastPathFixtures) and the HashTables fill
 Layout/                      raw structs, padding, the portable (canonical) layout, BCL structs inside raw structs
                              (BclStructLayoutTests: CoreCLR's auto layout of tuples, DateTimeOffset), block structs,
-                             fixed-size types, the unmanaged constraint, top-level fast paths
+                             fixed-size types, the unmanaged constraint, top-level fast paths, NinoUnsafe's block
+                             copies at every 4 KB distance (BlockCopyTests)
 Polymorphism/                inheritance, dispatch, the registry, generic polymorphic bases, cross-assembly subtypes,
                              C# union cases and their wire type ids (.NET 11),
                              what attributes on interface members do and explicit implementations of them
