@@ -519,7 +519,8 @@ in MSBuild's message format, outside the analyzer:
 - `NINOGEN001`: error. The arguments are invalid (an unknown option, an option of another language, a value it does
   not take) or the assembly cannot be read; the tool exits with code 1 and the build fails.
 - `NINOGEN002`: warning. A type is left out because the target language cannot express it (in Go and Rust, a generic
-  type that holds itself with other type arguments; in TypeScript, a `DateTimeOffset` member; ...), with the reason;
+  type that holds itself with other type arguments; in TypeScript, a `DateTimeOffset` member; in every language, a
+  generic C# union or a union case that is a tuple or `KeyValuePair`; ...), with the reason;
   see [What Is Not Generated](https://nino.xgamedev.net/en/docs/v4/advanced/codegen#not-generated).
 - `NINOGEN003`: warning, from the build. The project sets Nino.TypeScript's `NinoTypeScript*` properties: without a
   `<NinoCodegen>` item they stand for `<NinoCodegen Include="typescript" ... />`, next to one they are ignored. Declare

@@ -73,7 +73,7 @@ NinoDeserializer.Deserialize(bytes, ref copy); // 直接填充同一个实例
 
 在 .NET 11 的 C# 15 项目中，可以为 union 声明添加 `[NinoType]`，例如
 `[NinoType] public union Result(int, string);`。Nino 会生成 union 的 formatter，并用各分支自己的 formatter 读写。
-分支使用 Nino 类型 ID，调整声明顺序后，已写出的 ID 仍表示原来的类型。参见 [union 二进制格式](docs/spec/wire-format.md#712-c-union-structs)。
+分支使用 Nino 类型 ID，调整声明顺序后，已写出的 ID 仍表示原来的类型。`nino-gen` 也会为 TypeScript、Go 和 Rust 生成 union。参见 [union 二进制格式](docs/spec/wire-format.md#712-c-union-structs)。
 
 ```csharp
 [NinoType] public abstract class Message { public int Seq; }

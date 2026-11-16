@@ -146,6 +146,37 @@ Both are encoded as the specification says ([§7.9](spec/wire-format.md), [§7.7
 tracked types (`TypeModel.TrackReferences`) and each target calls its runtime's tracking helpers (the runtime READMEs
 list them). A generic type with `trackReferences` is left out.
 
+### C# unions
+
+A `[NinoType] union` ([spec §7.12](spec/wire-format.md)) publishes `header=TypeId` and
+`[elements]::union(type(A),...)`, which names its case types but not how each is written. The IR
+(`CodegenModel.Unions.cs`) reads it as a struct with no header (`TypeModel.IsUnion`, `Header` is `None`) whose body is
+the type id of its case, then the case's value: the cases are the union's constructors of one argument, in declaration
+order (`TypeModel.Cases`); a case's id is its `[NinoType]`'s (a former name included) or the hash of its runtime-form
+name (`System.Int32`); its value is what the formatter Nino.Core finds for the type writes (`CodegenModel.RootValue`,
+as for a type argument). `UnionCaseModel.Nullable` says the value can read as null, which data must not hold (.NET
+writes the empty union, id 0, for a case given null); `TypeModel.UnionNests` that a case can hold the union again (any
+case but a string or a raw value), so the body counts toward the depth limit after the case's id, as .NET counts it.
+Two things are left out of every language with NINOGEN002: a generic union (`TypeModel.UnionProblem`: its case ids
+depend on its type arguments), and a case that is or holds a generic struct without a layout (a tuple, a
+`KeyValuePair`), which the layout does not say is written as raw memory or item by item.
+
+Each language writes the sum type it has, with the codec functions of a struct, so members, collections and `object`
+slots hold a union as they hold a struct:
+
+- **TypeScript**: a class with `case` (the case's name, `"Int32"`, or null for the empty union) and `value`, and a
+  static constructor per case (`Choice.Int32(42)`); an `object` slot tells it by its class.
+- **Go**: an interface (`Choice`, nil for the empty union) implemented by a struct per case holding `Value`
+  (`ChoiceInt32{Value: 42}`), each with `NinoUnionCase()` (the case's .NET name) and the union's `NinoTypeID`, which
+  an `object` slot writes it behind. An empty union held as `object` reads as nil, which is written back as a null
+  object.
+- **Rust**: an enum with `Empty` (the default) and a variant per case holding its value (`Choice::Int32(42)`); a case
+  named `Empty` is `EmptyCase`.
+
+A case holding null in another language (a `None`, a nil pointer) is written as the empty union, as .NET writes it.
+`nino-gen inspect` reads the case id, names the case, and rejects an id that is not a case and a null value. The
+corpus's `Choice` and `UnionTree` (`unions-*`, `union-root`, `type-id-union-*`) and `Shapes.Pick` test them.
+
 ### Serialization callbacks
 
 `[NinoOnSerializing]`, `[NinoOnSerialized]`, `[NinoOnDeserializing]` and `[NinoOnDeserialized]` are C# methods the
