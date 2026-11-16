@@ -30,7 +30,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "README.md"
-TARGET = ROOT / "src" / "nuget-readme.md"
+TARGET = ROOT / "runtimes" / "csharp" / "src" / "nuget-readme.md"
 
 GITHUB = "https://github.com/JasonXuDeveloper/Nino"
 CHART = "https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png"
