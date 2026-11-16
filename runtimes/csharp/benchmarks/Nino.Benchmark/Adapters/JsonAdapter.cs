@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Nino.Benchmark.Adapters;
 
-[BenchLibrary("Json", Order = 5, Slot = 5, Builds = "v4")]
+[BenchLibrary("Json", Order = 8, Slot = 5, Builds = "v4")]
 [BenchArg("info", "{JsonContext}.Default.{Json}")]
 internal static class JsonAdapter
 {

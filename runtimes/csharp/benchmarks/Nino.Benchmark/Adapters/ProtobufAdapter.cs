@@ -6,7 +6,7 @@ using ProtoBuf;
 
 namespace Nino.Benchmark.Adapters;
 
-[BenchLibrary("Protobuf", Order = 3, Slot = 3, Builds = "v4")]
+[BenchLibrary("Protobuf", Order = 6, Slot = 3, Builds = "v4")]
 internal static class ProtobufAdapter
 {
     public static void Setup(out MemoryStream stream, int capacity)
@@ -21,6 +21,14 @@ internal static class ProtobufAdapter
         stream.SetLength(0);
         Serializer.Serialize(stream, value);
         return (int)stream.Length;
+    }
+
+    // [BenchClass(Serialize = "array")]: to a new byte[], through the reused stream.
+    public static byte[] SerializeToArray<T>(MemoryStream stream, T value)
+    {
+        stream.SetLength(0);
+        Serializer.Serialize(stream, value);
+        return stream.ToArray();
     }
 
     public static T Deserialize<T>(byte[] bytes) => Serializer.Deserialize<T>(new ReadOnlySpan<byte>(bytes));

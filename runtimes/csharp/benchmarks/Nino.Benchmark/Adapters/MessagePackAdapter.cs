@@ -4,7 +4,7 @@ using MessagePack;
 
 namespace Nino.Benchmark.Adapters;
 
-[BenchLibrary("MessagePack", Order = 2, Slot = 0, Builds = "v4")]
+[BenchLibrary("MessagePack", Order = 5, Slot = 0, Builds = "v4", Unless = "MessagePackOptions")]
 internal static class MessagePackAdapter
 {
     public static void Setup(out ArrayBufferWriter<byte> buffer, int capacity)
@@ -13,6 +13,9 @@ internal static class MessagePackAdapter
     }
 
     public static byte[] ToBytes<T>(T value) => MessagePackSerializer.Serialize(value);
+
+    // [BenchClass(Serialize = "array")]: to a new byte[], the API's own size.
+    public static byte[] SerializeToArray<T>(T value) => MessagePackSerializer.Serialize(value);
 
     public static int Serialize<T>(ArrayBufferWriter<byte> buffer, T value)
     {

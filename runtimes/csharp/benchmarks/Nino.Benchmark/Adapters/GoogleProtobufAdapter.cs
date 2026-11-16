@@ -1,7 +1,7 @@
 // A BenchGen template (runtimes/csharp/tools/BenchGen), not compiled: Google.Protobuf, through the messages protoc
 // generates from the class's .proto (Fixtures/cases.proto, Workloads/workloads.proto). A case names its message
 // ([BenchCase(Proto = ...)], a type of the namespace the class's alias P names); the message is parsed from
-// protobuf-net's bytes outside the timed region (Prepare), and Verify.cs reads it back through protobuf-net (the
+// protobuf-net's bytes of the value it writes outside the timed region (Prepare, PrepareFrom), and Verify.cs reads it back through protobuf-net (the
 // class's IReadBack).
 using System;
 using System.Buffers;
@@ -9,7 +9,7 @@ using Google.Protobuf;
 
 namespace Nino.Benchmark.Adapters;
 
-[BenchLibrary("GoogleProtobuf", Order = 4, Slot = 4, Builds = "v4", Prepared = "Proto")]
+[BenchLibrary("GoogleProtobuf", Order = 7, Slot = 4, Builds = "v4", Prepared = "Proto", PrepareFrom = "Protobuf")]
 [BenchArg("Message", "P.{Proto}")]
 internal static class GoogleProtobufAdapter
 {

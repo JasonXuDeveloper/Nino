@@ -42,6 +42,45 @@ public sealed class BenchCaseAttribute(string name) : Attribute
 
     /// <summary>The v3 build's generated serializers (NinoGen; V3Versioned.NinoGen for a version-tolerant model).</summary>
     public string? NinoGen { get; set; }
+
+    /// <summary>
+    /// The field MemoryPack writes in place of <see cref="Value"/> (its <c>SafeNullable&lt;T&gt;</c> copy); every
+    /// library has such a property, <c>&lt;Library&gt;Value</c>, and these are the ones the classes use.
+    /// </summary>
+    public string? MemoryPackValue { get; set; }
+
+    /// <summary>The field protobuf-net writes in place of <see cref="Value"/> (a contract wrapping it).</summary>
+    public string? ProtobufValue { get; set; }
+
+    /// <summary>The field Nino's <c>NinoNullable&lt;T&gt;</c> form writes (<see cref="NullableForms"/>).</summary>
+    public string? NinoNullableValue { get; set; }
+
+    /// <summary>The field MemoryPack's unsafe form writes, when it is not <see cref="Value"/> (a model of its own).</summary>
+    public string? MemoryPackUnsafeValue { get; set; }
+
+    /// <summary>
+    /// Also time the other forms of a nullable value (Fixtures/NullableBenchmarkData.cs, NullableForms): the adapters
+    /// whose When is NullableForms (NinoNullable, MemoryPackConverted, MemoryPackUnsafe).
+    /// </summary>
+    public bool NullableForms { get; set; }
+
+    /// <summary>Only these libraries (names of Adapters/, space separated); none: every library that can.</summary>
+    public string? Libraries { get; set; }
+
+    /// <summary>Not these libraries (names of Adapters/, space separated): the case has no such collection there.</summary>
+    public string? Without { get; set; }
+
+    /// <summary>MessagePack's options for the value (a static field), when its standard ones cannot write it.</summary>
+    public string? MessagePackOptions { get; set; }
+
+    /// <summary>Only in these builds (v4, v3, space separated); none: both.</summary>
+    public string? Builds { get; set; }
+
+    /// <summary>The return type of the deserialize methods, when it is not the value's (object).</summary>
+    public string? Returns { get; set; }
+
+    /// <summary>The value is null: the baseline's deserialize method gets [ReadsNull] (Harness/Verify.cs).</summary>
+    public bool ReadsNull { get; set; }
 }
 
 /// <summary>What every <see cref="BenchCaseAttribute"/> of the class reads unless it says otherwise.</summary>
@@ -68,4 +107,13 @@ public sealed class BenchClassAttribute : Attribute
 
     /// <summary>System.Text.Json's source-generated context (CaseJson).</summary>
     public string? JsonContext { get; set; }
+
+    /// <summary>
+    /// What the serialize methods write to: buffer (each library's reused buffer, Setup's) or array (a new byte[] the
+    /// API allocates at its own size, each library's SerializeToArray; a library without one has no serialize case).
+    /// </summary>
+    public string? Serialize { get; set; }
+
+    /// <summary>The return type of every deserialize method (<see cref="BenchCaseAttribute.Returns"/>).</summary>
+    public string? Returns { get; set; }
 }
