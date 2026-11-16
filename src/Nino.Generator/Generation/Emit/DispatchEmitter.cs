@@ -13,8 +13,8 @@ namespace Nino.Generator.Generation.Emit;
 /// each writing the subtype's id and body, or calling a method of the base formatter that reads that subtype. Anything
 /// else (subtypes in other assemblies, generic subtypes, tracked types) falls back to <c>NinoSubtypes&lt;T&gt;</c>.
 /// A generic base dispatches each of its closed instances that subtypes here derive from in the same way.
-/// Only calls are emitted, never subtype bodies, so the size is two lines and a one-line method per (base, subtype)
-/// pair.
+/// Only calls are emitted, never subtype bodies (a raw body's type id and block reserved here, then its formatter's
+/// WriteRawBody called), so the size is two lines and a one-line method per (base, subtype) pair.
 /// </summary>
 internal static class DispatchEmitter
 {
@@ -61,8 +61,11 @@ internal static class DispatchEmitter
                 continue;
             if (e.TypeParameterList.Length == 0)
             {
-                w.Open($"partial struct {e.Self}");
-                EmitBase(w, e.TypeName, Subtypes(subtypesOf, e.TypeName, e.TypeId), services, closedForm: false);
+                var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
+                w.Open(own is { Count: > 0 and <= MaxWriteChain }
+                    ? $"partial struct {e.Self} : {CoreCompilerServices}INinoElementsFormatter<{e.TypeName}>"
+                    : $"partial struct {e.Self}");
+                EmitBase(w, e.TypeName, own, services, closedForm: false);
                 w.Close();
                 w.Line();
                 continue;
@@ -229,9 +232,11 @@ internal static class DispatchEmitter
             w.Close();
             w.Line();
             foreach (var s in subtypes)
-                w.Line($$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.{{(s.RawBody ? "WriteExactRawShallow" : "WriteExactShallow")}}<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
+                w.Line(WriteShallow(s, services, "return;"));
             w.Line(WriteOther(t, services) + ";");
             w.Close();
+            if (!closedForm)
+                EmitWriteElements(w, t, subtypes, services);
 
             w.Line();
             w.Line($"{GeneratedCode.NoInline} static {Core}Writer __WriteSubtypeDeep({t} value, {Core}Writer writer)");
@@ -254,20 +259,74 @@ internal static class DispatchEmitter
         }
 
         w.Line();
+        w.Line(GeneratedCode.Inline);
         w.Open(ReadSubtype(t));
         EmitReadSwitch(w, subtypes);
         w.Line(ReadOther(t, services) + ";");
         w.Close();
 
-        // Each subtype's instance check and body, out of line in a method of this non-generic struct, where
-        // NinoObject.ReadExact is not shared code (see there). Inlined into the switch, every subtype's body would be
-        // copied into it.
+        // Each subtype's instance check and body in a method of this non-generic struct, where NinoObject.ReadExact is
+        // not shared code (see there), and the switch inlined into the element loop, as LuminPack reads its unions: out
+        // of line, each element took a call and two jumps (LuminPack's List<IFoo> of 1,000 read in 21.0 us against 18.1
+        // inlined, LuminPack 17.5; Dictionary<int, IFoo> 362 against 314 ns; local x64, #305). Only flat bodies (no
+        // class body inside, DispatchEntry.Flat) are inlined into the switch: subtypes holding a class each, inlined
+        // too, read 3-14 % slower on every runner CPU (GenericSealedClassTupleBase, GenericOpenClassTupleBase, run
+        // 43764424839), the rest 11-20 % faster.
         w.Line();
         for (int i = 0; i < subtypes.Count; i++)
         {
             var s = subtypes[i];
-            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
+            w.Line($"{(s.Flat ? GeneratedCode.Inline : GeneratedCode.NoInline)} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
         }
+    }
+
+    /// <summary>
+    /// The write of <paramref name="s"/> when the value is exactly that subtype and its body is not too deep, ending in
+    /// <paramref name="exit"/>. A raw body's type id and block go into one reservation, written here rather than
+    /// through NinoObject.WriteExactRawShallow: one inlining level fewer per subtype, so a dispatch of many keeps more of
+    /// them within the JIT's budget, and one it leaves out is a call to the subtype's own formatter, not to shared
+    /// generic code that looks the formatter up (#305).
+    /// </summary>
+    private static string WriteShallow(DispatchEntry s, string services, string exit) => s.RawBody
+        ? $$"""if (value.GetType() == typeof({{s.TypeName}})) { ref byte __block = ref writer.Reserve(sizeof(int) + default({{s.FormatterName}}).BodySize); {{services}}NinoUnsafe.Write(ref __block, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref __block, sizeof(int)); {{exit}} }"""
+        : $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); {{exit}} }""";
+
+    /// <summary>
+    /// <c>WriteElements</c> (<c>INinoElementsFormatter</c>): the elements of an array or a list of the base in one
+    /// loop with the chain of type checks inline and the writer in a local, which the JIT keeps in registers. Written
+    /// one at a time through <c>Serialize</c>, each element took a call into the dispatch (too large to inline into the
+    /// collection loop) with the writer in memory: LuminPack's List&lt;IFoo&gt; of 1,000 values of 20 subtypes took
+    /// 5.0 us that way and 3.85 in this form (LuminPack 4.4; local x64, #305). The depth is checked once: no element
+    /// changes it.
+    /// </summary>
+    private static void EmitWriteElements(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
+    {
+        w.Line();
+        w.Open($"public void WriteElements(global::System.ReadOnlySpan<{t}> values, ref {Core}Writer target)");
+        w.Line($"if ({services}NinoObject.IsDeep(ref target))");
+        w.Open();
+        w.Line("foreach (var value in values)");
+        w.Open();
+        w.Line("if (value == null)");
+        w.Line("    target.UnsafeWrite(0);");
+        w.Line("else");
+        w.Line("    __WriteSubtype(value, ref target);");
+        w.Close();
+        w.Line("return;");
+        w.Close();
+        w.Line();
+        w.Line($"{Core}Writer writer = default;");
+        w.Line("target.CopyTo(ref writer);");
+        w.Line("foreach (var value in values)");
+        w.Open();
+        w.Line("if (value == null) { writer.UnsafeWrite(0); continue; }");
+        foreach (var s in subtypes)
+            w.Line(WriteShallow(s, services, "continue;"));
+        w.Line(WriteOther(t, services) + ";");
+        w.Close();
+        w.Line();
+        w.Line("writer.CopyTo(ref target);");
+        w.Close();
     }
 
     private static string WriteSubtype(string t) => $"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)";

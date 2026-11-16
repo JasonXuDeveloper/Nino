@@ -264,6 +264,54 @@ public class StringEncodingTests
         }
     }
 #if !NINO_CORE_NETSTANDARD
+    /// <summary>
+    /// Every short and medium string written from chars that end at a guard page (and one byte before it: an odd
+    /// address), into the space <c>MaxSize</c> reserves at every phase of the destination: the bytes are the
+    /// encoding's, no char past the string is read (the AVX-512 masked load) and no byte past the reservation is
+    /// written (its 16-byte store).
+    /// </summary>
+    [TestMethod]
+    [DoNotParallelize]
+    public void WritesReadOnlyTheStringAndWriteOnlyTheReservation()
+    {
+        for (int length = 0; length <= 80; length++)
+        {
+            var ascii = new string(Enumerable.Range(0, length).Select(i => (char)('a' + i % 26)).ToArray());
+            var variants = new List<string> { ascii };
+            if (length > 0)
+                variants.Add(ascii.Substring(0, length - 1) + 'ÿ');
+            for (int at = 0; at < length; at++)
+                variants.Add(ascii.Substring(0, at) + 'Ā' + ascii.Substring(at + 1));
+            foreach (var s in variants)
+            {
+                var expected = NinoSerializer.Serialize(s);
+                Assert.AreEqual(s, NinoDeserializer.Deserialize<string>(expected));
+                int reserved = Nino.Core.Internal.NinoStrings.MaxSize(s);
+                foreach (int odd in new[] { 0, 1 })
+                {
+                    // Two bytes more, skipped: the empty string's chars are the guard page itself.
+                    var source = new byte[2 + s.Length * 2 + odd];
+                    System.Runtime.InteropServices.MemoryMarshal.AsBytes(s.AsSpan()).CopyTo(source.AsSpan(2));
+                    var guarded = GuardedMemory.AtEnd(source);
+                    if (guarded.IsEmpty)
+                        Assert.Inconclusive("Guard pages are unavailable on this platform.");
+                    ref char chars = ref System.Runtime.CompilerServices.Unsafe.As<byte, char>(
+                        ref System.Runtime.CompilerServices.Unsafe.Add(
+                            ref System.Runtime.InteropServices.MemoryMarshal.GetReference(guarded), 2));
+                    for (int phase = 0; phase < 8; phase++)
+                    {
+                        var output = new byte[phase + reserved + 32];
+                        output.AsSpan().Fill(0xCC);
+                        int written = Nino.Core.Internal.NinoStrings.WriteChars(ref output[phase], ref chars, s.Length);
+                        CollectionAssert.AreEqual(expected, output.Skip(phase).Take(written).ToArray(), s);
+                        Assert.IsTrue(output.Take(phase).All(b => b == 0xCC), "before the reservation");
+                        Assert.IsTrue(output.Skip(phase + reserved).All(b => b == 0xCC), "after the reservation");
+                    }
+                }
+            }
+        }
+    }
+
     private delegate bool Latin1Compare(ref byte source, ref ushort chars, nuint count);
 
     [TestMethod]
