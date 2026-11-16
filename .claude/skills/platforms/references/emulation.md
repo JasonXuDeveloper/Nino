@@ -56,7 +56,9 @@ crashing. Read it before running anything under qemu or taking a listing for Arm
   emulates wrong. With or without Nino's code, runs crashed (`ToImmutableDictionary`), or a static field written by
   `Volatile.Write` read as never written elsewhere; `DOTNET_TieredCompilation=0` moves the failures, it does not
   avoid them. Nino.Benchmark under qemu-aarch64 also needs the arm64 `libssl.so.3` and `libcrypto.so.3` in
-  `/usr/aarch64-linux-gnu/lib`, else it aborts with "No usable version of libssl" (round 101). A self-contained Arm64
+  `/usr/aarch64-linux-gnu/lib`, else it aborts with "No usable version of libssl" (round 101); so does the unit suite
+  run by reflection once it reaches a class that compiles C# in memory (`RawNullableWireTests`, the whole process
+  aborts): without the arm64 libssl, name the classes to run. A self-contained Arm64
   publish run with `qemu-aarch64-static -cpu neoverse-n1 -L /usr/aarch64-linux-gnu` aborts at startup without an
   arm64 libicu ("Couldn't find a valid ICU package"): set `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`
   (tests/Nino.RuntimeTests ran ALL OK so, Vector<T> round). For Tier1 listings with tiering on under qemu, the jitwarm hook's 8 rounds of 200 ms reach no Tier1 at all (every listing Tier0):
