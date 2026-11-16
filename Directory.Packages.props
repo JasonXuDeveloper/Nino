@@ -62,5 +62,7 @@
         <!-- Google.Protobuf and the protoc of Grpc.Tools, which compiles WorkloadTest's workloads.proto at build time. -->
         <PackageVersion Include="Google.Protobuf" Version="3.36.2"/>
         <PackageVersion Include="Grpc.Tools" Version="2.85.0"/>
+        <!-- LuminPack (MIT, github.com/TheLight-233/LuminPack); it brings its source generator, LuminPackGenerator. -->
+        <PackageVersion Include="LuminPack" Version="1.1.9"/>
     </ItemGroup>
 </Project>

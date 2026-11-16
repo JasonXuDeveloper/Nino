@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text.Json;
 using BenchmarkDotNet.Configs;
 using Google.Protobuf;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -21,8 +23,8 @@ namespace Nino.Benchmark;
 /// (a <c>oneof</c> per level, cases.proto) and System.Text.Json's <c>[JsonDerivedType]</c> (a <c>"$type"</c> property):
 /// one class holding 1,000 elements of 20 subtypes (one to nine levels below their base), an array of 1,000 such
 /// elements, and an array of 100 classes holding 50 each. Each <c>Serialized*</c> array holds the bytes of MessagePack,
-/// MemoryPack, Nino, protobuf-net, Google.Protobuf and System.Text.Json, in that order; Google.Protobuf's messages are
-/// parsed from protobuf-net's bytes outside the timed region.
+/// MemoryPack, Nino, protobuf-net, Google.Protobuf, System.Text.Json and LuminPack (its <c>[LuminPackUnion]</c>s), in
+/// that order; Google.Protobuf's messages are parsed from protobuf-net's bytes outside the timed region.
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -45,6 +47,7 @@ public class PolymorphicTest : IReadBack
     private ArrayBufferWriter<byte> _googleProtobufBuffer;
     private ArrayBufferWriter<byte> _jsonBuffer;
     private Utf8JsonWriter _jsonWriter;
+    private LuminBufferWriter _luminPackBuffer;
 
     private static readonly byte[][] SerializedPolymorphicClass;
     private static readonly P.PolymorphicClassBase PolymorphicClassProto;
@@ -77,7 +80,7 @@ public class PolymorphicTest : IReadBack
             return instance;
         }).ToArray();
 
-        SerializedPolymorphicClass = new byte[6][];
+        SerializedPolymorphicClass = new byte[7][];
         PolymorphicClassProto = P.PolymorphicClassBase.Parser.ParseFrom(ProtobufModel.Serialize(PolymorphicInstance));
         SerializedPolymorphicClass[0] = MessagePackSerializer.Serialize(PolymorphicInstance);
         SerializedPolymorphicClass[1] = MemoryPackSerializer.Serialize(PolymorphicInstance);
@@ -85,8 +88,9 @@ public class PolymorphicTest : IReadBack
         SerializedPolymorphicClass[3] = ProtobufModel.Serialize(PolymorphicInstance);
         SerializedPolymorphicClass[4] = PolymorphicClassProto.ToByteArray();
         SerializedPolymorphicClass[5] = JsonSerializer.SerializeToUtf8Bytes(PolymorphicInstance, CaseJson.Default.PolymorphicClassBase);
+        SerializedPolymorphicClass[6] = LuminPackBuffers.Bytes(w => LuminPackSerializer.Serialize(PolymorphicInstance, w));
 
-        SerializedPolymorphicFooArray = new byte[6][];
+        SerializedPolymorphicFooArray = new byte[7][];
         PolymorphicFooArrayProto = P.PolymorphicFooList.Parser.ParseFrom(ProtobufModel.Serialize(PolymorphicFooArray));
         SerializedPolymorphicFooArray[0] = MessagePackSerializer.Serialize(PolymorphicFooArray);
         SerializedPolymorphicFooArray[1] = MemoryPackSerializer.Serialize(PolymorphicFooArray);
@@ -94,8 +98,9 @@ public class PolymorphicTest : IReadBack
         SerializedPolymorphicFooArray[3] = ProtobufModel.Serialize(PolymorphicFooArray);
         SerializedPolymorphicFooArray[4] = PolymorphicFooArrayProto.ToByteArray();
         SerializedPolymorphicFooArray[5] = JsonSerializer.SerializeToUtf8Bytes(PolymorphicFooArray, CaseJson.Default.PolymorphicFooBaseArray);
+        SerializedPolymorphicFooArray[6] = LuminPackBuffers.Bytes(w => LuminPackSerializer.Serialize(PolymorphicFooArray, w));
 
-        SerializedPolymorphicClassArray = new byte[6][];
+        SerializedPolymorphicClassArray = new byte[7][];
         PolymorphicClassArrayProto = P.PolymorphicClassList.Parser.ParseFrom(ProtobufModel.Serialize(PolymorphicClassArray));
         SerializedPolymorphicClassArray[0] = MessagePackSerializer.Serialize(PolymorphicClassArray);
         SerializedPolymorphicClassArray[1] = MemoryPackSerializer.Serialize(PolymorphicClassArray);
@@ -103,6 +108,7 @@ public class PolymorphicTest : IReadBack
         SerializedPolymorphicClassArray[3] = ProtobufModel.Serialize(PolymorphicClassArray);
         SerializedPolymorphicClassArray[4] = PolymorphicClassArrayProto.ToByteArray();
         SerializedPolymorphicClassArray[5] = JsonSerializer.SerializeToUtf8Bytes(PolymorphicClassArray, CaseJson.Default.PolymorphicClassBaseArray);
+        SerializedPolymorphicClassArray[6] = LuminPackBuffers.Bytes(w => LuminPackSerializer.Serialize(PolymorphicClassArray, w));
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClass), SerializedPolymorphicClass[2].Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooArray), SerializedPolymorphicFooArray[2].Length);
@@ -116,14 +122,17 @@ public class PolymorphicTest : IReadBack
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicClass), SerializedPolymorphicClass[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicClass), SerializedPolymorphicClass[4].Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicClass), SerializedPolymorphicClass[5].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicClass), SerializedPolymorphicClass[6].Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[0].Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicFooArray), SerializedPolymorphicFooArray[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicFooArray), SerializedPolymorphicFooArray[4].Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicFooArray), SerializedPolymorphicFooArray[5].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[6].Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[0].Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicClassArray), SerializedPolymorphicClassArray[3].Length);
         BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicClassArray), SerializedPolymorphicClassArray[4].Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicClassArray), SerializedPolymorphicClassArray[5].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[6].Length);
     }
 
     /// <summary>The <paramref name="i"/>th of the 20 subtypes in turn (FooA is one level below the base, FooI to FooZ nine).</summary>
@@ -163,6 +172,7 @@ public class PolymorphicTest : IReadBack
         _jsonBuffer = new ArrayBufferWriter<byte>(1024 * 1024);
         // What JsonSerializer's own writers use: no validation of the writer's calls.
         _jsonWriter = new Utf8JsonWriter(_jsonBuffer, new JsonWriterOptions { SkipValidation = true });
+        _luminPackBuffer = LuminPackBuffers.Rent();
     }
 
     /// <summary>Verify.cs: a Google.Protobuf message read back through protobuf-net as the case's model.</summary>
@@ -182,6 +192,14 @@ public class PolymorphicTest : IReadBack
         _memoryPackBuffer.ResetWrittenCount();
         MemoryPackSerializer.Serialize(_memoryPackBuffer, PolymorphicInstance);
         return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicClassSerialize")]
+    public int LuminPackSerializePolymorphicClass()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(PolymorphicInstance, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
     }
 
     [Benchmark, BenchmarkCategory("PolymorphicClassSerialize")]
@@ -234,6 +252,14 @@ public class PolymorphicTest : IReadBack
     }
 
     [Benchmark, BenchmarkCategory("PolymorphicFooArraySerialize")]
+    public int LuminPackSerializePolymorphicFooArray()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(PolymorphicFooArray, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicFooArraySerialize")]
     public int MessagePackSerializePolymorphicFooArray()
     {
         _messagePackBuffer.ResetWrittenCount();
@@ -283,6 +309,14 @@ public class PolymorphicTest : IReadBack
     }
 
     [Benchmark, BenchmarkCategory("PolymorphicClassArraySerialize")]
+    public int LuminPackSerializePolymorphicClassArray()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(PolymorphicClassArray, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicClassArraySerialize")]
     public int MessagePackSerializePolymorphicClassArray()
     {
         _messagePackBuffer.ResetWrittenCount();
@@ -329,6 +363,14 @@ public class PolymorphicTest : IReadBack
     }
 
     [Benchmark, BenchmarkCategory("PolymorphicClassDeserialize")]
+    public PolymorphicClassBase LuminPackDeserializePolymorphicClass()
+    {
+        PolymorphicClassBase value = default;
+        LuminPackSerializer.Deserialize(SerializedPolymorphicClass[6], ref value);
+        return value;
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicClassDeserialize")]
     public PolymorphicClassBase MessagePackDeserializePolymorphicClass()
     {
         return MessagePackSerializer.Deserialize<PolymorphicClassBase>(SerializedPolymorphicClass[0]);
@@ -365,6 +407,14 @@ public class PolymorphicTest : IReadBack
     }
 
     [Benchmark, BenchmarkCategory("PolymorphicFooArrayDeserialize")]
+    public PolymorphicFooBase[] LuminPackDeserializePolymorphicFooArray()
+    {
+        PolymorphicFooBase[] value = default;
+        LuminPackSerializer.Deserialize(SerializedPolymorphicFooArray[6], ref value);
+        return value;
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicFooArrayDeserialize")]
     public PolymorphicFooBase[] MessagePackDeserializePolymorphicFooArray()
     {
         return MessagePackSerializer.Deserialize<PolymorphicFooBase[]>(SerializedPolymorphicFooArray[0]);
@@ -398,6 +448,14 @@ public class PolymorphicTest : IReadBack
     public PolymorphicClassBase[] MemoryPackDeserializePolymorphicClassArray()
     {
         return MemoryPackSerializer.Deserialize<PolymorphicClassBase[]>(SerializedPolymorphicClassArray[1]);
+    }
+
+    [Benchmark, BenchmarkCategory("PolymorphicClassArrayDeserialize")]
+    public PolymorphicClassBase[] LuminPackDeserializePolymorphicClassArray()
+    {
+        PolymorphicClassBase[] value = default;
+        LuminPackSerializer.Deserialize(SerializedPolymorphicClassArray[6], ref value);
+        return value;
     }
 
     [Benchmark, BenchmarkCategory("PolymorphicClassArrayDeserialize")]

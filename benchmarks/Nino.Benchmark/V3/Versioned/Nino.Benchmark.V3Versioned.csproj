@@ -21,6 +21,7 @@
         <PackageReference Include="MemoryPack"/>
         <PackageReference Include="MessagePack"/>
         <PackageReference Include="protobuf-net"/>
+        <PackageReference Include="LuminPack"/>
         <PackageReference Include="MessagePackAnalyzer">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

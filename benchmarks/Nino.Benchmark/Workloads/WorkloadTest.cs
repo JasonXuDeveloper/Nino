@@ -6,6 +6,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using BenchmarkDotNet.Configs;
 using Google.Protobuf;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -19,7 +21,8 @@ namespace Nino.Benchmark.Workloads;
 /// Twelve payloads shaped like real workloads (Common.cs, StandardModels.cs, ServiceModels.cs, GameModels.cs), each
 /// serialized to a reused buffer and deserialized, by Nino, MemoryPack, MessagePack, protobuf-net, Google.Protobuf
 /// (its own messages, workloads.proto, made from protobuf-net's bytes of the same values) and System.Text.Json
-/// (source generated, UTF-8). The versioned workloads write the current model and read bytes the previous release
+/// (source generated, UTF-8), and LuminPack in MediaContent (its 1.1.9 cannot express or round-trip the others:
+/// benchmarks/README.md, LuminPack). The versioned workloads write the current model and read bytes the previous release
 /// wrote; the in-place ones read into the instance a program holds where the library can (Nino, MemoryPack) and into
 /// a new one where it cannot.
 /// </summary>
@@ -62,6 +65,7 @@ public class WorkloadTest : IReadBack
 
     private static readonly byte[] NinoMediaContentPayload = NinoSerializer.Serialize(MediaContentValue);
     private static readonly byte[] MemoryPackMediaContentPayload = MemoryPackSerializer.Serialize(MediaContentValue);
+    private static readonly byte[] LuminPackMediaContentPayload = LuminPackBuffers.Bytes(w => LuminPackSerializer.Serialize(MediaContentValue, w));
     private static readonly byte[] MessagePackMediaContentPayload = MessagePackSerializer.Serialize(MediaContentValue);
     private static readonly byte[] ProtobufMediaContentPayload = ProtobufModel.Serialize(MediaContentValue);
     private static readonly byte[] GoogleProtobufMediaContentPayload = MediaContentProto.ToByteArray();
@@ -149,6 +153,7 @@ public class WorkloadTest : IReadBack
     {
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeMediaContent), NinoMediaContentPayload.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeMediaContent), MemoryPackMediaContentPayload.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeMediaContent), LuminPackMediaContentPayload.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeMediaContent), MessagePackMediaContentPayload.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeMediaContent), ProtobufMediaContentPayload.Length);
         BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializeMediaContent), GoogleProtobufMediaContentPayload.Length);
@@ -228,6 +233,7 @@ public class WorkloadTest : IReadBack
     private ArrayBufferWriter<byte> _googleProtobufBuffer;
     private ArrayBufferWriter<byte> _jsonBuffer;
     private Utf8JsonWriter _jsonWriter;
+    private LuminBufferWriter _luminPackBuffer;
     private StateSnapshot _ninoStateSnapshot, _memoryPackStateSnapshot;
     private IdleSaveV2 _ninoIdleSave, _memoryPackIdleSave;
 
@@ -243,6 +249,7 @@ public class WorkloadTest : IReadBack
         _jsonBuffer = new ArrayBufferWriter<byte>(1 << 20);
         // What JsonSerializer's own writers use: no validation of the writer's calls.
         _jsonWriter = new Utf8JsonWriter(_jsonBuffer, new JsonWriterOptions { SkipValidation = true });
+        _luminPackBuffer = LuminPackBuffers.Rent();
         _ninoStateSnapshot = NinoDeserializer.Deserialize<StateSnapshot>(NinoStateSnapshotPayload);
         _memoryPackStateSnapshot = MemoryPackSerializer.Deserialize<StateSnapshot>(MemoryPackStateSnapshotPayload);
         _ninoIdleSave = NinoDeserializer.Deserialize<IdleSaveV2>(NinoIdleSaveOldBytes);
@@ -266,6 +273,14 @@ public class WorkloadTest : IReadBack
         _memoryPackBuffer.ResetWrittenCount();
         MemoryPackSerializer.Serialize(_memoryPackBuffer, MediaContentValue);
         return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("MediaContentSerialize")]
+    public int LuminPackSerializeMediaContent()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(MediaContentValue, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
     }
 
     [Benchmark, BenchmarkCategory("MediaContentSerialize")]
@@ -306,6 +321,14 @@ public class WorkloadTest : IReadBack
 
     [Benchmark, BenchmarkCategory("MediaContentDeserialize")]
     public MediaContent MemoryPackDeserializeMediaContent() => MemoryPackSerializer.Deserialize<MediaContent>(MemoryPackMediaContentPayload);
+
+    [Benchmark, BenchmarkCategory("MediaContentDeserialize")]
+    public MediaContent LuminPackDeserializeMediaContent()
+    {
+        MediaContent value = null;
+        LuminPackSerializer.Deserialize(LuminPackMediaContentPayload, ref value);
+        return value;
+    }
 
     [Benchmark, BenchmarkCategory("MediaContentDeserialize")]
     public MediaContent MessagePackDeserializeMediaContent() => MessagePackSerializer.Deserialize<MediaContent>(MessagePackMediaContentPayload);

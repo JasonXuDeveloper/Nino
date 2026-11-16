@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -17,15 +18,15 @@ namespace Nino.Benchmark;
 [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeSealedItem { [ProtoMember(1)] public int X; [ProtoMember(2)] public long Y; }
 [NinoType, MemoryPackable, ProtoContract] public partial class ProbeOpenItem { [ProtoMember(1)] public int X; [ProtoMember(2)] public long Y; }
 
-[NinoType, MemoryPackable]
-[MemoryPackUnion(0, typeof(ProbeA))]
-[MemoryPackUnion(1, typeof(ProbeB))]
-[MemoryPackUnion(2, typeof(ProbeC))]
-[MemoryPackUnion(3, typeof(ProbeD))]
-[MemoryPackUnion(4, typeof(ProbeE))]
-[MemoryPackUnion(5, typeof(ProbeF))]
-[MemoryPackUnion(6, typeof(ProbeG))]
-[MemoryPackUnion(7, typeof(ProbeH))]
+[NinoType, MemoryPackable, LuminPackable]
+[MemoryPackUnion(0, typeof(ProbeA)), LuminPackUnion(0, typeof(ProbeA))]
+[MemoryPackUnion(1, typeof(ProbeB)), LuminPackUnion(1, typeof(ProbeB))]
+[MemoryPackUnion(2, typeof(ProbeC)), LuminPackUnion(2, typeof(ProbeC))]
+[MemoryPackUnion(3, typeof(ProbeD)), LuminPackUnion(3, typeof(ProbeD))]
+[MemoryPackUnion(4, typeof(ProbeE)), LuminPackUnion(4, typeof(ProbeE))]
+[MemoryPackUnion(5, typeof(ProbeF)), LuminPackUnion(5, typeof(ProbeF))]
+[MemoryPackUnion(6, typeof(ProbeG)), LuminPackUnion(6, typeof(ProbeG))]
+[MemoryPackUnion(7, typeof(ProbeH)), LuminPackUnion(7, typeof(ProbeH))]
 [MessagePackObject]
 [Union(0, typeof(ProbeA))]
 [Union(1, typeof(ProbeB))]
@@ -45,27 +46,29 @@ namespace Nino.Benchmark;
 [ProtoInclude(16, typeof(ProbeG))]
 [ProtoInclude(17, typeof(ProbeH))]
 public abstract partial class ProbeBase { [Key(0)] [ProtoMember(1)] public int V; }
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeA : ProbeBase { }
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeB : ProbeBase { }
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeC : ProbeBase { }
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeD : ProbeBase { }
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeE : ProbeBase { }
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeF : ProbeBase { }
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeG : ProbeBase { }
-[NinoType, MemoryPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeH : ProbeBase { }
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeA : ProbeBase { }
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeB : ProbeBase { }
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeC : ProbeBase { }
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeD : ProbeBase { }
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeE : ProbeBase { }
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeF : ProbeBase { }
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeG : ProbeBase { }
+[NinoType, MemoryPackable, LuminPackable, MessagePackObject, ProtoContract] public sealed partial class ProbeH : ProbeBase { }
 
 // protobuf-net: the subtypes of each closed ProbeBox<T> are added to its model at startup (RegisterUnions).
-[NinoType, ProtoContract] public abstract class ProbeBox<T> { [ProtoMember(1)] public T V; }
+// LuminPack collects the subtypes of each closed base itself; its generator writes the same WriteValue twice for the
+// tuple bases (CS0111), so only ProbeBox<int>'s subtypes are [LuminPackable].
+[NinoType, LuminPackable, ProtoContract] public abstract partial class ProbeBox<T> { [ProtoMember(1)] public T V; }
 // PBN0013 (ProbeBox<T> does not declare them): protobuf-net's reflection model takes them from RegisterUnions.
 #pragma warning disable PBN0013
-[NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeBoxA : ProbeBox<int> { }
-[NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeBoxB : ProbeBox<int> { }
-[NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeBoxC : ProbeBox<int> { }
-[NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeBoxD : ProbeBox<int> { }
-[NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeBoxE : ProbeBox<int> { }
-[NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeBoxF : ProbeBox<int> { }
-[NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeBoxG : ProbeBox<int> { }
-[NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeBoxH : ProbeBox<int> { }
+[NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxA : ProbeBox<int> { }
+[NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxB : ProbeBox<int> { }
+[NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxC : ProbeBox<int> { }
+[NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxD : ProbeBox<int> { }
+[NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxE : ProbeBox<int> { }
+[NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxF : ProbeBox<int> { }
+[NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxG : ProbeBox<int> { }
+[NinoType, MemoryPackable, LuminPackable, ProtoContract] public sealed partial class ProbeBoxH : ProbeBox<int> { }
 [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupA : ProbeBox<(int, long)> { }
 [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupB : ProbeBox<(int, long)> { }
 [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeTupC : ProbeBox<(int, long)> { }
