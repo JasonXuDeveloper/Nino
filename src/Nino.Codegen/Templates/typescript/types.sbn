@@ -238,6 +238,101 @@ func typeid_codec(assignable, closed, backref)
   ret $o + "};\n"
 end
 
+# The TypeScript type of a union case's value, without the `| null` (null is the empty union).
+func case_ts(k)
+  $t = ts(k.shape)
+  if string.ends_with $t " | null"
+    ret string.slice $t 0 ($t.size - 7)
+  end
+  ret $t
+end
+
+# Writing a union case's value, never null: a nullable's presence byte is 1.
+func case_write(k, v)
+  if k.shape.kind == "nullable"
+    ret "w.u8(1);\n      " + stmt(write(k.shape.inner, v))
+  end
+  ret stmt(write(k.shape, v))
+end
+
+# A C# union (spec §7.12): the type id of its case (0, null, for the empty union), then the case's value, never null.
+# A plain TypeScript union of the cases' types when their values tell them apart, else a union tagged with each case's
+# name and constructors for it (TypeScriptTarget.UnionForm). Both read and write through one switch on the id and one
+# chain of tests or a switch on the tag.
+func union_type(c)
+  $n = c.name
+  $o = "/** `" + c.model.full_name + "`, a C# union: "
+  if c.tagged
+    $o = $o + "its case, by name, and the case's value; null is the empty union. */\nexport type " + $n + " =\n"
+    for $k in c.cases
+      $o = $o + "  | { readonly case: \"" + $k.model.name + "\"; readonly value: " + case_ts($k) + " }" + (for.last ? ";" : "") + "\n"
+    end
+    $o = $o + "\n/** Makes a `" + $n + "` holding one of its cases. */\nexport const " + $n + " = {\n"
+    for $k in c.cases
+      $o = $o + "  " + $k.model.name + ": (value: " + case_ts($k) + "): " + $n + " => ({ case: \"" + $k.model.name + "\", value }),\n"
+    end
+    $o = $o + "} as const;\n\n"
+  else
+    $types = []
+    for $k in c.cases
+      $types = array.add $types (case_ts($k))
+    end
+    $o = $o + "the value of one of its cases; null is the empty union. */\nexport type " + $n + " = " + (array.join $types " | ") + ";\n\n"
+  end
+  if c.union_object
+    $o = $o + "/** A `" + $n + "` held as `object`: an `object` slot tells types apart by their classes. */\nexport class " + $n + "Object {\n  value: " + $n + " | null;\n\n  constructor(value: " + $n + " | null = null) {\n    this.value = value;\n  }\n}\n\n"
+  end
+
+  # Reading: a case read as null is invalid, as .NET writes the empty union for a case given null.
+  $o = $o + "function read" + $n + "(r: NinoReader): " + $n + " | null {\n  const id = r.i32();\n  if (id === 0) return null;\n"
+  $nests = c.model.union_nests
+  if $nests
+    $o = $o + "  r.enterStruct();\n  let v: " + $n + ";\n"
+  end
+  $o = $o + "  switch (id) {\n"
+  for $k in c.cases
+    $value = read($k.shape)
+    $o = $o + "    case " + $k.model.type_id + ": {\n"
+    if $k.model.nullable
+      $o = $o + "      const value = " + $value + ";\n      if (value === null) throw r.invalidCase(id);\n"
+      $value = "value"
+    end
+    $made = c.tagged ? "{ case: \"" + $k.model.name + "\", " + ($value == "value" ? "value" : "value: " + $value) + " }" : $value
+    if $nests
+      $o = $o + "      v = " + $made + ";\n      break;\n    }\n"
+    else
+      $o = $o + "      return " + $made + ";\n    }\n"
+    end
+  end
+  $o = $o + "    default:\n      throw r.invalidCase(id);\n  }\n"
+  if $nests
+    $o = $o + "  r.exitStruct();\n  return v;\n"
+  end
+  $o = $o + "}\n\n"
+
+  # Writing: null is the empty union; a value is written as its case.
+  $o = $o + "function write" + $n + "(w: NinoWriter, v: " + $n + " | null): void {\n  if (v === null || v === undefined) {\n    w.i32(0);\n    return;\n  }\n"
+  if $nests
+    $o = $o + "  w.enterStruct();\n"
+  end
+  if c.tagged
+    $o = $o + "  switch (v.case) {\n"
+    for $k in c.cases
+      $o = $o + "    case \"" + $k.model.name + "\":\n      w.i32(" + $k.model.type_id + ");\n      " + case_write($k, "v.value") + "\n      break;\n"
+    end
+    $o = $o + "    default:\n      throw types.unwritable(v);\n  }\n"
+  else
+    for $k in c.cases
+      $o = $o + (for.first ? "  if (" : "  else if (") + $k.test + ") {\n    w.i32(" + $k.model.type_id + ");\n    " + (string.replace (case_write($k, "v")) "\n      " "\n    ") + "\n  }\n"
+    end
+    $o = $o + "  else throw types.unwritable(v as object);\n"
+  end
+  if $nests
+    $o = $o + "  w.exitStruct();\n"
+  end
+  ret $o + "}\n\n"
+end
+
 # A set's element or a map's key read by `code`, through the hash-flooding guard when its shape has one.
 func guarded(shape, code)
   if !shape.guard
@@ -435,6 +530,10 @@ for i in interfaces
 end
 
 for c in classes
+  if c.is_union
+    union_type(c)
+    continue
+  end
   "/** `" + (c.parameters.size == 0 ? c.model.full_name : c.model.runtime_name) + "`. */\nexport " + (c.model.is_abstract ? "abstract " : "") + "class " + c.self
   if c.base_shape
     " extends " + generic_ts(c.base_shape)
@@ -482,7 +581,12 @@ end
 # Every type that can be written behind a type id, once its class is declared; a tracked one with its reference header
 # after the id (`object` does not track).
 for c in registered
-  if c.raw_shape
+  if c.is_union
+    # Held as object: in its class, which the subtypes tell apart.
+    if c.union_object
+      "types.add(" + c.model.type_id + ", " + c.name + "Object, (r) => new " + c.name + "Object(read" + c.name + "(r)), (w, v) => write" + c.name + "(w, v.value));\n"
+    end
+  else if c.raw_shape
     "types.add(" + c.model.type_id + ", " + c.name + ", (r) => " + read(c.raw_shape) + ", (w, v) => " + write(c.raw_shape, "v") + ");\n"
   else if c.tracked
     "types.add(" + c.model.type_id + ", " + c.name + ", (r) => " + read_body(c, true) + ", (w, v) => {\n  " + stmt(write_body(c, "v", true)) + "\n});\n"
@@ -500,7 +604,9 @@ end
 # XCodec: the type with its header, as a member of its type or NinoSerializer writes it.
 for c in codecs
   "export const " + c.name + "Codec: NinoCodec<" + c.name
-  if c.header == "none" && c.raw_shape
+  if c.is_union
+    " | null> = { read: read" + c.name + ", write: write" + c.name + " };\n"
+  else if c.header == "none" && c.raw_shape
     "> = {\n  read: (r) => " + read(c.raw_shape) + ",\n  write: (w, v) => " + write(c.raw_shape, "v") + ",\n};\n"
   else if c.header == "none"
     "> = { read: (r) => read" + c.name + "(r), write: write" + c.name + ", readInto: read" + c.name + " };\n"

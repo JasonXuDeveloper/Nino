@@ -215,6 +215,23 @@ namespace Nino.Codegen.Targets
         public List<TsField> Fields { get; }
     }
 
+    /// <summary>A case of a C# union: its name, its type id and the shape of its value.</summary>
+    public sealed class TsCase
+    {
+        internal TsCase(UnionCaseModel model, TsShape shape)
+        {
+            Model = model;
+            Shape = shape;
+        }
+
+        public UnionCaseModel Model { get; }
+
+        public TsShape Shape { get; }
+
+        /// <summary>The test of a value <c>v</c> of the case in a plain union (<c>typeof v === "number"</c>), else null.</summary>
+        public string? Test { get; internal set; }
+    }
+
     /// <summary>A type as the template writes it: its name, members, and how its body is read and written.</summary>
     public sealed class TsClass
     {
@@ -357,6 +374,24 @@ namespace Nino.Codegen.Targets
         public string AtDeclaration => Runs.Count(r => r.Items.Count > 1) > 1 ? "let at" : "const at";
 
         public bool IsClassBody => Model.IsClassBody;
+
+        /// <summary>
+        /// A C# union: a plain TypeScript union of its cases' types, or a union tagged with each case's name
+        /// (<see cref="Tagged"/>); null is the empty union.
+        /// </summary>
+        public bool IsUnion => Model.IsUnion;
+
+        /// <summary>Whether the union's cases are tagged (<c>{ case, value }</c>): some cannot be told apart by their values.</summary>
+        public bool Tagged => _target.UnionForm(Model).Tagged;
+
+        /// <summary>
+        /// A union's cases: in declaration order when tagged; otherwise in the order their tests run (a subclass before
+        /// its base).
+        /// </summary>
+        public List<TsCase> Cases => _target.UnionForm(Model).Cases;
+
+        /// <summary>Whether the union has a class for an <c>object</c> slot to hold it (<c>XObject</c>).</summary>
+        public bool UnionObject => Model.IsUnion && _target.UnionObjects;
 
         /// <summary><c>positional</c>, <c>tolerant</c> or <c>keyed</c>.</summary>
         public string Format => Model.Format switch

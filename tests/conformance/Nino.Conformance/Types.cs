@@ -926,6 +926,33 @@ namespace Conformance
         public Wrap<List<KeyValuePair<int, string>>> Pairs;
         public Wrap<KeyValuePair<string, int?>[]> PairArray;
     }
+
+    // ------------------------------------------------------------------ C# unions (C# 15, .NET 11)
+
+    /// <summary>
+    /// A C# union: the type id of the case it holds (0 for the empty union), then the case's value as the case type's
+    /// own formatter writes it (wire-format spec §7.12).
+    /// </summary>
+    [NinoType]
+    public union Choice(int, string, Point, Animal, List<int>, long?);
+
+    /// <summary>A union with a case that holds it again: .NET counts its depth.</summary>
+    [NinoType]
+    public union UnionTree(UnionTree[], long);
+
+    [NinoType]
+    public sealed class Unions
+    {
+        public Choice Number;
+        public Choice Text;
+        public Choice Point;
+        public Choice Pet;
+        public Choice Numbers;
+        public Choice Maybe;
+        public Choice Empty;
+        public List<Choice> Many;
+        public UnionTree Tree;
+    }
 }
 
 namespace Conformance

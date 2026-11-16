@@ -149,6 +149,8 @@ namespace Nino.Codegen.Targets
             {
                 if (type.Elements != null)
                     ShapeIn(type, type.Elements);
+                foreach (var item in type.Cases)
+                    ShapeIn(type, item.Value);
                 foreach (var member in type.Members)
                     ShapeIn(type, member.Value);
             }
@@ -191,7 +193,8 @@ namespace Nino.Codegen.Targets
             while (pending.Count != 0)
             {
                 var next = pending.Pop();
-                foreach (var reached in next.Members.SelectMany(m => m.Value.Walk()).SelectMany(StructsIn))
+                foreach (var reached in next.Members.Select(m => m.Value).Concat(next.Cases.Select(c => c.Value))
+                             .SelectMany(v => v.Walk()).SelectMany(StructsIn))
                 {
                     if (reached == type)
                         return true;

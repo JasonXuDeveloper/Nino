@@ -998,7 +998,12 @@ For example, `[NinoType] union Result(int, string);` writes `new Result(42)` as
 
 The published layout uses `format=Positional`, `header=TypeId` and
 `members=[elements]::union(type(int),type(string))`. The `union` encoding lists the case types in sorted name order.
-Go, Rust and TypeScript generation reports NINOGEN002 for layouts that use this encoding.
+It does not give a case's encoding: a reader takes the case types from the union's constructors of one argument and
+writes each value as the formatter Nino.Core finds for that type writes it (as for a type argument). nino-gen writes
+unions in Go, Rust and TypeScript except a generic union, whose case ids depend on its type arguments, and a union with
+a case that is or holds a generic struct without a layout (a tuple, a `KeyValuePair`), which Nino.Core may write as
+raw memory or item by item, so the layout does not say which (NINOGEN002). The corpus cases are `unions-*`, `union-root`
+and `type-id-union-*`.
 
 ## 8. Type layout metadata and its grammar
 

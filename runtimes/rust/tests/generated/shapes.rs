@@ -334,6 +334,48 @@ impl NinoWrite for OffsetLeaf {
     nino::raw_write!();
 }
 
+/// `Shapes.PickPair`: raw, 8 bytes.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PickPair {
+    pub a: i32,
+    pub b: i32,
+}
+
+impl nino::Raw for PickPair {
+    const SIZE: usize = 8;
+    const ALIGN: usize = 4;
+
+    fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+        let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+        Ok(Self {
+            a: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+            b: <i32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+        })
+    }
+
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let Some(o) = out.get_mut(0..) {
+            nino::Raw::encode_raw(&self.a, o);
+        }
+        if let Some(o) = out.get_mut(4..) {
+            nino::Raw::encode_raw(&self.b, o);
+        }
+    }
+}
+
+impl NinoRead for PickPair {
+    nino::raw_read!();
+}
+
+impl NinoWrite for PickPair {
+    nino::raw_write!();
+}
+
+impl PickPair {
+    nino::type_consts!(0x80C26AF4u32 as i32, "Shapes.PickPair", "format=Positional; header=None; trackReferences=false; raw=true; id=0x80C26AF4; deferrable=false; members=raw(8){A:int@0:raw(4),B:int@4:raw(4)}");
+}
+
 /// `Shapes.ThingStruct`: raw, 16 bytes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -642,6 +684,46 @@ impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for BoxType<T> {
 
 impl<T> BoxType<T> {
     nino::type_consts!("Shapes.Generic.Box<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)");
+}
+
+/// `Shapes.Empty`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Empty {}
+
+impl NinoReadBody for Empty {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let _ = r;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for Empty {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        let _ = w;
+        Ok(())
+    }
+}
+
+impl NinoRead for Empty {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for Empty {
+    nino::sealed_write!();
+}
+
+impl Empty {
+    nino::type_consts!(
+        0x13E9FACAu32 as i32,
+        "Shapes.Empty",
+        "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x13E9FACA; deferrable=true; members="
+    );
 }
 
 /// `Shapes.ForestHolder`: Positional, header Presence.
@@ -986,6 +1068,109 @@ impl NinoWrite for Keywords {
 
 impl Keywords {
     nino::type_consts!(0x58F430A5u32 as i32, "Shapes.Keywords", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x58F430A5; deferrable=true; members=Type:int:raw(4);Self:int:raw(4);Match:int:raw(4);Default:string:string;Body:int:raw(4);Key:int:raw(4);Value:int:raw(4);R:int:raw(4);W:int:raw(4);V:int:raw(4)");
+}
+
+/// `Shapes.Measure`, a C# union: the case it holds, or `Empty` (type id 0).
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Measure {
+    /// The empty union.
+    #[default]
+    Empty,
+    /// `System.Int32`.
+    Int32(i32),
+    /// `System.Double`.
+    Double(f64),
+    /// `System.Collections.Generic.List<System.Int32>`.
+    ListInt32(Option<Vec<i32>>),
+    /// `System.Collections.Generic.List<System.String>`.
+    ListString(Option<Vec<Option<String>>>),
+}
+impl Measure {
+    /// The value of the case it holds, where a body deferred inside it is put in place.
+    fn case_value(&mut self) -> Option<&mut dyn core::any::Any> {
+        match self {
+            Self::Empty => None,
+            Self::Int32(v) => Some(v as &mut dyn core::any::Any),
+            Self::Double(v) => Some(v as &mut dyn core::any::Any),
+            Self::ListInt32(v) => Some(v as &mut dyn core::any::Any),
+            Self::ListString(v) => Some(v as &mut dyn core::any::Any),
+        }
+    }
+    fn read_case(r: &mut nino::Reader<'_>, id: i32) -> nino::Result<Self> {
+        Ok(match id {
+            546808484 => Self::Int32(r.read()?),
+            -1251563749 => Self::Double(r.read()?),
+            -217079013 => {
+                let value: Option<Vec<i32>> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::ListInt32(value)
+            }
+            -1803246716 => {
+                let value: Option<Vec<Option<String>>> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::ListString(value)
+            }
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        })
+    }
+}
+impl NinoRead for Measure {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        let mut v = Self::Empty;
+        v.read_into(r)?;
+        Ok(v)
+    }
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let id = r.i32()?;
+        if id == 0 {
+            *self = Self::Empty;
+            return Ok(());
+        }
+        // A case can hold the union again: each level counts toward the depth limit.
+        r.enter_struct()?;
+        let mark = r.defer_mark();
+        let value = Self::read_case(r, id);
+        r.exit_struct();
+        *self = value?;
+        r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Measure>()?.case_value()));
+        Ok(())
+    }
+}
+impl NinoWrite for Measure {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::Int32(v) => {
+                w.i32(546808484);
+                w.write(v)
+            }
+            Self::Double(v) => {
+                w.i32(-1251563749);
+                w.write(v)
+            }
+            Self::ListInt32(v) if v.is_some() => {
+                w.i32(-217079013);
+                w.write(v)
+            }
+            Self::ListString(v) if v.is_some() => {
+                w.i32(-1803246716);
+                w.write(v)
+            }
+            _ => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+impl Measure {
+    nino::type_consts!(0xE5777667u32 as i32, "Shapes.Measure", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0xE5777667; deferrable=false; members=[elements]::union(type(System.Collections.Generic.List<int>),type(System.Collections.Generic.List<string>),type(double),type(int))");
 }
 
 /// `Shapes.Generic.MoreOpen<T>`: Positional, header TypeId.
@@ -1805,6 +1990,157 @@ impl<TKey: NinoRead + NinoWrite + Default + 'static, TValue: NinoRead + NinoWrit
 
 impl<TKey, TValue> Pair<TKey, TValue> {
     nino::type_consts!("Shapes.Generic.Pair<TKey,TValue>", "format=Positional; header=None; trackReferences=false; raw=false; id=0x00000000; deferrable=false; members=Key:TKey:type(TKey);Value:TValue:type(TValue)");
+}
+
+/// `Shapes.Pick`, a C# union: the case it holds, or `Empty` (type id 0).
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Pick {
+    /// The empty union.
+    #[default]
+    Empty,
+    /// `Shapes.Empty`.
+    EmptyCase(Option<Box<Empty>>),
+    /// `Shapes.PickPair`.
+    PickPair(PickPair),
+    /// `System.Byte`.
+    Byte(u8),
+}
+impl Pick {
+    /// The value of the case it holds, where a body deferred inside it is put in place.
+    fn case_value(&mut self) -> Option<&mut dyn core::any::Any> {
+        match self {
+            Self::Empty => None,
+            Self::EmptyCase(v) => Some(v as &mut dyn core::any::Any),
+            Self::PickPair(v) => Some(v as &mut dyn core::any::Any),
+            Self::Byte(v) => Some(v as &mut dyn core::any::Any),
+        }
+    }
+    fn read_case(r: &mut nino::Reader<'_>, id: i32) -> nino::Result<Self> {
+        Ok(match id {
+            334101194 => {
+                let value: Option<Box<Empty>> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::EmptyCase(value)
+            }
+            -2134742284 => Self::PickPair(r.read()?),
+            31168724 => Self::Byte(r.read()?),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        })
+    }
+}
+impl NinoRead for Pick {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        let mut v = Self::Empty;
+        v.read_into(r)?;
+        Ok(v)
+    }
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let id = r.i32()?;
+        if id == 0 {
+            *self = Self::Empty;
+            return Ok(());
+        }
+        // A case can hold the union again: each level counts toward the depth limit.
+        r.enter_struct()?;
+        let mark = r.defer_mark();
+        let value = Self::read_case(r, id);
+        r.exit_struct();
+        *self = value?;
+        r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Pick>()?.case_value()));
+        Ok(())
+    }
+}
+impl NinoWrite for Pick {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::EmptyCase(v) if v.is_some() => {
+                w.i32(334101194);
+                w.write(v)
+            }
+            Self::PickPair(v) => {
+                w.i32(-2134742284);
+                w.write(v)
+            }
+            Self::Byte(v) => {
+                w.i32(31168724);
+                w.write(v)
+            }
+            _ => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+impl Pick {
+    nino::type_consts!(0x292F7226u32 as i32, "Shapes.Pick", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x292F7226; deferrable=false; members=[elements]::union(type(Shapes.Empty),type(Shapes.PickPair),type(byte))");
+}
+
+/// `Shapes.Picks`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Picks {
+    pub pick: Pick,
+    pub many: Option<Vec<Pick>>,
+    pub measure: Measure,
+}
+
+impl NinoReadBody for Picks {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_member_into(&mut self.pick, nino::field!(Self, pick))?;
+        r.read_member_into(&mut self.many, nino::field!(Self, many))?;
+        r.read_member_into(&mut self.measure, nino::field!(Self, measure))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for Picks {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.pick)?;
+        w.write(&self.many)?;
+        w.write(&self.measure)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for Picks {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for Picks {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Pick as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Pick>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Measure as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.pick.prefetch();
+        self.many.prefetch();
+        self.measure.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.pick.prefetch_members();
+        self.many.prefetch_members();
+        self.measure.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl Picks {
+    nino::type_consts!(0x039C66DDu32 as i32, "Shapes.Picks", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x039C66DD; deferrable=true; members=Pick:Shapes.Pick:type(Shapes.Pick);Many:Shapes.Pick[]:seq(type(Shapes.Pick));Measure:Shapes.Measure:type(Shapes.Measure)");
 }
 
 /// `Shapes.Generic.RawPair<T>`: Positional, header None.
@@ -2766,6 +3102,7 @@ pub trait NinoVisit<R> {
 /// returns `None` for a type not generated.
 pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
     Some(match name {
+        "Shapes.Empty" => f.visit::<Option<Box<Empty>>>(),
         "Shapes.ForestHolder" => f.visit::<Option<Box<ForestHolder>>>(),
         "Shapes.Gappy" => f.visit::<Gappy>(),
         "Shapes.Generic.OpenHolderUse" => f.visit::<Option<Box<OpenHolderUse>>>(),
@@ -2777,6 +3114,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Shapes.Keywords" => f.visit::<Option<Box<Keywords>>>(),
         "Shapes.Left.Item" => f.visit::<Option<Box<ShapesLeftItem>>>(),
         "Shapes.Marked" => f.visit::<Marked>(),
+        "Shapes.Measure" => f.visit::<Measure>(),
         "Shapes.NinoGrid" => f.visit::<Option<Box<NinoGrid>>>(),
         "Shapes.NinoNullableArgs" => f.visit::<Option<Box<NinoNullableArgs>>>(),
         "Shapes.NinoNullableRaw" => f.visit::<Option<Box<NinoNullableRaw>>>(),
@@ -2785,6 +3123,9 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Shapes.NullableSlots" => f.visit::<Option<Box<NullableSlots>>>(),
         "Shapes.OffsetHolder" => f.visit::<Option<Box<OffsetHolder>>>(),
         "Shapes.Outer+Inner" => f.visit::<Option<Box<OuterInner>>>(),
+        "Shapes.Pick" => f.visit::<Pick>(),
+        "Shapes.PickPair" => f.visit::<PickPair>(),
+        "Shapes.Picks" => f.visit::<Option<Box<Picks>>>(),
         "Shapes.Recursive" => f.visit::<Recursive>(),
         "Shapes.Renamed" => f.visit::<Option<Box<Renamed>>>(),
         "Shapes.Right.Item" => f.visit::<Option<Box<ShapesRightItem>>>(),

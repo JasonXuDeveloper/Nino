@@ -63,11 +63,11 @@ SKIPPED = {"Conformance.Tracked", "Conformance.TrackedLeaf", "Conformance.Tracke
 
 # Shapes this hand-written emulation leaves to the code nino-gen writes (tests/generated.rs runs their cases):
 # [NinoType] collections, generic types behind a type id, generics nesting themselves, Nullable and KeyValuePair
-# type arguments, plain structs holding value tuples, pairs, nullables, Int128, nint and DateTimeOffset. Their cases
-# are skipped here, by type.
+# type arguments, plain structs holding value tuples, pairs, nullables, Int128, nint and DateTimeOffset, C# unions.
+# Their cases are skipped here, by type.
 NOT_EMULATED = {"Conformance.BagHolder", "Conformance.BclRaw", "Conformance.BclRawHost", "Conformance.BclRawNullables",
-                "Conformance.BclRawOffset", "Conformance.GenericSlots", "Conformance.NestHolder",
-                "Conformance.WrappedArgs"}
+                "Conformance.BclRawOffset", "Conformance.Choice", "Conformance.GenericSlots", "Conformance.NestHolder",
+                "Conformance.Unions", "Conformance.WrappedArgs"}
 
 # Generic closed types used, and their arguments' layouts.
 GENERIC_ARGS = {

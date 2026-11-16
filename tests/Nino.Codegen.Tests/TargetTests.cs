@@ -411,5 +411,49 @@ namespace Nino.Codegen.Tests
                 File.Delete(path);
             }
         }
+        [TestMethod]
+        public void EveryTargetLeavesOutGenericUnionsAndTupleCases()
+        {
+            foreach (var (lang, file) in new[] { ("go", "nino_types.go"), ("rust", "nino_types.rs"), ("ts", "Nino.Codegen.Tests.ts") })
+            {
+                var (text, output) = Run(lang, file);
+                StringAssert.Contains(output, "NINOGEN002: Shapes.Either`1 is not written");
+                StringAssert.Contains(output, "a generic C# union is not supported");
+                StringAssert.Contains(output, "NINOGEN002: Shapes.TupleCase is not written");
+                StringAssert.Contains(output, "whose encoding in a union case is not published");
+                Assert.IsFalse(text.Contains("TupleCase", StringComparison.Ordinal), lang);
+                Assert.IsFalse(text.Contains("Either", StringComparison.Ordinal), lang);
+            }
+        }
+
+        /// <summary>
+        /// A union is each language's sum type: a TypeScript class naming its case, a Go interface with a struct per
+        /// case, a Rust enum with a variant per case (a case named Empty after the empty union's own variant).
+        /// </summary>
+        [TestMethod]
+        public void EveryTargetWritesAUnionAsItsSumType()
+        {
+            var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
+            // Every case told apart by its value: a plain union, written by testing the value.
+            StringAssert.Contains(ts, "export type Pick = Empty | PickPair | number;");
+            StringAssert.Contains(ts, "  if (v instanceof Empty) {");
+            StringAssert.Contains(ts, "  else if (typeof v === \"number\") {");
+            // An int and a double, two lists: a union tagged with each case's name, and its constructors.
+            StringAssert.Contains(ts, "export type Measure =\n  | { readonly case: \"Int32\"; readonly value: number }\n" +
+                                      "  | { readonly case: \"Double\"; readonly value: number }");
+            StringAssert.Contains(ts, "  Int32: (value: number): Measure => ({ case: \"Int32\", value }),");
+            StringAssert.Contains(ts, "  switch (v.case) {");
+            Assert.IsFalse(ts.Contains("PickObject", StringComparison.Ordinal), "no object member: no class for one");
+            var (go, _) = Run("go", "nino_types.go");
+            StringAssert.Contains(go, "type Pick interface {\n\tisPick()\n}");
+            // A generated class is the case itself; a byte and a raw struct are held by a struct of their own.
+            StringAssert.Contains(go, "func (*Empty) isPick() {");
+            StringAssert.Contains(go, "type PickByte struct {\n\tValue uint8");
+            StringAssert.Contains(go, "func ReadPick(r *nino.Reader) Pick {");
+            var (rust, _) = Run("rust", "nino_types.rs");
+            StringAssert.Contains(rust, "pub enum Pick {\n    /// The empty union.\n    #[default]\n    Empty,");
+            StringAssert.Contains(rust, "    EmptyCase(Option<Box<Empty>>),");
+            StringAssert.Contains(rust, "    Byte(u8),");
+        }
     }
 }

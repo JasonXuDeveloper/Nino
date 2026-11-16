@@ -35,8 +35,12 @@ namespace Nino.Codegen.Targets
         /// them, and at depth 0, ends with the bodies deferred below it. Saying so of one that does not changes no
         /// byte.
         /// </summary>
-        internal bool Nests(TypeModel type) =>
-            type.Members.Select(m => m.Value).Append(type.Elements).Any(v => v != null && Opens(ShapeIn(type, v)));
+        internal bool Nests(TypeModel type) => BodyValues(type).Any(v => Opens(ShapeIn(type, v)));
+
+        /// <summary>The values a type's body holds: its members, its elements, a union's cases.</summary>
+        private static IEnumerable<ValueModel> BodyValues(TypeModel type) =>
+            type.Members.Select(m => (ValueModel?)m.Value).Append(type.Elements)
+                .Concat(type.Cases.Select(c => c.Value)).Where(v => v != null).Select(v => v!);
 
         /// <summary>
         /// Whether a struct can hold itself without a class body between (through collections, nullables,
@@ -53,8 +57,7 @@ namespace Nino.Codegen.Targets
                 var next = pending.Pop();
                 if (!_supported.Contains(next))
                     continue;
-                foreach (var reached in next.Members.Select(m => m.Value).Append(next.Elements)
-                             .Where(v => v != null).SelectMany(v => ShapeIn(next, v!).Reaches))
+                foreach (var reached in BodyValues(next).SelectMany(v => ShapeIn(next, v).Reaches))
                 {
                     if (reached == type)
                         return true;

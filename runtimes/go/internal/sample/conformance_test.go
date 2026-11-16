@@ -48,6 +48,9 @@ func unsupported(typeName string) string {
 	case "Conformance.BclRaw", "Conformance.BclRawNullables", "Conformance.BclRawHost", "Conformance.BclRawOffset":
 		// Plain structs holding value tuples, pairs, nullables, Int128, nint and DateTimeOffset in the canonical layout.
 		return "left to the code nino-gen writes (internal/generated runs its cases)"
+	case "Conformance.Unions", "Conformance.Choice":
+		// C# unions: a Go interface and a struct per case, which the struct tags do not describe.
+		return "left to the code nino-gen writes (internal/generated runs its cases)"
 	case "Conformance.NestHolder":
 		return "Nest<T> holds Nest<List<T>>, a type Go cannot instantiate (polymorphic recursion)"
 	}

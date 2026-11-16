@@ -56,7 +56,29 @@ namespace Nino.Codegen.Model
 
         public BodyFormat Format => (BodyFormat)Layout.Format;
 
-        public HeaderKind Header => (HeaderKind)Layout.Header;
+        /// <summary>
+        /// What is written in front of a body. A C# union publishes <c>TypeId</c> for the case's type id, which this
+        /// model reads as part of its body (<see cref="Cases"/>): as a value, a union is a struct, with no header.
+        /// </summary>
+        public HeaderKind Header => IsUnion ? HeaderKind.None : (HeaderKind)Layout.Header;
+
+        /// <summary>
+        /// A C# 15 <c>union</c> (<c>[elements]::union(...)</c>): its body is the type id of the case it holds (0 for the
+        /// empty union), then the case's value (wire-format spec §7.12).
+        /// </summary>
+        public bool IsUnion => Layout.Elements?.Kind == "union";
+
+        /// <summary>The cases of a union, in declaration order (the order a .NET writer tries them).</summary>
+        public List<UnionCaseModel> Cases { get; } = new();
+
+        /// <summary>
+        /// Whether a union counts its body toward the depth limit, as .NET does when a case can hold the union again
+        /// (any case but a string or a raw value): after a case's type id, before its value.
+        /// </summary>
+        public bool UnionNests => Cases.Any(c => !c.Leaf);
+
+        /// <summary>Why a union cannot be generated in any language (a generic one), or null.</summary>
+        public string? UnionProblem { get; internal set; }
 
         public bool TrackReferences => Layout.TrackReferences;
 
@@ -183,6 +205,46 @@ namespace Nino.Codegen.Model
         public bool IsAssignableFrom(TypeModel other) => Clr.IsAssignableFrom(other.Clr);
 
         public override string ToString() => FullName;
+    }
+
+    /// <summary>A case of a C# union: the type its constructor takes, its type id and how its value is written.</summary>
+    public sealed class UnionCaseModel
+    {
+        internal UnionCaseModel(string name, Type clr, int typeId, ValueModel value)
+        {
+            Name = name;
+            Clr = clr;
+            TypeId = typeId;
+            Value = value;
+        }
+
+        /// <summary>
+        /// A name for the case, unique in its union, as an identifier in every language (<c>Int32</c>, <c>String</c>,
+        /// <c>NullableInt32</c>, <c>ListInt32</c>, <c>Int64Array</c>, <c>Square</c>).
+        /// </summary>
+        public string Name { get; }
+
+        internal Type Clr { get; }
+
+        /// <summary>The runtime-form name of its type (<c>System.Int32</c>, <c>System.Nullable&lt;System.Int32&gt;</c>).</summary>
+        public string RuntimeName => TypeNames.Runtime(Clr);
+
+        /// <summary>The type id in front of the case's value: its type's (<c>[NinoFormerName]</c> included).</summary>
+        public int TypeId { get; }
+
+        /// <summary>The value after the type id, as the formatter .NET finds for the case's type writes it.</summary>
+        public ValueModel Value { get; }
+
+        /// <summary>
+        /// Whether the value can read as null (a string, a class, a nullable, a collection...): data holding a case's
+        /// type id and a null value is invalid, as .NET writes the empty union (id 0) for a case given null.
+        /// </summary>
+        public bool Nullable { get; internal set; }
+
+        /// <summary>A case that cannot hold its union again (a string or a raw value): .NET counts no depth for it.</summary>
+        public bool Leaf { get; internal set; }
+
+        public override string ToString() => $"{Name}: {Value}";
     }
 
     /// <summary>A member of a layout, in the order it is written.</summary>

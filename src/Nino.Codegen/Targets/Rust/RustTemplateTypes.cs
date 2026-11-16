@@ -129,6 +129,23 @@ namespace Nino.Codegen.Targets
         public string Keys => string.Join(" | ", Model.AllKeys.Select(TypeNames.Hex));
     }
 
+    /// <summary>A case of a C# union: its variant, its type id and the shape of its value.</summary>
+    public sealed class RustCase
+    {
+        internal RustCase(string name, UnionCaseModel model, RustShape shape)
+        {
+            Name = name;
+            Model = model;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        public UnionCaseModel Model { get; }
+
+        public RustShape Shape { get; }
+    }
+
     /// <summary>A <c>[NinoType]</c> as the template writes it.</summary>
     public sealed class RustType
     {
@@ -209,6 +226,23 @@ namespace Nino.Codegen.Targets
 
         /// <summary>Whether reading a member may defer a class body.</summary>
         public bool MayDefer => Members.Any(m => m.Shape.MayDefer) || ElementsMember?.Shape.MayDefer == true;
+
+        /// <summary>A C# union: an enum with a variant per case and <c>Empty</c>, the empty union (type id 0).</summary>
+        public bool IsUnion => Model.IsUnion;
+
+        /// <summary>
+        /// A union's cases, in declaration order: a variant each, named after the case (<c>EmptyCase</c> for a case
+        /// named <c>Empty</c>, the empty union's variant).
+        /// </summary>
+        public List<RustCase> Cases => Model.Cases.Select(c => new RustCase(
+            c.Name == "Empty" ? "EmptyCase" : c.Name, c, _target.ShapeIn(Model, c.Value))).ToList();
+
+        /// <summary>
+        /// Whether a variant's name starts or ends with the enum's (<c>UnionTreeArray</c> of <c>UnionTree</c>), which
+        /// clippy's <c>enum_variant_names</c> reports: the names are the cases', so the enum allows it.
+        /// </summary>
+        public bool VariantsRepeatName => Model.Cases.Any(c =>
+            c.Name.StartsWith(Name, StringComparison.Ordinal) || c.Name.EndsWith(Name, StringComparison.Ordinal));
 
         /// <summary>The type parameters of a generic definition (empty otherwise).</summary>
         public IReadOnlyList<string> Parameters => Model.TypeParameters;

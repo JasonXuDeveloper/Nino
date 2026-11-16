@@ -57,7 +57,7 @@ namespace Nino.Codegen.Targets
         // ---------------------------------------------------------------- which types
 
         /// <summary>Why a type cannot be written whatever it holds (its declaration alone), or null.</summary>
-        protected virtual string? Problem(TypeModel type) => type.SlotProblem ?? TrackingProblem(type);
+        protected virtual string? Problem(TypeModel type) => type.SlotProblem ?? type.UnionProblem ?? TrackingProblem(type);
 
         /// <summary>Reference tracking of a generic type, which no target writes.</summary>
         protected static string? TrackingProblem(TypeModel type) => type.TrackReferences && type.IsGenericDefinition

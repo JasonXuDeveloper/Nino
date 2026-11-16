@@ -110,7 +110,7 @@ func ts(s)
   when "map"
     ret map_ts(s) + " | null"
   when "type"
-    if s.header == "typeid" || s.header == "ref"
+    if s.header == "typeid" || s.header == "ref" || s.header == "union"
       ret name(s.type) + " | null"
     end
     ret name(s.type)
@@ -247,6 +247,8 @@ func read(s)
   when "type"
     if s.header == "typeid"
       ret name(s.type) + "Codec.read(r)"
+    else if s.header == "union"
+      ret "read" + name(s.type) + "(r)"
     else if s.header == "ref"
       # A tracked sealed class: its reference header, then its body when new.
       ret "r.tracked(" + name(s.type) + ", read" + name(s.type) + ")"
@@ -279,7 +281,9 @@ func read_into(s, cur)
     end
     ret "(r.present() ? " + $inner + " : null)"
   when "type"
-    if s.header == "typeid"
+    if s.header == "union"
+      ret read(s)
+    else if s.header == "typeid"
       ret "(" + cur + " == null ? " + read(s) + " : r.into(" + name(s.type) + "Codec, " + cur + "))"
     else if s.header == "ref"
       ret read(s)

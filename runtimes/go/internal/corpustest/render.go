@@ -135,6 +135,9 @@ func renderValue(v reflect.Value) any {
 	case reflect.String:
 		return renderString(v.String())
 	case reflect.Interface, reflect.Pointer:
+		if t.Kind() == reflect.Interface && isUnion(t) {
+			return renderUnion(v)
+		}
 		if v.IsNil() {
 			return nil
 		}
@@ -160,6 +163,10 @@ func renderValue(v reflect.Value) any {
 		}
 		return out
 	case reflect.Struct:
+		if t.Implements(tUnionCase) {
+			// A union's case struct outside the union's interface (a top-level value): its value.
+			return renderValue(v.FieldByName("Value"))
+		}
 		name := t.Name()
 		switch {
 		case (strings.HasPrefix(name, "NinoNullable[") || strings.HasPrefix(name, "NullableSlot[")) && t.PkgPath() == tDateTime.PkgPath():
@@ -212,6 +219,30 @@ func renderValue(v reflect.Value) any {
 }
 
 func num(n int64) json.Number { return json.Number(strconv.FormatInt(n, 10)) }
+
+// tUnionCase is what the struct holding a C# union's case implements, in the code nino-gen writes; a case whose value
+// is a generated type is that type (its NinoTypeName names the case).
+var tUnionCase = reflect.TypeOf((*interface{ NinoUnionCase() string })(nil)).Elem()
+
+// isUnion reports whether an interface is a C# union's: its one method marks the union's cases (isChoice for Choice).
+func isUnion(t reflect.Type) bool {
+	return t.NumMethod() == 1 && t.Method(0).Name == "is"+t.Name()
+}
+
+// renderUnion renders a C# union as {"$type", "$case", "value"}: the .NET names of the union (from its Go interface,
+// "Conformance." and its name) and of the case it holds, and the case's value; the empty union is nil.
+func renderUnion(v reflect.Value) any {
+	name := "Conformance." + v.Type().Name()
+	if v.IsNil() {
+		return map[string]any{"$type": name, "$case": nil, "value": nil}
+	}
+	c := v.Elem()
+	if wrapped, ok := c.Interface().(interface{ NinoUnionCase() string }); ok {
+		return map[string]any{"$type": name, "$case": wrapped.NinoUnionCase(), "value": renderValue(c.FieldByName("Value"))}
+	}
+	return map[string]any{"$type": name, "$case": c.Interface().(interface{ NinoTypeName() string }).NinoTypeName(),
+		"value": renderValue(c)}
+}
 
 // declaredAsArray reports whether the member is a byte[] or sbyte[] in .NET, from the type's NinoLayout. A type
 // without one (a hand-written type that gives List<byte> a type of its own) declares every []byte an array.

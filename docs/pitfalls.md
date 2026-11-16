@@ -248,6 +248,47 @@ the options it took.
 Consecutive unmanaged members are written as one block. Members delegated to a base type's formatter end
 the block, so inheritance can split what looks like one contiguous run of fields.
 
+### C# unions and Unity
+
+A server on .NET 11 that declares `[NinoType] union Result(...)` in its shared contract cannot hand that source to a
+Unity client: Unity compiles with an older Roslyn (C# 9), which cannot parse `union`, and loads Nino's Roslyn 4.3
+generator, whose `UnionCases.IsUnion` finds a union by its `union` keyword in source or by the
+`System.Runtime.CompilerServices.UnionAttribute` on a type from metadata.
+
+What the compiler emits for `union Result(int, string)` (read from the IL with `System.Reflection.MetadataLoadContext`):
+a `sealed` struct with one field, `object <Value>k__BackingField`, the property `object Value`, a public constructor
+per case (`.ctor(int)`, `.ctor(string)`), `[UnionAttribute]` and the interface `IUnion`. The last two are .NET 11's
+(`System.Runtime.CompilerServices`, in `System.Private.CoreLib`, referenced through `System.Runtime` 11.0), so a
+`netstandard2.1` project fails with CS0518 (`IUnion` is not defined) and CS0656 (`UnionAttribute..ctor` is missing),
+and a `net11.0` assembly is not one Unity can reference.
+
+What works: a contract library that targets `netstandard2.1`, built with the .NET 11 SDK (`LangVersion` `preview`),
+which declares the two types itself, `internal`:
+
+```csharp
+namespace System.Runtime.CompilerServices
+{
+    [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class)] internal sealed class UnionAttribute : Attribute { }
+    internal interface IUnion { object Value { get; } }
+}
+```
+
+The union then compiles, Nino's generator (its Roslyn 4.12 build, in that build) writes its formatter into the
+library, and the library writes what .NET 11 writes: `new Result(42)` is `A4 A2 97 20 2A 00 00 00`, a sealed class
+case `0F 79 D6 13 01 07 00 00 00`, the empty union `00 00 00 00`, read back by a `net10.0` program without
+interceptors. Unity uses the compiled DLL (and its Nino.Core) as a plugin: C# 9 code calls the case constructors
+(`new Result(42)`) and reads `result.Value`, and does not compile the union. The server can use the same library, or
+a `net11.0` target of the same project, with the two declarations left out there (`#if !NET11_0_OR_GREATER`); it
+writes the same bytes.
+
+A polymorphic base is not the same bytes. A union writes the case's type id, then the value as the case type's own
+formatter writes it; a `[NinoType]` base slot writes the runtime type's id, then its body. For a sealed class case the
+union has a presence byte (`01`) after the id that the base slot has not; for a case that is a non-sealed class or an
+interface, the union writes the case's id and then the runtime type's id, the base slot only the latter; and a
+primitive, string or collection case has no base-slot form. Data written one way does not read the other.
+
+
+
 ## Benchmarking
 
 ### Tier-0 versus Tier-1 code

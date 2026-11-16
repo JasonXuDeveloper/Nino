@@ -228,7 +228,8 @@ namespace Nino.Codegen.Targets
                 return Raw(type.RawValue!);
             return type.Header switch
             {
-                HeaderKind.None => new RustShape("struct") { Type = type },
+                // A union whose cases may hold a class body is read through read_member, which places what it defers.
+                HeaderKind.None => new RustShape("struct") { Type = type, MayDefer = type.UnionNests },
                 HeaderKind.Presence when type.TrackReferences => new RustShape("shared") { Type = type, MayDefer = true },
                 HeaderKind.Presence => new RustShape("class") { Type = type, MayDefer = true },
                 _ => new RustShape("slot") { Type = type, MayDefer = true },

@@ -254,7 +254,8 @@ namespace Nino.Codegen.Targets
         /// <summary>The fewest bytes a struct's body takes (a collection's elements are checked against it).</summary>
         private int StructMinSize(TypeModel type)
         {
-            if (type.Format != BodyFormat.Positional)
+            // A union: its case's type id at least.
+            if (type.Format != BodyFormat.Positional || type.IsUnion)
                 return 4;
             // A generic struct's members are sized by its arguments: none is counted on.
             if (type.IsGenericDefinition)
