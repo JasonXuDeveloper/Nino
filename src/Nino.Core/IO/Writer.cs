@@ -85,15 +85,7 @@ namespace Nino.Core
         [EditorBrowsable(EditorBrowsableState.Never)]
         public readonly void CopyTo(ref Writer target)
         {
-            target._owner = _owner;
-#if NET8_0_OR_GREATER
-            target._cur = ref _cur;
-            target._avail = _avail;
-            target._start = ref _start;
-#else
-            target._buffer = _buffer;
-            target._pos = _pos;
-#endif
+            CopyCursorTo(ref target);
             target.Depth = Depth;
             target._regions = _regions;
             target._context = _context;
