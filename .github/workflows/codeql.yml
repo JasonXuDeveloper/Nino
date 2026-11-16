@@ -1,7 +1,7 @@
 name: CodeQL
 
 # Code scanning for every language in the repository, configured here instead of GitHub's default setup: the default
-# setup's C/C++ autobuild finds no build system (the only C++ is the libFuzzer driver in tests/Nino.Fuzz/libfuzzer)
+# setup's C/C++ autobuild finds no build system (the only C++ is the libFuzzer driver in runtimes/csharp/tests/Nino.Fuzz/libfuzzer)
 # and fails. The default setup must be off for these results to be accepted (Settings → Code security → CodeQL
 # analysis → Disable CodeQL, or "Switch to advanced").
 on:
@@ -147,7 +147,7 @@ jobs:
 
       - name: Build the libFuzzer driver
         if: matrix.build-mode == 'manual'
-        run: clang++ -std=c++17 -O1 -c tests/Nino.Fuzz/libfuzzer/driver.cc -o "$RUNNER_TEMP/driver.o"
+        run: clang++ -std=c++17 -O1 -c runtimes/csharp/tests/Nino.Fuzz/libfuzzer/driver.cc -o "$RUNNER_TEMP/driver.o"
 
       - name: Analyze
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3

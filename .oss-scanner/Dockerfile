@@ -65,9 +65,9 @@ WORKDIR /src
 
 # .NET: restore and build everything (Debug keeps full symbols), plus the netstandard2.1 build of Nino.Core that
 # Unity and Mono load.
-RUN dotnet build Nino.slnx -c Debug \
-    && dotnet build tests/Nino.UnitTests -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1 \
-    && dotnet build tests/Nino.RuntimeTests -c Debug -f net472
+RUN dotnet build runtimes/csharp/Nino.slnx -c Debug \
+    && dotnet build runtimes/csharp/tests/Nino.UnitTests -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1 \
+    && dotnet build runtimes/csharp/tests/Nino.RuntimeTests -c Debug -f net472
 
 # Go, Rust and TypeScript: fetch and compile everything the tests and fuzzers need.
 RUN cd runtimes/go && go vet ./... && go test -count=1 -run '^$' ./...
@@ -76,9 +76,9 @@ RUN cd runtimes/rust && cargo fetch && cargo test --workspace --all-features --n
 RUN cd runtimes/typescript && npm ci && npm run build
 
 # Cheap checks that the image works; failures are reported, not fatal.
-RUN dotnet test tests/Nino.UnitTests -c Debug --no-build -f net10.0 --filter 'FullyQualifiedName~Untrusted|FullyQualifiedName~HashFlooding|FullyQualifiedName~Strict' \
+RUN dotnet test runtimes/csharp/tests/Nino.UnitTests -c Debug --no-build -f net10.0 --filter 'FullyQualifiedName~Untrusted|FullyQualifiedName~HashFlooding|FullyQualifiedName~Strict' \
       || echo "WARNING: .NET security tests reported failures"
-RUN mono tests/Nino.RuntimeTests/bin/Debug/net472/Nino.RuntimeTests.exe \
+RUN mono runtimes/csharp/tests/Nino.RuntimeTests/bin/Debug/net472/Nino.RuntimeTests.exe \
       || echo "WARNING: Nino.RuntimeTests on Mono 6.12 reported failures"
 RUN cd runtimes/go && (go test ./... || echo "WARNING: go test reported failures")
 RUN cd runtimes/rust && (cargo test --workspace --all-features || echo "WARNING: cargo test reported failures")

@@ -6,13 +6,13 @@ Requires the .NET 10 and .NET 8 SDKs.
 
 ```bash
 dotnet build
-dotnet test tests/Nino.UnitTests
+dotnet test runtimes/csharp/tests/Nino.UnitTests
 
 # Every Nino.Core build must write identical bytes: run the suite against the netstandard2.1 build too,
 # and with interceptors off (the regular entry points must agree with the intercepted ones).
-dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
-dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true
-dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8   # the .NET 8 SDK generator build
+dotnet test runtimes/csharp/tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
+dotnet test runtimes/csharp/tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true
+dotnet test runtimes/csharp/tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8   # the .NET 8 SDK generator build
 ```
 
 The unit tests run their test classes in parallel, one worker per core (the methods of a class in sequence;
@@ -32,16 +32,16 @@ qemu),
 and Mono on x64 and Arm64 (also with `MONO_GC_DEBUG=verify-before-collections`; the net472 build, compiled against
 Mono's class libraries and the netstandard2.1 builds, is made only where Mono is installed). Each must write .NET x64's bytes, see the same contents through the public
 API and find every path meant for it (`FastPaths` in its `Program.cs`). The unit tests skip a change that is only
-under `runtimes/` or `benchmarks/`, and the push to `main` that merges an up-to-date pull request runs nothing that
+under `runtimes/` or `runtimes/csharp/benchmarks/`, and the push to `main` that merges an up-to-date pull request runs nothing that
 pull request's run already passed (`.github/scripts/changed_paths.py`). A pull request labeled `benchmark` also runs
-the A/B benchmark shards of `benchmarks/shards.json`. The short jobs of pushes and of pull requests from this
+the A/B benchmark shards of `runtimes/csharp/benchmarks/shards.json`. The short jobs of pushes and of pull requests from this
 repository's branches run on the maintainer's self-hosted runner; a pull request from a fork runs everything on
 GitHub's runners. Locally:
 
 ```bash
-dotnet build tests/Nino.RuntimeTests -c Release
-dotnet tests/Nino.RuntimeTests/bin/Release/net10.0/Nino.RuntimeTests.dll > dotnet.txt
-mono tests/Nino.RuntimeTests/bin/Release/net472/Nino.RuntimeTests.exe > mono.txt
+dotnet build runtimes/csharp/tests/Nino.RuntimeTests -c Release
+dotnet runtimes/csharp/tests/Nino.RuntimeTests/bin/Release/net10.0/Nino.RuntimeTests.dll > dotnet.txt
+mono runtimes/csharp/tests/Nino.RuntimeTests/bin/Release/net472/Nino.RuntimeTests.exe > mono.txt
 diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
 ```
 
@@ -51,34 +51,34 @@ runner, and Go also on 386, Arm32 and big-endian s390x (the last two under qemu)
 corpus); `ci.yml` checks that the committed corpus and generated files are what .NET and nino-gen write today. The
 release's `report.yml` benchmarks the three on x64 and Arm64. CodeQL analyzes the languages a push changes, and
 every language weekly. The
-Unity tests (`src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS: the editor's tests, then the play mode tests in an IL2CPP player, in one job per version) run in `unity.yml`, one version at a time
+Unity tests (`runtimes/csharp/src/Nino.Unity`, on Unity 2022.3 and the newest Unity 6 LTS: the editor's tests, then the play mode tests in an IL2CPP player, in one job per version) run in `unity.yml`, one version at a time
 and never cancelled while running, so CI holds at most one seat of the Unity license. Locally, the same split keeps a run in memory:
 `--filter "FullyQualifiedName!~ShapeMatrixTests"`, then `--filter "FullyQualifiedName~ShapeMatrixTests"`.
 
 The TypeScript runtime's WebAssembly kernels (`runtimes/typescript/wasm/text.wat`) are assembled into `nino.ts` by
 `npm run build:wasm` with [wasm-tools](https://github.com/bytecodealliance/wasm-tools) (`cargo install --locked
 wasm-tools`, or the binary of a release on the `PATH`); only a change to `text.wat` needs it (see
-[runtimes/typescript/README.md](runtimes/typescript/README.md)).
+[runtimes/typescript/README.md](../runtimes/typescript/README.md)).
 
 The workflows pin every action to a commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);
 Dependabot updates both, all actions in one pull request. `actionlint` (with `.github/actionlint.yaml`) checks them.
 
 A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) also needs
-`python3 benchmarks/asm/asm.py compare origin/main` ([benchmarks/README.md](benchmarks/README.md)), which lists every
+`python3 runtimes/csharp/benchmarks/asm/asm.py compare origin/main` ([runtimes/csharp/benchmarks/README.md](../runtimes/csharp/benchmarks/README.md)), which lists every
 method whose machine code changed.
 
-* `src/Nino.Core/Formatters/TupleFormatters.g.cs` and `MultiDimFormatters.g.cs` are generated: after changing
-  `tools/CodeGen/TupleFormattersTemplate.cs` or `MultiDimFormattersTemplate.cs`, run
-  `dotnet run --project tools/CodeGen` from the repository root.
-* Runtime benchmarks: `dotnet run -c Release --project benchmarks/Nino.Benchmark`. Generator (compile time) benchmarks:
-  `dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark`.
-* How the runtime and the generator fit together: [docs/v4-design.md](docs/v4-design.md).
+* `runtimes/csharp/src/Nino.Core/Formatters/TupleFormatters.g.cs` and `MultiDimFormatters.g.cs` are generated: after changing
+  `runtimes/csharp/tools/CodeGen/TupleFormattersTemplate.cs` or `MultiDimFormattersTemplate.cs`, run
+  `dotnet run --project runtimes/csharp/tools/CodeGen` from the repository root.
+* Runtime benchmarks: `dotnet run -c Release --project runtimes/csharp/benchmarks/Nino.Benchmark`. Generator (compile time) benchmarks:
+  `dotnet run -c Release --project runtimes/csharp/benchmarks/Nino.GeneratorBenchmark`.
+* How the runtime and the generator fit together: [docs/v4-design.md](../docs/v4-design.md).
 
 ## Performance work
 
 * Optimize from the JIT's Tier1 machine code for **both x64 and ARM64**, then confirm with timings. One machine shows
-  both: `benchmarks/asm/cross-jit.sh` installs the other architecture's JIT, and `DISASM=1 benchmarks/members/run.sh`
-  writes both listings for the member cases ([benchmarks/README.md](benchmarks/README.md#machine-code-for-x64-and-arm64)).
+  both: `runtimes/csharp/benchmarks/asm/cross-jit.sh` installs the other architecture's JIT, and `DISASM=1 runtimes/csharp/benchmarks/members/run.sh`
+  writes both listings for the member cases ([runtimes/csharp/benchmarks/README.md](../runtimes/csharp/benchmarks/README.md#machine-code-for-x64-and-arm64)).
 * ARM64 is a load/store architecture: what x64 does in one instruction on memory is a load, an operation and a store
   there, and 64-bit constants and addresses take several instructions. Keep hot state in registers:
   * never pass the address of a `Reader`, a `Writer` or a value to a call that is not inlined (pass a copy and write
@@ -115,7 +115,7 @@ GITHUB_TOKEN=$(gh auth token) python3 .github/scripts/triage/triage.py --issue 2
 
 Actions → **Release** → Run workflow on `main`, and enter the version (`4.0.0`, or `4.1.0-beta.1` with
 `alpha`/`beta`/`rc`). The workflow bumps the version of every package (`.github/scripts/bump_version.py`:
-`Directory.Build.props`, the Unity `package.json`, the Rust crates, the npm package) once CI has passed on `main` (it
+`runtimes/csharp/Directory.Build.props`, the Unity `package.json`, the Rust crates, the npm package) once CI has passed on `main` (it
 runs no tests of its own), builds and packs it, commits the Unity DLLs with the bump, tags it (`vX.Y.Z`, and
 `runtimes/go/vX.Y.Z` for the Go module), publishes the NuGet packages, the crates `nino-serialization-derive` and
 `nino-serialization` and the npm package `nino-serialization` (all through Trusted Publishing, no stored key; an npm

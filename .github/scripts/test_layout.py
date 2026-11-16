@@ -117,11 +117,14 @@ class Moved(unittest.TestCase):
     def test_synthetic(self):
         self.assertEqual(layout.resolve(layout.listing_exists(self.SYNTHETIC)), self.NEW)
 
-    def test_this_commit_moved(self):
+    def test_this_commit(self):
+        # HEAD in the layout since the move (#273), or a commit before it moved as #273 moves it.
         names = ls_tree("HEAD")
-        if names is None or "src/Nino.Core/Nino.Core.csproj" not in names:
-            self.skipTest("HEAD is not in the layout before the move")
-        self.assertEqual(layout.resolve(layout.listing_exists(moved(names))), self.NEW)
+        if names is None:
+            self.skipTest("not a git checkout")
+        if "src/Nino.Core/Nino.Core.csproj" in names:
+            names = moved(names)
+        self.assertEqual(layout.resolve(layout.listing_exists(names)), self.NEW)
 
     def test_reports_kept_at_the_root(self):
         # Should the report scripts stay in the root's benchmarks/ (the plan's other option), they are found there.

@@ -1,10 +1,10 @@
 version: 2
 updates:
-  # The root only: every version is in Directory.Packages.props (central package management), and Nino.slnx lists
+  # The .NET root only: every version is in runtimes/csharp/Directory.Packages.props (central package management), and runtimes/csharp/Nino.slnx lists
   # the projects. With one entry per project directory, each directory's update job rewrote that one file and the
   # grouped pull request kept only the last job's edit: #253 described 8 updates and changed PolySharp alone.
   - package-ecosystem: "nuget"
-    directory: "/"
+    directory: "/runtimes/csharp"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
@@ -21,7 +21,7 @@ updates:
       - dependency-name: "Microsoft.CodeAnalysis.CSharp.Workspaces"
       - dependency-name: "Microsoft.CodeAnalysis.Workspaces.Common"
       # Nino from nuget.org is only the v3 baseline: 3.3.13, the version every v4-vs-v3 number names
-      # (benchmarks/Nino.Benchmark's NINO_BENCH_V3 build, benchmarks/members/v3, and Nino.GeneratorBenchmark's
+      # (runtimes/csharp/benchmarks/Nino.Benchmark's NINO_BENCH_V3 build, runtimes/csharp/benchmarks/members/v3, and Nino.GeneratorBenchmark's
       # PackageDownload of v3's generator and runtime).
       - dependency-name: "Nino"
       - dependency-name: "Nino.Generator"

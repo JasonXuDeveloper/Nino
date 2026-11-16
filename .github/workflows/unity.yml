@@ -9,7 +9,7 @@ name: Unity
 # report.yml calls it for each release with `benchmark: true`: the editor's tests are skipped, the IL2CPP player is
 # built as a release build (Test.Editor.Burst.BenchmarkPlayerBuild) and runs the correctness tests and the Burst
 # benchmark (Test.Runtime.Burst.BurstBenchmark, measured with the Unity Performance Testing package), and its results
-# are uploaded per Unity version (artifacts unity-bench-<version>) for benchmarks/reports/unity_report.py. A called run joins the same concurrency group, so
+# are uploaded per Unity version (artifacts unity-bench-<version>) for runtimes/csharp/benchmarks/reports/unity_report.py. A called run joins the same concurrency group, so
 # it waits for a running Unity job and is never cancelled while it runs. The webgl job then builds a WebGL player per
 # version and runs it in headless Chrome (Nino.WebGL's kernels; timed too in the benchmark's run).
 
@@ -17,16 +17,16 @@ on:
   push:
     branches: [ "main" ]
     paths: &paths
-      - 'src/Nino.Core/**'
-      - 'src/Nino.Generator/**'
-      - 'src/Nino.Generator.CodeFixes/**'
-      - 'src/Nino.UnityTypes/**'
-      - 'src/Nino.Unity/**'
-      - 'Directory.Build.props'
-      - 'src/Directory.Build.targets'
-      - 'Directory.Packages.props'
-      - 'global.json'
-      - 'nuget.config'
+      - 'runtimes/csharp/src/Nino.Core/**'
+      - 'runtimes/csharp/src/Nino.Generator/**'
+      - 'runtimes/csharp/src/Nino.Generator.CodeFixes/**'
+      - 'runtimes/csharp/src/Nino.UnityTypes/**'
+      - 'runtimes/csharp/src/Nino.Unity/**'
+      - 'runtimes/csharp/Directory.Build.props'
+      - 'runtimes/csharp/src/Directory.Build.targets'
+      - 'runtimes/csharp/Directory.Packages.props'
+      - 'runtimes/csharp/global.json'
+      - 'runtimes/csharp/nuget.config'
       - '.github/workflows/unity.yml'
       - '.github/scripts/webgl_run.mjs'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
@@ -166,17 +166,17 @@ jobs:
       - &build-dlls
         name: Build the DLLs Unity loads
         run: |
-          dotnet build src/Nino.Core/Nino.Core.csproj -c "$NINO_CONFIG" -f netstandard2.1
-          dotnet build src/Nino.Generator/Nino.Generator.csproj -c "$NINO_CONFIG"
-          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c "$NINO_CONFIG"
-          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c "$NINO_CONFIG"
-          runtime=./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime
-          cp "./src/Nino.Core/bin/$NINO_CONFIG/netstandard2.1/Nino.Core.dll" "$runtime/"
+          dotnet build runtimes/csharp/src/Nino.Core/Nino.Core.csproj -c "$NINO_CONFIG" -f netstandard2.1
+          dotnet build runtimes/csharp/src/Nino.Generator/Nino.Generator.csproj -c "$NINO_CONFIG"
+          dotnet build runtimes/csharp/src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c "$NINO_CONFIG"
+          dotnet build runtimes/csharp/src/Nino.UnityTypes/Nino.UnityTypes.csproj -c "$NINO_CONFIG"
+          runtime=./runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime
+          cp "./runtimes/csharp/src/Nino.Core/bin/$NINO_CONFIG/netstandard2.1/Nino.Core.dll" "$runtime/"
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
-          cp "./src/Nino.Generator/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.dll" "$runtime/"
+          cp "./runtimes/csharp/src/Nino.Generator/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.dll" "$runtime/"
           # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates.
-          cp "./src/Nino.Generator.CodeFixes/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.CodeFixes.dll" "$runtime/"
-          cp "./src/Nino.UnityTypes/bin/$NINO_CONFIG/netstandard2.1/Nino.UnityTypes.dll" "$runtime/"
+          cp "./runtimes/csharp/src/Nino.Generator.CodeFixes/bin/$NINO_CONFIG/netstandard2.0/Nino.Generator.CodeFixes.dll" "$runtime/"
+          cp "./runtimes/csharp/src/Nino.UnityTypes/bin/$NINO_CONFIG/netstandard2.1/Nino.UnityTypes.dll" "$runtime/"
 
       - name: Save NuGet packages
         if: inputs.tag == '' && steps.nuget-cache.outputs.cache-hit != 'true'
@@ -192,8 +192,8 @@ jobs:
         id: library-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: src/Nino.Unity/Library
-          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/ProjectSettings/**', 'src/Nino.Unity/Packages/**', '!src/Nino.Unity/Packages/**/*.dll') }}
+          path: runtimes/csharp/src/Nino.Unity/Library
+          key: Library-Nino-${{ runner.os }}-${{ matrix.unity }}-${{ hashFiles('runtimes/csharp/src/Nino.Unity/Assets/**', 'runtimes/csharp/src/Nino.Unity/ProjectSettings/**', 'runtimes/csharp/src/Nino.Unity/Packages/**', '!runtimes/csharp/src/Nino.Unity/Packages/**/*.dll') }}
           restore-keys: |
             Library-Nino-${{ runner.os }}-${{ matrix.unity }}-
 
@@ -220,10 +220,10 @@ jobs:
         timeout-minutes: 1
         run: |
           for f in Library/burst.pid Library/ilpp.pid Library/MSBuild/buildhost.pid Library/EditorInstance.json; do
-            if sudo test -f "src/Nino.Unity/$f"; then echo "$f: $(sudo head -c 200 "src/Nino.Unity/$f" | tr '\n' ' ')"; fi
+            if sudo test -f "runtimes/csharp/src/Nino.Unity/$f"; then echo "$f: $(sudo head -c 200 "runtimes/csharp/src/Nino.Unity/$f" | tr '\n' ' ')"; fi
           done
-          sudo rm -rf src/Nino.Unity/Library/burst.pid src/Nino.Unity/Library/ilpp.pid \
-            src/Nino.Unity/Library/MSBuild/buildhost.pid src/Nino.Unity/Library/EditorInstance.json src/Nino.Unity/Temp
+          sudo rm -rf runtimes/csharp/src/Nino.Unity/Library/burst.pid runtimes/csharp/src/Nino.Unity/Library/ilpp.pid \
+            runtimes/csharp/src/Nino.Unity/Library/MSBuild/buildhost.pid runtimes/csharp/src/Nino.Unity/Library/EditorInstance.json runtimes/csharp/src/Nino.Unity/Temp
 
       # Unity can hang in batch mode: the 2022.3 editor stopped twice after loading the project, its log ending at
       # "Unloading 3 Unused Serialized files" where a normal launch goes on to "Unloading 45 unused Assets" and quits
@@ -253,7 +253,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
         with:
-          projectPath: ./src/Nino.Unity
+          projectPath: ./runtimes/csharp/src/Nino.Unity
           testMode: playmode
           artifactsPath: artifacts/editor
           customImage: ${{ env.UNITY_IMAGE }}
@@ -276,7 +276,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 15m
         with:
-          projectPath: ./src/Nino.Unity
+          projectPath: ./runtimes/csharp/src/Nino.Unity
           testMode: editmode
           artifactsPath: artifacts/editor
           customImage: ${{ env.UNITY_IMAGE }}
@@ -306,7 +306,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 20m
         with:
-          projectPath: ./src/Nino.Unity
+          projectPath: ./runtimes/csharp/src/Nino.Unity
           testMode: standalone
           artifactsPath: artifacts/player
           customImage: ${{ env.UNITY_IMAGE }}
@@ -320,7 +320,7 @@ jobs:
         if: success() && inputs.tag == '' && steps.library-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: src/Nino.Unity/Library
+          path: runtimes/csharp/src/Nino.Unity/Library
           key: ${{ steps.library-cache.outputs.cache-primary-key }}
 
       # The benchmark's results, per Unity version: the player's NUnit results (results.xml), whose test output holds
@@ -413,8 +413,8 @@ jobs:
         env:
           ARGS: ${{ matrix.il2cpp_args }}
         run: |
-          sed -i "s|^  additionalIl2CppArgs:.*|  additionalIl2CppArgs: $ARGS|" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
-          grep -q "additionalIl2CppArgs: $ARGS" src/Nino.Unity/ProjectSettings/ProjectSettings.asset
+          sed -i "s|^  additionalIl2CppArgs:.*|  additionalIl2CppArgs: $ARGS|" runtimes/csharp/src/Nino.Unity/ProjectSettings/ProjectSettings.asset
+          grep -q "additionalIl2CppArgs: $ARGS" runtimes/csharp/src/Nino.Unity/ProjectSettings/ProjectSettings.asset
 
       # Each Unity launch bounded, as in unity-tests (ENGINE_LAUNCH_WRAPPER there).
       - name: Build the WebGL player
@@ -426,7 +426,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
           ENGINE_LAUNCH_WRAPPER: timeout -k 60 25m
         with:
-          projectPath: ./src/Nino.Unity
+          projectPath: ./runtimes/csharp/src/Nino.Unity
           targetPlatform: WebGL
           unityVersion: ${{ matrix.unity }}
           customImage: unityci/editor:ubuntu-${{ matrix.unity }}-webgl-3
@@ -441,8 +441,8 @@ jobs:
       - name: Run the player in headless Chrome
         timeout-minutes: 10
         run: |
-          sudo chmod -R a+rX src/Nino.Unity/Build
-          (cd src/Nino.Unity/Build/WebGL && python3 -m http.server 8123 > "$RUNNER_TEMP/http.log" 2>&1 &)
+          sudo chmod -R a+rX runtimes/csharp/src/Nino.Unity/Build
+          (cd runtimes/csharp/src/Nino.Unity/Build/WebGL && python3 -m http.server 8123 > "$RUNNER_TEMP/http.log" 2>&1 &)
           mkdir -p "$RUNNER_TEMP/pw"
           (cd "$RUNNER_TEMP/pw" && npm init -y > /dev/null && npm install --no-audit --no-fund playwright-core@1.55.0 > /dev/null)
           cp .github/scripts/webgl_run.mjs "$RUNNER_TEMP/pw/"

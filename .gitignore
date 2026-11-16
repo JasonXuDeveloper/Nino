@@ -7,16 +7,16 @@ Thumbs.db
 *.DotSettings.user
 **/.config
 
-# Build output (.NET projects under src/, tests/, tools/ and benchmarks/; the Unity project has its own .gitignore)
+# Build output (the .NET projects under runtimes/csharp; the Unity project has its own .gitignore)
 bin/
 obj/
 /artifacts/
 TestResults/
 *.binlog
-tests/Nino.UnitTests/*.rsp
+runtimes/csharp/tests/Nino.UnitTests/*.rsp
 **/BenchmarkDotNet.Artifacts
 
-# Python bytecode (the scripts under benchmarks/ and .github/scripts/)
+# Python bytecode (the scripts under runtimes/csharp/benchmarks/ and .github/scripts/)
 __pycache__/
 
 # Local AI agent state (tracked: the development skills in .claude/skills, which .agents/skills links to, and the

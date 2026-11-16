@@ -1,7 +1,7 @@
 name: Release
 
 # Run manually: Actions -> Release -> Run workflow (on main), enter the version (e.g. 4.0.0 or 4.1.0-beta.1).
-#   tag:     bump the version of every package (.github/scripts/bump_version.py: Directory.Build.props, the Unity
+#   tag:     bump the version of every package (.github/scripts/bump_version.py: runtimes/csharp/Directory.Build.props, the Unity
 #            package.json, the Rust crates, the npm package) once ci.yml has passed on main, build, pack the NuGet
 #            packages (the artifact nuget-packages), copy the Unity DLLs, commit "chore(release): bump to vX.Y.Z",
 #            tag vX.Y.Z (and the OpenUPM tag of a pre-release, and runtimes/go/vX.Y.Z for the Go module), push.
@@ -54,12 +54,12 @@ concurrency:
 
 env:
   VERSION: ${{ inputs.version }}
-  UNITY_PACKAGE: src/Nino.Unity/Packages/com.jasonxudeveloper.nino
+  UNITY_PACKAGE: runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino
   # The package ids that are packed, checked and pushed (Nino.Core's is Nino.Serialization).
   PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino
 
 # Every job runs on maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]: Ubuntu, the .NET SDKs
-# global.json asks for, rustup, gh, jq and python3, no sudo), so a release no longer waits for GitHub's runners behind
+# runtimes/csharp/global.json asks for, rustup, gh, jq and python3, no sudo), so a release no longer waits for GitHub's runners behind
 # other workflows. This workflow runs only by hand, from main: no pull request reaches maple through it. Only the
 # toolchains stay on maple (the .NET SDKs, rustup's toolchains, the Node.js of the tool cache): "Prepare maple" points
 # NuGet's, npm's and Cargo's caches, dotnet's home and the temporary files into RUNNER_TEMP/home, "Free maple's disk"
@@ -196,13 +196,13 @@ jobs:
       # What a release needs of the build: the packages and the Unity DLLs, and that the bumped tree builds without a
       # warning (ContinuousIntegrationBuild: warnings are errors).
       - name: Build
-        run: dotnet build --configuration Release
+        run: dotnet build runtimes/csharp --configuration Release
 
-      # The solution: the projects Directory.Build.props marks IsPackable, each packed once, in one MSBuild run, from
+      # The solution: the projects runtimes/csharp/Directory.Build.props marks IsPackable, each packed once, in one MSBuild run, from
       # the build above.
       - name: Pack
         run: |
-          dotnet pack --no-build --configuration Release --output "$RUNNER_TEMP/nuget"
+          dotnet pack runtimes/csharp --no-build --configuration Release --output "$RUNNER_TEMP/nuget"
           ls "$RUNNER_TEMP/nuget"
           # shellcheck disable=SC2086 # PACKAGE_IDS is a list of ids
           for id in $PACKAGE_IDS; do
@@ -220,14 +220,14 @@ jobs:
       - name: Copy the Unity DLLs
         if: steps.version.outputs.exists != 'true'
         run: |
-          cp src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll "$UNITY_PACKAGE/Runtime/Nino.Core.dll"
+          cp runtimes/csharp/src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll "$UNITY_PACKAGE/Runtime/Nino.Core.dll"
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
-          cp src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.dll"
+          cp runtimes/csharp/src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.dll"
           # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates. The
           # compiler finds no analyzer in it and leaves it alone (no warning, Roslyn 3.9 and later).
-          cp src/Nino.Generator.CodeFixes/bin/Release/netstandard2.0/Nino.Generator.CodeFixes.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.CodeFixes.dll"
+          cp runtimes/csharp/src/Nino.Generator.CodeFixes/bin/Release/netstandard2.0/Nino.Generator.CodeFixes.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.CodeFixes.dll"
           # The Unity class formatters, compiled against UnityEngineStub; in Unity they bind to Unity's CoreModule.
-          cp src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll "$UNITY_PACKAGE/Runtime/Nino.UnityTypes.dll"
+          cp runtimes/csharp/src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll "$UNITY_PACKAGE/Runtime/Nino.UnityTypes.dll"
 
       - name: Commit and tag
         if: steps.version.outputs.exists != 'true'

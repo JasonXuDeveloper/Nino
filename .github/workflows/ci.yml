@@ -5,24 +5,18 @@ on:
     branches: [ "main" ]
     # Everything a job here builds or runs (the solution, the runtimes the integrations job tests, the scripts).
     paths: &paths
-      - 'src/**'
+      - 'runtimes/**'
       # The Unity project is unity.yml's, but for the raw-layout fixtures Nino.RuntimeTests links from it and the
       # package's DLLs, whose public API UnityPackageDllTests compares with their sources.
-      - '!src/Nino.Unity/**'
-      - 'src/Nino.Unity/Assets/Test/Runtime/BclFixture*.cs'
-      - 'src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/*.dll'
+      - '!runtimes/csharp/src/Nino.Unity/**'
+      - 'runtimes/csharp/src/Nino.Unity/Assets/Test/Runtime/BclFixture*.cs'
+      - 'runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/*.dll'
+      # Of the benchmarks, the two projects the solution builds (and --verify runs).
+      - '!runtimes/csharp/benchmarks/**'
+      - 'runtimes/csharp/benchmarks/Nino.Benchmark/**'
+      - 'runtimes/csharp/benchmarks/Nino.GeneratorBenchmark/**'
       - 'tests/**'
-      - 'tools/**'
-      - 'runtimes/**'
-      - 'benchmarks/Nino.Benchmark/**'
-      - 'benchmarks/Nino.GeneratorBenchmark/**'
       - '.editorconfig'
-      - 'Directory.Build.props'
-      - 'src/Directory.Build.targets'
-      - 'Directory.Packages.props'
-      - 'Nino.slnx'
-      - 'global.json'
-      - 'nuget.config'
       - '.github/workflows/ci.yml'
       - '.github/actions/setup-dotnet/**'
       - '.github/actions/apt-install/**'
@@ -31,7 +25,6 @@ on:
       - '.github/scripts/has_avx512.sh'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
-      - '!tools/agents.sh'   # checked by agents.yml
   pull_request:
     branches: [ "main" ]
     paths: *paths
@@ -70,8 +63,9 @@ env:
 # code off maple is on maple (a job-started hook that refuses it) and the repository's approval of fork runs.
 jobs:
   # What this run tests (.github/scripts/changed_paths.py, against the pull request's base or the push's before):
-  # - unit: the unit tests, for any change outside runtimes/ and benchmarks/ (they read neither);
-  # - runtime: runtime internals and trim/AOT, for any change outside runtimes/ (and Nino.Benchmark's --verify on Arm64);
+  # - unit: the unit tests, for any change outside the other runtimes (runtimes/go, rust, typescript) and
+  #   runtimes/csharp/benchmarks/ (they read neither);
+  # - runtime: runtime internals and trim/AOT, for any change outside the other runtimes (and Nino.Benchmark's --verify on Arm64);
   # - integrations: always (the code generator, the corpus, and the generated code run against .NET's bytes).
   # A push to main whose merge commit has the tree its pull request's last run tested (the branch had main merged in,
   # AGENTS.md, Landing), and passed, runs nothing again: every group is false and "Build and Test" passes, naming that
@@ -138,8 +132,8 @@ jobs:
         run: |
           python3 .github/scripts/changed_paths.py ${TESTED_IN_PR:+--tested-in-pr "$TESTED_IN_PR"} "$BASE" \
             --all-if '^\.github/(workflows/ci\.yml|scripts/changed_paths\.py)$' \
-            'unit=^(?!runtimes/|benchmarks/)' \
-            'runtime=^(?!runtimes/)' \
+            'unit=^(?!runtimes/(go|rust|typescript)/|runtimes/csharp/benchmarks/)' \
+            'runtime=^(?!runtimes/(go|rust|typescript)/)' \
             'integrations=.' | tee -a "$GITHUB_OUTPUT"
 
       # The job's caches ($RUNNER_TEMP/home, "Prepare maple") and what it built (untracked files in the checkout), the
@@ -235,7 +229,7 @@ jobs:
             shards: c
             part: -2
     env:
-      PROJECT: tests/Nino.UnitTests/Nino.UnitTests.csproj
+      PROJECT: runtimes/csharp/tests/Nino.UnitTests/Nino.UnitTests.csproj
       CONFIG: ${{ matrix.config.id }}
       # The shards this runner runs (all three but on Windows).
       SHARDS: ${{ matrix.config.shards || 'a b c' }}
@@ -418,12 +412,12 @@ jobs:
           restore-keys: codegen-rust-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-
 
       - name: Build the solution
-        run: dotnet build -c Debug
+        run: dotnet build runtimes/csharp -c Debug
 
       # The ASP.NET Core integration, on both of its frameworks.
       - name: Test integrations
         run: >
-          dotnet test tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
+          dotnet test runtimes/csharp/tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
           --logger trx --results-directory ./TestResults
 
       # The TypeScript runtime's own dependencies (package-lock.json), and its tsc on the PATH for the tests below.
@@ -435,14 +429,14 @@ jobs:
 
       - name: Test Nino.Codegen in builds
         run: |
-          dotnet test tests/Nino.Codegen.Integration.Tests/Nino.Codegen.Integration.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
+          dotnet test runtimes/csharp/tests/Nino.Codegen.Integration.Tests/Nino.Codegen.Integration.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
 
-      # nino-gen (src/Nino.Codegen): its model and command line, and the generated files under runtimes/ are what
+      # nino-gen (runtimes/csharp/src/Nino.Codegen): its model and command line, and the generated files under runtimes/ are what
       # it writes today. With the corpus check below, this is what keeps the inputs of runtimes.yml true to .NET:
       # that workflow runs only when runtimes/ or the corpus change, and tests the runtimes against those files.
       - name: Test the code generator
         run: >
-          dotnet test tests/Nino.Codegen.Tests/Nino.Codegen.Tests.csproj --no-build -c Debug
+          dotnet test runtimes/csharp/tests/Nino.Codegen.Tests/Nino.Codegen.Tests.csproj --no-build -c Debug
           --logger trx --results-directory ./TestResults
 
       # .NET still reads the committed corpus as recorded, and writing it again changes nothing
@@ -450,12 +444,12 @@ jobs:
       - name: Check the conformance corpus
         if: ${{ !cancelled() }}
         run: |
-          dotnet run --project tests/conformance/Nino.Conformance --no-build -c Debug -- --verify tests/conformance/corpus
-          dotnet run --project tests/conformance/Nino.Conformance --no-build -c Debug -- --out "$RUNNER_TEMP/corpus"
+          dotnet run --project runtimes/csharp/tests/Nino.Conformance --no-build -c Debug -- --verify tests/conformance/corpus
+          dotnet run --project runtimes/csharp/tests/Nino.Conformance --no-build -c Debug -- --out "$RUNNER_TEMP/corpus"
           if ! diff -r tests/conformance/corpus "$RUNNER_TEMP/corpus" > "$RUNNER_TEMP/corpus.diff"; then
             head -c 20000 "$RUNNER_TEMP/corpus.diff"
             echo "::error::tests/conformance/corpus is out of date: run" \
-              "'dotnet run --project tests/conformance/Nino.Conformance -c Release -- --out tests/conformance/corpus' and commit it."
+              "'dotnet run --project runtimes/csharp/tests/Nino.Conformance -c Release -- --out tests/conformance/corpus' and commit it."
             exit 1
           fi
 
@@ -464,7 +458,7 @@ jobs:
       # internals job runs it on Arm64.
       - name: Check the benchmark cases
         if: ${{ !cancelled() }}
-        run: dotnet benchmarks/Nino.Benchmark/bin/Debug/net10.0/Nino.Benchmark.dll --verify
+        run: dotnet runtimes/csharp/benchmarks/Nino.Benchmark/bin/Debug/net10.0/Nino.Benchmark.dll --verify
 
       - name: Upload test results
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -551,12 +545,12 @@ jobs:
 
       # The net472 build only where Mono is installed (the project looks for its class libraries).
       - name: Build
-        run: dotnet build tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
+        run: dotnet build runtimes/csharp/tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
 
       # Each runtime's output without its comment lines (where it keeps the fields) must equal .NET's.
       - name: Run
         env:
-          BIN: tests/Nino.RuntimeTests/bin
+          BIN: runtimes/csharp/tests/Nino.RuntimeTests/bin
         run: |
           set -uo pipefail
           status=0
@@ -625,14 +619,14 @@ jobs:
       - name: Check the benchmark cases on Arm64
         if: ${{ matrix.id == 'arm64' && !cancelled() }}
         run: |
-          dotnet build benchmarks/Nino.Benchmark/Nino.Benchmark.csproj -c Release
-          dotnet benchmarks/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll --verify
+          dotnet build runtimes/csharp/benchmarks/Nino.Benchmark/Nino.Benchmark.csproj -c Release
+          dotnet runtimes/csharp/benchmarks/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll --verify
 
       - name: Publish trimmed and NativeAOT
         if: ${{ matrix.id == 'linux' && !cancelled() }}
         run: |
-          dotnet publish tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=trim -o ./aot-tests/trim
-          dotnet publish tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=aot -o ./aot-tests/aot
+          dotnet publish runtimes/csharp/tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=trim -o ./aot-tests/trim
+          dotnet publish runtimes/csharp/tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=aot -o ./aot-tests/aot
 
       - name: Run trimmed and NativeAOT
         if: ${{ matrix.id == 'linux' && !cancelled() }}
@@ -713,7 +707,7 @@ jobs:
       - *free-maple
 
   # A pull request's quick benchmark signal, on request: only a pull request labeled `benchmark` runs the A/B shards
-  # of benchmarks/shards.json ("ab": Nino and MemoryPack, the list ab-bench.yml runs; a new class is benchmarked here
+  # of runtimes/csharp/benchmarks/shards.json ("ab": Nino and MemoryPack, the list ab-bench.yml runs; a new class is benchmarked here
   # once it is in a shard), when it is opened, reopened or pushed to (adding the label starts no run: push after it).
   # Every pull request ran them before: six runners for up to 90 minutes, on docs and CI changes too. For a comparison
   # with main or the last release, run ab-bench.yml on the branch instead. The published numbers come from report.yml.
@@ -734,14 +728,14 @@ jobs:
       - name: Checkout the shard list
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: benchmarks/shards.json
+          sparse-checkout: runtimes/csharp/benchmarks/shards.json
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
       - name: Plan
         id: plan
         run: |
-          echo "shards=$(jq -c '[.ab[] | {id, filters: (.filters | join(" "))}]' benchmarks/shards.json)" >> "$GITHUB_OUTPUT"
+          echo "shards=$(jq -c '[.ab[] | {id, filters: (.filters | join(" "))}]' runtimes/csharp/benchmarks/shards.json)" >> "$GITHUB_OUTPUT"
 
       - *free-maple
 
@@ -770,7 +764,7 @@ jobs:
       # Verify.cs runs in the integrations job, on pushes and pull requests alike.
       - name: Build benchmark project
         run: |
-          cd benchmarks/Nino.Benchmark
+          cd runtimes/csharp/benchmarks/Nino.Benchmark
           dotnet build -c Release
 
       - name: Run benchmarks
@@ -781,7 +775,7 @@ jobs:
           # numbers that are published (#333).
           NINO_BENCH_QUICK: '1'
         run: |
-          cd benchmarks/Nino.Benchmark
+          cd runtimes/csharp/benchmarks/Nino.Benchmark
           read -ra filters <<< "$FILTERS"
           dotnet run -c Release --no-build -- --filter "${filters[@]}"
           if ! find BenchmarkDotNet.Artifacts/results -name '*-report-github.md' | grep -q .; then
@@ -794,5 +788,5 @@ jobs:
         if: always()
         with:
           name: benchmark-results-pr-${{ github.event.pull_request.number }}-${{ matrix.shard.id }}
-          path: benchmarks/Nino.Benchmark/**/BenchmarkDotNet.Artifacts/results
+          path: runtimes/csharp/benchmarks/Nino.Benchmark/**/BenchmarkDotNet.Artifacts/results
           retention-days: 30

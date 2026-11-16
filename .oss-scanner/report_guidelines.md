@@ -14,7 +14,7 @@
   (`NinoDeserializer.Deserialize<T>` on a `T` declared how, the ASP.NET Core input formatter, deserializing into an
   existing instance, Go `Unmarshal`, Rust `nino::deserialize`, ...).
 - Reproduction: the payload as hex, the type declarations it needs, and a minimal test that fails before the fix in
-  the style of the nearest existing test (`tests/Nino.UnitTests/Security`, `runtimes/*/` tests). Say what was observed
+  the style of the nearest existing test (`runtimes/csharp/tests/Nino.UnitTests/Security`, `runtimes/*/` tests). Say what was observed
   (the exception type and message, the crash, the time or bytes allocated) and what the contract expects.
 - Whether the same bytes behave differently in another runtime, when checked.
 

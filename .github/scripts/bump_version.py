@@ -3,7 +3,7 @@
 
 usage: bump_version.py <version> <unity version>
 
-NuGet (Directory.Build.props), the Unity package (package.json, its OpenUPM version), the Rust crates
+NuGet (runtimes/csharp/Directory.Build.props), the Unity package (package.json, its OpenUPM version), the Rust crates
 (nino-serialization and nino-serialization-derive, which the first pins exactly) and the npm package
 nino-serialization all take the release's version; the Go module takes it as the tag runtimes/go/v<version>,
 which the module path's major version (runtimes/go/v4) must match. The install command in each runtime's README
@@ -43,8 +43,8 @@ def bump_json(path, version, lock=False):
 
 def main():
     version, unity = sys.argv[1], sys.argv[2]
-    sub("Directory.Build.props", r"<Version>[^<]*</Version>", f"<Version>{version}</Version>")
-    sub("src/Nino.Unity/Packages/com.jasonxudeveloper.nino/package.json",
+    sub("runtimes/csharp/Directory.Build.props", r"<Version>[^<]*</Version>", f"<Version>{version}</Version>")
+    sub("runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino/package.json",
         r'"version": "[^"]*"', f'"version": "{unity}"')
 
     # The first `version =` of a Cargo.toml is its package's.

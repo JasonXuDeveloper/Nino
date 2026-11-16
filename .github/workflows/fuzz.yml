@@ -1,6 +1,6 @@
 name: Fuzz
 
-# Fuzzes the deserializer (tests/Nino.Fuzz, README.md there): the mutational fuzzer with guard pages and invariant
+# Fuzzes the deserializer (runtimes/csharp/tests/Nino.Fuzz, README.md there): the mutational fuzzer with guard pages and invariant
 # checks on every SIMD path, the hand-made probes, and coverage-guided libFuzzer runs of the SharpFuzz targets.
 # Pull requests and pushes get about a minute per configuration; the nightly run a longer budget.
 on:
@@ -8,18 +8,18 @@ on:
     branches: [ "main" ]
     # What the fuzzer builds: Nino.Core, Nino.Immutable, the generator, and the fuzzer itself.
     paths: &paths
-      - 'src/Nino.Core/**'
-      - 'src/Nino.Immutable/**'
-      - 'src/Nino.Generator/**'
-      - 'src/Nino.Generator.Roslyn4.12/**'
-      - 'tests/Nino.Fuzz/**'
-      - 'tools/UseNinoGenerator.props'
+      - 'runtimes/csharp/src/Nino.Core/**'
+      - 'runtimes/csharp/src/Nino.Immutable/**'
+      - 'runtimes/csharp/src/Nino.Generator/**'
+      - 'runtimes/csharp/src/Nino.Generator.Roslyn4.12/**'
+      - 'runtimes/csharp/tests/Nino.Fuzz/**'
+      - 'runtimes/csharp/tools/UseNinoGenerator.props'
       - '.editorconfig'
-      - 'Directory.Build.props'
-      - 'src/Directory.Build.targets'
-      - 'Directory.Packages.props'
-      - 'global.json'
-      - 'nuget.config'
+      - 'runtimes/csharp/Directory.Build.props'
+      - 'runtimes/csharp/src/Directory.Build.targets'
+      - 'runtimes/csharp/Directory.Packages.props'
+      - 'runtimes/csharp/global.json'
+      - 'runtimes/csharp/nuget.config'
       - '.github/workflows/fuzz.yml'
       - '.github/actions/setup-dotnet/**'
       - '.github/actions/apt-install/**'
@@ -53,7 +53,7 @@ env:
   DOTNET_NOLOGO: '1'
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
-  # Known open bugs (the probes marked Known in tests/Nino.Fuzz/Probes.cs) fail the run; setting the repository
+  # Known open bugs (the probes marked Known in runtimes/csharp/tests/Nino.Fuzz/Probes.cs) fail the run; setting the repository
   # variable NINO_FUZZ_STRICT_KNOWN to 0 reports them without failing it (none is marked Known now).
   NINO_FUZZ_STRICT_KNOWN: ${{ vars.NINO_FUZZ_STRICT_KNOWN || '1' }}
   SECONDS_BUDGET: ${{ github.event_name == 'schedule' && '1800' || inputs.seconds || '60' }}
@@ -174,7 +174,7 @@ jobs:
         uses: ./.github/actions/setup-dotnet
 
       - name: Build
-        run: dotnet build tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0
+        run: dotnet build runtimes/csharp/tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0
 
       # The fuzzer must find the crashes, hang and exception planted in its SelfTest target, or it would report
       # nothing on a platform where its supervisor or guard pages do not work. Then each configuration fuzzes;
@@ -190,7 +190,7 @@ jobs:
             local name=$1
             DOTNET_EnableHWIntrinsic=$2 DOTNET_EnableAVX512=$3 DOTNET_EnableAVX2=$4 bash -c '
               set -eo pipefail
-              dll=tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll
+              dll=runtimes/csharp/tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll
               dotnet "$dll" selftest
               dotnet "$dll" fuzz --seconds "$SECONDS_BUDGET" --seed "$SEED" --findings "$FINDINGS/$1"' _ "$name"
           }
@@ -258,15 +258,15 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
-          dotnet build tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0 -nologo -v quiet
-          mapfile -t all < <(dotnet tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll targets)
+          dotnet build runtimes/csharp/tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0 -nologo -v quiet
+          mapfile -t all < <(dotnet runtimes/csharp/tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll targets)
           mine=()
           for i in "${!all[@]}"; do
             if (( i % LIBFUZZER_SHARDS == SHARD - 1 )); then mine+=("${all[i]}"); fi
           done
           echo "targets: ${#all[@]}, this shard: ${mine[*]}"
           (( ${#all[@]} > 0 ))
-          if (( ${#mine[@]} > 0 )); then tests/Nino.Fuzz/libfuzzer/run.sh "$LIBFUZZER_SECONDS" "${mine[@]}"; fi
+          if (( ${#mine[@]} > 0 )); then runtimes/csharp/tests/Nino.Fuzz/libfuzzer/run.sh "$LIBFUZZER_SECONDS" "${mine[@]}"; fi
 
       - name: Upload findings
         if: failure()
