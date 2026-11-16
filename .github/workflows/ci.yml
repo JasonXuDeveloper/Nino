@@ -776,6 +776,10 @@ jobs:
       - name: Run benchmarks
         env:
           FILTERS: ${{ matrix.shard.filters }}
+          # A pull request's run is a trend check: shards.json's ab subset in quick mode ([NinoJob] with 250 ms
+          # iterations, stopping at 2 % error). A release (report.yml) runs every case with the full protocol, the only
+          # numbers that are published (#333).
+          NINO_BENCH_QUICK: '1'
         run: |
           cd benchmarks/Nino.Benchmark
           read -ra filters <<< "$FILTERS"
