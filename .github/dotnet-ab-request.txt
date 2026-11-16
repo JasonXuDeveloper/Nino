@@ -383,5 +383,5 @@
 # HashSet<int?> -52..-67% everywhere; recheck below the 9V45 GenericSealedClassTupleBase write (+48%) and small T? writes.
 # The Memmove probe again on Intel only (run 43782562246 drew AMD and Neoverse-N2 alone: no gain there).
 cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *NullableTest.NinoNullable*
-cpu='EPYC|Xeon|Neoverse' d0135190 07cc0cf1 2 *SimpleTest.Nino* *NullableTest.Nino*String* *WorkloadTest.Nino* *BclTypesTest.Nino*
-cpu='EPYC' a2c66aa6 d0135190 2 *GenericPolymorphicTest.NinoSerialize* *CollectionsTest.NinoNullableSerialize* *CollectionsTest.NinoSerializeNullable*
+# done (run 43803558705): short-string writer d0135190 -> 07cc0cf1: InterfaceStrings writes -21..-61%, LogBatch -4..-17%; kept.
+# done (run 43803558705): GenericSealedClassTupleBase level on 9V45; NinoNullable Memory<int?>/Vec3? writes +17..26% on 9V45 (#306).
