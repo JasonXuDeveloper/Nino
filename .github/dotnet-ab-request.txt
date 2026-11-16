@@ -385,3 +385,4 @@
 cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *NullableTest.NinoNullable*
 # done (run 43803558705): short-string writer d0135190 -> 07cc0cf1: InterfaceStrings writes -21..-61%, LogBatch -4..-17%; kept.
 # done (run 43803558705): GenericSealedClassTupleBase level on 9V45; NinoNullable Memory<int?>/Vec3? writes +17..26% on 9V45 (#306).
+cpu='9V45|9V74|Xeon' 745c59d0 745c59d0 1 *AlignedCopyProbe*
