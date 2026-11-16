@@ -192,17 +192,49 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   marked `AggressiveInlining`: the JIT refused to inline a 20-subtype chain even so (a call per element again, 4.9 us),
   and a test for a generic interface (`default(TFormatter) is INinoElementsFormatter<T>`) per element in a loop over
   a reference type is shared code that looks the interface up and boxes each time: 20 us for the same list (a
-  non-generic interface folds). Dictionaries of a polymorphic value keep `Serialize` per value: a generated loop over
-  a struct source of pairs (`WriteFrom<TSource>`, keys written by the source, the dispatch inline) is a generic
-  interface method called from shared code (the value type a class), which looks up its instantiation per call:
-  `Dictionary<int, IFoo>` of 12 values 143-147 ns against 58-72 per value (LuminPack 49-60). Nino's fixed cost per call
-  is already the lower one (an empty dictionary 4.6 ns against LuminPack's 15.9, one pair 14.3 against 16.8); the
-  remaining gap is about 0.6 ns a pair, the call into the dispatch. Nor a non-generic entry point over the entries' memory (`WriteEntries(ref first, count,
-  stride, key and value offsets)`, raw keys copied as bytes): the layout's static readonly fields in shared generic
-  code and the interface call cost more than they saved (one pair 14.3 to 22.5 ns, 12 pairs 59 to 72).
+  non-generic interface folds). Dictionaries: the next bullet.
   Generic bases keep the element loop out too: the same loop in each closed dispatch class (`__NinoDispatch<n>`),
   selected once per collection, wrote GenericSealedClassTupleBase 22 % and GenericOpenClassTupleBase 12 % slower
   (7.2 to 8.8 us, 7.5 to 8.4; two rounds, local x64), their subtypes each holding a class whose nested writes, all
   inlined into one loop, ran out of registers; the other generic bases moved within noise. The closed dispatch stays
   marked to inline into the collection loop, as before.
+- Write a `Dictionary<TKey, Base>` of a polymorphic base through the base's generated pair loop
+  (`INinoPairsFormatter`, `DispatchEmitter.EmitWriteElements`, called from `NinoDictionary.Write` on .NET 8+): one
+  generic loop `__WritePairs<TKey, TKeyFormatter>` in the generated struct, reached through non-generic interface
+  methods per kind of key (`WritePairs32`, `WritePairs64`, `WriteStringPairs`; 4- and 8-byte primitive and enum keys
+  are read as `int` and `long`, `WordKey<T>`), the dictionary's entries walked in place
+  (`NinoDictionaryEntries.InUse`: a reference and a count, no enumerator), the writer in a local. Why: in Nino.Core
+  the loop is shared code over the class value, so each value was a call into the dispatch with the writer in memory,
+  and nothing generic can be called on the formatter from there without a lookup. Keep every part, each measured
+  (#308, LuminPack's IFoo of 20 subtypes, values FooA-FooD, a class holding the dictionary, local Emerald Rapids,
+  alternating processes, `ser` minimum ns at 1 / 4 / 12 / 32 / 100 pairs; LuminPack in the same process):
+  base 18 / 31 / 66 / 150 / 460 for int keys, 20 / 36 / 81 / 195 / 590 for string keys; LuminPack 16 / 24 / 51 / 100 /
+  290 and 23 / 47 / 128 / 287 / 816. Lost before this form: a generated `WriteFrom<TSource>` over a struct source of
+  pairs written by Nino.Core (shared over the value, a lookup per call: 12 pairs 143-147 ns against 58-72), and a
+  non-generic `WriteEntries(ref first, count, stride, offsets)` over the entries' memory, raw keys as bytes (the
+  layout's static readonly fields in shared code and the interface call: one pair 14.3 to 22.5 ns, 12 pairs 59 to 72).
+  (1) A generic interface method (`WritePairs<TKey, TKeyFormatter>(object, ref
+  Writer)`) lost: the JIT does not devirtualize a generic virtual method even on a boxed exact struct
+  (`CORINFO_HELP_NEWSFAST` then `CORINFO_HELP_VIRTUAL_FUNC_PTR` and `call rax` in the caller, which knew the type):
+  35 / 49 / 94 / 215 / 693; keep the interface's methods non-generic and the generic loop behind them. (2) The
+  generated loop over `foreach (var pair in dictionary)` kept `Enumerator.MoveNext` a call per pair (shared code over
+  the value, not inlined) and the writer in memory: 27 / 43 / 87 / 213 / 682, slower than base. (3) The entries
+  through a span (`foreach (ref readonly var pair in span)`): 18 / 26 / 53 / 120 / 355. (4) The chain's fallback for
+  a subtype it does not know called the registry with `ref writer`, which exposed the local's address and kept its
+  fields in memory; `writer = __WriteSubtypeDeep(value, writer)` (by value, as the deep path already was) put the
+  cursor and the free space in registers: 16 / 24 / 44 / 93 / 275 (the element loops of lists take the same
+  fallback: `List<IFoo>` of 1,000 on par, 3.21 against 3.24 us). (5) The enumerator path (removed entries, bodies too
+  deep) out of line in `__WritePairsThroughDispatch`: on par, 6,848 bytes of loop against 7,135. (6) A reference and
+  a count in place of the span, whose index kept a bounds check and spilled: 15 / 23 / 39-41 / 80-82 / 237-245 for
+  int keys, 17-18 / 26-27 / 53-55 / 120-122 / 354-437 for string keys, ahead of LuminPack at every size (at 4 int
+  pairs 23.0-23.7 against 24.9). Cost: the loop is instantiated per kind of key (6,783 bytes at Tier1 for `int`, 7,103
+  for `string`, against 1,056 and 1,381 for the shared loop plus the 4,806-byte `__WriteSubtype` it called), and
+  `NinoGen.Dispatch.g.cs` grew from 24.8 to 34.0 KB for the 20 subtypes; the pair loops are under
+  `#if NET8_0_OR_GREATER` in the generated code, since IL2CPP compiles every method of a type and Nino.Core's
+  netstandard2.1 build (Unity, Mono) keeps its own loop. Other keys (structs, `short`, `Guid`, UTF-8 strings) keep
+  the shared loop. Reads were left as they are: a hand-written exact loop (`TryAdd`, the generated `Deserialize`
+  inline) read no faster than Nino's shared one (12 pairs 322 against 321 ns, 100 pairs 2,282 against 2,163), so the
+  shared code's lookups are not the read's cost; LuminPack reads 5-10 % faster from about 4 pairs on (100 int pairs
+  2,015 against 2,163-2,200) by filling the entries of a new dictionary in the loop and building its buckets after it
+  in one pass.
 
