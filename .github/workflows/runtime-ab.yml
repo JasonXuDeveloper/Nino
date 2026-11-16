@@ -120,6 +120,11 @@ jobs:
           rustup toolchain install stable --profile minimal >/dev/null
           out="$RUNNER_TEMP/out"
           mkdir -p "$out"
+          # Where a commit keeps a thing (runtimes, nino-gen, the generator, its benchmark): this branch's
+          # .github/scripts/layout.py on that commit's tree, never a typed path, so a line whose base and head lie on
+          # either side of a move (the .NET projects into runtimes/csharp, #273) builds each side from its own place.
+          LAYOUT=$GITHUB_WORKSPACE/.github/scripts/layout.py
+          tree_path() { python3 "$LAYOUT" "$RUNNER_TEMP/$1" --get "$2"; }
           while read -r -u 3 lang base head filter envs; do
             [[ -z ${lang:-} || $lang == \#* ]] && continue
             for ref in "$base" "$head"; do
@@ -145,11 +150,13 @@ jobs:
             [[ ${head_env:--} == - ]] && head_env=NINO_AB_NONE=1
             case $lang in
               go)
+                go_base=$(tree_path "$base" GO_RUNTIME)
+                go_head=$(tree_path "$head" GO_RUNTIME)
                 : > "$out/base.txt"; : > "$out/head.txt"
                 for _ in $(seq "$rounds"); do
                   for side in base head; do
-                    ref=$base; [[ $side == head ]] && ref=$head
-                    (cd "$RUNNER_TEMP/$ref/runtimes/go/$godir" &&
+                    ref=$base go_dir=$go_base; [[ $side == head ]] && ref=$head go_dir=$go_head
+                    (cd "$RUNNER_TEMP/$ref/$go_dir/$godir" &&
                       go test -run '^$' -bench "${filter:-.}" -benchmem -count 1) >> "$out/$side.txt"
                   done
                 done
@@ -165,13 +172,15 @@ jobs:
                 # their loops across fetch blocks (16-byte shifts of identical code moved Zen 5 timings by up to 30%).
                 # A side's env NINO_AB_RUSTFLAGS=<flags> replaces the flags (NINO_AB_RUSTFLAGS= builds as before).
                 align=-Cllvm-args=-align-all-functions=6
+                rust_base=$(tree_path "$base" RUST_RUNTIME)
+                rust_head=$(tree_path "$head" RUST_RUNTIME)
                 export CRITERION_HOME="$RUNNER_TEMP/criterion"
                 rm -rf "$CRITERION_HOME"
                 for round in 1 2; do
-                  (cd "$RUNNER_TEMP/$base/runtimes/rust" && export "$base_env" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$base" &&
+                  (cd "$RUNNER_TEMP/$base/$rust_base" && export "$base_env" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$base" &&
                     export RUSTFLAGS="${NINO_AB_RUSTFLAGS-$align}" &&
                     cargo bench -q -p nino-bench --bench "$bench" -- --save-baseline base "${fargs[@]}" < /dev/null) > /dev/null
-                  (cd "$RUNNER_TEMP/$head/runtimes/rust" && export "$head_env" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$head" &&
+                  (cd "$RUNNER_TEMP/$head/$rust_head" && export "$head_env" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$head" &&
                     export RUSTFLAGS="${NINO_AB_RUSTFLAGS-$align}" &&
                     cargo bench -q -p nino-bench --bench "$bench" -- --baseline base "${fargs[@]}" < /dev/null) | tee "$out/rust-$round.txt"
                 done
@@ -182,7 +191,8 @@ jobs:
                 # that .NET writes (as bench/run.sh does). Both sides run the head's bench.ts; each takes the code its
                 # own nino-gen generates (so a change to the templates is measured too) with its own src/nino.ts, and
                 # reads the data its own .NET writes (the same bytes unless the two differ in the wire format).
-                B="$RUNNER_TEMP/$head/runtimes/typescript/bench"
+                ts_bench=$(tree_path "$head" TYPESCRIPT_BENCH)
+                B="$RUNNER_TEMP/$head/$ts_bench"
                 (cd "$B" && npm ci --no-audit --no-fund > /dev/null)
                 if [[ ! -x "$(npm root -g)/playwright/cli.js" ]]; then
                   npm install -g playwright@1.56.1 > /dev/null
@@ -193,17 +203,21 @@ jobs:
                 fi
                 dotnet build -c Release "$B" > /dev/null
                 dotnet "$B/bin/Release/net10.0/Bench.dll" "$out/data"
-                BB="$RUNNER_TEMP/$base/runtimes/typescript/bench"
+                ts_bench=$(tree_path "$base" TYPESCRIPT_BENCH)
+                BB="$RUNNER_TEMP/$base/$ts_bench"
                 dotnet build -c Release "$BB" > /dev/null
                 dotnet "$BB/bin/Release/net10.0/Bench.dll" "$out/data-base"
                 for side in base head; do
                   ref=$base; [[ $side == head ]] && ref=$head
-                  dotnet build -c Release "$RUNNER_TEMP/$ref/src/Nino.Codegen" > /dev/null
+                  codegen=$RUNNER_TEMP/$ref/$(tree_path "$ref" CODEGEN)
+                  ts_bench=$RUNNER_TEMP/$ref/$(tree_path "$ref" TYPESCRIPT_BENCH)
+                  ts_runtime=$RUNNER_TEMP/$ref/$(tree_path "$ref" TYPESCRIPT_RUNTIME)
+                  dotnet build -c Release "$codegen" > /dev/null
                   rm -rf "$B/gen"
-                  dotnet "$RUNNER_TEMP/$ref/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" \
-                    --assembly "$RUNNER_TEMP/$ref/runtimes/typescript/bench/bin/Release/net10.0/Bench.dll" --lang ts \
+                  dotnet "$codegen/bin/Release/net8.0/nino-gen.dll" \
+                    --assembly "$ts_bench/bin/Release/net10.0/Bench.dll" --lang ts \
                     --out "$B/gen" --import-extension .ts > /dev/null
-                  cp "$RUNNER_TEMP/$ref/runtimes/typescript/src/nino.ts" "$B/gen/nino.ts"
+                  cp "$ts_runtime/src/nino.ts" "$B/gen/nino.ts"
                   mkdir -p "$out/$side"
                   (cd "$B" && npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
                     --outfile="$out/$side/bench.js" &&
@@ -226,18 +240,20 @@ jobs:
               generator)
                 # The head's benchmark against each side's generator, in one process per side and round; the head's
                 # Nino.Core for both (the generator finds Nino.Core's attributes by name). net8.0 on .NET 10.
-                G="$RUNNER_TEMP/$head/benchmarks/Nino.GeneratorBenchmark"
+                G=$RUNNER_TEMP/$head/$(tree_path "$head" GENERATOR_BENCH)
+                gen_base=$RUNNER_TEMP/$base/$(tree_path "$base" GENERATOR)
+                gen_head=$RUNNER_TEMP/$head/$(tree_path "$head" GENERATOR)
                 dotnet build -c Release "$G" -v q -nologo < /dev/null > /dev/null
-                for ref in "$base" "$head"; do
-                  dotnet build -c Release "$RUNNER_TEMP/$ref/src/Nino.Generator" -v q -nologo < /dev/null > /dev/null
+                for gen in "$gen_base" "$gen_head"; do
+                  dotnet build -c Release "$gen" -v q -nologo < /dev/null > /dev/null
                 done
                 IFS=, read -ra gargs <<< "${filter:-}"
                 : > "$out/gen.txt"
                 for round in $(seq "$rounds"); do
                   for side in base head; do
-                    ref=$base; [[ $side == head ]] && ref=$head
+                    gen=$gen_base; [[ $side == head ]] && gen=$gen_head
                     DOTNET_ROLL_FORWARD=Major dotnet "$G/bin/Release/net8.0/Nino.GeneratorBenchmark.dll" "${gargs[@]}" --runs 15 \
-                      --generator "$RUNNER_TEMP/$ref/src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll" < /dev/null |
+                      --generator "$gen/bin/Release/netstandard2.0/Nino.Generator.dll" < /dev/null |
                       sed -n "s/^median of runs [0-9-]*: /$side round $round: /p" | tee -a "$out/gen.txt"
                   done
                 done
