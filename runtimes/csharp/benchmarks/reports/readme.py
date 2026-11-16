@@ -62,7 +62,7 @@ WORKLOADS = [("MediaContent", "`MediaContent` (jvm-serializers)"),
 WORKLOAD_KEYS = [key for key, _ in WORKLOADS]
 # The other libraries of the headline, as (method prefix, key prefix of the README markers, name).
 # In the chart's order (the owner's): the binary serializers closest to Nino first, then both Protobuf libraries, then JSON.
-OTHERS = [("MemoryPack", None, "MemoryPack"), ("MessagePack", "msgpack", "MessagePack"),
+OTHERS = [("MemoryPack", None, "MemoryPack"), ("LuminPack", None, "LuminPack"), ("MessagePack", "msgpack", "MessagePack"),
           ("GoogleProtobuf", "gprotobuf", "Google.Protobuf"), ("Protobuf", "protobuf", "protobuf-net"),
           ("Json", "json", "System.Text.Json")]
 # The other forms of a nullable value the nullable cases time (NullableForms in Nino.Benchmark's NullableTest), as
@@ -79,6 +79,37 @@ FORM_NOTE = ("Nullable cases: MemoryPack writes SafeNullable<T> data the model a
 FORM_NOTE_ZH = ("可空值：MemoryPack 写的是模型里已备好的 SafeNullable<T>；MemoryPack (converted) 在计时内把模型的 T? "
                 "转成它、读完再转回；MemoryPack (T?, unsafe) 直接拷贝 T?，连同未初始化的填充字节（同一个值可能写出不同的字节，"
                 "还会带出进程里残留的内存）。Nino (NinoNullable) 是用 NinoNullable<T> 代替 T?：写它自己的内存，每个值占两个 T，字节与 T? 不通用。Nino 的 T? 始终安全。")
+
+# The libraries whose missing cases are n/a (a bar labelled n/a, a "n/a" cell) rather than left out, once a report
+# has any row of theirs: LuminPack runs every case MemoryPack runs in the classes that declare their cases, and a case
+# it leaves out is one its 1.1.9 cannot run (runtimes/csharp/benchmarks/README.md, LuminPack; #356). MessagePack,
+# protobuf and JSON leave out a case they cannot express: no bar.
+NA = ("LuminPack",)
+NA_NOTE = ("LuminPack n/a: a case its 1.1.9 cannot run (a generator error, its own bytes read back wrong, a crash), "
+           "or a scenario the suite times through each library's own API, which has no LuminPack form.")
+NA_NOTE_ZH = ("LuminPack 标 n/a 的用例：它的 1.1.9 跑不了（生成器报错、读不对自己写的字节、进程崩溃），"
+              "或是套件按各库自己 API 计时的场景，没有 LuminPack 的写法。")
+
+
+def ran(v4, other):
+    """Whether the report has any row of the library (a method named with its prefix and no longer one)."""
+    return any(method_library(m) == other for m in v4)
+
+
+def method_library(method):
+    """The library prefix of a method (the longest of Nino, OTHERS and FORMS it starts with), or None."""
+    return next((p for p in PREFIXES if method.startswith(p)), None)
+
+
+def missing(v4, other, method_of):
+    """Whether the library's bar of a case is n/a: one of NA that ran, without the case MemoryPack has."""
+    return other in NA and ran(v4, other) and method_of(other) not in v4 and method_of("MemoryPack") in v4
+
+
+def has_na(chart):
+    """Whether a chart (pairs of (title, rows) or None) has a bar of NA without a time."""
+    names = {name for other, _, name in OTHERS if other in NA}
+    return any(name in names and ns is None for pair in chart for half in pair if half for name, ns, *_ in half[1])
 
 
 def has_forms(chart):
@@ -175,7 +206,8 @@ def numbers(v4_path, v3_paths, tag=None):
             out[f"{prefix}.deser.range"] = win_range("Deserialize", other)
     # The bytes of the Stack Exchange page, each library's (the README's environment line).
     # (Google.Protobuf writes the same messages as protobuf-net: one number for both.)
-    for other, prefix in [("Nino", "v4")] + [(o, p or "memorypack") for o, p, _ in OTHERS if o != "GoogleProtobuf"]:
+    for other, prefix in [("Nino", "v4"), ("MemoryPack", "memorypack")] + [(o, p) for o, p, _ in OTHERS
+                                                                          if p and o != "GoogleProtobuf"]:
         out[f"payload.{prefix}"] = v4[f"{other}SerializeStackOverflowPage"]["payload"].replace(" B", "")
 
     v3 = {}
@@ -283,6 +315,8 @@ def bars(v4, v3, method_of, first="Nino v4"):
         method = method_of(lib)
         if method and method in v4:
             out.append((names[lib], v4[method]["mean"]))
+        elif method and missing(v4, lib, method_of):
+            out.append((names[lib], None))
     return out
 
 
@@ -357,7 +391,8 @@ def overview_chart(v4, v3, cases=CHART_CASES, in_place=True):
         rows = [("Nino v4", v4[f"Nino{verb}{key}"]["mean"])]
         if v3 is not None:
             rows.append(("Nino v3", v3.get(f"Nino{verb}{key}")))
-        rows += [(name, v4[f"{other}{verb}{key}"]["mean"]) for other, _, name in OTHERS if f"{other}{verb}{key}" in v4]
+        rows += [(name, v4[f"{other}{verb}{key}"]["mean"] if f"{other}{verb}{key}" in v4 else None) for other, _, name in OTHERS
+                 if f"{other}{verb}{key}" in v4 or missing(v4, other, lambda lib: f"{lib}{verb}{key}")]
         return f"{verb} · {title}", rows
 
     chart = [tuple(group(verb, key, title.replace("`", "")) for verb in ("Serialize", "Deserialize"))
@@ -434,17 +469,23 @@ def tables(v4, v3, v3_runs, env, tag):
         return time(mean(method)) if method in v4 else "—"
 
     out = {}
-    names = ["Nino"] + [o for o, _, _ in OTHERS]
-    head = ["Nino"] + [name for _, _, name in OTHERS]
+    # Every library the report ran; one of NA without a workload shows n/a there (LuminPack's 1.1.9 runs MediaContent).
+    libraries = [("Nino", "Nino")] + [(o, name) for o, _, name in OTHERS if o not in NA or ran(v4, o)]
+    names = [o for o, _ in libraries]
+    head = [name for _, name in libraries]
+
+    def cell(n, verb, key):
+        if f"{n}{verb}{key}" not in v4:
+            return "n/a"
+        return time(mean(f"{n}{verb}{key}")) + ("" if n == "Nino" else
+                                                f" ({versus(mean(f'{n}{verb}{key}'), mean(f'Nino{verb}{key}'))})")
     for verb in ("Serialize", "Deserialize"):
         out[f"table.workloads.{verb.lower()}"] = table(
-            ["Workload"] + head,
-            [[label] + [time(mean(f"{n}{verb}{key}")) + ("" if n == "Nino" else
-                        f" ({versus(mean(f'{n}{verb}{key}'), mean(f'Nino{verb}{key}'))})") for n in names]
-             for key, label in WORKLOADS])
+            ["Workload"] + head, [[label] + [cell(n, verb, key) for n in names] for key, label in WORKLOADS])
     out["table.workloads.payload"] = table(
         ["Workload"] + head,
-        [[label] + [f"{v4[f'{n}Serialize{key}']['payload']}" for n in names] for key, label in WORKLOADS])
+        [[label] + [v4[f"{n}Serialize{key}"]["payload"] if f"{n}Serialize{key}" in v4 else "n/a" for n in names]
+         for key, label in WORKLOADS])
     # The other libraries' times, for reference, in OTHERS' order ("—" where a release did not run one): MemoryPack,
     # MessagePack and protobuf-net always, Google.Protobuf and System.Text.Json once a report has them in these cases
     # (earlier releases ran them in WorkloadTest only).
@@ -545,7 +586,10 @@ def write_charts(overview, groups, render_png=False, chrome=None):
         fallback = f"{ASSETS}/benchmark.png" if i == 0 else None
         alt = f"{title}: time per operation of Nino v4, v3 and every library, serialize and deserialize"
         # README opens only the first group, so the page stays short; docs/v4-benchmarks.md opens them all.
-        note, note_zh = (f"\n\n<sub>{FORM_NOTE}</sub>", f"\n\n<sub>{FORM_NOTE_ZH}</sub>") if has_forms(chart) else ("", "")
+        note = (f"\n\n<sub>{FORM_NOTE}</sub>" if has_forms(chart) else "") + \
+            (f"\n\n<sub>{NA_NOTE}</sub>" if has_na(chart) else "")
+        note_zh = (f"\n\n<sub>{FORM_NOTE_ZH}</sub>" if has_forms(chart) else "") + \
+            (f"\n\n<sub>{NA_NOTE_ZH}</sub>" if has_na(chart) else "")
         en.append(details(title, picture(light, dark, alt, fallback) + note, i == 0))
         doc.append(details(title, picture(light, dark, alt, fallback) + note, True))
         zh.append(details(title_zh, picture(light, dark, f"{title_zh}：Nino v4、v3 与各库每次操作的耗时，序列化与反序列化",

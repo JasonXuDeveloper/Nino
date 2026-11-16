@@ -187,6 +187,8 @@ def dotnet_chart(path, arch, v3_path=None):
     note = f"BenchmarkDotNet, .NET 10, {run}; every case is in the table; N× = N times as long as Nino v4."
     if any(readme.has_forms(chart) for _, _, _, chart in groups):
         note += " " + readme.FORM_NOTE
+    if any(readme.has_na(chart) for _, _, _, chart in groups):
+        note += " " + readme.NA_NOTE
     return groups, summary, note
 
 
