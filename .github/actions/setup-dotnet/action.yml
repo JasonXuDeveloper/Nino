@@ -1,6 +1,6 @@
 name: Set up .NET
 description: >-
-  The .NET 11 SDK, which global.json asks for (and the .NET 8 one where asked): the runner's own, else through
+  The .NET 11 SDK, which runtimes/csharp/global.json asks for (and the .NET 8 one where asked): the runner's own, else through
   actions/setup-dotnet; and where asked the NuGet package cache of one job (~/.nuget/packages).
 inputs:
   net8:
@@ -8,7 +8,7 @@ inputs:
     default: 'false'
   net11:
     description: >-
-      Kept for callers: every job installs the .NET 11 SDK now that global.json asks for it (net11.0 tests included).
+      Kept for callers: every job installs the .NET 11 SDK now that runtimes/csharp/global.json asks for it (net11.0 tests included).
     default: 'false'
   cache:
     # One cache per job, not one per OS: setup-dotnet's own cache (one key per OS and project files) was saved by
@@ -22,7 +22,7 @@ inputs:
 runs:
   using: composite
   steps:
-    # global.json asks for an 11.0 SDK or later (net11.0 targets and C# 15, which the union tests use). Use the
+    # runtimes/csharp/global.json asks for an 11.0 SDK or later (net11.0 targets and C# 15, which the union tests use). Use the
     # runner's own SDKs when they are there, and download only what is missing: setup-dotnet resolves through aka.ms, whose download host can be
     # down (October 2026: dotnetorigin.blob.core.windows.net answered 409 to every download for hours, which failed
     # every job here at "Setup .NET").
@@ -67,5 +67,5 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.nuget/packages
-        key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', 'global.json') }}
+        key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache }}-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', 'runtimes/csharp/global.json') }}
         restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache }}-

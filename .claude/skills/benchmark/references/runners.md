@@ -35,7 +35,7 @@ probe, or reading a verdict for one CPU.
 
 ## Probes
 
-- Build `benchmarks/Nino.Benchmark` in Release before pushing a probe (warnings are errors): run 41179183815's probe
+- Build `runtimes/csharp/benchmarks/Nino.Benchmark` in Release before pushing a probe (warnings are errors): run 41179183815's probe
   failed CS8618 on every Xeon job it drew, two of them 8370C.
 - Confirm a probe's verdict with the case itself before landing: on the 8370C a kernel that won 0.77 in
   `TuplePackProbe` lost 4.5 % in `NinoSerializeTupleList` (`optimize`).

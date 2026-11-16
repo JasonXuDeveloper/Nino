@@ -16,15 +16,15 @@ Each runtime's API is in its README: [TypeScript](../runtimes/typescript/README.
 
 ## Where it lives
 
-- `src/Nino.Codegen` is the command line (`Program.cs`) and the build package **Nino.Codegen**:
+- `runtimes/csharp/src/Nino.Codegen` is the command line (`Program.cs`) and the build package **Nino.Codegen**:
   `build/Nino.Codegen.targets` runs the same entry point after `CoreCompile`, once per `<NinoCodegen>` item, passing
   the compiled assembly, a file listing its references (`obj/<configuration>/<framework>/nino-gen/references`) and each
   metadata as the option of the same name. Its inputs and outputs make an item run again only when the assembly, its
   references, the tool or the item's metadata change, and design-time builds skip it.
-- `src/Nino.Codegen.Tool` packs the same program as the .NET tool **Nino.Codegen.Tool** (command `nino-gen`).
+- `runtimes/csharp/src/Nino.Codegen.Tool` packs the same program as the .NET tool **Nino.Codegen.Tool** (command `nino-gen`).
 - `nino-gen layouts` writes and checks layout baselines ([Layout baselines](#layout-baselines)).
 - `nino-gen inspect` prints what each byte of a message is ([Inspecting a message](#inspecting-a-message)).
-- The file map is `src/Nino.Codegen/AGENTS.md`.
+- The file map is `runtimes/csharp/src/Nino.Codegen/AGENTS.md`.
 
 nino-gen reads nothing but the `[assembly: NinoTypeLayout]` attributes the Nino generator publishes in every assembly
 it compiles ([v4-design, "Generated code per type"](v4-design/generator.md#generated-code-per-type); the grammar is
@@ -260,7 +260,7 @@ string of an existing `NinoLayouts(@"...")`, keeping the rest of the file. `--ch
 format at its line in the file (`NinoLayouts.cs(12): warning NINO034: ...`) and exits with 1 when one breaks data or
 loses it silently; `--references <file>` is the codegen command's. `LayoutsCommand.cs` is the command; the baseline's
 format (`LayoutBaseline.cs`) and its rules (`LayoutRules.cs`: which types it holds, which section a renamed type
-matches, what a change does to each reader) are `src/Nino.Generator/Common`'s, compiled into the analyzer, its code
+matches, what a change does to each reader) are `runtimes/csharp/src/Nino.Generator/Common`'s, compiled into the analyzer, its code
 fixes and nino-gen alike, so the IDE, the build and this command report the same findings. A type's name in a baseline
 is its runtime-form name, `TypeNames.Runtime` here and `TypeNames.RuntimeName` in the generator.
 
@@ -311,10 +311,10 @@ its end is unknown and the read stops there with that reason. `BitArray` and `Ti
 read as spec §3.5 says, though no target writes them. Without the assembly nothing can be read: positional bodies
 carry no names, lengths or types.
 
-`tests/Nino.Codegen.Tests/InspectCommandTests.cs` reads every valid corpus case to its end and to the value its JSON
+`runtimes/csharp/tests/Nino.Codegen.Tests/InspectCommandTests.cs` reads every valid corpus case to its end and to the value its JSON
 records, every malicious case and truncated prefix to an error (the untrusted ones too; a `trailing` case reports its
 bytes), mutated corpus inputs to a value or an error and nothing else, and compares the text of representative
-messages with `tests/Nino.Codegen.Tests/Inspect/*.txt` (`NINO_UPDATE_GENERATED=1` rewrites them: review the diff).
+messages with `runtimes/csharp/tests/Nino.Codegen.Tests/Inspect/*.txt` (`NINO_UPDATE_GENERATED=1` rewrites them: review the diff).
 `InspectTypes.cs` holds the custom-formatter types, which every target leaves out (NINOGEN002).
 
 ## Adding a type or an encoding
@@ -329,9 +329,9 @@ messages with `tests/Nino.Codegen.Tests/Inspect/*.txt` (`NINO_UPDATE_GENERATED=1
    template needs a change only when the text around a value differs.
 3. **Each runtime.** The helper the targets call exists in each runtime, with its bounds and validation checks
    (`audit-security`), and its README's API lists it.
-4. **A sample.** A member of the new type in `tests/conformance/Nino.Conformance/Types.cs` (the corpus is regenerated:
+4. **A sample.** A member of the new type in `runtimes/csharp/tests/Nino.Conformance/Types.cs` (the corpus is regenerated:
    tests/conformance/AGENTS.md), or, for a way of declaring a type the corpus does not cover, a shape in
-   `tests/Nino.Codegen.Tests/Shapes.cs`, which every runtime compiles.
+   `runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs`, which every runtime compiles.
 5. **Inspect.** `nino-gen inspect` reads a new `ValueKind` in `Inspect/Inspector.cs` (and a new `PrimitiveKind` in
    `Inspect/Scalars.cs`, with its range checks); the corpus tests fail until it does.
 6. **Regenerate and test** ([Tests](#tests)), then the site: the type mapping of each language, and its "What Is Not
@@ -339,8 +339,8 @@ messages with `tests/Nino.Codegen.Tests/Inspect/*.txt` (`NINO_UPDATE_GENERATED=1
 
 ## Tests
 
-`tests/Nino.Codegen.Tests` (in Nino.slnx) checks the IR, each target and the command line, and that the generated files
-committed under the runtimes match what nino-gen writes today. `tests/Nino.Codegen.Integration.Tests` runs the
+`runtimes/csharp/tests/Nino.Codegen.Tests` (in runtimes/csharp/Nino.slnx) checks the IR, each target and the command line, and that the generated files
+committed under the runtimes match what nino-gen writes today. `runtimes/csharp/tests/Nino.Codegen.Integration.Tests` runs the
 TypeScript of its samples under Node against the bytes .NET writes, round-trips its generic samples through the
 generated Go (`go run`) and Rust (`cargo run`, with each `--maps`) (inconclusive without `go` or `cargo` on the
 PATH, a failure in CI, which sets them up), and builds scratch projects with
@@ -357,7 +357,7 @@ code (every valid case written back byte for byte, every malicious case and trun
 After a change to the IR, a target or a template, regenerate them and commit the result with the change:
 
 ```sh
-NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests
+NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests
 ```
 
 then run the three runtime checks. Each runtime must reject every malicious case (or may read it, where the case allows
@@ -367,6 +367,6 @@ either).
 
 Each runtime's benchmark writes machine-readable output (`NINO_BENCH_JSON` for TypeScript, `go test -bench` text,
 criterion's JSON), and the release workflow (`report.yml`) turns each into a section per language and architecture
-with `benchmarks/reports/runtimes_report.py`, attached to the release as `runtime-<lang>-<x64|arm64>.md`
-(`benchmarks/reports/release_assets.py`) and charted in its notes. The site shows
+with `runtimes/csharp/benchmarks/reports/runtimes_report.py`, attached to the release as `runtime-<lang>-<x64|arm64>.md`
+(`runtimes/csharp/benchmarks/reports/release_assets.py`) and charted in its notes. The site shows
 them on [Benchmarks in Other Languages](https://nino.xgamedev.net/en/docs/v4/benchmarks-runtimes).

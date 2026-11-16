@@ -8,7 +8,7 @@ reading or writing an entry in `pipeline-and-binding.md`, `model-allocations.md`
 ## The replay harness and its vocabulary
 
 - Replay the real project, not only `GeneratorBenchmark`. The entries are measured on the compilation of
-  tests/Nino.UnitTests rebuilt from its `csc` line (SKILL.md, Measure): 122 syntax trees, 216 metadata references,
+  runtimes/csharp/tests/Nino.UnitTests rebuilt from its `csc` line (SKILL.md, Measure): 122 syntax trees, 216 metadata references,
   about 2,400 top-level calls, 548-910 types depending on the probe, 572-579 models and 577-584 generated files (the
   counts grew as the test project grew, so each entry keeps the counts it was measured at; one run wrote 582 files of
   3,241,440 bytes, another 3,240,332 bytes). Why: `GeneratorBenchmark`'s comment edit lands in the file of every

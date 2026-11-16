@@ -9,15 +9,15 @@
 # Chromium (global: NODE_PATH); the rest comes from package-lock.json.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-ROOT=$(cd "$HERE/../../.." && pwd)
+CSHARP=$(cd "$HERE/../../csharp" && pwd)
 OUT=$HERE/out
 
 rm -rf "$OUT" "$HERE/gen"
 (cd "$HERE" && npm ci --no-audit --no-fund > /dev/null)
-dotnet build -c Release "$ROOT/src/Nino.Codegen" > /dev/null
+dotnet build -c Release "$CSHARP/src/Nino.Codegen" > /dev/null
 dotnet build -c Release "$HERE" > /dev/null
 dotnet "$HERE/bin/Release/net10.0/Bench.dll" "$OUT/data"
-dotnet "$ROOT/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" --assembly "$HERE/bin/Release/net10.0/Bench.dll" \
+dotnet "$CSHARP/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" --assembly "$HERE/bin/Release/net10.0/Bench.dll" \
   --lang ts --out "$HERE/gen" --import-extension .ts
 (cd "$HERE" && npx tsc -p . && npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
   --outfile="$OUT/js/bench.js")

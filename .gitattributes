@@ -18,8 +18,8 @@
 *.md diff=markdown
 
 # Checked-in generated files (a test or a script checks each is current): collapsed in pull requests.
-# tools/CodeGen
-src/Nino.Core/Formatters/TupleFormatters.g.cs linguist-generated
+# runtimes/csharp/tools/CodeGen
+runtimes/csharp/src/Nino.Core/Formatters/TupleFormatters.g.cs linguist-generated
 # The conformance corpus (Nino.Conformance --out) and the Rust types gen.py writes from its layouts.
 tests/conformance/corpus/** linguist-generated
 runtimes/rust/tests/conformance/types.rs linguist-generated
@@ -38,4 +38,4 @@ package-lock.json linguist-generated
 Cargo.lock linguist-generated
 go.sum linguist-generated
 # The DLLs the release copies into the Unity package.
-src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/**/*.dll linguist-generated
+runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/**/*.dll linguist-generated

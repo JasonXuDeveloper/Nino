@@ -31,7 +31,7 @@ Nino.Conformance/            the net11.0 program (C# 15, for its unions) that wr
 
 ## Who reads it
 
-- .NET: `Nino.Conformance --verify`; `tests/Nino.Codegen.Tests` references the project to generate the corpus's
+- .NET: `Nino.Conformance --verify`; `runtimes/csharp/tests/Nino.Codegen.Tests` references the project to generate the corpus's
   types into every language.
 - Go: `runtimes/go/internal/corpustest` over `internal/sample` and `internal/generated`.
 - Rust: `runtimes/rust/tests/conformance.rs`, `generated.rs`, `derive.rs` (`NINO_CORPUS`; `tests/conformance/gen.py`
@@ -45,7 +45,7 @@ Nino.Conformance/            the net11.0 program (C# 15, for its unions) that wr
 
 - The corpus is always what the Nino of the same commit writes: after a change to the bytes, a layout, a sample type
   or how .NET handles a malicious input, regenerate it
-  (`dotnet run --project tests/conformance/Nino.Conformance -c Release -- --out tests/conformance/corpus`) and commit it with the
+  (`dotnet run --project runtimes/csharp/tests/Nino.Conformance -c Release -- --out tests/conformance/corpus`) and commit it with the
   change (a `Wire-Format:` trailer when the bytes change).
 - `--out` is deterministic: an unchanged Nino rewrites identical files. Cases are added freely; a case is renamed or
   removed only with a reason in the commit. `corpusVersion` changes only with an incompatible change of the file
@@ -55,7 +55,7 @@ Nino.Conformance/            the net11.0 program (C# 15, for its unions) that wr
   `codec_*.go` with its loops in `loops.go`, `registry_test.go`, `tagged_test.go`, a seed in `fuzz_test.go`) or its
   `unsupported` list in `conformance_test.go`; Rust's `tests/conformance/gen.py` (then `types.rs` again, and
   `cargo fmt`) or its `NOT_EMULATED`, and a derived twin in `tests/derive.rs`; the generated files of all three
-  (`NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`). Malicious cases forged from a valid case's bytes
+  (`NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`). Malicious cases forged from a valid case's bytes
   (`Patched`, with that case as the control) need no root type of their own, which saves those places a type each.
 - A new malicious category that every runtime must reject goes into `docs/spec/wire-format.md` §9 too.
 - A check .NET makes only with `NinoSettings.Untrusted` (raw blocks, value ranges, trailing bytes) gets its cases

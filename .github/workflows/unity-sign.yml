@@ -1,6 +1,6 @@
 name: Sign the Unity package
 
-# Packs src/Nino.Unity/Packages/com.jasonxudeveloper.nino with Unity's UPM CLI, signed by the Unity organization
+# Packs runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino with Unity's UPM CLI, signed by the Unity organization
 # UPM_ORG_ID (service account secrets UPM_SERVICE_ACCOUNT_KEY_ID and UPM_SERVICE_ACCOUNT_KEY_SECRET, role "Package
 # Manager Package Signer"), checks the tarball and attaches it to the GitHub release of the Unity tag. OpenUPM
 # (trackingMode: githubRelease) republishes that asset unchanged, so Unity 6.3+ shows the package as signed.
@@ -34,7 +34,7 @@ permissions:
 env:
   # The UPM CLI release (https://cdn.packages.unity.com/upm-cli/latest.txt); its installer checks the download's SHA-256.
   UPM_CLI_VERSION: v9.36.0
-  PACKAGE_DIR: src/Nino.Unity/Packages/com.jasonxudeveloper.nino
+  PACKAGE_DIR: runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino
 
 jobs:
   # On maple, the repository's self-hosted runner (no sudo; nothing kept after the job: release.yml), as

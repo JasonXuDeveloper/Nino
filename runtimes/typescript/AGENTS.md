@@ -3,7 +3,7 @@
 > Read when: reading or changing the TypeScript runtime (runtimes/typescript: src/nino.ts, its WebAssembly kernels, tests or benchmark).
 
 The npm package `nino-serialization` (ES module, Node 15+ for the published build; tests on Node 22.18+ type
-stripping): `src/nino.ts` is the whole runtime, embedded in nino-gen (`src/Nino.Codegen`) and written next to the
+stripping): `src/nino.ts` is the whole runtime, embedded in nino-gen (`runtimes/csharp/src/Nino.Codegen`) and written next to the
 generated TypeScript. README.md documents it. `audit-runtimes` audits it, `audit-security` its reader.
 
 ```
@@ -35,13 +35,13 @@ test/
   runtime.ts                 --import hook: NINO_TEST_RUNTIME=browser (no Buffer), NINO_WASM=0 (no kernels)
   generated/                 Nino.Conformance.ts (also as .TypedArrays.ts, --numeric-arrays typed) and
                              Nino.Codegen.Tests.ts: nino-gen's output for the corpus's types and
-                             tests/Nino.Codegen.Tests/Shapes.cs (do not edit)
+                             runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs (do not edit)
 bench/                       the generated TypeScript against protobuf-es, msgpackr and JSON (tinybench) in Node
                              (node.ts) and headless Chromium (browser.mjs); Bench.csproj + Program.cs write the data in
                              .NET; proto/ and buf.*.yaml the protobuf messages; run.sh runs it all; own package.json
 ```
 
-Generated files: `test/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`;
+Generated files: `test/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`;
 the embedded module in `src/nino.ts` by `npm run build:wasm`.
 
 ## TypeScript runtime (runtimes/typescript)

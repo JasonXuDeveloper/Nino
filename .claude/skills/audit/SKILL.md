@@ -14,22 +14,22 @@ One round = parallel audits, each in its own worktree and branch off `origin/mai
 | Skill | Owns | Looks for |
 |---|---|---|
 | `audit-layout` | directory structure, project split, file placement, every `AGENTS.md` file map | misplaced or dead files, folders that mix concerns, maps out of date |
-| `audit-code` | `tools/`, `tests/` structure, `benchmarks/` scripts, `.github/` scripts, `src/Nino.Unity`, the seams between projects | non-DRY code, coupling, dead code, god files, two ways to do one thing |
-| `audit-core` | `src/Nino.Core`, `src/Nino.Immutable`, `src/Nino.AspNetCore`, `src/Nino.UnityTypes` | correctness, redundancy, coupling, lifecycle, threads, platform fallbacks |
-| `audit-security` | every read path (.NET and the runtimes), `tests/Nino.Fuzz`, the malicious corpus | hostile input that crashes, over-allocates, recurses or reads outside |
+| `audit-code` | `tools/`, `tests/` structure, `runtimes/csharp/benchmarks/` scripts, `.github/` scripts, `runtimes/csharp/src/Nino.Unity`, the seams between projects | non-DRY code, coupling, dead code, god files, two ways to do one thing |
+| `audit-core` | `runtimes/csharp/src/Nino.Core`, `runtimes/csharp/src/Nino.Immutable`, `runtimes/csharp/src/Nino.AspNetCore`, `runtimes/csharp/src/Nino.UnityTypes` | correctness, redundancy, coupling, lifecycle, threads, platform fallbacks |
+| `audit-security` | every read path (.NET and the runtimes), `runtimes/csharp/tests/Nino.Fuzz`, the malicious corpus | hostile input that crashes, over-allocates, recurses or reads outside |
 | `audit-perf` | no files: research, prototypes, A/B on runners | the next win, gaps against MemoryPack and each runtime's competitors |
 | `optimize` | .NET and Unity read and write paths' machine code (with the owners of the files) | budget overruns, spills, calls in loops, per-ISA problems |
 | `optimize-runtimes` | the Go, Rust and TypeScript hot paths and nino-gen's generated loops (with the owners) | calls through func values or closures, bounds checks, GC and allocation, kernels per target |
-| `audit-generator` | `src/Nino.Generator` pipeline, models, `src/Nino.Generator.Roslyn*` | incremental rules, IDE cost, shapes that do not compile |
-| `audit-generated-code` | the templates and emitters of `src/Nino.Generator/Generation/Emit`, nino-gen's templates | generated text and its machine code |
-| `audit-analyzer` | `src/Nino.Generator/Analysis`, `src/Nino.Generator.CodeFixes` | missing rules, false positives, code fixes, tests per rule |
-| `audit-runtimes` | `runtimes/*`, `src/Nino.Codegen` | safety, speed, SIMD, parity with .NET |
+| `audit-generator` | `runtimes/csharp/src/Nino.Generator` pipeline, models, `runtimes/csharp/src/Nino.Generator.Roslyn*` | incremental rules, IDE cost, shapes that do not compile |
+| `audit-generated-code` | the templates and emitters of `runtimes/csharp/src/Nino.Generator/Generation/Emit`, nino-gen's templates | generated text and its machine code |
+| `audit-analyzer` | `runtimes/csharp/src/Nino.Generator/Analysis`, `runtimes/csharp/src/Nino.Generator.CodeFixes` | missing rules, false positives, code fixes, tests per rule |
+| `audit-runtimes` | `runtimes/*`, `runtimes/csharp/src/Nino.Codegen` | safety, speed, SIMD, parity with .NET |
 | `audit-ci` | `.github/workflows`, `.github/actions` | slow or serial jobs, red risks, pinning |
 | `audit-redundancy` | no files of its own: the sweep across every layer; fixes go to the owners | duplicated or dead code, unused files, overlapping stages, rules, APIs, generated code, skills and docs |
 | `audit-naming` | every name: a report; internal renames in their own commit | ambiguous or inconsistent names, Chinese terms |
 | `audit-docs` | README, README.zh.md, `docs/`, .github/CONTRIBUTING.md, runtime READMEs, `skills/nino-serialization`, nino.docs | docs that disagree with the code or each other, duplication, gaps |
 
-`audit-generator`, `audit-generated-code` and `audit-analyzer` share `src/Nino.Generator`: give the shared files
+`audit-generator`, `audit-generated-code` and `audit-analyzer` share `runtimes/csharp/src/Nino.Generator`: give the shared files
 (`NinoSymbols.cs`, `Model*.cs`) to one of them, or run them in different rounds. `optimize`, `optimize-runtimes` and
 `audit-perf` report findings to the owner of the file unless the round gives them the file. `audit-naming` reports only, so it
 runs beside any of them; `audit-redundancy` reports its findings to each owner, or fixes them itself in a round where

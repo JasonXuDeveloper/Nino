@@ -175,7 +175,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   (`NinoBlockPlan<T, TFormatter>.Shuffle`: `Ssse3.Shuffle`, `AdvSimd.Arm64.VectorTableLookup`, `PackedSimd.Swizzle`),
   never as a cross-platform API whose form ILC picks from the baseline: `Vector128.ShuffleNative` was compiled to its
   software form while the plan said SSSE3. The JIT folds each test to a constant, so its code is the same either way.
-  `tests/Nino.AotTests` checks that the shuffle is `pshufb` under Native AOT. The AVX2 and AVX-512 paths run there
+  `runtimes/csharp/tests/Nino.AotTests` checks that the shuffle is `pshufb` under Native AOT. The AVX2 and AVX-512 paths run there
   only with `IlcInstructionSet` (`x86-64-v3`, `x86-64-v4`, `native`); Arm64's baseline has AdvSimd, so Arm64 takes
   every path.
 * **Kernels for the netstandard2.1 build.** The netstandard2.1 build has no hardware intrinsics, so on Unity (Mono,

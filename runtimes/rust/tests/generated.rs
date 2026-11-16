@@ -13,7 +13,7 @@
 #[path = "generated/nino_types.rs"]
 mod nino_types;
 
-/// Shapes the corpus does not declare (tests/Nino.Codegen.Tests/Shapes.cs): compiled, and written and read back.
+/// Shapes the corpus does not declare (runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs): compiled, and written and read back.
 #[rustfmt::skip]
 #[path = "generated/shapes.rs"]
 mod shapes;
@@ -338,7 +338,7 @@ fn nullable_strides_as_dotnet_writes_them() {
     assert_eq!(nino::deserialize_exact::<Option<Box<Strides>>>(&expected).unwrap(), Some(Box::new(strides)));
 }
 
-/// The bytes .NET writes for the NullableSlots of tests/Nino.Codegen.Tests/ModelTests.cs, NullableSlotsHex: a raw
+/// The bytes .NET writes for the NullableSlots of runtimes/csharp/tests/Nino.Codegen.Tests/ModelTests.cs, NullableSlotsHex: a raw
 /// `T?` is a slot of a fixed size as the element of every sequence (a queue, a stack, a linked list, a sorted set,
 /// a list interface, nested, a set inside type arguments), and a single value in a dictionary and a tuple.
 const NULLABLE_SLOTS: &str = "010200000001000000050000000000000000000000020000000000000000000000000000000000000001000000000000000700000000000000 \
@@ -425,7 +425,7 @@ fn unhex(text: &str) -> Vec<u8> {
 
 /// `NinoNullable<T>` inside a raw struct, its memory there as everywhere: the presence a whole `T` (1 in its first
 /// byte), then the value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
-/// tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
+/// runtimes/csharp/tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
 #[test]
 fn nino_nullable_inside_raw_structs_as_dotnet_writes_it() {
     use shapes::{HoldsNinoNullable, HoldsWideNinoNullable, NinoNullableRaw, NinoNullableRawWide};
@@ -459,7 +459,7 @@ fn nino_nullable_inside_raw_structs_as_dotnet_writes_it() {
     }
 }
 
-/// The bytes .NET writes for the NinoNullableArgs of tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex:
+/// The bytes .NET writes for the NinoNullableArgs of runtimes/csharp/tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex:
 /// `NinoNullable<T>` is its memory wherever it is (a presence and a value of a `T` each), inside type arguments too.
 const NINO_NULLABLE_ARGS: &str = "0101000000000000000000000000010000020000000100000000000000010000000000000000000000000000000000000000000000010000000000 \
     000000000000010000000000000000000000010100000007000000010100000000000000000000000000000000000100000000000f000000000000 \

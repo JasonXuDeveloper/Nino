@@ -11,7 +11,7 @@ A name is the first doc a reader sees.
 
 | Layer | Where |
 |---|---|
-| Public API | `src/Nino.Core` public types and members, attributes and their parameters, `NinoSettings`, exceptions' messages |
+| Public API | `runtimes/csharp/src/Nino.Core` public types and members, attributes and their parameters, `NinoSettings`, exceptions' messages |
 | Generated | members, types and hint names the generator writes; nino-gen's generated names per language |
 | Diagnostics | NINO / NINOGEN titles, messages and code-fix titles |
 | Internal code | internal and private types, methods, fields, locals, files, folders, projects |

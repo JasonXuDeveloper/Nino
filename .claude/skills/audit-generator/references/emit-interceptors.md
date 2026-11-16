@@ -1,6 +1,6 @@
 # Emitting the interceptor file
 
-Part of the `audit-generator` skill: how the interceptor emitter builds its one large file (on tests/Nino.UnitTests,
+Part of the `audit-generator` skill: how the interceptor emitter builds its one large file (on runtimes/csharp/tests/Nino.UnitTests,
 about 1,200 distinct calls at about 2,000 locations) - rendering calls once, appending its lines in pieces, one
 emission path, and what the removed second path measured. Read it before changing the interceptor
 emitter, its aliases or location attributes, or before retrying an allocation trick there. The bounded scratch

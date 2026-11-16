@@ -3,8 +3,8 @@ name: Agent instructions
 # The AGENTS.md indexes, the CLAUDE.md imports, the skills' metadata and every directory's file map stay current
 # (tools/agents.sh --check). Runs on the paths that can make them stale: the instruction files and skills, and any
 # file added to or removed from a mapped directory.
-# It also checks that src/nuget-readme.md, the NuGet packages' README, is what .github/scripts/nuget_readme.py writes
-# from README.md, and compiles the Python scripts that only report.yml, release.yml and triage.yml run (benchmarks/*/*.py,
+# It also checks that runtimes/csharp/src/nuget-readme.md, the NuGet packages' README, is what .github/scripts/nuget_readme.py writes
+# from README.md, and compiles the Python scripts that only report.yml, release.yml and triage.yml run (runtimes/csharp/benchmarks/*/*.py,
 # .github/scripts/*.py, .github/scripts/triage/*.py) and runs their tests, so a script that breaks fails on its push
 # instead of at the next release or the next issue.
 on:
@@ -17,15 +17,13 @@ on:
       - '.claude/**'
       - 'skills/**'
       - 'tools/agents.sh'
-      - 'src/**'
-      - 'tests/**'
-      - 'benchmarks/**'
       - 'runtimes/**'
+      - 'tests/**'
       - 'docs/**'
       - '.github/scripts/**'
       - '.github/workflows/agents.yml'
       - 'README.md'
-      - 'src/nuget-readme.md'
+      - 'runtimes/csharp/src/nuget-readme.md'
   pull_request:
     branches: [ "main" ]
     paths: *paths
@@ -97,8 +95,8 @@ jobs:
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
         run: |
-          python3 -m py_compile benchmarks/*/*.py .github/scripts/*.py .github/scripts/triage/*.py
-          python3 -m unittest discover -s benchmarks/reports -p 'test_*.py'
+          python3 -m py_compile runtimes/csharp/benchmarks/*/*.py .github/scripts/*.py .github/scripts/triage/*.py
+          python3 -m unittest discover -s runtimes/csharp/benchmarks/reports -p 'test_*.py'
           git fetch -q --depth=1 --no-tags origin tag v4.0.0-rc.7 tag v4.0.0-rc.8 tag v4.0.0-rc.10
           python3 -m unittest discover -s .github/scripts -p 'test_changed_paths.py'
           python3 -m unittest discover -s .github/scripts -p 'test_layout.py'

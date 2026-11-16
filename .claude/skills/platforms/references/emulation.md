@@ -61,6 +61,6 @@ crashing. Read it before running anything under qemu or taking a listing for Arm
   aborts): without the arm64 libssl, name the classes to run. A self-contained Arm64
   publish run with `qemu-aarch64-static -cpu neoverse-n1 -L /usr/aarch64-linux-gnu` aborts at startup without an
   arm64 libicu ("Couldn't find a valid ICU package"): set `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`
-  (tests/Nino.RuntimeTests ran ALL OK so, Vector<T> round). For Tier1 listings with tiering on under qemu, the jitwarm hook's 8 rounds of 200 ms reach no Tier1 at all (every listing Tier0):
+  (runtimes/csharp/tests/Nino.RuntimeTests ran ALL OK so, Vector<T> round). For Tier1 listings with tiering on under qemu, the jitwarm hook's 8 rounds of 200 ms reach no Tier1 at all (every listing Tier0):
   give it about 30 rounds of 1.5 s, and skip classes whose static constructor throws, as `BclTypesTest` does under
   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1` (`en-us`), which otherwise aborts the process (round 102).

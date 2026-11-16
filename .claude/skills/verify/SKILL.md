@@ -17,31 +17,31 @@ at its time limit while it still waits for the lock (round 103 lost a fuzz serie
 
 ```bash
 dotnet build -c Release                                    # 0 warnings
-dotnet test tests/Nino.UnitTests -c Release                # split in two if memory is short:
+dotnet test runtimes/csharp/tests/Nino.UnitTests -c Release                # split in two if memory is short:
                                                            #   --filter "FullyQualifiedName!~ShapeMatrixTests", then "~ShapeMatrixTests"
-dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
-dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true        # interceptors off
-dotnet test tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8       # the .NET 8 SDK generator
-DOTNET_EnableHWIntrinsic=0 dotnet test tests/Nino.UnitTests -c Release     # no SIMD (also AVX512=0, AVX2=0 for vector code)
+dotnet test runtimes/csharp/tests/Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
+dotnet test runtimes/csharp/tests/Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true        # interceptors off
+dotnet test runtimes/csharp/tests/Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8       # the .NET 8 SDK generator
+DOTNET_EnableHWIntrinsic=0 dotnet test runtimes/csharp/tests/Nino.UnitTests -c Release     # no SIMD (also AVX512=0, AVX2=0 for vector code)
 for p in Nino.AspNetCore.Tests Nino.Codegen.Tests Nino.Codegen.Integration.Tests; do dotnet test tests/$p; done  # one project per call (MSB1008)
 ```
 
 - Runtime internals on every runtime a change to `CollectionViews`, mirrors or retyping reaches (`runtime-internals`,
-  `platforms`: .NET, Mono, Arm64 and Arm32 under qemu); trimmed and Native AOT publish of `tests/Nino.AotTests`.
+  `platforms`: .NET, Mono, Arm64 and Arm32 under qemu); trimmed and Native AOT publish of `runtimes/csharp/tests/Nino.AotTests`.
 - Check every requested class in a filtered gate, using `--list-tests --filter` when choosing the names. A combined
   OR filter can pass while one branch matches nothing: `RefTrack` does not match `ReferenceTrackingTests`.
   Use the exact `ReferenceTrackingTests` and `DeepNestingTests` names for reference and deferred-body coverage.
-- Read or security change: `dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- selftest`, then a timed `fuzz`
+- Read or security change: `dotnet run -c Release -f net10.0 --project runtimes/csharp/tests/Nino.Fuzz -- selftest`, then a timed `fuzz`
   with and without `DOTNET_EnableHWIntrinsic=0` (`audit-security`).
-- Read or write path: `python3 benchmarks/asm/asm.py compare origin/main`, every listed method explained (`optimize`).
-- Bytes: `dotnet run --project tests/conformance/Nino.Conformance -c Release -- --verify tests/conformance/corpus` (`wire-format`).
-- Benchmarks or a type a benchmark reads: `dotnet run --project benchmarks/Nino.Benchmark -c Release -- --verify`
+- Read or write path: `python3 runtimes/csharp/benchmarks/asm/asm.py compare origin/main`, every listed method explained (`optimize`).
+- Bytes: `dotnet run --project runtimes/csharp/tests/Nino.Conformance -c Release -- --verify tests/conformance/corpus` (`wire-format`).
+- Benchmarks or a type a benchmark reads: `dotnet run --project runtimes/csharp/benchmarks/Nino.Benchmark -c Release -- --verify`
   (ci.yml runs it on x64 and Arm64; `benchmark`).
 
 ## Other runtimes and nino-gen
 
 The commands in `runtimes/go/AGENTS.md`, `runtimes/rust/AGENTS.md`, `runtimes/typescript/AGENTS.md` and
-`src/Nino.Codegen/AGENTS.md` (vet/race/fuzz; fmt/clippy/test with `NINO_CORPUS`; `npm ci && npm test`; regenerate
+`runtimes/csharp/src/Nino.Codegen/AGENTS.md` (vet/race/fuzz; fmt/clippy/test with `NINO_CORPUS`; `npm ci && npm test`; regenerate
 with `NINO_UPDATE_GENERATED=1`).
 
 ## Repository
@@ -49,7 +49,7 @@ with `NINO_UPDATE_GENERATED=1`).
 ```bash
 actionlint                                  # with .github/actionlint.yaml, after any workflow change
 tools/agents.sh --check                     # indexes, CLAUDE.md = @AGENTS.md, file maps, skill metadata
-python3 .github/scripts/nuget_readme.py --check  # src/nuget-readme.md (the packages' README) matches README.md
+python3 .github/scripts/nuget_readme.py --check  # runtimes/csharp/src/nuget-readme.md (the packages' README) matches README.md
 npx -y skills add . --list                  # lists only `nino-serialization`: every development skill is internal
 ```
 
@@ -61,7 +61,7 @@ Docs site change: in the nino.docs clone, `bun run check && bun run build`, and 
 - Read the diff once more as CI would: what would make a job fail? A red CI run costs a cycle and the owner's
   patience; never push to find out.
 - A change to the public API of Nino.Core or Nino.UnityTypes refreshes the Unity package's DLLs in its series
-  (`src/Nino.Unity/AGENTS.md`, Rules; the owner's decision, round 121): `UnityPackageDllTests` fails in the
+  (`runtimes/csharp/src/Nino.Unity/AGENTS.md`, Rules; the owner's decision, round 121): `UnityPackageDllTests` fails in the
   netstandard2.1 run otherwise. Why: Unity users who install from the repository compile against the committed
   DLLs, and after rc.7 Nino.Burst named `NinoKernels`, which the committed Nino.Core.dll lacked (round 121). Compare APIs, never bytes: each DLL embeds the
   commit it was built from, and a cold build ordered PolySharp's polyfill types differently from a warm one (field

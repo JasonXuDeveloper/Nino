@@ -22,7 +22,7 @@ when the public hook table changes.
 
 Part of the `optimize` skill: what IL2CPP and Mono compile from Nino's generic code, how the Burst and WebGL
 kernels are called and when they pay. Read it before changing a generic formatter, a call that IL2CPP runs per
-value, a kernel hook or a kernel threshold. How to build and run Unity is `platforms` and `src/Nino.Unity/AGENTS.md`.
+value, a kernel hook or a kernel threshold. How to build and run Unity is `platforms` and `runtimes/csharp/src/Nino.Unity/AGENTS.md`.
 
 ## Generic code under IL2CPP and Mono
 
@@ -54,7 +54,7 @@ value, a kernel hook or a kernel threshold. How to build and run Unity is `platf
   added `default(TFormatter) is INinoElementsFormatter<T>` and the cast to `NinoElements.Write` in every build, so
   the netstandard2.1 build boxed once or twice per array or list of any non-block element; it now reads
   `Traits<T, TFormatter>.Elements` (the formatter `as` the interface, once) there (round 130, redundancy audit).
-  Grep `is INino` and `((INino` in `src/Nino.Core` for a test outside `#if NET8_0_OR_GREATER` when adding one.
+  Grep `is INino` and `((INino` in `runtimes/csharp/src/Nino.Core` for a test outside `#if NET8_0_OR_GREATER` when adding one.
 
 ## Native kernels
 

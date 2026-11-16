@@ -14,14 +14,14 @@ its own `AGENTS.md` maps every file in it.
 
 - **A folder that mixes concerns**: scripts of several jobs at one level (running, comparing, reporting, CI glue),
   projects next to their own tooling, tests next to fixtures they do not use.
-- **A file in the wrong place**: a CI script under `benchmarks/`, a benchmark helper under `.github/`, a test project
+- **A file in the wrong place**: a CI script under `runtimes/csharp/benchmarks/`, a benchmark helper under `.github/`, a test project
   under `src/`, docs that belong to the website kept in the repository or the other way round.
 - **A flat folder**: scripts of several jobs side by side at one level go into subfolders named by job, as
-  `benchmarks/` did (reports/: what a release publishes; compare/: two runs while developing; asm/: machine code;
+  `runtimes/csharp/benchmarks/` did (reports/: what a release publishes; compare/: two runs while developing; asm/: machine code;
   run.sh, shards.json and members/ stay at the root). A module several jobs share stays with its main users, and the
   others put that folder on `sys.path` (`reports/bdn.py`, imported by compare/ and members/table.py). Test files
-  group by what they test (`tests/Nino.UnitTests/Generator/{Analyzer,CodeFixes,LayoutBaseline,GeneratedCode}`,
-  `tests/Nino.Fuzz/{Engine,Checks,Inputs}`), code by the part of the pipeline (nino-gen's
+  group by what they test (`runtimes/csharp/tests/Nino.UnitTests/Generator/{Analyzer,CodeFixes,LayoutBaseline,GeneratedCode}`,
+  `runtimes/csharp/tests/Nino.Fuzz/{Engine,Checks,Inputs}`), code by the part of the pipeline (nino-gen's
   `Targets/{Go,Rust,TypeScript}`).
 - **A file too long to read**: past roughly 800 lines a file with sections (`#region`, `// ----- x` markers, test
   groups by rule) is split along them; how, and how to prove nothing changed, is "Splitting long files" below. A
@@ -53,18 +53,18 @@ its own `AGENTS.md` maps every file in it.
   the test branch's A/B workflows reach in another commit's tree (a project, a benchmark, a report script) is not
   replaced but added: the new place first in `.github/scripts/layout.py`'s `KEYS`, the old kept for the tags and
   commits that still have it, with a case in `test_layout.py` (`audit-ci`, "A workflow finds every path").
-- Prove a move or split of code changed nothing: for the generator, build tests/Nino.UnitTests with
+- Prove a move or split of code changed nothing: for the generator, build runtimes/csharp/tests/Nino.UnitTests with
   `-p:EmitCompilerGeneratedFiles=true` before (a clean worktree of the base) and after, and `diff -r` every
   `obj/**/generated` tree (byte-identical when the generator and its tests were split, test files moved too: Roslyn
   4.12's interceptor locations hash the file's content, not its path); for nino-gen, `NINO_UPDATE_GENERATED=1 dotnet
-  test tests/Nino.Codegen.Tests` must leave `git status` clean. A splitter finds a class's closing brace as the last
+  test runtimes/csharp/tests/Nino.Codegen.Tests` must leave `git status` clean. A splitter finds a class's closing brace as the last
   line at its indentation: test files hold C# sources in strings with `}` at column 0. Prune the usings a split leaves
   by building with `-p:EnforceCodeStyleInBuild=true -p:GenerateDocumentationFile=true` and a temporary `.editorconfig`
   raising IDE0005 to a warning (`dotnet format style --diagnostics IDE0005` removed nothing), then a plain build proves
   each removal.
-- A move that published packages, OpenUPM or users' builds depend on (`src/Nino.Unity` is published from its path;
-  the props and targets in each package's `build/` folder, such as `src/Nino.Generator/build`, are what NuGet imports
-  into users' builds) stays where it is unless the owner agrees. The root `tools/UseNinoGenerator.props` is not one of them: only this
+- A move that published packages, OpenUPM or users' builds depend on (`runtimes/csharp/src/Nino.Unity` is published from its path;
+  the props and targets in each package's `build/` folder, such as `runtimes/csharp/src/Nino.Generator/build`, are what NuGet imports
+  into users' builds) stays where it is unless the owner agrees. The root `runtimes/csharp/tools/UseNinoGenerator.props` is not one of them: only this
   repository's projects import it.
 - Run `verify` for what the references touch, `actionlint` for workflows, and `tools/agents.sh` (then `--check`).
 

@@ -5,7 +5,7 @@
 A Cargo workspace: the crate `nino-serialization` (lib `nino`, MSRV 1.88, edition 2021, no required dependencies;
 `#![deny(unsafe_code)]` outside `src/simd*` and one block of `src/shared.rs`), the derive crate and the benchmarks.
 README.md documents the API, attributes and the "Stricter than .NET" list. nino-gen's Rust target
-(`src/Nino.Codegen`) writes code in the shape of `tests/conformance/types.rs`. `audit-runtimes` audits it,
+(`runtimes/csharp/src/Nino.Codegen`) writes code in the shape of `tests/conformance/types.rs`. `audit-runtimes` audits it,
 `audit-security` its read paths.
 
 ```
@@ -55,7 +55,7 @@ tests/
   conformance/gen.py         writes conformance/types.rs from the corpus's layouts (edit this, not types.rs)
   conformance/types.rs       generated codecs of the corpus's types; json.rs: values as the corpus's JSON
   generated.rs               the corpus over tests/generated/nino_types.rs (nino-gen's output; do not edit), and
-                             tests/generated/shapes.rs (tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it)
+                             tests/generated/shapes.rs (runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it)
   derive.rs                  the derive against the corpus's types, checked against their layouts
   compile_fail.rs            trybuild: each tests/compile_fail/*.rs must fail with its .stderr
                              (TRYBUILD=overwrite rewrites them)
@@ -65,7 +65,7 @@ tests/
   shared.rs                  reference tracking's memory: cyclic graphs freed, deferred bodies, failed reads (Miri)
 ```
 
-Generated files: `tests/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`,
+Generated files: `tests/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`,
 `tests/conformance/types.rs` by `tests/conformance/gen.py`.
 
 ## Rust runtime (runtimes/rust)

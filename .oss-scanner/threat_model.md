@@ -5,7 +5,7 @@
 Nino is a binary serializer. A C# source generator writes a formatter for each `[NinoType]`; `Nino.Core` holds the
 runtime (`NinoSerializer`, `NinoDeserializer`, `Reader`/`Writer`, the formatters for built-in and BCL types). The
 same bytes are read and written by runtimes in Go (`runtimes/go`), Rust (`runtimes/rust`) and TypeScript
-(`runtimes/typescript`), plus the code `nino-gen` (`src/Nino.Codegen`) writes for them. It runs on .NET
+(`runtimes/typescript`), plus the code `nino-gen` (`runtimes/csharp/src/Nino.Codegen`) writes for them. It runs on .NET
 (netstandard2.1 to net10.0), Mono, Unity (Mono and IL2CPP) and NativeAOT.
 
 **The bytes passed to any deserializer are untrusted**: network messages, save files, request bodies
@@ -52,27 +52,27 @@ runtime's documented error (Go `error`, Rust `Err`, TypeScript a thrown `NinoErr
 
 ## Components that matter most / least
 
-- Most: the read paths of `src/Nino.Core` (`Reader`, `Internal/` fast paths, `Internal/Simd`, the collection and
+- Most: the read paths of `runtimes/csharp/src/Nino.Core` (`Reader`, `Internal/` fast paths, `Internal/Simd`, the collection and
   hash-table fills in `Internal/Collections`, reads through runtime internals in `Internal/Collections/Traversal`),
-  the code the generator emits for readers (`src/Nino.Generator`), `Nino.Immutable`, `Nino.AspNetCore`'s input
+  the code the generator emits for readers (`runtimes/csharp/src/Nino.Generator`), `Nino.Immutable`, `Nino.AspNetCore`'s input
   formatter, `Nino.UnityTypes`, and the Go, Rust and TypeScript readers and their SIMD / WebAssembly kernels.
 - Less: the write side (only the application's own objects reach it; a graph too deep or cyclic must throw
-  `InvalidOperationException`, not crash), the Unity Burst kernels (`src/Nino.Unity`, must write the same bytes).
-- Out of scope: `benchmarks/`, `tools/`, `.github/`, the analyzer and code fixes, `nino-gen`'s handling of its own
+  `InvalidOperationException`, not crash), the Unity Burst kernels (`runtimes/csharp/src/Nino.Unity`, must write the same bytes).
+- Out of scope: `runtimes/csharp/benchmarks/`, `tools/`, `.github/`, the analyzer and code fixes, `nino-gen`'s handling of its own
   input, the generator's handling of hostile source code, test-only code under `tests/`.
 
 ## How to exercise it
 
-- `tests/Nino.UnitTests/Security` holds the hostile-input tests (`StrictReadTests`, `HashFloodingTests`,
+- `runtimes/csharp/tests/Nino.UnitTests/Security` holds the hostile-input tests (`StrictReadTests`, `HashFloodingTests`,
   `UntrustedModeTests`, `UntrustedInputTests`, `ValueCheckLayoutTests`, the nesting tests);
   `Infrastructure/GuardedMemory` places bytes against an inaccessible page so an over-read crashes.
-  `dotnet test tests/Nino.UnitTests -f net10.0 --filter 'FullyQualifiedName~Untrusted|FullyQualifiedName~HashFlooding|FullyQualifiedName~Strict'`.
-- `tests/Nino.Fuzz` is the .NET fuzzer (`README.md`): `dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- selftest`,
+  `dotnet test runtimes/csharp/tests/Nino.UnitTests -f net10.0 --filter 'FullyQualifiedName~Untrusted|FullyQualifiedName~HashFlooding|FullyQualifiedName~Strict'`.
+- `runtimes/csharp/tests/Nino.Fuzz` is the .NET fuzzer (`README.md`): `dotnet run -c Release -f net10.0 --project runtimes/csharp/tests/Nino.Fuzz -- selftest`,
   then `-- fuzz --seconds 300` (guard pages, stale-memory poisoning, allocation and time limits) and `-- probes`.
 - `tests/conformance/corpus` holds valid and malicious cases every runtime must read or reject (`index.json`); `untrusted`
   cases are ones .NET's default mode may accept.
 - Platforms in the image: CoreCLR (`DOTNET_EnableHWIntrinsic=0`, `DOTNET_EnableAVX512=0`, `DOTNET_EnableAVX2=0`
-  select the vector paths), Mono 6.12 (`mono tests/Nino.RuntimeTests/bin/Debug/net472/Nino.RuntimeTests.exe`, the
+  select the vector paths), Mono 6.12 (`mono runtimes/csharp/tests/Nino.RuntimeTests/bin/Debug/net472/Nino.RuntimeTests.exe`, the
   netstandard2.1 build Unity uses), the netstandard2.1 build (`-p:NinoCoreTfm=netstandard2.1`).
 - Go: `cd runtimes/go && go test ./...` (fuzz targets such as `FuzzReader`, `FuzzDecode`, `FuzzTagged`, `FuzzTaggedDecode`, `FuzzUtf8`).
   Rust: `cd runtimes/rust && cargo test --workspace --all-features`, `cd fuzz && cargo +nightly fuzz run check` (also `conformance`, `generated`).

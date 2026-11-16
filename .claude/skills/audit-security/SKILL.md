@@ -1,6 +1,6 @@
 ---
 name: audit-security
-description: "Audit and extend Nino's defenses against hostile input in every runtime (.NET, Go, Rust, TypeScript and the code nino-gen writes) - NinoDataException through NinoThrow, lengths checked before allocating, depth limits, canonical bytes only, hash-flooding limits, the Untrusted settings - and run the fuzzers, hostile-input tests and the malicious corpus. Use for any change to a read path, a new type or collection, a new setting, or a security review. Triggers: NinoDataException, NinoThrow, NinoLimits, TryReadLength, MaxDepth, MaxHashCollisions, Untrusted, EnterStruct, HashTables, tests/Nino.Fuzz, fuzz, malicious, hostile input, hash flooding, OOM, DoS, untrusted data, 安全性, 安全审查, 恶意, 不可信输入, 模糊测试, 哈希碰撞."
+description: "Audit and extend Nino's defenses against hostile input in every runtime (.NET, Go, Rust, TypeScript and the code nino-gen writes) - NinoDataException through NinoThrow, lengths checked before allocating, depth limits, canonical bytes only, hash-flooding limits, the Untrusted settings - and run the fuzzers, hostile-input tests and the malicious corpus. Use for any change to a read path, a new type or collection, a new setting, or a security review. Triggers: NinoDataException, NinoThrow, NinoLimits, TryReadLength, MaxDepth, MaxHashCollisions, Untrusted, EnterStruct, HashTables, runtimes/csharp/tests/Nino.Fuzz, fuzz, malicious, hostile input, hash flooding, OOM, DoS, untrusted data, 安全性, 安全审查, 恶意, 不可信输入, 模糊测试, 哈希碰撞."
 metadata:
   internal: true
 ---
@@ -31,7 +31,7 @@ the runtime it targets.
 - `NinoSettings.Untrusted` holds the checks that cost time on every read (seeded comparers, value checks of raw
   structs, trailing bytes). It is a constant once frozen (`NinoLimits.Untrusted`): keep each test of it a single
   `if` on the field, with the work out of line, so the default path compiles to what it was; prove it with
-  `benchmarks/asm/asm.py compare` (`optimize`).
+  `runtimes/csharp/benchmarks/asm/asm.py compare` (`optimize`).
 - A rule the other runtimes must follow goes into `docs/spec/wire-format.md` §9, with malicious cases in the corpus
   (`wire-format`). A check only `Untrusted` makes gets `untrusted` cases (`AddUntrusted`, tests/conformance/AGENTS.md):
   .NET's default mode may read them, its untrusted mode and every other runtime (they always check) must reject them.
@@ -116,7 +116,7 @@ the runtime it targets.
 
 ## Proof
 
-- `tests/Nino.Fuzz` (`tests/Nino.Fuzz/README.md`): `selftest`, then a timed run with and without
+- `runtimes/csharp/tests/Nino.Fuzz` (`runtimes/csharp/tests/Nino.Fuzz/README.md`): `selftest`, then a timed run with and without
   `DOTNET_EnableHWIntrinsic=0`; a finding becomes a regression test and, when it is about the bytes, a malicious case.
 - Catch a bug whose symptom is a valid value with an invariant that makes it invalid: poison what the bug would leak,
   then look for the poison. Stale heap memory left by a rejected read reads as ordinary bools and ints, so the
@@ -128,7 +128,7 @@ the runtime it targets.
   every member was found within seconds; the gen0 allocator clears 8 KB ahead, so 8 KB lists were never found in
   120 s and 16 KB ones once in 800 rejected inputs. The selftest plants one (`SelfTestStale`).
 - The hostile-input unit tests: `StrictReadTests`, `HashFloodingTests`, `UntrustedModeTests`, `SettingsTests`, the
-  nesting tests (`tests/Nino.UnitTests/Security`).
+  nesting tests (`runtimes/csharp/tests/Nino.UnitTests/Security`).
 - The conformance corpus in .NET, Go, Rust and TypeScript; the runtimes' own fuzzers (`FuzzReader`, `FuzzDecode`,
   `FuzzTagged`, `FuzzTaggedDecode`; Rust `cargo fuzz` and the corpus fuzz tests; the TypeScript suite).
 - A security finding from a reviewer stays open until the owner decides; a weakened check is never the fix for a

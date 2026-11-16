@@ -22,12 +22,12 @@ concurrency:
 env:
   # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few, and one process a
   # case leaves its layout to chance (a 12 ns case moved by 13% between processes); the mean of three does not.
-  # benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs sets them since 4.0.0-rc.8; they are passed here too, for the tags
+  # runtimes/csharp/benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs sets them since 4.0.0-rc.8; they are passed here too, for the tags
   # before it (remove once no report is run for v4.0.0-rc.7 or older), and named in the report's text.
   BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
   # Every publish job attaches its results to the release under fixed names, lists them in benchmarks-manifest.json,
   # draws a chart of each section (a light and a dark SVG on the release-notes branch, charts/<tag>/) and rewrites the body's benchmark
-  # part from the manifest: benchmarks/reports/release_body.py publish (the names: release_assets.py). README, docs and
+  # part from the manifest: runtimes/csharp/benchmarks/reports/release_body.py publish (the names: release_assets.py). README, docs and
   # the docs site (nino.docs scripts/sync-benchmarks.ts) read the assets, never the body. The jobs that publish run
   # one after another (publish, publish-runtimes, publish-generator, publish-unity), so no two edit the manifest or the
   # body at once.
@@ -145,7 +145,7 @@ jobs:
           echo "this commit: $own"
 
       # What the tag's tree has: a manual run for an older tag (v4.0.0-rc.7 has neither the runtimes outside .NET nor
-      # the Unity benchmark, nor benchmarks/Nino.GeneratorBenchmark, which the build section needs) runs only the
+      # the Unity benchmark, nor runtimes/csharp/benchmarks/Nino.GeneratorBenchmark, which the build section needs) runs only the
       # sections it can, instead of failing a job for each one it lacks.
       - name: Check what the release has
         id: release_tree
@@ -188,7 +188,7 @@ jobs:
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
 
       # What the release has: the assets its manifest lists, or, for a release from before the manifest (v4.0.0-rc.9 and
-      # older), the sections of its body (benchmarks/reports/release_assets.py has).
+      # older), the sections of its body (runtimes/csharp/benchmarks/reports/release_assets.py has).
       - name: Check if benchmark already exists
         id: check_benchmark
         if: github.event_name == 'release'
@@ -246,12 +246,12 @@ jobs:
 
   # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), every
   # serializer's runs of a case (Nino, MemoryPack, MessagePack, protobuf-net, and in SimpleTest, PolymorphicTest and
-  # WorkloadTest Google.Protobuf and System.Text.Json) always on one runner. Eighteen shards (benchmarks/shards.json),
+  # WorkloadTest Google.Protobuf and System.Text.Json) always on one runner. Eighteen shards (runtimes/csharp/benchmarks/shards.json),
   # each of at most about 70 cases of v4 and v3 together (about 15 minutes a shard plus half a minute a case, a
   # million-object ScatteredTest case over one); BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest are
   # split by type, ScatteredTest by data, SimpleTest into its serialize (a) and deserialize (h) cases. On x64 every
   # shard's v3 cases (its "v3" globs: the Nino and MemoryPack cases of its classes that v3 3.3.13 has, V3/) run directly
-  # before its v4 cases, on its runner, as benchmarks/run.sh does. The publish job merges the reports into one table (benchmarks/reports/merge_reports.py). The same shards run on
+  # before its v4 cases, on its runner, as runtimes/csharp/benchmarks/run.sh does. The publish job merges the reports into one table (runtimes/csharp/benchmarks/reports/merge_reports.py). The same shards run on
   # Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64 never takes); an Arm64
   # failure leaves that section out and never blocks the x64 report.
 
@@ -284,7 +284,7 @@ jobs:
     env:
       V3_OUT: ${{ github.workspace }}/v3-results
       OUT: ${{ github.workspace }}/report
-      # JSON arrays of BenchmarkDotNet globs (benchmarks/shards.json).
+      # JSON arrays of BenchmarkDotNet globs (runtimes/csharp/benchmarks/shards.json).
       FILTERS: ${{ toJSON(matrix.filters) }}
       V3_FILTERS: ${{ toJSON(matrix.v3) }}
       # The tag's benchmark project (src/Nino.Benchmark up to rc.7) and its own v3 project (benchmarks/v3, rc.7 to rc.8's
@@ -321,7 +321,7 @@ jobs:
       # Nino v3 3.3.13 from nuget.org, the same benchmark classes as far as 3.3.13 can express them (V3/: the benchmark
       # project built with NINO_BENCH_V3=true, into bin/v3; releases up to rc.8's development kept it in benchmarks/v3,
       # older ones have none). It runs once,
-      # directly before the v4 run, as benchmarks/run.sh does; MemoryPack runs in both, so drift of the runner shows.
+      # directly before the v4 run, as runtimes/csharp/benchmarks/run.sh does; MemoryPack runs in both, so drift of the runner shows.
       # A v3 failure never blocks the Performance Report: the v3 section is then left out.
       - name: Build v3 benchmark (Nino 3.3.13)
         id: v3_build
@@ -362,7 +362,7 @@ jobs:
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
           NINO_BENCH_V3=true dotnet "$V3_DLL" --filter "${V3_PATTERNS[@]}" $BDN_ARGS \
             --artifacts "$V3_OUT"
-          # Under BenchmarkDotNet's own file name, which names the class (benchmarks/reports/bdn.py, class_name): one
+          # Under BenchmarkDotNet's own file name, which names the class (runtimes/csharp/benchmarks/reports/bdn.py, class_name): one
           # report a shard (Program.cs joins the summary when a shard's globs reach several classes).
           cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}/"
 
@@ -374,7 +374,7 @@ jobs:
           # dotnet and the benchmark processes inherit. Without it they run at normal priority, as before.
           sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
           echo "nice limit: $(ulimit -e)"
-          # The shard's filters (benchmarks/shards.json).
+          # The shard's filters (runtimes/csharp/benchmarks/shards.json).
           mapfile -t PATTERNS < <(jq -r '.[]' <<< "$FILTERS")
           # The cases this shard runs, and on one shard every case, so the publish job can name a case no shard ran
           # (the BclTypesTest and CollectionsTest shards select types by name).
@@ -431,7 +431,7 @@ jobs:
     timeout-minutes: 30
     env:
       TAG_NAME: ${{ needs.target.outputs.tag }}
-      # Every benchmark class of benchmarks/Nino.Benchmark: one table in the Performance Report, its Type column naming the
+      # Every benchmark class of runtimes/csharp/benchmarks/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
       # The shards (per architecture), the x64 shards that run part of v3 each (the v3 section needs every one) and the
       # benchmark classes: this workflow's shards.json, read in the Merge the reports step.
@@ -504,7 +504,7 @@ jobs:
           fi
 
       # The merged reports as assets (dotnet-x64.md, dotnet-v3-x64.md, dotnet-arm64.md; a re-run replaces them), their
-      # charts on the release-notes branch, and the body's benchmark part (benchmarks/reports/release_body.py publish).
+      # charts on the release-notes branch, and the body's benchmark part (runtimes/csharp/benchmarks/reports/release_body.py publish).
       - name: Publish the results
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -516,9 +516,9 @@ jobs:
           echo "✅ Release assets and notes updated with benchmark results"
 
       # README.md, README.zh.md, their charts and the charts and runtime tables of docs/v4-benchmarks.md show the
-      # newest v4 release: regenerate them (benchmarks/reports/readme.py, between the <!--bench:...--> markers) from
+      # newest v4 release: regenerate them (runtimes/csharp/benchmarks/reports/readme.py, between the <!--bench:...--> markers) from
       # the assets this run attached and push them to main: a light and a dark SVG per chart group, and the overview
-      # chart, whose PNG readme.py --png renders with Chrome (the NuGet packages' src/nuget-readme.md shows it by its raw
+      # chart, whose PNG readme.py --png renders with Chrome (the NuGet packages' runtimes/csharp/src/nuget-readme.md shows it by its raw
       # URL on main, and nuget.org shows no SVG).
       - name: Update the README benchmark numbers
         env:
@@ -597,7 +597,7 @@ jobs:
       # Empty on x64: runtimes_report.py's x64 headings.
       REPORT_ARCH: ${{ matrix.arch == 'arm64' && 'arm64' || '' }}
       # The release assets this job writes into $RUNNER_TEMP/out: <ASSET>.md (the section) and its data (.json for
-      # TypeScript, .csv for Go; benchmarks/reports/release_assets.py).
+      # TypeScript, .csv for Go; runtimes/csharp/benchmarks/reports/release_assets.py).
       ASSET: runtime-${{ matrix.lang }}-${{ matrix.arch }}
       # The tag's runtimes and nino-gen under release/, this workflow's report scripts under workflow/ (layout.py, the
       # target job's "Find the paths").
@@ -732,7 +732,7 @@ jobs:
           merge-multiple: true
           path: sections
 
-      # The sections and their data as assets, a chart each, the body's benchmark part (benchmarks/reports/release_body.py).
+      # The sections and their data as assets, a chart each, the body's benchmark part (runtimes/csharp/benchmarks/reports/release_body.py).
       - name: Publish the results
         run: |
           set -euo pipefail
@@ -746,7 +746,7 @@ jobs:
           python3 "$REPORTS/release_body.py" publish --tag "$TAG_NAME" --dir "$RUNNER_TEMP/assets" "${ARGS[@]}"
 
   # Build time: Nino v3 3.3.13's source generator (NuGet) against the release's, on one x64 runner, at 330 and 1,100
-  # types (benchmarks/Nino.GeneratorBenchmark: generator time, generated size, emit, re-generation after edits, IL).
+  # types (runtimes/csharp/benchmarks/Nino.GeneratorBenchmark: generator time, generated size, emit, re-generation after edits, IL).
   # This workflow's harness (its --json is newer than most tags) loads each side's Nino.Generator and Nino.Core by
   # path, as runtime-ab's generator lines do. Independent of the other sections; a failure leaves only this one out.
   # On maple from the first report after v4.0.0-rc.10's (GitHub's ubuntu-26.04 x64 runner up to it): its times are of
@@ -884,7 +884,7 @@ jobs:
   # After publish and publish-runtimes (no two jobs edit the manifest or the body at once); also when they were skipped
   # or failed. Publishes the build section and its data (build-x64.md, build-<v3|v4>-<roots>.json), then, for the
   # newest v4 release, fills the README's Build row and the build tables of docs/v4-benchmarks.md from that asset
-  # (benchmarks/reports/readme.py --assets) and pushes them to main: here, not in publish, which runs only for a
+  # (runtimes/csharp/benchmarks/reports/readme.py --assets) and pushes them to main: here, not in publish, which runs only for a
   # release without its .NET results and before this one exists.
 
       - *free-maple

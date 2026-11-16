@@ -44,7 +44,7 @@ build of Nino.Core, Mono).
   call fallback still spilled every vector around the call (2.7 us); with `return value` as the never-taken
   fallback, 1.9 us, the JIT's listings unchanged on every ISA. Find such fallbacks in a NativeAOT binary: calls from
   `Nino_Core_*` symbols to `S_P_CoreLib_System_Runtime_Intrinsics_*` (`objdump -d` with the `.dbg` file's symbols);
-  dead branches of another architecture show too. `tests/Nino.AotTests` checks the shuffle is `pshufb`. Arm64 is not
+  dead branches of another architecture show too. `runtimes/csharp/tests/Nino.AotTests` checks the shuffle is `pshufb`. Arm64 is not
   affected (AdvSimd is in its baseline); an Arm64 object can be built on x64 (`dotnet publish -r linux-arm64` stops
   at the link, `obj/.../native/*.o` is there for `llvm-objdump`). What is left: under NativeAOT a `static readonly`
   field a static constructor computes is a load, not a constant, so the plans' offsets are loaded per group and
@@ -58,12 +58,12 @@ build of Nino.Core, Mono).
 | netstandard2.1 build, interceptors off, Roslyn 4.8 | `-f net8.0 -p:NinoCoreTfm=netstandard2.1`, `-p:NinoRegularCalls=true`, `-p:NinoGeneratorBuild=4.8` (`verify`) |
 | Arm64 | build `-r linux-arm64`, run under `qemu-aarch64-static -cpu neoverse-n1` |
 | Arm32 | build `-r linux-arm`, run under `qemu-arm-static` with `DOTNET_EnableWriteXorExecute=0` and `DOTNET_INTERNAL_ThreadSuspendInjection=0` |
-| Mono | the `net472` build of `tests/Nino.RuntimeTests` under `mono` (also `MONO_GC_DEBUG=verify-before-collections`): compiled against Mono's class libraries (`/usr/lib/mono/4.5/`, `-p:MonoLibraries=` elsewhere) and the netstandard2.1 builds, made only where they are installed (`apt-get install mono-complete`) |
+| Mono | the `net472` build of `runtimes/csharp/tests/Nino.RuntimeTests` under `mono` (also `MONO_GC_DEBUG=verify-before-collections`): compiled against Mono's class libraries (`/usr/lib/mono/4.5/`, `-p:MonoLibraries=` elsewhere) and the netstandard2.1 builds, made only where they are installed (`apt-get install mono-complete`) |
 | Mono 32-bit (x86) | Mono 6.12's i386 debs extracted, run through their own `ld-linux.so.2` with `MONO_PATH` (references/layouts.md, the `delegate*` bullet) |
 | .NET on Windows x64 and x86 | CI's "Runtime internals" job (the net10.0 build, with an x86 .NET runtime beside the SDK) |
 | Go 386, Arm32, s390x (big-endian) | `runtimes.yml`; locally `GOARCH=386`, `GOARCH=arm` / `s390x` under qemu |
 | Rust Arm64 (NEON kernels) | no cross C toolchain needed: `rustup target add aarch64-unknown-linux-musl`, then `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=rust-lld CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER="qemu-aarch64 -cpu neoverse-n1" cargo test --release --target aarch64-unknown-linux-musl --all-features` (debug: the simd tests ran over an hour; release, all tests, ~5 min); `cargo +nightly miri test --lib --target aarch64-unknown-linux-gnu simd` for the unsafe code; asm with `cargo rustc --release --lib --target aarch64-unknown-linux-gnu -- --emit asm`, cycles with `llvm-mca -mcpu=neoverse-n2` over the executed instruction stream (`optimize-runtimes`, references/strings.md, the per-char decoder bullet) |
-| Unity (editor tests, IL2CPP player, Burst) | `unity.yml` only (one license seat: `audit-ci`); `src/Nino.Unity/AGENTS.md` |
+| Unity (editor tests, IL2CPP player, Burst) | `unity.yml` only (one license seat: `audit-ci`); `runtimes/csharp/src/Nino.Unity/AGENTS.md` |
 
 
 ## Traps, by topic

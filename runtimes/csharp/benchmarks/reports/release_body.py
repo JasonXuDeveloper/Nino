@@ -1,0 +1,453 @@
+#!/usr/bin/env python3
+"""Publishes a release's benchmark results (.github/workflows/report.yml): attaches them as assets, draws a chart of
+each section and writes the benchmark part of the release body from the manifest.
+
+usage:
+  release_body.py publish --tag TAG --dir WORK [--release-dir FAKE]
+                          NAME=PATH...
+  release_body.py body --tag TAG --body current.md --manifest benchmarks-manifest.json --out new.md
+
+publish: every job of report.yml that has results runs it with its own files (the asset names: release_assets.py).
+It reads the release's manifest into WORK (none yet: a new one), copies each PATH into WORK as NAME and lists it,
+draws the chart of each section whose files are in WORK (charts.py: an SVG in the light and one in the dark theme) and
+puts them on the release-notes branch (charts/<tag>/), uploads the files and the manifest (--clobber: a re-run replaces
+them), then rewrites the benchmark part of the body. --release-dir runs it against a directory instead of GitHub
+(release_assets.Local: body.md, assets/, release-notes/), for a dry run.
+
+body: the body with its benchmark part rewritten from a manifest (what publish does last).
+
+The body: the release notes (release_notes.py) stay as they are; before them (the owner's order: the benchmarks
+first, then New, Performance and the rest), between the START and END markers, a
+"## 📊 Benchmarks" heading and one collapsed <details> per section in SECTIONS' order: its title and a one-line
+summary, the chart (a <picture> of its light and dark SVG, by the reader's colour scheme; a .NET section has README's
+charts instead, a collapsed <details> per group of readme.GROUPS, listed in its manifest entry's "charts"), the
+environment and links to the assets with the full tables. A body from before the manifest (v4.0.0-rc.9 and older) has the old sections (tables) instead: each
+is dropped once the manifest has its asset, and kept as it is (after the charts) until then. The part is about
+20,000 characters with every section and group, far under GitHub's 125,000.
+
+The docs site reads the assets, not the body (nino.docs scripts/sync-benchmarks.ts); it parses the old sections of
+releases without a manifest, which is why legacy_sections knows their headings.
+"""
+import argparse
+import os
+import re
+import statistics
+import sys
+
+import charts
+import generator_report
+import readme
+import release_assets
+import runtimes_report
+import unity_report
+from bdn import FLOOR_NS, mean_ns, on_par, times
+
+BODY_LIMIT = 125_000  # GitHub's limit for a release body, in characters
+START = ("<!-- nino-benchmarks: written by runtimes/csharp/benchmarks/reports/release_body.py from benchmarks-manifest.json; "
+         "edits between these markers are replaced -->")
+END = "<!-- /nino-benchmarks -->"
+HEADING = "## 📊 Benchmarks"
+
+# The sections in the body's order: (the asset the section is drawn from, its title).
+SECTIONS = [("dotnet-x64.md", ".NET x64"), ("dotnet-arm64.md", ".NET Arm64"),
+            ("dotnet-v3-x64.md", "v3 3.3.13 vs v4 (.NET x64, same runners)")]
+for _lang, _name in (("go", "Go"), ("rust", "Rust"), ("typescript", "TypeScript")):
+    SECTIONS += [(f"runtime-{_lang}-x64.md", f"{_name} runtime x64"), (f"runtime-{_lang}-arm64.md", f"{_name} runtime Arm64")]
+SECTIONS += [("unity-x64.md", "Unity, Burst kernels in an IL2CPP player"),
+             ("build-x64.md", "Build: v3 3.3.13 vs v4 source generator")]
+TITLES = dict(SECTIONS)
+
+# The headings of the sections bodies had before the manifest, and the asset that replaces each.
+V3_HEADING = "## 📊 v3 3.3.13 vs v4 (same machine)"
+ARM64_HEADING = "## 📊 Arm64 benchmark"
+LEGACY = {V3_HEADING: "dotnet-v3-x64.md", ARM64_HEADING: "dotnet-arm64.md",
+          unity_report.HEADING: "unity-x64.md", generator_report.HEADING: "build-x64.md",
+          **{h: f"runtime-{lang}-x64.md" for lang, h in runtimes_report.HEADINGS.items()},
+          **{h: f"runtime-{lang}-arm64.md" for lang, h in runtimes_report.ARM64_HEADINGS.items()}}
+
+# Method prefixes of the .NET libraries (GoogleProtobuf before Protobuf, which it starts with).
+LIBRARIES = sorted(["Nino"] + [o for o, _, _ in readme.OTHERS] + [f for f, _ in readme.FORMS], key=len, reverse=True)
+FORMS = {f for f, _ in readme.FORMS}
+
+
+# ---------------------------------------------------------------- the body
+
+
+def legacy_key(line):
+    if line.startswith("## ") and "Performance Report" in line:
+        return "dotnet-x64.md"
+    return LEGACY.get(line.strip())
+
+
+def legacy_sections(text):
+    """{asset name: the old section's text} of a body's benchmark part (each from its heading to the next "## ")."""
+    out, key, lines = {}, None, []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            if key:
+                out[key] = "\n".join(lines).strip("\n")
+            key, lines = legacy_key(line), []
+        if key:
+            lines.append(line)
+    if key:
+        out[key] = "\n".join(lines).strip("\n")
+    return out
+
+
+def split(body):
+    """-> (what precedes the benchmark part, the part, what follows END); the release notes are what precedes it
+    in a body written before the part moved to the top, and what follows it since."""
+    if START in body:
+        notes, rest = body.split(START, 1)
+        part, _, tail = rest.partition(END)
+        return notes, part, tail
+    lines = body.splitlines(keepends=True)
+    at = next((i for i, line in enumerate(lines) if legacy_key(line.rstrip("\n"))), len(lines))
+    return "".join(lines[:at]), "".join(lines[at:]), ""
+
+
+def link(tag, name):
+    return f"[{name}]({release_assets.download_url(tag, name)})"
+
+
+def picture(chart, alt):
+    """The <picture> of a chart entry (chart, chart_sha, chart_dark, chart_dark_sha)."""
+    light = release_assets.chart_url(chart["chart"], chart.get("chart_sha", ""))
+    dark = release_assets.chart_url(chart["chart_dark"], chart.get("chart_dark_sha", "")) if chart.get("chart_dark") \
+        else light
+    return charts.picture(light, dark, alt)
+
+
+def section(manifest, entry, tag):
+    title = entry.get("title") or TITLES.get(entry["name"], entry["name"])
+    summary = f"<b>{title}</b>" + (f": {entry['summary']}" if entry.get("summary") else "")
+    out = ["<details>", f"<summary>{summary}</summary>", ""]
+    if entry.get("charts"):
+        # A .NET section: a collapsed <details> per chart group (readme.GROUPS), README's charts.
+        out += [charts.details(group["title"], picture(group, f"{title}, {group['title']}: time per operation"),
+                               bold=False) + "\n"
+                for group in entry["charts"]]
+    elif entry.get("chart"):
+        out += [picture(entry, title), ""]
+    data = [e["name"] for e in manifest["assets"] if e.get("of") == entry["name"]]
+    files = link(tag, entry["name"]) + (" (made from " + ", ".join(link(tag, n) for n in data) + ")" if data else "")
+    environment = f"{entry['environment'].rstrip('.')}. " if entry.get("environment") else ""
+    out += [f"{environment}The full table: {files}.", "", "</details>"]
+    return "\n".join(out)
+
+
+def render(body, manifest, tag):
+    """The body with its benchmark part written from the manifest."""
+    notes, part, tail = split(body)
+    listed = {e["name"]: e for e in manifest["assets"]}
+    kept = [text for key, text in legacy_sections(part).items() if key not in listed]
+    sections = [section(manifest, listed[name], tag) for name, _ in SECTIONS if name in listed]
+    # The benchmarks first, then the notes (the owner's order): what was before the part and what followed it.
+    out = [START, HEADING, "",
+           "Charts of one run on GitHub's runners; each section's full table is attached to this release, and "
+           f"{link(tag, release_assets.MANIFEST)} lists the files.", ""]
+    out += [s + "\n" for s in sections] + [t + "\n" for t in kept]
+    out += [END, ""]
+    out += [text.strip("\n") for text in (notes, tail) if text.strip("\n")]
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
+# ---------------------------------------------------------------- the charts
+
+
+def ratio_ok(nino, other):
+    """Nino ahead or on par: under the floor, or the other time no shorter than Nino's beyond 5%."""
+    if nino < FLOOR_NS:
+        return True
+    return other >= nino or on_par(other / nino)
+
+
+def split_method(method):
+    lib = next((p for p in LIBRARIES if method.startswith(p)), None)
+    return (lib, method[len(lib):]) if lib else (None, method)
+
+
+def dotnet_chart(path, arch, v3_path=None):
+    """README's charts, one per group (readme.chart_groups): Nino v4, v3 3.3.13 where its report is there (x64 only;
+    n/a in the cases it does not run), then every library with a row, every case of the report."""
+    _, v4 = readme.parse(path)
+    v3 = {m: row["mean"] for m, row in readme.parse(v3_path)[1].items()} if v3_path else None
+    groups = readme.chart_groups(v4, v3)
+    by_case = {}
+    for method, row in v4.items():
+        lib, case = split_method(method)
+        # The other forms of a nullable value (readme.FORMS) are bars of their cases, not libraries of the summary.
+        if lib and lib not in FORMS:
+            by_case.setdefault(case, {})[lib] = row["mean"]
+    compared = {c: libs for c, libs in by_case.items() if "Nino" in libs and len(libs) > 1}
+    ahead = sum(all(ratio_ok(libs["Nino"], t) for lib, t in libs.items() if lib != "Nino") for libs in compared.values())
+    summary = (f"Nino v4 fastest or on par in {ahead} of {len(compared)} cases against every library measured "
+               f"({len(v4)} rows)")
+    run = f"{arch} GitHub runners" + (", v3 3.3.13 directly before v4" if v3 else "")
+    note = f"BenchmarkDotNet, .NET 10, {run}; every case is in the table; N× = N times as long as Nino v4."
+    if any(readme.has_forms(chart) for _, _, _, chart in groups):
+        note += " " + readme.FORM_NOTE
+    return groups, summary, note
+
+
+def v3_summary(v3_path, x64_path):
+    """v3's section has no chart of its own (its bars are in the x64 chart, beside every library): its summary."""
+    _, v3 = readme.parse(v3_path)
+    _, v4 = readme.parse(x64_path)
+    keys = [m[len("NinoSerialize"):] for m in v3 if m.startswith("NinoSerialize") and m in v4]
+    chart, faster, par, ratios = [], 0, 0, []
+    for key in keys:
+        pair = []
+        for verb in ("Serialize", "Deserialize"):
+            method = f"Nino{verb}{key}"
+            if method not in v3 or method not in v4:
+                pair.append(None)
+                continue
+            new, old = v4[method]["mean"], v3[method]["mean"]
+            pair.append((f"{verb} · {key}", [("Nino v4", new), ("Nino v3", old)]))
+            if new < FLOOR_NS and old < FLOOR_NS:
+                par += 1
+            elif new < FLOOR_NS or (old > new and not on_par(old / new)):
+                faster += 1
+                if new >= FLOOR_NS:
+                    ratios.append(old / new)
+            elif on_par(old / new):
+                par += 1
+        chart.append(tuple(pair))
+    total = sum(1 for pair in chart for g in pair if g)
+    summary = f"v4 faster in {faster} of {total} cases" + (f", on par in {par}" if par else "")
+    if ratios:
+        summary += f" (median {times(statistics.median(ratios))}× faster)"
+    return summary
+
+
+def grid(text):
+    """The first table of a runtime section -> (serializers, {(case, operation): {serializer: ns}}) of its times."""
+    lines = [line for line in text.splitlines() if line.startswith("|")]
+    if len(lines) < 3:
+        raise ValueError("no table")
+    head = [c.strip() for c in lines[0].strip().strip("|").split("|")]
+    if head[:2] not in (["Case", "Operation"], ["Scenario", "Operation"]):
+        raise ValueError("no Case and Operation columns")
+    who, out = head[2:], {}
+    for line in lines[2:]:
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
+        if len(cells) != len(head) or cells[1] not in ("serialize", "deserialize"):
+            continue
+        times = {w: mean_ns(c) for w, c in zip(who, cells[2:])}
+        out[(cells[0], cells[1])] = {w: t for w, t in times.items() if t is not None}
+    return who, out
+
+
+def runtime_chart(path, entry):
+    who, times = grid(open(path, encoding="utf-8").read())
+    nino = who[0]
+    chart, ahead, total = [], 0, 0
+    for case in dict.fromkeys(c for c, _ in times):
+        pair = []
+        for op in ("serialize", "deserialize"):
+            row = times.get((case, op))
+            if not row or nino not in row:
+                pair.append(None)
+                continue
+            pair.append((f"{op.capitalize()} · {case}", [(w, row[w]) for w in who if w in row]))
+            total += 1
+            ahead += all(ratio_ok(row[nino], t) for w, t in row.items() if w != nino)
+        chart.append(tuple(pair))
+    summary = f"{nino} fastest or on par in {ahead} of {total} operations"
+    note = f"{entry.get('environment') or 'a GitHub runner'}; N× = N times as long as {nino}."
+    return chart, summary, note
+
+
+def unity_tables(text):
+    """[(Unity version, [(case, operation, without ns, with ns)])] of a Unity section."""
+    out = []
+    for match in re.finditer(r"^### Unity (\S+)\n\n((?:\|.*\n?)+)", text, re.M):
+        rows = []
+        for line in match.group(2).strip().splitlines()[2:]:
+            cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
+            if len(cells) >= 4 and mean_ns(cells[2]) is not None and mean_ns(cells[3]) is not None:
+                rows.append((cells[0].replace("\\|", "|").replace("&lt;", "<").replace("&gt;", ">")
+                             .replace("&amp;", "&"), cells[1], mean_ns(cells[2]), mean_ns(cells[3])))
+        out.append((match.group(1), rows))
+    return out
+
+
+def unity_chart(path, entry):
+    tables = unity_tables(open(path, encoding="utf-8").read())
+    if not tables:
+        raise ValueError("no Unity table")
+    version, rows = tables[-1]  # the newest Unity version; the asset has every one
+    groups = {}
+    for case, op, without, burst in rows:
+        groups.setdefault(case, {})[op] = (f"{op} · {case}", [("With Burst", burst), ("Without Burst", without)])
+    chart = [(ops.get("Serialize"), ops.get("Deserialize")) for ops in groups.values()]
+    speedups = [without / burst for _, _, without, burst in rows if burst > 0]
+    faster = sum(1 for s in speedups if s > 1 and not on_par(s))
+    summary = f"Unity {version}: the Burst kernels faster in {faster} of {len(rows)} operations"
+    if speedups:
+        summary += f", up to {times(max(speedups))}×"
+    note = f"Unity {version}, IL2CPP player, median per call; N× = N times as long as with the Burst kernels."
+    return chart, summary, note
+
+
+def build_value(cell):
+    match = re.match(r"([\d,.]+)\s*(MB|s)\b", cell)
+    return float(match.group(1).replace(",", "")) if match else None
+
+
+def build_chart(path):
+    found = generator_report.parse(open(path, encoding="utf-8").read())
+    if found is None:
+        raise ValueError("no build section")
+    tables = found["tables"]
+    small, large = tables[0], tables[-1]
+    chart = []
+    for key, label, _, _ in generator_report.ROWS:
+        pair = []
+        for table in (small, large) if small is not large else (small, None):
+            if table is None:
+                pair.append(None)
+                continue
+            v3, v4, _ = table["rows"][key]
+            pair.append((f"{label} · {table['types']:,} types",
+                         [("Nino v4", build_value(v4), v4), ("Nino v3", build_value(v3), v3)]))
+        chart.append(tuple(pair))
+    emit = large["rows"]["emit"][2].replace("**", "")
+    source = large["rows"]["source"][2].replace("**", "")
+    summary = f"at {large['types']:,} types, compiling the generated code {emit}, generated source {source}"
+    note = "Sizes in millions of chars (source) and bytes (IL), times the median of the runs; N× = N times v4's."
+    return chart, summary, note
+
+
+def draw(directory, manifest, tag):
+    """Draws the chart of every section whose files are in the directory; sets its entry's title, summary and chart.
+    -> the SVGs written."""
+    written = []
+    for name, title in SECTIONS:
+        entry = release_assets.entry(manifest, name)
+        path = os.path.join(directory, name)
+        if entry is None or not os.path.isfile(path):
+            continue
+        try:
+            if entry["kind"] == "dotnet":
+                arm64 = entry["arch"] == "arm64"
+                v3 = os.path.join(directory, "dotnet-v3-x64.md")
+                chart, summary, note = dotnet_chart(path, "Arm64" if arm64 else "x64",
+                                                    None if arm64 or not os.path.isfile(v3) else v3)
+            elif entry["kind"] == "dotnet-v3":
+                x64 = os.path.join(directory, "dotnet-x64.md")
+                if not os.path.isfile(x64):
+                    continue
+                entry.update(title=title, summary=v3_summary(path, x64))
+                for key in ("chart", "chart_sha", "chart_dark", "chart_dark_sha", "chart_width"):
+                    entry.pop(key, None)
+                print(f"📈 {name}: {entry['summary']}", file=sys.stderr)
+                continue
+            elif entry["kind"] == "runtime":
+                chart, summary, note = runtime_chart(path, entry)
+            elif entry["kind"] == "unity":
+                chart, summary, note = unity_chart(path, entry)
+            else:
+                chart, summary, note = build_chart(path)
+        except (ValueError, KeyError, SystemExit) as error:
+            print(f"::warning::no chart for {name}: {error}", file=sys.stderr)
+            continue
+        stem = os.path.join(directory, name.rsplit(".", 1)[0])
+        entry.update(title=title, summary=summary)
+        lowered = f"{charts.README_TITLE[0].lower()}{charts.README_TITLE[1:]}"
+        if entry["kind"] == "dotnet":
+            # One chart per group, README's (<stem>-<group>.svg); the entry lists them under "charts".
+            for key in ("chart", "chart_sha", "chart_dark", "chart_dark_sha", "chart_width"):
+                entry.pop(key, None)
+            entry["charts"] = []
+            for gid, group_title, _, group_chart in chart:
+                item = {"group": gid, "title": group_title}
+                written += draw_chart(item, group_chart, f"{stem}-{gid}", tag, f"{title}, {group_title}: {lowered}",
+                                      note, FLOOR_NS)
+                entry["charts"].append(item)
+        else:
+            heading = f"{title} (shorter is better)" if entry["kind"] == "build" else f"{title}: {lowered}"
+            written += draw_chart(entry, chart, stem, tag, heading, note, 0 if entry["kind"] == "build" else FLOOR_NS)
+        print(f"📈 {name}: {summary}", file=sys.stderr)
+    return written
+
+
+def draw_chart(entry, chart, stem, tag, heading, note, floor):
+    """Writes <stem>.svg and <stem>-dark.svg and sets the entry's chart, chart_sha, chart_dark, chart_dark_sha and
+    chart_width. -> the paths. SVG: a few KB each, sharp at any zoom, and raw.githubusercontent.com serves it as
+    image/svg+xml, which GitHub's image proxy shows (PNGs at a readable resolution were about 5 MB a release)."""
+    written = []
+    for theme, suffix, key in (("light", "", "chart"), ("dark", "-dark", "chart_dark")):
+        image, _ = charts.svg(chart, theme, heading, note, floor)
+        path = f"{stem}{suffix}.svg"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(image)
+        entry.update({key: f"charts/{tag}/{os.path.basename(path)}", f"{key}_sha": release_assets.sha(path),
+                      "chart_width": int(re.search(r'width="(\d+)"', image).group(1))})
+        written.append(path)
+    return written
+
+
+# ---------------------------------------------------------------- commands
+
+
+def publish(args):
+    rel = release_assets.release(args.tag, args.release_dir)
+    os.makedirs(args.dir, exist_ok=True)
+    manifest = release_assets.fetch(rel, args.dir, []) or release_assets.new_manifest(args.tag)
+    manifest["tag"] = args.tag
+    added = []
+    for pair in args.files:
+        name, _, source = pair.partition("=")
+        if not source or not os.path.isfile(source):
+            print(f"⚠️ {name}: no file {source!r}, left out", file=sys.stderr)
+            continue
+        release_assets.add(args.dir, manifest, name, source)
+        added.append(name)
+    if not added:
+        print("⏭️ Nothing to publish", file=sys.stderr)
+        return
+    # v3's bars are in the x64 chart and its summary needs the x64 report: a job that adds only one of them draws
+    # them once both are there.
+    images = draw(args.dir, manifest, args.tag)
+    rel.push_charts(images)
+    release_assets.save(args.dir, manifest)
+    rel.upload([os.path.join(args.dir, n) for n in added] + [os.path.join(args.dir, release_assets.MANIFEST)])
+    body = rel.body()
+    text = render(body, manifest, args.tag)
+    if len(text) > BODY_LIMIT:
+        sys.exit(f"the body would have {len(text):,} characters, over GitHub's {BODY_LIMIT:,}")
+    if text != body:
+        rel.edit_body(text)
+    print(f"✅ {', '.join(added)} published; the body has {len(text):,} characters", file=sys.stderr)
+
+
+def body(args):
+    manifest = release_assets.load(os.path.dirname(os.path.abspath(args.manifest)))
+    text = render(open(args.body, encoding="utf-8").read(), manifest, args.tag)
+    open(args.out, "w", encoding="utf-8").write(text)
+    print(f"{len(text):,} characters", file=sys.stderr)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    commands = parser.add_subparsers(dest="command", required=True)
+    one = commands.add_parser("publish")
+    one.add_argument("--tag", required=True)
+    one.add_argument("--dir", required=True, help="the working directory: the manifest, the assets, the charts")
+    one.add_argument("--release-dir", help="a directory standing in for the release (dry run)")
+    one.add_argument("files", nargs="+", metavar="NAME=PATH")
+    one.set_defaults(run=publish)
+    two = commands.add_parser("body")
+    two.add_argument("--tag", required=True)
+    two.add_argument("--body", required=True)
+    two.add_argument("--manifest", required=True)
+    two.add_argument("--out", required=True)
+    two.set_defaults(run=body)
+    args = parser.parse_args()
+    args.run(args)
+
+
+if __name__ == "__main__":
+    main()

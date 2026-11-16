@@ -9,10 +9,10 @@ code comments, commits and docs are in English; the docs site is English and Chi
 
 ```bash
 export PATH=$HOME/.dotnet:$HOME/go/bin:$PATH DOTNET_ROOT=$HOME/.dotnet      # cloud sessions
-dotnet build                                                               # the solution (Nino.slnx), 0 warnings
-dotnet test tests/Nino.UnitTests                                           # the unit tests (.github/CONTRIBUTING.md has the matrix)
-QUICK=1 FILTER='*SimpleTest*' benchmarks/run.sh                            # benchmarks while developing (`benchmark` skill)
-python3 benchmarks/asm/asm.py compare origin/main                          # what a change did to the machine code
+dotnet build runtimes/csharp                                               # the solution (runtimes/csharp/Nino.slnx), 0 warnings
+dotnet test runtimes/csharp/tests/Nino.UnitTests                           # the unit tests (.github/CONTRIBUTING.md has the matrix)
+QUICK=1 FILTER='*SimpleTest*' runtimes/csharp/benchmarks/run.sh            # benchmarks while developing (`benchmark` skill)
+python3 runtimes/csharp/benchmarks/asm/asm.py compare origin/main          # what a change did to the machine code
 tools/agents.sh                                                            # refresh the indexes below (--check in CI)
 ```
 
@@ -30,34 +30,37 @@ one (CI runs `tools/agents.sh --check`, which also checks that every file is in 
 <!-- agents-index:start -->
 | Directory | Read its AGENTS.md when |
 |---|---|
-| [`benchmarks/`](benchmarks/AGENTS.md) | adding, changing or running a .NET benchmark, or a script that turns benchmark results into the README, docs or a release body |
 | [`docs/`](docs/AGENTS.md) | changing the Markdown documentation in docs/ (the wire format spec, the design, codegen, diagnostics, pitfalls, benchmarks), or deciding where a piece of documentation belongs |
+| [`runtimes/csharp/benchmarks/`](runtimes/csharp/benchmarks/AGENTS.md) | adding, changing or running a .NET benchmark, or a script that turns benchmark results into the README, docs or a release body |
+| [`runtimes/csharp/src/Nino.AspNetCore/`](runtimes/csharp/src/Nino.AspNetCore/AGENTS.md) | reading or changing the ASP.NET Core integration (package Nino.AspNetCore) |
+| [`runtimes/csharp/src/Nino.Codegen/`](runtimes/csharp/src/Nino.Codegen/AGENTS.md) | reading or changing nino-gen (the TypeScript, Go and Rust code generator), its templates, its options or the Nino.Codegen build package |
+| [`runtimes/csharp/src/Nino.Core/`](runtimes/csharp/src/Nino.Core/AGENTS.md) | reading or changing anything in `runtimes/csharp/src/Nino.Core` (the runtime: the public API, formatters, Reader/Writer, settings, polymorphism, pooling, the internal fast paths) |
+| [`runtimes/csharp/src/Nino.Generator/`](runtimes/csharp/src/Nino.Generator/AGENTS.md) | reading or changing the source generator, the emitted formatter code, the analyzer, the code fixes or the Roslyn 4.8 / 4.12 builds |
+| [`runtimes/csharp/src/Nino.Immutable/`](runtimes/csharp/src/Nino.Immutable/AGENTS.md) | reading or changing the System.Collections.Immutable formatters (package Nino.Immutable) |
+| [`runtimes/csharp/src/Nino.Unity/`](runtimes/csharp/src/Nino.Unity/AGENTS.md) | changing the Unity package (com.jasonxudeveloper.nino), its Burst kernels, the Unity tests or runtimes/csharp/src/Nino.UnityTypes |
+| [`runtimes/csharp/tests/`](runtimes/csharp/tests/AGENTS.md) | adding or changing a test, or finding where a feature, a platform or hostile input is tested |
 | [`runtimes/go/`](runtimes/go/AGENTS.md) | reading or changing the Go runtime (runtimes/go, package nino), its string kernels, struct tags, sample codecs or Go benchmark |
 | [`runtimes/rust/`](runtimes/rust/AGENTS.md) | reading or changing the Rust runtime (runtimes/rust: crates nino-serialization and nino-serialization-derive), its SIMD kernels, tests or benchmarks |
 | [`runtimes/typescript/`](runtimes/typescript/AGENTS.md) | reading or changing the TypeScript runtime (runtimes/typescript: src/nino.ts, its WebAssembly kernels, tests or benchmark) |
-| [`src/Nino.AspNetCore/`](src/Nino.AspNetCore/AGENTS.md) | reading or changing the ASP.NET Core integration (package Nino.AspNetCore) |
-| [`src/Nino.Codegen/`](src/Nino.Codegen/AGENTS.md) | reading or changing nino-gen (the TypeScript, Go and Rust code generator), its templates, its options or the Nino.Codegen build package |
-| [`src/Nino.Core/`](src/Nino.Core/AGENTS.md) | reading or changing anything in `src/Nino.Core` (the runtime: the public API, formatters, Reader/Writer, settings, polymorphism, pooling, the internal fast paths) |
-| [`src/Nino.Generator/`](src/Nino.Generator/AGENTS.md) | reading or changing the source generator, the emitted formatter code, the analyzer, the code fixes or the Roslyn 4.8 / 4.12 builds |
-| [`src/Nino.Immutable/`](src/Nino.Immutable/AGENTS.md) | reading or changing the System.Collections.Immutable formatters (package Nino.Immutable) |
-| [`src/Nino.Unity/`](src/Nino.Unity/AGENTS.md) | changing the Unity package (com.jasonxudeveloper.nino), its Burst kernels, the Unity tests or src/Nino.UnityTypes |
-| [`tests/`](tests/AGENTS.md) | adding or changing a test, or finding where a feature, a platform or hostile input is tested |
 | [`tests/conformance/`](tests/conformance/AGENTS.md) | changing the wire format, a layout, a malicious-input check or a sample type, or making a runtime read the shared conformance corpus |
 <!-- agents-index:end -->
 
 ## Layout
 
 ```
-src/            the packages: Nino.Core (runtime), Nino.Generator (+ CodeFixes, Roslyn4.8/4.12 builds), Nino.Immutable,
+runtimes/csharp/ .NET: Nino.slnx, Directory.Build.props, Directory.Packages.props, global.json and nuget.config, and
+  src/          the packages: Nino.Core (runtime), Nino.Generator (+ CodeFixes, Roslyn4.8/4.12 builds), Nino.Immutable,
                 Nino.AspNetCore, Nino.Codegen (+ .Tool: nino-gen), Nino.Unity (the Unity project and package),
                 Nino.UnityTypes; src/Nino is the meta package
-tests/          unit, runtime-internals, AOT, fuzz, ASP.NET Core and codegen tests (tests/AGENTS.md), and
-                conformance/: the corpus every runtime reads and writes (valid and malicious cases)
-benchmarks/     BenchmarkDotNet projects and the scripts that run, compare and report them
+  tests/        unit, runtime-internals, AOT, fuzz, ASP.NET Core and codegen tests, and Nino.Conformance, which writes
+                the corpus (runtimes/csharp/tests/AGENTS.md)
+  benchmarks/   BenchmarkDotNet projects and the scripts that run, compare and report them
+  tools/        CodeGen (generated formatter families), UseNinoGenerator.props (the generator from source for this
+                repository's own projects: tests, fuzzing, conformance)
 runtimes/       go, rust, typescript: the wire format outside .NET
+tests/          conformance/: the corpus every runtime reads and writes (valid and malicious cases)
 docs/           design, wire-format spec, codegen, diagnostics, pitfalls, benchmark notes (Markdown in the repository)
-tools/          CodeGen (generated formatter families), agents.sh, UseNinoGenerator.props (the generator from source
-                for this repository's own projects: tests, fuzzing, conformance)
+tools/          agents.sh (the indexes of the agent instructions)
 .github/        workflows, composite actions (setup-dotnet, apt-install), release and CI scripts, CONTRIBUTING.md,
                 SECURITY.md
 skills/         the public skill nino-serialization: how AI agents use Nino (`npx skills add JasonXuDeveloper/Nino`)
@@ -75,18 +78,18 @@ links to the same files for other agents, and anyone can follow them as checklis
 <!-- skills-index:start -->
 | Skill | What it does | Use it |
 |---|---|---|
-| [`audit-analyzer`](.claude/skills/audit-analyzer/SKILL.md) | Audit Nino's diagnostics (NINO rules in src/Nino.Generator/Analysis), the suppressor and the code fixes | when adding or changing a rule or code fix, when users hit a runtime error a rule could have caught, or when a rule fires wrongly |
+| [`audit-analyzer`](.claude/skills/audit-analyzer/SKILL.md) | Audit Nino's diagnostics (NINO rules in runtimes/csharp/src/Nino.Generator/Analysis), the suppressor and the code fixes | when adding or changing a rule or code fix, when users hit a runtime error a rule could have caught, or when a rule fires wrongly |
 | [`audit-ci`](.claude/skills/audit-ci/SKILL.md) | Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, triage.yml, ab-bench.yml and the test branch's A/B workflows) | when changing a workflow, when CI is slow or red, or before a release |
 | [`audit-code`](.claude/skills/audit-code/SKILL.md) | Audit Nino's code for cleanliness and maintainability and fix it | for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry, or when the test suite is slow |
-| [`audit-core`](.claude/skills/audit-core/SKILL.md) | Audit Nino's runtime libraries (src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design | for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration |
+| [`audit-core`](.claude/skills/audit-core/SKILL.md) | Audit Nino's runtime libraries (runtimes/csharp/src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design | for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration |
 | [`audit-docs`](.claude/skills/audit-docs/SKILL.md) | Audit and write all of Nino's docs | once the code is final (the docs pass), after a user-facing change lands, and before a release |
 | [`audit-generated-code`](.claude/skills/audit-generated-code/SKILL.md) | Audit what the generators write | when changing an emitter or a template, when generated code is slow, large or hard to read, or when a type's serializer is slower than a hand-written one |
-| [`audit-generator`](.claude/skills/audit-generator/SKILL.md) | Audit the Nino source generator itself (src/Nino.Generator and its Roslyn 4.8/4.12 builds) | when changing the generator, adding a way to declare a type, when a type shape does not compile, or when builds or the IDE are slow |
+| [`audit-generator`](.claude/skills/audit-generator/SKILL.md) | Audit the Nino source generator itself (runtimes/csharp/src/Nino.Generator and its Roslyn 4.8/4.12 builds) | when changing the generator, adding a way to declare a type, when a type shape does not compile, or when builds or the IDE are slow |
 | [`audit-layout`](.claude/skills/audit-layout/SKILL.md) | Audit and fix Nino's directory structure | when adding a project, folder or script, when the tree feels messy, after a large merge, or when tools/agents.sh --check fails |
 | [`audit-naming`](.claude/skills/audit-naming/SKILL.md) | Audit every name in Nino | in every audit round and on every new public name before it lands. Report first; public renames are the owner's call |
 | [`audit-perf`](.claude/skills/audit-perf/SKILL.md) | Find the next performance win in Nino (.NET, Unity/Burst, Go, Rust, TypeScript) | for a performance round, when Nino trails a competitor in a case, or when asked to optimize further |
 | [`audit-redundancy`](.claude/skills/audit-redundancy/SKILL.md) | Find and remove redundancy everywhere in Nino | in every audit round, after large merges or a burst of feature work, and whenever something looks familiar ("didn't we already have this?") |
-| [`audit-runtimes`](.claude/skills/audit-runtimes/SKILL.md) | Audit Nino's runtimes outside .NET (runtimes/go, runtimes/rust, runtimes/typescript) and nino-gen (src/Nino.Codegen), which writes code for them | when changing a runtime or a template, when a runtime is slower than a competitor or than the previous main, or for a runtimes review |
+| [`audit-runtimes`](.claude/skills/audit-runtimes/SKILL.md) | Audit Nino's runtimes outside .NET (runtimes/go, runtimes/rust, runtimes/typescript) and nino-gen (runtimes/csharp/src/Nino.Codegen), which writes code for them | when changing a runtime or a template, when a runtime is slower than a competitor or than the previous main, or for a runtimes review |
 | [`audit-security`](.claude/skills/audit-security/SKILL.md) | Audit and extend Nino's defenses against hostile input in every runtime (.NET, Go, Rust, TypeScript and the code nino-gen writes) | for any change to a read path, a new type or collection, a new setting, or a security review |
 | [`audit`](.claude/skills/audit/SKILL.md) | Run an audit round of Nino with parallel agents in worktrees | when asked to review the whole codebase, to clean up everything, to find what is left, or to "do another round"; a review of one area is that area's audit skill |
 | [`benchmark`](.claude/skills/benchmark/SKILL.md) | How to measure Nino and what may be published | when running, adding or reading a benchmark, deciding whether a change is faster, or touching a number in README, docs or a release |

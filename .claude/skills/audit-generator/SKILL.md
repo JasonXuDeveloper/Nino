@@ -1,14 +1,14 @@
 ---
 name: audit-generator
-description: "Audit the Nino source generator itself (src/Nino.Generator and its Roslyn 4.8/4.12 builds) - incremental pipeline and caching, cost per keystroke in the IDE, equatable symbol-free models, the model's rules (TypeModel.Need, DispatchesSubtypes, IsDispatchRoot), every shape of type users can declare, interceptors, registration without module initializers, re-entrant registries, what building models and emitting text allocate - and its compile-time benchmark. Use when changing the generator, adding a way to declare a type, when a type shape does not compile, or when builds or the IDE are slow. Triggers: src/Nino.Generator, NinoGenerator.cs, ModelBuilder, TypeModel, IncrementalGeneratorTests, ShapeMatrixTests, GeneratorBenchmark, interceptors, ForAttributeWithMetadataName, ModelCache, CodeWriter, TextScratch, generator allocations, slow build, slow IDE, 源生成器, 生成器, 增量, 编译慢, 内存分配."
+description: "Audit the Nino source generator itself (runtimes/csharp/src/Nino.Generator and its Roslyn 4.8/4.12 builds) - incremental pipeline and caching, cost per keystroke in the IDE, equatable symbol-free models, the model's rules (TypeModel.Need, DispatchesSubtypes, IsDispatchRoot), every shape of type users can declare, interceptors, registration without module initializers, re-entrant registries, what building models and emitting text allocate - and its compile-time benchmark. Use when changing the generator, adding a way to declare a type, when a type shape does not compile, or when builds or the IDE are slow. Triggers: runtimes/csharp/src/Nino.Generator, NinoGenerator.cs, ModelBuilder, TypeModel, IncrementalGeneratorTests, ShapeMatrixTests, GeneratorBenchmark, interceptors, ForAttributeWithMetadataName, ModelCache, CodeWriter, TextScratch, generator allocations, slow build, slow IDE, 源生成器, 生成器, 增量, 编译慢, 内存分配."
 metadata:
   internal: true
 ---
 
 # Generator audit
 
-Files: `src/Nino.Generator` (netstandard2.0, loaded by every Roslyn host; `src/Nino.Generator/AGENTS.md` has the
-map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 SDK). The text it writes is
+Files: `runtimes/csharp/src/Nino.Generator` (netstandard2.0, loaded by every Roslyn host; `runtimes/csharp/src/Nino.Generator/AGENTS.md` has the
+map), built twice: `runtimes/csharp/src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 SDK). The text it writes is
 `audit-generated-code`; its diagnostics are `audit-analyzer`.
 
 ## Correct for every shape
@@ -18,12 +18,12 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   `Construction.Creator`, ...) through `TypeModel.Need`, never by interpolating it directly. Decide what a type gets
   from the model's rules (`DispatchesSubtypes`, `IsDispatchRoot`, ...), not from a new check next to them.
 - A feature that adds a way to declare a type (a kind, an attribute option, a place) adds a dimension to
-  `tests/Nino.UnitTests/Corner/Modeling/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
+  `runtimes/csharp/tests/Nino.UnitTests/Corner/Modeling/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
 - Generated registration code may call back into Nino.Core (`NinoPolymorphic.TryRegister(Type)`), which asks every
   registry again: anything a registry calls must be re-entrant (`NinoRegistry.RegisterType` guards it per thread).
 - Register every closed type a public `NinoSerializer` / `NinoDeserializer` method names, by type argument or by
   `typeof` argument: a new such method goes into `NinoGenerator.NamesType` (the syntax filter) and is covered by
-  `IncrementalGeneratorTests.EveryCallThatNamesATypeRegistersIt` and a case in `tests/Nino.AotTests`. Native AOT
+  `IncrementalGeneratorTests.EveryCallThatNamesATypeRegistersIt` and a case in `runtimes/csharp/tests/Nino.AotTests`. Native AOT
   cannot close a generic formatter at run time, and the JIT hides the gap: `GetFixedSize<Pair<int, short>>()` and
   `SerializeBoxed(v, typeof(Pair<int, long>))` threw "no formatter" only after `PublishAot` until the filter matched
   more than `Serialize` and `Deserialize`. A generic `[NinoType]` is never of fixed size (`TypeFacts.IsFixedSize`):
@@ -83,7 +83,7 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   culture-invariant output, unique hint names.
 - Bind as few nodes as syntax allows. A syntax provider's semantic transform reruns for every match on every
   compilation change, and `GetSymbolInfo` of a call binds its statement: binding the top-level calls was most of the
-  generator's time on tests/Nino.UnitTests (about 2,400 calls; local trace, round 128), more than building the models.
+  generator's time on runtimes/csharp/tests/Nino.UnitTests (about 2,400 calls; local trace, round 128), more than building the models.
   Skipping identifier receivers that are neither `NinoSerializer`/`NinoDeserializer` nor a `using` alias of one
   (alias names from syntax, per compilation) measured within the noise on `GeneratorBenchmark --calls` (a call in a
   one-statement method binds in microseconds) and was not kept (round 128). Look a transform's result up before
@@ -91,17 +91,17 @@ map), built twice: `src/Nino.Generator.Roslyn4.12` and `.Roslyn4.8` (the .NET 8 
   (`ModelCache` epochs: `SyntaxTree.IsEquivalentTo(topLevel: true)`, which ignores method bodies and non-constant
   field initializers), which only holds for a result read from declarations; models are not (`ConstructsDefaults`,
   `StartsDefault` and `IsAutoProperty` read constructor bodies, initializers and accessors) and keep the tree check.
-  Chained comment edits on tests/Nino.UnitTests took 150 ms instead of 520 ms, TopLevelCall 2 ms instead of 290 ms
+  Chained comment edits on runtimes/csharp/tests/Nino.UnitTests took 150 ms instead of 520 ms, TopLevelCall 2 ms instead of 290 ms
   (round 129). Measure edits there, not on `GeneratorBenchmark` alone: its comment edit lands in the file of every
   model, which rebuilds them all.
 - Walk an assembly's types only through `AssemblyTypes.Of`.
-- Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on tests/Nino.UnitTests is the project's
+- Do not cache `FormatterRules` per referenced assembly: its 5-6 ms an edit on runtimes/csharp/tests/Nino.UnitTests is the project's
   own `[assembly: NinoFormatter]` registrations (binding the new source assembly's attributes, then `Read`), which hold
   that compilation's symbols and cannot outlive it; every reference together read in 25 ms once. A per-
   `IAssemblySymbol` cache (`ConditionalWeakTable`) left the output byte-identical and chained edits within the noise
   (90-94 ms against 80-87 ms) and was not kept (round 129).
 - `cancellationToken.ThrowIfCancellationRequested()` in loops over members and types.
-- `WithTrackingName` on every stage; `tests/Nino.UnitTests/Generator/IncrementalGeneratorTests.cs` asserts that
+- `WithTrackingName` on every stage; `runtimes/csharp/tests/Nino.UnitTests/Generator/IncrementalGeneratorTests.cs` asserts that
   edits elsewhere and in method bodies hit the cache for every tracked stage (a rerun that returns an equal model is
   not a hit: count reruns).
 - Implementation output for what user code never names; source output for what it calls.
@@ -182,7 +182,7 @@ its aliases or its location attributes.
 
 ## Measure
 
-`benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
+`runtimes/csharp/benchmarks/Nino.GeneratorBenchmark` (cold run, an edit in a method body, an edit elsewhere, compile with and without
 the analyzer); compare base and head back to back. Keep a change that improves time or allocations beyond the error and
 costs neither; an allocation saving with time on par counts only if the code stays as simple (no second mechanism
 for one job, no second emission path, no hand-rolled cache): complexity needs a time gain (the owner, in the
@@ -202,7 +202,7 @@ model reruns at both commits) was no slower. Track with a Roslyn newer than 4.3 
 `RecordStepTree` took over ten minutes recording one edit at 1,100 types. The analyzers'
 own time (Roslyn's telemetry) also holds the binding an analyzer is the first to ask for; the analysis wall time
 holds all of it: read both (`audit-analyzer`, the layout baseline).
-On a real project: `ReportAnalyzer` (set in tests/Nino.UnitTests) prints the generator's and the analyzer's time per
+On a real project: `ReportAnalyzer` (set in runtimes/csharp/tests/Nino.UnitTests) prints the generator's and the analyzer's time per
 compilation in a `dotnet build -v:d` log; to see the stages, rebuild the compilation from that log's `csc` line
 (`CSharpCommandLineParser`, with its analyzer config files as an `AnalyzerConfigOptionsProvider`), run the driver with
 `trackIncrementalGeneratorSteps: true` and sum each `TrackedSteps` entry's `ElapsedTime`, parsing the files again for

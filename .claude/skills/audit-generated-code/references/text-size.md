@@ -7,7 +7,7 @@ when output bytes per type grew. The rules in SKILL.md ("The text", "Size") stan
 costs the generator itself is `audit-generator`
 ([emit-text.md](../../audit-generator/references/emit-text.md)).
 
-How every bullet here was proven: the generated source size of `tests/Nino.UnitTests` (and `benchmarks/Nino.Benchmark`)
+How every bullet here was proven: the generated source size of `runtimes/csharp/tests/Nino.UnitTests` (and `runtimes/csharp/benchmarks/Nino.Benchmark`)
 over all files, the consumer IL normalized for file-local type names, and for a sampled formatter its Arm64 and x64
 listings, its wire bytes and its allocation. A text change whose IL matches is a size change: do not claim a speedup
 from local timings that also vary between identical binaries.

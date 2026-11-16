@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Compare two BenchmarkDotNet *-report-github.md files: Nino v3 3.3.13 vs Nino v4, for every case the v3 report has
+(every benchmark class's Nino and MemoryPack cases that 3.3.13 can express, runtimes/csharp/benchmarks/Nino.Benchmark/V3; one report of
+each run, joined or merged).
+
+usage: python3 compare_v3.py <v3 report-github.md> <v4 report-github.md>
+
+Prints: case | v3 3.3.13 | v4 | v3 / v4 | MemoryPack (v4 run) | MemoryPack (v3 run)
+  - all times are the BDN "Mean" column, as measured, no derived values;
+  - "v3 / v4" = mean(v3) / mean(v4), how many times as long v3 took, written as every multiple (bdn.times: "1.4×",
+    "23×"; above 1 means v4 is faster), "on par" within 5%;
+  - the two MemoryPack columns are the same benchmark in each run, so their ratio shows run-to-run drift;
+  - a time under FLOOR_NS cannot be told apart from an empty method: v4 under it against a measurable v3 is
+    "> 1.4× (v4 under 1 ns)", the bound v4 taking less than the floor gives (bdn.lower_bound); both under it is
+    "on par".
+"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reports"))
+from bdn import FLOOR_NS, lower_bound, mean_ns, on_par, rows, show, times  # noqa: E402 (runtimes/csharp/benchmarks/reports/bdn.py)
+
+LIBS = ("Nino", "MemoryPack", "MessagePack", "Protobuf")
+
+
+def parse(path):
+    """-> {method: mean_ns}. Uses the first table with a Method and a Mean column."""
+    out = {}
+    for row in rows(path)[1]:
+        if "Job" in row and "ShortRun" not in row["Job"]:
+            continue  # if a report holds several jobs, keep the ShortRun one (the configured job)
+        mean = mean_ns(row["Mean"])
+        if row["Method"] and mean is not None:
+            out[row["Method"]] = mean
+    if not out:
+        sys.exit(f"no benchmark rows found in {path}")
+    return out
+
+
+def fmt(ns):
+    return "-" if ns is None else show(ns)
+
+
+def split(method):
+    for lib in LIBS:
+        if method.startswith(lib):
+            return lib, method[len(lib):]
+    return None, method
+
+
+def main():
+    if len(sys.argv) != 3:
+        sys.exit(__doc__)
+    v3, v4 = parse(sys.argv[1]), parse(sys.argv[2])
+
+    cases = []
+    for method in list(v4) + list(v3):
+        lib, case = split(method)
+        # Only cases v3 has: the v4 report may be the whole suite (report.yml passes the merged report).
+        if lib == "Nino" and case not in cases and "Nino" + case in v3:
+            cases.append(case)
+    # serialize first, then deserialize; within each, the order of the v4 report
+    cases.sort(key=lambda c: (not c.startswith("Serialize"),))
+
+    header = ["case", "v3 3.3.13", "v4", "v3 / v4", "MemoryPack (v4 run)", "MemoryPack (v3 run)"]
+    table = []
+    for case in cases:
+        a, b = v3.get("Nino" + case), v4.get("Nino" + case)
+        if a is None or b is None:
+            ratio = "-"
+        elif b < FLOOR_NS:
+            ratio = "on par (both under 1 ns)" if a < FLOOR_NS else \
+                f"> {times(lower_bound(a))}× (v4 under {FLOOR_NS} ns)"
+        elif a < FLOOR_NS:
+            ratio = "-"
+        else:
+            ratio = "on par" if on_par(a / b) else f"{times(a / b)}×"
+        table.append([case, fmt(a), fmt(b), ratio,
+                      fmt(v4.get("MemoryPack" + case)), fmt(v3.get("MemoryPack" + case))])
+
+    widths = [max(len(r[i]) for r in [header] + table) for i in range(len(header))]
+    print("| " + " | ".join(h.ljust(w) for h, w in zip(header, widths)) + " |")
+    print("|" + "|".join("-" * (w + 1) + ("-" if i == 0 else ":") for i, w in enumerate(widths)) + "|")
+    for r in table:
+        print("| " + " | ".join(c.ljust(w) if i == 0 else c.rjust(w)
+                                for i, (c, w) in enumerate(zip(r, widths))) + " |")
+    print()
+    print("v4 vs v3 = mean(v4) / mean(v3); below 1.00x means v4 is faster.")
+    drift = [v4["MemoryPack" + c] / v3["MemoryPack" + c] for c in cases
+             if v4.get("MemoryPack" + c) and v3.get("MemoryPack" + c)]
+    if drift:
+        print(f"MemoryPack drift (v4 run / v3 run): min {min(drift):.2f}x, max {max(drift):.2f}x "
+              "(same code in both runs; the spread is the noise floor of this comparison).")
+
+
+if __name__ == "__main__":
+    main()

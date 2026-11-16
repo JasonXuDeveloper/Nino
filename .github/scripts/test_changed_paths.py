@@ -53,11 +53,11 @@ class Main(unittest.TestCase):
         self.assertEqual(result, {"a": "true"})
 
     def test_lookahead_groups(self):
-        # ci.yml's unit tests run for any change outside runtimes/ and benchmarks/.
-        pattern = "unit=^(?!runtimes/|benchmarks/)"
-        with mock.patch.object(changed_paths, "changed", return_value=["runtimes/go/a.go", "benchmarks/x.cs"]):
+        # ci.yml's unit tests run for any change outside the other runtimes and runtimes/csharp/benchmarks/.
+        pattern = "unit=^(?!runtimes/(go|rust|typescript)/|runtimes/csharp/benchmarks/)"
+        with mock.patch.object(changed_paths, "changed", return_value=["runtimes/go/a.go", "runtimes/csharp/benchmarks/x.cs"]):
             self.assertEqual(self.run_main("base", pattern), {"unit": "false"})
-        with mock.patch.object(changed_paths, "changed", return_value=["runtimes/go/a.go", "src/Nino.Core/a.cs"]):
+        with mock.patch.object(changed_paths, "changed", return_value=["runtimes/go/a.go", "runtimes/csharp/src/Nino.Core/a.cs"]):
             self.assertEqual(self.run_main("base", pattern), {"unit": "true"})
 
     def test_api_failure_means_not_tested(self):

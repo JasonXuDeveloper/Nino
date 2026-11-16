@@ -25,10 +25,10 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   pull request's base; everything runs when that is unknown, on a schedule and when the workflow changes):
   runtimes.yml per runtime (Miri only for the crate's library code), codeql.yml per language (every language
   weekly). A folder another workflow owns is excluded with `!`, and a file a job links from it is re-included on
-  the line after (later patterns win): ci.yml leaves out `src/Nino.Unity/**` (unity.yml's; a Burst or Unity test
+  the line after (later patterns win): ci.yml leaves out `runtimes/csharp/src/Nino.Unity/**` (unity.yml's; a Burst or Unity test
   edit had started ci.yml's 16 jobs) but takes `Assets/Test/Runtime/BclFixture*.cs`, which Nino.RuntimeTests links,
   and the package's `Runtime/*.dll`, which `UnityPackageDllTests` reads. ci.yml's `changes` job splits it further:
-  the unit tests skip a change that is only under `runtimes/` or `benchmarks/` (they read neither), runtime
+  the unit tests skip a change that is only under `runtimes/` or `runtimes/csharp/benchmarks/` (they read neither), runtime
   internals one only under `runtimes/`; the integrations job always runs.
 - **A push to main repeats nothing its pull request proved.** `main` moves through merge commits of pull requests
   whose branch had main merged in, so the merge's tree is the one the pull request's last run tested:
@@ -49,11 +49,11 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   and rerun just that job before changing repository workflows. The action downloads the latest
   scanner and writes the HTTP response as an executable without checking its status. Run
   42566229349 failed to launch the scanner and passed on attempt 2 at the same commit.
-- **Scripts only a release runs are checked on push.** `benchmarks/*.py` and `.github/scripts/*.py` run in
+- **Scripts only a release runs are checked on push.** `runtimes/csharp/benchmarks/*.py` and `.github/scripts/*.py` run in
   `report.yml` and `release.yml`, so a broken one showed only at a release: agents.yml's job (path filter on
-  `benchmarks/**` and `.github/scripts/**`) runs `python3 -m py_compile` over both folders and
+  `runtimes/csharp/benchmarks/**` and `.github/scripts/**`) runs `python3 -m py_compile` over both folders and
   `python3 -m unittest discover -s benchmarks -p 'test_*.py'` (under a second). Give a new release-time script a
-  `test_*.py` in `benchmarks/` on its fixtures, and a script in a new folder a line in that step and its path filter.
+  `test_*.py` in `runtimes/csharp/benchmarks/` on its fixtures, and a script in a new folder a line in that step and its path filter.
   In `.github/scripts` name each test file (`-p 'test_changed_paths.py'`, `-p 'test_layout.py'`) instead of discovering `test_*.py`:
   `test_shards.py` there is ci.yml's shard checker, not a test, and unittest exits 5 on "NO TESTS RAN" since
   Python 3.12. The same holds for checks: whatever report.yml runs before measuring
@@ -178,7 +178,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   (it signs and keeps an artifact, no release touched). "User does not have permission to sign package" means
   the service account's role or organization is wrong, not the secrets' presence (run 43286997093; 43287841461
   signed once the owner fixed the role).
-- **maple, the self-hosted runner** (`[self-hosted, Linux, X64, maple]`: Ubuntu, the .NET SDKs global.json and
+- **maple, the self-hosted runner** (`[self-hosted, Linux, X64, maple]`: Ubuntu, the .NET SDKs runtimes/csharp/global.json and
   the jobs ask for, installed there by hand, rustup, gh, jq, python3; no sudo, so no apt, no Docker of ours, no
   Chrome; about 7.7 GB of RAM, 72 GB of disk with some 44 GB free, no AVX-512 VBMI; a shared host that also runs
   some 13 Docker containers and an rclone mount) runs release.yml, unity-sign.yml, report.yml's jobs that are no
@@ -263,7 +263,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   with `; :` so it does not exec and rename itself): a busy start, a job during the first measurement only, and jobs
   during both. A test's own Worker must run the step as a child `bash`, as the runner does: subshells of a renamed
   bash keep its name and read as other jobs.
-- **The pull request benchmark is on request**: ci.yml runs `benchmarks/shards.json`'s "ab" shards only for a pull
+- **The pull request benchmark is on request**: ci.yml runs `runtimes/csharp/benchmarks/shards.json`'s "ab" shards only for a pull
   request labeled `benchmark` (when opened, reopened or pushed to; labeling alone starts nothing), in quick mode
   (`NINO_BENCH_QUICK=1`: a trend, never published); report.yml at a release runs every case with the full protocol
   (#333). ab-bench.yml on the branch gives a comparison with main or the last release.

@@ -2,7 +2,7 @@
 
 Part of the `audit-generator` skill: how the emitters build the formatter, layout, dispatch, registry and usages files
 - the bounded scratch builder, alias rewriting, direct emission instead of callbacks, and sizing. Read it before
-changing an emitter under `src/Nino.Generator/Generation` (except the interceptor file, `emit-interceptors.md`),
+changing an emitter under `runtimes/csharp/src/Nino.Generator/Generation` (except the interceptor file, `emit-interceptors.md`),
 `CodeWriter`, `TextScratch` or alias rewriting, or before retrying an allocation trick there. What the text says is
 `audit-generated-code`; measurement terms are defined in [measuring.md](measuring.md); every entry kept its output
 byte-identical.
