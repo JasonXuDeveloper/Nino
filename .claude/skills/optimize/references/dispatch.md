@@ -188,4 +188,10 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   element with the writer by reference 4.90-5.05, Nino before e178937c 5.0, after 3.7-3.9 (LuminPack 4.4-4.7). Not
   the tag: a 1-byte tag in place of the 4-byte id wrote in 3.80-3.93 against 3.77-3.99. Not the writer's bookkeeping:
   an end pointer in place of `Writer._avail` (one store fewer per write) left the list at 4.9-5.0, the same.
+  Keep the loop in generated code; never move it into Nino.Core as a loop calling a generated single-element write
+  marked `AggressiveInlining`: the JIT refused to inline a 20-subtype chain even so (a call per element again, 4.9 us),
+  and a test for a generic interface (`default(TFormatter) is INinoElementsFormatter<T>`) per element in a loop over
+  a reference type is shared code that looks the interface up and boxes each time: 20 us for the same list (a
+  non-generic interface folds). Dictionaries of a polymorphic value keep `Serialize` per value (12 values: 64-72 ns
+  against LuminPack's 60-63; their pair loop lives in Nino.Core, so a generated one would duplicate it).
 

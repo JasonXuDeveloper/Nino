@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.UnitTests.GenericPolymorphism;
 
 namespace Nino.UnitTests
 {
@@ -57,6 +58,44 @@ namespace Nino.UnitTests
 
             CollectionAssert.AreEqual(expected.ToArray(), NinoSerializer.Serialize(values));
             CollectionAssert.AreEqual(expected.ToArray(), NinoSerializer.Serialize(values.ToList()));
+        }
+
+        /// <summary>
+        /// Arrays, lists and dictionary values of <typeparamref name="T"/> write each element as it writes alone (the
+        /// element loops go through INinoElementsFormatter.WriteElement, the dispatch inline).
+        /// </summary>
+        private static void ElementsMatch<T>(params T[] values)
+        {
+            var elements = new List<byte>();
+            var pairs = new List<byte>(BitConverter.GetBytes(values.Length));
+            for (int i = 0; i < values.Length; i++)
+            {
+                var alone = NinoSerializer.Serialize(values[i]);
+                elements.AddRange(alone);
+                pairs.AddRange(BitConverter.GetBytes(i));
+                pairs.AddRange(alone);
+            }
+
+            var expected = BitConverter.GetBytes(values.Length).Concat(elements).ToArray();
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values.ToList()));
+            var dictionary = new Dictionary<int, T>();
+            for (int i = 0; i < values.Length; i++)
+                dictionary.Add(i, values[i]);
+            CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(dictionary));
+        }
+
+        [TestMethod]
+        public void EveryDispatchingBaseWritesElementsAsAlone()
+        {
+            // An instantiable base (its own id first), a middle class, a generic root and a generic subtype's base.
+            ElementsMatch<DelegLevel1>(new DelegLevel1 { A = 1, Name = "one" }, null,
+                new DelegLevel2 { A = 2, Items = new List<int> { 3 } }, new DelegLevel3 { A = 4, D = 5, E = 6 });
+            ElementsMatch<DelegLevel2>(new DelegLevel2 { A = 7 }, new DelegLevel3 { A = 8, E = 9 }, null);
+            ElementsMatch<PureBox<int>>(new PureIntBox { Value = 1, X = 2 }, null, new PureIntBox { Value = 3 });
+            ElementsMatch<GenericPolyBase>(new GenericPolyIntBox { Id = 1, Value = 2 }, null);
+            ElementsMatch<NonGenericPolyBase>(new NonGenericPolyLeaf { Id = 5, Value = 6 }, null);
+            ElementsMatch<TrackedBox<int>>(new TrackedIntBox { Value = 1 }, null);
         }
 
         [TestMethod]
