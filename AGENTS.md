@@ -200,11 +200,13 @@ asking, and give the owner its link.
   runtimes, a decision for the owner, a user's report), one issue per concern. Search the open issues first and
   extend a match rather than opening a second (`gh api -X GET search/issues -f q='repo:JasonXuDeveloper/Nino is:issue
   is:open <words>'`). Several steps toward one goal: a parent issue with sub-issues, or a checklist in one.
-- **Milestone**: the open milestone of the next release, never a name typed from memory: list them
-  (`gh api 'repos/JasonXuDeveloper/Nino/milestones?state=open'`) and take the one whose description covers the
-  work (the owner renames and replaces them; on 2026-11-12 it was `v4.0.0`). An issue has one milestone, so a theme
-  inside a release (.NET 11) is a label, never a second milestone (the owner's choice). Ask only when no open
-  milestone fits.
+- **Milestone**: leave it to `triage.yml`, which sets it when the issue opens, by the owner's rule from the latest
+  release tag and the `kind:` label (`milestone_title` in `.github/scripts/triage/triage.py`: during an rc, a bug, perf
+  or docs issue goes to that version, a feature or any other kind to the next minor). Set the `kind:` label when
+  creating the issue so the rule has it; set a milestone yourself only to move an issue the owner moved, or when
+  triage gave none (a question, an unknown kind), and then take an open one (`gh api
+  'repos/JasonXuDeveloper/Nino/milestones?state=open'`), never a name typed from memory. An issue has one milestone,
+  so a theme inside a release (.NET 11) is a label, never a second milestone (the owner's choice).
 - **Type** (issue types, not labels): `Bug` (wrong bytes or behavior, a crash, a regression), `Feature` (a new
   capability), `Task` (a measurement, decision, cleanup or refactor).
 - **Labels**: one or more `area: <part>` (core, generator, analyzer, codegen, benchmarks, docs, go, rust,
@@ -230,7 +232,7 @@ The commands (REST through `gh api`; GraphQL is blocked in cloud sessions; the G
 `type`, `milestone` and `labels` too). `R=repos/JasonXuDeveloper/Nino`:
 
 ```bash
-gh api $R/issues -f title='...' -f type=Task -F milestone=<number> -f 'labels[]=area: core' -f 'labels[]=kind: perf' -f body="$BODY"
+gh api $R/issues -f title='...' -f type=Task -f 'labels[]=area: core' -f 'labels[]=kind: perf' -f body="$BODY"  # triage adds the milestone
 gh api -X PATCH $R/issues/<n> -f type=Bug -F milestone=<number>                     # retype, move to a milestone
 gh api $R/issues/<n>/labels -f 'labels[]=area: unity'                               # add labels (keeps the others)
 gh api -X PATCH $R/issues/<n> -f state=closed -f state_reason=completed            # close

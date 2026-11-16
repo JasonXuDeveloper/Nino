@@ -12,6 +12,10 @@ internal static class UnionEmitter
     {
         string type = model.TypeName;
         var cases = model.Cases;
+        // Only a union with a case that can hold it again counts its own depth; leaves (raw values, strings) cannot.
+        bool nests = false;
+        foreach (var item in cases)
+            nests |= !item.Leaf;
         var seen = new HashSet<int>();
         bool checkIds = false;
         for (int i = 0; i < cases.Length; i++)
@@ -47,13 +51,23 @@ internal static class UnionEmitter
             w.Line("if (!s_uniqueIds)");
             w.IndentedLine($"throw new global::System.InvalidOperationException(\"Nino: union {type} has colliding case type ids.\");");
         }
-        w.Line($"writer.EnterStruct(typeof({type}));");
-        w.Open("try");
-        w.Line("__WriteCase(payload, ref writer);");
-        w.Close();
-        w.Open("finally");
-        w.Line("writer.ExitStruct();");
-        w.Close();
+        if (nests)
+        {
+            // A case that can hold the union again (an array of it, a struct of it) opens no class body to count
+            // the nesting: the writer counts it here, as a struct that can reach itself does (BodyEmitter).
+            w.Line($"writer.EnterStruct(typeof({type}));");
+            w.Open("try");
+            w.Line("__WriteCase(payload, ref writer);");
+            w.Close();
+            w.Open("finally");
+            w.Line("writer.ExitStruct();");
+            w.Close();
+        }
+        else
+        {
+            w.Line("__WriteCase(payload, ref writer);");
+        }
+
         w.Close();
         w.Line();
 
@@ -68,8 +82,12 @@ internal static class UnionEmitter
             w.Line("if (!s_uniqueIds)");
             w.IndentedLine("throw __InvalidCase(id);");
         }
-        w.Line($"reader.EnterStruct(typeof({type}));");
-        w.Open("try");
+        if (nests)
+        {
+            w.Line($"reader.EnterStruct(typeof({type}));");
+            w.Open("try");
+        }
+
         w.Line($"{type} next;");
         w.Open("switch (id)");
         seen.Clear();
@@ -89,10 +107,14 @@ internal static class UnionEmitter
         w.Line("if (next.Value == null)");
         w.IndentedLine("throw __InvalidCase(id);");
         w.Line("value = next;");
-        w.Close();
-        w.Open("finally");
-        w.Line("reader.ExitStruct();");
-        w.Close();
+        if (nests)
+        {
+            w.Close();
+            w.Open("finally");
+            w.Line("reader.ExitStruct();");
+            w.Close();
+        }
+
         w.Close();
         w.Line();
 

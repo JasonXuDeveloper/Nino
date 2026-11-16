@@ -9,7 +9,7 @@ audits the structure, `audit-security` the fuzzer and the hostile-input tests; t
 ```
 conformance/                 the corpus every runtime reads and writes, and Nino.Conformance, which writes and
                              verifies it (conformance/AGENTS.md)
-Nino.UnitTests/              the main suite (net8.0, net10.0, and net11.0 with a .NET 11 SDK; netstandard2.1
+Nino.UnitTests/              the main suite (net8.0, net10.0, and net11.0; netstandard2.1
                              compile-only, as Unity builds it);
                              its types are marked version tolerant; -p:NinoCoreTfm picks a Nino.Core
                              build; folders below
