@@ -486,4 +486,87 @@ public unsafe class RawCopyProbe
         return Bytes;
     }
 }
+
+/// <summary>
+/// Experiment: a raw array written into a serializer's buffer (8,000 and 24,000 bytes: 1,000 NinoNullable of int and
+/// of a 12-byte struct), the destination 4 bytes past a 64-byte line, the source <see cref="SourceShift"/> bytes past
+/// one (an array's elements lie wherever the heap put it). NinoUnsafe.Copy (64-byte vectors on AMD, stores aligned,
+/// loads split across lines unless the shift is 60), the same loop with its loads aligned and its stores split, the
+/// 32-byte loop, and Memmove. On an EPYC 9V45 the cases of such arrays moved by up to 30 % from build to build.
+/// </summary>
+[Config(typeof(SingleProbeConfig))]
+public unsafe class AlignedCopyProbe
+{
+    [Params(8000, 24000)]
+    public int Bytes = 8000;
+
+    [Params(0, 8, 16, 24, 32, 40, 48, 56, 60)]
+    public int SourceShift;
+
+    private static readonly byte* SourceBase = (byte*)NativeMemory.AlignedAlloc(1 << 17, 64);
+    private static readonly byte* Destination = (byte*)NativeMemory.AlignedAlloc(1 << 17, 64) + 4;
+
+    private byte* Source => SourceBase + 128 + SourceShift;
+
+    [Benchmark(Baseline = true)]
+    public int NinoCopy()
+    {
+        NinoUnsafe.Copy(ref *Destination, ref *Source, (uint)Bytes);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int LoadsAligned512()
+    {
+        Loop<Vector512<byte>>(Destination, Source, (nuint)Bytes, alignLoads: true);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int StoresAligned256()
+    {
+        Loop<Vector256<byte>>(Destination, Source, (nuint)Bytes, alignLoads: false);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int LoadsAligned256()
+    {
+        Loop<Vector256<byte>>(Destination, Source, (nuint)Bytes, alignLoads: true);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Memmove()
+    {
+        Buffer.MemoryCopy(Source, Destination, Bytes, Bytes);
+        return Bytes;
+    }
+
+    // NinoUnsafe.CopyVectors with the aligned side chosen: the first vector unaligned, then four a step from the
+    // first boundary of the aligned side, the last vector unaligned and overlapping.
+    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    private static void Loop<TVector>(byte* d, byte* s, nuint size, bool alignLoads) where TVector : struct
+    {
+        nuint width = (nuint)Unsafe.SizeOf<TVector>();
+        Unsafe.WriteUnaligned(d, Unsafe.ReadUnaligned<TVector>(s));
+        nuint i = width - ((nuint)(alignLoads ? s : d) & (width - 1));
+        nuint end = size - width;
+        for (; i + 3 * width <= end; i += 4 * width)
+        {
+            var a = Unsafe.ReadUnaligned<TVector>(s + i);
+            var b = Unsafe.ReadUnaligned<TVector>(s + i + width);
+            var c = Unsafe.ReadUnaligned<TVector>(s + i + 2 * width);
+            var e = Unsafe.ReadUnaligned<TVector>(s + i + 3 * width);
+            Unsafe.WriteUnaligned(d + i, a);
+            Unsafe.WriteUnaligned(d + i + width, b);
+            Unsafe.WriteUnaligned(d + i + 2 * width, c);
+            Unsafe.WriteUnaligned(d + i + 3 * width, e);
+        }
+
+        for (; i <= end; i += width)
+            Unsafe.WriteUnaligned(d + i, Unsafe.ReadUnaligned<TVector>(s + i));
+        Unsafe.WriteUnaligned(d + end, Unsafe.ReadUnaligned<TVector>(s + end));
+    }
+}
 #endif
