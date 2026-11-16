@@ -63,6 +63,23 @@ public class LayoutRulesTests
     }
 
     [TestMethod]
+    public void UnionCasesAddedOrRemovedBreakOneDirection()
+    {
+        static LayoutEntry Union(string cases) => E("Positional", "TypeId", $"[elements]::union({cases})");
+        var two = Union("type(int),type(string)");
+        None(two, Union("type(int),type(string)"));
+
+        var added = One(two, Union("type(Ns.Foo<int, string>),type(int),type(string)"));
+        Assert.AreEqual(LayoutSeverity.Breaking, added.Severity);
+        StringAssert.Contains(added.Change, "new union case type(Ns.Foo<int, string>)");
+        StringAssert.EndsWith(added.Change, "so " + LayoutRules.Readers(LayoutDirections.OldReadsNew));
+
+        var removed = One(two, Union("type(int)"));
+        StringAssert.Contains(removed.Change, "no longer has the union case type(string)");
+        StringAssert.EndsWith(removed.Change, "so " + LayoutRules.Readers(LayoutDirections.NewReadsOld));
+    }
+
+    [TestMethod]
     public void FormatAndTracking()
     {
         Breaks(One(Tolerant("A:int:raw(4)"), Keyed($"A:int:raw(4):key={K("A")}")));
