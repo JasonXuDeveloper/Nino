@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -12,7 +13,7 @@ namespace Nino.Benchmark;
 
 /// <summary>A small struct with padding (4 + 2 + 1 bytes of members in 8).</summary>
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial struct InventoryItem
@@ -40,9 +41,9 @@ public partial struct Waypoint
 
 /// <summary>An abstract base with two sealed subtypes, read and written through the base.</summary>
 [NinoType]
-[MemoryPackable]
-[MemoryPackUnion(0, typeof(Circle))]
-[MemoryPackUnion(1, typeof(Rect))]
+[MemoryPackable, LuminPackable]
+[MemoryPackUnion(0, typeof(Circle)), LuminPackUnion(0, typeof(Circle))]
+[MemoryPackUnion(1, typeof(Rect)), LuminPackUnion(1, typeof(Rect))]
 [MessagePackObject]
 [Union(0, typeof(Circle))]
 [Union(1, typeof(Rect))]
@@ -55,7 +56,7 @@ public abstract partial class Shape
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public sealed partial class Circle : Shape
@@ -64,7 +65,7 @@ public sealed partial class Circle : Shape
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public sealed partial class Rect : Shape
@@ -78,7 +79,7 @@ public sealed partial class Rect : Shape
 /// empty list from none, so the leaves' empty <see cref="Children"/> would read back as null.
 /// </summary>
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 public partial class TreeNode
 {

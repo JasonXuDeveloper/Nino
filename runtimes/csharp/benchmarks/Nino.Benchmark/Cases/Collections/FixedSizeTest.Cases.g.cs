@@ -11,6 +11,8 @@ using System.Buffers;
 using System.IO;
 using System.Linq;
 using BenchmarkDotNet.Configs;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -26,14 +28,17 @@ partial class FixedSizeTest
     private static readonly byte[] MemoryPackFixedStructBytes;
     private static readonly byte[] MessagePackFixedStructBytes;
     private static readonly byte[] ProtobufFixedStructBytes;
+    private static readonly byte[] LuminPackFixedStructBytes;
     private static readonly byte[] NinoFixedClassBytes;
     private static readonly byte[] MemoryPackFixedClassBytes;
     private static readonly byte[] MessagePackFixedClassBytes;
     private static readonly byte[] ProtobufFixedClassBytes;
+    private static readonly byte[] LuminPackFixedClassBytes;
     private static readonly byte[] NinoFixedClassesBytes;
     private static readonly byte[] MemoryPackFixedClassesBytes;
     private static readonly byte[] MessagePackFixedClassesBytes;
     private static readonly byte[] ProtobufFixedClassesBytes;
+    private static readonly byte[] LuminPackFixedClassesBytes;
 
     static FixedSizeTest()
     {
@@ -42,16 +47,19 @@ partial class FixedSizeTest
         MemoryPackFixedStructBytes = MemoryPackSerializer.Serialize(FixedStruct);
         MessagePackFixedStructBytes = MessagePackSerializer.Serialize(FixedStruct);
         ProtobufFixedStructBytes = ProtobufModel.Serialize(FixedStruct);
+        LuminPackFixedStructBytes = LuminPackBuffers.Bytes(FixedStruct, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoFixedClassBytes = NinoSerializer.Serialize(FixedClass);
         MemoryPackFixedClassBytes = MemoryPackSerializer.Serialize(FixedClass);
         MessagePackFixedClassBytes = MessagePackSerializer.Serialize(FixedClass);
         ProtobufFixedClassBytes = ProtobufModel.Serialize(FixedClass);
+        LuminPackFixedClassBytes = LuminPackBuffers.Bytes(FixedClass, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoFixedClassesBytes = NinoSerializer.Serialize(FixedClasses);
         MemoryPackFixedClassesBytes = MemoryPackSerializer.Serialize(FixedClasses);
         MessagePackFixedClassesBytes = MessagePackSerializer.Serialize(FixedClasses);
         ProtobufFixedClassesBytes = ProtobufModel.Serialize(FixedClasses);
+        LuminPackFixedClassesBytes = LuminPackBuffers.Bytes(FixedClasses, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedStruct), NinoFixedStructBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClass), NinoFixedClassBytes.Length);
@@ -68,6 +76,10 @@ partial class FixedSizeTest
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedStruct), ProtobufFixedStructBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedClass), ProtobufFixedClassBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedClasses), ProtobufFixedClassesBytes.Length);
+
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedStruct), LuminPackFixedStructBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedClass), LuminPackFixedClassBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedClasses), LuminPackFixedClassesBytes.Length);
     }
 
     [GlobalSetup]
@@ -109,6 +121,12 @@ partial class FixedSizeTest
         return _protobufStream.ToArray();
     }
 
+    [Benchmark, BenchmarkCategory("FixedStructSerialize")]
+    public byte[] LuminPackSerializeFixedStruct()
+    {
+        return LuminPackSerializer.Serialize(FixedStruct);
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("FixedClassSerialize")]
     public byte[] NinoSerializeFixedClass()
     {
@@ -133,6 +151,12 @@ partial class FixedSizeTest
         _protobufStream.SetLength(0);
         Serializer.Serialize(_protobufStream, FixedClass);
         return _protobufStream.ToArray();
+    }
+
+    [Benchmark, BenchmarkCategory("FixedClassSerialize")]
+    public byte[] LuminPackSerializeFixedClass()
+    {
+        return LuminPackSerializer.Serialize(FixedClass);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("FixedClassesSerialize")]
@@ -161,6 +185,12 @@ partial class FixedSizeTest
         return _protobufStream.ToArray();
     }
 
+    [Benchmark, BenchmarkCategory("FixedClassesSerialize")]
+    public byte[] LuminPackSerializeFixedClasses()
+    {
+        return LuminPackSerializer.Serialize(FixedClasses);
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("FixedStructDeserialize")]
     public FixedStruct NinoDeserializeFixedStruct()
     {
@@ -183,6 +213,14 @@ partial class FixedSizeTest
     public FixedStruct ProtobufDeserializeFixedStruct()
     {
         return Serializer.Deserialize<FixedStruct>(new ReadOnlySpan<byte>(ProtobufFixedStructBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("FixedStructDeserialize")]
+    public FixedStruct LuminPackDeserializeFixedStruct()
+    {
+        FixedStruct result = default;
+        LuminPackSerializer.Deserialize(LuminPackFixedStructBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("FixedClassDeserialize")]
@@ -209,6 +247,14 @@ partial class FixedSizeTest
         return Serializer.Deserialize<FixedClass>(new ReadOnlySpan<byte>(ProtobufFixedClassBytes));
     }
 
+    [Benchmark, BenchmarkCategory("FixedClassDeserialize")]
+    public FixedClass LuminPackDeserializeFixedClass()
+    {
+        FixedClass result = default;
+        LuminPackSerializer.Deserialize(LuminPackFixedClassBytes, ref result);
+        return result;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("FixedClassesDeserialize")]
     public FixedClass[] NinoDeserializeFixedClasses()
     {
@@ -231,6 +277,14 @@ partial class FixedSizeTest
     public FixedClass[] ProtobufDeserializeFixedClasses()
     {
         return Serializer.Deserialize<FixedClass[]>(new ReadOnlySpan<byte>(ProtobufFixedClassesBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("FixedClassesDeserialize")]
+    public FixedClass[] LuminPackDeserializeFixedClasses()
+    {
+        FixedClass[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackFixedClassesBytes, ref result);
+        return result;
     }
 }
 #else

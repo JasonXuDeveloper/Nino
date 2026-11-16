@@ -21,19 +21,21 @@ namespace Nino.Benchmark.Workloads;
 /// and a new object where v4 reads in place (no overload reads into an existing [NinoType] object).
 /// </summary>
 [BenchClass(Buffer = "1 << 20", Value = "{Case}Value", Bytes = "{Library}{Case}Payload", Order = "case", JsonContext = "WorkloadJson")]
+// LuminPack 1.1.9 cannot run every workload but MediaContent: its generator fails on their models or it reads its own
+// bytes back wrong (runtimes/csharp/benchmarks/README.md, LuminPack; #356).
 [BenchCase("MediaContent", Proto = "MediaContent", Json = "MediaContent")]
-[BenchCase("StackOverflowPage", Proto = "StackOverflowPage", Json = "StackOverflowPage")]
-[BenchCase("RpcCall", Proto = "RpcCall", Json = "RpcCall")]
-[BenchCase("ProfileCache", Proto = "ProfileV2", Json = "ProfileV2",
+[BenchCase("StackOverflowPage", Without = "LuminPack", Proto = "StackOverflowPage", Json = "StackOverflowPage")]
+[BenchCase("RpcCall", Without = "LuminPack", Proto = "RpcCall", Json = "RpcCall")]
+[BenchCase("ProfileCache", Without = "LuminPack", Proto = "ProfileV2", Json = "ProfileV2",
     Old = "ProfileCacheOld", OldProto = "ProfileV1", OldJson = "ProfileV1", NinoGen = "V3Versioned.NinoGen")]
-[BenchCase("EventStream", Proto = "EventStream", Json = "EventStream")]
-[BenchCase("LogBatch", Proto = "LogBatch", Json = "LogBatch")]
-[BenchCase("StateSnapshot", Proto = "StateSnapshot", Json = "StateSnapshot", InPlace = true)]
-[BenchCase("LockstepFrames", Proto = "LockstepFrames", Json = "LockstepFrames")]
-[BenchCase("AoiUpdate", Proto = "AoiUpdate", Json = "AoiUpdate")]
-[BenchCase("WorldRegion", Proto = "WorldRegion", Json = "WorldRegion", JsonContext = "WorkloadReferenceJson")]
-[BenchCase("CardBattleLog", Proto = "CardBattleLog", Json = "CardBattleLog", JsonContext = "WorkloadReferenceJson")]
-[BenchCase("IdleSave", Proto = "IdleSaveV2", Json = "IdleSaveV2",
+[BenchCase("EventStream", Without = "LuminPack", Proto = "EventStream", Json = "EventStream")]
+[BenchCase("LogBatch", Without = "LuminPack", Proto = "LogBatch", Json = "LogBatch")]
+[BenchCase("StateSnapshot", Without = "LuminPack", Proto = "StateSnapshot", Json = "StateSnapshot", InPlace = true)]
+[BenchCase("LockstepFrames", Without = "LuminPack", Proto = "LockstepFrames", Json = "LockstepFrames")]
+[BenchCase("AoiUpdate", Without = "LuminPack", Proto = "AoiUpdate", Json = "AoiUpdate")]
+[BenchCase("WorldRegion", Without = "LuminPack", Proto = "WorldRegion", Json = "WorldRegion", JsonContext = "WorkloadReferenceJson")]
+[BenchCase("CardBattleLog", Without = "LuminPack", Proto = "CardBattleLog", Json = "CardBattleLog", JsonContext = "WorkloadReferenceJson")]
+[BenchCase("IdleSave", Without = "LuminPack", Proto = "IdleSaveV2", Json = "IdleSaveV2",
     Old = "IdleSaveOld", OldProto = "IdleSaveV1", OldJson = "IdleSaveV1", InPlace = true, NinoGen = "V3Versioned.NinoGen")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]

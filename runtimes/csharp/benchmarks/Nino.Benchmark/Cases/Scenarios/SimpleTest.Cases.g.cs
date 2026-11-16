@@ -14,6 +14,8 @@ using System.Numerics;
 using System.Text.Json;
 using BenchmarkDotNet.Configs;
 using Google.Protobuf;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -31,8 +33,9 @@ partial class SimpleTest
     private ArrayBufferWriter<byte> _googleProtobufBuffer;
     private ArrayBufferWriter<byte> _jsonBuffer;
     private Utf8JsonWriter _jsonWriter;
+    private LuminBufferWriter _luminPackBuffer;
 
-    // Serialized<Case>[slot]: the bytes each library reads (MessagePack 0, MemoryPack 1, Nino 2, Protobuf 3, GoogleProtobuf 4, Json 5).
+    // Serialized<Case>[slot]: the bytes each library reads (MessagePack 0, MemoryPack 1, Nino 2, Protobuf 3, GoogleProtobuf 4, Json 5, LuminPack 9).
     private static readonly byte[][] SerializedSimpleClass;
     private static readonly P.SimpleClassBase SimpleClassProto;
     private static readonly byte[][] SerializedSimpleStruct;
@@ -46,7 +49,7 @@ partial class SimpleTest
 
     static SimpleTest()
     {
-        SerializedSimpleClass = new byte[6][];
+        SerializedSimpleClass = new byte[10][];
         SimpleClassProto = P.SimpleClassBase.Parser.ParseFrom(ProtobufModel.Serialize(SimpleClass));
         SerializedSimpleClass[0] = MessagePackSerializer.Serialize(SimpleClass);
         SerializedSimpleClass[1] = MemoryPackSerializer.Serialize(SimpleClass);
@@ -54,8 +57,9 @@ partial class SimpleTest
         SerializedSimpleClass[3] = ProtobufModel.Serialize(SimpleClass);
         SerializedSimpleClass[4] = SimpleClassProto.ToByteArray();
         SerializedSimpleClass[5] = JsonSerializer.SerializeToUtf8Bytes(SimpleClass, CaseJson.Default.SimpleClass);
+        SerializedSimpleClass[9] = LuminPackBuffers.Bytes(SimpleClass, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        SerializedSimpleStruct = new byte[6][];
+        SerializedSimpleStruct = new byte[10][];
         SimpleStructProto = P.SimpleStruct.Parser.ParseFrom(ProtobufModel.Serialize(SimpleStruct));
         SerializedSimpleStruct[0] = MessagePackSerializer.Serialize(SimpleStruct);
         SerializedSimpleStruct[1] = MemoryPackSerializer.Serialize(SimpleStruct);
@@ -63,8 +67,9 @@ partial class SimpleTest
         SerializedSimpleStruct[3] = ProtobufModel.Serialize(SimpleStruct);
         SerializedSimpleStruct[4] = SimpleStructProto.ToByteArray();
         SerializedSimpleStruct[5] = JsonSerializer.SerializeToUtf8Bytes(SimpleStruct, CaseJson.Default.SimpleStruct);
+        SerializedSimpleStruct[9] = LuminPackBuffers.Bytes(SimpleStruct, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        SerializedSimpleClasses = new byte[6][];
+        SerializedSimpleClasses = new byte[10][];
         SimpleClassesProto = P.SimpleClassList.Parser.ParseFrom(ProtobufModel.Serialize(SimpleClasses));
         SerializedSimpleClasses[0] = MessagePackSerializer.Serialize(SimpleClasses);
         SerializedSimpleClasses[1] = MemoryPackSerializer.Serialize(SimpleClasses);
@@ -72,8 +77,9 @@ partial class SimpleTest
         SerializedSimpleClasses[3] = ProtobufModel.Serialize(SimpleClasses);
         SerializedSimpleClasses[4] = SimpleClassesProto.ToByteArray();
         SerializedSimpleClasses[5] = JsonSerializer.SerializeToUtf8Bytes(SimpleClasses, CaseJson.Default.SimpleClassArray);
+        SerializedSimpleClasses[9] = LuminPackBuffers.Bytes(SimpleClasses, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        SerializedSimpleStructs = new byte[6][];
+        SerializedSimpleStructs = new byte[10][];
         SimpleStructsProto = P.SimpleStructList.Parser.ParseFrom(ProtobufModel.Serialize(SimpleStructs));
         SerializedSimpleStructs[0] = MessagePackSerializer.Serialize(SimpleStructs);
         SerializedSimpleStructs[1] = MemoryPackSerializer.Serialize(SimpleStructs);
@@ -81,8 +87,9 @@ partial class SimpleTest
         SerializedSimpleStructs[3] = ProtobufModel.Serialize(SimpleStructs);
         SerializedSimpleStructs[4] = SimpleStructsProto.ToByteArray();
         SerializedSimpleStructs[5] = JsonSerializer.SerializeToUtf8Bytes(SimpleStructs, CaseJson.Default.SimpleStructArray);
+        SerializedSimpleStructs[9] = LuminPackBuffers.Bytes(SimpleStructs, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        SerializedVectors = new byte[6][];
+        SerializedVectors = new byte[10][];
         VectorsProto = P.VectorList.Parser.ParseFrom(ProtobufModel.Serialize(Vectors));
         SerializedVectors[0] = MessagePackSerializer.Serialize(Vectors);
         SerializedVectors[1] = MemoryPackSerializer.Serialize(Vectors);
@@ -90,6 +97,7 @@ partial class SimpleTest
         SerializedVectors[3] = ProtobufModel.Serialize(Vectors);
         SerializedVectors[4] = VectorsProto.ToByteArray();
         SerializedVectors[5] = JsonSerializer.SerializeToUtf8Bytes(Vectors, CaseJson.Default.Vector4Array);
+        SerializedVectors[9] = LuminPackBuffers.Bytes(Vectors, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleClass), SerializedSimpleClass[2].Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSimpleStruct), SerializedSimpleStruct[2].Length);
@@ -126,6 +134,12 @@ partial class SimpleTest
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleClasses), SerializedSimpleClasses[5].Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeSimpleStructs), SerializedSimpleStructs[5].Length);
         BenchmarkPayloadRegistry.Register(nameof(JsonSerializeVectors), SerializedVectors[5].Length);
+
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleClass), SerializedSimpleClass[9].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleStruct), SerializedSimpleStruct[9].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleClasses), SerializedSimpleClasses[9].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSimpleStructs), SerializedSimpleStructs[9].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeVectors), SerializedVectors[9].Length);
     }
 
     [GlobalSetup]
@@ -140,6 +154,7 @@ partial class SimpleTest
         _jsonBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         // What JsonSerializer's own writers use: no validation of the writer's calls.
         _jsonWriter = new Utf8JsonWriter(_jsonBuffer, new JsonWriterOptions { SkipValidation = true });
+        _luminPackBuffer = LuminPackBuffers.Rent();
     }
 
     /// <summary>The class's own setup, before the buffers'.</summary>
@@ -194,6 +209,14 @@ partial class SimpleTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("SimpleClassSerialize")]
+    public int LuminPackSerializeSimpleClass()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(SimpleClass, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructSerialize")]
     public int NinoSerializeSimpleStruct()
     {
@@ -241,6 +264,14 @@ partial class SimpleTest
         _jsonWriter.Reset(_jsonBuffer);
         JsonSerializer.Serialize(_jsonWriter, SimpleStruct, CaseJson.Default.SimpleStruct);
         return _jsonBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("SimpleStructSerialize")]
+    public int LuminPackSerializeSimpleStruct()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(SimpleStruct, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassesSerialize")]
@@ -292,6 +323,14 @@ partial class SimpleTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("SimpleClassesSerialize")]
+    public int LuminPackSerializeSimpleClasses()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(SimpleClasses, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructsSerialize")]
     public int NinoSerializeSimpleStructs()
     {
@@ -339,6 +378,14 @@ partial class SimpleTest
         _jsonWriter.Reset(_jsonBuffer);
         JsonSerializer.Serialize(_jsonWriter, SimpleStructs, CaseJson.Default.SimpleStructArray);
         return _jsonBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("SimpleStructsSerialize")]
+    public int LuminPackSerializeSimpleStructs()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(SimpleStructs, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("VectorsSerialize")]
@@ -390,6 +437,14 @@ partial class SimpleTest
         return _jsonBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("VectorsSerialize")]
+    public int LuminPackSerializeVectors()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Vectors, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassDeserialize")]
     public SimpleClass NinoDeserializeSimpleClass()
     {
@@ -424,6 +479,14 @@ partial class SimpleTest
     public SimpleClass JsonDeserializeSimpleClass()
     {
         return JsonSerializer.Deserialize(SerializedSimpleClass[5], CaseJson.Default.SimpleClass);
+    }
+
+    [Benchmark, BenchmarkCategory("SimpleClassDeserialize")]
+    public SimpleClass LuminPackDeserializeSimpleClass()
+    {
+        SimpleClass result = default;
+        LuminPackSerializer.Deserialize(SerializedSimpleClass[9], ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructDeserialize")]
@@ -462,6 +525,14 @@ partial class SimpleTest
         return JsonSerializer.Deserialize(SerializedSimpleStruct[5], CaseJson.Default.SimpleStruct);
     }
 
+    [Benchmark, BenchmarkCategory("SimpleStructDeserialize")]
+    public SimpleStruct LuminPackDeserializeSimpleStruct()
+    {
+        SimpleStruct result = default;
+        LuminPackSerializer.Deserialize(SerializedSimpleStruct[9], ref result);
+        return result;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassesDeserialize")]
     public SimpleClass[] NinoDeserializeSimpleClasses()
     {
@@ -496,6 +567,14 @@ partial class SimpleTest
     public SimpleClass[] JsonDeserializeSimpleClasses()
     {
         return JsonSerializer.Deserialize(SerializedSimpleClasses[5], CaseJson.Default.SimpleClassArray);
+    }
+
+    [Benchmark, BenchmarkCategory("SimpleClassesDeserialize")]
+    public SimpleClass[] LuminPackDeserializeSimpleClasses()
+    {
+        SimpleClass[] result = default;
+        LuminPackSerializer.Deserialize(SerializedSimpleClasses[9], ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructsDeserialize")]
@@ -534,6 +613,14 @@ partial class SimpleTest
         return JsonSerializer.Deserialize(SerializedSimpleStructs[5], CaseJson.Default.SimpleStructArray);
     }
 
+    [Benchmark, BenchmarkCategory("SimpleStructsDeserialize")]
+    public SimpleStruct[] LuminPackDeserializeSimpleStructs()
+    {
+        SimpleStruct[] result = default;
+        LuminPackSerializer.Deserialize(SerializedSimpleStructs[9], ref result);
+        return result;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("VectorsDeserialize")]
     public Vector4[] NinoDeserializeVectors()
     {
@@ -568,6 +655,14 @@ partial class SimpleTest
     public Vector4[] JsonDeserializeVectors()
     {
         return JsonSerializer.Deserialize(SerializedVectors[5], CaseJson.Default.Vector4Array);
+    }
+
+    [Benchmark, BenchmarkCategory("VectorsDeserialize")]
+    public Vector4[] LuminPackDeserializeVectors()
+    {
+        Vector4[] result = default;
+        LuminPackSerializer.Deserialize(SerializedVectors[9], ref result);
+        return result;
     }
 }
 #else

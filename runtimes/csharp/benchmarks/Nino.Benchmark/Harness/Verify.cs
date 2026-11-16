@@ -17,8 +17,9 @@ namespace Nino.Benchmark;
 /// every case twice (the second call on reused buffers and targets), and checks that
 ///  - each serialize case writes as many bytes as its Payload column says (the byte[] API's length);
 ///  - every case of a category that returns a value returns one deep-equal to the baseline's: Nino, MemoryPack,
-///    MessagePack, protobuf-net and System.Text.Json read back the same data, new or in place; a class that reads
-///    into other types (Google.Protobuf's messages) turns them into the baseline's type first (<see cref="IReadBack"/>).
+///    MessagePack, protobuf-net, System.Text.Json and LuminPack read back the same data, new or in place; a class that
+///    reads into other types (Google.Protobuf's messages) turns them into the baseline's type first
+///    (<see cref="IReadBack"/>).
 /// </summary>
 public static class Verify
 {

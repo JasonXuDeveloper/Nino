@@ -12,6 +12,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using BenchmarkDotNet.Configs;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -25,14 +27,17 @@ partial class CommonTypesTest
     private ArrayBufferWriter<byte> _memoryPackBuffer;
     private ArrayBufferWriter<byte> _messagePackBuffer;
     private MemoryStream _protobufStream;
+    private LuminBufferWriter _luminPackBuffer;
 
     private static readonly byte[] NinoTreeBytes;
     private static readonly byte[] MemoryPackTreeBytes;
     private static readonly byte[] MessagePackTreeBytes;
+    private static readonly byte[] LuminPackTreeBytes;
     private static readonly byte[] NinoInventoryBytes;
     private static readonly byte[] MemoryPackInventoryBytes;
     private static readonly byte[] MessagePackInventoryBytes;
     private static readonly byte[] ProtobufInventoryBytes;
+    private static readonly byte[] LuminPackInventoryBytes;
     private static readonly byte[] NinoWaypointsBytes;
     private static readonly byte[] MemoryPackWaypointsBytes;
     private static readonly byte[] MessagePackWaypointsBytes;
@@ -41,17 +46,20 @@ partial class CommonTypesTest
     private static readonly byte[] MemoryPackStringDictionaryBytes;
     private static readonly byte[] MessagePackStringDictionaryBytes;
     private static readonly byte[] ProtobufStringDictionaryBytes;
+    private static readonly byte[] LuminPackStringDictionaryBytes;
 
     static CommonTypesTest()
     {
         NinoTreeBytes = NinoSerializer.Serialize(Tree);
         MemoryPackTreeBytes = MemoryPackSerializer.Serialize(Tree);
         MessagePackTreeBytes = MessagePackSerializer.Serialize(Tree);
+        LuminPackTreeBytes = LuminPackBuffers.Bytes(Tree, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoInventoryBytes = NinoSerializer.Serialize(Inventory);
         MemoryPackInventoryBytes = MemoryPackSerializer.Serialize(Inventory);
         MessagePackInventoryBytes = MessagePackSerializer.Serialize(Inventory);
         ProtobufInventoryBytes = ProtobufModel.Serialize(Inventory);
+        LuminPackInventoryBytes = LuminPackBuffers.Bytes(Inventory, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoWaypointsBytes = NinoSerializer.Serialize(Waypoints);
         MemoryPackWaypointsBytes = MemoryPackSerializer.Serialize(Waypoints);
@@ -62,6 +70,7 @@ partial class CommonTypesTest
         MemoryPackStringDictionaryBytes = MemoryPackSerializer.Serialize(Strings);
         MessagePackStringDictionaryBytes = MessagePackSerializer.Serialize(Strings);
         ProtobufStringDictionaryBytes = ProtobufModel.Serialize(Strings);
+        LuminPackStringDictionaryBytes = LuminPackBuffers.Bytes(Strings, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTree), NinoTreeBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeInventory), NinoInventoryBytes.Length);
@@ -81,6 +90,10 @@ partial class CommonTypesTest
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeInventory), ProtobufInventoryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeWaypoints), ProtobufWaypointsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeStringDictionary), ProtobufStringDictionaryBytes.Length);
+
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTree), LuminPackTreeBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeInventory), LuminPackInventoryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeStringDictionary), LuminPackStringDictionaryBytes.Length);
     }
 
     [GlobalSetup]
@@ -91,6 +104,7 @@ partial class CommonTypesTest
         _memoryPackBuffer = new ArrayBufferWriter<byte>(1 << 20);
         _messagePackBuffer = new ArrayBufferWriter<byte>(1 << 20);
         _protobufStream = new MemoryStream(1 << 20);
+        _luminPackBuffer = LuminPackBuffers.Rent();
     }
 
     /// <summary>The class's own setup, before the buffers'.</summary>
@@ -120,6 +134,14 @@ partial class CommonTypesTest
         return _messagePackBuffer.WrittenCount;
     }
 
+    [Benchmark, BenchmarkCategory("TreeSerialize")]
+    public int LuminPackSerializeTree()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Tree, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("TreeDeserialize")]
     public TreeNode NinoDeserializeTree()
     {
@@ -136,6 +158,14 @@ partial class CommonTypesTest
     public TreeNode MessagePackDeserializeTree()
     {
         return MessagePackSerializer.Deserialize<TreeNode>(MessagePackTreeBytes);
+    }
+
+    [Benchmark, BenchmarkCategory("TreeDeserialize")]
+    public TreeNode LuminPackDeserializeTree()
+    {
+        TreeNode result = default;
+        LuminPackSerializer.Deserialize(LuminPackTreeBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("InventorySerialize")]
@@ -170,6 +200,14 @@ partial class CommonTypesTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("InventorySerialize")]
+    public int LuminPackSerializeInventory()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Inventory, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("InventoryDeserialize")]
     public InventoryItem[] NinoDeserializeInventory()
     {
@@ -192,6 +230,14 @@ partial class CommonTypesTest
     public InventoryItem[] ProtobufDeserializeInventory()
     {
         return Serializer.Deserialize<InventoryItem[]>(new ReadOnlySpan<byte>(ProtobufInventoryBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("InventoryDeserialize")]
+    public InventoryItem[] LuminPackDeserializeInventory()
+    {
+        InventoryItem[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackInventoryBytes, ref result);
+        return result;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("WaypointsSerialize")]
@@ -282,6 +328,14 @@ partial class CommonTypesTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("StringDictionarySerialize")]
+    public int LuminPackSerializeStringDictionary()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(Strings, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("StringDictionaryDeserialize")]
     public Dictionary<string, string> NinoDeserializeStringDictionary()
     {
@@ -304,6 +358,14 @@ partial class CommonTypesTest
     public Dictionary<string, string> ProtobufDeserializeStringDictionary()
     {
         return Serializer.Deserialize<Dictionary<string, string>>(new ReadOnlySpan<byte>(ProtobufStringDictionaryBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("StringDictionaryDeserialize")]
+    public Dictionary<string, string> LuminPackDeserializeStringDictionary()
+    {
+        Dictionary<string, string> result = default;
+        LuminPackSerializer.Deserialize(LuminPackStringDictionaryBytes, ref result);
+        return result;
     }
 }
 #else

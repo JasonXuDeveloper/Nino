@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -14,7 +15,7 @@ namespace Nino.Benchmark;
 
 /// <summary>Unmanaged members only (40 bytes, no padding): every value serializes to the same number of bytes.</summary>
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial struct FixedStruct
@@ -35,7 +36,7 @@ public partial struct FixedStruct
 
 /// <summary>The members of <see cref="FixedStruct"/> in a sealed class: its size is fixed too (a null flag and 40 bytes).</summary>
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public sealed partial class FixedClass

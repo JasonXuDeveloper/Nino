@@ -11,6 +11,8 @@ using System.Buffers;
 using System.IO;
 using System.Linq;
 using BenchmarkDotNet.Configs;
+using LuminPack;
+using LuminPack.Utility;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -24,15 +26,18 @@ partial class VersionTolerantTest
     private ArrayBufferWriter<byte> _memoryPackBuffer;
     private ArrayBufferWriter<byte> _messagePackBuffer;
     private MemoryStream _protobufStream;
+    private LuminBufferWriter _luminPackBuffer;
 
     private static readonly byte[] NinoTolerantClassBytes;
     private static readonly byte[] MemoryPackTolerantClassBytes;
     private static readonly byte[] MessagePackTolerantClassBytes;
     private static readonly byte[] ProtobufTolerantClassBytes;
+    private static readonly byte[] LuminPackTolerantClassBytes;
     private static readonly byte[] NinoTolerantClassesBytes;
     private static readonly byte[] MemoryPackTolerantClassesBytes;
     private static readonly byte[] MessagePackTolerantClassesBytes;
     private static readonly byte[] ProtobufTolerantClassesBytes;
+    private static readonly byte[] LuminPackTolerantClassesBytes;
 
     static VersionTolerantTest()
     {
@@ -40,11 +45,13 @@ partial class VersionTolerantTest
         MemoryPackTolerantClassBytes = MemoryPackSerializer.Serialize(TolerantClass);
         MessagePackTolerantClassBytes = MessagePackSerializer.Serialize(TolerantClass);
         ProtobufTolerantClassBytes = ProtobufModel.Serialize(TolerantClass);
+        LuminPackTolerantClassBytes = LuminPackBuffers.Bytes(TolerantClass, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         NinoTolerantClassesBytes = NinoSerializer.Serialize(TolerantClasses);
         MemoryPackTolerantClassesBytes = MemoryPackSerializer.Serialize(TolerantClasses);
         MessagePackTolerantClassesBytes = MessagePackSerializer.Serialize(TolerantClasses);
         ProtobufTolerantClassesBytes = ProtobufModel.Serialize(TolerantClasses);
+        LuminPackTolerantClassesBytes = LuminPackBuffers.Bytes(TolerantClasses, (v, w) => LuminPackSerializer.Serialize(v, w));
 
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClass), NinoTolerantClassBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTolerantClasses), NinoTolerantClassesBytes.Length);
@@ -57,6 +64,9 @@ partial class VersionTolerantTest
 
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeTolerantClass), ProtobufTolerantClassBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeTolerantClasses), ProtobufTolerantClassesBytes.Length);
+
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTolerantClass), LuminPackTolerantClassBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTolerantClasses), LuminPackTolerantClassesBytes.Length);
     }
 
     [GlobalSetup]
@@ -67,6 +77,7 @@ partial class VersionTolerantTest
         _memoryPackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         _messagePackBuffer = new ArrayBufferWriter<byte>(320 * 1024);
         _protobufStream = new MemoryStream(320 * 1024);
+        _luminPackBuffer = LuminPackBuffers.Rent();
     }
 
     /// <summary>The class's own setup, before the buffers'.</summary>
@@ -104,6 +115,14 @@ partial class VersionTolerantTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("TolerantClassSerialize")]
+    public int LuminPackSerializeTolerantClass()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(TolerantClass, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("TolerantClassesSerialize")]
     public int NinoSerializeTolerantClasses()
     {
@@ -136,6 +155,14 @@ partial class VersionTolerantTest
         return (int)_protobufStream.Length;
     }
 
+    [Benchmark, BenchmarkCategory("TolerantClassesSerialize")]
+    public int LuminPackSerializeTolerantClasses()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(TolerantClasses, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("TolerantClassDeserialize")]
     public TolerantClass NinoDeserializeTolerantClass()
     {
@@ -160,6 +187,14 @@ partial class VersionTolerantTest
         return Serializer.Deserialize<TolerantClass>(new ReadOnlySpan<byte>(ProtobufTolerantClassBytes));
     }
 
+    [Benchmark, BenchmarkCategory("TolerantClassDeserialize")]
+    public TolerantClass LuminPackDeserializeTolerantClass()
+    {
+        TolerantClass result = default;
+        LuminPackSerializer.Deserialize(LuminPackTolerantClassBytes, ref result);
+        return result;
+    }
+
     [Benchmark(Baseline = true), BenchmarkCategory("TolerantClassesDeserialize")]
     public TolerantClass[] NinoDeserializeTolerantClasses()
     {
@@ -182,6 +217,14 @@ partial class VersionTolerantTest
     public TolerantClass[] ProtobufDeserializeTolerantClasses()
     {
         return Serializer.Deserialize<TolerantClass[]>(new ReadOnlySpan<byte>(ProtobufTolerantClassesBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("TolerantClassesDeserialize")]
+    public TolerantClass[] LuminPackDeserializeTolerantClasses()
+    {
+        TolerantClass[] result = default;
+        LuminPackSerializer.Deserialize(LuminPackTolerantClassesBytes, ref result);
+        return result;
     }
 }
 #else

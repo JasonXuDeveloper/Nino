@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -31,9 +32,9 @@ internal static class BenchmarkRandom
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
-[MemoryPackUnion(0, typeof(SimpleClass))]
+[MemoryPackUnion(0, typeof(SimpleClass)), LuminPackUnion(0, typeof(SimpleClass))]
 [Union(0, typeof(SimpleClass))]
 [ProtoContract]
 [ProtoInclude(100, typeof(SimpleClass))]
@@ -46,7 +47,7 @@ public abstract partial class SimpleClassBase
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public sealed partial class SimpleClass : SimpleClassBase
@@ -78,7 +79,7 @@ public sealed partial class SimpleClass : SimpleClassBase
 }
 
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [StructLayout(LayoutKind.Sequential, Pack = 4)] // int + DateTime with no padding: 12 bytes

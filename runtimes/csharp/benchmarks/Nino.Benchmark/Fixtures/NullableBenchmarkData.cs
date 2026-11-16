@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using LuminPack.Attribute;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -24,6 +25,7 @@ namespace Nino.Benchmark;
 /// through <see cref="NullableFieldsMemoryPack"/>.
 /// </summary>
 [NinoType]
+[LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [CompatibilityLevel(CompatibilityLevel.Level300)]
@@ -100,7 +102,7 @@ public sealed partial class NullableFieldsMemoryPack
 /// so the v3 and v4 runs and every process write the same ones; a name is never empty (protobuf writes no empty string).
 /// </summary>
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 public partial struct ManagedStruct
@@ -131,7 +133,7 @@ public partial struct ManagedStruct
 /// <see cref="Total"/> and another no <see cref="Score"/>.
 /// </summary>
 [NinoType]
-[MemoryPackable]
+[MemoryPackable, LuminPackable]
 [MessagePackObject]
 [ProtoContract]
 [CompatibilityLevel(CompatibilityLevel.Level300)]
