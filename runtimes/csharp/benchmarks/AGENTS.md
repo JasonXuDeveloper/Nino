@@ -21,7 +21,7 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              CollectionsTest, BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest), Workloads/ (WorkloadTest: 12 real-world
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
-                             Adapters/ (one per library: the templates runtimes/csharp/tools/BenchGen expands, not
+                             Adapters/ (one per library or form of one: the templates runtimes/csharp/tools/BenchGen expands, not
                              compiled), <Class>.Cases.g.cs (BenchGen's output for a class with [BenchCase]s: its timed
                              methods, v4 and v3; README.md, Cases and adapters), Harness/BenchCase.cs (the attribute),
                              Harness/Verify.cs (--verify: every case reads back right), Harness/NinoCoreBuild.cs (stops a process that

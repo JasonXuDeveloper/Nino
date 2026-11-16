@@ -13,7 +13,8 @@ behind `#if NINO_BENCH_V3`), so the job, the data and the models cannot drift ap
 bytes of every type in it, so the other v3 cases keep v3's default format. Where v3 has no API for what a case does,
 it takes v3's own way, as MessagePack and protobuf-net take theirs: shared objects as copies, a new object where v4
 reads into an existing one, the removed member's slot kept, a span or an array where v3 writes no overload for the
-type. Each `V3/` file lists what it does differently and what it leaves out, with the reason: pooling (v3 has no pool),
+type. Each `V3/` file, or the summary of a class that declares its cases, lists what its v3 build does differently and
+what it leaves out, with the reason: pooling (v3 has no pool),
 `ReferenceTest` (its graph has cycles, which v3, writing every reference by value, never finishes), `CollectionsTest`'s
 `SelfTree` (v3's generator overflows the compiler's stack on a list that holds itself), and `BclTypesTest`'s
 `BigInteger`, `Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>` and `ILookup`
@@ -36,8 +37,9 @@ and the release notes use the full protocol, which is what supports "x× faster"
 Requires the .NET 11 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
 reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `runtimes/csharp/benchmarks/Nino.Benchmark`: built with
 `NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
-references Nino 3.3.13 from nuget.org instead of the repository's code, compiles `V3/*.cs` (the same classes ported to
-v3's API) with the shared data, models, job, columns and checks, references `V3/Versioned`, and goes to `bin/v3` and
+references Nino 3.3.13 from nuget.org instead of the repository's code, compiles `V3/*.cs` (the classes still ported to
+v3's API by hand) and the classes that declare their cases (whose generated part holds the v3 build's methods) with the
+shared data, models, job, columns and checks, references `V3/Versioned`, and goes to `bin/v3` and
 `obj/v3`.
 `--verify` (`runtimes/csharp/benchmarks/Nino.Benchmark/Harness/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
 `ci.yml`'s integrations job on x64 and its Arm64 runtime-internals job) checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
@@ -159,7 +161,8 @@ alone.
 ### Cases and adapters
 
 A class can declare its cases instead of writing their methods ([#271](https://github.com/JasonXuDeveloper/Nino/issues/271);
-`SimpleTest`, `PolymorphicTest` and `WorkloadTest` so far, the other classes are still written by hand): one
+`SimpleTest`, `PolymorphicTest`, `WorkloadTest`, `CollectionsTest`, `CommonTypesTest`, `FixedSizeTest`,
+`BclTypesTest` and `NullableTest` so far, the other classes are still written by hand): one
 `[BenchCase("Name", ...)]` per case on the class, and a library per adapter in `Nino.Benchmark/Adapters/`. An adapter
 is a C# class of templates (`Setup`, `ToBytes`, `Serialize`, `Deserialize`, `DeserializeInto` for a read into an
 existing object, and `Prepare` for a value made outside the timed region, as Google.Protobuf's message), not compiled:
@@ -177,6 +180,13 @@ in, and default to the class's `[BenchClass]`:
 | Property | What it is | Default |
 |---|---|---|
 | `Value` | the static field of the value | `{Case}` |
+| `<Library>Value` | the field one library writes instead (`MemoryPackValue`: its `SafeNullable<T>` copy, `ProtobufValue`: a contract wrapping the value, `NinoNullableValue`, `MemoryPackUnsafeValue`) | `Value` |
+| `NullableForms` | also time the other forms of a nullable value: the adapters with `When = "NullableForms"` (`NinoNullable`, `MemoryPackConverted`, `MemoryPackUnsafe`) | false |
+| `Libraries`, `Without` | only these libraries, or not these (adapter names, space separated): a library without the type has no rows | every library that can |
+| `Builds` | only in these builds (`v4`, `v3`): a type v3's generator cannot take | both |
+| `MessagePackOptions` | MessagePack's options for the value (a static field: the immutable collections' resolver); MessagePack's methods then come from `MessagePackOptionsAdapter` | none |
+| `Returns` | the deserialize methods' return type (`object` in `BclTypesTest`, whose lazy and enumerable results BenchmarkDotNet would not time) | the value's type |
+| `ReadsNull` | the value is null: the baseline's deserialize method gets `[ReadsNull]` | false |
 | `Proto`, `Json` | Google.Protobuf's message (in the namespace of the file's alias `P`), System.Text.Json's type info: without one, that library has no rows | none |
 | `JsonContext` | the source-generated context of `Json` | `CaseJson` |
 | `Old`, `OldProto`, `OldJson` | the previous version's value, message and type info: the deserialize methods read its bytes (`OldBytes`) | none |
@@ -186,10 +196,23 @@ in, and default to the class's `[BenchClass]`:
 | `Bytes` (class) | where each library's bytes go: an array per case, or a field per library and case (`{Library}{Case}Payload`) | `Serialized{Case}[{Slot}]` |
 | `OldBytes` (class) | the previous version's bytes | `{Library}{Case}OldBytes` |
 | `Order` (class) | `verb` (every Serialize method, then every Deserialize) or `case` | `verb` |
+| `Serialize` (class) | `buffer` (each library's reused buffer) or `array` (a new `byte[]` of the API's own size: each adapter's `SerializeToArray`, `FixedSizeTest`) | `buffer` |
 
-A library joins a case when the case has every property its `[BenchArg]` formats name. A class that declares a
-library's prepared value itself (`WorkloadTest`'s `<Case>Proto`) keeps it, so its values are made in the order it
-writes them; the generated static constructor then makes the bytes.
+A library joins a case when the case has every property its `[BenchArg]` formats name, and its `When` property is set
+and its `Unless` property is not. An adapter's `[BenchLibrary]` also names its `Order` (where its methods go), `Slot`
+(its place in a `Serialized<Case>` array), `Baseline`, `Builds`, `Prepared` and `PrepareFrom` (a value made outside
+the timed region from another library's, as Google.Protobuf's message from protobuf-net's contract), `Like` (an
+adapter that takes another's buffers and the templates it does not write: the nullable forms, MessagePack with
+options) and `Reads` (one that reads another library's bytes: `MemoryPackConverted`).
+
+What the class writes itself, BenchGen keeps: a prepared value (`WorkloadTest`'s `<Case>Proto`, made in the order the
+class writes its values), a bytes field (the v3 build's `BclTypesTest`, which writes a `Memory<int>` through its span),
+and a timed method no adapter expresses (protobuf-net reading a contract's member, `.Items` or `.Value`; MemoryPack's
+conversion of a model of its own; the v3 build's ways through a type 3.3.13 writes no overload for), next to the cases
+in the class's own files. `static partial void OnStaticInit()`, when the class has it, runs before the bytes are made
+(`FixedSizeTest` checks there that its types are of fixed size). The values are field initializers, in each file in
+the order they are written; one that another file's value depends on goes in the same file (C# orders the initializers
+of one file only).
 
 ```sh
 dotnet run --project runtimes/csharp/tools/BenchGen               # after changing a case or an adapter
@@ -300,14 +323,14 @@ user's struct that holds a reference (`ManagedStruct?`) and a class reference:
   `cases.proto` has for them; it has one repeated field for every sequence, so the other collections of `int?` have no
   Google.Protobuf case (each would be `NullableInts` again). `--verify` checks that every
   library reads the null `SimpleClass` back as null (`[ReadsNull]` on the baseline).
-- v3 3.3.13 runs the Nino and MemoryPack cases of both (`V3/NullableTest.cs`, `V3/CollectionsTest.cs`; `ManagedStruct`, `Vec3?[]`, `RawNullable`, the strings and the queue,
+- v3 3.3.13 runs the Nino and MemoryPack cases of both (the v3 parts of their generated files; `ManagedStruct`, `Vec3?[]`, `RawNullable`, the strings and the queue,
   set, linked list, `Collection` and concurrent queue of `int?` too; its generator writes no overload for `int?[,]`,
   `Memory<int?>` or `IList<int?>`); v3 has no `NinoNullable<T>` and runs none of the forms below.
 - The nullable-struct cases (`NullableFields`, `NullableFieldsArray`, `NullableStruct`, `NullableStructs`,
   `NullableLongs`, `NullableInts`, `NullableDecimals`, `NullableVec3s`, the other collections of `int?`,
   `RawNullable` and `RawNullables`) also time the other forms a user can choose
-  (`NullableForms` in `Cases/Scenarios/NullableTest.NullableForms.cs`, `CollectionsTest.NullableForms.cs`; the newer
-  cases hold every form in their own file, `CollectionsTest.NullableCollections.cs`, `NullableTest.RawNullable.cs`), each its
+  (`NullableForms` in `Cases/Scenarios/NullableTest.NullableForms.cs`; a case declares them with `NullableForms = true`
+  and the fields each form writes, see [Cases and adapters](#cases-and-adapters)), each its
   own method prefix and its own bars in the charts (`FORMS` in `reports/readme.py`, with the charts' footnote):
   `NinoNullable` (the model declares `NinoNullable<T>` instead of `T?`: its memory, always clean, written as it is,
   so every value and array is one copy; two `T` a value, the bytes of the `T?` array only for `long` and `int`), `MemoryPackUnsafe` (MemoryPack given `T?` as it is, which copies the uninitialized padding:
