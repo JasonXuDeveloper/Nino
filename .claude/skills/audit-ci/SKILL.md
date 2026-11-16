@@ -54,7 +54,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   `benchmarks/**` and `.github/scripts/**`) runs `python3 -m py_compile` over both folders and
   `python3 -m unittest discover -s benchmarks -p 'test_*.py'` (under a second). Give a new release-time script a
   `test_*.py` in `benchmarks/` on its fixtures, and a script in a new folder a line in that step and its path filter.
-  In `.github/scripts` name the test file (`-p 'test_changed_paths.py'`) instead of discovering `test_*.py`:
+  In `.github/scripts` name each test file (`-p 'test_changed_paths.py'`, `-p 'test_layout.py'`) instead of discovering `test_*.py`:
   `test_shards.py` there is ci.yml's shard checker, not a test, and unittest exits 5 on "NO TESTS RAN" since
   Python 3.12. The same holds for checks: whatever report.yml runs before measuring
   runs on every push, on each architecture report.yml measures. `Nino.Benchmark --verify` had run only in ci.yml's
@@ -151,6 +151,18 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   actions and scripts by their pinned SHA, never `./.github/actions/...` or a script the tag may lack (tags up to
   v4.0.0-rc.7 have no `.github/actions/setup-dotnet`); steps such a workflow repeats across its jobs share one YAML
   anchor instead (`unity.yml`'s `&setup-dotnet` and `&build-dlls`, with the job's `NINO_CONFIG`).
+- **A workflow finds every path inside a tree with `.github/scripts/layout.py`, never by naming it**, wherever it
+  runs one tree's code with another tree's scripts: report.yml (the tag's projects, this commit's `shards.json` and
+  `reports/`), ab-bench.yml (head's benchmark project put under each compared ref's .NET root), and the test branch's
+  runtime-ab.yml and dotnet-ab.yml (each side's runtimes, nino-gen, generator and benchmark project). Why: a tag or
+  commit may come from either side of a move (rc.7's `src/Nino.Benchmark`, rc.8's `benchmarks/v3`, the .NET projects'
+  move into `runtimes/csharp`, #273), and a path typed for one layout fails the other. How: `layout.py --ref <ref>`
+  (git ls-tree, no checkout), `layout.py <dir>` (a checkout) or `--list` print `KEY=path` (empty where the tree has
+  none; `--prefix`, `--json` for a job output read with `fromJSON(...).KEY`, `--get KEY`, which fails on an empty
+  one); `--pathspec KEY` gives every layout's path for `git log --`. report.yml's target job resolves both trees once
+  (outputs `layout`, the tag's, and `own`, this commit's); a job checking out only the tag reads them from there. A
+  thing that moves gets its candidates in `KEYS`, with a case in `test_layout.py`, which checks rc.7, rc.8, rc.10,
+  this commit and a synthetic moved tree (agents.yml fetches the tags).
 - **The signed Unity package**: release.yml's `unity` job calls `unity-sign.yml`, which signs the package with
   Unity's UPM CLI (pinned version; secrets `UPM_SERVICE_ACCOUNT_KEY_ID`, `UPM_SERVICE_ACCOUNT_KEY_SECRET`,
   `UPM_ORG_ID`: a Unity Cloud service account with the organization-level role "Package Manager Package Signer")

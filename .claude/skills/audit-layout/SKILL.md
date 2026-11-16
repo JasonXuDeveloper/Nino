@@ -49,7 +49,10 @@ its own `AGENTS.md` maps every file in it.
   the folders it lists, so `git mv CLAUDE.md .claude/` staged only the deletion and agents.yml failed on main (e5b1a258).
 - `git mv`, then update every reference: workflows (paths, `paths:` filters, cache keys), solution and project files,
   scripts that call each other, docs and READMEs, AGENTS.md maps, skills, `.gitattributes` and `.gitignore`.
-  `git grep -n '<old path>'` must come back empty (history pages excepted).
+  `git grep -n '<old path>'` must come back empty (history pages excepted). A path that report.yml, ab-bench.yml or
+  the test branch's A/B workflows reach in another commit's tree (a project, a benchmark, a report script) is not
+  replaced but added: the new place first in `.github/scripts/layout.py`'s `KEYS`, the old kept for the tags and
+  commits that still have it, with a case in `test_layout.py` (`audit-ci`, "A workflow finds every path").
 - Prove a move or split of code changed nothing: for the generator, build tests/Nino.UnitTests with
   `-p:EmitCompilerGeneratedFiles=true` before (a clean worktree of the base) and after, and `diff -r` every
   `obj/**/generated` tree (byte-identical when the generator and its tests were split, test files moved too: Roslyn
