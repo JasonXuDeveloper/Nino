@@ -33,6 +33,13 @@ Rules in short:
   dictionary callers. Why: a shared inline branch shortened the two callers by 10 IL bytes but added a 14-byte helper,
   for nothing measurable. Evidence: the Arm64 listings kept their sizes, only the x64 set listing shrank (6 bytes), and
   the local A/B showed no repeatable throughput gain or allocation change.
+- Ask whether a hash set is filled directly in one helper that every read with the elements' bytes in hand calls
+  (`HashSetFormatter.TryFill`: a new plain set through `HashTables.TryFill`, a cleared plain one through `TryRefill`),
+  never as a condition written again at each path. Why: the raw path gained the refill in 6adc0647 while the slot path
+  (raw `T?` whose slots are memory) kept its own copy that knew only new sets, so a `HashSet<int?>` read into was added
+  one element at a time with its buckets walked. Evidence: with the one helper, 1,000 `int?` read into an existing
+  set took 2.22-2.29 us against 4.35-4.58 (local Xeon, AVX-512, processes alternated, three rounds); `ReadSlots` grew
+  from 348 to 413 bytes, no other listing changed.
 - Keep the element loop inside `NinoElements.Write`, never in a helper of its own, and call `Write` from the queue's
   variable-size path: `BlockStride` is a constant of each instantiation, so the block check folds away. Why: where an
   element writes a collection of its own type (a tree), the JIT did not inline the helper, and every level paid one
