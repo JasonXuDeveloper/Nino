@@ -19,7 +19,8 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              its cases, where its 1.1.9 can)
                              (SimpleTest, PolymorphicTest, NullableTest, GenericPolymorphicTest, PooledTest,
                              PooledGraphTest, ReferenceTest, VersionTolerantTest, FixedSizeTest, CommonTypesTest,
-                             CollectionsTest, BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest), Workloads/ (WorkloadTest: 12 real-world
+                             CollectionsTest, BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest,
+                             StringsTest, RawArraysTest, AppDataTest: the other platforms' cases), Workloads/ (WorkloadTest: 12 real-world
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
                              Adapters/ (one per library or form of one: the templates runtimes/csharp/tools/BenchGen expands, not

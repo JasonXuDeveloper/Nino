@@ -562,7 +562,8 @@ against MemoryPack's `GenerateType.VersionTolerant`, one and 100) and `FixedSize
 to a `byte[]` of exactly that size: an unmanaged struct, a sealed class of the same members and an array of 100 of
 them), `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary), `CollectionsTest`
 (collections of the base class library, and `long?[]`, `List<int?>` and `decimal?[]` with every fifth value null), `BclTypesTest` (other base class library types and the immutable
-collections) and `ScatteredTest` (arrays of a million objects whose order in the array is not their order in memory,
+collections), `StringsTest`, `RawArraysTest` and `AppDataTest` (the string, block-copy and application-data cases of
+the Go, Rust, TypeScript and Unity benchmarks, so .NET times the same shapes) and `ScatteredTest` (arrays of a million objects whose order in the array is not their order in memory,
 which every other class's data, allocated in order and in the cache, never shows).
 [runtimes/csharp/benchmarks/README.md](../runtimes/csharp/benchmarks/README.md) lists their cases.
 
