@@ -503,6 +503,9 @@ protobuf messages mirror the types field for field), and every serializer is che
 before it is timed. `report.yml`'s `runtimes` job runs each as below on one x64 runner and on one Arm64 runner, and
 `runtimes_report.py` turns its output into the release's sections: a row per case and operation, a column per
 serializer (Nino first), and the encoded sizes. Local numbers are for comparing changes back to back on one machine; never publish them.
+`NINO_BENCH_QUICK=1` shortens each (Go 100 ms per benchmark, Rust 100 ms of warm-up and 300 ms measured with 10
+samples, tinybench 100 ms per task with 25 ms of warm-up): runtimes.yml's `benchmark` job runs them so for a pull
+request labeled `benchmark` that changes the runtime, its section in the job's summary, a trend only.
 
 The string cases are the same in all three: 1,000 short ASCII strings (`"string 0"` to `"string 999"`), and 1,000
 strings of ASCII, Latin-1 (`"crème brûlée i"`, one byte a char in Nino) and other text (`"строка 字符串 🎉 i"`,
