@@ -2,6 +2,9 @@ using System;
 using System.Linq;
 using System.Numerics;
 using BenchmarkDotNet.Configs;
+#if !NINO_BENCH_V3
+using P = Nino.Benchmark.Proto;
+#endif
 
 #nullable disable
 namespace Nino.Benchmark;

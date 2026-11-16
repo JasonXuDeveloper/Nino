@@ -11,7 +11,7 @@ namespace Nino.Benchmark;
 
 // NullableTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project (NINO_BENCH_V3=true), with the same
 // models (Fixtures/NullableBenchmarkData.cs, Fixtures/SimpleBenchmarkData.cs) and data. Only the Nino calls differ, as
-// in V3/SimpleTest.cs: NinoSerializer/NinoDeserializer -> NinoGen.Serializer/NinoGen.Deserializer,
+// in Adapters/NinoV3Adapter.cs: NinoSerializer/NinoDeserializer -> NinoGen.Serializer/NinoGen.Deserializer,
 // NinoArrayBufferWriter -> ArrayBufferWriter<byte>; and the protobuf-net, Google.Protobuf and System.Text.Json cases are
 // left out (the v3 run times Nino and MemoryPack only), and so are the other nullable forms (NullableTest.NullableForms.cs:
 // NinoNullable<T> is v4's, and MemoryPack's other forms compare with it). Everything else is verbatim.

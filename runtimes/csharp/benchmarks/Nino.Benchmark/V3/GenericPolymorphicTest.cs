@@ -12,7 +12,7 @@ namespace Nino.Benchmark;
 
 // Cases/Graphs/GenericPolymorphicTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project
 // (NINO_BENCH_V3=true): the same types (Fixtures/GenericPolymorphicBenchmarkData.cs), data, method names and job,
-// Nino's and MemoryPack's cases. Only the Nino calls differ, as in V3/SimpleTest.cs: v3 writes every [NinoType] class
+// Nino's and MemoryPack's cases. Only the Nino calls differ, as in Adapters/NinoV3Adapter.cs: v3 writes every [NinoType] class
 // with its type id, so a base and its subtypes need nothing more. The v4 class's round-trip check in its global setup
 // is generic (NinoSerializer.Serialize<T>), which v3's per-type overloads cannot express; --verify checks the same,
 // that Nino and MemoryPack read back equal arrays.

@@ -221,40 +221,97 @@ internal sealed class Adapter
 
     /// <summary>The adapter's instance fields: one per out parameter of Setup, <c>_&lt;library&gt;&lt;Parameter&gt;</c>.</summary>
     public IEnumerable<(string Parameter, string Type, string Field)> State() =>
-        Methods["Setup"].ParameterList.Parameters.Select(p =>
+        Methods["Setup"].ParameterList.Parameters.Where(p => p.Modifiers.Any(SyntaxKind.OutKeyword)).Select(p =>
         {
             string name = p.Identifier.ValueText;
-            return (name, p.Type!.ToString(),
-                "_" + char.ToLowerInvariant(Name[0]) + Name[1..] + char.ToUpperInvariant(name[0]) + name[1..]);
+            return (name, p.Type!.ToString(), Field(char.ToUpperInvariant(name[0]) + name[1..]));
         });
 
-    /// <summary>The case's arguments ([BenchArg] with its properties put in), or null when it lacks one.</summary>
-    public Dictionary<string, string>? Bind(BenchCase c)
+    /// <summary>An instance field of this library: <c>_&lt;library&gt;&lt;suffix&gt;</c>.</summary>
+    public string Field(string suffix) => "_" + char.ToLowerInvariant(Name[0]) + Name[1..] + suffix;
+}
+
+/// <summary>
+/// A case: its name and properties ([BenchCase]), over the class's ([BenchClass]) and BenchGen's defaults. A property
+/// is a format: <c>{Case}</c>, <c>{Library}</c>, <c>{Slot}</c> and other properties' names are put in.
+/// </summary>
+internal sealed class BenchCase(string name, Dictionary<string, string> properties)
+{
+    public readonly string Name = name;
+    public readonly Dictionary<string, string> Properties = properties;
+    public string Type = "";
+
+    /// <summary>The value of a property, or null when neither the case, its class nor the defaults set it.</summary>
+    public string? Get(string property, Adapter? library = null) =>
+        Properties.TryGetValue(property, out string? format) ? Expand(format, library) : null;
+
+    public string Expand(string format, Adapter? library = null)
     {
-        var map = new Dictionary<string, string>();
-        foreach (var (name, format) in Args)
+        var sb = new StringBuilder();
+        for (int i = 0; i < format.Length; i++)
         {
-            string value = format;
-            foreach (var (property, text) in c.Properties)
-                value = value.Replace("{" + property + "}", text);
-            if (value.Contains('{')) return null;
-            map[name] = value;
+            int end;
+            if (format[i] != '{' || (end = format.IndexOf('}', i)) < 0)
+            {
+                sb.Append(format[i]);
+                continue;
+            }
+
+            string key = format[(i + 1)..end];
+            sb.Append(key switch
+            {
+                "Case" => Name,
+                "Library" => library?.Name ?? throw new InvalidOperationException($"{Name}: {{Library}} outside a library"),
+                "Slot" => library?.Slot.ToString() ?? throw new InvalidOperationException($"{Name}: {{Slot}} outside a library"),
+                _ => Get(key, library) ?? throw new MissingProperty(key),
+            });
+            i = end;
         }
 
-        return map;
+        return sb.ToString();
+    }
+
+    public bool Has(string property) => Properties.ContainsKey(property);
+
+    /// <summary>A copy that reads the previous version's data: Old* properties in place of their own.</summary>
+    public BenchCase Old()
+    {
+        var properties = new Dictionary<string, string>(Properties);
+        foreach (var (key, value) in Properties)
+            if (key.StartsWith("Old") && key is not ("Old" or "OldBytes"))
+                properties[key[3..]] = value;
+        return new BenchCase(Name, properties) { Type = Type };
     }
 }
 
-internal sealed record BenchCase(string Name, string Type, Dictionary<string, string> Properties);
+internal sealed class MissingProperty(string property) : Exception(property);
 
 /// <summary>One build's view of a class that declares cases, and its generated part.</summary>
 internal sealed class BenchClass
 {
+    /// <summary>What a case reads when neither it nor its class ([BenchClass]) says otherwise.</summary>
+    private static readonly Dictionary<string, string> Defaults = new()
+    {
+        ["Buffer"] = "320 * 1024",
+        ["Value"] = "{Case}",
+        ["Bytes"] = "Serialized{Case}[{Slot}]",
+        ["OldBytes"] = "{Library}{Case}OldBytes",
+        ["Order"] = "verb",
+        ["JsonContext"] = "CaseJson",
+        ["NinoGen"] = "NinoGen",
+    };
+
     public readonly string Name;
     private readonly string _namespace;
     private readonly List<string> _usings;
-    private readonly List<(BenchCase Case, List<(Adapter Adapter, Dictionary<string, string> Map)> Rows)> _cases = [];
     private readonly List<Adapter> _adapters;
+    private readonly HashSet<string> _fields;
+    private readonly List<(BenchCase Case, List<Row> Rows)> _cases = [];
+    private readonly bool _arrays, _byCase;
+    private readonly string _buffer;
+
+    /// <summary>A library's methods for a case: the names its templates get.</summary>
+    private sealed record Row(Adapter Adapter, Dictionary<string, string> Args, Dictionary<string, string>? OldArgs);
 
     public BenchClass(ClassDeclarationSyntax c, CompilationUnitSyntax unit, List<Adapter> adapters)
     {
@@ -264,30 +321,79 @@ internal sealed class BenchClass
             .SelectMany(k => k.Members.OfType<FieldDeclarationSyntax>())
             .SelectMany(f => f.Declaration.Variables.Select(v => (v.Identifier.ValueText, f.Declaration.Type.ToString())))
             .ToDictionary(v => v.Item1, v => v.Item2);
+        _fields = fields.Keys.ToHashSet();
+
+        var classProperties = new Dictionary<string, string>(Defaults);
+        foreach (var attribute in Program.Attributes(c.AttributeLists, "BenchClass"))
+        foreach (var a in attribute.ArgumentList!.Arguments)
+            classProperties[a.NameEquals!.Name.Identifier.ValueText] = Program.Value(a.Expression);
+        _arrays = classProperties["Bytes"].Contains('[');
+        _byCase = classProperties["Order"] == "case";
+
         foreach (var attribute in Program.Attributes(c.AttributeLists, "BenchCase"))
         {
             var arguments = attribute.ArgumentList!.Arguments;
-            string name = Program.Value(arguments[0].Expression);
-            if (!fields.TryGetValue(name, out string? type))
-                throw new InvalidOperationException($"{Name}: [BenchCase(\"{name}\")] names no field of the class");
-            var properties = arguments.Skip(1).ToDictionary(a => a.NameEquals!.Name.Identifier.ValueText,
-                a => Program.Value(a.Expression));
-            var benchCase = new BenchCase(name, type, properties);
-            var rows = new List<(Adapter, Dictionary<string, string>)>();
+            var properties = new Dictionary<string, string>(classProperties);
+            foreach (var a in arguments.Skip(1))
+                properties[a.NameEquals!.Name.Identifier.ValueText] = Program.Value(a.Expression);
+            var benchCase = new BenchCase(Program.Value(arguments[0].Expression), properties);
+            string value = benchCase.Get("Value")!;
+            if (!fields.TryGetValue(value, out string? type))
+                throw new InvalidOperationException($"{Name}: case {benchCase.Name} reads {value}, no field of the class");
+            benchCase.Type = type;
+            if (benchCase.Has("Old") && !_fields.Contains(benchCase.Get("Old")!))
+                throw new InvalidOperationException($"{Name}: case {benchCase.Name} reads {benchCase.Get("Old")}, no field of the class");
+            // The previous version's data has a message and type info of its own.
+            foreach (string own in new[] { "Proto", "Json" })
+                if (benchCase.Has("Old") && benchCase.Has(own) && !benchCase.Has("Old" + own))
+                    throw new InvalidOperationException($"{Name}: case {benchCase.Name} reads Old data and needs Old{own}");
+
+            var rows = new List<Row>();
             foreach (var adapter in adapters.OrderBy(a => a.Order))
-                if (adapter.Bind(benchCase) is { } map)
-                    rows.Add((adapter, map));
+            {
+                var args = Bind(adapter, benchCase);
+                var oldArgs = benchCase.Has("Old") ? Bind(adapter, benchCase.Old()) : null;
+                if (args != null && (oldArgs != null || !benchCase.Has("Old")))
+                    rows.Add(new Row(adapter, args, oldArgs));
+            }
+
             _cases.Add((benchCase, rows));
         }
 
+        _buffer = classProperties["Buffer"];
         _adapters = adapters.Where(a => _cases.Any(c => c.Rows.Any(r => r.Adapter == a))).OrderBy(a => a.Order).ToList();
         _usings = unit.Usings.Select(u => u.ToString()).Concat(_adapters.SelectMany(a => a.Usings)).Distinct()
             .OrderBy(u => u.Contains(" = ") ? 2 : Namespace(u) == "System" || Namespace(u).StartsWith("System.") ? 0 : 1)
             .ThenBy(Namespace, StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>The case's arguments ([BenchArg] with its properties put in), or null when it lacks one.</summary>
+    private static Dictionary<string, string>? Bind(Adapter adapter, BenchCase c)
+    {
+        var map = new Dictionary<string, string>();
+        try
+        {
+            foreach (var (name, format) in adapter.Args)
+                map[name] = c.Expand(format, adapter);
+        }
+        catch (MissingProperty)
+        {
+            return null;
+        }
+
+        return map;
+    }
+
     /// <summary>What a using directive names: System.Buffers, or P = Nino.Benchmark.Proto.</summary>
     private static string Namespace(string directive) => directive["using ".Length..].TrimEnd(';');
+
+    private static bool InPlace(BenchCase c, Adapter a) => c.Get("InPlace") == "true" && a.Methods.ContainsKey("DeserializeInto");
+    private static string Target(BenchCase c, Adapter a) => a.Field(c.Name);
+    private static string Bytes(BenchCase c, Adapter a) => c.Get("Bytes", a)!;
+    private static string ReadBytes(BenchCase c, Adapter a) => c.Has("Old") ? c.Get("OldBytes", a)! : Bytes(c, a);
+
+    /// <summary>The value a library writes: the case's field, or the field its Prepare makes.</summary>
+    private static string Value(BenchCase c, Adapter a) => a.Prepared != null ? c.Name + a.Prepared : c.Get("Value")!;
 
     public string Write()
     {
@@ -299,32 +405,60 @@ internal sealed class BenchClass
         foreach (var adapter in _adapters)
         foreach (var (_, type, field) in adapter.State())
             sb.Append($"    private {type} {field};\n");
+        foreach (var (c, rows) in _cases)
+        foreach (var row in rows.Where(r => InPlace(c, r.Adapter)))
+            sb.Append($"    private {c.Type} {Target(c, row.Adapter)};\n");
         sb.Append('\n');
 
-        var slots = string.Join(", ", _adapters.OrderBy(a => a.Slot).Select(a => $"{a.Name} {a.Slot}"));
-        sb.Append($"    // Serialized<Case>[slot]: the bytes each library reads ({slots}).\n");
+        if (_arrays)
+        {
+            var slots = string.Join(", ", _adapters.OrderBy(a => a.Slot).Select(a => $"{a.Name} {a.Slot}"));
+            sb.Append($"    // Serialized<Case>[slot]: the bytes each library reads ({slots}).\n");
+        }
+
         foreach (var (c, rows) in _cases)
         {
-            sb.Append($"    private static readonly byte[][] Serialized{c.Name};\n");
-            foreach (var (adapter, map) in rows.Where(r => r.Adapter.Prepared != null))
-                sb.Append($"    private static readonly {Template.Type(adapter.Methods["Prepare"], Map(adapter, c, map))} {c.Name}{adapter.Prepared};\n");
+            if (_arrays)
+                sb.Append($"    private static readonly byte[][] {Bytes(c, rows[0].Adapter).Split('[')[0]};\n");
+            foreach (var row in rows.Where(r => r.Adapter.Prepared != null && !_fields.Contains(Value(c, r.Adapter))))
+                sb.Append($"    private static readonly {Template.Type(row.Adapter.Methods["Prepare"], Map(row, c))} {Value(c, row.Adapter)};\n");
+            if (_arrays) continue;
+            foreach (var row in rows)
+                sb.Append($"    private static readonly byte[] {Bytes(c, row.Adapter)};\n");
+            if (c.Has("Old"))
+                foreach (var row in rows)
+                    sb.Append($"    private static readonly byte[] {c.Get("OldBytes", row.Adapter)};\n");
         }
 
         sb.Append($"\n    static {Name}()\n    {{\n");
         foreach (var (c, rows) in _cases)
         {
-            sb.Append($"        Serialized{c.Name} = new byte[{rows.Max(r => r.Adapter.Slot) + 1}][];\n");
-            foreach (var (adapter, map) in rows.Where(r => r.Adapter.Prepared != null))
-                sb.Append($"        {c.Name}{adapter.Prepared} = {Template.Expression(adapter.Methods["Prepare"], Map(adapter, c, map))};\n");
-            foreach (var (adapter, map) in rows.OrderBy(r => r.Adapter.Slot))
-                sb.Append($"        Serialized{c.Name}[{adapter.Slot}] = {Template.Expression(adapter.Methods["ToBytes"], Map(adapter, c, map, value: Value(adapter, c)))};\n");
+            if (_arrays)
+                sb.Append($"        {Bytes(c, rows[0].Adapter).Split('[')[0]} = new byte[{rows.Max(r => r.Adapter.Slot) + 1}][];\n");
+            foreach (var row in rows.Where(r => r.Adapter.Prepared != null && !_fields.Contains(Value(c, r.Adapter))))
+                sb.Append($"        {Value(c, row.Adapter)} = {Template.Expression(row.Adapter.Methods["Prepare"], Map(row, c))};\n");
+            foreach (var row in _arrays ? rows.OrderBy(r => r.Adapter.Slot) : rows.AsEnumerable())
+                sb.Append($"        {Bytes(c, row.Adapter)} = {Template.Expression(row.Adapter.Methods["ToBytes"], Map(row, c, value: Value(c, row.Adapter)))};\n");
+            if (c.Has("Old"))
+            {
+                var old = c.Old();
+                foreach (var row in rows)
+                {
+                    // The previous version's value, prepared as the current one is (a message parsed from it).
+                    string value = old.Get("Old")!;
+                    if (row.Adapter.Prepared != null)
+                        value = Template.Expression(row.Adapter.Methods["Prepare"], Map(row, old, value: value, old: true));
+                    sb.Append($"        {old.Get("OldBytes", row.Adapter)} = {Template.Expression(row.Adapter.Methods["ToBytes"], Map(row, old, value: value, old: true))};\n");
+                }
+            }
+
             sb.Append('\n');
         }
 
         foreach (var adapter in _adapters)
         {
-            foreach (var (c, rows) in _cases.Where(c => c.Rows.Any(r => r.Adapter == adapter)))
-                sb.Append($"        BenchmarkPayloadRegistry.Register(nameof({adapter.Name}Serialize{c.Name}), Serialized{c.Name}[{adapter.Slot}].Length);\n");
+            foreach (var (c, _) in _cases.Where(c => c.Rows.Any(r => r.Adapter == adapter)))
+                sb.Append($"        BenchmarkPayloadRegistry.Register(nameof({adapter.Name}Serialize{c.Name}), {Bytes(c, adapter)}.Length);\n");
             if (adapter != _adapters[^1]) sb.Append('\n');
         }
 
@@ -332,18 +466,28 @@ internal sealed class BenchClass
         sb.Append("    [GlobalSetup]\n    public void Setup()\n    {\n        OnSetup();\n");
         foreach (var adapter in _adapters)
             sb.Append(Template.Statements(adapter.Methods["Setup"], State(adapter)));
+        foreach (var (c, rows) in _cases)
+        foreach (var row in rows.Where(r => InPlace(c, r.Adapter)))
+            sb.Append($"        {Target(c, row.Adapter)} = {Template.Expression(row.Adapter.Methods["Deserialize"], Map(row, c, bytes: ReadBytes(c, row.Adapter)))};\n");
         sb.Append("    }\n\n");
         sb.Append("    /// <summary>The class's own setup, before the buffers'.</summary>\n");
         sb.Append("    partial void OnSetup();\n");
 
-        foreach (string verb in new[] { "Serialize", "Deserialize" })
-        foreach (var (c, rows) in _cases)
-        foreach (var (adapter, map) in rows)
+        var methods = _byCase
+            ? _cases.SelectMany(c => new[] { "Serialize", "Deserialize" }.Select(verb => (verb, c)))
+            : new[] { "Serialize", "Deserialize" }.SelectMany(verb => _cases.Select(c => (verb, c)));
+        foreach (var (verb, (c, rows)) in methods)
+        foreach (var row in rows)
         {
-            var method = adapter.Methods[verb];
-            var bound = verb == "Serialize"
-                ? Map(adapter, c, map, value: Value(adapter, c))
-                : Map(adapter, c, map, bytes: $"Serialized{c.Name}[{adapter.Slot}]");
+            var adapter = row.Adapter;
+            MethodDeclarationSyntax method;
+            Dictionary<string, string> bound;
+            if (verb == "Serialize")
+                (method, bound) = (adapter.Methods[verb], Map(row, c, value: Value(c, adapter)));
+            else if (InPlace(c, adapter))
+                (method, bound) = (adapter.Methods["DeserializeInto"], Map(row, c, bytes: ReadBytes(c, adapter), target: Target(c, adapter)));
+            else
+                (method, bound) = (adapter.Methods[verb], Map(row, c, bytes: ReadBytes(c, adapter)));
             sb.Append('\n');
             sb.Append($"    [Benchmark{(adapter.Baseline ? "(Baseline = true)" : "")}, BenchmarkCategory(\"{c.Name}{verb}\")]\n");
             sb.Append($"    public {Template.Type(method, bound)} {adapter.Name}{verb}{c.Name}()\n    {{\n");
@@ -355,18 +499,23 @@ internal sealed class BenchClass
         return sb.ToString();
     }
 
-    /// <summary>The value a library writes: the case's field, or the field its Prepare made.</summary>
-    private static string Value(Adapter adapter, BenchCase c) => adapter.Prepared != null ? c.Name + adapter.Prepared : c.Name;
-
-    private static Dictionary<string, string> State(Adapter adapter) =>
-        adapter.State().ToDictionary(s => s.Parameter, s => s.Field);
-
-    private static Dictionary<string, string> Map(Adapter adapter, BenchCase c, Dictionary<string, string> args,
-        string? value = null, string? bytes = null)
+    private Dictionary<string, string> State(Adapter adapter)
     {
-        var map = new Dictionary<string, string>(args) { ["T"] = c.Type, ["value"] = value ?? c.Name };
+        var map = adapter.State().ToDictionary(s => s.Parameter, s => s.Field);
+        map["capacity"] = _buffer;
+        return map;
+    }
+
+    private Dictionary<string, string> Map(Row row, BenchCase c, string? value = null, string? bytes = null,
+        string? target = null, bool old = false)
+    {
+        var map = new Dictionary<string, string>(old ? row.OldArgs! : row.Args)
+        {
+            ["T"] = c.Type, ["value"] = value ?? c.Get("Value")!,
+        };
         if (bytes != null) map["bytes"] = bytes;
-        foreach (var (parameter, field) in State(adapter)) map[parameter] = field;
+        if (target != null) map["target"] = target;
+        foreach (var (parameter, field) in State(row.Adapter)) map[parameter] = field;
         return map;
     }
 }

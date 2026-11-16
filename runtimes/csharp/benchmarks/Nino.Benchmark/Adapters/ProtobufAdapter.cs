@@ -9,9 +9,9 @@ namespace Nino.Benchmark.Adapters;
 [BenchLibrary("Protobuf", Order = 3, Slot = 3, Builds = "v4")]
 internal static class ProtobufAdapter
 {
-    public static void Setup(out MemoryStream stream)
+    public static void Setup(out MemoryStream stream, int capacity)
     {
-        stream = new MemoryStream(320 * 1024);
+        stream = new MemoryStream(capacity);
     }
 
     public static byte[] ToBytes<T>(T value) => ProtobufModel.Serialize(value);

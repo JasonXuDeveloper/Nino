@@ -8,7 +8,7 @@ namespace Nino.Benchmark;
 
 // Cases/Graphs/ScatteredTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project (NINO_BENCH_V3=true):
 // the same types (Fixtures/CommonTypes.cs, Fixtures/ScatteredBenchmarkData.cs), data, method names and job, Nino's and
-// MemoryPack's cases. Only the Nino calls differ, as in V3/SimpleTest.cs, and NinoDeserializeScatteredItemsInto reads
+// MemoryPack's cases. Only the Nino calls differ, as in Adapters/NinoV3Adapter.cs, and NinoDeserializeScatteredItemsInto reads
 // a new array of new items: v3 has no overload that reads into an existing array (its generator writes
 // Deserialize(TCollection value, ref Reader reader) only for a collection with Clear and Add) or [NinoType] object
 // (only Deserialize(out T value, ...)), so it reads new ones, as MessagePack and protobuf-net do.

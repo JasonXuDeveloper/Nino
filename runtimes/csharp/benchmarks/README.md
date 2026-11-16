@@ -159,17 +159,37 @@ alone.
 ### Cases and adapters
 
 A class can declare its cases instead of writing their methods ([#271](https://github.com/JasonXuDeveloper/Nino/issues/271);
-`SimpleTest` so far, the other classes are still written by hand): one `[BenchCase("Name", Proto = ..., Json = ...)]`
-per case on the class, whose value is the class's static field of that name, and a library per adapter in
-`Nino.Benchmark/Adapters/`. An adapter is a C# class of templates (`Setup`, `ToBytes`, `Serialize`, `Deserialize`, and
-`Prepare` for a value made outside the timed region, as Google.Protobuf's message), not compiled:
+`SimpleTest`, `PolymorphicTest` and `WorkloadTest` so far, the other classes are still written by hand): one
+`[BenchCase("Name", ...)]` per case on the class, and a library per adapter in `Nino.Benchmark/Adapters/`. An adapter
+is a C# class of templates (`Setup`, `ToBytes`, `Serialize`, `Deserialize`, `DeserializeInto` for a read into an
+existing object, and `Prepare` for a value made outside the timed region, as Google.Protobuf's message), not compiled:
 `runtimes/csharp/tools/BenchGen` expands each template into the class's `<File>.Cases.g.cs` with the case's names put
-in, so every method is what the same method written by hand would be, with the same name, category, baseline, IL and machine code (a
-generic call would take Nino's slower path for a type the call site does not name). The generated file holds the
-buffers, the bytes each library reads (`Serialized<Case>[slot]`), their payload sizes, the `[GlobalSetup]` (after the
-class's own `partial void OnSetup()`), and the v3 build's class under `NINO_BENCH_V3`, from the adapters whose
-`Builds` name `v3` (Nino 3.3.13 and MemoryPack, what the v3 run times). A library joins a case when the case has
-every property its `[BenchArg]` formats name (Google.Protobuf's `Proto`, System.Text.Json's `Json`).
+in, so every method is what the same method written by hand would be, with the same name, category, baseline, IL and
+machine code (a generic call would take Nino's slower path for a type the call site does not name). The generated file
+holds the buffers, the bytes each library reads, their payload sizes, the `[GlobalSetup]` (after the class's own
+`partial void OnSetup()`), the timed methods, and the v3 build's class under `NINO_BENCH_V3`, from the adapters whose
+`Builds` name `v3` (Nino 3.3.13 and MemoryPack, what the v3 run times; 3.3.13 has no read into an existing object, so
+an in-place case reads a new one there).
+
+A case's properties (`Harness/BenchCase.cs`) are formats with `{Case}`, `{Library}`, `{Slot}` and other properties put
+in, and default to the class's `[BenchClass]`:
+
+| Property | What it is | Default |
+|---|---|---|
+| `Value` | the static field of the value | `{Case}` |
+| `Proto`, `Json` | Google.Protobuf's message (in the namespace of the file's alias `P`), System.Text.Json's type info: without one, that library has no rows | none |
+| `JsonContext` | the source-generated context of `Json` | `CaseJson` |
+| `Old`, `OldProto`, `OldJson` | the previous version's value, message and type info: the deserialize methods read its bytes (`OldBytes`) | none |
+| `InPlace` | read into the object `Setup` read first, with each library that has `DeserializeInto` | false |
+| `NinoGen` | the v3 build's generated serializers (`V3Versioned.NinoGen` for the version-tolerant models) | `NinoGen` |
+| `Buffer` (class) | each buffer's capacity | `320 * 1024` |
+| `Bytes` (class) | where each library's bytes go: an array per case, or a field per library and case (`{Library}{Case}Payload`) | `Serialized{Case}[{Slot}]` |
+| `OldBytes` (class) | the previous version's bytes | `{Library}{Case}OldBytes` |
+| `Order` (class) | `verb` (every Serialize method, then every Deserialize) or `case` | `verb` |
+
+A library joins a case when the case has every property its `[BenchArg]` formats name. A class that declares a
+library's prepared value itself (`WorkloadTest`'s `<Case>Proto`) keeps it, so its values are made in the order it
+writes them; the generated static constructor then makes the bytes.
 
 ```sh
 dotnet run --project runtimes/csharp/tools/BenchGen               # after changing a case or an adapter
@@ -177,7 +197,7 @@ dotnet run --project runtimes/csharp/tools/BenchGen -- --check    # what ci.yml 
 ```
 
 A case added to such a class is one attribute and its field; a library added is one adapter (its `Order` places its
-methods, its `Slot` its bytes), then BenchGen, `--verify`, and its globs in `shards.json`.
+methods, its `Slot` its bytes in an array), then BenchGen, `--verify`, and its globs in `shards.json`.
 
 ### MessagePack and protobuf-net
 

@@ -7,9 +7,9 @@ namespace Nino.Benchmark.Adapters;
 [BenchLibrary("MessagePack", Order = 2, Slot = 0, Builds = "v4")]
 internal static class MessagePackAdapter
 {
-    public static void Setup(out ArrayBufferWriter<byte> buffer)
+    public static void Setup(out ArrayBufferWriter<byte> buffer, int capacity)
     {
-        buffer = new ArrayBufferWriter<byte>(320 * 1024);
+        buffer = new ArrayBufferWriter<byte>(capacity);
     }
 
     public static byte[] ToBytes<T>(T value) => MessagePackSerializer.Serialize(value);

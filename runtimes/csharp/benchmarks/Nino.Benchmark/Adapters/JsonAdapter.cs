@@ -1,17 +1,18 @@
 // A BenchGen template (runtimes/csharp/tools/BenchGen), not compiled: System.Text.Json, source generated, UTF-8. A case
-// names its type info ([BenchCase(Json = ...)], a property of Fixtures/CaseFormats.cs's CaseJson).
+// names its type info ([BenchCase(Json = ...)]), a property of its JsonContext (CaseJson, Fixtures/CaseFormats.cs,
+// unless the class or the case names another).
 using System.Buffers;
 using System.Text.Json;
 
 namespace Nino.Benchmark.Adapters;
 
 [BenchLibrary("Json", Order = 5, Slot = 5, Builds = "v4")]
-[BenchArg("info", "CaseJson.Default.{Json}")]
+[BenchArg("info", "{JsonContext}.Default.{Json}")]
 internal static class JsonAdapter
 {
-    public static void Setup(out ArrayBufferWriter<byte> buffer, out Utf8JsonWriter writer)
+    public static void Setup(out ArrayBufferWriter<byte> buffer, out Utf8JsonWriter writer, int capacity)
     {
-        buffer = new ArrayBufferWriter<byte>(320 * 1024);
+        buffer = new ArrayBufferWriter<byte>(capacity);
         // What JsonSerializer's own writers use: no validation of the writer's calls.
         writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { SkipValidation = true });
     }

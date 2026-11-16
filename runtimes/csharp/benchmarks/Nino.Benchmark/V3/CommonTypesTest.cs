@@ -10,7 +10,7 @@ namespace Nino.Benchmark;
 
 // Cases/Collections/CommonTypesTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project
 // (NINO_BENCH_V3=true): the same types (Fixtures/CommonTypes.cs), data, method names and job, Nino's and MemoryPack's
-// cases. Only the Nino calls differ, as in V3/SimpleTest.cs.
+// cases. Only the Nino calls differ, as in Adapters/NinoV3Adapter.cs.
 
 /// <summary>
 /// CommonTypesTest's shapes serialized to a reused buffer writer and deserialized into new instances by Nino v3: a tree
