@@ -56,6 +56,27 @@ namespace Nino.Core
             }
 
             Writer copy = default;
+#if NET8_0_OR_GREATER
+            // A polymorphic value: the base's generated pair loop, the dispatch inline (INinoPairsFormatter), for keys
+            // of a word written as it lies in memory, or strings. netstandard2.1 (IL2CPP, Mono, where the test boxes)
+            // keeps the loop below.
+            if (default(TValueFormatter) is INinoPairsFormatter &&
+                (typeof(TKeyFormatter) == typeof(StringFormatter) ||
+                 RawFormatter.Is<TKey, TKeyFormatter>() && WordKey<TKey>.Size != 0))
+            {
+                writer.WriteLength(value.Count);
+                writer.CopyTo(ref copy);
+                if (typeof(TKeyFormatter) == typeof(StringFormatter))
+                    ((INinoPairsFormatter)default(TValueFormatter)).WriteStringPairs(value, ref copy);
+                else if (WordKey<TKey>.Size == sizeof(int))
+                    ((INinoPairsFormatter)default(TValueFormatter)).WritePairs32(value, ref copy);
+                else
+                    ((INinoPairsFormatter)default(TValueFormatter)).WritePairs64(value, ref copy);
+                copy.CopyTo(ref writer);
+                return;
+            }
+#endif
+
             writer.CopyTo(ref copy);
             WritePairs(value, ref copy);
             copy.CopyTo(ref writer);
@@ -75,7 +96,7 @@ namespace Nino.Core
             NinoUnsafe.Write(ref dst, count);
             nuint pos = NinoWire.LengthSize;
             nuint end = (nuint)(uint)available;
-            var entries = InUse(value, count);
+            var entries = CollectionFields.Entries(value, count);
             if (entries != null)
             {
                 ref var first = ref NinoUnsafe.GetArrayDataReference(entries);
@@ -137,18 +158,6 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>
-        /// The entries of <paramref name="value"/> when its first <paramref name="count"/> are all in use (none removed
-        /// since), read in place of the enumerator: a loop over an array, where the enumerator stays in memory and
-        /// checks the version per pair. Else null.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static CollectionFields.MapEntry<TKey, TValue>[] InUse(Dictionary<TKey, TValue> value, int count)
-        {
-            var entries = CollectionViews.Dictionary ? CollectionFields.Entries(value, count) : null;
-            return entries != null && count <= entries.Length ? entries : null;
-        }
-
         /// <summary>Writes the <paramref name="count"/> raw pairs at <paramref name="pairs"/> (after the
         /// count).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -157,7 +166,7 @@ namespace Nino.Core
             int keySize = Unsafe.SizeOf<TKey>();
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
             // The dictionary's own entries when none is free (as HashSetFormatter's); the enumerator out of line.
-            var entries = InUse(value, count);
+            var entries = CollectionFields.Entries(value, count);
             if (entries == null)
             {
                 WriteEnumerated(value, ref pairs, count);
@@ -165,7 +174,7 @@ namespace Nino.Core
             }
 
             // Several entries at a time where the CPU permutes vectors, each key and value packed out of its entry.
-            NinoBlockCollections.WriteAll<CollectionFields.MapEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
+            NinoBlockCollections.WriteAll<NinoDictionaryEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
                 ref pairs, ref entries[0], count, pairSize);
         }
 
@@ -197,7 +206,7 @@ namespace Nino.Core
             target.CopyTo(ref writer);
             int count = value.Count;
             writer.WriteLength(count);
-            var entries = InUse(value, count);
+            var entries = CollectionFields.Entries(value, count);
             if (entries != null)
             {
                 ref var first = ref NinoUnsafe.GetArrayDataReference(entries);
@@ -649,4 +658,24 @@ namespace Nino.Core
             source = reader;
         }
     }
+
+#if NET8_0_OR_GREATER
+    /// <summary>
+    /// The size of <typeparamref name="T"/> as a dictionary key the generated pair loops write as an <c>int</c> or a
+    /// <c>long</c> (<see cref="INinoPairsFormatter"/>), or 0: a primitive or an enum of 4 or 8 bytes whose memory is its
+    /// wire form. Only these: a dictionary's entries of such a key lie as those of an <c>int</c> or a <c>long</c> key,
+    /// which those of a struct of the same size need not. A field of a class generic over the key alone, so the test
+    /// folds where the pair loop is shared code over a class value.
+    /// </summary>
+    internal static class WordKey<T>
+    {
+        public static readonly int Size =
+            BitConverter.IsLittleEndian && (typeof(T).IsPrimitive || typeof(T).IsEnum) &&
+            NinoLayout<T>.IsCanonical && !NinoLayout<T>.HasPadding &&
+            NinoLayout<T>.WireSize == Unsafe.SizeOf<T>() &&
+            (Unsafe.SizeOf<T>() == sizeof(int) || Unsafe.SizeOf<T>() == sizeof(long))
+                ? Unsafe.SizeOf<T>()
+                : 0;
+    }
+#endif
 }
