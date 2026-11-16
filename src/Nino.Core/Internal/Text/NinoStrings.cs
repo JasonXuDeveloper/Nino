@@ -40,7 +40,21 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int MaxSize(string value) =>
             // A string has fewer than 2^30 chars, so this does not overflow.
-            value == null ? 1 : MaxHeaderSize + value.Length * sizeof(char);
+            value == null ? 1 : MaxHeaderSize + value.Length * sizeof(char) + ShortSlack;
+
+        /// <summary>
+        /// Bytes reserved past a string's longest form: 12 where a string of up to 16 chars is written as one 16-byte
+        /// store after its one-byte header (AVX-512BW+VL, <see cref="WriteChars"/>), whatever its length.
+        /// </summary>
+        private static int ShortSlack
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET10_0_OR_GREATER
+            get => System.Runtime.Intrinsics.X86.Avx512BW.VL.IsSupported ? 12 : 0;
+#else
+            get => 0;
+#endif
+        }
 
         /// <summary>
         /// Writes <paramref name="value"/> at <paramref name="destination"/>, which has room for
@@ -60,7 +74,8 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Writes the <paramref name="length"/> chars at <paramref name="chars"/> like a string of them, at
-        /// <paramref name="destination"/> (room for <c>5 + 2 * length</c> bytes). Returns the bytes written.
+        /// <paramref name="destination"/> (room for <see cref="MaxSize"/> bytes of such a string: the AVX-512 path
+        /// stores 16 bytes after the header whatever the length). Returns the bytes written.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int WriteChars(ref byte destination, ref char chars, int length)
@@ -70,6 +85,28 @@ namespace Nino.Core.Internal
             // the header had one size, in the same order, so the header adds no branch.
             nuint n = (uint)length;
             ref byte body = ref Unsafe.Add(ref destination, 1);
+#if NET10_0_OR_GREATER
+            // AVX-512BW+VL: every length up to 16 in one path (a masked load of exactly the chars, a 16-byte store into
+            // the reservation), everything else behind one call: a class writing four short strings took 1,471 bytes of
+            // code instead of 2,619 (vectors-strings.md, "Narrowing (writes)").
+            if (System.Runtime.Intrinsics.X86.Avx512BW.VL.IsSupported)
+            {
+                if (n <= 16)
+                {
+                    var v = LoadMasked16(ref chars, n);
+                    if ((v & Vector256.Create((ushort)0xFF00)) == Vector256<ushort>.Zero)
+                    {
+                        StoreNarrow16(ref body, v);
+                        destination = (byte)(length * 2 + 1);
+                        return 1 + length;
+                    }
+
+                    return WriteUtf16(ref destination, ref chars, length);
+                }
+
+                return WriteOver16(ref destination, ref chars, length);
+            }
+#endif
 #if NET8_0_OR_GREATER
             if (Vector128.IsHardwareAccelerated && n >= 8)
             {
@@ -131,9 +168,38 @@ namespace Nino.Core.Internal
             return 1 + length;
         }
 
+#if NET10_0_OR_GREATER
+        // The AVX-512 path's call for more than 16 chars, one call deep as WriteChars' own dispatch is. 17 to 31 chars:
+        // the first 16 and the last 16 (overlapping), as Narrow8To16 does with 8.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int WriteOver16(ref byte destination, ref char chars, int length)
+        {
+            if (length < 32)
+            {
+                ref ushort source = ref Unsafe.As<char, ushort>(ref chars);
+                var first = Vector256.LoadUnsafe(ref source);
+                var last = Vector256.LoadUnsafe(ref source, (uint)length - 16);
+                if (((first | last) & Vector256.Create((ushort)0xFF00)) != Vector256<ushort>.Zero)
+                    return WriteUtf16(ref destination, ref chars, length);
+                StoreNarrow16(ref Unsafe.Add(ref destination, 1), first);
+                StoreNarrow16(ref Unsafe.Add(ref destination, length - 15), last);
+                destination = (byte)(length * 2 + 1);
+                return 1 + length;
+            }
+
+            if (length <= 63)
+                return WriteMedium256Inline(ref destination, ref chars, (uint)length);
+            return WriteLonger(ref destination, ref chars, length);
+        }
+#endif
+
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int WriteMedium256(ref byte destination, ref char chars, nuint length)
+        private static int WriteMedium256(ref byte destination, ref char chars, nuint length) =>
+            WriteMedium256Inline(ref destination, ref chars, length);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int WriteMedium256Inline(ref byte destination, ref char chars, nuint length)
         {
             ref ushort source = ref Unsafe.As<char, ushort>(ref chars);
             ref byte body = ref Unsafe.Add(ref destination, 1);
