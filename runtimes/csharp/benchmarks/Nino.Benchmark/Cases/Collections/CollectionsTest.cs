@@ -48,6 +48,8 @@ namespace Nino.Benchmark;
 [BenchCase("TupleList")]
 [BenchCase("KeyValuePairs")]
 [BenchCase("HashSet")]
+[BenchCase("RandomIntSet")]
+[BenchCase("StringSet")]
 [BenchCase("IntDictionary")]
 [BenchCase("Queue")]
 [BenchCase("LinkedList")]
@@ -71,6 +73,18 @@ public partial class CollectionsTest : IReadBack
     private static readonly List<(int, long)> TupleList = Enumerable.Range(0, N).Select(i => (i, (long)i * 31)).ToList();
     private static readonly KeyValuePair<int, int>[] KeyValuePairs = Enumerable.Range(0, N).Select(i => new KeyValuePair<int, int>(i, i * 7)).ToArray();
     private static readonly HashSet<int> HashSet = new(Enumerable.Range(0, N).Select(i => i * 3));
+    // The Go, Rust and TypeScript benchmarks' sets: 1,000 distinct non-negative ints in no order, and "member 0" to
+    // "member 999" added in no order (HashSet above holds multiples of 3, added in order).
+    private static readonly HashSet<int> RandomIntSet = RandomInts(new Random(42), N);
+    private static readonly HashSet<string> StringSet =
+        new(Enumerable.Range(0, N).OrderBy(i => (i * 7919) % N).Select(i => "member " + i));
+
+    private static HashSet<int> RandomInts(Random random, int count)
+    {
+        var set = new HashSet<int>();
+        while (set.Count < count) set.Add(random.Next());
+        return set;
+    }
     private static readonly Dictionary<int, int> IntDictionary = Enumerable.Range(0, N).ToDictionary(i => i * 3, i => i * 7);
     private static readonly Queue<int> Queue = new(Enumerable.Range(0, N));
     private static readonly LinkedList<int> LinkedList = new(Enumerable.Range(0, N));

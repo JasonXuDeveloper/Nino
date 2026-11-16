@@ -262,11 +262,11 @@ GROUPS = [("workloads", "Real workloads", "真实场景", ["WorkloadTest"]),
           ("polymorphism", "Polymorphism", "多态", ["PolymorphicTest", "GenericPolymorphicTest"]),
           ("nullable", "Nullable values", "可空值", ["NullableTest"]),
           ("collections", "Collections and common types", "集合与常用类型",
-           ["CollectionsTest", "CommonTypesTest", "BclTypesTest"]),
+           ["CollectionsTest", "CommonTypesTest", "BclTypesTest", "StringsTest", "RawArraysTest"]),
           ("reuse", "Reuse and pooling", "复用与对象池", ["PooledTest", "PooledGraphTest"]),
           ("tracking", "Reference tracking and version tolerance", "引用跟踪与版本容错",
            ["ReferenceTest", "VersionTolerantTest"]),
-          ("others", "Others", "其他", ["ScatteredTest", "UntrustedTest", "ExternalBufferTest"])]
+          ("others", "Others", "其他", ["ScatteredTest", "UntrustedTest", "ExternalBufferTest", "AppDataTest"])]
 # Reading new objects against reading into existing ones (PooledTest, PooledGraphTest), one row each: (case, the
 # method of new objects, Nino's of existing ones, MemoryPack's overwrite; without the library prefix).
 REUSE_ROWS = [("pooled class", "DeserializeNew", "DeserializePooled", "DeserializeOverwrite"),
