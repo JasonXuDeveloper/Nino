@@ -23,6 +23,7 @@ on:
       - '.github/workflows/fuzz.yml'
       - '.github/actions/setup-dotnet/**'
       - '.github/actions/apt-install/**'
+      - '.github/scripts/changed_paths.py'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
   pull_request:
@@ -63,14 +64,68 @@ defaults:
   run:
     shell: bash
 
+# The x64 mutational jobs and the plan run on maple, the repository's self-hosted runner, for trusted runs only: the
+# nightly and manual runs, a push to main, and a pull request from a branch of this repository that Dependabot did not
+# open; a fork's or Dependabot's pull request, and every run while the repository variable NINO_MAPLE is false, use
+# GitHub's runners (ci.yml, at its jobs, says why and what keeps a fork off maple). libFuzzer stays on GitHub's runners:
+# it installs clang with apt, and maple has no sudo. A job on maple deletes its workspace and RUNNER_TEMP (the build,
+# the findings once uploaded) at its end, and builds without MSBuild or compiler servers that would outlive it.
 jobs:
+  # A push to main whose merge commit has the tree its pull request's last run fuzzed (.github/scripts/changed_paths.py,
+  # --tested-in-pr) fuzzes nothing again: the nightly run fuzzes main with thirty times the budget. Pull requests,
+  # the nightly and manual runs skip this job and fuzz.
+  changes:
+    name: Plan
+    if: github.event_name == 'push'
+    runs-on: >-
+      ${{ vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+          fromJSON('["self-hosted", "Linux", "X64", "maple"]') || 'ubuntu-26.04' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # the pull request's runs of this workflow
+    outputs:
+      fuzz: ${{ steps.diff.outputs.fuzz }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compare with the pull request's run
+        id: diff
+        env:
+          BASE: ${{ github.event.before }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/changed_paths.py --tested-in-pr fuzz.yml "$BASE" 'fuzz=.' | tee -a "$GITHUB_OUTPUT"
+
+      # maple keeps a job's workspace and RUNNER_TEMP until its next job: give the disk back, whatever happened.
+      - &free-maple
+        name: Free maple's disk
+        if: always() && runner.environment == 'self-hosted'
+        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
   # Each fuzzer runs on one core (a supervisor and one worker process at a time), so an x64 runner (four vCPUs, two
   # cores) fuzzes two SIMD levels side by side, each with the whole budget: half the runners, the same inputs per
   # configuration. Every vector path has a scalar twin; each SIMD level is its own code path to fuzz.
   mutational:
     name: Mutational (${{ matrix.name }})
-    runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
+    needs: changes
+    # Also when the plan was skipped (not a push) or failed: then it fuzzes.
+    if: ${{ !cancelled() && needs.changes.outputs.fuzz != 'false' }}
+    runs-on: >-
+      ${{ matrix.runner ||
+          (vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+           (contains(fromJSON('["push", "workflow_dispatch", "schedule"]'), github.event_name) ||
+            (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+             github.event.pull_request.user.login != 'dependabot[bot]')) &&
+           fromJSON('["self-hosted", "Linux", "X64", "maple"]')) || 'ubuntu-26.04' }}
     timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 90 }}
+    env:
+      # No MSBuild node or compiler server that outlives the job (or serves another job) on a self-hosted runner.
+      MSBUILDDISABLENODEREUSE: '1'
+      DOTNET_CLI_USE_MSBUILD_SERVER: '0'
+      UseSharedCompilation: 'false'
     strategy:
       fail-fast: false
       matrix:
@@ -142,12 +197,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+      # After the upload: the findings are kept as the artifact only.
+      - *free-maple
+
   # The targets split over runners (target i on shard i mod n): libFuzzer runs one target at a time, so one runner
   # takes the sum of every target's time. Three at night and by hand (an hour on one runner), one on pushes and
   # pull requests (ten seconds a target, under four minutes in all: two runners there finished a minute or two
   # sooner, but held a second slot of the account's concurrent jobs while ci.yml's waited).
   libfuzzer:
     name: libFuzzer (SharpFuzz, ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.fuzz != 'false' }}
     runs-on: ubuntu-26.04
     timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 120 }}
     strategy:

@@ -112,7 +112,9 @@ jobs:
       # The unit tests are ci.yml's (every configuration, on x64, Arm64 and Windows): the release requires that they
       # passed on main instead of running them again. The newest commit of main's first-parent history that ci.yml ran
       # on (pushed to main or run by hand there) must have passed. A push after it started no run: it changed none of
-      # ci.yml's paths, or it was a release commit, which this workflow's token pushes and so starts no workflow.
+      # ci.yml's paths, or it was a release commit, which this workflow's token pushes and so starts no workflow. A push
+      # whose merge commit has the tree its pull request's run passed on runs no tests again, and passes naming that run
+      # (ci.yml's changes job): it counts here as a pass on that commit, as it should.
       # (GitHub starts a run seconds after its push: release no sooner than that.) The release commit differs from the
       # tree tested only in versions (bump_version.py), which no unit test reads, and the Unity DLLs; the build below
       # compiles it with warnings as errors. No workflow tests it after the push (none did before this change).

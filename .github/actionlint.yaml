@@ -1,7 +1,7 @@
 # actionlint (https://github.com/rhysd/actionlint) settings for the workflows in this directory.
 self-hosted-runner:
   # GitHub-hosted images newer than actionlint's list of labels, and maple, the repository's self-hosted runner (release.yml,
-  # unity-sign.yml and report.yml's jobs that are no matrix).
+  # unity-sign.yml, report.yml's jobs that are no matrix, and CI's short jobs of trusted runs: the audit-ci skill).
   labels:
     - ubuntu-26.04
     - ubuntu-26.04-arm

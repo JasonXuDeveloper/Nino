@@ -39,9 +39,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # On maple, the repository's self-hosted runner (Python 3 and Git are all it needs), for trusted runs only (a push to
+  # main, a manual run, a pull request from a branch of this repository that Dependabot did not open, while the
+  # repository variable NINO_MAPLE is not false; ci.yml, at its jobs, says why and what keeps a fork off maple).
   check:
     name: Indexes, imports and file maps
-    runs-on: ubuntu-26.04
+    runs-on: >-
+      ${{ vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+          (contains(fromJSON('["push", "workflow_dispatch", "schedule"]'), github.event_name) ||
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]')) &&
+          fromJSON('["self-hosted", "Linux", "X64", "maple"]') || 'ubuntu-26.04' }}
     timeout-minutes: 5
     steps:
       - name: Checkout code
@@ -52,13 +60,19 @@ jobs:
         run: tools/agents.sh --check
       - name: Check the NuGet README (.github/scripts/nuget_readme.py --check)
         run: python3 .github/scripts/nuget_readme.py --check
-      # .github/scripts itself has no unittest tests (test_shards.py is ci.yml's shard checker); discover there would
-      # fail with "NO TESTS RAN" (exit 5 since Python 3.12). Its triage folder has (the milestone rule and the checks
-      # of the model's answer); they need no package, the anthropic SDK is imported only for the model call.
+      # In .github/scripts only test_changed_paths.py holds tests (test_shards.py is ci.yml's shard checker, no
+      # tests), so it is named instead of discovered with test_*.py. The triage folder's tests (the milestone rule and
+      # the checks of the model's answer) need no package, the anthropic SDK is imported only for the model call.
       - name: Compile and test the release scripts
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
         run: |
           python3 -m py_compile benchmarks/*/*.py .github/scripts/*.py .github/scripts/triage/*.py
           python3 -m unittest discover -s benchmarks/reports -p 'test_*.py'
+          python3 -m unittest discover -s .github/scripts -p 'test_changed_paths.py'
           python3 -m unittest discover -s .github/scripts/triage -p 'test_*.py'
+
+      # maple keeps a job's workspace and RUNNER_TEMP until its next job: give the disk back, whatever happened.
+      - name: Free maple's disk
+        if: always() && runner.environment == 'self-hosted'
+        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +

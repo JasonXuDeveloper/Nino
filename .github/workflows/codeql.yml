@@ -37,10 +37,19 @@ jobs:
   # The languages the push or pull request changed (.github/scripts/changed_paths.py): a change to Nino.Core needs
   # the C# analysis, not six more runners for Go, Rust, TypeScript, Python, C++ and the workflows it left as they were.
   # The weekly and manual scans, a new branch and a change to this workflow analyze every language, so new queries
-  # still reach unchanged code within a week.
+  # still reach unchanged code within a week. On maple, the repository's self-hosted runner, for trusted runs only (the
+  # weekly and manual scans, a push to main, a pull request from a branch of this repository that Dependabot did not
+  # open, while the repository variable NINO_MAPLE is not false; ci.yml, at its jobs, says why and what keeps a fork off
+  # maple). The analyses stay on GitHub's runners: the CodeQL bundle (about 1.5 GB a version) would pile up in maple's
+  # tool cache. The push to main analyzes again: code scanning shows main's alerts from main's own analyses.
   languages:
     name: Changed languages
-    runs-on: ubuntu-26.04
+    runs-on: >-
+      ${{ vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+          (contains(fromJSON('["push", "workflow_dispatch", "schedule"]'), github.event_name) ||
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]')) &&
+          fromJSON('["self-hosted", "Linux", "X64", "maple"]') || 'ubuntu-26.04' }}
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
@@ -69,6 +78,11 @@ jobs:
           cat "$RUNNER_TEMP/languages.txt"
           matrix=$(sed -n 's/^\([^:]*\):\([^=]*\)=true$/{"language":"\1","build-mode":"\2"}/p' "$RUNNER_TEMP/languages.txt" | jq -sc .)
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+      # maple keeps a job's workspace and RUNNER_TEMP until its next job: give the disk back, whatever happened.
+      - name: Free maple's disk
+        if: always() && runner.environment == 'self-hosted'
+        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
   analyze:
     name: Analyze (${{ matrix.language }})

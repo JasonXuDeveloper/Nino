@@ -51,10 +51,19 @@ jobs:
   # Which runtimes the push or pull request changed (.github/scripts/changed_paths.py): each job below runs only for
   # its own, the corpus changes them all, and a schedule, a manual run, a new branch or a change to this workflow runs
   # everything. Miri only for the Rust crate's library code (its tests are the simd module's own). A Go-only change
-  # once started the eleven Rust jobs too.
+  # once started the eleven Rust jobs too. On maple, the repository's self-hosted runner, for trusted runs only (a push
+  # to main, a manual run, a pull request from a branch of this repository that Dependabot did not open, while the
+  # repository variable NINO_MAPLE is not false; ci.yml, at its jobs, says why and what keeps a fork off maple). The
+  # push to main after a pull request runs again here, unlike ci.yml's and fuzz.yml's: only main saves the Rust caches
+  # every pull request restores.
   changes:
     name: Changed runtimes
-    runs-on: ubuntu-26.04
+    runs-on: >-
+      ${{ vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+          (contains(fromJSON('["push", "workflow_dispatch", "schedule"]'), github.event_name) ||
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]')) &&
+          fromJSON('["self-hosted", "Linux", "X64", "maple"]') || 'ubuntu-26.04' }}
     timeout-minutes: 5
     outputs:
       rust: ${{ steps.diff.outputs.rust }}
@@ -78,6 +87,11 @@ jobs:
             'miri=^runtimes/rust/(src/|tests/shared\.rs$|build\.rs$|Cargo\.(toml|lock)$)' \
             'go=^runtimes/go/|^tests/conformance/corpus/' \
             'typescript=^runtimes/typescript/|^tests/conformance/corpus/' | tee -a "$GITHUB_OUTPUT"
+
+      # maple keeps a job's workspace and RUNNER_TEMP until its next job: give the disk back, whatever happened.
+      - name: Free maple's disk
+        if: always() && runner.environment == 'self-hosted'
+        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
   # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
   # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri
