@@ -49,7 +49,12 @@ value, a kernel hook or a kernel threshold. How to build and run Unity is `platf
   no Burst kernel ran, and `NinoSized.Is`/`Serialize` boxed one to three times per top-level `Serialize` (87 and 174
   `Box()` sites); after (run 40969941689, exp/devirt-unity) no `Box()` there, a static field load and one interface
   call. The .NET 8+ FullOpts listings stayed identical (1,048 methods). No call at all needs the loop inside the
-  formatter (a public `INinoBlockFormatter` member, the owner's decision).
+  formatter (a public `INinoBlockFormatter` member, the owner's decision). The test `default(TFormatter) is IFoo`
+  boxes too, and it runs for every formatter that reaches it, not only the ones that implement `IFoo`: e178937c
+  added `default(TFormatter) is INinoElementsFormatter<T>` and the cast to `NinoElements.Write` in every build, so
+  the netstandard2.1 build boxed once or twice per array or list of any non-block element; it now reads
+  `Traits<T, TFormatter>.Elements` (the formatter `as` the interface, once) there (round 130, redundancy audit).
+  Grep `is INino` and `((INino` in `src/Nino.Core` for a test outside `#if NET8_0_OR_GREATER` when adding one.
 
 ## Native kernels
 
