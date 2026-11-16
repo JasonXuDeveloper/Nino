@@ -209,6 +209,15 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   run of fixed-size members, bounds checked before allocating, depth counted as .NET does, rare paths out of line.
 - No dispatch per element: every loop nino-gen writes calls the element's code directly (no func value, interface
   call or closure per element; `optimize-runtimes`, references/dispatch.md).
+- nino-gen's TypeScript is erasable syntax only: Node runs it by stripping the types and the runtime's `tsc` checks
+  it with `erasableSyntaxOnly`, so it holds no parameter property (`constructor(public value: T)`), `enum` or
+  `namespace` with values; declare the field and assign it. Why: the union's `XObject` class first had a parameter
+  property, and `npm test` failed with TS1294 on the generated corpus module.
+- Write each language's own sum type for a choice of types, in the form a user of that language would write: a
+  TypeScript union of the types, tagged only where values cannot tell the cases apart (`TypeScriptTarget.UnionForm`),
+  a Go interface the generated types implement themselves, a Rust enum. Dispatch is one `switch` on the type id and
+  one chain of tests, type switch or `match`; no wrapper where the value can be the case. Why: the owner rejected a
+  TypeScript class with nullable `case` and `value` fields for C# unions (not narrowable, an object per value).
 
 ## Proof
 
