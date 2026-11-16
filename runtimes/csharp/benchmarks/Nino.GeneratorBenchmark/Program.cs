@@ -35,7 +35,7 @@ using Microsoft.CodeAnalysis.Text;
 // "analyzers" is the analyzers' own time as Roslyn reports it, "wall" the whole analysis with the binding it needs.
 // --no-analyzers skips the analysis (v3's analyzers bind its generated code: at 330 types as long as emitting it).
 // --json writes the medians, the sizes and the machine to a file (report.yml's generator job turns them into the
-// release body's build section with benchmarks/reports/generator_report.py); the printed lines stay as they are
+// release body's build section with runtimes/csharp/benchmarks/reports/generator_report.py); the printed lines stay as they are
 // (runtime-ab reads the last one).
 // Without --generator/--core it uses the generator and runtime of this repository. To measure another
 // version, build its Nino.Generator and Nino.Core and pass their paths. v3 3.3.13's are in the NuGet cache once this

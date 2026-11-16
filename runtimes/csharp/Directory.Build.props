@@ -48,7 +48,7 @@
     </PropertyGroup>
 
     <ItemGroup Condition="'$(IsPackable)' == 'true'">
-        <!-- src/nuget-readme.md, packed as README.md: README.md in plain Markdown without its benchmark numbers, since
+        <!-- runtimes/csharp/src/nuget-readme.md, packed as README.md: README.md in plain Markdown without its benchmark numbers, since
              nuget.org prints HTML as text and a packed README never sees report.yml's numbers. Written by
              .github/scripts/nuget_readme.py from README.md: never edit it by hand. -->
         <None Include="$(MSBuildThisFileDirectory)src/nuget-readme.md" Pack="true" PackagePath="README.md" Visible="false"/>

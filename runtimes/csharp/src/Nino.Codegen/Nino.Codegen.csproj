@@ -4,7 +4,7 @@
         nino-gen: the layouts, the IR, the TypeScript, Go and Rust targets with their templates, and the command line
         (Program.cs, the options in Options.cs). Packed as Nino.Codegen, the build package: build/Nino.Codegen.targets
         runs this assembly from tools/ after each compile, for the project's <NinoCodegen> items. The same command line
-        is the dotnet tool Nino.Codegen.Tool (src/Nino.Codegen.Tool), which references this project.
+        is the dotnet tool Nino.Codegen.Tool (runtimes/csharp/src/Nino.Codegen.Tool), which references this project.
     -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>

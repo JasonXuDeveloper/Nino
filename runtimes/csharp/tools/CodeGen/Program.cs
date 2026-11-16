@@ -1,6 +1,7 @@
 // Regenerates the source files of Nino.Core that are produced by a template:
-//     dotnet run --project tools/CodeGen [-- <repository root>]
-// The repository root defaults to the nearest directory above the working directory that contains src/Nino.Core.
+//     dotnet run --project runtimes/csharp/tools/CodeGen [-- <.NET root>]
+// The .NET root (runtimes/csharp) defaults to the nearest directory at or above the working directory that contains
+// src/Nino.Core, or whose runtimes/csharp does (the repository root).
 using System;
 using System.IO;
 using System.Text;
@@ -14,7 +15,7 @@ namespace Nino.CodeGen
             string root = args.Length > 0 ? Path.GetFullPath(args[0]) : FindRoot(Directory.GetCurrentDirectory());
             if (root == null || !Directory.Exists(Path.Combine(root, "src", "Nino.Core")))
             {
-                Console.Error.WriteLine("Cannot find the repository root (a directory containing src/Nino.Core).");
+                Console.Error.WriteLine("Cannot find the .NET root (runtimes/csharp, the directory containing src/Nino.Core).");
                 return 1;
             }
 
@@ -29,6 +30,10 @@ namespace Nino.CodeGen
             {
                 if (Directory.Exists(Path.Combine(dir.FullName, "src", "Nino.Core")))
                     return dir.FullName;
+                // The repository root, or a directory above runtimes/csharp.
+                string csharp = Path.Combine(dir.FullName, "runtimes", "csharp");
+                if (Directory.Exists(Path.Combine(csharp, "src", "Nino.Core")))
+                    return csharp;
             }
 
             return null;

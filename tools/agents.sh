@@ -109,7 +109,7 @@ if new != root:
     else: open("AGENTS.md", "w").write(new)
 
 # File maps: a new file or folder is named in its directory's AGENTS.md.
-deep = {"src/Nino.Core", "src/Nino.Generator"}
+deep = {"runtimes/csharp/src/Nino.Core", "runtimes/csharp/src/Nino.Generator"}
 skip = {"AGENTS.md", "CLAUDE.md", "bin", "obj", "node_modules", "target"}
 for f in dirs:
     d = os.path.dirname(f)

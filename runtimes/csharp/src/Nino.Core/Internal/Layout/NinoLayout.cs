@@ -316,7 +316,7 @@ namespace Nino.Core.Internal
                 memorySize = runtimeSize;
                 if (!MeasuredLeaves(type, runtimeSize, memory) || memory.Count != wire.Count)
                     // Neither: the value is copied as it lies in memory, which other runtimes may lay out
-                    // differently. tests/Nino.RuntimeTests checks the canonical bytes on every runtime CI has.
+                    // differently. runtimes/csharp/tests/Nino.RuntimeTests checks the canonical bytes on every runtime CI has.
                     return new Info { Size = runtimeSize };
             }
 

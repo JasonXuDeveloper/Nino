@@ -11,7 +11,7 @@ using Nino.Generator.Common;
 namespace Nino.UnitTests;
 
 /// <summary>
-/// The rules of the layout baseline (src/Nino.Generator/Common/LayoutRules.cs, which the analyzer and nino-gen compile
+/// The rules of the layout baseline (runtimes/csharp/src/Nino.Generator/Common/LayoutRules.cs, which the analyzer and nino-gen compile
 /// in): every rule with a change it lets through and one it reports, and which readers each breaks.
 /// </summary>
 [TestClass]

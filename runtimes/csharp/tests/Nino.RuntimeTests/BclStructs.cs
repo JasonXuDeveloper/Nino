@@ -382,7 +382,7 @@ public static class BclStructs
 
     /// <summary>
     /// Prints BclFixtures.cs with what this runtime wrote (run on CoreCLR x64: <c>--write-fixtures</c>, standard error
-    /// redirected to src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs).
+    /// redirected to runtimes/csharp/src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs).
     /// </summary>
     private static void WriteFixtures()
     {
@@ -390,9 +390,9 @@ public static class BclStructs
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine();
         sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// What CoreCLR x64 writes for each case of tests/Nino.RuntimeTests/BclStructs.cs (the canonical layout), as hex:");
+        sb.AppendLine("/// What CoreCLR x64 writes for each case of runtimes/csharp/tests/Nino.RuntimeTests/BclStructs.cs (the canonical layout), as hex:");
         sb.AppendLine("/// every runtime must write and read these bytes (BclStructs, and Unity's BclLayoutTests on Mono and IL2CPP). Written by");
-        sb.AppendLine("/// <c>dotnet Nino.RuntimeTests.dll --write-fixtures 2> src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs</c> on .NET 10 x64.");
+        sb.AppendLine("/// <c>dotnet Nino.RuntimeTests.dll --write-fixtures 2> runtimes/csharp/src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs</c> on .NET 10 x64.");
         sb.AppendLine("/// </summary>");
         sb.AppendLine("public static class BclFixtures");
         sb.AppendLine("{");

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!-- Writes the shared conformance corpus (tests/conformance/corpus) that every Nino runtime (.NET, TypeScript, Go,
-         Rust) is tested against, and checks it: see tests/conformance/README.md. Not part of src/Nino.sln. -->
+         Rust) is tested against, and checks it: see tests/conformance/README.md. Listed in runtimes/csharp/Nino.slnx. -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <!-- net11.0 and C# 15: the corpus's C# unions (Types.cs). -->
@@ -15,8 +15,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\..\src\Nino.Core\Nino.Core.csproj"/>
+        <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
     </ItemGroup>
 
-    <Import Project="..\..\..\tools\UseNinoGenerator.props"/>
+    <Import Project="..\..\tools\UseNinoGenerator.props"/>
 </Project>

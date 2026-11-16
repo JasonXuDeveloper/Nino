@@ -21,7 +21,7 @@ internal static class RepositoryFiles
     {
         string? root = typeof(RepositoryFiles).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
             .SingleOrDefault(a => a.Key == "NinoRepositoryRoot")?.Value;
-        return root != null && File.Exists(Path.Combine(root, "Nino.slnx")) ? root : null;
+        return root != null && File.Exists(Path.Combine(root, "runtimes", "csharp", "Nino.slnx")) ? root : null;
     }
 
     /// <summary>
@@ -34,4 +34,8 @@ internal static class RepositoryFiles
             Assert.Inconclusive("the repository is not available (the tests run without the sources)");
         return Path.Combine(Root!, Path.Combine(parts));
     }
+
+    /// <summary>The path of a file or directory under runtimes/csharp, where the .NET projects are.</summary>
+    public static string CSharp(params string[] parts) =>
+        Of(new[] { "runtimes", "csharp" }.Concat(parts).ToArray());
 }

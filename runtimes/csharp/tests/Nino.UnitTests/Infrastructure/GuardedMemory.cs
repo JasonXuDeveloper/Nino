@@ -6,7 +6,7 @@ namespace Nino.UnitTests;
 
 /// <summary>
 /// Memory followed by an inaccessible page (mmap and mprotect on Linux and macOS, VirtualAlloc and VirtualProtect on
-/// Windows; none elsewhere), as the fuzzer places inputs (tests/Nino.Fuzz/Guard.cs): a read past the bytes placed
+/// Windows; none elsewhere), as the fuzzer places inputs (runtimes/csharp/tests/Nino.Fuzz/Guard.cs): a read past the bytes placed
 /// against it crashes the test host instead of reading the next object on the heap.
 /// </summary>
 internal static unsafe partial class GuardedMemory

@@ -2,7 +2,7 @@
 """Tests of release_body.py, release_assets.py and charts.py: a dry run of report.yml's publish jobs against a
 directory standing in for a release (no network, no Chrome), the body's benchmark part, the old sections of
 a release from before the manifest, readme.py --assets, the chart groups, and the PNG crop (run: python3
-benchmarks/reports/test_release_body.py)."""
+runtimes/csharp/benchmarks/reports/test_release_body.py)."""
 import contextlib
 import io
 import json

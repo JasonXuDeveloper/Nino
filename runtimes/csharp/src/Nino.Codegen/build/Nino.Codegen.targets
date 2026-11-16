@@ -28,7 +28,7 @@
         <NinoCodegenEnabled Condition="'$(NinoCodegenEnabled)' == ''">$(NinoTypeScriptEnabled)</NinoCodegenEnabled>
         <NinoCodegenEnabled Condition="'$(NinoCodegenEnabled)' == ''">true</NinoCodegenEnabled>
         <NinoCodegenTargetFramework Condition="'$(NinoCodegenTargetFramework)' == ''">$(NinoTypeScriptTargetFramework)</NinoCodegenTargetFramework>
-        <!-- The tool: nino-gen.dll in the package's tools/ (a test may point it at a build of src/Nino.Codegen). -->
+        <!-- The tool: nino-gen.dll in the package's tools/ (a test may point it at a build of runtimes/csharp/src/Nino.Codegen). -->
         <_NinoCodegenTool Condition="'$(_NinoCodegenTool)' == ''">$(MSBuildThisFileDirectory)../tools/nino-gen.dll</_NinoCodegenTool>
         <_NinoCodegenHost Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</_NinoCodegenHost>
         <_NinoCodegenHost Condition="'$(DOTNET_HOST_PATH)' == ''">dotnet</_NinoCodegenHost>

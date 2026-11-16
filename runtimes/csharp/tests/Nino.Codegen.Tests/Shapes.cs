@@ -9,7 +9,7 @@ using Nino.Core;
 // Shapes of types the conformance corpus does not declare, generated into every language (runtimes/go/internal/
 // generated/shapes, runtimes/rust/tests/generated/shapes.rs, runtimes/typescript/test/generated) so each runtime's
 // build compiles them: names each language reserves, collisions, a struct holding itself, a struct in a polymorphic
-// slot. A new way to declare a type gets a shape here (src/Nino.Codegen/AGENTS.md).
+// slot. A new way to declare a type gets a shape here (runtimes/csharp/src/Nino.Codegen/AGENTS.md).
 namespace Shapes
 {
     /// <summary>Members named after keywords and the generated code's own names.</summary>

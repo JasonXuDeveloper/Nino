@@ -91,7 +91,7 @@ public static class ProtobufModel
 /// A .proto file Google.Protobuf's messages are compiled from (Grpc.Tools' protoc, at build time): what protobuf-net's
 /// contracts of the models generate (<c>RuntimeTypeModel.GetSchema</c>, proto3), so both libraries write the same
 /// messages and Google.Protobuf's data can be parsed from protobuf-net's bytes. The setup of a class that uses one
-/// fails while it is stale (<see cref="Check"/>); <c>Nino.Benchmark --write-proto</c>, run in benchmarks/Nino.Benchmark,
+/// fails while it is stale (<see cref="Check"/>); <c>Nino.Benchmark --write-proto</c>, run in runtimes/csharp/benchmarks/Nino.Benchmark,
 /// rewrites every file (<see cref="Write"/>).
 /// </summary>
 public sealed class ProtoFile(string path, string package, string csharpNamespace, string models, params Type[] types)

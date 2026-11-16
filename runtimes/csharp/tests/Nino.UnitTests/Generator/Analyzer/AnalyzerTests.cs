@@ -41,7 +41,7 @@ public partial class AnalyzerTests
     [TestMethod]
     public void ReleaseTrackingMatchesTheDescriptors()
     {
-        string dir = RepositoryFiles.Of(System.IO.Path.Combine("src", "Nino.Generator"));
+        string dir = RepositoryFiles.CSharp("src", "Nino.Generator");
         var listed = new System.Collections.Generic.Dictionary<string, (string Severity, string Title)>();
         foreach (string file in new[] { "AnalyzerReleases.Shipped.md", "AnalyzerReleases.Unshipped.md" })
         {

@@ -2,7 +2,7 @@
 """The tables of docs/layouts.md, from the `# layout` lines of Nino.RuntimeTests' output on each runtime (CI's "Runtime
 internals" logs, one file per runtime):
 
-    python3 tests/Nino.RuntimeTests/layouts.py "CoreCLR x64=dotnet.txt" "Mono x64=mono.txt" ...
+    python3 runtimes/csharp/tests/Nino.RuntimeTests/layouts.py "CoreCLR x64=dotnet.txt" "Mono x64=mono.txt" ...
 
 The first runtime is the reference; the others show `=` where a type has the same size and field offsets. Prints the
 layout of each type, then the size of Around<T> { byte A; T B; int C; } and the offsets of A, B and C."""

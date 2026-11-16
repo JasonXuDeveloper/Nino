@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Member-by-member comparison of Nino 3.3.13 (NuGet) and v4: v3, v4, v3 again, in-process BenchmarkDotNet
 # (3 warm-up, 8 measured iterations; a few minutes). Locates a regression; for published numbers use ../run.sh.
-#   benchmarks/members/run.sh               all cases
-#   FILTER='*DMap*' benchmarks/members/run.sh
-#   FILTER='*DStr*' DISASM=1 benchmarks/members/run.sh   also writes the JIT's code for x64 AND arm64, whatever the
+#   runtimes/csharp/benchmarks/members/run.sh               all cases
+#   FILTER='*DMap*' runtimes/csharp/benchmarks/members/run.sh
+#   FILTER='*DStr*' DISASM=1 runtimes/csharp/benchmarks/members/run.sh   also writes the JIT's code for x64 AND arm64, whatever the
 #                                                        machine (results/asm-<run>-<version>-<arch>.txt; timings
 #                                                        of such a run are meaningless, see ../asm/cross-jit.sh)
 set -euo pipefail

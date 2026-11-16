@@ -22,7 +22,7 @@ namespace Test.Runtime
     /// <summary>
     /// <c>delegate*</c> fields in Unity's Mono (play mode) and IL2CPP (the player): each written as 8 bytes,
     /// zero-extended like <c>T*</c> (spec §5.2), in the canonical layout (CoreCLR x64's): the bytes CoreCLR writes
-    /// (tests/Nino.RuntimeTests, FunctionPointers), and a pointer taken with <c>&amp;</c> still callable after the round
+    /// (runtimes/csharp/tests/Nino.RuntimeTests, FunctionPointers), and a pointer taken with <c>&amp;</c> still callable after the round
     /// trip.
     /// </summary>
     public unsafe class FunctionPointerTests

@@ -27,7 +27,7 @@ fuzz options:
   --seed <n>            the run's seed (default 1); the same seed gives the same inputs
   --targets <a,b,...>   targets to fuzz (default: all)
   --iterations <n>      stop each target after n inputs
-  --findings <dir>      where findings go (default tests/Nino.Fuzz/findings)
+  --findings <dir>      where findings go (default runtimes/csharp/tests/Nino.Fuzz/findings)
   --strict-known        known open bugs (probes marked Known) fail the run too (also NINO_FUZZ_STRICT_KNOWN=1)
   --no-probes           skip the probes
   --no-reuse            never read into an existing value

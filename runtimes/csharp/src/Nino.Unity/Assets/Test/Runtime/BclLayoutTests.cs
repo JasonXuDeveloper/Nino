@@ -39,7 +39,7 @@ namespace Test.Runtime
     /// <summary>
     /// BCL structs inside plain structs (value tuples, pairs, DateTimeOffset, nint, Nullable) and tuples and pairs on
     /// their own: this runtime (Mono in the editor, IL2CPP in a player) must write the bytes 64-bit CoreCLR writes (the
-    /// canonical layout: <see cref="BclFixtures"/>, which tests/Nino.RuntimeTests writes on CoreCLR x64 and checks on
+    /// canonical layout: <see cref="BclFixtures"/>, which runtimes/csharp/tests/Nino.RuntimeTests writes on CoreCLR x64 and checks on
     /// every other runtime) and read them back. It also logs how this runtime lays the tuples out (docs/layouts.md).
     /// </summary>
     public class BclLayoutTests

@@ -33,7 +33,7 @@ pub struct Point {
 }
 
 // The Nino codecs below are what nino-gen's Rust templates generate for these two types
-// (src/Nino.Codegen/Templates/rust/types.sbn): a raw struct read and written as one block, a class's members one by
+// (runtimes/csharp/src/Nino.Codegen/Templates/rust/types.sbn): a raw struct read and written as one block, a class's members one by
 // one, and a class held as `Option<Box<_>>` wherever it is a member, an element or the value written.
 #[path = "common/point.rs"]
 mod point;

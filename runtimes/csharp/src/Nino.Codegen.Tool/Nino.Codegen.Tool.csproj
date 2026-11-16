@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- nino-gen as a dotnet tool (dotnet tool install -g Nino.Codegen.Tool): the command line of src/Nino.Codegen,
+    <!-- nino-gen as a dotnet tool (dotnet tool install -g Nino.Codegen.Tool): the command line of runtimes/csharp/src/Nino.Codegen,
          which also runs in builds through the Nino.Codegen package. -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>

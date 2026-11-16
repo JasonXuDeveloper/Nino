@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Nino.Generator.Common;
 
-// Compiled into the analyzer, the code fixes and nino-gen (src/Nino.Codegen), which write and read the same baseline.
+// Compiled into the analyzer, the code fixes and nino-gen (runtimes/csharp/src/Nino.Codegen), which write and read the same baseline.
 
 /// <summary>
 /// The layout of one <c>[NinoType]</c> as a layout baseline holds it: what <c>NinoTypeLayoutAttribute</c> says (wire

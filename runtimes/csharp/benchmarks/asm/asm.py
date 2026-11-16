@@ -5,7 +5,7 @@ usage: asm.py dump [--ref REF] [--filter TEXT] [--runs N] [--asm FILE] OUT.json
        asm.py diff BASE.json HEAD.json
        asm.py compare [--filter TEXT] REF          (dump REF and the working tree, then diff them)
 
-`dump` builds benchmarks/Nino.Benchmark (of the working tree, or of REF in a temporary git worktree) and runs it with the
+`dump` builds runtimes/csharp/benchmarks/Nino.Benchmark (of the working tree, or of REF in a temporary git worktree) and runs it with the
 startup hook in jitwarm/: every Nino case (or those whose name contains TEXT) is called until it is compiled at Tier1,
 a few seconds per class, then the process exits. DOTNET_JitDisasm prints the Tier1 code of the cases and of the
 generated formatters and Nino methods they call; `dump` writes, per method, its size, its stack accesses and the
@@ -30,7 +30,9 @@ import subprocess
 import sys
 import tempfile
 
+# The .NET root (runtimes/csharp) and the repository root above it.
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO = os.path.dirname(os.path.dirname(ROOT))
 LISTING = re.compile(r"^; Assembly listing for method (.+) \((Tier1|FullOpts)\)$")
 # The generated interceptors' class names carry a hash of the file.
 HASH = re.compile(r"[0-9A-F]{32,}")
@@ -73,14 +75,16 @@ def hook():
 
 def dump(ref, text, keep, runs=3):
     dotnet_env = dict(os.environ, NINO_BENCH_QUICK="1")
-    tree, worktree = ROOT, None
+    tree, worktree = REPO, None
     if ref:
         worktree = tempfile.mkdtemp(prefix="nino-asm-")
         subprocess.run(["git", "-C", ROOT, "worktree", "add", "-q", "--detach", worktree, ref], check=True)
         tree = worktree
     try:
-        # benchmarks/Nino.Benchmark; a commit from before the test and benchmark projects left src/ has it there
-        project = next(p for p in (os.path.join(tree, d, "Nino.Benchmark") for d in ("benchmarks", "src"))
+        # runtimes/csharp/benchmarks/Nino.Benchmark; a commit from before the move (#273) has it in benchmarks/, and one
+        # from before the test and benchmark projects left src/ in src/
+        project = next(p for p in (os.path.join(tree, d, "Nino.Benchmark")
+                                   for d in ("runtimes/csharp/benchmarks", "benchmarks", "src"))
                        if os.path.isdir(p))
         build = subprocess.run(["dotnet", "build", "-c", "Release", project], capture_output=True, text=True)
         if build.returncode != 0:

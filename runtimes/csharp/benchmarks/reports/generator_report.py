@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The release body's build-time section: Nino v3 3.3.13's source generator against the release's, from the --json
-files of benchmarks/Nino.GeneratorBenchmark (report.yml's generator job), and the parser of that section (readme.py).
+files of runtimes/csharp/benchmarks/Nino.GeneratorBenchmark (report.yml's generator job), and the parser of that section (readme.py).
 
 usage:
   generator_report.py section TAG --v3 <json>... --v4 <json>...   the section, to stdout
@@ -91,7 +91,7 @@ def section(tag, v3_runs, v4_runs):
     out = [HEADING, "", "<details>",
            f"<summary>Nino v3 3.3.13's source generator (NuGet) against {tag}'s, on one runner</summary>", "",
            # Never write "Performance Report", "Method" or "Mean" here: parsers find the .NET report by them.
-           "`benchmarks/Nino.GeneratorBenchmark` on a synthetic assembly of N abstract root classes, each with a chain "
+           "`runtimes/csharp/benchmarks/Nino.GeneratorBenchmark` on a synthetic assembly of N abstract root classes, each with a chain "
            f"of {depth} derived classes, a sealed leaf and a struct (N × {depth + 3} types), compiled in process: it "
            "runs the generator, emits the whole assembly, and runs the generator again after adding a member and "
            "after adding a comment. Each time is the median of the runs after warm-up runs (v3: "

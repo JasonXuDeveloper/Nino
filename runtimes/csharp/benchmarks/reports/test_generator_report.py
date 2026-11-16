@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests of generator_report.py and readme.py --build on fixtures/generator/ (the --json files of
-benchmarks/Nino.GeneratorBenchmark, with the numbers of the old local run) (run: python3
-benchmarks/reports/test_generator_report.py)."""
+runtimes/csharp/benchmarks/Nino.GeneratorBenchmark, with the numbers of the old local run) (run: python3
+runtimes/csharp/benchmarks/reports/test_generator_report.py)."""
 import contextlib
 import io
 import json

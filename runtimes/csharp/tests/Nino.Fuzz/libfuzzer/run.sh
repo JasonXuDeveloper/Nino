@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Coverage-guided fuzzing of each root type with libFuzzer and SharpFuzz (README.md, "libFuzzer").
 #
-#   tests/Nino.Fuzz/libfuzzer/run.sh [seconds per target] [target ...]
+#   runtimes/csharp/tests/Nino.Fuzz/libfuzzer/run.sh [seconds per target] [target ...]
 #
 # Builds the driver (clang with libFuzzer: on Ubuntu, the clang and libclang-rt-<version>-dev packages), builds
-# Nino.Fuzz into $NINO_LIBFUZZER_WORK (default tests/Nino.Fuzz/bin/libfuzzer), instruments Nino.Core,
+# Nino.Fuzz into $NINO_LIBFUZZER_WORK (default runtimes/csharp/tests/Nino.Fuzz/bin/libfuzzer), instruments Nino.Core,
 # Nino.Immutable and the generated formatters with SharpFuzz, and runs each target for the given time (default 60 s),
 # starting from its seed inputs (through Launcher/, which explains why). Inputs that crash are saved to
 # $NINO_LIBFUZZER_WORK/findings/<target>/crash-*; reproduce one with
-#   dotnet run -c Release -f net10.0 --project tests/Nino.Fuzz -- repro <target> <file> --placement end   (start for an odd length)
+#   dotnet run -c Release -f net10.0 --project runtimes/csharp/tests/Nino.Fuzz -- repro <target> <file> --placement end   (start for an odd length)
 # Exit code: 0 when no target found anything.
 set -euo pipefail
 

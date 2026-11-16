@@ -413,7 +413,7 @@ namespace Nino.Codegen.Tests
 
         private static void Golden(string name, string text)
         {
-            string path = RepositoryFiles.Of("tests", "Nino.Codegen.Tests", "Inspect", name + ".txt");
+            string path = RepositoryFiles.CSharp("tests", "Nino.Codegen.Tests", "Inspect", name + ".txt");
             if (Environment.GetEnvironmentVariable("NINO_UPDATE_GENERATED") == "1")
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);

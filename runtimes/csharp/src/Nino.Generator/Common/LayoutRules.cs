@@ -10,7 +10,7 @@ using Nino.Core.Internal;
 
 namespace Nino.Generator.Common;
 
-// Compiled into the analyzer, the code fixes and nino-gen (src/Nino.Codegen): one set of rules for the IDE, the build
+// Compiled into the analyzer, the code fixes and nino-gen (runtimes/csharp/src/Nino.Codegen): one set of rules for the IDE, the build
 // and the command line.
 
 /// <summary>How bad a change to a layout is.</summary>

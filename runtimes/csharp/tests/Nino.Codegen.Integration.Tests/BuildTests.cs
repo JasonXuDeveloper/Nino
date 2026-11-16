@@ -50,15 +50,15 @@ namespace Scratch
         private static string Metadata(string key) =>
             typeof(BuildTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(a => a.Key == key).Value;
 
-        private static string Targets => RepositoryFiles.Of("src", "Nino.Codegen", "build", "Nino.Codegen.targets");
+        private static string Targets => RepositoryFiles.CSharp("src", "Nino.Codegen", "build", "Nino.Codegen.targets");
 
         /// <summary>A scratch project in a new directory: <paramref name="body"/> goes inside its &lt;Project&gt;.</summary>
         private static string Project(string body)
         {
             string tool = Path.GetFullPath(Metadata("NinoCodegenTool"));
             string generator = Path.GetFullPath(Metadata("NinoGenerator"));
-            Assert.IsTrue(File.Exists(tool), tool + " is missing: build src/Nino.Codegen");
-            Assert.IsTrue(File.Exists(generator), generator + " is missing: build src/Nino.Generator.Roslyn4.12");
+            Assert.IsTrue(File.Exists(tool), tool + " is missing: build runtimes/csharp/src/Nino.Codegen");
+            Assert.IsTrue(File.Exists(generator), generator + " is missing: build runtimes/csharp/src/Nino.Generator.Roslyn4.12");
             string dir = Path.Combine(Path.GetTempPath(), "nino-codegen-build-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
             // Nothing above it may change the build (the repository's Directory.*.props, central versions).

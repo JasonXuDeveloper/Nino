@@ -43,7 +43,7 @@ import unity_report
 from bdn import FLOOR_NS, mean_ns, on_par, times
 
 BODY_LIMIT = 125_000  # GitHub's limit for a release body, in characters
-START = ("<!-- nino-benchmarks: written by benchmarks/reports/release_body.py from benchmarks-manifest.json; "
+START = ("<!-- nino-benchmarks: written by runtimes/csharp/benchmarks/reports/release_body.py from benchmarks-manifest.json; "
          "edits between these markers are replaced -->")
 END = "<!-- /nino-benchmarks -->"
 HEADING = "## 📊 Benchmarks"

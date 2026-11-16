@@ -2,7 +2,7 @@ using System;
 using Nino.Core;
 
 // The types whose bytes BclFixtures.cs holds, compiled by Unity's Runtime.Tests (BclLayoutTests) and linked into
-// tests/Nino.RuntimeTests (BclStructs): one declaration, so both check the same shapes against the same bytes.
+// runtimes/csharp/tests/Nino.RuntimeTests (BclStructs): one declaration, so both check the same shapes against the same bytes.
 
 /// <summary>A plain (raw) struct around a BCL struct, after a byte and before an int.</summary>
 public struct Around<T>

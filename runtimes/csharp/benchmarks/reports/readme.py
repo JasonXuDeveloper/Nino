@@ -2,14 +2,14 @@
 """Write the benchmark numbers and charts of README.md / README.zh.md, and the charts and the runtime and build tables
 of docs/v4-benchmarks.md from a release's assets (release_assets.py) or from BenchmarkDotNet reports and a build section.
 
-usage: python3 benchmarks/reports/readme.py (--release <tag> | --assets <dir> | [--v4 <joined report-github.md>
+usage: python3 runtimes/csharp/benchmarks/reports/readme.py (--release <tag> | --assets <dir> | [--v4 <joined report-github.md>
                                     [--v3 <v3 report-github.md>]...] [--build <section.md>]) [--tag <tag>]
                                     [--png [--chrome <path>]]
 
   --release   download the release's assets (dotnet-x64.md, dotnet-v3-x64.md, build-x64.md; gh) and read them
   --assets    a directory of release assets and their manifest (report.yml: the files its job adds); each of the
               three is read when the directory has it
-  --v4        the joined report of benchmarks/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
+  --v4        the joined report of runtimes/csharp/benchmarks/Nino.Benchmark (every class in one table), as runtimes/csharp/benchmarks/run.sh and
               report.yml produce it
   --v3        a report of the v3 run (Nino 3.3.13: SimpleTest, PolymorphicTest, NullableTest and CollectionsTest's
               nullable collections); repeat it for several runs,
@@ -19,7 +19,7 @@ usage: python3 benchmarks/reports/readme.py (--release <tag> | --assets <dir> | 
   --tag       the release the reports belong to (default with --release/--assets: the manifest's); without one
               docs/v4-benchmarks.md names a local run
   --png       also render the overview chart benchmark.png with headless Chrome (charts.py; the NuGet packages'
-              README, src/nuget-readme.md, shows it by its raw URL on main: nuget.org shows no SVG and no HTML)
+              README, runtimes/csharp/src/nuget-readme.md, shows it by its raw URL on main: nuget.org shows no SVG and no HTML)
 
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
 carries whole tables between such markers. Everything outside the markers is written by hand. --v4 and --build fill
@@ -49,7 +49,7 @@ from bdn import FLOOR_NS, lower_bound, mean_ns, on_par, rows, times
 from bdn import cpu as short_cpu
 from charts import README_TITLE, details, picture, png, svg, time
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[4]  # the repository root (runtimes/csharp/benchmarks/reports/..)
 # The headline cases: WorkloadTest's workloads, with their names in the docs table.
 WORKLOADS = [("MediaContent", "`MediaContent` (jvm-serializers)"),
              ("StackOverflowPage", "Stack Exchange API page, 20 questions"),
@@ -486,7 +486,7 @@ def tables(v4, v3, v3_runs, env, tag):
 
     bdn, runtime, cpu = environment(env)
     source = f"the performance report of [{tag}](https://github.com/JasonXuDeveloper/Nino/releases/tag/{tag})" \
-        if tag else "a local `benchmarks/run.sh` run"
+        if tag else "a local `runtimes/csharp/benchmarks/run.sh` run"
     out["source"] = (f"{source}: BenchmarkDotNet {bdn}, {runtime}, {cpu}; v3 3.3.13 from NuGet ran "
                      f"{('directly before v4' if v3_runs == 1 else 'directly before and after v4') if v3 else 'not at all'} on the same machine")
     return out
@@ -528,7 +528,7 @@ ASSETS = "https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/asse
 def write_charts(overview, groups, render_png=False, chrome=None):
     """Writes docs/assets/benchmark-<group>.svg and -dark.svg per chart group, and the overview chart
     benchmark.svg (and with render_png benchmark.png, the one light image of the NuGet packages' README,
-    src/nuget-readme.md: nuget.org shows no SVG and no HTML). -> the "charts" (README.md, README.zh.md) and "doc.charts"
+    runtimes/csharp/src/nuget-readme.md: nuget.org shows no SVG and no HTML). -> the "charts" (README.md, README.zh.md) and "doc.charts"
     (docs/v4-benchmarks.md) markers: a <details> per group (README opens the first, the docs every one), its chart a <picture> of both themes (the first
     group's fallback image is the overview PNG)."""
     image, _ = svg(overview, "light")

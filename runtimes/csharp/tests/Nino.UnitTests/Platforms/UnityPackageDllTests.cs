@@ -13,18 +13,18 @@ using Nino.Tests;
 namespace Nino.UnitTests;
 
 /// <summary>
-/// The DLLs committed in the Unity package (src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime) have the public
+/// The DLLs committed in the Unity package (runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime) have the public
 /// API of this commit's builds. Unity compiles the package's own sources (Nino.Burst, Nino.WebGL), the code the
 /// generator writes and the user's code against them, so a DLL left behind its sources breaks a project that installs
 /// the package from the repository: after rc.7, Nino.Burst and Nino.WebGL named NinoKernels, which the committed
 /// Nino.Core.dll (rc.7's) did not have. Bytes cannot be compared (each DLL carries the commit it was built from); the
 /// public API can.
-/// Refresh: src/Nino.Unity/AGENTS.md, "Rules for these files".
+/// Refresh: runtimes/csharp/src/Nino.Unity/AGENTS.md, "Rules for these files".
 /// </summary>
 [TestClass]
 public class UnityPackageDllTests
 {
-    private static string Committed(string name) => RepositoryFiles.Of("src", "Nino.Unity", "Packages",
+    private static string Committed(string name) => RepositoryFiles.CSharp("src", "Nino.Unity", "Packages",
         "com.jasonxudeveloper.nino", "Runtime", name);
 
     [TestMethod]
@@ -52,7 +52,7 @@ public class UnityPackageDllTests
             var missing = expected.Except(actual).ToArray();
             var extra = actual.Except(expected).ToArray();
             Assert.IsTrue(missing.Length == 0 && extra.Length == 0,
-                $"{Path.GetFileName(committedPath)} is not this commit's build (refresh it: src/Nino.Unity/AGENTS.md).\n" +
+                $"{Path.GetFileName(committedPath)} is not this commit's build (refresh it: runtimes/csharp/src/Nino.Unity/AGENTS.md).\n" +
                 $"Missing from it:\n  {string.Join("\n  ", missing.Take(20))}\nOnly in it:\n  {string.Join("\n  ", extra.Take(20))}");
         }
         finally

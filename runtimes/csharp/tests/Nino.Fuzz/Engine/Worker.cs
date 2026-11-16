@@ -16,7 +16,7 @@ namespace Nino.Fuzz
         public List<string> Targets = new();
         public string FindingsDir = DefaultFindings();
 
-        /// <summary>tests/Nino.Fuzz/findings when run from the project's bin folder (git ignores it), ./findings otherwise.</summary>
+        /// <summary>runtimes/csharp/tests/Nino.Fuzz/findings when run from the project's bin folder (git ignores it), ./findings otherwise.</summary>
         static string DefaultFindings()
         {
             var project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));

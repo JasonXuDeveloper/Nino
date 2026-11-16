@@ -21,7 +21,7 @@
         <EnableNETAnalyzers>false</EnableNETAnalyzers>
         <NoWarn>$(NoWarn);RS1022;NU1608</NoWarn>
         <!-- The Roslyn test libraries bring in packages with security advisories: the patched versions in
-             Directory.Packages.props replace them. -->
+             runtimes/csharp/Directory.Packages.props replace them. -->
         <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     </PropertyGroup>
 

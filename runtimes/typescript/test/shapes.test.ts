@@ -1,4 +1,4 @@
-// nino-gen's code for tests/Nino.Codegen.Tests/Shapes.cs (test/generated/Nino.Codegen.Tests.ts) against bytes .NET
+// nino-gen's code for runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs (test/generated/Nino.Codegen.Tests.ts) against bytes .NET
 // writes for it.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";

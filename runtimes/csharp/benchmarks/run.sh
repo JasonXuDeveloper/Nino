@@ -2,9 +2,9 @@
 # Runs the published runtime benchmark: Nino v3 3.3.13 (from NuGet), then the full v4 suite, on the same machine
 # with the same settings. MemoryPack runs in both, so its two results show how much the machine moved.
 #
-# usage: benchmarks/run.sh [output directory]   (default: benchmarks/results)
+# usage: runtimes/csharp/benchmarks/run.sh [output directory]   (default: runtimes/csharp/benchmarks/results)
 #   QUICK=1     development run: shorter iterations that stop at 2% error (NINO_BENCH_QUICK, see
-#               benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs). For trends and regressions, not for publishing.
+#               runtimes/csharp/benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs). For trends and regressions, not for publishing.
 #   FILTER=...  the v4 benchmarks to run, as BenchmarkDotNet's --filter patterns, separated by spaces (default '*',
 #               e.g. '*PooledTest*' or '*Vectors* *FixedStruct*').
 set -euo pipefail
@@ -16,7 +16,7 @@ V3_DLL=bin/v3/Release/net10.0/Nino.Benchmark.dll
 V4_DLL=bin/Release/net10.0/Nino.Benchmark.dll
 FILTER=${FILTER:-*}
 read -r -a FILTERS <<< "$FILTER"
-# The counts of each mode are in benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs.
+# The counts of each mode are in runtimes/csharp/benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs.
 if [[ "${QUICK:-0}" == 1 ]]; then
   export NINO_BENCH_QUICK=1
 fi
@@ -29,7 +29,7 @@ git -C "$ROOT" rev-parse HEAD > "$OUT/v4-commit.txt"
 (cd "$BENCH" && dotnet "$V4_DLL" --verify) | tee "$OUT/verify_v4.txt"
 
 echo "v3 $(date)"
-# v3's cases: the v3 globs of the release report's shards (benchmarks/shards.json), every class's Nino and MemoryPack
+# v3's cases: the v3 globs of the release report's shards (runtimes/csharp/benchmarks/shards.json), every class's Nino and MemoryPack
 # cases that 3.3.13 can express (V3/).
 V3_GLOBS='import json, sys; [print(g) for s in json.load(open(sys.argv[1]))["report"] for g in s.get("v3", [])]'
 mapfile -t V3_FILTERS < <(python3 -c "$V3_GLOBS" "$ROOT/benchmarks/shards.json")

@@ -9,7 +9,7 @@ import (
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
 )
 
-// The shapes the corpus does not declare (tests/Nino.Codegen.Tests/Shapes.cs), as nino-gen writes them: compiled,
+// The shapes the corpus does not declare (runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs), as nino-gen writes them: compiled,
 // and written and read back.
 func TestShapesRoundTrip(t *testing.T) {
 	s := func(v string) *string { return &v }
@@ -219,7 +219,7 @@ func TestNullableStridesAsDotNetWritesThem(t *testing.T) {
 
 // A raw T? is a slot of a fixed size as the element of every sequence (a queue, a stack, a linked list, a sorted set,
 // a list interface, nested, a set inside type arguments), and a single value (a presence byte, then the value) in a
-// dictionary and a tuple: the bytes .NET writes for the NullableSlots of tests/Nino.Codegen.Tests/ModelTests.cs,
+// dictionary and a tuple: the bytes .NET writes for the NullableSlots of runtimes/csharp/tests/Nino.Codegen.Tests/ModelTests.cs,
 // NullableSlotsHex.
 func TestNullableSlotsAsDotNetWritesThem(t *testing.T) {
 	const want = "0102000000010000000500000000000000000000000200000000000000000000000000000000000000010000000000000007000000000000000200" +
@@ -315,7 +315,7 @@ func TestNullableGridsAsDotNetWritesThem(t *testing.T) {
 }
 
 // NinoNullable<T> is its memory wherever it is (a presence and a value of a T each), inside type arguments too: the
-// bytes .NET writes for the NinoNullableArgs of tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex.
+// bytes .NET writes for the NinoNullableArgs of runtimes/csharp/tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex.
 func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
 	const want = "0101000000000000000000000000010000020000000100000000000000010000000000000000000000000000000000000000000000010000000000" +
 		"000000000000010000000000000000000000010100000007000000010100000000000000000000000000000000000100000000000f000000000000" +
@@ -360,7 +360,7 @@ func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
 
 // NinoNullable<T> inside a raw struct, its memory there as everywhere: the presence a whole T (1 in its first byte),
 // then the value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
-// tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
+// runtimes/csharp/tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
 func TestNinoNullableInsideRawStructsAsDotNetWritesIt(t *testing.T) {
 	narrow := &NinoNullableRawType{
 		One:  HoldsNinoNullable{A: 1, B: nino.NinoNullableOf[int32](7)},

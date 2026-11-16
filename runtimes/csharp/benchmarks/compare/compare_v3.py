@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Compare two BenchmarkDotNet *-report-github.md files: Nino v3 3.3.13 vs Nino v4, for every case the v3 report has
-(every benchmark class's Nino and MemoryPack cases that 3.3.13 can express, benchmarks/Nino.Benchmark/V3; one report of
+(every benchmark class's Nino and MemoryPack cases that 3.3.13 can express, runtimes/csharp/benchmarks/Nino.Benchmark/V3; one report of
 each run, joined or merged).
 
 usage: python3 compare_v3.py <v3 report-github.md> <v4 report-github.md>
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reports"))
-from bdn import FLOOR_NS, lower_bound, mean_ns, on_par, rows, show, times  # noqa: E402 (benchmarks/reports/bdn.py)
+from bdn import FLOOR_NS, lower_bound, mean_ns, on_par, rows, show, times  # noqa: E402 (runtimes/csharp/benchmarks/reports/bdn.py)
 
 LIBS = ("Nino", "MemoryPack", "MessagePack", "Protobuf")
 
