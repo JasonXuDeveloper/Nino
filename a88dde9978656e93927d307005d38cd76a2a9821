@@ -1,1 +1,0 @@
-Performance: Short strings (up to 16 chars) are written in one masked AVX-512 step: interface string collections serialize 21-30% faster on x64 (Xeon 8573C, EPYC 9V74 and 7763), log batches 4-17% and profile caches 6-20% (GitHub runners).
