@@ -159,11 +159,8 @@ namespace Nino.Core
             {
                 int size = Unsafe.SizeOf<T>();
                 ref byte src = ref reader.ReadElements(length, size);
-                // Filled directly where it can be, a new set or a plain one read into (cleared), else added out of
-                // line (each checks bools: 0 or 1).
-                if (HashTables.Set && (created ? HashTables.TryFill(set, ref src, length, size)
-                        : typeof(TSet) == typeof(HashSet<T>) && set.Count == 0 &&
-                          HashTables.TryRefill(set, ref src, length, size)))
+                // Filled directly where it can be, else added out of line (each checks bools: 0 or 1).
+                if (TryFill(set, ref src, length, created))
                     return;
                 AddRaw(set, ref src, length);
                 return;
@@ -188,10 +185,21 @@ namespace Nino.Core
             {
                 T item = default;
                 NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
-                if (!set.Add(item))
-                    NinoThrow.DuplicateKey(set.GetType());
+                Add(set, item, insert: false, walk: false);
             }
         }
+
+        /// <summary>
+        /// Fills the entries of <paramref name="set"/> directly from <paramref name="length"/> raw values at
+        /// <paramref name="src"/> where it can (<see cref="HashTables"/>): a new plain set (default comparer), or a
+        /// plain one read into, empty once cleared. False where the set was left to add them.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryFill(TSet set, ref byte src, int length, bool created) =>
+            HashTables.Set && (created
+                ? HashTables.TryFill(set, ref src, length, Unsafe.SizeOf<T>())
+                : typeof(TSet) == typeof(HashSet<T>) && set.Count == 0 &&
+                  HashTables.TryRefill(set, ref src, length, Unsafe.SizeOf<T>()));
 
         /// <summary>
         /// Reads and adds <paramref name="length"/> elements, out of line with the reader by value (see
@@ -237,8 +245,8 @@ namespace Nino.Core
 
         /// <summary>
         /// Reads <paramref name="length"/> slots (raw <c>T?</c>). Where a slot is its value's memory they are checked
-        /// in the data and added from it as raw elements are, the entries of a new set filled directly where they
-        /// can be (<see cref="HashTables"/>); else <see cref="AddSlots"/>.
+        /// in the data and added from it as raw elements are, the entries filled directly where they can be
+        /// (<see cref="TryFill"/>); else <see cref="AddSlots"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadSlots(TSet set, int length, bool created, ref Reader reader)
@@ -253,7 +261,7 @@ namespace Nino.Core
             int size = Unsafe.SizeOf<T>();
             ref byte src = ref reader.ReadElements(length, size);
             slots.CheckSlots(ref src, length);
-            if (created && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
+            if (TryFill(set, ref src, length, created))
                 return;
             AddFrom(set, ref src, length);
         }
@@ -288,10 +296,7 @@ namespace Nino.Core
             var rented = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
             try
             {
-                bool insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
-                bool walk = HashTables.Plan<T>.Walks;
-                for (int i = 0; i < length; i++)
-                    Add(set, rented[i], insert, walk);
+                AddFrom(set, ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(rented)), length);
             }
             finally
             {

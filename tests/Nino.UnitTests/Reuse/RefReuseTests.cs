@@ -185,4 +185,28 @@ public class RefReuseTests
         Assert.IsTrue(set.SetEquals(new[] { 1, 2, 3 }));
         CollectionAssert.AreEquivalent(new[] { 1, 2, 3 }, new List<int>(set));
     }
+
+    [TestMethod]
+    public void SetOfNullablesReadIntoIsRefilledAndStaysUsableWhenTheDataIsRejected()
+    {
+        // Slots (raw int?) read into a plain set: cleared and filled directly where slots are memory, as raw values.
+        var set = new HashSet<int?> { -1, null, -3 };
+        for (int i = 0; i < 1000; i++)
+            set.Add(i + 10);
+        var expected = new HashSet<int?> { null };
+        for (int i = 0; i < 500; i++)
+            expected.Add(i * 7);
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(expected), ref set);
+        Assert.IsTrue(set.SetEquals(expected));
+        Assert.IsFalse(set.Contains(-1));
+        Assert.IsTrue(set.Add(-1) && set.Remove(-1));
+
+        var bytes = NinoSerializer.Serialize(new int?[] { 1, 2, null, 4, 5, 6, 7, null });
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(bytes, ref set));
+        Assert.AreEqual(0, set.Count);
+        foreach (int? value in new int?[] { 1, null, 3 })
+            Assert.IsTrue(set.Add(value));
+        Assert.IsTrue(set.SetEquals(new int?[] { 1, null, 3 }));
+        CollectionAssert.AreEquivalent(new int?[] { 1, null, 3 }, new List<int?>(set));
+    }
 }
