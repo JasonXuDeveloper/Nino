@@ -27,6 +27,9 @@ Contents: [Rules](#rules), [Short reuse](#short-reuse), [Long comparison](#long-
 - Narrow after `Ascii.FromUtf16`; outline the 256-bit (32-63 chars) and 512-bit (128+) writers behind exact ISA tests;
   full vectors with a checked overlapping tail; outline and eagerly optimize only the long remainder; keep the
   mask-based range check (M4 and AVX2 guest).
+- Write up to 16 chars inline as one AVX-512BW+VL path (pinned masked load, one plain 16-byte store into a reservation
+  12 bytes wider), everything longer behind one call; keep pins out of shared out-of-line entries; never a masked
+  store or a masked widening store into a new string (native Emerald Rapids, local).
 - Place long UTF-8 at its final offset; keep the fixed Arm64 head and tail for the 33-63-char UTF-16 fallback; copy
   large `StringBuilder` values with `CopyTo`; compare bytes with chars eight at a time where no vectors are.
 
@@ -245,6 +248,40 @@ Contents: [Rules](#rules), [Short reuse](#short-reuse), [Long comparison](#long-
   allocation stayed 0 B. IL grew from 191 to 142 + 58 B and Arm64 FullOpts from 268 to 208 + 252 B. Emulated x64 was
   249 to 175 + 202 B without AVX2 and 396 to 329 B with it. Both .NET suites passed 44 tests and scalar passed 14
   (`c7c82e56`).
+- On AVX-512BW+VL (net10.0 build: `Avx512BW.VL.MaskLoad`/`MaskStore` first exist in .NET 10's API), write every
+  string of up to 16 chars inline as one path: `fixed` + `MaskLoad` of exactly the chars (mask from
+  `Vector256.LessThan(Indices, n)`, one `vpcmpuw` into k1; the load suppresses faults past the string), a `vptest`
+  against 0xFF00, and one plain `vpmovwb` 16-byte store after the header, into a reservation `MaxSize` widens by 12
+  bytes on that CPU only (no wire change). UTF-16 up to 16 chars calls `WriteUtf16`; longer text calls one entry
+  (`WriteOver16`: 17-31 chars as two overlapping 16-char halves, no mask needed; 32-63 the 256-bit writer; longer
+  the long writer). Why: generated bodies inline the string writer at every member, and the shared form was three
+  inline paths (loop, words, two 128-bit vectors) plus three calls. Evidence (local Emerald Rapids, x64 Tier1,
+  base and head processes alternated, 3 s alternating warmup): LuminPack's `RelicItem.__WriteBody` 2,619 to 1,471
+  bytes, `WeaponItem` 2,048 to 1,196, `CharacterSaveData` 4,399 to 3,697; the whole `CharacterSaveData` written in
+  0.87-0.89 of the time (2.6-2.7 against 3.0 µs, LuminPack 2.7-2.8); `string[]` of 9 chars 0.95, 3-7 chars
+  0.75-0.9, 17-31 chars 0.82-0.93, `InterfaceStrings` 0.84, `StringDictionary` 0.8, `ScatteredItems` 0.86-0.9,
+  `ManagedStructs` 0.86; one-char strings 1.03-1.17 and `SimpleClasses` (ten one-char dictionary values per object)
+  1.05, short UTF-16 1.03-1.06; AVX-512 off on par (`8939330f`). Runner numbers still owed. What did not work, so
+  nobody retries it blind:
+  - A masked store as well (a second pinned slot, `vmovdqu8 {k}` after `vpcmpub`): `CharacterSaveData` 3.1 µs, slower
+    than the base; with the load's pin only and a plain store it was 2.7. An unpinned `Unsafe.AsPointer` measured the
+    same as the pinned load, but a string can move between taking its address and the load in fully interruptible
+    code: never ship it.
+  - Pinned helpers inside the shared out-of-line entry (a masked second half for 17-32 chars, the masked UTF-16 copy):
+    the pinned slots made the entry zero its frame on every call, 32-63 chars 1.15 times the base. Keep `fixed` only
+    where every path through the method needs it.
+  - The mask from a sliding table (`vmovups` + `vpmovw2m` instead of `vpbroadcastw` + `vpcmpuw`): 36 bytes more per
+    class, no faster. `vpackuswb` of the halves instead of `vpmovwb`: no faster. A separate one-char branch: 236 bytes
+    more per class and one char still slower. A 128-bit masked path for up to 8 chars beside the 256-bit one: one char
+    on par for fresh strings but not for the runtime's cached digit strings, 1,816 bytes per class. Every rare case
+    through one entry that tail-calls the old writers: two calls, 17-100 chars 1.05-1.12.
+  - Reads: a masked widening store of up to 16 chars into the new string (one pinned slot, the 16 input bytes loaded
+    plainly where 16 are left): `CharacterSaveData` read 1.08 times the base and `RelicItem.__ReadBody` larger (2,085
+    to 2,208 bytes); not landed. The read side keeps its shared form.
+- Narrow 4 to 7 chars on x64 as one vector of the two overlapping 4-char words (`Vector128.Create(head, tail)`,
+  `Narrow`, two 4-byte stores) instead of two shift-and-mask packs: AVX2, local Emerald Rapids, `RelicItem.__WriteBody`
+  2,579 to 2,338 bytes, 5 and 7 chars in 0.8 of the time, the rest and the mixed `CharacterSaveData` write on par
+  (`bd37cb27`). Arm64 keeps the words until measured.
 - Keep the mask-based range check in the narrowing loop. A direct unsigned vector comparison emitted `cmhi` on Arm64
   and slowed the 64-character probe. An Arm64-only maximum reduction emitted `umaxv` and shrank the hot writer from
   836 to 824 bytes, but the ASCII control was slower in all four reversed-order rounds. Its x64 composite helper also
