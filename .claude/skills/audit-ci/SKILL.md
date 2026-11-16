@@ -47,7 +47,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   Do not discover in `.github/scripts`: it has no tests (`test_shards.py` is ci.yml's shard checker), and unittest
   exits 5 on "NO TESTS RAN" since Python 3.12. The same holds for checks: whatever report.yml runs before measuring
   runs on every push, on each architecture report.yml measures. `Nino.Benchmark --verify` had run only in ci.yml's
-  pull-request job (main lands without pull requests), and v4.0.0-rc.8's failed in all ten Arm64 report shards (a
+  pull-request job (main landed without pull requests then), and v4.0.0-rc.8's failed in all ten Arm64 report shards (a
   probe called x86's CpuId, run 41853674050); it now runs in the integrations job (x64, the Debug build, 15 s) and the
   Arm64 runtime internals job. `DOTNET_EnableHWIntrinsic=0` on x64 is no stand-in for Arm64 (`platforms`).
 - **Pinned**: every action by commit SHA with its version in a comment (`uses: actions/checkout@<sha> # v7.0.1`);

@@ -95,7 +95,7 @@ links to the same files for other agents, and anyone can follow them as checklis
 | [`optimize`](.claude/skills/optimize/SKILL.md) | Nino's .NET and Unity optimization techniques, measured and kept, and how to read the machine code | when writing or reviewing a .NET hot path, before committing a change to a read or write path, when a .NET or Unity case got slower than main (compare the listings), or when a new trick is found (record it here) |
 | [`platforms`](.claude/skills/platforms/SKILL.md) | Every platform Nino runs on and how to test each locally | when a change adds a platform-specific path, when something fails on one platform only, or before landing a change to a read or write path |
 | [`runtime-internals`](.claude/skills/runtime-internals/SKILL.md) | How Nino reads and builds a runtime's own objects through their fields instead of the public API | when adding or changing such a path, when a collection reads or writes wrong on Mono, IL2CPP or 32-bit, or when a startup check fails |
-| [`verify`](.claude/skills/verify/SKILL.md) | The full Nino gate before anything reaches main or the test branch | before any push to main or the test branch, after landing other branches, and before a release |
+| [`verify`](.claude/skills/verify/SKILL.md) | The full Nino gate before anything reaches main or the test branch | before opening a pull request to main or pushing to the test branch, after landing other branches, and before a release |
 | [`wire-format`](.claude/skills/wire-format/SKILL.md) | Everything a change to Nino's bytes must update | when a change alters what Nino writes or accepts for any type, or when a golden-bytes or conformance test fails |
 <!-- skills-index:end -->
 
@@ -170,9 +170,13 @@ reusing is written down before the task ends, in the same series of commits as t
   CI, docs and refactors get none. A trailer that landed wrong is fixed by a git note, never by rewriting `main`:
   `git notes --ref=release add -f -m "Added: ..." <sha>`, pushed to the branch `release-notes` (the note replaces
   that commit's highlight trailers; `release_notes.py` has the commands). The docs site's changelog is written from the same trailers (`audit-docs`).
-- **Landing**: `main` moves only by fast-forward
-  (`git fetch -q origin main && git merge-base --is-ancestor origin/main HEAD && git push -q origin HEAD:refs/heads/main`);
-  the test branch only by merge. No force push, no pull request unless the owner asks, never trigger a release.
+- **Landing**: `main` changes only through a pull request merged with a merge commit, never squashed or rebased:
+  `release_notes.py` reads every commit's trailers, and a contributor's commits keep their author. Before opening
+  one, merge `origin/main` into the working branch and pass `verify`; its body says what and why, `Closes #N` for
+  each issue it finishes, and ends with the GitHub post footer. The owner approves and merges (an agent merges only
+  when the owner asks), after the pull request's CI is green. A contributor's pull request is reviewed against
+  `feature`; fix it on their branch where maintainers may push, otherwise merge it into ours with their commits kept,
+  so it shows as merged once ours lands. The test branch moves only by merge. No force push, never trigger a release.
 - **Shell**: never bare `git stash`, `pkill -f` or `pgrep -f`; heavy commands (builds, tests, benchmarks, cargo) run
   under `flock -o /tmp/nino-heavy.lock` when agents share the machine; scratch files stay out of the repository.
   Remove each experiment's worktree and temporary builds once its timing is done (keep uncommitted source changes,
