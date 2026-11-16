@@ -405,9 +405,11 @@ internal static class DispatchEmitter
         w.Line("if (value == null) { writer.UnsafeWrite(0); continue; }");
         foreach (var s in subtypes)
             w.Line(WriteShallow(s, services, "continue;"));
-        // A subtype the chain does not know: out of line with the writer by value, so the local's address reaches no
-        // call and its fields stay in registers across the loop.
-        w.Line("writer = __WriteSubtypeDeep(value, writer);");
+        // A subtype the chain does not know. In the pair loop: out of line with the writer by value, so the local's
+        // address reaches no call and its fields stay in registers across the loop (12-100 pairs 15-25 % faster,
+        // local x64). Not in the element loop: there the same change wrote PolymorphicFooArray (20 subtypes) 12 %
+        // slower on Neoverse-N2 and 5 % on EPYC 9V74, and NonGenericBase 6 % slower on 9V74 (run 43849791156).
+        w.Line(pairs ? "writer = __WriteSubtypeDeep(value, writer);" : WriteOther(t, services) + ";");
         w.Close();
         w.Line();
         w.Line("writer.CopyTo(ref target);");
