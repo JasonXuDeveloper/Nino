@@ -19,7 +19,7 @@ namespace Nino.Benchmark;
 /// </summary>
 [BenchCase("IntLongPairs32")]
 [BenchCase("IntLongPairs1000")]
-[BenchCase("IntLongPairs100000")]
+[BenchCase("IntLongPairs100000", Quick = true)]
 [BenchCase("ByteIntPairs32")]
 [BenchCase("ByteIntPairs1000")]
 [BenchCase("ByteIntPairs100000")]
@@ -27,7 +27,7 @@ namespace Nino.Benchmark;
 [BenchCase("FiveTuples1000")]
 [BenchCase("FiveTuples100000")]
 [BenchCase("PaddedRaws32")]
-[BenchCase("PaddedRaws1000")]
+[BenchCase("PaddedRaws1000", Quick = true)]
 [BenchCase("PaddedRaws100000")]
 [BenchCase("Doubles10000")]
 [BenchCase("Ints10000")]

@@ -36,28 +36,29 @@ namespace Nino.Benchmark;
 /// SelfTree cases: v3's generator recurses without end on a list that holds itself (CollectionSerializerGenerator calls
 /// its filters on the element type again and again until the compiler process dies with a stack overflow).
 /// </summary>
-[BenchCase("NullableLongs", MemoryPackValue = "{Case}AsSafeNullable", ProtobufValue = "{Case}Protobuf",
+[BenchCase("NullableLongs", Quick = true, MemoryPackValue = "{Case}AsSafeNullable", ProtobufValue = "{Case}Protobuf",
     NinoNullableValue = "{Case}AsNinoNullable", NullableForms = true, Proto = "NullableLongList", Json = "NullableInt64Array")]
 [BenchCase("NullableInts", MemoryPackValue = "{Case}AsSafeNullable", ProtobufValue = "{Case}Protobuf",
     NinoNullableValue = "{Case}AsNinoNullable", NullableForms = true, Proto = "NullableIntList", Json = "ListNullableInt32")]
 [BenchCase("NullableDecimals", MemoryPackValue = "{Case}AsSafeNullable", ProtobufValue = "{Case}Protobuf",
     NinoNullableValue = "{Case}AsNinoNullable", NullableForms = true, Proto = "NullableDecimalList",
     Json = "NullableDecimalArray")]
-[BenchCase("NullableVec3s", MemoryPackValue = "{Case}AsSafeNullable", ProtobufValue = "{Case}Protobuf",
+[BenchCase("NullableVec3s", Quick = true, MemoryPackValue = "{Case}AsSafeNullable", ProtobufValue = "{Case}Protobuf",
     NinoNullableValue = "{Case}AsNinoNullable", NullableForms = true, Proto = "OptionalVec3List", Json = "NullableVec3Array")]
 [BenchCase("TupleList")]
 [BenchCase("KeyValuePairs")]
-[BenchCase("HashSet")]
+[BenchCase("HashSet", Quick = true)]
 [BenchCase("RandomIntSet")]
-[BenchCase("StringSet")]
-[BenchCase("IntDictionary")]
+[BenchCase("StringSet", Quick = true)]
+[BenchCase("IntDictionary", Quick = true)]
 [BenchCase("Queue")]
 [BenchCase("LinkedList")]
 [BenchCase("SortedSet")]
 [BenchCase("SortedDictionary")]
 [BenchCase("SortedList")]
 [BenchCase("ConcurrentDictionary")]
-[BenchCase("SelfTree", Libraries = "Nino MemoryPack", Builds = "v4")] // LuminPack 1.1.9 writes it as an object without members (--verify)
+[BenchCase("SelfTree", Libraries = "Nino MemoryPack", Builds = "v4",
+    Broken = "LuminPack wrong-read: writes a class derived from List<T> as an object without members, reads back an empty tree")]
 [BenchClass(Buffer = "1 << 16", Bytes = "{Library}{Case}Bytes", Order = "case")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]

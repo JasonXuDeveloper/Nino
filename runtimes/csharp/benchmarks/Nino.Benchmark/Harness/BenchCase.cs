@@ -70,6 +70,21 @@ public sealed class BenchCaseAttribute(string name) : Attribute
     /// <summary>Not these libraries (names of Adapters/, space separated): the case has no such collection there.</summary>
     public string? Without { get; set; }
 
+    /// <summary>
+    /// The libraries that break on the case, each <c>"&lt;Library&gt; &lt;kind&gt;: &lt;reason&gt;"</c>, separated by
+    /// <c>;</c>. The kinds: <c>compile</c> (its generator cannot build the model), <c>throws</c>, <c>crash</c> (the
+    /// process dies) and <c>wrong-read</c> (it reads back other values than it wrote). BenchGen writes no method for
+    /// them, as for <see cref="Without"/>, and lists them in bench-cases.json: the charts show such a case as error with
+    /// the reason (a case left out with Without is n/a, one the library has no form of).
+    /// </summary>
+    public string? Broken { get; set; }
+
+    /// <summary>
+    /// The case is in the quick subset: a pull request labeled <c>benchmark</c> runs its Nino and MemoryPack methods in
+    /// quick mode (bench-cases.json, ci.yml); a release runs every case.
+    /// </summary>
+    public bool Quick { get; set; }
+
     /// <summary>MessagePack's options for the value (a static field), when its standard ones cannot write it.</summary>
     public string? MessagePackOptions { get; set; }
 

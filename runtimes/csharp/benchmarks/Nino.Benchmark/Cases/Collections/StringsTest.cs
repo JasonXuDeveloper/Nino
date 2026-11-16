@@ -28,13 +28,13 @@ namespace Nino.Benchmark;
 /// runtimes/csharp/tools/BenchGen).
 /// </summary>
 [BenchCase("AsciiStrings")]
-[BenchCase("MixedStrings")]
+[BenchCase("MixedStrings", Quick = true)]
 [BenchCase("Utf8MixedStrings", Builds = "v4")]
 [BenchCase("AsciiString32")]
 [BenchCase("AsciiString1000")]
-[BenchCase("AsciiString100000")]
+[BenchCase("AsciiString100000", Quick = true)]
 [BenchCase("CjkString32")]
-[BenchCase("CjkString1000")]
+[BenchCase("CjkString1000", Quick = true)]
 [BenchCase("CjkString100000")]
 [BenchCase("Utf8AsciiString32", Builds = "v4")]
 [BenchCase("Utf8AsciiString1000", Builds = "v4")]

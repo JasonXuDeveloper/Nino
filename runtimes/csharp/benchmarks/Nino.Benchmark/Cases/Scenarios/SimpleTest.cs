@@ -16,11 +16,11 @@ namespace Nino.Benchmark;
 /// generated from the cases below and the adapters (Adapters/, runtimes/csharp/tools/BenchGen); the v3 build times
 /// Nino 3.3.13 and MemoryPack on the same values.
 /// </summary>
-[BenchCase("SimpleClass", Proto = "SimpleClassBase", Json = "SimpleClass")]
+[BenchCase("SimpleClass", Quick = true, Proto = "SimpleClassBase", Json = "SimpleClass")]
 [BenchCase("SimpleStruct", Proto = "SimpleStruct", Json = "SimpleStruct")]
-[BenchCase("SimpleClasses", Proto = "SimpleClassList", Json = "SimpleClassArray")]
-[BenchCase("SimpleStructs", Proto = "SimpleStructList", Json = "SimpleStructArray")]
-[BenchCase("Vectors", Proto = "VectorList", Json = "Vector4Array")]
+[BenchCase("SimpleClasses", Quick = true, Proto = "SimpleClassList", Json = "SimpleClassArray")]
+[BenchCase("SimpleStructs", Quick = true, Proto = "SimpleStructList", Json = "SimpleStructArray")]
+[BenchCase("Vectors", Quick = true, Proto = "VectorList", Json = "Vector4Array")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
 [MinColumn, MaxColumn]

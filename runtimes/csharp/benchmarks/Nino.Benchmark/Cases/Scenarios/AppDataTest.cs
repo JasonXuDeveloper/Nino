@@ -13,11 +13,11 @@ namespace Nino.Benchmark.AppData;
 /// AppDataTest.Cases.g.cs, generated from the cases below and the adapters (Adapters/, runtimes/csharp/tools/BenchGen);
 /// the v3 build times Nino 3.3.13 and MemoryPack on the same values.
 /// </summary>
-[BenchCase("Players")]
+[BenchCase("Players", Quick = true)]
 [BenchCase("Zoos")]
 [BenchCase("OrderBooks")]
-[BenchCase("Articles")]
-[BenchCase("Meshes", Without = "LuminPack")] // LuminPack 1.1.9 reads 20 meshes back other than it wrote (--verify)
+[BenchCase("Articles", Quick = true)]
+[BenchCase("Meshes", Broken = "LuminPack wrong-read: reads 20 meshes back other than it wrote")]
 [BenchCase("SampleSets")]
 [BenchCase("Lookups")]
 [BenchCase("Events")]

@@ -21,7 +21,7 @@ namespace Nino.Benchmark;
 [BenchClass(Buffer = "1024 * 1024")]
 [BenchCase("PolymorphicClass", Value = "PolymorphicInstance", Proto = "PolymorphicClassBase", Json = "PolymorphicClassBase")]
 [BenchCase("PolymorphicFooArray", Proto = "PolymorphicFooList", Json = "PolymorphicFooBaseArray")]
-[BenchCase("PolymorphicClassArray", Proto = "PolymorphicClassList", Json = "PolymorphicClassBaseArray")]
+[BenchCase("PolymorphicClassArray", Quick = true, Proto = "PolymorphicClassList", Json = "PolymorphicClassBaseArray")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
 [MinColumn, MaxColumn]

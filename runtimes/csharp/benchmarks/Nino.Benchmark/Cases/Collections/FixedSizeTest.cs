@@ -21,7 +21,7 @@ namespace Nino.Benchmark;
 /// </summary>
 [BenchCase("FixedStruct")]
 [BenchCase("FixedClass")]
-[BenchCase("FixedClasses")]
+[BenchCase("FixedClasses", Quick = true)]
 [BenchClass(Buffer = "16 * 1024", Serialize = "array", Bytes = "{Library}{Case}Bytes")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]

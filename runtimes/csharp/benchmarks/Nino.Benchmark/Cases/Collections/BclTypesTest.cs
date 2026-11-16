@@ -55,8 +55,8 @@ namespace Nino.Benchmark;
 [BenchCase("BigInteger", Without = "MemoryPack Protobuf", Builds = "v4")]
 [BenchCase("Uri", Builds = "v4")]
 [BenchCase("Version", Without = "Protobuf", Builds = "v4")]
-[BenchCase("StringBuilder", Without = "Protobuf", Builds = "v4")]
-[BenchCase("BitArray", Without = "Protobuf LuminPack", Builds = "v4")] // LuminPack 1.1.9 crashes the process reading it (SIGSEGV)
+[BenchCase("StringBuilder", Quick = true, Without = "Protobuf", Builds = "v4")]
+[BenchCase("BitArray", Without = "Protobuf", Builds = "v4", Broken = "LuminPack crash: the process dies reading it (SIGSEGV)")]
 [BenchCase("CultureInfo", Without = "MessagePack Protobuf", Builds = "v4")]
 [BenchCase("TimeZoneInfo", Without = "MessagePack Protobuf", Builds = "v4")]
 [BenchCase("Lazy", Without = "Protobuf", Builds = "v4")]
