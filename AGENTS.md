@@ -76,7 +76,7 @@ links to the same files for other agents, and anyone can follow them as checklis
 | Skill | What it does | Use it |
 |---|---|---|
 | [`audit-analyzer`](.claude/skills/audit-analyzer/SKILL.md) | Audit Nino's diagnostics (NINO rules in src/Nino.Generator/Analysis), the suppressor and the code fixes | when adding or changing a rule or code fix, when users hit a runtime error a rule could have caught, or when a rule fires wrongly |
-| [`audit-ci`](.claude/skills/audit-ci/SKILL.md) | Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, ab-bench.yml and the test branch's A/B workflows) | when changing a workflow, when CI is slow or red, or before a release |
+| [`audit-ci`](.claude/skills/audit-ci/SKILL.md) | Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, triage.yml, ab-bench.yml and the test branch's A/B workflows) | when changing a workflow, when CI is slow or red, or before a release |
 | [`audit-code`](.claude/skills/audit-code/SKILL.md) | Audit Nino's code for cleanliness and maintainability and fix it | for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry, or when the test suite is slow |
 | [`audit-core`](.claude/skills/audit-core/SKILL.md) | Audit Nino's runtime libraries (src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design | for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration |
 | [`audit-docs`](.claude/skills/audit-docs/SKILL.md) | Audit and write all of Nino's docs | once the code is final (the docs pass), after a user-facing change lands, and before a release |
@@ -209,6 +209,13 @@ asking, and give the owner its link.
   with the evidence (commit, run id, per-CPU numbers, stack trace), a checklist of what done means, `Due before
   rc.N.` when it blocks a release, and ends with the GitHub post footer. A milestone's description says what the
   release is for, its groups of issues and when it is done; update it when issues move in or out.
+- **Triage**: `triage.yml` runs on every issue opened or reopened (`.github/scripts/triage/triage.py`): it adds
+  the `area: *` labels picked in an issue form, a milestone computed from the latest release tag (only when the issue
+  has none), and asks Claude Haiku once for the kind, areas, a duplicate, a parent and a suggested split. It never
+  overrides a label or milestone a person set, never closes or edits an issue and never creates one: a duplicate gets
+  the `duplicate` label and a comment, a split only a comment. The forms in `.github/ISSUE_TEMPLATE` carry the kind
+  label and the type; a new `area:` label also gets an option in each form's Area dropdown (the label without its
+  prefix).
 - **Closing**: `Closes #N` in the fixing commit's body, or a comment with the result (runner numbers, the commit)
   and close with a reason (`completed`, `not_planned`, `duplicate`).
 
