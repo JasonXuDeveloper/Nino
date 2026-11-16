@@ -1,7 +1,7 @@
 # Benchmarks
 
-`runtimes/csharp/benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
-protobuf-net).
+`runtimes/csharp/benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack,
+protobuf-net, Google.Protobuf, System.Text.Json and, in the cases its 1.1.9 can run, LuminPack).
 `V3/` is every benchmark class (same data, same models, same method names; a class that declares its cases has its v3
 part in its generated file instead, see [Cases and adapters](#cases-and-adapters)) built against **Nino 3.3.13 from
 nuget.org**, the last v3 release, so v4 can be compared with v3 on the same machine: each class's Nino and MemoryPack
@@ -131,8 +131,10 @@ The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `releas
 `runtimes/csharp/benchmarks/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
 MemoryPack, and with MessagePack and protobuf-net wherever they can write the same data (see
 [MessagePack and protobuf-net](#messagepack-and-protobuf-net)); `SimpleTest`, `PolymorphicTest`, `NullableTest`,
-`CollectionsTest`'s nullable collections and `WorkloadTest` also with Google.Protobuf and System.Text.Json (see [Google.Protobuf and System.Text.Json](#googleprotobuf-and-systemtextjson)). All of them land in one joined table, which each release
-attaches as `dotnet-x64.md` (and `dotnet-arm64.md`).
+`CollectionsTest`'s nullable collections and `WorkloadTest` also with Google.Protobuf and System.Text.Json (see [Google.Protobuf and System.Text.Json](#googleprotobuf-and-systemtextjson)); every class that declares its cases
+(see [Cases and adapters](#cases-and-adapters)) also with LuminPack, but in the cases its 1.1.9 cannot run (see
+[LuminPack](#luminpack)). All of them land in one joined table, which each release attaches as `dotnet-x64.md` (and
+`dotnet-arm64.md`).
 
 | Class | What it measures |
 |---|---|
@@ -155,8 +157,8 @@ attaches as `dotnet-x64.md` (and `dotnet-arm64.md`).
 Method names are unique across classes (`<Serializer><Serialize|Deserialize><Case>`, e.g. `NinoSerializeTolerantClass`,
 `MemoryPackDeserializeGraph`, `ProtobufSerializeStackOverflowPage`; the serializers are `Nino`, `MemoryPack`, `MessagePack`,
 `Protobuf` (protobuf-net), `GoogleProtobuf` and `Json` (System.Text.Json), the last two in `SimpleTest`, `PolymorphicTest`,
-`NullableTest`, `CollectionsTest`'s nullable collections and `WorkloadTest`): the documentation site and the `Payload` column key rows by method name
-alone.
+`NullableTest`, `CollectionsTest`'s nullable collections and `WorkloadTest`, and `LuminPack`): the documentation site and
+the `Payload` column key rows by method name alone.
 
 ### Cases and adapters
 
@@ -387,6 +389,55 @@ In `WorkloadTest`, unlike the other classes, a library that lacks a feature a wo
 usual workaround rather than left out (the owner's choice: the workloads are what applications send, whatever the
 library): MessagePack and protobuf write a copy of a shared object for each reference (read back as equal copies);
 the libraries that cannot read into an existing object read a new one (MemoryPack overwrites, Nino reads in place).
+
+### LuminPack
+
+[LuminPack](https://github.com/TheLight-233/LuminPack) 1.1.9 (MIT; the `LuminPack` package on nuget.org, which brings
+its source generator, `LuminPackGenerator` 1.1.9; #304) is a source-generated binary serializer derived from MemoryPack.
+It joins every class that declares its cases through one adapter, `Adapters/LuminPackAdapter.cs`: its fastest documented
+calls, `LuminPackSerializer.Serialize(in value, LuminBufferWriter)` into a reused writer (`ResetCore` per operation) and
+`LuminPackSerializer.Deserialize(ReadOnlySpan<byte>, ref value)` from null, a new object as the others read (and
+`LuminPackSerializer.Serialize(value)`, a new `byte[]`, in `FixedSizeTest`). The models carry `[LuminPackable]` beside
+`[MemoryPackable]` (`GeneratorType.VersionTolerant` with `[LuminPackOrder]` where MemoryPack is version tolerant) and
+`[LuminPackUnion]` with MemoryPack's tags on each union base; the models MemoryPack reads in its own form (its
+`SafeNullable<T>` copies) do not, so LuminPack reads the model itself, as Nino does.
+
+- Writers: `Harness/LuminPackBuffers.cs` rents each class's writer from LuminPack's pool and grows it to 1 MiB up
+  front, as the other libraries' writers are sized, and writes the bytes the deserialize cases read through one.
+  LuminPack 1.1.9 writes a list of polymorphic elements past the end of a writer that has to grow (its pooled writers
+  start at 32 KiB): `PolymorphicTest`'s class of 1,000 elements corrupted the native heap through
+  `LuminPackSerializer.Serialize(value)` from about 400 elements on.
+- Build: the v4 build runs LuminPack's generator in its `Medium` mode (`LuminPackGenerationMode`; its default, `Full`,
+  writes every type of the project and does not compile `BclTypesTest`'s immutable collections; `Light` writes no
+  overload for a top-level array), with `System.Linq` as a global using (its code for `ImmutableQueue<T>` needs it) and
+  its generated code's nullable, unused-local and always-true warnings off (`NoWarn`: the compiler applies no
+  `.editorconfig` section to generated files). The v3 builds reference LuminPack for the models' attributes and drop
+  its generator (`Directory.Build.props`).
+- Bytes: LuminPack copies unmanaged values as they are in memory, padding and absent `T?` values included, so one value
+  can give different bytes: its bytes are not canonical, as MemoryPack's `T?` ones are not. It has no other form of a
+  nullable value, so the nullable cases time its `T?`.
+
+`--verify` reads every case it runs back equal to Nino's. The cases it leaves out are 1.1.9 bugs, each a `Without =
+"LuminPack"` with its reason on the case (#356, which tracks reporting them upstream; retry each on an upgrade). The
+charts and tables show its bar or cell of such a case as n/a (`reports/readme.py`'s `NA`):
+
+| Case | Why |
+|---|---|
+| `GenericPolymorphicTest`'s four tuple bases | throws writing them: "Type ProbeTupF is not annotated in ProbeBox<(int, long)>" |
+| `CommonTypesTest`'s `Waypoints` | its generator writes `ReadValue` and `WriteValue` of `Waypoint` (a value tuple member) twice (CS0111) |
+| `BclTypesTest`'s `BitArray` | crashes the process reading it (SIGSEGV) |
+| `CollectionsTest`'s `SelfTree` | writes a class derived from `List<T>` as an object without members: reads back an empty tree |
+| `CollectionsTest`'s nullable `HashSet`, `LinkedList`, `Collection`, `ConcurrentQueue`, grid, `Memory` and `IList` of `int?` | reads back other values than it wrote (its `Queue<int?>` reads back right) |
+| `NullableTest`'s `NullableFieldsArray` | reads 100 `NullableFields` back other than it wrote (one reads back right) |
+| `WorkloadTest`'s `RpcCall`, `EventStream` | a generic type as a union member of a non-generic base (`Ok<List<Item>>`, `Envelope<TEvent>`): LuminPack015 |
+| `StackOverflowPage`, `LockstepFrames`, `CardBattleLog` | its generator declares `element` twice for a list of objects inside an element of a list of objects (CS0136); `[LuminPackableObject]`, its workaround, would time its registry path instead |
+| `StateSnapshot` | reads its own bytes wrong ("tag 10 not found in IComponent", a list of interface values in each entity) |
+| `LogBatch`, `AoiUpdate`, `WorldRegion` | reads its own bytes wrong ("length larger than buffer", "invalid collection length") |
+| `ProfileCache`, `IdleSave` | its version-tolerant reader indexes past the members the previous version wrote (`IndexOutOfRangeException`) |
+
+The scenario classes (`PooledTest`, `PooledGraphTest`, `ReferenceTest`, `UntrustedTest`, `ExternalBufferTest`,
+`ScatteredTest`) time each library's own way of doing one thing and have no LuminPack method: their charts show it n/a
+beside MemoryPack too.
 
 ## Member by Member
 
