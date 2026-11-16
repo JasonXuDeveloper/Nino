@@ -371,7 +371,14 @@
 # done (run 43770791800): cpu='EPYC|Xeon|Neoverse' 98518d32 3dd9df2b 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino* *SimpleTest.MemoryPack* *CollectionsTest.Nino*Dictionary *CollectionsTest.Nino*HashSet
 # Arrays and lists of a polymorphic base through the base's generated element loop (e178937c, with its tests 56b55d89),
 # against 3dd9df2b. MemoryPack rides along as the floor.
-cpu='EPYC|Xeon|Neoverse' 3dd9df2b 56b55d89 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino*
+# done (run 43782562246): cpu='EPYC|Xeon|Neoverse' 3dd9df2b 56b55d89 2 *PolymorphicTest.Nino* *PolymorphicTest.MemoryPack* *SimpleTest.Nino*
 # Probe, not for main: copies over 4 KB through Memmove on x64 (253f6c8b, on 56b55d89), where MemoryPack's memcpy of
 # NinoNullable-sized runs beat Nino's vector loop by 2x on 6975P and 9V45 (run 43739748813). Raw runs and nullables.
-cpu='EPYC|Xeon|Neoverse' 56b55d89 253f6c8b 2 *NullableTest.NinoNullable* *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *SimpleTest.NinoSerializeVectors *SimpleTest.NinoDeserializeVectors
+# done (run 43782562246): cpu='EPYC|Xeon|Neoverse' 56b55d89 253f6c8b 2 *NullableTest.NinoNullable* *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *SimpleTest.NinoSerializeVectors *SimpleTest.NinoDeserializeVectors
+# The series since 56b55d89 (dea7532a): raw T? runs checked while copied into existing storage with lined stores and
+# 24-byte gathers on AVX-512 (ab79109a), the redundancy merges (dictionary string pairs, HashSet<T?> refilled in place,
+# one cursor copy). Both sides carry a probe commit with reuse-read cases (a2c66aa6 on 56b55d89, d909fd3d on dea7532a;
+# not for main). MemoryPack's memcpy rides along as the floor.
+cpu='EPYC|Xeon|Neoverse' a2c66aa6 d909fd3d 2 *CollectionsTest.NinoReuse* *CollectionsTest.Nino*Nullable* *NullableTest.Nino* *CollectionsTest.MemoryPackUnsafe*Nullable* *PolymorphicTest.Nino* *SimpleTest.Nino* *CollectionsTest.Nino*Dictionary *CollectionsTest.Nino*HashSet
+# The Memmove probe again on Intel only (run 43782562246 drew AMD and Neoverse-N2 alone: no gain there).
+cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *NullableTest.NinoNullable*
