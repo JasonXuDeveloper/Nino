@@ -1,14 +1,14 @@
 ---
 name: audit-analyzer
-description: "Audit Nino's diagnostics (NINO rules in src/Nino.Generator/Analysis), the suppressor and the code fixes - missing rules for declarations that cannot work or that cost, false positives, messages that name the member and the fix, one diagnostic per mistake, a code fix wherever the fix is mechanical, tests per rule, the analyzer's build cost, and the docs that list the rules. Use when adding or changing a rule or code fix, when users hit a runtime error a rule could have caught, or when a rule fires wrongly. Triggers: NinoAnalyzer, NinoDiagnostics, NinoSuppressor, NinoCodeFixProvider, NINO0*, AnalyzerReleases, AnalyzerTests, CodeFixTests, docs/diagnostics.md, false positive, analyzer warning, 分析器, 诊断, 误报, 代码修复."
+description: "Audit Nino's diagnostics (NINO rules in runtimes/csharp/src/Nino.Generator/Analysis), the suppressor and the code fixes - missing rules for declarations that cannot work or that cost, false positives, messages that name the member and the fix, one diagnostic per mistake, a code fix wherever the fix is mechanical, tests per rule, the analyzer's build cost, and the docs that list the rules. Use when adding or changing a rule or code fix, when users hit a runtime error a rule could have caught, or when a rule fires wrongly. Triggers: NinoAnalyzer, NinoDiagnostics, NinoSuppressor, NinoCodeFixProvider, NINO0*, AnalyzerReleases, AnalyzerTests, CodeFixTests, docs/diagnostics.md, false positive, analyzer warning, 分析器, 诊断, 误报, 代码修复."
 metadata:
   internal: true
 ---
 
 # Analyzer audit
 
-Files: `src/Nino.Generator/Analysis` (`NinoAnalyzer.cs`, `NinoDiagnostics.cs`, `NinoSuppressor.cs`),
-`src/Nino.Generator.CodeFixes/NinoCodeFixProvider.cs`, `AnalyzerReleases.Shipped.md` / `Unshipped.md`; the list users
+Files: `runtimes/csharp/src/Nino.Generator/Analysis` (`NinoAnalyzer.cs`, `NinoDiagnostics.cs`, `NinoSuppressor.cs`),
+`runtimes/csharp/src/Nino.Generator.CodeFixes/NinoCodeFixProvider.cs`, `AnalyzerReleases.Shipped.md` / `Unshipped.md`; the list users
 read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN rules belong to `audit-runtimes`.
 
 ## Coverage
@@ -194,7 +194,7 @@ read is `docs/diagnostics.md` and the site's analyzers page. nino-gen's NINOGEN 
 
 ## Tests: every rule, every edge
 
-`tests/Nino.UnitTests/Generator/Analyzer/AnalyzerTests.*.cs` and `Generator/CodeFixes/CodeFixTests.*.cs`, one
+`runtimes/csharp/tests/Nino.UnitTests/Generator/Analyzer/AnalyzerTests.*.cs` and `Generator/CodeFixes/CodeFixTests.*.cs`, one
 partial file per group of rules, named after the group (a new rule's tests go into its group's file, or a new one;
 locations as markup, `{|#0:Name|}` and `.WithLocation(0)`, never line and column spans):
 - each NINO id appears in a test that expects it and one that expects it not to fire; each code fix has a case per
@@ -213,10 +213,10 @@ locations as markup, `{|#0:Name|}` and `.WithLocation(0)`, never line and column
   with the generator's output added as documents, as the IDE's compilation has it (`LayoutAnalyzerTests.Refactor`);
   the analyzer tests' compilations have no generator output;
 - a rule about a declaration only a newer C# parses has no test until the tests' Roslyn parses it: the analyzer
-  tests and `ShapeMatrixTests` compile with the `Microsoft.CodeAnalysis.CSharp` package of `Directory.Packages.props`
+  tests and `ShapeMatrixTests` compile with the `Microsoft.CodeAnalysis.CSharp` package of `runtimes/csharp/Directory.Packages.props`
   (4.3.0, the generator's oldest build), which cannot parse C# 15's `union`, so NINO045 and a union dimension of the
   shape matrix wait for a newer test package (issue #313); C# unions are tested by compiling them with the SDK
-  (`tests/Nino.UnitTests/Polymorphism/UnionTests.cs` on net11.0, the corpus's and nino-gen's samples);
+  (`runtimes/csharp/tests/Nino.UnitTests/Polymorphism/UnionTests.cs` on net11.0, the corpus's and nino-gen's samples);
 - a rule that depends on a preprocessor symbol sets it with a solution transform
   (`WithProjectParseOptions(...WithPreprocessorSymbols(...))`, `CodeFixTests.WeakToleranceTest`); one about a type
   from another assembly references a built one (`Nino.UnitTests.Subset`) through `AdditionalReferences`.

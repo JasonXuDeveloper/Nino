@@ -1,6 +1,6 @@
 # Benchmarks
 
-`benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
+`runtimes/csharp/benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
 protobuf-net).
 `V3/` is every benchmark class (same data, same models, same method names) built against **Nino 3.3.13 from
 nuget.org**, the last v3 release, so v4 can be compared with v3 on the same machine: each class's Nino and MemoryPack
@@ -16,15 +16,15 @@ type. Each `V3/` file lists what it does differently and what it leaves out, wit
 `ReferenceTest` (its graph has cycles, which v3, writing every reference by value, never finishes), `CollectionsTest`'s
 `SelfTree` (v3's generator overflows the compiler's stack on a list that holds itself), and `BclTypesTest`'s
 `BigInteger`, `Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>` and `ILookup`
-(v3 writes none of them and has no API for a formatter of one's own). None of it is part of `Nino.slnx`.
+(v3 writes none of them and has no API for a formatter of one's own). None of it is part of `runtimes/csharp/Nino.slnx`.
 
 ```sh
-benchmarks/run.sh                          # v3, then the full v4 suite; about six hours
-benchmarks/run.sh /path/to/out             # write the results somewhere else
-QUICK=1 benchmarks/run.sh                  # development run, about 30 to 45 minutes (see below)
-FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs all of its cases: shards.json's v3 globs)
-FILTER='*Vectors* *FixedStruct*' benchmarks/run.sh   # several patterns, separated by spaces
-FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (337 of 728 cases)
+runtimes/csharp/benchmarks/run.sh                          # v3, then the full v4 suite; about six hours
+runtimes/csharp/benchmarks/run.sh /path/to/out             # write the results somewhere else
+QUICK=1 runtimes/csharp/benchmarks/run.sh                  # development run, about 30 to 45 minutes (see below)
+FILTER='*PooledTest*' runtimes/csharp/benchmarks/run.sh    # only some v4 classes (v3 always runs all of its cases: shards.json's v3 globs)
+FILTER='*Vectors* *FixedStruct*' runtimes/csharp/benchmarks/run.sh   # several patterns, separated by spaces
+FILTER='*.Nino* *.MemoryPack*' runtimes/csharp/benchmarks/run.sh    # Nino and MemoryPack only (337 of 728 cases)
 ```
 
 `QUICK=1` is for trends and regressions while developing: it sets `NINO_BENCH_QUICK=1`, which switches every class's
@@ -33,12 +33,12 @@ the error is within 2% of the mean. Do not publish its numbers: the README, the 
 and the release notes use the full protocol, which is what supports "x× faster" and "on par" (within 5%).
 
 Requires the .NET 11 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
-reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `benchmarks/Nino.Benchmark`: built with
+reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `runtimes/csharp/benchmarks/Nino.Benchmark`: built with
 `NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
 references Nino 3.3.13 from nuget.org instead of the repository's code, compiles `V3/*.cs` (the same classes ported to
 v3's API) with the shared data, models, job, columns and checks, references `V3/Versioned`, and goes to `bin/v3` and
 `obj/v3`.
-`--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
+`--verify` (`runtimes/csharp/benchmarks/Nino.Benchmark/Harness/Verify.cs`, run by `run.sh` and `report.yml`, for v3 too, and on every push by
 `ci.yml`'s integrations job on x64 and its Arm64 runtime-internals job) checks every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
 serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`, protobuf-net to
@@ -46,10 +46,10 @@ a `MemoryStream`, Google.Protobuf and System.Text.Json (through a `Utf8JsonWrite
 each to the writer it writes fastest, all reused (`ExternalBufferTest` writes all of them to one
 `ArrayBufferWriter<byte>`: the caller's writer is what it measures).
 
-The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come from the newest release's report (see
+The runtime tables in [docs/v4-benchmarks.md](../../../docs/v4-benchmarks.md) come from the newest release's report (see
 below); the release notes of each release carry its numbers.
 
-Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) runs the benchmark
+Every release runs the same protocol in CI: [`report.yml`](../../../.github/workflows/report.yml) runs the benchmark
 classes in parallel on twelve runners per architecture (SimpleTest split into its serialize and deserialize cases,
 BclTypesTest, CollectionsTest, CommonTypesTest and WorkloadTest by type), every serializer's run of a case always on one, every
 case in three processes, and
@@ -93,7 +93,7 @@ license's seat like every Unity run, and a failure leaves only this section out 
 Every publish job runs `release_body.py publish`; a dry run against a directory standing in for the release:
 
 ```sh
-python3 benchmarks/reports/release_body.py publish --tag v4.0.0-rc.10 --dir work --release-dir fake \
+python3 runtimes/csharp/benchmarks/reports/release_body.py publish --tag v4.0.0-rc.10 --dir work --release-dir fake \
   dotnet-x64.md=x64.md dotnet-v3-x64.md=v3.md dotnet-arm64.md=arm64.md     # fake/body.md, fake/assets/, fake/release-notes/
 ```
 
@@ -103,13 +103,13 @@ rewrites everything between the `<!--bench:...-->` markers of `README.md`, `READ
 and the charts (`docs/assets/benchmark-<group>.svg` and `-dark.svg`, one per group of cases in `readme.py`'s `GROUPS`:
 real workloads, basic types and structs, polymorphism, nullable values, collections and common types, reuse and
 pooling, reference tracking and version tolerance, others; and the overview `benchmark.svg` and `.png`, the image
-the NuGet packages' README shows by its URL on `main`), then pushes them to `main`. That README, `src/nuget-readme.md`, is
+the NuGet packages' README shows by its URL on `main`), then pushes them to `main`. That README, `runtimes/csharp/src/nuget-readme.md`, is
 README.md without HTML and without numbers, which `.github/scripts/nuget_readme.py` writes (a package's README is
 frozen when it is packed, before `report.yml` measures it). `--release <tag>` downloads a release's assets and does the same; after a full local run, the same script
 updates them from your reports (`--png` renders the overview PNG with headless Chrome, `CHROME=` or `--chrome` names it):
 
 ```sh
-python3 benchmarks/reports/readme.py --v4 out/v4/results/*-joined-*-report-github.md \
+python3 runtimes/csharp/benchmarks/reports/readme.py --v4 out/v4/results/*-joined-*-report-github.md \
   --v3 out/v3/results/*-report-github.md --png
 ```
 
@@ -125,7 +125,7 @@ The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `releas
 
 ## Benchmark Classes
 
-`benchmarks/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
+`runtimes/csharp/benchmarks/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
 MemoryPack, and with MessagePack and protobuf-net wherever they can write the same data (see
 [MessagePack and protobuf-net](#messagepack-and-protobuf-net)); `SimpleTest`, `PolymorphicTest`, `NullableTest`,
 `CollectionsTest`'s nullable collections and `WorkloadTest` also with Google.Protobuf and System.Text.Json (see [Google.Protobuf and System.Text.Json](#googleprotobuf-and-systemtextjson)). All of them land in one joined table, which each release
@@ -194,7 +194,7 @@ string and a `DateTime` as a UTC timestamp (it reads a local time back in UTC: t
 one message per level of a class hierarchy and writes a `DateTime` as its own `bcl.DateTime` message.
 
 ```sh
-cd benchmarks/Nino.Benchmark
+cd runtimes/csharp/benchmarks/Nino.Benchmark
 dotnet run -c Release -- --filter '*'   # the published settings (NinoJobAttribute: 3 launches, 5 warmups, 15 iterations)
 dotnet run -c Release -- --filter '*FixedSizeTest*' --launchCount 1 --warmupCount 1 --iterationCount 3   # a quick look
 ```
@@ -286,7 +286,7 @@ use by default, in every case of those classes, and in `CollectionsTest`'s nulla
   protoc of Grpc.Tools: `Workloads/workloads.proto` for the workloads, `Fixtures/cases.proto` for `SimpleTest`,
   `PolymorphicTest` and the nullable data (Level300, see [Nullable values](#nullable-values)). Each file is what protobuf-net's contracts of the models generate (`RuntimeTypeModel.GetSchema`,
   proto3; `ProtoFile` in `Fixtures/ProtobufModel.cs`): run `dotnet bin/Release/net10.0/Nino.Benchmark.dll --write-proto`
-  in `benchmarks/Nino.Benchmark` after changing a model, and the setup of a class that uses the file fails while it is
+  in `runtimes/csharp/benchmarks/Nino.Benchmark` after changing a model, and the setup of a class that uses the file fails while it is
   stale. So both libraries write the same messages, and Google.Protobuf's data is parsed from protobuf-net's bytes of
   the same values outside the timed region. The workload models carry `CompatibilityLevel.Level300` (`DateTime` as
   `google.protobuf.Timestamp`, `decimal` and `Guid` as strings); `SimpleTest`'s and `PolymorphicTest`'s keep
@@ -318,9 +318,9 @@ the libraries that cannot read into an existing object read a new one (MemoryPac
 Nino 3.3.13 and once against this repository. When a case of the full run is slower, this shows which member is.
 
 ```sh
-benchmarks/members/run.sh                     # v3, v4, v3 again, in-process; a few minutes
-FILTER='*DMap*' benchmarks/members/run.sh     # only some cases
-FILTER='*DStr*' DISASM=1 benchmarks/members/run.sh   # also the JIT's code for x64 and arm64
+runtimes/csharp/benchmarks/members/run.sh                     # v3, v4, v3 again, in-process; a few minutes
+FILTER='*DMap*' runtimes/csharp/benchmarks/members/run.sh     # only some cases
+FILTER='*DStr*' DISASM=1 runtimes/csharp/benchmarks/members/run.sh   # also the JIT's code for x64 and arm64
 ```
 
 ## Machine Code for x64 and ARM64
@@ -335,9 +335,9 @@ Microsoft's crossgen2 package into the .NET 10 runtime. With it every method is 
 shows both listings:
 
 ```sh
-JIT=$(benchmarks/asm/cross-jit.sh)
+JIT=$(runtimes/csharp/benchmarks/asm/cross-jit.sh)
 DOTNET_AltJit='*' DOTNET_AltJitName=$JIT DOTNET_JitDisasm='Nino*' dotnet <app>.dll > out.txt   # stdout, not
-python3 benchmarks/members/split-asm.py out.txt asm      # DOTNET_JitStdOutFile; writes asm-x64.txt, asm-arm64.txt
+python3 runtimes/csharp/benchmarks/members/split-asm.py out.txt asm      # DOTNET_JitStdOutFile; writes asm-x64.txt, asm-arm64.txt
 ```
 
 `DISASM=1` on `members/run.sh` does this for the member cases. The cross JIT's code is never run, and the timings of
@@ -351,10 +351,10 @@ call, between two commits, in about two minutes (BenchmarkDotNet needs half an h
 a shared machine; the JIT's code barely moves):
 
 ```sh
-python3 benchmarks/asm/asm.py compare v4.0.0-rc.6             # that tag against the working tree
-python3 benchmarks/asm/asm.py dump --ref main base.json       # or one side at a time,
-python3 benchmarks/asm/asm.py dump --asm head.asm head.json   # keeping the listing,
-python3 benchmarks/asm/asm.py diff base.json head.json        # and compared
+python3 runtimes/csharp/benchmarks/asm/asm.py compare v4.0.0-rc.6             # that tag against the working tree
+python3 runtimes/csharp/benchmarks/asm/asm.py dump --ref main base.json       # or one side at a time,
+python3 runtimes/csharp/benchmarks/asm/asm.py dump --asm head.asm head.json   # keeping the listing,
+python3 runtimes/csharp/benchmarks/asm/asm.py diff base.json head.json        # and compared
 ```
 
 It runs `Nino.Benchmark` of each side with the startup hook in `asm/jitwarm/`, which calls every case until it is compiled

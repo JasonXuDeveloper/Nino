@@ -5,13 +5,13 @@ against 64-bit CoreCLR's (the first column). The canonical layout Nino writes is
 exceptions that do not depend on the runtime: `DateTimeOffset` as .NET 10 lays it out (its minutes as an `int`; .NET 8
 has a `short` at the same place), `nint`/`nuint`/pointers and function pointers as 8 bytes, and the SIMD vectors aligned as on x64.
 `Vector<T>` is not serializable (below). Every runtime below writes the canonical bytes and reads them, checked case by
-case against the bytes CoreCLR x64 wrote: one fixture file, `src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`,
-linked into `tests/Nino.RuntimeTests` (`BclStructs.cs`) and read by Unity's `BclLayoutTests` in its editor and its
+case against the bytes CoreCLR x64 wrote: one fixture file, `runtimes/csharp/src/Nino.Unity/Assets/Test/Runtime/BclFixtures.cs`,
+linked into `runtimes/csharp/tests/Nino.RuntimeTests` (`BclStructs.cs`) and read by Unity's `BclLayoutTests` in its editor and its
 IL2CPP player: a runtime whose layout is the canonical one copies the struct as
 it is, every other one converts it field by field, at offsets it finds once (`NinoLayout`, `MeasureMemory`).
 
-Measured by CI run 41280617045 (`# layout` lines of `tests/Nino.RuntimeTests`, tabulated with
-`tests/Nino.RuntimeTests/layouts.py`): .NET 10.0.13/14 on Linux x64, Linux Arm64, Windows x86 and Linux Arm32 (qemu), .NET
+Measured by CI run 41280617045 (`# layout` lines of `runtimes/csharp/tests/Nino.RuntimeTests`, tabulated with
+`runtimes/csharp/tests/Nino.RuntimeTests/layouts.py`): .NET 10.0.13/14 on Linux x64, Linux Arm64, Windows x86 and Linux Arm32 (qemu), .NET
 Framework 4.8.9363 64-bit and 32-bit, Mono 6.14.1 on Linux x64 and Arm64. The .NET Framework columns are history:
 Nino no longer runs there since 4.0.0-rc.11 (no netstandard2.0 build), and CI no longer measures it. `=` is the same size and field offsets as
 CoreCLR x64; a bold cell differs (offsets only, in field order); `n/a` is a type the runtime does not have (the

@@ -8,7 +8,7 @@ One set of inputs, written by .NET Nino, that every Nino runtime (.NET, TypeScri
   or using memory out of proportion to the input.
 
 `Nino.Conformance/` is the .NET program that writes the corpus (its sample types are in `Types.cs`, the cases in
-`ValidCases.cs` and `MaliciousCases.cs`) and checks it. It is part of `Nino.slnx`, so the solution build compiles it; run it by path.
+`ValidCases.cs` and `MaliciousCases.cs`) and checks it. It is part of `runtimes/csharp/Nino.slnx`, so the solution build compiles it; run it by path.
 
 ## Layout
 
@@ -37,7 +37,7 @@ Every case reads a whole input as one top-level value of the case's `type` (`Nin
 | `size` | the length of the `.bin` |
 | `roundTrip` | whether writing the value read gives the `.bin` back. False only where the bytes are not what .NET writes for that type: data of another version of the type (`*-old-to-new`, `*-v1-to-v2`), or a form .NET reads but does not write (`string-utf16-header-for-latin1`) |
 | `reencoded` | when `roundTrip` is false: the bytes (hex) .NET writes for the value read; a runtime must write exactly these |
-| `layouts` | the `[NinoTypeLayout]` of every `[NinoType]` the value may contain, by name: the type, its members' types and elements, every subtype of a class or interface written behind a type id, and whatever an `object` member holds. The format is `NinoTypeLayoutAttribute.ToString()` (`src/Nino.Core/Attributes/NinoTypeLayoutAttribute.cs` documents the encodings). A generic type is listed once, as its definition (`Conformance.Box<T>`) |
+| `layouts` | the `[NinoTypeLayout]` of every `[NinoType]` the value may contain, by name: the type, its members' types and elements, every subtype of a class or interface written behind a type id, and whatever an `object` member holds. The format is `NinoTypeLayoutAttribute.ToString()` (`runtimes/csharp/src/Nino.Core/Attributes/NinoTypeLayoutAttribute.cs` documents the encodings). A generic type is listed once, as its definition (`Conformance.Box<T>`) |
 | `typeIds` | the type id (hex) of each closed generic type in the value, which its definition's layout cannot give (`id=0x00000000` there): the FNV-1a hash of its name, as for any type |
 | `value` | the value .NET reads from the bytes, as JSON (below) |
 
@@ -121,13 +121,13 @@ claim gigabytes in a few bytes. Run them with a timeout and, where the language 
 unchecked default mode runs the case in its untrusted mode; one without (every runtime but .NET today) runs it as is.
 
 A runtime that generates code per type (Go, Rust, TypeScript) generates it from the `layouts`; the type names the
-cases use are those of `tests/conformance/Nino.Conformance/Types.cs`.
+cases use are those of `runtimes/csharp/tests/Nino.Conformance/Types.cs`.
 
 ## Regenerating and checking
 
 ```
-dotnet run --project tests/conformance/Nino.Conformance -c Release -- --out tests/conformance/corpus
-dotnet run --project tests/conformance/Nino.Conformance -c Release -- --verify tests/conformance/corpus
+dotnet run --project runtimes/csharp/tests/Nino.Conformance -c Release -- --out tests/conformance/corpus
+dotnet run --project runtimes/csharp/tests/Nino.Conformance -c Release -- --verify tests/conformance/corpus
 ```
 
 `--out` rewrites the whole corpus; it is deterministic, so an unchanged Nino gives identical files. It probes each

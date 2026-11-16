@@ -1083,7 +1083,7 @@ hexdigit      = digit | "A" | "B" | "C" | "D" | "E" | "F" ;
   between outer and inner type (`Spec.Outer2.In2`), unlike the `+` of type-id names.
 - Type names can contain `,`, `:`, `<`, `>`, `[` and `]`. To split a list (members on `;`, fields and arguments on
   `,`, parts on `:`), a parser MUST track nesting depth over `()`, `{}`, `<>` and `[]` and split only at depth 0.
-  This is what `src/Nino.Codegen/Layouts/WireEncoding.cs` (`SplitMembers`, `Parse`) does.
+  This is what `runtimes/csharp/src/Nino.Codegen/Layouts/WireEncoding.cs` (`SplitMembers`, `Parse`) does.
 
 ### 8.3 Meaning of the encodings
 

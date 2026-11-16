@@ -9,7 +9,7 @@ metadata:
 
 Every number that counts comes from a GitHub runner. Local runs only choose between ideas; runners decide; only
 `report.yml` publishes. Where the next win is: `audit-perf`. The techniques: `optimize` (.NET, Unity) and `optimize-runtimes`. The files and options:
-`benchmarks/AGENTS.md` and benchmarks/README.md (read it instead of guessing an option).
+`runtimes/csharp/benchmarks/AGENTS.md` and runtimes/csharp/benchmarks/README.md (read it instead of guessing an option).
 
 ## What to run
 
@@ -19,11 +19,11 @@ Every number that counts comes from a GitHub runner. Local runs only choose betw
 
 | Question | Run |
 |---|---|
-| .NET case against competitors, locally | `QUICK=1 FILTER='*SimpleTest*' benchmarks/run.sh` (any BenchmarkDotNet filter; quick mode stops each case at 6 to 10 iterations under 2 % error, about 30-45 min for everything) |
+| .NET case against competitors, locally | `QUICK=1 FILTER='*SimpleTest*' runtimes/csharp/benchmarks/run.sh` (any BenchmarkDotNet filter; quick mode stops each case at 6 to 10 iterations under 2 % error, about 30-45 min for everything) |
 | Every case still reads back right | `Nino.Benchmark --verify` (Verify.cs) |
-| One member's cost, v3 against v4 | `benchmarks/members/run.sh` (`DISASM=1` for listings) |
-| Did the machine code change | `python3 benchmarks/asm/asm.py compare origin/main` (`optimize`) |
-| Generator time and generated size | `benchmarks/Nino.GeneratorBenchmark` (`audit-generator`); on runners, `generator` lines of runtime-ab (below) |
+| One member's cost, v3 against v4 | `runtimes/csharp/benchmarks/members/run.sh` (`DISASM=1` for listings) |
+| Did the machine code change | `python3 runtimes/csharp/benchmarks/asm/asm.py compare origin/main` (`optimize`) |
+| Generator time and generated size | `runtimes/csharp/benchmarks/Nino.GeneratorBenchmark` (`audit-generator`); on runners, `generator` lines of runtime-ab (below) |
 | Go | `cd runtimes/go/bench && go test -run='^$' -bench=. -benchmem -count=6 . \| tee bench.txt`, then benchstat |
 | Rust | `cargo bench -p nino-bench --bench compare` (and `--bench text` for transcoding, `--bench blocks` for blocks of fixed-size elements). Back to back across worktrees with the shared `CARGO_TARGET_DIR`, touch each side's `.rs` and `Cargo.toml` files before its run, or give each side its own target directory: every worktree builds the workspace's crates under the same artifact names, and cargo, finding them newer than the other side's sources, ran one binary for both sides (land/rust's first local run) |
 | TypeScript | `runtimes/typescript/bench/run.sh [scenario]` (Node and headless Chromium) |
@@ -94,7 +94,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
      bend the filter to make lines differ: `r{4}ecords` demands the letter four times, every job of such a line matches
      no bench and fails (the first three-way prefetch round, 400 failed jobs).
    - **Generator and analyzer lines** are runtime-ab's `generator#<rounds> <base> <head> <arguments joined by commas>`
-     (`generator#10 d2fa565f abe4906b 30,8,--layouts`): the head's `benchmarks/Nino.GeneratorBenchmark` (so the head
+     (`generator#10 d2fa565f abe4906b 30,8,--layouts`): the head's `runtimes/csharp/benchmarks/Nino.GeneratorBenchmark` (so the head
      needs every option the line passes) loads each side's `Nino.Generator` (`--generator`) in a process per side and
      round, and each process gives the median of its warm runs: generator time, the analyzers' own time and the
      analysis wall time (`generate`, `analyzers`, `wall` in the summary, head against base). Judge the analyzer on
@@ -104,19 +104,19 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    - **.NET lines** go into `.github/dotnet-ab-request.txt` and run `dotnet-ab.yml`:
      `[cpu=<regex>] <base sha> <head sha> <rounds> <BenchmarkDotNet filters...>`, each line a job of its own per runner
      (with `cpu=`, up to 8 x64 slots, each measuring only on a matching CPU; the file's header). Both sides build the
-     head's `benchmarks/Nino.Benchmark`. At most 3 active lines across all workers, and Arm64 runs one job per line, so
+     head's `runtimes/csharp/benchmarks/Nino.Benchmark`. At most 3 active lines across all workers, and Arm64 runs one job per line, so
      more Neoverse-N2 samples need duplicate lines. The workflow measures every active line on every push to the file,
      not only new ones: mark finished lines `# done (run N):` in the push that adds the next ones, or, with nothing to
      add, in a commit whose message carries `[skip ci]` (round 105).
    - Keep other workers' lines, mark finished ones `# done:`, batch requests into one push, merge only, never
      force-push.
    - **A release tag**: ask the owner to dispatch `ab-bench.yml` on `main` with `compare` (a session cannot: its token
-     lacks `actions: write`, `audit-ci`). It builds head's `benchmarks/Nino.Benchmark` on the tag with head's
-     `Directory.Packages.props` in `benchmarks/`, an empty root `Directory.Build.props` where the tag has none
+     lacks `actions: write`, `audit-ci`). It builds head's `runtimes/csharp/benchmarks/Nino.Benchmark` on the tag with head's
+     `runtimes/csharp/Directory.Packages.props` in `runtimes/csharp/benchmarks/`, an empty root `runtimes/csharp/Directory.Build.props` where the tag has none
      (v4.0.0-rc.7 kept its props in `src/`, without central package versions) and `NinoBenchLegacy` when the full build
      fails, and fails the run when even that does not build. From a session, compare a tag with dotnet-ab: base = the
      tag plus the same two files committed (0af6bb5e), head = the commit plus `NinoBenchLegacy` set in
-     `benchmarks/Nino.Benchmark/Directory.Build.props` (dotnet-ab passes no property; 115 of 128 Nino cases against
+     `runtimes/csharp/benchmarks/Nino.Benchmark/Directory.Build.props` (dotnet-ab passes no property; 115 of 128 Nino cases against
      rc.7, run 41413072278). A benchmark an older tag cannot compile goes inside `#if !NINO_BENCH_LEGACY` on main
      (CpuProbe, UntrustedTest, GenericPolymorphicTest).
    - **Spend CI as a budget** (the owner: "跑太多 ci job 了，concurrency 预算都吃没了"): the account runs a limited
@@ -180,7 +180,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Upgrading a competitor
 
-- When `Directory.Packages.props` moves MemoryPack, MessagePack, protobuf-net or Google.Protobuf to a new version
+- When `runtimes/csharp/Directory.Packages.props` moves MemoryPack, MessagePack, protobuf-net or Google.Protobuf to a new version
   (or the benchmark's .NET, which is System.Text.Json's), update the version
   the docs site names in the same series: `git grep <old version>` in Nino.Docs (the home page's
   `src/components/home-sections.tsx`, the benchmark and `vs-*` pages in both languages, `scripts/csharp-check`). Why:
@@ -189,7 +189,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Adding a case
 
-- .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
+- .NET: a class in `runtimes/csharp/benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
   MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest`, `NullableTest`,
   `CollectionsTest`'s nullable collections and the workloads), a `Verify.cs` entry, its class in a chart group
   (`readme.py`'s `GROUPS`, the site's `dotnetGroups` in `src/lib/benchmarks.ts`; a class neither names lands in
@@ -247,7 +247,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   baseline that reads null (`NullableObject`) carries `[ReadsNull]`, so Verify checks the others read null too.
 - In `WorkloadTest` a library that lacks a feature is measured through its usual workaround (copies of shared
   objects, a new instance instead of reading into one; the owner's choice for workloads), said in the model's comment
-  and in benchmarks/README.md; the other classes keep "no method rather than other data".
+  and in runtimes/csharp/benchmarks/README.md; the other classes keep "no method rather than other data".
 - Read a joined BenchmarkDotNet summary with `grep '\| Nino'`, not `'^\| *Nino'`: with several classes it starts each
   row with a Type column.
 - Go, Rust, TypeScript: the same data in each `bench` against that language's competitors. Every column ends with
@@ -285,7 +285,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   few KB, sharp at any zoom, and a pair per chart follows the reader's theme (the owner's call). readme.py's
   `--png` (the overview chart for nuget.org, which shows no SVG) still uses headless Chrome: run it without
   `--user-data-dir` in a cloud session, with which Chromium 1243 wrote nothing and never exited.
-- Dry-run the publish jobs before changing them: `python3 benchmarks/reports/release_body.py publish --tag <tag>
+- Dry-run the publish jobs before changing them: `python3 runtimes/csharp/benchmarks/reports/release_body.py publish --tag <tag>
   --dir <work> --release-dir <fake release dir> NAME=PATH...` for each job in report.yml's order (a directory with
   `body.md` stands in for the release), then `readme.py --assets <fake>/assets` in a copy
   of the tree; `test_release_body.py` runs the same.
@@ -360,7 +360,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   of a stack overflow, so the type stays in the v4 `Cases/` file); a graph with a cycle (ReferenceTest: v3
   writes every reference by value and overflows the stack). Measure v3 through these workarounds, as MessagePack and
   protobuf-net get theirs, never leave a case out for them (the owner, 2026-11-13: "跟messagepack/pb一样就行"). A v3 port
-  (`benchmarks/Nino.Benchmark/V3/<Class>.cs`) keeps the v4 class's name, method names, data and attributes and
+  (`runtimes/csharp/benchmarks/Nino.Benchmark/V3/<Class>.cs`) keeps the v4 class's name, method names, data and attributes and
   changes only the Nino calls (`NinoGen.Serializer` / `NinoGen.Deserializer`, `ArrayBufferWriter<byte>`), shares the
   v4 models (in `Fixtures/`; an attribute 3.3.13 lacks behind `#if NINO_BENCH_V3`), drops the MessagePack,
   protobuf-net, Google.Protobuf and JSON cases (the v3 run times Nino and MemoryPack), and joins the `"v3"` globs of the

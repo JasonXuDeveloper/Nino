@@ -13,15 +13,15 @@ that skill when the part applies, not only this list.
 ## 1. Runtime (`audit-core`, `optimize`, `audit-security`)
 
 - The code standard (`audit-code`): one implementation with thin typed wrappers, one way per job, dependencies in
-  the allowed direction; families (tuples, multi-dimensional arrays) come from `tools/CodeGen` templates, never by
+  the allowed direction; families (tuples, multi-dimensional arrays) come from `runtimes/csharp/tools/CodeGen` templates, never by
   hand.
 - The read and write paths stay as fast on every platform (`platforms`): rare or large paths out of line, small
   helpers `AggressiveInlining`, no `ref reader` / `ref writer` passed to a call that is not inlined; the machine code
-  is checked with `python3 benchmarks/asm/asm.py compare origin/main` and every method it lists is explained or fixed.
+  is checked with `python3 runtimes/csharp/benchmarks/asm/asm.py compare origin/main` and every method it lists is explained or fixed.
 - Every check of the data throws `NinoDataException`; lengths are checked before allocating; recursion counts depth;
   hash tables Nino fills count collisions (`audit-security`).
 - A path through a runtime's internals follows `runtime-internals` (startup check, public API fallback, a
-  `FastPaths` row in `tests/Nino.RuntimeTests`).
+  `FastPaths` row in `runtimes/csharp/tests/Nino.RuntimeTests`).
 - Public API: XML docs, trim/AOT annotations where reflection is involved, no break without the owner.
 
 ## 2. Generator (`audit-generator`, `audit-generated-code`)
@@ -29,7 +29,7 @@ that skill when the part applies, not only this list.
 - Incremental rules: equatable symbol-free models, a tracking name and caching assertion per stage, no diagnostics
   from the generator (the analyzer reports).
 - A new way to declare a type (kind, attribute option, place) adds a dimension to
-  `tests/Nino.UnitTests/Corner/Modeling/ShapeMatrixTests.cs`.
+  `runtimes/csharp/tests/Nino.UnitTests/Corner/Modeling/ShapeMatrixTests.cs`.
 - Names the model may leave empty go through `TypeModel.Need`; what a type gets is decided by the model's rules.
 - The generated text reads like hand-written code and compiles to the same machine code as before unless the change
   is meant to change it (`audit-generated-code`).
@@ -49,14 +49,14 @@ templates, every golden-bytes test (Unity's too), a `Wire-Format:` trailer.
 
 A feature users can declare in C# is read and written by the Go, Rust and TypeScript runtimes and by nino-gen's
 generated code, or nino-gen reports NINOGEN002 for it; their own rules are in `runtimes/*/AGENTS.md` and
-`src/Nino.Codegen/AGENTS.md`.
+`runtimes/csharp/src/Nino.Codegen/AGENTS.md`.
 
 ## 6. Tests
 
-- Behavior, in the folder of `tests/Nino.UnitTests` that owns the area (`tests/AGENTS.md`); a regression test that
+- Behavior, in the folder of `runtimes/csharp/tests/Nino.UnitTests` that owns the area (`runtimes/csharp/tests/AGENTS.md`); a regression test that
   fails before each fix.
 - Hostile input for every new read path (`StrictReadTests`, `HashFloodingTests`, `UntrustedModeTests`, the nesting
-  tests) and a fuzz target or probe when it reads new shapes (`tests/Nino.Fuzz`).
+  tests) and a fuzz target or probe when it reads new shapes (`runtimes/csharp/tests/Nino.Fuzz`).
 - The matrix of `verify`: the netstandard builds, interceptors off, the Roslyn 4.8 generator, no SIMD, Mono, Arm.
 - Tests assert exact exception types (`Assert.ThrowsExactly`).
 

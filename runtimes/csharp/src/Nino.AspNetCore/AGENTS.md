@@ -4,7 +4,7 @@
 
 net8.0 and net10.0 library (trimmable, NativeAOT compatible), packed as `Nino.AspNetCore`: MVC input and output
 formatters and Minimal API bodies and results, read from the request pipe and written to the response pipe.
-`audit-core` audits it; tests in `tests/Nino.AspNetCore.Tests`.
+`audit-core` audits it; tests in `runtimes/csharp/tests/Nino.AspNetCore.Tests`.
 
 ```
 Nino.AspNetCore.csproj       targets, the Nino.Core reference, the Microsoft.AspNetCore.App framework reference

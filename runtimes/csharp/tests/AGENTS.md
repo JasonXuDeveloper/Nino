@@ -87,7 +87,7 @@ Security/                    hostile input: StrictReadTests, HashFloodingTests, 
                              each case in its own load context)
   Nesting/                   DeepNesting, BoundedNesting, SelfNestingCollection, WriteDepth
 Generator/                   the generator, the analyzer and the code fixes: incremental caching
-                             (IncrementalGeneratorTests), the tools/CodeGen output checks (*FormattersGenerationTests)
+                             (IncrementalGeneratorTests), the runtimes/csharp/tools/CodeGen output checks (*FormattersGenerationTests)
   Analyzer/                  AnalyzerTests (every rule; the AnalyzerReleases files), a partial file per group of rules
                              (Types, Construction, Members, Utf8, InterfaceMembers, Vectors, Features, Pooling,
                              Registrations); the callbacks' rules and fixes (CallbackAnalyzerTests: NINO038-NINO044)
@@ -110,7 +110,7 @@ Infrastructure/              shared helpers: Rt (round trips, FromHex/ToHex, OnS
                              TestCompilation, TestReferences (the analyzer tests' references, created once),
                              MSTestSettings (classes run in parallel)
 Nino.UnitTests.csproj        targets, references (Nino.Core, Immutable, UnityTypes, the
-                             generator's Roslyn 4.3 build, tools/CodeGen templates)
+                             generator's Roslyn 4.3 build, runtimes/csharp/tools/CodeGen templates)
 ```
 
 ## Rules for these files

@@ -4,7 +4,7 @@
 
 Module `github.com/JasonXuDeveloper/Nino/runtimes/go/v4` (Go 1.22, no dependencies): the Reader and Writer
 generated Go code calls, struct tags as a reflection-based alternative, and the corpus tests; README.md documents
-the API and its guarantees. nino-gen's Go target (`src/Nino.Codegen`) writes code in the style of
+the API and its guarantees. nino-gen's Go target (`runtimes/csharp/src/Nino.Codegen`) writes code in the style of
 `internal/sample`. `audit-runtimes` audits it, `audit-security` its read paths.
 
 ```
@@ -90,21 +90,21 @@ internal/
                              main_test.go checks the committed files are current
   corpustest/                runs the conformance corpus (valid, malicious, truncations) over a set of codecs;
                              render.go: values to the corpus's JSON (reflection, test code only)
-  sample/                    the corpus's types (tests/conformance/Nino.Conformance/Types.cs) with hand-written codecs in the
+  sample/                    the corpus's types (runtimes/csharp/tests/Nino.Conformance/Types.cs) with hand-written codecs in the
                              style a generator emits (codec_*.go; their collection loops and raw values in loops.go, as
                              the template writes them), their ids, layouts and tags; conformance, deep, registry and
                              tagged tests; FuzzDecode, FuzzTaggedDecode
   generated/                 nino_types.go: the corpus's types as nino-gen writes them (do not edit), its corpus test and
                              into_test.go (DeserializeInto: objects, slices, slots, failures, deferral),
                              nesting_test.go (nested claims share the read's allocation budget);
-                             shapes/: tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
+                             shapes/: runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
 bench/                       module of its own: the runtime against Protocol Buffers (benchpb/, buf), MessagePack,
                              encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings, sets
                              (sets.go) and a scattered list of 1,000,000 records (scattered.go);
                              tiers_amd64_test.go checks tier detection against golang.org/x/sys/cpu
 ```
 
-Generated files: `internal/generated` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`;
+Generated files: `internal/generated` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`;
 the `.s` kernels by `go generate` (internal/asm).
 
 ## Go runtime

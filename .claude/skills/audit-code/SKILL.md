@@ -1,6 +1,6 @@
 ---
 name: audit-code
-description: "Audit Nino's code for cleanliness and maintainability and fix it - the code standard every skill applies (DRY, decoupled, clear), coupling, god files and god methods, one problem solved two ways, comments that restate instead of explaining why - in the files no specialist owns: tools, the structure of tests, benchmarks and their Python scripts, .github scripts, the Unity project and the seams between projects. Use for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry, or when the test suite is slow. Triggers: tools/, tools/CodeGen, tests/Shared, slow tests, test suite too slow, MSTestSettings, DoNotParallelize, benchmarks/*.py, python, .github/scripts, src/Nino.Unity, refactor, clean up, cleanup, coupling, god file, god class, maintainability, 整洁, 清理, 重构, 解耦, 重复代码, 可维护性, 脚本, 太大了, 拆分, 测试太慢."
+description: "Audit Nino's code for cleanliness and maintainability and fix it - the code standard every skill applies (DRY, decoupled, clear), coupling, god files and god methods, one problem solved two ways, comments that restate instead of explaining why - in the files no specialist owns: tools, the structure of tests, benchmarks and their Python scripts, .github scripts, the Unity project and the seams between projects. Use for a cleanup round, after large merges or a burst of optimization work, or when code was written in a hurry, or when the test suite is slow. Triggers: tools/, runtimes/csharp/tools/CodeGen, runtimes/csharp/tests/Shared, slow tests, test suite too slow, MSTestSettings, DoNotParallelize, runtimes/csharp/benchmarks/*.py, python, .github/scripts, runtimes/csharp/src/Nino.Unity, refactor, clean up, cleanup, coupling, god file, god class, maintainability, 整洁, 清理, 重构, 解耦, 重复代码, 可维护性, 脚本, 太大了, 拆分, 测试太慢."
 metadata:
   internal: true
 ---
@@ -15,8 +15,8 @@ live is `audit-layout`.
 
 ## Owns
 
-`tools/`, the structure and shared fixtures of `tests/`, the harness and scripts of `benchmarks/`, `.github/scripts`
-and `.github/actions`, `src/Nino.Unity` (its C# outside the package's runtime code), and code duplicated across
+`tools/`, the structure and shared fixtures of `tests/`, the harness and scripts of `runtimes/csharp/benchmarks/`, `.github/scripts`
+and `.github/actions`, `runtimes/csharp/src/Nino.Unity` (its C# outside the package's runtime code), and code duplicated across
 projects or languages.
 
 ## The code standard (stated here; every skill that writes code applies it)
@@ -31,7 +31,7 @@ projects or languages.
 - **One implementation**: the same logic lives in one place (two loops, two parsers, two setup blocks, two copies
   of a test fixture, two Python scripts reading one report format, the same workflow steps in several jobs are
   findings). Merge into one shared core with thin typed wrappers; generate what differs only by type or arity
-  (`tools/CodeGen`, the generator's templates, nino-gen's IR), never copy it by hand.
+  (`runtimes/csharp/tools/CodeGen`, the generator's templates, nino-gen's IR), never copy it by hand.
 - **One way per job**: one problem is solved one way across the codebase (throw helpers, buffer patterns, report
   parsers, test idioms, option plumbing). Pick the better one, move every site to it, and write the choice into the
   owning skill so new code follows it.
@@ -40,8 +40,8 @@ projects or languages.
   nino-gen's options); a second copy in another language is generated or checked against the first by a test.
   A fixture two C# test suites read lives where the stricter build can compile it and the other links it
   (`<Compile Include=... Link=...>`): Unity compiles only files under its `Assets/`, so CoreCLR's bytes for raw BCL
-  layouts (`BclFixtures.cs`, `BclFixtureTypes.cs`) live in `src/Nino.Unity/Assets/Test/Runtime` and
-  `tests/Nino.RuntimeTests` links them; Unity's `BclLayoutTests` had held a hand-copied hex string per case (round 104).
+  layouts (`BclFixtures.cs`, `BclFixtureTypes.cs`) live in `runtimes/csharp/src/Nino.Unity/Assets/Test/Runtime` and
+  `runtimes/csharp/tests/Nino.RuntimeTests` links them; Unity's `BclLayoutTests` had held a hand-copied hex string per case (round 104).
 - Kept twice on purpose (a fast path beside its portable fallback, a per-platform or per-language copy the bytes are
   tested against) says so in a comment. The sweep across layers is `audit-redundancy`.
 
@@ -51,13 +51,13 @@ Dependencies point one way, and each piece reaches the others through a public s
 
 | Piece | May depend on | Never |
 |---|---|---|
-| `src/Nino.Core` | the BCL (per TFM) | any other Nino project, Unity, ASP.NET Core |
+| `runtimes/csharp/src/Nino.Core` | the BCL (per TFM) | any other Nino project, Unity, ASP.NET Core |
 | `Nino.Immutable`, `Nino.AspNetCore`, `Nino.UnityTypes`, the Unity Burst kernels | Nino.Core's public API and its registration seams | each other; Nino.Core knowing them (they register themselves) |
-| `src/Nino.Generator` (+ CodeFixes, Roslyn builds) | Roslyn only; Nino.Core by metadata names (`NinoNames`) | a reference to the runtime assembly |
-| `src/Nino.Codegen` | the published layouts (`[NinoTypeLayout]`), its IR | the generator's internals |
+| `runtimes/csharp/src/Nino.Generator` (+ CodeFixes, Roslyn builds) | Roslyn only; Nino.Core by metadata names (`NinoNames`) | a reference to the runtime assembly |
+| `runtimes/csharp/src/Nino.Codegen` | the published layouts (`[NinoTypeLayout]`), its IR | the generator's internals |
 | `runtimes/go`, `rust`, `typescript` | nothing (no dependencies; competitors live in their `bench` modules) | each other, .NET |
-| `tests/`, `benchmarks/`, `tests/conformance/` | the projects they exercise | being referenced from `src/` |
-| scripts (`benchmarks/*.py`, `.github/scripts`) | their inputs' documented formats | another script's internals (share a module instead) |
+| `tests/`, `runtimes/csharp/benchmarks/`, `tests/conformance/` | the projects they exercise | being referenced from `src/` |
+| scripts (`runtimes/csharp/benchmarks/*.py`, `.github/scripts`) | their inputs' documented formats | another script's internals (share a module instead) |
 
 - `InternalsVisibleTo` is a coupling: allowed for the unit tests; for a package it needs a reason in a comment, and
   the internal it reaches is a candidate for a public or `EditorBrowsable(Never)` seam.
@@ -89,8 +89,8 @@ Dependencies point one way, and each piece reaches the others through a public s
   build took 27 s cold for three TFMs (the generator about 2 s of each of the test project's compilations), the
   run 5 min 10 s per TFM, 66 % of it `ShapeMatrixTests` (16 rows of about 12 s: Roslyn generates, binds and emits
   some 1 MB of source, then the probes run), all in sequence because nothing turned MSTest's parallelism on.
-- **Keep the unit suite parallel by class** (`tests/Nino.UnitTests/Infrastructure/MSTestSettings.cs`), with the
-  rules in `tests/AGENTS.md`: classes keep their methods in sequence because many reset static counters in
+- **Keep the unit suite parallel by class** (`runtimes/csharp/tests/Nino.UnitTests/Infrastructure/MSTestSettings.cs`), with the
+  rules in `runtimes/csharp/tests/AGENTS.md`: classes keep their methods in sequence because many reset static counters in
   `[TestInitialize]`; a test that measures process-wide state (`GC.GetTotalMemory`, the shared pools, `NinoKernels`)
   is `[DoNotParallelize]`, which a parallel run proves by failing (`CultureNamesFromTheDataCannotGrowTheProcess`
   saw 14 to 250 MB of the other tests' heap). The suite is then CPU-bound: about 400 s of CPU on net10.0, most of it

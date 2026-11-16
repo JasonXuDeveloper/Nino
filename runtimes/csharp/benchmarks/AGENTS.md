@@ -2,7 +2,7 @@
 
 > Read when: adding, changing or running a .NET benchmark, or a script that turns benchmark results into the README, docs or a release body.
 
-BenchmarkDotNet projects and the Python and shell scripts around them. benchmarks/README.md is the reference for
+BenchmarkDotNet projects and the Python and shell scripts around them. runtimes/csharp/benchmarks/README.md is the reference for
 every option, class and environment variable: read it instead of guessing. The runtimes outside .NET keep their
 benchmarks in `runtimes/*/bench`. `audit-code` audits the scripts, `benchmark` runs them, `audit-perf` and `optimize` use them.
 
@@ -11,7 +11,7 @@ README.md                    options of run.sh, the classes, MessagePack / proto
                              by member, machine code
                              (asm/asm.py, cross JIT), the runtimes' benchmarks
 run.sh                       the published runtime benchmark: v3 3.3.13 then the full v4 suite on one machine (QUICK=1,
-                             FILTER=...); writes benchmarks/results/ (ignored)
+                             FILTER=...); writes runtimes/csharp/benchmarks/results/ (ignored)
 Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases/Graphs and Cases/Scenarios compare Nino
                              against MemoryPack, MessagePack and protobuf-net per class (SimpleTest, PolymorphicTest,
                              NullableTest and CollectionsTest's nullable collections against Google.Protobuf, through

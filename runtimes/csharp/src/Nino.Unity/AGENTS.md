@@ -1,6 +1,6 @@
 # Nino.Unity: file map
 
-> Read when: changing the Unity package (com.jasonxudeveloper.nino), its Burst kernels, the Unity tests or src/Nino.UnityTypes.
+> Read when: changing the Unity package (com.jasonxudeveloper.nino), its Burst kernels, the Unity tests or runtimes/csharp/src/Nino.UnityTypes.
 
 A Unity 2022.3 project (ProjectSettings/ProjectVersion.txt: 2022.3.62f2) holding the OpenUPM package
 `com.jasonxudeveloper.nino` and the tests Unity runs on it. The package ships prebuilt DLLs: the netstandard2.1
@@ -52,7 +52,7 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              ConcurrentTables against the public API), BclLayoutTests (BCL structs in raw structs, and
                              tuples and pairs, and the fixed lanes that replace a refused Vector<T>, against
                              CoreCLR's bytes in BclFixtures.cs, of the types in BclFixtureTypes.cs (both shared with
-                             tests/Nino.RuntimeTests, which links them and rewrites BclFixtures.cs: --write-fixtures);
+                             runtimes/csharp/tests/Nino.RuntimeTests, which links them and rewrites BclFixtures.cs: --write-fixtures);
                              a [NinoRaw] formatter of the user's bound at run time by the marks its registry
                              registers; logs this runtime's layouts), FunctionPointerTests (C# 9 delegate* fields in a
                              raw struct: 8 bytes zero-extended from the registry's registration, a pointer taken with &
@@ -89,7 +89,7 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
   2.0's compiler stored there, which the Library cache brings back from an earlier container and which can be a
   thread of the editor itself (`audit-ci`, "Bound every Unity launch").
   report.yml calls it with `benchmark: true` for a release: editor tests skipped, the player built as a release
-  build with BurstBenchmark, its results uploaded as `unity-bench-<version>` for `benchmarks/reports/unity_report.py`.
+  build with BurstBenchmark, its results uploaded as `unity-bench-<version>` for `runtimes/csharp/benchmarks/reports/unity_report.py`.
 - Then per version a WebGL player with SIMD (`webgl` job, after the tests, also `max-parallel: 1`), run in headless
   Chrome by `.github/scripts/webgl_run.mjs`: WebGLBench must report the kernels registered and no failure; the
   benchmark's run also times each case (artifact `webgl-<version>`).
@@ -97,7 +97,7 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
   its `unity` job (`unity-sign.yml`) signs the package with the UPM CLI and attaches the tarball OpenUPM publishes
   (`audit-ci`, "The signed Unity package").
 
-## src/Nino.UnityTypes (no AGENTS.md of its own)
+## runtimes/csharp/src/Nino.UnityTypes (no AGENTS.md of its own)
 
 ```
 Nino.UnityTypes.csproj       netstandard2.1; ships only inside the Unity package (Runtime/Nino.UnityTypes.dll)
@@ -115,10 +115,10 @@ UnityEngineStub/             UnityEngine.CoreModule.csproj + UnityEngine.cs: a r
   not have). `UnityPackageDllTests` compares the committed Nino.Core.dll (in the `-p:NinoCoreTfm=netstandard2.1` run)
   and Nino.UnityTypes.dll with the builds; bytes cannot be compared, since each DLL carries the commit it was built
   from. A change to their public API refreshes all four in its series, as release.yml's "Copy the Unity DLLs" does:
-  `GITHUB_ACTIONS=true dotnet build -c Release`, then copy `src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll`,
-  `src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll`,
-  `src/Nino.Generator.CodeFixes/bin/Release/netstandard2.0/Nino.Generator.CodeFixes.dll` and
-  `src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll` into `Runtime/` (a `build(unity)` commit).
+  `GITHUB_ACTIONS=true dotnet build -c Release`, then copy `runtimes/csharp/src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll`,
+  `runtimes/csharp/src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll`,
+  `runtimes/csharp/src/Nino.Generator.CodeFixes/bin/Release/netstandard2.0/Nino.Generator.CodeFixes.dll` and
+  `runtimes/csharp/src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll` into `Runtime/` (a `build(unity)` commit).
   `package.json`'s version changes only in the release's bump commit (`.github/scripts/bump_version.py`), which
   refreshes the DLLs too. CI copies fresh builds over them before every Unity test run, so the tests run on the
   commit's code either way.

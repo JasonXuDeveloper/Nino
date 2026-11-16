@@ -9,7 +9,7 @@ metadata:
 
 Generated code is code users read (Go To Definition opens it) and the code their programs run. It is held to the
 standard of the best hand-written code, and to `optimize` for its speed. The emitters are
-`src/Nino.Generator/Generation/Emit` (C#) and `src/Nino.Codegen/Templates` with `Targets/` (TypeScript, Go, Rust).
+`runtimes/csharp/src/Nino.Generator/Generation/Emit` (C#) and `runtimes/csharp/src/Nino.Codegen/Templates` with `Targets/` (TypeScript, Go, Rust).
 Each section below states its rules in one line; the measurements behind them, and the attempts that lost, live in
 `references/` (linked where they apply). Record a new measurement in that file, in the form AGENTS.md gives ("Keep
 what you learn"), and its one-line rule here.
@@ -21,10 +21,10 @@ what you learn"), and its one-line rule here.
   `-p:CompilerGeneratedFilesOutputPath=<dir>` (a global property: Nino.Core's PolySharp output lands there too)
   create `<dir>` first, or the build fails with CS0016 races, and pass `--no-incremental`, or an up-to-date build
   writes nothing (round 130). A feature off by default proves itself zero cost the same way: both trees of
-  `tests/Nino.UnitTests` (613 files) and `benchmarks/Nino.Benchmark` (261) identical before and after. Cover each shape:
+  `runtimes/csharp/tests/Nino.UnitTests` (613 files) and `runtimes/csharp/benchmarks/Nino.Benchmark` (261) identical before and after. Cover each shape:
   positional, version-tolerant and keyed types, structs (raw and member-wise), polymorphic roots, generics,
   constructors and factories, pooled types, reference tracking, `[NinoUtf8]`, custom formatters, interceptors.
-- nino-gen: the committed outputs in `tests/Nino.Codegen.Tests` and the runtimes' `internal/sample` / corpus types.
+- nino-gen: the committed outputs in `runtimes/csharp/tests/Nino.Codegen.Tests` and the runtimes' `internal/sample` / corpus types.
 
 ## The text
 
@@ -106,7 +106,7 @@ what you learn"), and its one-line rule here.
 - **Size**: output bytes per type stay flat or shrink (build time and IL size grow with it); measure with
   GeneratorBenchmark and the package size of a sample. Measure the whole output, not one file: clear
   `obj/Release/net10.0/generated` first (it keeps files of forms no longer generated), then
-  `cat generated/**/*.cs | wc -c` for `tests/Nino.UnitTests` and `benchmarks/Nino.Benchmark` (the realistic one).
+  `cat generated/**/*.cs | wc -c` for `runtimes/csharp/tests/Nino.UnitTests` and `runtimes/csharp/benchmarks/Nino.Benchmark` (the realistic one).
   Round 129: 6,694 bytes per type in the benchmarks (99 types), 13% of it the interceptors, which are type names
   the compiler needs. Indentation was 14% of all bytes: a file that declares one namespace declares it
   file-scoped where the language allows (C# 10, `GeneratedCode.File`; Unity's C# 9 and the files that declare a
@@ -202,7 +202,7 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   member that is not `Direct` delegates to a by-value `__WriteFixed` as a sealed class's does (an
   `Unsafe.AsRef(in o)` getter needs C# 12 against .NET 8+'s `ref readonly` signature: CS9058 in the C# 11 test
   project).
-- Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`benchmarks/asm/asm.py`), and
+- Check the Tier1 listing of generated serializers for the benchmark types on each ISA (`runtimes/csharp/benchmarks/asm/asm.py`), and
   compare with the hand-written equivalent where one exists: generated code is not slower than what a user would
   write by hand.
 - nino-gen output follows each runtime's performance and safety rules (`runtimes/*/AGENTS.md`): one bounds check per
@@ -222,7 +222,7 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
 ## Proof
 
 - Text only (names, aliases, parentheses, layout): the IL of the generated methods is identical between base and
-  head: build `benchmarks/Nino.Benchmark` (and `tests/Nino.UnitTests -f net10.0` for shapes the benchmark lacks, such
+  head: build `runtimes/csharp/benchmarks/Nino.Benchmark` (and `runtimes/csharp/tests/Nino.UnitTests -f net10.0` for shapes the benchmark lacks, such
   as keyed types) on both, `ilspycmd -il <dll> > side.il` (a dotnet tool), and `diff`: empty. The test DLL holds the
   tests too, so drop the `// Method begins at RVA` lines and compare the IL of each `NinoGen` class; a changed
   test moves every RVA after it. `diff -rB` of the two `generated/` folders shows what changed beyond blank lines. (`-p:DebugType=none`
@@ -232,6 +232,6 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   (`benchmark`). A whole-suite `asm.py diff` also lists methods the change cannot reach (PGO varies run to run):
   compare the listings of the methods the changed generated code compiles into (their names in the dump), and
   explain those.
-- nino-gen: regenerate (`NINO_UPDATE_GENERATED=1 dotnet test tests/Nino.Codegen.Tests`), then the TypeScript, Go and
-  Rust checks against the corpus (`src/Nino.Codegen/AGENTS.md`).
+- nino-gen: regenerate (`NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`), then the TypeScript, Go and
+  Rust checks against the corpus (`runtimes/csharp/src/Nino.Codegen/AGENTS.md`).
 - Bytes never change unless that is the change (`wire-format`).

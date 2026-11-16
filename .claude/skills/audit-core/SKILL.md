@@ -1,6 +1,6 @@
 ---
 name: audit-core
-description: "Audit Nino's runtime libraries (src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design - redundant mechanisms, duplicated logic, coupling, API shapes that differ for one act, lifecycle bugs (pooling, reuse, recycling, unloading), thread safety of registries and caches, unbounded memory, platform fallbacks - and fix what is proven. Use for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration. Triggers: core, src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes, NinoSerializer, NinoDeserializer, NinoSettings, registry, NinoPool, NinoPooled, pooling, thread safety, race, leak, unload, 核心, 竞态, 线程安全, 正确性, 复用."
+description: "Audit Nino's runtime libraries (runtimes/csharp/src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes) for correctness and design - redundant mechanisms, duplicated logic, coupling, API shapes that differ for one act, lifecycle bugs (pooling, reuse, recycling, unloading), thread safety of registries and caches, unbounded memory, platform fallbacks - and fix what is proven. Use for a core review round, before a release, or when a bug shows up in serialization, deserialization into existing instances, pooling or registration. Triggers: core, runtimes/csharp/src/Nino.Core, Nino.Immutable, Nino.AspNetCore, Nino.UnityTypes, NinoSerializer, NinoDeserializer, NinoSettings, registry, NinoPool, NinoPooled, pooling, thread safety, race, leak, unload, 核心, 竞态, 线程安全, 正确性, 复用."
 metadata:
   internal: true
 ---
@@ -18,7 +18,7 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   startup it calls nothing generic over the formatter: `optimize`, references/jit.md, Startup).
 - **The code standard** (`audit-code`: DRY, decoupled, clear) applies to these files, here in its Nino.Core forms:
   the same loop or bookkeeping per collection kind, per TFM or per formatter family; a generic method with a body of
-  its own per T (one core with thin typed wrappers; families from `tools/CodeGen`). Redundancy in them (duplicated
+  its own per T (one core with thin typed wrappers; families from `runtimes/csharp/tools/CodeGen`). Redundancy in them (duplicated
   logic, dead code, two ways to do one job) is part of this audit; the sweep across layers is `audit-redundancy`.
 - **A class does what its name says**: a helper named for one direction or job that the other direction or another
   job calls is two concerns in one file; split it by job. `NinoBodyReader` (Nino.AspNetCore) also held MVC's

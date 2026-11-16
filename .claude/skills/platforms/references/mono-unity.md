@@ -3,7 +3,7 @@
 Part of the `platforms` skill: what classic Mono's JIT accelerates, and what Unity's players (IL2CPP, HybridCLR,
 WebGL) lack or do differently. Read it before a netstandard `Vector<T>` path, a static initializer of a generic
 cache, a decision from attributes at run time, or a change to the Burst or WebGL kernels. Unity's own files and
-tests: `src/Nino.Unity/AGENTS.md`; the kernels' techniques: `optimize`, references/unity.md.
+tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `optimize`, references/unity.md.
 
 ## Classic Mono
 
@@ -39,7 +39,7 @@ tests: `src/Nino.Unity/AGENTS.md`; the kernels' techniques: `optimize`, referenc
   `NinoTopFormatter<T>`): Mono runs a `beforefieldinit` class's initializer when a method naming it is compiled, not
   when the field is read, so a refusal there escapes as `TypeInitializationException` from code that never took that
   branch. A `NotSupportedException` thrown by `NinoLayout.Create` for `Vector<T>` reached `NinoSerializer.Serialize`
-  through `NinoRaw<T>`'s initializer on Mono 6.14 (`tests/Nino.RuntimeTests`, net472), while CoreCLR threw it from the
+  through `NinoRaw<T>`'s initializer on Mono 6.14 (`runtimes/csharp/tests/Nino.RuntimeTests`, net472), while CoreCLR threw it from the
   resolver as meant. Give such a type a layout that is neither raw nor sized, and throw where its formatter is
   resolved (`NinoReflection.RefuseHostSizedVector`) and, for code that skips the resolver (a hand-made
   `UnmanagedFormatter<T>`, `Writer.Write<T>`), on the layout's converted paths behind a `static readonly bool`
@@ -64,7 +64,7 @@ tests: `src/Nino.Unity/AGENTS.md`; the kernels' techniques: `optimize`, referenc
   in Chrome and passes (run 40735278928). The WebGL player collects garbage only between frames: a test or benchmark
   that allocates must yield a frame now and then (a coroutine), or the heap fills within one frame (`OOM`, then "memory
   access out of bounds").
-- The Burst kernels (`src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Burst/NinoBurst*.cs`) write the same bytes as
+- The Burst kernels (`runtimes/csharp/src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Burst/NinoBurst*.cs`) write the same bytes as
   Nino.Core; their golden-bytes tests (`Assets/Test/Runtime/Burst/BurstKernelTests.cs`) change with any wire-format
   change (`wire-format`).
 - Treat every Burst version as a new platform: the same kernel source compiles differently from one Burst to the next,

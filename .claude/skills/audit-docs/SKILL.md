@@ -37,17 +37,17 @@ README.zh.md (the landing page on GitHub and NuGet), `docs/` (design, spec, code
 
 Build the list from the source, not from the pages:
 
-- every public attribute (`src/Nino.Core/Attributes`), its options and where it may go;
+- every public attribute (`runtimes/csharp/src/Nino.Core/Attributes`), its options and where it may go;
 - every public entry point (`NinoSerializer`, `NinoDeserializer`, their overloads: arrays, spans, `IBufferWriter`,
   streams, exact-size and into-existing forms), `NinoSettings` member, pool and registry API;
 - every MSBuild property and generator option users set, every NINO diagnostic and code fix;
 - every built-in type and collection (BCL, immutable, concurrent, Unity types), each package (`Nino.AspNetCore`,
   `Nino.Immutable`, `Nino.UnityTypes`, Unity, `Nino.Codegen.Tool`) and each runtime's public API;
-- every nino-gen option (`src/Nino.Codegen/Options.cs`) and what each language supports.
+- every nino-gen option (`runtimes/csharp/src/Nino.Codegen/Options.cs`) and what each language supports.
 
 Write the result as a table, API -> owning page#anchor, or "missing" / "only in passing", in the round's report.
-Collect the public types with `grep -rnE "^\s*(public|protected) .*(class|struct|interface|enum)" src/Nino.Core
-src/Nino.Immutable src/Nino.AspNetCore src/Nino.UnityTypes` and their public members, minus `[EditorBrowsable(Never)]`,
+Collect the public types with `grep -rnE "^\s*(public|protected) .*(class|struct|interface|enum)" runtimes/csharp/src/Nino.Core
+runtimes/csharp/src/Nino.Immutable runtimes/csharp/src/Nino.AspNetCore runtimes/csharp/src/Nino.UnityTypes` and their public members, minus `[EditorBrowsable(Never)]`,
 `Nino.Core.CompilerServices` and members documented as for generated code; every `CompilerVisibleProperty` and
 `$(Nino*)` in `src/*/build/*.props|targets`. Every `NinoSettings` member and constant has a row on the settings page
 (`/en/docs/v4/settings`: type, default, range, frozen on first use or not), which owns the list, and its guide
@@ -227,8 +227,8 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   library with a row in one light grey, in the order MemoryPack, MessagePack, Google.Protobuf, protobuf-net,
   System.Text.Json, each bar labelled with its time and its multiple of Nino v4's, serialize and deserialize side by
   side, a case with one operation paired with the next such case (`pack`: no half row left empty; owner's screenshot,
-  2026-11-13); the site lists libraries and groups the same way. Never edit `src/nuget-readme.md`, the
-  README every NuGet package carries (Directory.Build.props packs it as `README.md`): `.github/scripts/nuget_readme.py`
+  2026-11-13); the site lists libraries and groups the same way. Never edit `runtimes/csharp/src/nuget-readme.md`, the
+  README every NuGet package carries (runtimes/csharp/Directory.Build.props packs it as `README.md`): `.github/scripts/nuget_readme.py`
   writes it from README.md, and agents.yml fails when it is stale (`--check`). Why: nuget.org prints every HTML tag
   as text (NuGetGallery's Markdig pipeline calls `DisableHtml`; rc.9's page showed the hero's `<div>`, `<br>` and
   every `<details>`/`<picture>`), and a package's README is frozen at pack time while report.yml fills the numbers
@@ -255,14 +255,14 @@ is a finding, and so is a page that teaches a feature before the one it builds o
   npm, Go), each in its platform's colours and logo (`labelColor`, `color`), then a row of build, license, docs and
   DeepWiki on a dark `labelColor=24292F`. Every package badge shows the newest version, prereleases included
   (`nuget/vpre`, npm's `next` tag); Go has no registry, so its badge links pkg.go.dev. Every speed number in README is
-  a `<!--bench:...-->` marker `benchmarks/reports/readme.py` fills from the release run (`ser.range`, `deser.range`,
+  a `<!--bench:...-->` marker `runtimes/csharp/benchmarks/reports/readme.py` fills from the release run (`ser.range`, `deser.range`,
   `msgpack.*`, `protobuf.*`, `reuse.inplace`, `v3.*`; `v3.build` from the release's build asset, `benchmark`,
   Publishing); a new number gets a key there, never a hand-typed value. Never
   start a line of a paragraph or list item with a marker: a line starting `<!--` opens an HTML block, and the rest
   of the item loses its bold and links (README.zh.md's first bullet, round 129). GitHub renders only pushed content,
   so render the branch locally (GitHub's own renderer: `gh api markdown` with `mode: markdown`, not `gfm`, which
   turns every line break into `<br>`; github-markdown-css at 838 px; screenshot with headless Chrome) and check the
-  markers by running `benchmarks/reports/readme.py`'s `fill` on a copy with the newest release's report (its
+  markers by running `runtimes/csharp/benchmarks/reports/readme.py`'s `fill` on a copy with the newest release's report (its
   `benchmark-x64-full.md` and `benchmark-v3-full.md` assets): every key found, no value changed.
 - **Copies that must exist agree**: README / README.zh.md, the site's index and comparison pages, the analyzers page
   and `docs/diagnostics.md`, `docs/spec/wire-format.md` and the site's wire-format page, the public skill, the

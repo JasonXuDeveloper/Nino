@@ -61,7 +61,7 @@ deserialization.
   (de)serialization into the collection loop.
   The tuple formatters (`ValueTupleFormatter<T1..Tn, TF1..TFn>`, `TupleFormatter<...>`, arity 1 to 7) and the
   multidimensional array formatters (`Array2DFormatter` to `Array4DFormatter`) are written by templates,
-  `tools/CodeGen` (`dotnet run --project tools/CodeGen`), into `Formatters/TupleFormatters.g.cs` and
+  `runtimes/csharp/tools/CodeGen` (`dotnet run --project runtimes/csharp/tools/CodeGen`), into `Formatters/TupleFormatters.g.cs` and
   `Formatters/MultiDimFormatters.g.cs`; unit tests compile the templates and fail when a file is out of date.
 * **Generated formatters** are structs in `<Assembly>.NinoGen`, one per `[NinoType]`. Members call
   their formatter as `default(TFormatter).Serialize(...)`, which is a direct, inlinable call.

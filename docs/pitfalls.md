@@ -135,9 +135,9 @@ public sealed partial class Particle
 }
 ```
 
-The bytes are the same whatever `Vector<float>.Count` is (`tests/Nino.UnitTests/Layout/VectorTTests.cs` with
+The bytes are the same whatever `Vector<float>.Count` is (`runtimes/csharp/tests/Nino.UnitTests/Layout/VectorTTests.cs` with
 `DOTNET_EnableAVX2=0` and `DOTNET_MaxVectorTBitWidth=512`, and `LaneParticle`, declared in
-`src/Nino.Unity/Assets/Test/Runtime/BclFixtureTypes.cs` and compiled into `tests/Nino.RuntimeTests`, on every CI
+`runtimes/csharp/src/Nino.Unity/Assets/Test/Runtime/BclFixtureTypes.cs` and compiled into `runtimes/csharp/tests/Nino.RuntimeTests`, on every CI
 runtime). CI runs the `DOTNET_MaxVectorTBitWidth=512` lines only on runners with AVX-512 (GitHub's Xeons); on an EPYC
 7763 runner it skips them with a notice. A span is a ref struct, so `Vectors` could not be serialized anyway; `[NinoIgnore]` says it is meant. Data
 read from an untrusted source may hold another number of lanes: check `Lanes.Length` before using the view. A fixed

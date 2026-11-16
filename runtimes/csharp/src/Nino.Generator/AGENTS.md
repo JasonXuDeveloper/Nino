@@ -22,7 +22,7 @@ build/Nino.Generator.props   adds NinoGen to InterceptorsNamespaces / Intercepto
                              the NinoPrefetchLargeCollections property visible to the generator
 AnalyzerReleases.Shipped.md  diagnostics of released versions (Roslyn release tracking)
 AnalyzerReleases.Unshipped.md  diagnostics added since the last release
-Properties/launchSettings.json  debug profile: runs the generator on tests/Nino.UnitTests
+Properties/launchSettings.json  debug profile: runs the generator on runtimes/csharp/tests/Nino.UnitTests
 ```
 
 ## Analysis/
@@ -160,11 +160,11 @@ CodeWriter.cs                C# source line by line with indentation
 ## The other Roslyn projects (no AGENTS.md of their own)
 
 ```
-src/Nino.Generator.Roslyn4.8/    csproj only: compiles this directory's sources against Roslyn 4.8 with ROSLYN4_8
+runtimes/csharp/src/Nino.Generator.Roslyn4.8/    csproj only: compiles this directory's sources against Roslyn 4.8 with ROSLYN4_8
                                  (preview [InterceptsLocation(path, line, column)]); packed into roslyn4.8/cs
-src/Nino.Generator.Roslyn4.12/   csproj only: the same against Roslyn 4.12 with ROSLYN4_8 and ROSLYN4_12 (stable
+runtimes/csharp/src/Nino.Generator.Roslyn4.12/   csproj only: the same against Roslyn 4.12 with ROSLYN4_8 and ROSLYN4_12 (stable
                                  [InterceptsLocation(version, data)]); packed into roslyn4.12/cs
-src/Nino.Generator.CodeFixes/    NinoCodeFixProvider.cs: the IDE code fixes, a separate assembly because they need
+runtimes/csharp/src/Nino.Generator.CodeFixes/    NinoCodeFixProvider.cs: the IDE code fixes, a separate assembly because they need
                                  Microsoft.CodeAnalysis.Workspaces, which the compiler and Unity never load; links
                                  NinoDiagnostics.cs, NinoNames.cs, PoolHooks.cs, LayoutBaseline.cs, LayoutRules.cs,
                                  TypeNames.cs and TextScratch.cs (and Nino.Core's NinoHash.cs) from here; packed in every

@@ -305,7 +305,7 @@ objects by pointer; a bad header or back reference fails with `CodeInvalidData`.
 
 `internal/sample` follows these conventions (camel policy, `json` and `yaml`); its `layouts.go` is what the
 generator's `NinoLayout` methods look like. `internal/generated` holds nino-gen's output for the corpus's types (and
-`internal/generated/shapes` for `tests/Nino.Codegen.Tests`' shapes), run against the corpus like the sample.
+`internal/generated/shapes` for `runtimes/csharp/tests/Nino.Codegen.Tests`' shapes), run against the corpus like the sample.
 
 ## Strings
 
@@ -400,7 +400,7 @@ go test -run='^$' -bench=. -benchmem -count=6 . | tee bench.txt
 go run golang.org/x/perf/cmd/benchstat@latest bench.txt
 ```
 
-The benchmarks are `Benchmark{Serialize,Deserialize}/<case>/<serializer>`; see benchmarks/README.md.
+The benchmarks are `Benchmark{Serialize,Deserialize}/<case>/<serializer>`; see runtimes/csharp/benchmarks/README.md.
 `NinoTags` is the struct-tag path on the same values. `go test -run='^$' -bench=Tagged .` in
 `runtimes/go` compares the tag path with a hand-written codec of one type, and its address access with reflect's
 setters.

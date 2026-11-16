@@ -6,14 +6,14 @@ v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github
 Every table here is the newest release's: its CI run (`report.yml`) benchmarks v4 against MemoryPack, each case's
 Nino and MemoryPack runs on one runner (v3 3.3.13's port of the case too, directly before), and v3 3.3.13's source generator
 against the release's on one more runner, puts the reports in the release notes, and writes these tables from them
-(`benchmarks/reports/readme.py`), as it does for the README and the documentation site. Generated code sizes do not
+(`runtimes/csharp/benchmarks/reports/readme.py`), as it does for the README and the documentation site. Generated code sizes do not
 depend on the machine; absolute times vary between machines, and the ratios are what to look at.
 
 ## Build time and generated code
 
 Workload: a synthetic assembly of `N` abstract root classes, each with a chain of 8 derived classes, a sealed
 leaf and a struct (`N × 11` types). Members are primitives, strings, `List<T>`, `Dictionary<int, string>`,
-references to other `[NinoType]`s and private fields. The harness (`benchmarks/Nino.GeneratorBenchmark`, Roslyn
+references to other `[NinoType]`s and private fields. The harness (`runtimes/csharp/benchmarks/Nino.GeneratorBenchmark`, Roslyn
 in process) runs the generator on the compilation, then emits the whole assembly; it also measures re-running the
 generator after an edit. v3's generator and runtime are Nino 3.3.13 from nuget.org, v4's the release's; the two run
 one after the other on one runner, and each time is the median of the runs after the warm-up runs (at least one,
@@ -55,7 +55,7 @@ about linearly.
 
 ## Runtime
 
-`benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
+`runtimes/csharp/benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
 GC), every benchmark class, v4 and MemoryPack 1.22.0 side by side, with MessagePack 3.1.12 and protobuf-net
 3.4.40 wherever they can write the same data, and in `SimpleTest`, `PolymorphicTest`, `NullableTest`, `CollectionsTest`'s nullable
 collections and `WorkloadTest` Google.Protobuf 3.36.2 and System.Text.Json (.NET 10): the release run spreads the classes over seventeen runners per architecture
@@ -79,7 +79,7 @@ Each library serializes to its own buffer writer: Nino to `NinoArrayBufferWriter
 messages, subtypes as a `oneof` per level) and System.Text.Json UTF-8 through its source generator into a reused
 `Utf8JsonWriter`. Into any other `IBufferWriter<byte>` Nino writes raw and fixed-size values in place too, and
 everything else into a pooled buffer that it then copies over, one copy more than these tables measure.
-Before the benchmarks run, `--verify` (`benchmarks/Nino.Benchmark/Harness/Verify.cs`) checks every case: each serialize case writes
+Before the benchmarks run, `--verify` (`runtimes/csharp/benchmarks/Nino.Benchmark/Harness/Verify.cs`) checks every case: each serialize case writes
 its payload's bytes, and every deserialize case of a category reads back the same value, deep-compared. The data is
 seeded, so every run serializes the same values.
 
@@ -180,7 +180,7 @@ v3 3.3.13 n/a where it has no port of the case; every number is in the tables be
 
 ### Real-world workloads
 
-`WorkloadTest` (`benchmarks/Nino.Benchmark/Workloads`), 12 payloads with the problems real ones have:
+`WorkloadTest` (`runtimes/csharp/benchmarks/Nino.Benchmark/Workloads`), 12 payloads with the problems real ones have:
 
 | Workload | What it is | What it exercises |
 |---|---|---|
@@ -351,7 +351,7 @@ Each against the closest MemoryPack mode: `ReferenceTest` (a graph of 200 nodes 
 `NinoFormat.VersionTolerant`, one length per object, against `GenerateType.VersionTolerant`, a length per member)
 and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 100 of the classes, through the
 `byte[]` APIs of both, so allocating the result is part of every call). `CommonTypesTest` adds common type shapes
-(`benchmarks/Nino.Benchmark/Fixtures/CommonTypes.cs`): a tree; a padded struct array; an array of structs of fixed size that are not raw (a value tuple member), which
+(`runtimes/csharp/benchmarks/Nino.Benchmark/Fixtures/CommonTypes.cs`): a tree; a padded struct array; an array of structs of fixed size that are not raw (a value tuple member), which
 are read and written as blocks; and a string dictionary. `CollectionsTest` covers collections of the base
 class library: a list of tuples, an array of key-value pairs, and hashed, queued, linked, sorted and concurrent
 collections. `BclTypesTest` covers the other base class library types both libraries have formatters for: `BigInteger`,
@@ -481,7 +481,7 @@ the result objects.
   callee's whole IL, and counts a method it inlines on its own judgement (on profile data), with everything inlined
   into it, against the caller's budget: so the formatters' and the generated code's entry points are
   `AggressiveInlining` too, and the larger helpers (the copy, Latin-1 widening and narrowing) are split into small
-  parts. `benchmarks/asm/asm.py compare` lists every method whose machine code changed against a
+  parts. `runtimes/csharp/benchmarks/asm/asm.py compare` lists every method whose machine code changed against a
   base commit, and the signs of a spent budget (`Reader:Skip` or `NinoUnsafe:Read` as calls, the cursor kept in
   memory), so a change cannot slow down the types it does not touch unnoticed.
 * **No checks the JIT cannot drop.** Element loops (array and list fallbacks, in-place reads, the padding mask,
@@ -518,15 +518,15 @@ the result objects.
 
 ## Reproducing
 
-Build time and generated code (`benchmarks/Nino.GeneratorBenchmark`):
+Build time and generated code (`runtimes/csharp/benchmarks/Nino.GeneratorBenchmark`):
 
 ```sh
-dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8          # this repository's generator
+dotnet run -c Release --project runtimes/csharp/benchmarks/Nino.GeneratorBenchmark -- 30 8          # this repository's generator
 # another version: build its Nino.Generator and Nino.Core, then
-dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8 \
+dotnet run -c Release --project runtimes/csharp/benchmarks/Nino.GeneratorBenchmark -- 30 8 \
     --generator <path>/Nino.Generator.dll --core <path>/Nino.Core.dll
 # v3 3.3.13, as the release run does (the project's restore puts both packages in the NuGet cache)
-dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8 --no-analyzers \
+dotnet run -c Release --project runtimes/csharp/benchmarks/Nino.GeneratorBenchmark -- 30 8 --no-analyzers \
     --generator ~/.nuget/packages/nino.generator/3.3.13/analyzers/dotnet/cs/Nino.Generator.dll \
     --core ~/.nuget/packages/nino.serialization/3.3.13/lib/net8.0/Nino.Core.dll
 ```
@@ -535,18 +535,18 @@ Arguments are the number of root classes and the depth of each hierarchy; `--dum
 generated files; `--layouts` adds a layout baseline of every type (the analyzer then checks each against it);
 `--runs <n>` sets the number of runs (five by default); `--no-analyzers` skips the analysis; `--json <file>` writes
 the medians, sizes and machine as JSON (the release run turns them into its build section with
-`benchmarks/reports/generator_report.py`). Each line reports one run, the last the median of the runs after the
+`runtimes/csharp/benchmarks/reports/generator_report.py`). Each line reports one run, the last the median of the runs after the
 first.
 
-Runtime (`benchmarks/Nino.Benchmark`, BenchmarkDotNet):
+Runtime (`runtimes/csharp/benchmarks/Nino.Benchmark`, BenchmarkDotNet):
 
 ```sh
-dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*'
-dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*'   # some classes only
+dotnet run -c Release --project runtimes/csharp/benchmarks/Nino.Benchmark -- --filter '*'
+dotnet run -c Release --project runtimes/csharp/benchmarks/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*'   # some classes only
 ```
 
 The suite has twelve classes, all against MemoryPack 1.22.0, and against MessagePack and protobuf-net wherever they
-can write the same data ([benchmarks/README.md](../benchmarks/README.md#messagepack-and-protobuf-net) lists the cases
+can write the same data ([runtimes/csharp/benchmarks/README.md](../runtimes/csharp/benchmarks/README.md#messagepack-and-protobuf-net) lists the cases
 they cannot; `SimpleTest`, `PolymorphicTest`, `NullableTest`, `CollectionsTest`'s nullable collections and `WorkloadTest`
 also against Google.Protobuf and System.Text.Json): `SimpleTest`, `PolymorphicTest`, `NullableTest` (a class of eight
 nullable members, half of them null, one and 100; a `SimpleStruct?`, `SimpleStruct?[100]`, a null `SimpleClass` and
@@ -561,15 +561,15 @@ them), `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a 
 (collections of the base class library, and `long?[]`, `List<int?>` and `decimal?[]` with every fifth value null), `BclTypesTest` (other base class library types and the immutable
 collections) and `ScatteredTest` (arrays of a million objects whose order in the array is not their order in memory,
 which every other class's data, allocated in order and in the cache, never shows).
-[benchmarks/README.md](../benchmarks/README.md) lists their cases.
+[runtimes/csharp/benchmarks/README.md](../runtimes/csharp/benchmarks/README.md) lists their cases.
 
-The v3 numbers come from the v3 build of [`benchmarks/Nino.Benchmark`](../benchmarks/Nino.Benchmark)
-(`NINO_BENCH_V3=true`, [`V3/`](../benchmarks/Nino.Benchmark/V3)), every class built against the `Nino` 3.3.13
+The v3 numbers come from the v3 build of [`runtimes/csharp/benchmarks/Nino.Benchmark`](../runtimes/csharp/benchmarks/Nino.Benchmark)
+(`NINO_BENCH_V3=true`, [`V3/`](../runtimes/csharp/benchmarks/Nino.Benchmark/V3)), every class built against the `Nino` 3.3.13
 package from nuget.org, each feature in v3's own way: what shares objects writes copies (v3 tracks no references),
 version tolerance is v3's `WEAK_VERSION_TOLERANCE` in a project of its own, what v4 reads in place v3 reads anew (it
 reads no object in place; a list keeps itself and gets new elements), and a type v3 writes no overload for goes
 through one it does (a `Memory<int>` through its span, an immutable collection read as an array and built from it).
-Each port's header lists what it does differently and what it leaves out, and why. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
+Each port's header lists what it does differently and what it leaves out, and why. [`runtimes/csharp/benchmarks/run.sh`](../runtimes/csharp/benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
 suite) and prints v4 against v3. The release workflow runs the same protocol for every release and publishes the
 result in the release notes ("v3 3.3.13 vs v4 (same machine)"), where the documentation site and these tables take
 their v3 ratios from.

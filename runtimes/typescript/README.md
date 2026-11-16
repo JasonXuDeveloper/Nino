@@ -149,5 +149,5 @@ Node 22.18 or later, which runs their TypeScript as it is (type stripping).
 and, for Chromium, Playwright; the bench's own dependencies come from `bench/package-lock.json`, never this package's).
 Each pass takes the next of 64 variants of a scenario's data, since V8 reuses work on an input it has just read (a
 repeated JSON text parses many times faster), and each serializer runs with only its own data live (a full GC marks
-what is live, and V8 starts one for every 64 MB of new `ArrayBuffer`s no scavenge freed). See benchmarks/README.md ("Runtimes outside .NET"). Compare before and after a change on one machine; do not publish
+what is live, and V8 starts one for every 64 MB of new `ArrayBuffer`s no scavenge freed). See runtimes/csharp/benchmarks/README.md ("Runtimes outside .NET"). Compare before and after a change on one machine; do not publish
 the numbers.

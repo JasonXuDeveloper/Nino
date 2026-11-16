@@ -1,6 +1,6 @@
 ---
 name: audit-runtimes
-description: "Audit Nino's runtimes outside .NET (runtimes/go, runtimes/rust, runtimes/typescript) and nino-gen (src/Nino.Codegen), which writes code for them - safety on hostile input, speed against each language's competitors, SIMD beyond strings, allocation, idiomatic API, parity with .NET's bytes and limits, and the templates against the hand-written samples. Use when changing a runtime or a template, when a runtime is slower than a competitor or than the previous main, or for a runtimes review. Triggers: Go runtime, Rust runtime, TypeScript runtime, TS runtime, runtimes/go, runtimes/rust, runtimes/typescript, nino.ts, src/Nino.Codegen, nino-gen, Templates/*.sbn, NINOGEN*, cargo, go test, npm test, wasm, benchstat, criterion, Go 运行时, Rust 运行时, TS 运行时, 代码生成."
+description: "Audit Nino's runtimes outside .NET (runtimes/go, runtimes/rust, runtimes/typescript) and nino-gen (runtimes/csharp/src/Nino.Codegen), which writes code for them - safety on hostile input, speed against each language's competitors, SIMD beyond strings, allocation, idiomatic API, parity with .NET's bytes and limits, and the templates against the hand-written samples. Use when changing a runtime or a template, when a runtime is slower than a competitor or than the previous main, or for a runtimes review. Triggers: Go runtime, Rust runtime, TypeScript runtime, TS runtime, runtimes/go, runtimes/rust, runtimes/typescript, nino.ts, runtimes/csharp/src/Nino.Codegen, nino-gen, Templates/*.sbn, NINOGEN*, cargo, go test, npm test, wasm, benchstat, criterion, Go 运行时, Rust 运行时, TS 运行时, 代码生成."
 metadata:
   internal: true
 ---
@@ -8,7 +8,7 @@ metadata:
 # Runtimes audit
 
 Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `runtimes/typescript`) and nino-gen's in
-`src/Nino.Codegen/AGENTS.md`: read the one you touch in full. This skill is the checklist across them.
+`runtimes/csharp/src/Nino.Codegen/AGENTS.md`: read the one you touch in full. This skill is the checklist across them.
 
 ## Parity with .NET
 
@@ -145,7 +145,7 @@ nothing.
   the TypeScript samples); the generated code is held to `audit-generated-code`.
 - Every option is defined once in `Options.cs`; `build/Nino.Codegen.targets` and the integration tests agree.
 - `nino-gen layouts` (`LayoutsCommand.cs`) links the layout baseline's format and rules from
-  `src/Nino.Generator/Common` (`LayoutBaseline.cs`, `LayoutRules.cs`): a rule changes there, for the analyzer, its code
+  `runtimes/csharp/src/Nino.Generator/Common` (`LayoutBaseline.cs`, `LayoutRules.cs`): a rule changes there, for the analyzer, its code
   fixes and nino-gen at once, never in a copy here (`audit-analyzer`, the layout baseline).
 
 - The code standard (`audit-code`: DRY, decoupled, clear) applies to these files, and redundancy in them
@@ -158,7 +158,7 @@ nothing.
   caught it). Raise the depth of `JsonDocument` (64) and `Utf8JsonWriter` (1000) for deep corpus cases, and run deep
   reads on a thread with a large stack. "Struct holds itself" is computed in four places (`CodegenModel.HoldsItself`,
   used by inspect, and each target's own, which filters by the types it supports): merge them when a target changes.
-- A `[NinoType]` added to `tests/Nino.Codegen.Tests` (Shapes.cs, InspectTypes.cs) is in nino-gen's generated Shapes
+- A `[NinoType]` added to `runtimes/csharp/tests/Nino.Codegen.Tests` (Shapes.cs, InspectTypes.cs) is in nino-gen's generated Shapes
   files unless every target leaves it out, and a keyed or version-tolerant one is in `LayoutsCommandTests`' baseline
   list: update that list with it.
 
