@@ -23,7 +23,9 @@ namespace Nino.UnitTests
     /// for interfaces, and for interfaces a struct of fixed size that is not raw, whose collections are blocks), each read
     /// through the base, the type between, itself and object, by the boxed API, alone and as a list element, plus null and data of another
     /// type. The shapes with a type between declare a serialization callback too ([NinoOnDeserialized], on the base, or
-    /// on each subtype of an interface), counted on every value read, so each shape is generated with and without one. A combination nobody thought of is still in the matrix: add a dimension here when a feature adds one.
+    /// on each subtype of an interface), counted on every value read, so each shape is generated with and without one. On
+    /// .NET 11 every shape also declares a C# union of its base and int, and each subtype and an int are read through it,
+    /// alone and in a list. A combination nobody thought of is still in the matrix: add a dimension here when a feature adds one.
     /// </summary>
     public static class ShapeMatrixTests
     {
@@ -32,6 +34,13 @@ namespace Nino.UnitTests
         private enum Place { Namespace, Global, Nested, GenericNested }
 
         private static readonly string[] Formats = { "Positional", "VersionTolerant", "Keyed" };
+
+        /// <summary>Whether each shape declares a C# union of its base (C# 15, the .NET 11 build).</summary>
+#if NET11_0_OR_GREATER
+        private static readonly bool Unions = true;
+#else
+        private static readonly bool Unions = false;
+#endif
 
         // Rows 0 to 3 and 8 to 11: each kind of base, its subtypes in its assembly; rows 4 to 7 and 12 to 15: in another
         // assembly. Rows 0 to 7 declare the shapes in a namespace or the global namespace, rows 8 to 15 nested in a class
@@ -200,6 +209,21 @@ public static class P
             var list = NinoDeserializer.Deserialize<List<T>>(NinoSerializer.Serialize(new List<T>(values)));
             for (int i = 0; i < values.Length; i++)
                 if (!read[i].Equals(v) || !list[i].Equals(v)) { e.Add(name + "": values""); return; }
+        }
+        catch (Exception x) { e.Add(name + "": "" + x.GetType().Name + "": "" + x.Message); }
+    }
+
+    public static void Union<TU>(List<string> e, string name, TU v, Func<TU, object> value, Func<object, bool> ok)
+    {
+        try
+        {
+            byte[] a = NinoSerializer.Serialize(v);
+            TU r = NinoDeserializer.Deserialize<TU>(a);
+            if (!ok(value(r))) { e.Add(name + "": values, read as "" + value(r)?.GetType()); return; }
+            if (!a.AsSpan().SequenceEqual(NinoSerializer.Serialize(r))) { e.Add(name + "": bytes of a second write""); return; }
+            var list = NinoDeserializer.Deserialize<List<TU>>(NinoSerializer.Serialize(new List<TU> { v, default }));
+            if (list.Count != 2 || !ok(value(list[0])) || value(list[1]) != null)
+                e.Add(name + "": list"");
         }
         catch (Exception x) { e.Add(name + "": "" + x.GetType().Name + "": "" + x.Message); }
     }
@@ -393,6 +417,8 @@ namespace Other
                     bases.Append("}\n");
                 if (!probesOpen)
                     s.Append($"namespace {ns}\n{{\n");
+                if (Unions)
+                    s.Append($"[NinoType] public union {N("Union")}({Prefix}{closedBase}, int);\n");
 
                 // The checks: every subtype through the base, the type between and itself.
                 s.Append("public static class Probe\n{\n    public static void Run(List<string> e)\n    {\n");
@@ -440,10 +466,16 @@ namespace Other
                     // By runtime type: as object, and through the boxed API naming the base.
                     Check(s, ns, "object", leafPrefix + leaf.Type, leaf.Create, leaf.Check);
                     Check(s, ns, "object", leafPrefix + leaf.Type, leaf.Create, leaf.Check, boxedAs: Prefix + closedBase);
+                    if (Unions)
+                        s.Append($"        P.Union(e, \"{ns} {leaf.Type} in a union\", new {N("Union")}(({Prefix}{closedBase}){leaf.Create}), " +
+                                 $"u => u.Value, o => o is {leafPrefix}{leaf.Type} q && {leaf.Check});\n");
                     if (!_track)
                         s.Append($"        P.Rejects(e, \"{ns} {leaf.Type} read as another type\", () => " +
                                  $"NinoDeserializer.Deserialize<Other.OtherBase>(NinoSerializer.Serialize<{Prefix}{closedBase}>({leaf.Create})));\n");
                 }
+
+                if (Unions)
+                    s.Append($"        P.Union(e, \"{ns} int in a union\", new {N("Union")}(5), u => u.Value, o => o is int q && q == 5);\n");
 
                 // The subtypes of the other closed instances: through their own base, and rejected through the first one.
                 for (int i = 0; i < others.Length; i++)
