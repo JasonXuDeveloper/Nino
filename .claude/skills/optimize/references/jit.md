@@ -124,6 +124,11 @@ where that is so, and its x64 sizes are listings, not throughput.
   `CombatEventLog.__WriteBody` 1,766 to 1,533 bytes and 57 to 25 stack accesses; LuminPack's `CharacterSaveData`
   serialize 0.89-0.92 of the base, a `List<ItemBase>` of 40 subtypes 0.88-0.91, `GuildInfo` 0.89, the whole read
   0.97. A region a flat body opens ends the same with the default fields (nothing was deferred inside it).
+- Give a collection loop whose element formatter is a call (a dispatch, a body too large to inline) a generated loop
+  of its own with that work inline and the writer or reader in a local, instead of a call per element with the cursor
+  in memory. Why: the call and the cursor's round trip through memory cost more than the work they wrap. Evidence:
+  arrays and lists of a polymorphic base, 5.0 to 3.7-3.9 us for 1,000 values (`dispatch.md`, e178937c). Check every
+  collection loop the generator's types reach this way (`NinoElements.Write`/`Read`, dictionary pair loops, sets).
 - Read a gap between a type written whole and the sum of its members written alone as the members' code and data
   mixed, not as waste in the outer body, until a sequence of the members' own top-level calls says otherwise. Why:
   LuminPack's `CharacterSaveData` took 3.3 µs against 2.5 µs summed, but the thirteen holder calls back to back took

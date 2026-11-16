@@ -178,3 +178,14 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   the same list, bytes identical, the chain took 4.93 us in a fixed order and 4.84 shuffled, the virtual calls 5.15
   and 6.95 (LuminPack 4.40): the indirect call mispredicts once the order is mixed and the writer leaves registers
   across it (local x64, 13b9a7b3). LuminPack's lead is not its dispatch.
+
+- Write an array or a list of a polymorphic base through the base's generated element loop
+  (`INinoElementsFormatter.WriteElements`, `DispatchEmitter.EmitWriteElements`): the chain of type checks inline in
+  the loop, the writer in a local, the depth checked once before it. Why: written one element at a time through
+  `Serialize`, each element called the dispatch (too large to inline into the collection loop) with the writer in
+  memory; that call, not the chain or the tag, was LuminPack's whole lead. Evidence (#305, LuminPack's `List<IFoo>`
+  of 1,000 values of 20 subtypes, local x64, bytes identical): a hand-written loop 3.85 us, the same chain called per
+  element with the writer by reference 4.90-5.05, Nino before e178937c 5.0, after 3.7-3.9 (LuminPack 4.4-4.7). Not
+  the tag: a 1-byte tag in place of the 4-byte id wrote in 3.80-3.93 against 3.77-3.99. Not the writer's bookkeeping:
+  an end pointer in place of `Writer._avail` (one store fewer per write) left the list at 4.9-5.0, the same.
+

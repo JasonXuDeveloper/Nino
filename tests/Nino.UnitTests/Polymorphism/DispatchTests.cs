@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
@@ -31,9 +33,56 @@ namespace Nino.UnitTests
         public double D;
     }
 
+    /// <summary>A subtype holding a list of the base: nested bodies, deep enough to take the deferred path.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class DispatchHolder : DispatchRoot
+    {
+        public List<DispatchRoot> Kids;
+    }
+
     [TestClass]
     public class DispatchTests
     {
+        [TestMethod]
+        public void ElementLoopWritesWhatEachElementWritesAlone()
+        {
+            DispatchRoot[] values =
+            {
+                new DispatchSibling { A = 1, D = 2.5 }, null, new DispatchLeaf { A = 3, B = "leaf", C = 4 },
+                new DispatchMid { A = 5, B = "mid" }, new DispatchHolder { A = 6, Kids = new List<DispatchRoot> { null } },
+            };
+            var expected = new List<byte>(BitConverter.GetBytes(values.Length));
+            foreach (var value in values)
+                expected.AddRange(NinoSerializer.Serialize(value));
+
+            CollectionAssert.AreEqual(expected.ToArray(), NinoSerializer.Serialize(values));
+            CollectionAssert.AreEqual(expected.ToArray(), NinoSerializer.Serialize(values.ToList()));
+        }
+
+        [TestMethod]
+        public void DeepElementLoopsRoundTrip()
+        {
+            // Past NinoDepth.Inline open bodies, the loop writes each element through the dispatch's deep path.
+            DispatchRoot node = new DispatchSibling { A = -1, D = 1 };
+            for (int i = 0; i < 300; i++)
+                node = new DispatchHolder { A = i, Kids = new List<DispatchRoot> { node, null, new DispatchMid { B = "m" + i } } };
+
+            var bytes = NinoSerializer.Serialize(node);
+            var back = NinoDeserializer.Deserialize<DispatchRoot>(bytes);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(back));
+            int depth = 0;
+            while (back is DispatchHolder holder)
+            {
+                Assert.IsNull(holder.Kids[1]);
+                Assert.AreEqual("m" + holder.A, ((DispatchMid)holder.Kids[2]).B);
+                back = holder.Kids[0];
+                depth++;
+            }
+
+            Assert.AreEqual(300, depth);
+            Assert.AreEqual(1d, ((DispatchSibling)back).D);
+        }
+
         [TestMethod]
         public void EveryLevelRoundTrips()
         {
