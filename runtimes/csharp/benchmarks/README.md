@@ -2,7 +2,8 @@
 
 `runtimes/csharp/benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack, MessagePack and
 protobuf-net).
-`V3/` is every benchmark class (same data, same models, same method names) built against **Nino 3.3.13 from
+`V3/` is every benchmark class (same data, same models, same method names; a class that declares its cases has its v3
+part in its generated file instead, see [Cases and adapters](#cases-and-adapters)) built against **Nino 3.3.13 from
 nuget.org**, the last v3 release, so v4 can be compared with v3 on the same machine: each class's Nino and MemoryPack
 cases, as far as 3.3.13 can express them. It compiles v4's `NinoJobAttribute.cs`, the shared data and models
 (`Fixtures/*.cs` but the protobuf and JSON ones, and the workloads' `Workloads/*Models.cs`, their v4-only attributes
@@ -154,6 +155,29 @@ Method names are unique across classes (`<Serializer><Serialize|Deserialize><Cas
 `Protobuf` (protobuf-net), `GoogleProtobuf` and `Json` (System.Text.Json), the last two in `SimpleTest`, `PolymorphicTest`,
 `NullableTest`, `CollectionsTest`'s nullable collections and `WorkloadTest`): the documentation site and the `Payload` column key rows by method name
 alone.
+
+### Cases and adapters
+
+A class can declare its cases instead of writing their methods ([#271](https://github.com/JasonXuDeveloper/Nino/issues/271);
+`SimpleTest` so far, the other classes are still written by hand): one `[BenchCase("Name", Proto = ..., Json = ...)]`
+per case on the class, whose value is the class's static field of that name, and a library per adapter in
+`Nino.Benchmark/Adapters/`. An adapter is a C# class of templates (`Setup`, `ToBytes`, `Serialize`, `Deserialize`, and
+`Prepare` for a value made outside the timed region, as Google.Protobuf's message), not compiled:
+`runtimes/csharp/tools/BenchGen` expands each template into the class's `<File>.Cases.g.cs` with the case's names put
+in, so every method is what the same method written by hand would be, with the same name, category, baseline, IL and machine code (a
+generic call would take Nino's slower path for a type the call site does not name). The generated file holds the
+buffers, the bytes each library reads (`Serialized<Case>[slot]`), their payload sizes, the `[GlobalSetup]` (after the
+class's own `partial void OnSetup()`), and the v3 build's class under `NINO_BENCH_V3`, from the adapters whose
+`Builds` name `v3` (Nino 3.3.13 and MemoryPack, what the v3 run times). A library joins a case when the case has
+every property its `[BenchArg]` formats name (Google.Protobuf's `Proto`, System.Text.Json's `Json`).
+
+```sh
+dotnet run --project runtimes/csharp/tools/BenchGen               # after changing a case or an adapter
+dotnet run --project runtimes/csharp/tools/BenchGen -- --check    # what ci.yml runs: fails while a file is out of date
+```
+
+A case added to such a class is one attribute and its field; a library added is one adapter (its `Order` places its
+methods, its `Slot` its bytes), then BenchGen, `--verify`, and its globs in `shards.json`.
 
 ### MessagePack and protobuf-net
 

@@ -55,8 +55,9 @@ runtimes/csharp/ .NET: Nino.slnx, Directory.Build.props, Directory.Packages.prop
   tests/        unit, runtime-internals, AOT, fuzz, ASP.NET Core and codegen tests, and Nino.Conformance, which writes
                 the corpus (runtimes/csharp/tests/AGENTS.md)
   benchmarks/   BenchmarkDotNet projects and the scripts that run, compare and report them
-  tools/        CodeGen (generated formatter families), UseNinoGenerator.props (the generator from source for this
-                repository's own projects: tests, fuzzing, conformance)
+  tools/        CodeGen (generated formatter families), BenchGen (the benchmarks' timed methods from their cases and
+                adapters), UseNinoGenerator.props (the generator from source for this repository's own projects: tests,
+                fuzzing, conformance)
 runtimes/       go, rust, typescript: the wire format outside .NET
 tests/          conformance/: the corpus every runtime reads and writes (valid and malicious cases)
 docs/           design, wire-format spec, codegen, diagnostics, pitfalls, benchmark notes (Markdown in the repository)
