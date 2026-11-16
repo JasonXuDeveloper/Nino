@@ -111,14 +111,7 @@ namespace Nino.Core
         [EditorBrowsable(EditorBrowsableState.Never)]
         public readonly void CopyTo(ref Reader target)
         {
-#if NET8_0_OR_GREATER
-            target._cur = ref _cur;
-            target._avail = _avail;
-            target._origin = ref _origin;
-#else
-            target._data = _data;
-            target._pos = _pos;
-#endif
+            CopyCursorTo(ref target);
             target.Depth = Depth;
             target._regions = _regions;
             target._context = _context;
