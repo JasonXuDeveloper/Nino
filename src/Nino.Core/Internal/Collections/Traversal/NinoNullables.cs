@@ -580,7 +580,8 @@ namespace Nino.Core
         /// The bytes an element keeps over its whole vectors and the one after them (0xFF past the element: the
         /// next one's bytes, which it writes again).
         /// </summary>
-        private static readonly byte[] PieceKeeps = PieceKeepTable();
+        // Built only where Pieces holds: a type that never takes the pieces allocates nothing for them.
+        private static readonly byte[] PieceKeeps = Pieces ? PieceKeepTable() : null;
 
         private static byte[] PieceKeepTable()
         {
@@ -596,16 +597,17 @@ namespace Nino.Core
 
         private static Vector512<byte> PieceKeepRow(int k)
         {
+            if (!Pieces)
+                return Vector512<byte>.AllBitsSet;
             var bytes = new byte[64];
             bytes.AsSpan().Fill(0xFF);
-            if (PieceWidth != 0)
-                for (int i = 0; i < 64 && k * PieceWidth + i < Stride; i++)
-                    bytes[i] = PieceKeeps[k * PieceWidth + i];
+            for (int i = 0; i < 64 && k * PieceWidth + i < Stride; i++)
+                bytes[i] = PieceKeeps[k * PieceWidth + i];
             return Vector512.Create(bytes);
         }
 
         /// <summary>Where the last byte an element clears ends: pieces from there on keep every byte.</summary>
-        private static readonly int PieceKeepEnd = Array.LastIndexOf(Keeps(), (byte)0) + 1;
+        private static readonly int PieceKeepEnd = Pieces ? Array.LastIndexOf(Keeps(), (byte)0) + 1 : 0;
 
         /// <summary>
         /// Copies <paramref name="count"/> elements (one or more) as the wire holds them, each in vectors of
