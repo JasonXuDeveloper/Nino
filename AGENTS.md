@@ -212,8 +212,9 @@ asking, and give the owner its link.
 - **Type** (issue types, not labels): `Bug` (wrong bytes or behavior, a crash, a regression), `Feature` (a new
   capability), `Task` (a measurement, decision, cleanup or refactor).
 - **Labels**: one or more `area: <part>` (core, generator, analyzer, codegen, benchmarks, docs, go, rust,
-  typescript, unity, or a theme such as `area: dotnet-11`) and one or more `kind: <work>` (bug, perf, platform,
-  refactor, simd, test). A new label only when none fits, created with a color and a description in the same
+  typescript, unity, or a theme such as `area: dotnet-11`) and one or more `kind: <work>` (bug, feature, perf, docs,
+  question, platform, refactor, simd, test; every kind label has the prefix, GitHub's `enhancement`,
+  `documentation` and `question` are gone). A new label only when none fits, created with a color and a description in the same
   family (areas: one hue per part, languages in their brand color; kinds: bug red, perf green, simd teal, the rest
   light). Dependabot's labels (`dependencies`, `.NET`, `github_actions`) stay its own.
 - **Body**: the title is imperative and says what done is ("Measure X on Y", "Fix Z"). The body says what and why
@@ -223,10 +224,13 @@ asking, and give the owner its link.
 - **Triage**: `triage.yml` runs on every issue opened or reopened (`.github/scripts/triage/triage.py`): it adds
   the `area: *` labels picked in an issue form, a milestone computed from the latest release tag (only when the issue
   has none), and asks Claude Haiku once for the kind, areas, a duplicate, a parent and a suggested split. It never
-  overrides a label or milestone a person set, never closes or edits an issue and never creates one: a duplicate gets
-  the `duplicate` label and a comment, a split only a comment. The forms in `.github/ISSUE_TEMPLATE` carry the kind
-  label and the type; a new `area:` label also gets an option in each form's Area dropdown (the label without its
-  prefix).
+  overrides a label or milestone a person set, never closes or edits an issue, never creates an issue or a label: a
+  duplicate gets the `duplicate` label and a comment, a split only a comment, and an issue no `area:` label fits a
+  comment naming the area it suggests (a maintainer creates it, as above, with its option in the forms); on a
+  maintainer's own issue that comment goes to the run's summary instead, since a comment emails the issue's author.
+  It reads every `kind:` label for the milestone rule (`KIND_ALIASES`: `simd` counts as perf; platform, refactor and
+  test as other). The forms in `.github/ISSUE_TEMPLATE` carry the kind label and the type; a new `area:` label also
+  gets an option in each form's Area dropdown (the label without its prefix).
 - **Closing**: `Closes #N` in the fixing commit's body, or a comment with the result (runner numbers, the commit)
   and close with a reason (`completed`, `not_planned`, `duplicate`).
 
