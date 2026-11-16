@@ -224,9 +224,10 @@ asking, and give the owner its link.
   the `area: *` labels picked in an issue form, a milestone computed from the latest release tag (only when the issue
   has none), and asks Claude Haiku once for the kind, areas, a duplicate, a parent and a suggested split. It never
   overrides a label or milestone a person set, never closes or edits an issue and never creates one: a duplicate gets
-  the `duplicate` label and a comment, a split only a comment. The forms in `.github/ISSUE_TEMPLATE` carry the kind
-  label and the type; a new `area:` label also gets an option in each form's Area dropdown (the label without its
-  prefix).
+  the `duplicate` label and a comment, a split only a comment, and on a maintainer's own issue the comment goes to
+  the run's summary instead (a comment emails the issue's author). The forms in `.github/ISSUE_TEMPLATE` carry the
+  kind label and the type; a new `area:` label also gets an option in each form's Area dropdown (the label without
+  its prefix).
 - **Closing**: `Closes #N` in the fixing commit's body, or a comment with the result (runner numbers, the commit)
   and close with a reason (`completed`, `not_planned`, `duplicate`).
 
