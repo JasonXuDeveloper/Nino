@@ -54,7 +54,10 @@ value check in a runtime or a template.
 - Give each type's check over a block a non-generic function of its own (`//go:noinline`), called from the generic
   helper's type switch: inlined into `invalidAt[T]`, every instantiation (one per GC shape) compiled all four loops,
   and the DateOnly loop, its instructions unchanged, moved to an address that ran it 6.8 % slower on Neoverse-N2
-  (run 40925188020; out of line, 3.2 % faster, run 40934073630).
+  (run 40925188020; out of line, 3.2 % faster, run 40934073630). This case list is for the closed set of wire-type
+  leaves only (Go generics give no static trait to dispatch on); a user's type takes the structural fixed path
+  (`ReadRaw`, the generated `decode_fn`), never a new case (`optimize`, Dispatch: one generic or structural path over
+  a list of types).
 - Read a byte at a fixed offset of each element (the bools of raw structs, `rawBools`) four elements a step into four
   accumulators through `unsafe.Add` on the slice's pointer, adding only in-range offsets (a pointer past the end
   fails `-race`'s checkptr): raw structs of 8 bytes with a bool 26-38 % faster writing and 4-14 % reading. A mask of

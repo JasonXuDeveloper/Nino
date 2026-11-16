@@ -141,8 +141,11 @@ where that is so, and its x64 sizes are listings, not throughput.
   twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
   `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
 
-- Read a collection whose shape repeats into its existing instance with a loop of its own over the data, as the fresh
-  read does: `Reader.RefillStringPairs` (raw keys and strings into an existing `Dictionary`, the position and the end in
+- Read a collection whose shape repeats into its existing instance with a loop that keeps the reader's cursor in
+  registers, as the fresh read does. What wins is the cursor form, not a loop per shape: give it to every formatter
+  through one generic path reached by a constrained call (`optimize`, Dispatch) rather than another hand-written loop
+  for another pair of types; `Reader.RefillStringPairs` is one instance of it (raw keys and strings into an existing
+  `Dictionary`, the position and the end in
   registers, the value read over the current one with the compare its only call) instead of the general merge, whose
   value formatter read through the caller's reader copy in memory and called `ReadStringOver` and then `SameLatin1`
   per value. In-process timing loop (`benchmark`): a pooled class holding only a 10-entry `Dictionary<int, string>`

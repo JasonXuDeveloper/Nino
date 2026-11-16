@@ -88,7 +88,9 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   a fat-pointer call per element on NativeAOT, `call rax` at Tier1, `il2cpp_rgctx_method` on IL2CPP: no direct form.
   (3) The netstandard builds' block loops (`NinoBlockCollections.WriteValue`/`ReadValue` through
   `NinoBlockPlan.Formatter`): one interface call per element where no Burst kernel runs (IL2CPP, Mono, .NET
-  Framework); the direct form puts the loop in the formatter, which the owner declined. (4) The user-extensible points
+  Framework); putting the loop in each formatter was declined, but a direct form remains open: the element's write
+  reached by a constrained call on the block formatter's type parameter (as `INinoFormatter<T>.WritePairs` is, the
+  dictionary bullet below), not through `NinoBlockPlan.Formatter`'s interface (#346). (4) The user-extensible points
   above. Per top-level call, not per value: calls the interceptors leave alone (generic methods, another assembly's
   types, Unity's Roslyn 4.3, raw values and arrays of raw elements) read `NinoTopFormatter<T>`, `NinoRaw<T>` and
   `NinoRawArray<T>` as loads, so an array of raw elements is one `INinoRawArrayFormatter` interface call per call
@@ -192,31 +194,51 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   marked `AggressiveInlining`: the JIT refused to inline a 20-subtype chain even so (a call per element again, 4.9 us),
   and a test for a generic interface (`default(TFormatter) is INinoElementsFormatter<T>`) per element in a loop over
   a reference type is shared code that looks the interface up and boxes each time: 20 us for the same list (a
-  non-generic interface folds). Dictionaries: the next bullet.
+  non-generic interface folds). That measurement is no reason to reach a capability through non-generic methods per
+  kind of type: test a non-generic marker, then make a constrained call on the formatter's type parameter (the next
+  bullet), never a cast. Dictionaries: the next bullet.
   Generic bases keep the element loop out too: the same loop in each closed dispatch class (`__NinoDispatch<n>`),
   selected once per collection, wrote GenericSealedClassTupleBase 22 % and GenericOpenClassTupleBase 12 % slower
   (7.2 to 8.8 us, 7.5 to 8.4; two rounds, local x64), their subtypes each holding a class whose nested writes, all
   inlined into one loop, ran out of registers; the other generic bases moved within noise. The closed dispatch stays
   marked to inline into the collection loop, as before.
-- Write a `Dictionary<TKey, Base>` of a polymorphic base through the base's generated pair loop
-  (`INinoPairsFormatter`, `DispatchEmitter.EmitWriteElements`, called from `NinoDictionary.Write` on .NET 8+): one
-  generic loop `__WritePairs<TKey, TKeyFormatter>` in the generated struct, reached through non-generic interface
-  methods per kind of key (`WritePairs32`, `WritePairs64`, `WriteStringPairs`; 4- and 8-byte primitive and enum keys
-  are read as `int` and `long`, `WordKey<T>`), the dictionary's entries walked in place
-  (`NinoDictionaryEntries.InUse`: a reference and a count, no enumerator), the writer in a local. Why: in Nino.Core
-  the loop is shared code over the class value, so each value was a call into the dispatch with the writer in memory,
-  and nothing generic can be called on the formatter from there without a lookup. Keep every part, each measured
-  (#308, LuminPack's IFoo of 20 subtypes, values FooA-FooD, a class holding the dictionary, local Emerald Rapids,
-  alternating processes, `ser` minimum ns at 1 / 4 / 12 / 32 / 100 pairs; LuminPack in the same process):
+- Write a `Dictionary<TKey, Base>` of a polymorphic base through the base's generated pair loop, one generic method
+  for every key: `INinoFormatter<T>.WritePairs<TKey, TKeyFormatter>` (a default interface method, .NET 8+), which the
+  dispatch root's struct implements (`DispatchEmitter.EmitWriteElements`) and marks with the empty
+  `INinoPairsFormatter`; `NinoDictionary.Write` tests the marker (a non-generic interface: the test folds) and calls
+  `default(TValueFormatter).WritePairs<TKey, TKeyFormatter>(...)`, a constrained call through the constraint it
+  already has. Keys are written by `TKeyFormatter` inline, the dictionary's entries walked in place
+  (`NinoDictionaryEntries.InUse`: a reference and a count, no enumerator), the writer in a local. Never call a generic
+  method through a cast to an interface (`((I)default(TFormatter)).M<T>()`): the JIT boxes and goes through
+  `CORINFO_HELP_VIRTUAL_FUNC_PTR` per call; never enumerate key kinds in entry points either (#325's `WritePairs32`,
+  `WritePairs64`, `WriteStringPairs` and `WordKey<T>` left struct, `short`, `Guid`, UTF-8 and custom-formatter keys
+  on the shared loop). Why: in Nino.Core the loop is shared code over the class value, so each value was a call into
+  the dispatch with the writer in memory. Evidence (machine code, .NET 10 Tier1): the constrained call is a direct
+  `call [Formatter:WritePairs[int,...]]` from shared code over the value for a value-type key, and a direct call too
+  from a caller whose types are exact (a member's `__WriteBody`) for a `string` key; from shared code over the key it
+  is one generic-dictionary load per call (`call rax`), never per pair; no box, no `VIRTUAL_FUNC_PTR`; a scratch
+  probe (`IFmt<T>` with a generic default method, overridden by a struct) showed the same with a `string` key,
+  allocations unchanged. Per pair the loop makes no call at all on the path it takes (calls only where a subtype is
+  not in the chain, the buffer grows, a key's string is long, or a subtype's formatter class was not initialized when
+  the loop compiled, `CORINFO_HELP_GET_NONGCSTATIC_BASE`); the shared loop it replaces made one direct call per value
+  (`__WriteSubtype`, the writer by reference) and, for keys #325 did not name, `Enumerator.MoveNext` per pair. Local
+  numbers (Emerald Rapids, the probe below, `ser` minimum ns at 1 / 4 / 12 / 32 / 100 pairs, general loop against
+  #325 and LuminPack in the same process): int 17 / 25 / 42 / 82 / 240 (#325 16 / 24 / 41 / 82 / 239, LuminPack 15 /
+  22 / 49 / 103 / 296), string 17 / 26 / 53 / 120 / 350 (#325 the same, LuminPack 22 / 46 / 126 / 280 / 797), `Guid`
+  15 / 21 / 38 / 84 / 240 (#325 20 / 30 / 67 / 157 / 453, LuminPack 15 / 23 / 50 / 106 / 301), a struct of two ints
+  17 / 25 / 42 / 85 / 239 (#325 19 / 32 / 64 / 156 / 449, LuminPack 16 / 30 / 66 / 157 / 457); asm.py found no method
+  of PolymorphicTest or GenericPolymorphicTest worse than #325's. How the form was found, each step measured (#308,
+  LuminPack's IFoo of 20 subtypes, values FooA-FooD, a class holding the dictionary, alternating processes):
   base 18 / 31 / 66 / 150 / 460 for int keys, 20 / 36 / 81 / 195 / 590 for string keys; LuminPack 16 / 24 / 51 / 100 /
   290 and 23 / 47 / 128 / 287 / 816. Lost before this form: a generated `WriteFrom<TSource>` over a struct source of
   pairs written by Nino.Core (shared over the value, a lookup per call: 12 pairs 143-147 ns against 58-72), and a
   non-generic `WriteEntries(ref first, count, stride, offsets)` over the entries' memory, raw keys as bytes (the
   layout's static readonly fields in shared code and the interface call: one pair 14.3 to 22.5 ns, 12 pairs 59 to 72).
-  (1) A generic interface method (`WritePairs<TKey, TKeyFormatter>(object, ref
-  Writer)`) lost: the JIT does not devirtualize a generic virtual method even on a boxed exact struct
-  (`CORINFO_HELP_NEWSFAST` then `CORINFO_HELP_VIRTUAL_FUNC_PTR` and `call rax` in the caller, which knew the type):
-  35 / 49 / 94 / 215 / 693; keep the interface's methods non-generic and the generic loop behind them. (2) The
+  (1) A generic interface method called through a cast (`((INinoPairsFormatter)default(TValueFormatter))
+  .WritePairs<TKey, TKeyFormatter>(...)`): `CORINFO_HELP_NEWSFAST` then `CORINFO_HELP_VIRTUAL_FUNC_PTR` and `call rax`
+  in the caller, which knew the type:
+  35 / 49 / 94 / 215 / 693. #325 then took non-generic methods per kind of key; the constrained call above replaced
+  them. (2) The
   generated loop over `foreach (var pair in dictionary)` kept `Enumerator.MoveNext` a call per pair (shared code over
   the value, not inlined) and the writer in memory: 27 / 43 / 87 / 213 / 682, slower than base. (3) The entries
   through a span (`foreach (ref readonly var pair in span)`): 18 / 26 / 53 / 120 / 355. (4) The chain's fallback for
@@ -238,9 +260,15 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   for `string`, against 1,056 and 1,381 for the shared loop plus the 4,806-byte `__WriteSubtype` it called), and
   `NinoGen.Dispatch.g.cs` grew from 24.8 to 34.0 KB for the 20 subtypes; the pair loops are under
   `#if NET8_0_OR_GREATER` in the generated code, since IL2CPP compiles every method of a type and Nino.Core's
-  netstandard2.1 build (Unity, Mono) keeps its own loop. Other keys (structs, `short`, `Guid`, UTF-8 strings) keep
-  the shared loop. Reads were left as they are: a hand-written exact loop (`TryAdd`, the generated `Deserialize`
-  inline) read no faster than Nino's shared one (12 pairs 322 against 321 ns, 100 pairs 2,282 against 2,163), so the
+  netstandard2.1 build (Unity, Mono) keeps its own loop, and the default method exists only in Nino.Core's .NET 8+
+  builds. To bring it there (#346): declare the default method in the netstandard2.1 build too (C# 8; Mono and IL2CPP
+  from Unity 2020.2 run default interface methods, the package needs 2022.3), read the marker once into a `static
+  readonly bool` of a class generic over the value formatter alone (IL2CPP and Mono box `default(TFormatter)` at each
+  `is` test), and drop the `#if` around the generated loop; then read IL2CPP's C++ for the call (unity.yml's player
+  build): a constrained call on a value type IL2CPP resolves at compile time is a direct call to the instantiated
+  method, while one it leaves to run time goes through `il2cpp_codegen_get_generic_virtual_method`, the indirect
+  call to avoid; not done yet, since only a Unity build shows which. Reads were left as they are: a hand-written
+  exact loop (`TryAdd`, the generated `Deserialize` inline) read no faster than Nino's shared one (12 pairs 322 against 321 ns, 100 pairs 2,282 against 2,163), so the
   shared code's lookups are not the read's cost; LuminPack reads 5-10 % faster from about 4 pairs on (100 int pairs
   2,015 against 2,163-2,200) by filling the entries of a new dictionary in the loop and building its buckets after it
   in one pass.
