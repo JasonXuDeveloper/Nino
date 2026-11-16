@@ -61,6 +61,7 @@ Targets/                     what each language can express and how (NINOGEN002 
     TypeScriptTarget.cs        which types, names, helpers, Render (and the runtime copy with nino-gen's version)
     TypeScriptTarget.Shapes.cs   the TsShape of a value
     TypeScriptTarget.Nesting.cs  which values may open a class body (structs holding themselves included)
+    TypeScriptTarget.Unions.cs   a C# union's form: a plain union when values tell the cases apart, else tagged
     TypeScriptOptions.cs       the options of the generated TypeScript
     TsShape.cs                 how a value is written in TypeScript
     TsTemplateTypes.cs         what types.sbn reads besides shapes (TsClass, TsSlot, TsEnum, TsRawStruct, ...)

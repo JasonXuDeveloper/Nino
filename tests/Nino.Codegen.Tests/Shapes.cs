@@ -357,11 +357,19 @@ namespace Shapes
     [NinoType]
     public union TupleCase((int, int), string);
 
+    /// <summary>
+    /// Cases TypeScript cannot tell apart by their values (an int and a double are both numbers, two lists both
+    /// arrays): a tagged union there.
+    /// </summary>
+    [NinoType]
+    public union Measure(int, double, List<int>, List<string>);
+
     [NinoType]
     public sealed class Picks
     {
         public Pick Pick;
         public Pick[] Many;
+        public Measure Measure;
     }
 }
 

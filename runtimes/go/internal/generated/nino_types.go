@@ -1107,7 +1107,7 @@ func init() {
 		nino.ClassType(1087255839, &bytesClass),
 		nino.ClassType(-1384569984, &catClass),
 		nino.ClassType(-2126005709, &chainClass),
-		nino.StructType(-585924235, func(r *nino.Reader, v *Choice) { *v = ReadChoice(r) }, func(w *nino.Writer, v *Choice) { WriteChoice(w, *v) }),
+		nino.StructType(-585924235, func(r *nino.Reader, v *ChoiceObject) { v.Value = ReadChoice(r) }, func(w *nino.Writer, v *ChoiceObject) { WriteChoice(w, v.Value) }),
 		nino.ClassType(-794369036, &circleClass),
 		nino.ClassType(-20025893, &collectionsClass),
 		nino.ClassType(5206977, &datesClass),
@@ -1190,7 +1190,7 @@ func init() {
 		nino.TrackedClassType(-1245940493, &trackedTolerantClass),
 		nino.ClassType(-1576381312, &treeHolderClass),
 		nino.ClassType(1980065472, &treeNodeClass),
-		nino.StructType(-2037795165, func(r *nino.Reader, v *UnionTree) { *v = ReadUnionTree(r) }, func(w *nino.Writer, v *UnionTree) { WriteUnionTree(w, *v) }),
+		nino.StructType(-2037795165, func(r *nino.Reader, v *UnionTreeObject) { v.Value = ReadUnionTree(r) }, func(w *nino.Writer, v *UnionTreeObject) { WriteUnionTree(w, v.Value) }),
 		nino.ClassType(88364894, &unionsClass),
 		nino.ClassType(1240460566, &utf8ValueClass),
 		nino.StructType(1393705508, func(r *nino.Reader, v *Vec2) { *v = ReadVec2(r) }, func(w *nino.Writer, v *Vec2) { WriteVec2(w, *v) }),
@@ -2960,11 +2960,8 @@ func writeChainBody(w *nino.Writer, v *Chain) {
 	WriteChain(w, v.Next)
 }
 
-// Choice is the C# union `Conformance.Choice`: ChoiceInt32, ChoiceString, ChoicePoint, ChoiceAnimal, ChoiceListInt32, ChoiceNullableInt64, or nil for the empty union.
+// Choice is the C# union `Conformance.Choice`: ChoiceInt32, ChoiceString, *Point, ChoiceAnimal, ChoiceListInt32, ChoiceNullableInt64, or nil for the empty union.
 type Choice interface {
-	nino.Typed
-	// NinoUnionCase returns the .NET name of the case's type.
-	NinoUnionCase() string
 	isChoice()
 }
 
@@ -2976,15 +2973,7 @@ type ChoiceInt32 struct {
 func (ChoiceInt32) isChoice() {
 }
 
-// NinoTypeID is the type id of the union, which an object slot writes the case behind.
-func (ChoiceInt32) NinoTypeID() int32 {
-	return -585924235
-}
-
-func (ChoiceInt32) NinoTypeName() string {
-	return "Conformance.Choice"
-}
-
+// NinoUnionCase returns the .NET name of the case's type.
 func (ChoiceInt32) NinoUnionCase() string {
 	return "System.Int32"
 }
@@ -2997,38 +2986,12 @@ type ChoiceString struct {
 func (ChoiceString) isChoice() {
 }
 
-// NinoTypeID is the type id of the union, which an object slot writes the case behind.
-func (ChoiceString) NinoTypeID() int32 {
-	return -585924235
-}
-
-func (ChoiceString) NinoTypeName() string {
-	return "Conformance.Choice"
-}
-
+// NinoUnionCase returns the .NET name of the case's type.
 func (ChoiceString) NinoUnionCase() string {
 	return "System.String"
 }
 
-// ChoicePoint is the case `Conformance.Point` of Choice.
-type ChoicePoint struct {
-	Value *Point `json:"value" yaml:"value"`
-}
-
-func (ChoicePoint) isChoice() {
-}
-
-// NinoTypeID is the type id of the union, which an object slot writes the case behind.
-func (ChoicePoint) NinoTypeID() int32 {
-	return -585924235
-}
-
-func (ChoicePoint) NinoTypeName() string {
-	return "Conformance.Choice"
-}
-
-func (ChoicePoint) NinoUnionCase() string {
-	return "Conformance.Point"
+func (*Point) isChoice() {
 }
 
 // ChoiceAnimal is the case `Conformance.Animal` of Choice.
@@ -3039,15 +3002,7 @@ type ChoiceAnimal struct {
 func (ChoiceAnimal) isChoice() {
 }
 
-// NinoTypeID is the type id of the union, which an object slot writes the case behind.
-func (ChoiceAnimal) NinoTypeID() int32 {
-	return -585924235
-}
-
-func (ChoiceAnimal) NinoTypeName() string {
-	return "Conformance.Choice"
-}
-
+// NinoUnionCase returns the .NET name of the case's type.
 func (ChoiceAnimal) NinoUnionCase() string {
 	return "Conformance.Animal"
 }
@@ -3060,15 +3015,7 @@ type ChoiceListInt32 struct {
 func (ChoiceListInt32) isChoice() {
 }
 
-// NinoTypeID is the type id of the union, which an object slot writes the case behind.
-func (ChoiceListInt32) NinoTypeID() int32 {
-	return -585924235
-}
-
-func (ChoiceListInt32) NinoTypeName() string {
-	return "Conformance.Choice"
-}
-
+// NinoUnionCase returns the .NET name of the case's type.
 func (ChoiceListInt32) NinoUnionCase() string {
 	return "System.Collections.Generic.List<System.Int32>"
 }
@@ -3081,17 +3028,22 @@ type ChoiceNullableInt64 struct {
 func (ChoiceNullableInt64) isChoice() {
 }
 
-// NinoTypeID is the type id of the union, which an object slot writes the case behind.
-func (ChoiceNullableInt64) NinoTypeID() int32 {
+// NinoUnionCase returns the .NET name of the case's type.
+func (ChoiceNullableInt64) NinoUnionCase() string {
+	return "System.Nullable<System.Int64>"
+}
+
+// ChoiceObject is a Choice held as `object`: written behind the union's type id.
+type ChoiceObject struct {
+	Value Choice
+}
+
+func (ChoiceObject) NinoTypeID() int32 {
 	return -585924235
 }
 
-func (ChoiceNullableInt64) NinoTypeName() string {
+func (ChoiceObject) NinoTypeName() string {
 	return "Conformance.Choice"
-}
-
-func (ChoiceNullableInt64) NinoUnionCase() string {
-	return "System.Nullable<System.Int64>"
 }
 
 // ReadChoice reads a Choice: the type id of its case (0 for the empty union), then the case's value.
@@ -3115,7 +3067,7 @@ func ReadChoice(r *nino.Reader) Choice {
 		}
 	case -1773443910:
 		if value := ReadPoint(r); value != nil {
-			v = ChoicePoint{Value: value}
+			v = value
 		} else {
 			r.Fail(nino.CodeInvalidData, "a union case without a value")
 		}
@@ -3173,15 +3125,15 @@ func WriteChoice(w *nino.Writer, v Choice) {
 		w.StringPtr(v.Value)
 		w.ExitStruct()
 		return
-	case ChoicePoint:
-		if v.Value == nil {
+	case *Point:
+		if v == nil {
 			break
 		}
 		w.TypeID(-1773443910)
 		if !w.EnterStruct() {
 			return
 		}
-		WritePoint(w, v.Value)
+		WritePoint(w, v)
 		w.ExitStruct()
 		return
 	case ChoiceAnimal:
@@ -11262,9 +11214,6 @@ func writeTreeNodeBody(w *nino.Writer, v *TreeNode) {
 
 // UnionTree is the C# union `Conformance.UnionTree`: UnionTreeUnionTreeArray, UnionTreeInt64, or nil for the empty union.
 type UnionTree interface {
-	nino.Typed
-	// NinoUnionCase returns the .NET name of the case's type.
-	NinoUnionCase() string
 	isUnionTree()
 }
 
@@ -11276,15 +11225,7 @@ type UnionTreeUnionTreeArray struct {
 func (UnionTreeUnionTreeArray) isUnionTree() {
 }
 
-// NinoTypeID is the type id of the union, which an object slot writes the case behind.
-func (UnionTreeUnionTreeArray) NinoTypeID() int32 {
-	return -2037795165
-}
-
-func (UnionTreeUnionTreeArray) NinoTypeName() string {
-	return "Conformance.UnionTree"
-}
-
+// NinoUnionCase returns the .NET name of the case's type.
 func (UnionTreeUnionTreeArray) NinoUnionCase() string {
 	return "Conformance.UnionTree[]"
 }
@@ -11297,17 +11238,22 @@ type UnionTreeInt64 struct {
 func (UnionTreeInt64) isUnionTree() {
 }
 
-// NinoTypeID is the type id of the union, which an object slot writes the case behind.
-func (UnionTreeInt64) NinoTypeID() int32 {
+// NinoUnionCase returns the .NET name of the case's type.
+func (UnionTreeInt64) NinoUnionCase() string {
+	return "System.Int64"
+}
+
+// UnionTreeObject is a UnionTree held as `object`: written behind the union's type id.
+type UnionTreeObject struct {
+	Value UnionTree
+}
+
+func (UnionTreeObject) NinoTypeID() int32 {
 	return -2037795165
 }
 
-func (UnionTreeInt64) NinoTypeName() string {
+func (UnionTreeObject) NinoTypeName() string {
 	return "Conformance.UnionTree"
-}
-
-func (UnionTreeInt64) NinoUnionCase() string {
-	return "System.Int64"
 }
 
 // ReadUnionTree reads a UnionTree: the type id of its case (0 for the empty union), then the case's value.

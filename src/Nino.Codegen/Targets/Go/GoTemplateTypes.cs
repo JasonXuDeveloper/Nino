@@ -341,17 +341,25 @@ namespace Nino.Codegen.Targets
         public int Offset { get; }
     }
 
-    /// <summary>A case of a C# union: the struct holding its value (<c>ChoiceInt32</c>), its type id and shape.</summary>
+    /// <summary>A case of a C# union: its Go type (<c>ChoiceInt32</c>, <c>*Point</c>), its type id and shape.</summary>
     public sealed class GoCase
     {
-        internal GoCase(string name, UnionCaseModel model, GoShape shape)
+        internal GoCase(string name, UnionCaseModel model, GoShape shape, bool direct)
         {
             Name = name;
             Model = model;
             Shape = shape;
+            Direct = direct;
         }
 
+        /// <summary>The case's Go type: the struct holding its value, or (<see cref="Direct"/>) the value's own type.</summary>
         public string Name { get; }
+
+        /// <summary>
+        /// Whether the value's own generated type (<c>X</c>, <c>*X</c>) is the case, marked with the union's method:
+        /// no struct around it. A type can be a case of several unions, marked once for each.
+        /// </summary>
+        public bool Direct { get; }
 
         public UnionCaseModel Model { get; }
 
@@ -386,8 +394,7 @@ namespace Nino.Codegen.Targets
         public bool IsUnion => Model.IsUnion;
 
         /// <summary>A union's cases, in declaration order: each a struct named after the union and the case.</summary>
-        public List<GoCase> Cases => Model.Cases.Select(c =>
-            new GoCase(_target.CaseName(Model, c), c, _target.ShapeIn(Model, c.Value))).ToList();
+        public List<GoCase> Cases => _target.UnionCases(Model);
 
         /// <summary>The id it is written behind (its name's hash for a closed generic type).</summary>
         public int Id => GoTarget.IdOf(Model);

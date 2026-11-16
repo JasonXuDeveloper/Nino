@@ -144,7 +144,13 @@ namespace Nino.Codegen.Integration.Tests
                 One = new Shot(new Vec2 { X = 1.5f, Y = -2 }),
                 Two = new Shot(new Dog { Name = "Fido", Bones = 3 }),
                 Many = new List<Shot> { new(7), default, new("shot"), new(new List<long> { 1, -2 }) },
+                Amount = new Amount(2.5f),
+                Amounts = new List<Amount>
+                {
+                    new(1), new(new List<string> { "a", null }), default, new(new List<int> { 3 }), new(-0.5f),
+                },
             })));
+            cases.Add(("Samples.Amount", NinoSerializer.Serialize(new Amount(new List<int> { 4, 5 }))));
             cases.Add(("Samples.Shots", NinoSerializer.Serialize(new Shots())));
             cases.Add(("Samples.Shot", NinoSerializer.Serialize(new Shot("top"))));
             cases.Add(("Samples.Pens", NinoSerializer.Serialize(new Pens { Anything = new Shot(5) })));

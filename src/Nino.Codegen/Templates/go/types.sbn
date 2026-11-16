@@ -3,17 +3,22 @@
 # descriptors, bodies, polymorphic slots, then the functions values of one shape share. gofmt leaves it as it is.
 include "shapes.sbn"
 
-# A C# union (spec §7.12): an interface its cases implement, a struct per case holding its value; read and written as
-# the case's type id (0, nil, for the empty union), then the value, never nil. In an object slot, each case is written
-# behind the union's own type id (its NinoTypeID).
+# A C# union (spec §7.12): an interface its cases implement, nil for the empty union. A case whose value is a
+# generated struct or class (a non-generic `X` or `*X`) is that type itself, marked with the union's method; any other
+# case is a struct holding its `Value`. Read and written as the case's type id (0 for the empty union), then the value,
+# never nil, through one switch on the id and one type switch.
 func union_type(c)
   $cases = []
   for $k in c.cases
     $cases = array.add $cases $k.name
   end
   $o = "// " + c.name + " is the C# union `" + c.model.full_name + "`: " + (array.join $cases ", ") + ", or nil for the empty union.\n"
-  $o = $o + "type " + c.name + " interface {\n\tnino.Typed\n\t// NinoUnionCase returns the .NET name of the case's type.\n\tNinoUnionCase() string\n\tis" + c.name + "()\n}\n\n"
+  $o = $o + "type " + c.name + " interface {\n\tis" + c.name + "()\n}\n\n"
   for $k in c.cases
+    if $k.direct
+      $o = $o + "func (" + $k.name + ") is" + c.name + "() {\n}\n\n"
+      continue
+    end
     $tag = ""
     for $t in extra_tags
       $tag = $tag + ($tag == "" ? "" : " ") + $t + ":\"" + tag_name("Value") + "\""
@@ -21,44 +26,57 @@ func union_type(c)
     $o = $o + "// " + $k.name + " is the case `" + $k.model.runtime_name + "` of " + c.name + ".\n"
     $o = $o + "type " + $k.name + " struct {\n\tValue " + gotype($k.shape) + ($tag == "" ? "" : " `" + $tag + "`") + "\n}\n\n"
     $o = $o + "func (" + $k.name + ") is" + c.name + "() {\n}\n\n"
-    $o = $o + "// NinoTypeID is the type id of the union, which an object slot writes the case behind.\nfunc (" + $k.name + ") NinoTypeID() int32 {\n\treturn " + c.id + "\n}\n\n"
-    $o = $o + "func (" + $k.name + ") NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
-    $o = $o + "func (" + $k.name + ") NinoUnionCase() string {\n\treturn " + go_string($k.model.runtime_name) + "\n}\n\n"
+    $o = $o + "// NinoUnionCase returns the .NET name of the case's type.\nfunc (" + $k.name + ") NinoUnionCase() string {\n\treturn " + go_string($k.model.runtime_name) + "\n}\n\n"
   end
+  if uses_object
+    $o = $o + "// " + c.name + "Object is a " + c.name + " held as `object`: written behind the union's type id.\ntype " + c.name + "Object struct {\n\tValue " + c.name + "\n}\n\n"
+    $o = $o + "func (" + c.name + "Object) NinoTypeID() int32 {\n\treturn " + c.id + "\n}\n\n"
+    $o = $o + "func (" + c.name + "Object) NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
+  end
+  $nests = c.model.union_nests
   $o = $o + "// Read" + c.name + " reads a " + c.name + ": the type id of its case (0 for the empty union), then the case's value.\n"
   $o = $o + "func Read" + c.name + "(r *nino.Reader) " + c.name + " {\n\tid := r.TypeID()\n\tif id == nino.NullTypeID {\n\t\treturn nil\n\t}\n"
-  if c.model.union_nests
-    $o = $o + "\tif !r.EnterStruct() {\n\t\treturn nil\n\t}\n"
+  # Without a depth count, each case returns its value; with one (a case can hold the union again), the value is kept
+  # until the count is closed (no defer: it keeps the function out of line and costs a call).
+  $ret = $nests ? "v = " : "return "
+  if $nests
+    $o = $o + "\tif !r.EnterStruct() {\n\t\treturn nil\n\t}\n\tvar v " + c.name + "\n"
   end
-  $o = $o + "\tvar v " + c.name + "\n\tswitch id {\n"
+  $o = $o + "\tswitch id {\n"
   for $k in c.cases
     $o = $o + "\tcase " + $k.model.type_id + ":\n"
+    $made = $k.direct ? "value" : $k.name + "{Value: value}"
     if $k.model.nullable
       # A case read as nil is invalid: .NET writes the empty union for a case given null.
-      $o = $o + "\t\tif value := " + read($k.shape) + "; value != nil {\n\t\t\tv = " + $k.name + "{Value: value}\n\t\t} else {\n\t\t\tr.Fail(nino.CodeInvalidData, \"a union case without a value\")\n\t\t}\n"
+      $o = $o + "\t\tif value := " + read($k.shape) + "; value != nil {\n\t\t\t" + $ret + $made + "\n"
+      $o = $o + ($nests ? "\t\t} else {\n\t\t\tr.Fail(nino.CodeInvalidData, \"a union case without a value\")\n\t\t}\n" : "\t\t}\n\t\tr.Fail(nino.CodeInvalidData, \"a union case without a value\")\n")
+    else if $k.direct
+      $o = $o + "\t\t" + $ret + read($k.shape) + "\n"
     else
-      $o = $o + "\t\tv = " + $k.name + "{Value: " + read($k.shape) + "}\n"
+      $o = $o + "\t\t" + $ret + $k.name + "{Value: " + read($k.shape) + "}\n"
     end
   end
   $o = $o + "\tdefault:\n\t\tr.UnknownType(id)\n\t}\n"
-  if c.model.union_nests
-    $o = $o + "\tr.ExitStruct()\n"
+  if $nests
+    $o = $o + "\tr.ExitStruct()\n\tif r.Failed() {\n\t\treturn nil\n\t}\n\treturn v\n}\n\n"
+  else
+    $o = $o + "\treturn nil\n}\n\n"
   end
-  $o = $o + "\tif r.Failed() {\n\t\treturn nil\n\t}\n\treturn v\n}\n\n"
   $o = $o + "// Read" + c.name + "Into reads a value into *v (DeserializeInto): a union is read whole.\nfunc Read" + c.name + "Into(r *nino.Reader, v *" + c.name + ") {\n\t*v = Read" + c.name + "(r)\n}\n\n"
   # A case holding nil is written as the empty union, as .NET writes a case given null.
   $o = $o + "func Write" + c.name + "(w *nino.Writer, v " + c.name + ") {\n\tswitch v := v.(type) {\n"
   for $k in c.cases
+    $value = $k.direct ? "v" : "v.Value"
     $o = $o + "\tcase " + $k.name + ":\n"
     if $k.model.nullable
-      $o = $o + "\t\tif v.Value == nil {\n\t\t\tbreak\n\t\t}\n"
+      $o = $o + "\t\tif " + $value + " == nil {\n\t\t\tbreak\n\t\t}\n"
     end
     $o = $o + "\t\tw.TypeID(" + $k.model.type_id + ")\n"
-    if c.model.union_nests
+    if $nests
       $o = $o + "\t\tif !w.EnterStruct() {\n\t\t\treturn\n\t\t}\n"
     end
-    $o = $o + "\t\t" + write($k.shape, "v.Value") + "\n"
-    if c.model.union_nests
+    $o = $o + "\t\t" + write($k.shape, $value) + "\n"
+    if $nests
       $o = $o + "\t\tw.ExitStruct()\n"
     end
     $o = $o + "\t\treturn\n"
@@ -786,7 +804,9 @@ if $classes.size != 0 || closed.size != 0 || slot_closed.size != 0
     # it can find).
     "\tobjects = nino.NewTypeSet(\n"
     for o in objects
-      if o.kind == "raw" || o.kind == "struct"
+      if o.is_union
+        "\t\tnino.StructType(" + o.id + ", func(r *nino.Reader, v *" + o.name + "Object) { v.Value = Read" + o.name + "(r) }, func(w *nino.Writer, v *" + o.name + "Object) { Write" + o.name + "(w, v.Value) }),\n"
+      else if o.kind == "raw" || o.kind == "struct"
         "\t\tnino.StructType(" + o.id + ", func(r *nino.Reader, v *" + o.name + ") { *v = Read" + o.name + "(r) }, func(w *nino.Writer, v *" + o.name + ") { Write" + o.name + "(w, *v) }),\n"
       else
         "\t\tnino." + (o.tracked ? "TrackedClassType" : "ClassType") + "(" + o.id + ", &" + lower(o.name) + "Class),\n"

@@ -361,6 +361,13 @@ namespace Samples
     [NinoType]
     public union Shot(int, string, Vec2, Animal, List<long>);
 
+    /// <summary>
+    /// A union whose cases TypeScript cannot tell apart by their values (an int and a float are numbers, two lists
+    /// arrays): tagged with each case's name there; Shot's are told apart, a plain TypeScript union.
+    /// </summary>
+    [NinoType]
+    public union Amount(int, float, List<int>, List<string>);
+
     [NinoType]
     public sealed class Shots
     {
@@ -368,6 +375,8 @@ namespace Samples
         public Shot Two;
         public Shot None;
         public List<Shot> Many;
+        public Amount Amount;
+        public List<Amount> Amounts;
     }
 
     /// <summary>Left out of TypeScript (<c>Half</c> has no TypeScript form), with a warning.</summary>

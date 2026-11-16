@@ -434,11 +434,20 @@ namespace Nino.Codegen.Tests
         public void EveryTargetWritesAUnionAsItsSumType()
         {
             var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
-            StringAssert.Contains(ts, "export class Pick {\n  case: \"Empty\" | \"PickPair\" | \"Byte\" | null = null;");
-            StringAssert.Contains(ts, "  static Byte(value: number): Pick {");
-            StringAssert.Contains(ts, "types.add(" + Nino.Core.NinoTypeId.Compute("Shapes.Pick") + ", Pick, readPick, writePick);");
+            // Every case told apart by its value: a plain union, written by testing the value.
+            StringAssert.Contains(ts, "export type Pick = Empty | PickPair | number;");
+            StringAssert.Contains(ts, "  if (v instanceof Empty) {");
+            StringAssert.Contains(ts, "  else if (typeof v === \"number\") {");
+            // An int and a double, two lists: a union tagged with each case's name, and its constructors.
+            StringAssert.Contains(ts, "export type Measure =\n  | { readonly case: \"Int32\"; readonly value: number }\n" +
+                                      "  | { readonly case: \"Double\"; readonly value: number }");
+            StringAssert.Contains(ts, "  Int32: (value: number): Measure => ({ case: \"Int32\", value }),");
+            StringAssert.Contains(ts, "  switch (v.case) {");
+            Assert.IsFalse(ts.Contains("PickObject", StringComparison.Ordinal), "no object member: no class for one");
             var (go, _) = Run("go", "nino_types.go");
-            StringAssert.Contains(go, "type Pick interface {");
+            StringAssert.Contains(go, "type Pick interface {\n\tisPick()\n}");
+            // A generated class is the case itself; a byte and a raw struct are held by a struct of their own.
+            StringAssert.Contains(go, "func (*Empty) isPick() {");
             StringAssert.Contains(go, "type PickByte struct {\n\tValue uint8");
             StringAssert.Contains(go, "func ReadPick(r *nino.Reader) Pick {");
             var (rust, _) = Run("rust", "nino_types.rs");

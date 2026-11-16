@@ -2920,15 +2920,15 @@ function writeBody$TreeNode(w: NinoWriter, v: TreeNode): void {
 
 /** `Conformance.Unions`. */
 export class Unions {
-  Number: Choice = new Choice();
-  Text: Choice = new Choice();
-  Point: Choice = new Choice();
-  Pet: Choice = new Choice();
-  Numbers: Choice = new Choice();
-  Maybe: Choice = new Choice();
-  Empty: Choice = new Choice();
-  Many: Choice[] | null = null;
-  Tree: UnionTree = new UnionTree();
+  Number: Choice | null = null;
+  Text: Choice | null = null;
+  Point: Choice | null = null;
+  Pet: Choice | null = null;
+  Numbers: Choice | null = null;
+  Maybe: Choice | null = null;
+  Empty: Choice | null = null;
+  Many: (Choice | null)[] | null = null;
+  Tree: UnionTree | null = null;
 }
 
 function readUnions(r: NinoReader, v: Unions = new Unions()): Unions {
@@ -2952,15 +2952,15 @@ function writeUnions(w: NinoWriter, v: Unions): void {
 }
 
 function readBody$Unions(r: NinoReader, v: Unions): void {
-  v.Number = readChoice(r, v.Number);
-  v.Text = readChoice(r, v.Text);
-  v.Point = readChoice(r, v.Point);
-  v.Pet = readChoice(r, v.Pet);
-  v.Numbers = readChoice(r, v.Numbers);
-  v.Maybe = readChoice(r, v.Maybe);
-  v.Empty = readChoice(r, v.Empty);
+  v.Number = readChoice(r);
+  v.Text = readChoice(r);
+  v.Point = readChoice(r);
+  v.Pet = readChoice(r);
+  v.Numbers = readChoice(r);
+  v.Maybe = readChoice(r);
+  v.Empty = readChoice(r);
   v.Many = (v.Many == null ? read$44(r) : readInto$44(r, v.Many));
-  v.Tree = readUnionTree(r, v.Tree);
+  v.Tree = readUnionTree(r);
 }
 
 function writeBody$Unions(w: NinoWriter, v: Unions): void {
@@ -3280,108 +3280,56 @@ function writeBody$Cat(w: NinoWriter, v: Cat): void {
   w.f32(v.Lives);
 }
 
-/** `Conformance.Choice`, a C# union: `case` names the case `value` holds, null for the empty union. */
-export class Choice {
-  case: "Int32" | "String" | "Point" | "Animal" | "ListInt32" | "NullableInt64" | null = null;
-  value: number | string | Point | Animal | number[] | bigint | null = null;
+/** `Conformance.Choice`, a C# union: the value of one of its cases; null is the empty union. */
+export type Choice = number | string | Point | Animal | number[] | bigint;
 
-  /** A `Choice` holding its case `System.Int32`. */
-  static Int32(value: number): Choice {
-    const v = new Choice();
-    v.case = "Int32";
-    v.value = value;
-    return v;
-  }
+/** A `Choice` held as `object`: an `object` slot tells types apart by their classes. */
+export class ChoiceObject {
+  value: Choice | null;
 
-  /** A `Choice` holding its case `System.String`. */
-  static String(value: string | null): Choice {
-    const v = new Choice();
-    v.case = "String";
-    v.value = value;
-    return v;
-  }
-
-  /** A `Choice` holding its case `Conformance.Point`. */
-  static Point(value: Point | null): Choice {
-    const v = new Choice();
-    v.case = "Point";
-    v.value = value;
-    return v;
-  }
-
-  /** A `Choice` holding its case `Conformance.Animal`. */
-  static Animal(value: Animal | null): Choice {
-    const v = new Choice();
-    v.case = "Animal";
-    v.value = value;
-    return v;
-  }
-
-  /** A `Choice` holding its case `System.Collections.Generic.List<System.Int32>`. */
-  static ListInt32(value: number[] | null): Choice {
-    const v = new Choice();
-    v.case = "ListInt32";
-    v.value = value;
-    return v;
-  }
-
-  /** A `Choice` holding its case `System.Nullable<System.Int64>`. */
-  static NullableInt64(value: bigint | null): Choice {
-    const v = new Choice();
-    v.case = "NullableInt64";
-    v.value = value;
-    return v;
+  constructor(value: Choice | null = null) {
+    this.value = value;
   }
 }
 
-function readChoice(r: NinoReader, v: Choice = new Choice()): Choice {
+function readChoice(r: NinoReader): Choice | null {
   const id = r.i32();
-  if (id === 0) {
-    v.case = null;
-    v.value = null;
-    return v;
-  }
+  if (id === 0) return null;
   r.enterStruct();
+  let v: Choice;
   switch (id) {
     case 546808484: {
-      const value = r.i32();
-      v.case = "Int32";
-      v.value = value;
+      v = r.i32();
       break;
     }
     case -65934901: {
       const value = r.string();
       if (value === null) throw r.invalidCase(id);
-      v.case = "String";
-      v.value = value;
+      v = value;
       break;
     }
     case -1773443910: {
       const value = (r.present() ? readPoint(r) : null);
       if (value === null) throw r.invalidCase(id);
-      v.case = "Point";
-      v.value = value;
+      v = value;
       break;
     }
     case -749123728: {
       const value = AnimalCodec.read(r);
       if (value === null) throw r.invalidCase(id);
-      v.case = "Animal";
-      v.value = value;
+      v = value;
       break;
     }
     case -217079013: {
       const value = read$11(r);
       if (value === null) throw r.invalidCase(id);
-      v.case = "ListInt32";
-      v.value = value;
+      v = value;
       break;
     }
     case 1279255967: {
       const value = (r.present() ? r.i64() : null);
       if (value === null) throw r.invalidCase(id);
-      v.case = "NullableInt64";
-      v.value = value;
+      v = value;
       break;
     }
     default:
@@ -3391,67 +3339,40 @@ function readChoice(r: NinoReader, v: Choice = new Choice()): Choice {
   return v;
 }
 
-function writeChoice(w: NinoWriter, v: Choice): void {
-  switch (v.case) {
-    case "Int32": {
-      const value = v.value as number;
-      w.i32(546808484);
-      w.enterStruct();
-      w.i32(value);
-      w.exitStruct();
-      return;
-    }
-    case "String": {
-      const value = v.value as string | null;
-      if (value === null || value === undefined) break;
-      w.i32(-65934901);
-      w.enterStruct();
-      w.string(value);
-      w.exitStruct();
-      return;
-    }
-    case "Point": {
-      const value = v.value as Point | null;
-      if (value === null || value === undefined) break;
-      w.i32(-1773443910);
-      w.enterStruct();
-      if (value === null || value === undefined) w.u8(0); else { w.u8(1); writePoint(w, value); }
-      w.exitStruct();
-      return;
-    }
-    case "Animal": {
-      const value = v.value as Animal | null;
-      if (value === null || value === undefined) break;
-      w.i32(-749123728);
-      w.enterStruct();
-      AnimalCodec.write(w, value);
-      w.exitStruct();
-      return;
-    }
-    case "ListInt32": {
-      const value = v.value as number[] | null;
-      if (value === null || value === undefined) break;
-      w.i32(-217079013);
-      w.enterStruct();
-      write$11(w, value);
-      w.exitStruct();
-      return;
-    }
-    case "NullableInt64": {
-      const value = v.value as bigint | null;
-      if (value === null || value === undefined) break;
-      w.i32(1279255967);
-      w.enterStruct();
-      if (value === null || value === undefined) w.u8(0); else { w.u8(1); w.i64(value); }
-      w.exitStruct();
-      return;
-    }
-    case null:
-      break;
-    default:
-      throw types.unwritable(v);
+function writeChoice(w: NinoWriter, v: Choice | null): void {
+  if (v === null || v === undefined) {
+    w.i32(0);
+    return;
   }
-  w.i32(0);
+  w.enterStruct();
+  if (typeof v === "number") {
+    w.i32(546808484);
+    w.i32(v);
+  }
+  else if (typeof v === "string") {
+    w.i32(-65934901);
+    w.string(v);
+  }
+  else if (v instanceof Point) {
+    w.i32(-1773443910);
+    w.u8(1);
+    writePoint(w, v);
+  }
+  else if (v instanceof Animal) {
+    w.i32(-749123728);
+    AnimalCodec.write(w, v);
+  }
+  else if (Array.isArray(v)) {
+    w.i32(-217079013);
+    write$11(w, v);
+  }
+  else if (typeof v === "bigint") {
+    w.i32(1279255967);
+    w.u8(1);
+    w.i64(v);
+  }
+  else throw types.unwritable(v as object);
+  w.exitStruct();
 }
 
 /** `Conformance.Dog`. */
@@ -3885,48 +3806,32 @@ function writeBody$TrackedLeaf(w: NinoWriter, v: TrackedLeaf): void {
   w.string(v.Name);
 }
 
-/** `Conformance.UnionTree`, a C# union: `case` names the case `value` holds, null for the empty union. */
-export class UnionTree {
-  case: "UnionTreeArray" | "Int64" | null = null;
-  value: UnionTree[] | bigint | null = null;
+/** `Conformance.UnionTree`, a C# union: the value of one of its cases; null is the empty union. */
+export type UnionTree = (UnionTree | null)[] | bigint;
 
-  /** A `UnionTree` holding its case `Conformance.UnionTree[]`. */
-  static UnionTreeArray(value: UnionTree[] | null): UnionTree {
-    const v = new UnionTree();
-    v.case = "UnionTreeArray";
-    v.value = value;
-    return v;
-  }
+/** A `UnionTree` held as `object`: an `object` slot tells types apart by their classes. */
+export class UnionTreeObject {
+  value: UnionTree | null;
 
-  /** A `UnionTree` holding its case `System.Int64`. */
-  static Int64(value: bigint): UnionTree {
-    const v = new UnionTree();
-    v.case = "Int64";
-    v.value = value;
-    return v;
+  constructor(value: UnionTree | null = null) {
+    this.value = value;
   }
 }
 
-function readUnionTree(r: NinoReader, v: UnionTree = new UnionTree()): UnionTree {
+function readUnionTree(r: NinoReader): UnionTree | null {
   const id = r.i32();
-  if (id === 0) {
-    v.case = null;
-    v.value = null;
-    return v;
-  }
+  if (id === 0) return null;
   r.enterStruct();
+  let v: UnionTree;
   switch (id) {
     case 1950069485: {
       const value = read$49(r);
       if (value === null) throw r.invalidCase(id);
-      v.case = "UnionTreeArray";
-      v.value = value;
+      v = value;
       break;
     }
     case 337757159: {
-      const value = r.i64();
-      v.case = "Int64";
-      v.value = value;
+      v = r.i64();
       break;
     }
     default:
@@ -3936,31 +3841,22 @@ function readUnionTree(r: NinoReader, v: UnionTree = new UnionTree()): UnionTree
   return v;
 }
 
-function writeUnionTree(w: NinoWriter, v: UnionTree): void {
-  switch (v.case) {
-    case "UnionTreeArray": {
-      const value = v.value as UnionTree[] | null;
-      if (value === null || value === undefined) break;
-      w.i32(1950069485);
-      w.enterStruct();
-      write$49(w, value);
-      w.exitStruct();
-      return;
-    }
-    case "Int64": {
-      const value = v.value as bigint;
-      w.i32(337757159);
-      w.enterStruct();
-      w.i64(value);
-      w.exitStruct();
-      return;
-    }
-    case null:
-      break;
-    default:
-      throw types.unwritable(v);
+function writeUnionTree(w: NinoWriter, v: UnionTree | null): void {
+  if (v === null || v === undefined) {
+    w.i32(0);
+    return;
   }
-  w.i32(0);
+  w.enterStruct();
+  if (Array.isArray(v)) {
+    w.i32(1950069485);
+    write$49(w, v);
+  }
+  else if (typeof v === "bigint") {
+    w.i32(337757159);
+    w.i64(v);
+  }
+  else throw types.unwritable(v as object);
+  w.exitStruct();
 }
 
 /** `Conformance.Puppy`. */
@@ -4011,7 +3907,7 @@ types.add(-297546495, ByteArray, readByteArray, writeByteArray);
 types.add(1087255839, Bytes, readBytes, writeBytes);
 types.add(-1384569984, Cat, readCat, writeCat);
 types.add(-2126005709, Chain, readChain, writeChain);
-types.add(-585924235, Choice, readChoice, writeChoice);
+types.add(-585924235, ChoiceObject, (r) => new ChoiceObject(readChoice(r)), (w, v) => writeChoice(w, v.value));
 types.add(-794369036, Circle, readCircle, writeCircle);
 types.add(1772922506, Dog, readDog, writeDog);
 types.add(1207113682, DogSlot, readDogSlot, writeDogSlot);
@@ -4093,7 +3989,7 @@ types.add(-1245940493, TrackedTolerant, (r) => r.trackedOf(TrackedTolerant, read
   if (w.ref(v)) writeTrackedTolerant(w, v);
 });
 types.add(1980065472, TreeNode, readTreeNode, writeTreeNode);
-types.add(-2037795165, UnionTree, readUnionTree, writeUnionTree);
+types.add(-2037795165, UnionTreeObject, (r) => new UnionTreeObject(readUnionTree(r)), (w, v) => writeUnionTree(w, v.value));
 types.add(88364894, Unions, readUnions, writeUnions);
 types.add(1240460566, Utf8Value, readUtf8Value, writeUtf8Value);
 types.add(1393705508, Vec2, (r) => readVec2(r, r.take(8)), (w, v) => writeVec2(w, w.reserve(8), v));
@@ -4371,7 +4267,7 @@ export const ChainCodec: NinoCodec<Chain | null> = {
   },
   readInto: (r, v) => (r.present() ? (v == null ? readChain(r) : readChain(r, v!)) : null),
 };
-export const ChoiceCodec: NinoCodec<Choice> = { read: (r) => readChoice(r), write: writeChoice, readInto: readChoice };
+export const ChoiceCodec: NinoCodec<Choice | null> = { read: readChoice, write: writeChoice };
 export const CircleCodec: NinoCodec<Circle | null> = {
   read: (r) => {
     const id = r.i32();
@@ -5083,7 +4979,7 @@ export const TreeNodeCodec: NinoCodec<TreeNode | null> = {
   },
   readInto: (r, v) => (r.present() ? (v == null ? readTreeNode(r) : readTreeNode(r, v!)) : null),
 };
-export const UnionTreeCodec: NinoCodec<UnionTree> = { read: (r) => readUnionTree(r), write: writeUnionTree, readInto: readUnionTree };
+export const UnionTreeCodec: NinoCodec<UnionTree | null> = { read: readUnionTree, write: writeUnionTree };
 export const UnionsCodec: NinoCodec<Unions | null> = {
   read: (r) => (r.present() ? readUnions(r) : null),
   write: (w, v) => {
@@ -6884,24 +6780,24 @@ function write$43(w: NinoWriter, values: readonly (TreeNode | null)[] | null): v
   }
 }
 
-function read$44(r: NinoReader): Choice[] | null {
+function read$44(r: NinoReader): (Choice | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<Choice>(r.capacity(length));
+  const values = new Array<Choice | null>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = readChoice(r);
   return values;
 }
 
-function readInto$44(r: NinoReader, cur: Choice[]): Choice[] | null {
+function readInto$44(r: NinoReader, cur: (Choice | null)[]): (Choice | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
   const values = cur;
-  for (let i = 0; i < length; i++) values[i] = readChoice(r, values[i]);
+  for (let i = 0; i < length; i++) values[i] = readChoice(r);
   if (values.length !== length) values.length = length;
   return values;
 }
 
-function write$44(w: NinoWriter, values: readonly Choice[] | null): void {
+function write$44(w: NinoWriter, values: readonly (Choice | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;
@@ -7040,15 +6936,15 @@ function write$48<T>(w: NinoWriter, values: readonly T[] | null, c: ListShelf$Co
   }
 }
 
-function read$49(r: NinoReader): UnionTree[] | null {
+function read$49(r: NinoReader): (UnionTree | null)[] | null {
   const length = r.length();
   if (length < 0) return null;
-  const values = new Array<UnionTree>(r.capacity(length));
+  const values = new Array<UnionTree | null>(r.capacity(length));
   for (let i = 0; i < length; i++) values[i] = readUnionTree(r);
   return values;
 }
 
-function write$49(w: NinoWriter, values: readonly UnionTree[] | null): void {
+function write$49(w: NinoWriter, values: readonly (UnionTree | null)[] | null): void {
   if (values === null || values === undefined) {
     w.i32(-1);
     return;

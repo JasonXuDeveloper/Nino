@@ -321,13 +321,33 @@ namespace Nino.Codegen.Targets
         }
 
         /// <summary>
-        /// The struct of a union's case: the union's name and the case's (<c>ChoiceInt32</c>), with <c>Case</c> after
-        /// it where a generated type has that name.
+        /// The cases of a union in Go. A case whose value is a generated struct or class that is not generic (its Go
+        /// type <c>X</c> or <c>*X</c>) is that type, marked with the union's method: the value is not wrapped again,
+        /// and one type can be a case of several unions (a method each). Two cases of one union cannot share a named
+        /// type (<c>X</c> and <c>*X</c> share their methods), so then both are wrapped. Any other case is a struct
+        /// holding its value, named after the union and the case (<c>ChoiceInt32</c>; <c>Case</c> after it where a
+        /// generated type has that name).
         /// </summary>
-        internal string CaseName(TypeModel union, UnionCaseModel item)
+        internal List<GoCase> UnionCases(TypeModel union)
         {
-            string name = Name(union) + item.Name;
-            return Names.Contains(name) ? name + "Case" : name;
+            var shapes = union.Cases.Select(c => ShapeIn(union, c.Value)).ToList();
+            var direct = shapes.Select(s => s.Kind is "struct" or "class" && s.Type is { IsGeneric: false }).ToList();
+            var named = shapes.Select((s, i) => direct[i] ? s.Type!.FullName : null).ToList();
+            for (int i = 0; i < direct.Count; i++)
+                if (direct[i] && named.Count(n => n == named[i]) > 1)
+                    direct[i] = false;
+            return union.Cases.Select((c, i) =>
+            {
+                string name = (shapes[i].Kind == "class" ? "*" : "") + Name(shapes[i].Type ?? union);
+                if (!direct[i])
+                {
+                    name = Name(union) + c.Name;
+                    if (Names.Contains(name))
+                        name += "Case";
+                }
+
+                return new GoCase(name, c, shapes[i], direct[i]);
+            }).ToList();
         }
 
         /// <summary>The Go interface of a slot: the type's name, or <c>XType</c> for a class with subtypes.</summary>
