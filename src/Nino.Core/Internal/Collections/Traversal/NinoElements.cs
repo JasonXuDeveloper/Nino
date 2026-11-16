@@ -332,6 +332,14 @@ namespace Nino.Core.Internal
             // The loop stays in this method: a helper of its own was not inlined where the element's formatter
             // writes a collection of its own type (a tree), which added a call per level (SelfTree serialize 0.86x on
             // EPYC 9V74, runner A/B of the rc.10 review head against main 51a7bd18).
+            // A polymorphic base: its generated loop, with the dispatch inline (INinoElementsFormatter).
+            if (default(TFormatter) is INinoElementsFormatter<T>)
+            {
+                if (!values.IsEmpty)
+                    ((INinoElementsFormatter<T>)default(TFormatter)).WriteElements(values, ref writer);
+                return;
+            }
+
             if (WritesOnLocal<T, TFormatter>())
             {
                 if (!values.IsEmpty)
