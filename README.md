@@ -85,6 +85,7 @@ Polymorphism needs no tags: a value declared as its base is read back as its run
 On .NET 11 with C# 15, annotate a union declaration with `[NinoType]`, for example
 `[NinoType] public union Result(int, string);`. Nino generates a formatter for the union and uses each case's
 formatter for its payload. Cases use Nino type ids, so reordering them preserves the meaning of stored ids.
+`nino-gen` writes unions in TypeScript, Go and Rust too.
 See the [union wire format](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/spec/wire-format.md#712-c-union-structs).
 
 ```csharp

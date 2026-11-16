@@ -832,6 +832,26 @@ namespace Conformance
             {
                 IntSet = new HashSet<int?>(), Grid = new int?[0, 3], Nested = new List<HashSet<int?>>(),
             }, "nullable", "seq", "grid");
+            // ---------------------------------------------------------- C# unions (spec §7.12)
+
+            Add("unions-values", "C# unions holding each case: an int, a string, a sealed class, a subtype behind its " +
+                                 "abstract case's own type id, a list, a nullable, the empty union, a list of unions and " +
+                                 "a union holding itself.",
+                new Unions
+                {
+                    Number = new Choice(42),
+                    Text = new Choice("union"),
+                    Point = new Choice(new Point { X = 1, Y = -2 }),
+                    Pet = new Choice(new Dog { Name = "rex", Bones = 3 }),
+                    Numbers = new Choice(new List<int> { 1, 2, 3 }),
+                    Maybe = new Choice((long?)7),
+                    Empty = default,
+                    Many = new List<Choice> { new(1), default, new("two") },
+                    Tree = new UnionTree(new[] { new UnionTree(1L), default, new UnionTree(new UnionTree[0]) }),
+                }, "union", "type-id", "seq", "nullable");
+            Add("unions-empty", "Every union empty (type id 0), and a null list of them.", new Unions(), "union");
+            Add("union-root", "A union as the top-level value: the case's type id, then its value.", new Choice("root"),
+                "union");
 
             return cases;
         }

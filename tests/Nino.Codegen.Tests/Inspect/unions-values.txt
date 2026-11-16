@@ -1,0 +1,50 @@
+nino-gen inspect: Conformance.Unions, 141 byte(s) from offset 0
+  offset  length  value
+       0     141  value: Conformance.Unions
+       0       1    presence = 1
+       1       8    Number: Conformance.Choice [type(Conformance.Choice)]  (System.Int32)
+       1       4      case type id = 0x2097A2A4  (System.Int32)
+       5       4      value: System.Int32 [raw(4)] = 42
+       9      10    Text: Conformance.Choice [type(Conformance.Choice)]  (System.String)
+       9       4      case type id = 0xFC11E9CB  (System.String)
+      13       6      value: System.String [string] = "union"  (Latin-1, 5 char(s))
+      19      13    Point: Conformance.Choice [type(Conformance.Choice)]  (Conformance.Point)
+      19       4      case type id = 0x964B64BA  (Conformance.Point)
+      23       9      value: Conformance.Point [type(Point)]
+      23       1        presence = 1
+      24       4        X: int [raw(4)] = 1
+      28       4        Y: int [raw(4)] = -2
+      32      16    Pet: Conformance.Choice [type(Conformance.Choice)]  (Conformance.Animal)
+      32       4      case type id = 0xD3594770  (Conformance.Animal)
+      36      12      value: Conformance.Animal [type(Animal)]  (Conformance.Dog)
+      36       4        type id = 0x69ACA68A  (Conformance.Dog)
+      40       4        Name: string [string] = "rex"  (Latin-1, 3 char(s))
+      44       4        Bones: int [raw(4)] = 3
+      48      20    Numbers: Conformance.Choice [type(Conformance.Choice)]  (System.Collections.Generic.List<System.Int32>)
+      48       4      case type id = 0xF30FA31B  (System.Collections.Generic.List<System.Int32>)
+      52      16      value: System.Collections.Generic.List<System.Int32> [seq(raw(4))] = [1, 2, 3]  (3 elements)
+      68      13    Maybe: Conformance.Choice [type(Conformance.Choice)]  (System.Nullable<System.Int64>)
+      68       4      case type id = 0x4C3FE59F  (System.Nullable<System.Int64>)
+      72       9      value: System.Nullable<System.Int64> [nullable(raw(8))] = 7
+      81       4    Empty: Conformance.Choice [type(Conformance.Choice)]  (empty)
+      81       4      case type id = 0x00000000  (the empty union)
+      85      24    Many: System.Collections.Generic.List<Conformance.Choice> [seq(type(Conformance.Choice))]  (3 elements)
+      89       8      [0]  (System.Int32)
+      89       4        case type id = 0x2097A2A4  (System.Int32)
+      93       4        value: System.Int32 [raw(4)] = 1
+      97       4      [1]  (empty)
+      97       4        case type id = 0x00000000  (the empty union)
+     101       8      [2]  (System.String)
+     101       4        case type id = 0xFC11E9CB  (System.String)
+     105       4        value: System.String [string] = "two"  (Latin-1, 3 char(s))
+     109      32    Tree: Conformance.UnionTree [type(Conformance.UnionTree)]  (Conformance.UnionTree[])
+     109       4      case type id = 0x743BB2ED  (Conformance.UnionTree[])
+     113      28      value: Conformance.UnionTree[] [seq(type(UnionTree))]  (3 elements)
+     117      12        [0]  (System.Int64)
+     117       4          case type id = 0x1421C3E7  (System.Int64)
+     121       8          value: System.Int64 [raw(8)] = 1
+     129       4        [1]  (empty)
+     129       4          case type id = 0x00000000  (the empty union)
+     133       8        [2]  (Conformance.UnionTree[])
+     133       4          case type id = 0x743BB2ED  (Conformance.UnionTree[])
+     137       4          value: Conformance.UnionTree[] [seq(type(UnionTree))]  (0 elements)

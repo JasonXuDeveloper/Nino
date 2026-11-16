@@ -46,7 +46,9 @@ Model/                       the IR: language-neutral, built once, read by every
   CodegenModel.Generics.cs   generic types behind type ids: slot parameters, closed types, substitution, unification
   CodegenModel.Values.cs     a layout's encoding as a ValueModel (generic, raw, raw struct, enum; unsupported ones)
   CodegenModel.Clr.cs        CLR helpers: primitive kinds and sizes, generic definitions, interfaces, fields
-  TypeModel.cs               TypeModel, MemberModel, ClosedTypeModel; BodyFormat, HeaderKind
+  CodegenModel.Unions.cs     C# unions: the cases (constructors), their type ids and values, which can be null, which
+                             count depth; generic unions and tuple cases refused
+  TypeModel.cs               TypeModel, MemberModel, ClosedTypeModel, UnionCaseModel; BodyFormat, HeaderKind
   ValueModel.cs              ValueModel (what a value is on the wire), SlotModel, RawStructModel, EnumModel
   CanonicalLayout.cs         the canonical alignment a layout does not publish, by Nino.Core's NinoLayoutCore (linked)
   TypeNames.cs               .NET type and member names (and the forms every target names a type with), the
@@ -59,6 +61,7 @@ Targets/                     what each language can express and how (NINOGEN002 
     TypeScriptTarget.cs        which types, names, helpers, Render (and the runtime copy with nino-gen's version)
     TypeScriptTarget.Shapes.cs   the TsShape of a value
     TypeScriptTarget.Nesting.cs  which values may open a class body (structs holding themselves included)
+    TypeScriptTarget.Unions.cs   a C# union's form: a plain union when values tell the cases apart, else tagged
     TypeScriptOptions.cs       the options of the generated TypeScript
     TsShape.cs                 how a value is written in TypeScript
     TsTemplateTypes.cs         what types.sbn reads besides shapes (TsClass, TsSlot, TsEnum, TsRawStruct, ...)

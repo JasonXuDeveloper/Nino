@@ -61,8 +61,9 @@ NinoLayoutsAttribute.cs      [assembly: NinoLayouts(@"...")]: an assembly's layo
 ```
 FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBodyTraits), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
                              (__Top twins), INinoFixedSizeFormatter<T>, INinoBlockFormatter<T>, INinoRawFormatter,
-                             INinoPrefetchFormatter (classes whose long collections prefetch, in a
-                             project built with NinoPrefetchLargeCollections)
+                             INinoElementsFormatter and INinoPairsFormatter (the element and pair loops of polymorphic
+                             bases), INinoPrefetchFormatter (classes whose long collections prefetch, in a project
+                             built with NinoPrefetchLargeCollections)
 NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoPrefetchFormatter.PrefetchMembers calls
 NinoObject.cs                header handling of generated class formatters: presence byte / type id / reference header,
                              then the body; the ...Raw forms write header and raw body into one reservation
@@ -71,6 +72,8 @@ NinoFieldBlock.cs            generated raw bodies of classes: whether the fields
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
                              ...Prefetched for arrays and lists of INinoPrefetchFormatter classes; the sequence and
                              Stream forms, the latter through NinoStreams)
+NinoDictionaryEntry.cs       NinoDictionaryEntry: a Dictionary entry as the runtime lays it out; NinoDictionaryEntries.InUse:
+                             a dictionary's entries in place of its enumerator (generated pair loops, NinoDictionary)
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory
 NinoBlocks.cs                NinoBlocks: constrained calls on block formatters, and the offsets NinoBlockMap is built from
 NinoEffectiveSettings.cs     the frozen settings, for Nino's own packages (Nino.Immutable)
@@ -193,7 +196,8 @@ NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deseria
 ### Internal/Collections/Storage/
 
 ```
-CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode)
+CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, LinkedNode; a dictionary's
+                             entries as NinoDictionaryEntry)
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
                              SortedDictionary per runtime (offsets, the first candidate that passes), as static fields
 CollectionViews.Mirrors.cs   the candidates: mirror classes per runtime, the fields by name (UnsafeAccessor, net10.0)

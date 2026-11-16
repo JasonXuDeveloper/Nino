@@ -331,6 +331,46 @@ namespace Shapes
     {
         public Forest Forest;
     }
+
+    /// <summary>A union case of a type named Empty (Rust's empty union variant), and of a raw struct.</summary>
+    [NinoType]
+    public union Pick(Empty, PickPair, byte);
+
+    [NinoType]
+    public sealed class Empty
+    {
+    }
+
+    /// <summary>Raw: a case that cannot hold its union again.</summary>
+    [NinoType]
+    public struct PickPair
+    {
+        public int A;
+        public int B;
+    }
+
+    /// <summary>A generic union: its case ids depend on its type arguments (NINOGEN002 in every language).</summary>
+    [NinoType]
+    public union Either<T>(T, string);
+
+    /// <summary>A tuple case: its encoding as a case is not published (NINOGEN002 in every language).</summary>
+    [NinoType]
+    public union TupleCase((int, int), string);
+
+    /// <summary>
+    /// Cases TypeScript cannot tell apart by their values (an int and a double are both numbers, two lists both
+    /// arrays): a tagged union there.
+    /// </summary>
+    [NinoType]
+    public union Measure(int, double, List<int>, List<string>);
+
+    [NinoType]
+    public sealed class Picks
+    {
+        public Pick Pick;
+        public Pick[] Many;
+        public Measure Measure;
+    }
 }
 
 namespace Shapes.Left

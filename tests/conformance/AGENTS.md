@@ -18,7 +18,8 @@ corpus/
                              error-or-value), untrusted (rejected only in a reader's untrusted mode) and what .NET
                              does today (dotnet; dotnetUntrusted with NinoSettings.Untrusted)
   malicious/truncations.json   valid cases whose every strict prefix must be rejected (prefixes derived, not stored)
-Nino.Conformance/            the net10.0 program that writes (--out) and checks (--verify) the corpus
+Nino.Conformance/            the net11.0 program (C# 15, for its unions) that writes (--out) and checks (--verify) the
+                             corpus
   Types.cs                   the sample types (namespace Conformance); renaming or reordering changes the corpus
   ValidCases.cs              the valid cases
   MaliciousCases.cs          the malicious cases

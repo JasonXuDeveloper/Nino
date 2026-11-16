@@ -35,7 +35,8 @@ Nino.AotTests/               a program over every kind of type, published trimme
                              errors); prints a hash of everything written to compare runs, and checks that the block
                              shuffle keeps its instruction (pshufb) under NativeAOT
 Nino.AspNetCore.Tests/       Nino.AspNetCore: MVC and Minimal API round trips, errors, allocations, unloading
-Nino.Codegen.Tests/          nino-gen: the IR (ModelTests), targets and command line (TargetTests), nino-gen layouts
+Nino.Codegen.Tests/          nino-gen (net11.0, for the C# unions of Shapes.cs): the IR (ModelTests), targets and
+                             command line (TargetTests), nino-gen layouts
                              (LayoutsCommandTests), the layout attribute contract, and GeneratedFilesTests: the files committed under runtimes/ are what nino-gen
                              writes (NINO_UPDATE_GENERATED=1 rewrites them); Shapes.cs: shapes the corpus lacks;
                              InspectCommandTests: nino-gen inspect over the whole corpus (valid, malicious, truncated,
@@ -71,7 +72,8 @@ Collections/                 arrays, BCL and user collections, empty ones, Stack
                              sorted collections and lists; CollectionFastPathFixtures) and the HashTables fill
 Layout/                      raw structs, padding, the portable (canonical) layout, BCL structs inside raw structs
                              (BclStructLayoutTests: CoreCLR's auto layout of tuples, DateTimeOffset), block structs,
-                             fixed-size types, the unmanaged constraint, top-level fast paths
+                             fixed-size types, the unmanaged constraint, top-level fast paths, NinoUnsafe's block
+                             copies at every 4 KB distance (BlockCopyTests)
 Polymorphism/                inheritance, dispatch, the registry, generic polymorphic bases, cross-assembly subtypes,
                              C# union cases and their wire type ids (.NET 11),
                              what attributes on interface members do and explicit implementations of them

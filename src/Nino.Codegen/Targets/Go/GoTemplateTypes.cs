@@ -341,6 +341,31 @@ namespace Nino.Codegen.Targets
         public int Offset { get; }
     }
 
+    /// <summary>A case of a C# union: its Go type (<c>ChoiceInt32</c>, <c>*Point</c>), its type id and shape.</summary>
+    public sealed class GoCase
+    {
+        internal GoCase(string name, UnionCaseModel model, GoShape shape, bool direct)
+        {
+            Name = name;
+            Model = model;
+            Shape = shape;
+            Direct = direct;
+        }
+
+        /// <summary>The case's Go type: the struct holding its value, or (<see cref="Direct"/>) the value's own type.</summary>
+        public string Name { get; }
+
+        /// <summary>
+        /// Whether the value's own generated type (<c>X</c>, <c>*X</c>) is the case, marked with the union's method:
+        /// no struct around it. A type can be a case of several unions, marked once for each.
+        /// </summary>
+        public bool Direct { get; }
+
+        public UnionCaseModel Model { get; }
+
+        public GoShape Shape { get; }
+    }
+
     /// <summary>A <c>[NinoType]</c> as the template writes it.</summary>
     public sealed class GoType
     {
@@ -364,6 +389,12 @@ namespace Nino.Codegen.Targets
         public bool IsAbstract => !Model.IsConcrete;
 
         public bool IsStruct => Model.IsValueType;
+
+        /// <summary>A C# union: a Go interface, implemented by a struct per case (<see cref="Cases"/>).</summary>
+        public bool IsUnion => Model.IsUnion;
+
+        /// <summary>A union's cases, in declaration order: each a struct named after the union and the case.</summary>
+        public List<GoCase> Cases => _target.UnionCases(Model);
 
         /// <summary>The id it is written behind (its name's hash for a closed generic type).</summary>
         public int Id => GoTarget.IdOf(Model);
@@ -511,7 +542,8 @@ namespace Nino.Codegen.Targets
             while (pending.Count != 0)
             {
                 var next = pending.Pop();
-                foreach (var reached in next.Members.SelectMany(m => m.Value.Walk()).SelectMany(_target.StructsIn))
+                foreach (var reached in next.Members.Select(m => m.Value).Concat(next.Cases.Select(c => c.Value))
+                             .SelectMany(v => v.Walk()).SelectMany(_target.StructsIn))
                 {
                     if (reached == Model)
                         return true;

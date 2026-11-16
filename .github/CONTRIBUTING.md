@@ -31,7 +31,12 @@ whose collections Nino reads or builds through their fields: .NET on x64, Arm64,
 qemu),
 and Mono on x64 and Arm64 (also with `MONO_GC_DEBUG=verify-before-collections`; the net472 build, compiled against
 Mono's class libraries and the netstandard2.1 builds, is made only where Mono is installed). Each must write .NET x64's bytes, see the same contents through the public
-API and find every path meant for it (`FastPaths` in its `Program.cs`). Locally:
+API and find every path meant for it (`FastPaths` in its `Program.cs`). The unit tests skip a change that is only
+under `runtimes/` or `benchmarks/`, and the push to `main` that merges an up-to-date pull request runs nothing that
+pull request's run already passed (`.github/scripts/changed_paths.py`). A pull request labeled `benchmark` also runs
+the A/B benchmark shards of `benchmarks/shards.json`. The short jobs of pushes and of pull requests from this
+repository's branches run on the maintainer's self-hosted runner; a pull request from a fork runs everything on
+GitHub's runners. Locally:
 
 ```bash
 dotnet build tests/Nino.RuntimeTests -c Release
@@ -87,7 +92,7 @@ method whose machine code changed.
 ## Pull requests
 
 Commit under your own name and email (an AI agent working for you too: the author line in AGENTS.md is the
-maintainer's own). Branch from `main`, keep a pull request to one change (it is merged with a merge commit, so each commit stays as
+maintainer's own). Branch from `main`, title the pull request as a commit (`type(scope): summary`), keep it to one change (it is merged with a merge commit, so each commit stays as
 written: Conventional Commits, with the release-note trailers of `.github/scripts/release_notes.py` where users see
 the change), add tests for behavior changes, and update the docs (README,
 `docs/`, the public skill `skills/nino-serialization`, and the website,

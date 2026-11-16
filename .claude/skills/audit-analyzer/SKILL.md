@@ -212,6 +212,11 @@ locations as markup, `{|#0:Name|}` and `.WithLocation(0)`, never line and column
 - a refactoring or fix that reads what the generator publishes (`[NinoTypeLayout]`) is tested in an `AdhocWorkspace`
   with the generator's output added as documents, as the IDE's compilation has it (`LayoutAnalyzerTests.Refactor`);
   the analyzer tests' compilations have no generator output;
+- a rule about a declaration only a newer C# parses has no test until the tests' Roslyn parses it: the analyzer
+  tests and `ShapeMatrixTests` compile with the `Microsoft.CodeAnalysis.CSharp` package of `Directory.Packages.props`
+  (4.3.0, the generator's oldest build), which cannot parse C# 15's `union`, so NINO045 and a union dimension of the
+  shape matrix wait for a newer test package (issue #313); C# unions are tested by compiling them with the SDK
+  (`tests/Nino.UnitTests/Polymorphism/UnionTests.cs` on net11.0, the corpus's and nino-gen's samples);
 - a rule that depends on a preprocessor symbol sets it with a solution transform
   (`WithProjectParseOptions(...WithPreprocessorSymbols(...))`, `CodeFixTests.WeakToleranceTest`); one about a type
   from another assembly references a built one (`Nino.UnitTests.Subset`) through `AdditionalReferences`.

@@ -196,7 +196,7 @@ namespace Nino.Core.Internal
             if (ObjectFields.At<int>(dictionary, MapBound) != keys.Length ||
                 !(ObjectFields.At<object>(dictionary, MapEntries) is Array { Length: var length }) || length < keys.Length)
                 return false;
-            var entries = Unsafe.As<CollectionFields.MapEntry<object, string>[]>(
+            var entries = Unsafe.As<NinoDictionaryEntry<object, string>[]>(
                 ObjectFields.At<object>(dictionary, MapEntries));
             var next = new int[keys.Length];
             for (int i = 0; i < keys.Length; i++)

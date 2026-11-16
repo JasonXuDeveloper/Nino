@@ -14,7 +14,18 @@ var corpus = corpustest.Suite{
 		return corpustest.FuncsInto(c.Read, c.ReadInto, c.Write), ok
 	},
 	Unsupported: unsupported,
-	Expected:    sameGoType,
+	Expected:    func(v any) any { return sameGoType(topLevelUnion(v)) },
+}
+
+// topLevelUnion is the value of a union read at the top level, which Go reads as its case's value: NinoCodecOf
+// returns it as `any`, which keeps no union interface (a member of a union's type renders as the union).
+func topLevelUnion(v any) any {
+	if m, ok := v.(map[string]any); ok {
+		if _, union := m["$case"]; union {
+			return m["value"]
+		}
+	}
+	return v
 }
 
 func TestConformanceValid(t *testing.T)       { corpus.Valid(t) }

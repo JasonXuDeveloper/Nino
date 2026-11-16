@@ -12,8 +12,10 @@ against the repository before it is applied. If the model call fails for any rea
 applies and the script exits 0, so a broken credential never fails or spams an issue.
 
 The script never edits or closes an issue's title or body, never creates issues, and keeps at most one comment of
-its own per issue (found by COMMENT_MARKER and updated in place on a re-run). --dry-run prints the plan, applies
-nothing and skips the model call.
+its own per issue (found by COMMENT_MARKER and updated in place on a re-run). It comments only on an issue opened by
+someone outside the repository's maintainers: a comment emails the issue's author, and a maintainer reads the
+suggestion in the run's summary instead (wants_comment). --dry-run prints the plan, applies nothing and skips the
+model call.
 """
 from __future__ import annotations
 
@@ -40,14 +42,24 @@ KINDS = ("bug", "feature", "perf", "docs", "question", "other")
 # The repository's label for each kind the model may return; "other" has none.
 KIND_LABELS = {
     "bug": "kind: bug",
-    "feature": "enhancement",
+    "feature": "kind: feature",
     "perf": "kind: perf",
-    "docs": "documentation",
-    "question": "question",
+    "docs": "kind: docs",
+    "question": "kind: question",
+}
+# The other `kind:` labels a person may set, and the kind the milestone rule takes for each: SIMD work is speed work;
+# platform, refactor and test work wait for the next minor during a prerelease, as "other" does.
+KIND_ALIASES = {
+    "kind: simd": "perf",
+    "kind: platform": "other",
+    "kind: refactor": "other",
+    "kind: test": "other",
 }
 AREA_PREFIX = "area: "
 KIND_PREFIX = "kind: "
 DUPLICATE_LABEL = "duplicate"
+# An issue's author_association for the repository's maintainers, who get no comment (wants_comment).
+MAINTAINER_ASSOCIATIONS = ("OWNER", "MEMBER", "COLLABORATOR")
 # Headings of the issue forms in .github/ISSUE_TEMPLATE (the `label:` of the fields read here).
 AREA_HEADING = "Area"
 BREAKING_HEADING = "Breaking change"
@@ -74,6 +86,9 @@ the same; a related issue is not a duplicate.
 - parent: the number of an open umbrella issue from the list this issue is one step of, or null.
 - split_into: short imperative titles when the issue clearly mixes unrelated requests that should be separate issues; \
 usually empty.
+- new_area: only when the issue clearly concerns a part of the project that no area label in the list covers, a short \
+lowercase name for a new area label (for example "aspnetcore" for "area: aspnetcore"); otherwise null. A maintainer \
+decides whether to create it.
 - reason: one short sentence explaining the classification."""
 
 
@@ -99,6 +114,7 @@ class Classification:
     parent: int | None
     split_into: list[str]
     reason: str
+    new_area: str | None = None
 
 
 @dataclass
@@ -114,6 +130,7 @@ class Plan:
     duplicate_of: int | None = None
     parent: int | None = None
     split_into: list[str] = field(default_factory=list)
+    new_area: str | None = None
     reason: str | None = None
     model: str = "skipped"
 
@@ -221,12 +238,14 @@ def form_breaking(body: str) -> bool | None:
 
 
 def kind_from_labels(labels: set[str]) -> str | None:
-    return next((kind for kind, label in KIND_LABELS.items() if label in labels), None)
+    """The kind a person's `kind:` label says, the first of KIND_LABELS's then KIND_ALIASES's; None without one."""
+    return (next((kind for kind, label in KIND_LABELS.items() if label in labels), None)
+            or next((kind for label, kind in KIND_ALIASES.items() if label in labels), None))
 
 
 def has_kind_label(labels: set[str]) -> bool:
-    """True when a person already said what kind of work this is (`kind: refactor` too, which no kind maps to)."""
-    return any(label.startswith(KIND_PREFIX) or label in KIND_LABELS.values() for label in labels)
+    """True when a person already said what kind of work this is (any `kind:` label)."""
+    return any(label.startswith(KIND_PREFIX) for label in labels)
 
 
 def neutralize(text: str) -> str:
@@ -246,6 +265,7 @@ def response_schema(area_labels: list[str]) -> dict:
         "duplicate_of": nullable_number,
         "parent": nullable_number,
         "split_into": {"type": "array", "items": {"type": "string"}},
+        "new_area": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         "reason": {"type": "string"},
     }
     return {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False}
@@ -318,8 +338,19 @@ def parse_classification(data: dict) -> Classification:
     areas, split_into, reason = data["areas"], data["split_into"], data["reason"]
     if not all(isinstance(item, str) for item in [*areas, *split_into, reason]):
         raise TypeError("areas, split_into and reason must be strings")
+    new_area = data.get("new_area")
+    if new_area is not None and not isinstance(new_area, str):
+        raise TypeError("new_area must be a string or null")
     return Classification(kind, data["breaking"], list(areas), number(data["duplicate_of"]), number(data["parent"]),
-                          [item for item in split_into if item.strip()], reason)
+                          [item for item in split_into if item.strip()], reason, area_name(new_area))
+
+
+def area_name(text: str | None) -> str | None:
+    """A proposed area as a label suffix (lowercase letters, digits and hyphens), or None when nothing usable is left."""
+    if not text:
+        return None
+    name = re.sub(r"[^a-z0-9-]+", "-", text.strip().lower().removeprefix(AREA_PREFIX)).strip("-")[:30]
+    return name or None
 
 
 def open_issue(gh: GitHub, number: int | None, exclude: int) -> bool:
@@ -376,6 +407,10 @@ def plan_triage(gh: GitHub, issue: dict, use_model: bool) -> Plan:
             elif open_issue(gh, result.parent, issue["number"]):
                 plan.parent = result.parent
             plan.split_into = [neutralize(title) for title in result.split_into[:SPLIT_CAP]]
+            # Only when no area applies: a name for a maintainer to consider; triage never creates a label.
+            if result.new_area and not adds & area_labels and not current & area_labels \
+                    and f"{AREA_PREFIX}{result.new_area}" not in label_names:
+                plan.new_area = result.new_area
 
     plan.labels = sorted(label for label in adds - current if label in label_names)
     if latest is not None:
@@ -393,10 +428,25 @@ def comment_body(plan: Plan) -> str | None:
     if plan.split_into:
         titles = "\n".join(f"- {title}" for title in plan.split_into)
         parts.append(f"This issue seems to cover several separate requests. A maintainer may split it into:\n\n{titles}")
+    if plan.new_area:
+        parts.append(f"No area label fits this issue. A maintainer may create `{AREA_PREFIX}{plan.new_area}` (and add "
+                     "it to the Area dropdown of the issue forms).")
     if not parts:
         return None
     reason = f"\n\n<sub>Automatic triage: {neutralize(plan.reason)}</sub>" if plan.reason else ""
     return COMMENT_MARKER + "\n" + "\n\n".join(parts) + reason
+
+
+def wants_comment(issue: dict) -> bool:
+    """Whether a suggestion goes to the issue as a comment: not for a maintainer's own issue, whom it would email."""
+    return issue.get("author_association") not in MAINTAINER_ASSOCIATIONS
+
+
+def write_summary(body: str) -> None:
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if path:
+        with open(path, "a", encoding="utf-8") as summary:
+            summary.write(body.removeprefix(COMMENT_MARKER).strip() + "\n")
 
 
 def apply_plan(gh: GitHub, issue: dict, plan: Plan) -> None:
@@ -410,8 +460,11 @@ def apply_plan(gh: GitHub, issue: dict, plan: Plan) -> None:
     if plan.parent:
         attach_to_parent(gh, issue, plan.parent)
     body = comment_body(plan)
-    if body:
+    if body and wants_comment(issue):
         upsert_comment(gh, number, body)
+    elif body:
+        log(f"#{number} was opened by a maintainer; the suggestion is in the run's summary, not a comment")
+        write_summary(body)
 
 
 def find_or_create_milestone(gh: GitHub, title: str) -> int | None:

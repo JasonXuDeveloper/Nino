@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Nino.Core.CompilerServices;
 
 namespace Nino.Core.Internal
 {
@@ -213,12 +214,19 @@ namespace Nino.Core.Internal
                 return false;
             if (ObjectFields.At<object>(dictionary, at.Entries) is not Array { Length: >= 4 } array ||
                 array.GetType().GetElementType() is not { IsValueType: true, IsGenericType: true } ||
-                Unsafe.As<CollectionFields.MapEntry<long, short>[]>(array) is not { } entries ||
+                Unsafe.As<NinoDictionaryEntry<long, short>[]>(array) is not { } entries ||
                 entries[0].Key != 10 || entries[2].Value != 3 || entries[3].Key != 13 || entries[3].Value != 4)
                 return false;
             dictionary.Add(14, 5); // into the free entry: bound 4, count 4
-            return ObjectFields.At<int>(dictionary, at.Bound) == 4 && entries[1].Key == 14 && entries[1].Value == 5 &&
-                   dictionary.Count == 4;
+            if (ObjectFields.At<int>(dictionary, at.Bound) != 4 || entries[1].Key != 14 || entries[1].Value != 5 ||
+                dictionary.Count != 4)
+                return false;
+            // Entries holding references (laid out by the runtime, as the mirror's are): the pair loops read them too.
+            var named = new Dictionary<string, long> { { "a", 1 }, { "b", 2 } };
+            return ObjectFields.At<object>(named, at.Entries) is Array { Length: >= 2 } namedArray &&
+                   Unsafe.As<NinoDictionaryEntry<string, long>[]>(namedArray) is { } namedEntries &&
+                   namedEntries[0].Key == "a" && namedEntries[0].Value == 1 && namedEntries[1].Key == "b" &&
+                   namedEntries[1].Value == 2;
         }
 
         private static bool CheckSortedDictionary(SortedDictionaryOffsets at)

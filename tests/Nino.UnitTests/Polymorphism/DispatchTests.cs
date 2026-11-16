@@ -83,6 +83,85 @@ namespace Nino.UnitTests
             for (int i = 0; i < values.Length; i++)
                 dictionary.Add(i, values[i]);
             CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(dictionary));
+
+            // Every kind of key the generated pair loops take (INinoPairsFormatter), and one they do not (short).
+            PairsMatch(values, i => "key" + i);
+            PairsMatch(values, i => (long)i << 40);
+            PairsMatch(values, i => (uint)i);
+            PairsMatch(values, i => (DispatchKey)i);
+            PairsMatch(values, i => (short)i);
+        }
+
+        /// <summary>
+        /// A dictionary of <paramref name="values"/> writes its count, then each key and each value as they write
+        /// alone, in its enumeration order: whole, and with an entry removed (no longer read in place).
+        /// </summary>
+        private static void PairsMatch<TKey, T>(T[] values, Func<int, TKey> key)
+        {
+            var dictionary = new Dictionary<TKey, T>();
+            for (int i = 0; i < values.Length; i++)
+                dictionary.Add(key(i), values[i]);
+            CollectionAssert.AreEqual(Pairs(dictionary), NinoSerializer.Serialize(dictionary));
+
+            dictionary.Add(key(values.Length), values[0]);
+            dictionary.Remove(key(0));
+            CollectionAssert.AreEqual(Pairs(dictionary), NinoSerializer.Serialize(dictionary));
+        }
+
+        private static byte[] Pairs<TKey, T>(Dictionary<TKey, T> dictionary)
+        {
+            var expected = new List<byte>(BitConverter.GetBytes(dictionary.Count));
+            foreach (var pair in dictionary)
+            {
+                expected.AddRange(NinoSerializer.Serialize(pair.Key));
+                expected.AddRange(NinoSerializer.Serialize(pair.Value));
+            }
+
+            return expected.ToArray();
+        }
+
+        public enum DispatchKey
+        {
+        }
+
+        [TestMethod]
+        public void PolymorphicDictionariesRoundTripAtEverySize()
+        {
+            foreach (int count in new[] { 1, 4, 12, 32, 100 })
+            {
+                var byInt = new Dictionary<int, DispatchRoot>();
+                var byString = new Dictionary<string, DispatchRoot>();
+                for (int i = 0; i < count; i++)
+                {
+                    DispatchRoot value = (i % 4) switch
+                    {
+                        0 => new DispatchSibling { A = i, D = i * 0.5 },
+                        1 => new DispatchLeaf { A = i, B = "leaf" + i, C = -i },
+                        2 => new DispatchMid { A = i, B = "mid" + i },
+                        _ => i % 8 == 3 ? null : new DispatchHolder { A = i, Kids = new List<DispatchRoot> { null } },
+                    };
+                    byInt.Add(i * 7, value);
+                    byString.Add("k" + i, value);
+                }
+
+                RoundTrips(byInt);
+                RoundTrips(byString);
+            }
+        }
+
+        private static void RoundTrips<TKey>(Dictionary<TKey, DispatchRoot> dictionary)
+        {
+            var bytes = NinoSerializer.Serialize(dictionary);
+            var back = NinoDeserializer.Deserialize<Dictionary<TKey, DispatchRoot>>(bytes);
+            Assert.AreEqual(dictionary.Count, back.Count);
+            foreach (var pair in dictionary)
+            {
+                var read = back[pair.Key];
+                Assert.AreEqual(pair.Value?.GetType(), read?.GetType());
+                Assert.AreEqual(pair.Value?.A, read?.A);
+            }
+
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(back));
         }
 
         [TestMethod]

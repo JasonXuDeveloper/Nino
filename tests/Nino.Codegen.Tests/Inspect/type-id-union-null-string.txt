@@ -1,0 +1,6 @@
+nino-gen inspect: Conformance.Choice, 5 byte(s) from offset 0
+  offset  length  value
+       0       5  value: Conformance.Choice  (System.String)
+       0       4    case type id = 0xFC11E9CB  (System.String)
+       4       1    value: System.String [string] = null
+nino-gen: malformed data at offset 4: a null value for case System.String of union Conformance.Choice (the empty union is type id 0)

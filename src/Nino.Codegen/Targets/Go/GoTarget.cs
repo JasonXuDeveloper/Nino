@@ -132,7 +132,8 @@ namespace Nino.Codegen.Targets
         // ---------------------------------------------------------------- which types
 
         protected override string? Problem(TypeModel type) =>
-            CodegenModel.GenericProblem(type) ?? type.SlotProblem ?? MarkerProblem(type) ?? TrackingProblem(type);
+            CodegenModel.GenericProblem(type) ?? type.SlotProblem ?? type.UnionProblem ?? MarkerProblem(type) ??
+            TrackingProblem(type);
 
         /// <summary>
         /// Why a type cannot be marked as a value of the generic slots it sits in (<see cref="TypeModel.SlotBases"/>): Go
@@ -200,6 +201,8 @@ namespace Nino.Codegen.Targets
             {
                 if (type.Elements != null)
                     ShapeIn(type, type.Elements);
+                foreach (var item in type.Cases)
+                    ShapeIn(type, item.Value);
                 foreach (var member in type.Members)
                     ShapeIn(type, member.Value);
                 foreach (var slot in type.SlotBases)
@@ -315,6 +318,36 @@ namespace Nino.Codegen.Targets
                 _ => new List<TypeModel>(),
             };
             return candidates.Where(t => t.IsValueType && !t.Raw && _supported.Contains(t));
+        }
+
+        /// <summary>
+        /// The cases of a union in Go. A case whose value is a generated struct or class that is not generic (its Go
+        /// type <c>X</c> or <c>*X</c>) is that type, marked with the union's method: the value is not wrapped again,
+        /// and one type can be a case of several unions (a method each). Two cases of one union cannot share a named
+        /// type (<c>X</c> and <c>*X</c> share their methods), so then both are wrapped. Any other case is a struct
+        /// holding its value, named after the union and the case (<c>ChoiceInt32</c>; <c>Case</c> after it where a
+        /// generated type has that name).
+        /// </summary>
+        internal List<GoCase> UnionCases(TypeModel union)
+        {
+            var shapes = union.Cases.Select(c => ShapeIn(union, c.Value)).ToList();
+            var direct = shapes.Select(s => s.Kind is "struct" or "class" && s.Type is { IsGeneric: false }).ToList();
+            var named = shapes.Select((s, i) => direct[i] ? s.Type!.FullName : null).ToList();
+            for (int i = 0; i < direct.Count; i++)
+                if (direct[i] && named.Count(n => n == named[i]) > 1)
+                    direct[i] = false;
+            return union.Cases.Select((c, i) =>
+            {
+                string name = (shapes[i].Kind == "class" ? "*" : "") + Name(shapes[i].Type ?? union);
+                if (!direct[i])
+                {
+                    name = Name(union) + c.Name;
+                    if (Names.Contains(name))
+                        name += "Case";
+                }
+
+                return new GoCase(name, c, shapes[i], direct[i]);
+            }).ToList();
         }
 
         /// <summary>The Go interface of a slot: the type's name, or <c>XType</c> for a class with subtypes.</summary>

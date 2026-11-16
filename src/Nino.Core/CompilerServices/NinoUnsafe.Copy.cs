@@ -179,7 +179,12 @@ namespace Nino.Core.CompilerServices
                     // Zen 5 Memmove beats it into such an array (EPYC 9V45: 1.81 µs against 1.67). CopyToNew is the
                     // other way round.
                     if (Vector512.IsHardwareAccelerated && size <= MaxVectorCopy)
-                        CopyVectors<Vector512<byte>>(ref destination, ref source, size);
+                    {
+                        if (NinoSimd.Amd && Aliases(ref destination, ref source))
+                            CopyVectorsDown(ref destination, ref source, size);
+                        else
+                            CopyVectors<Vector512<byte>>(ref destination, ref source, size);
+                    }
                     else
                         CopyVectors<Vector256<byte>>(ref destination, ref source, size);
                     return;
@@ -328,6 +333,63 @@ namespace Nino.Core.CompilerServices
             Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, end),
                 Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, end)));
         }
+#endif
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Whether a forward copy from <paramref name="source"/> to <paramref name="destination"/> runs into 4K
+        /// aliasing: the destination fewer than <see cref="AliasWindow"/> bytes past the source modulo 4 KB, so loads
+        /// match the low 12 bits of stores still pending ahead of them and wait for them (glibc's memmove copies
+        /// backward then too). Only a hint: a moving collection may change the distance, which makes a copy slower,
+        /// never wrong.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe bool Aliases(ref byte destination, ref byte source) =>
+            (((nuint)Unsafe.AsPointer(ref destination) - (nuint)Unsafe.AsPointer(ref source)) & 4095) < AliasWindow;
+
+        /// <summary>
+        /// The distances modulo 4 KB at which <see cref="Aliases"/> holds. Measured on GitHub's AMD runners (.NET 10,
+        /// 8,000 bytes with 64-byte vectors, CopyGapProbe, run 43823366011): on the EPYC 9V45 (Zen 5) a forward copy
+        /// took 46 to 52 ns at distances of 132 to 1,028 bytes against 32 to 38 elsewhere, and the downward copy 32 to
+        /// 36 at every distance below 4 KB but the last (4,036: 40 against 33 forward); on the 9V74 (Zen 4) the
+        /// downward copy took 70 to 79 ns at every distance, the forward one 76 to 81. NinoNullable writes of 8 and
+        /// 24 KB moved by 17 to 31 % between builds on the 9V45 with where the arrays fell.
+        /// </summary>
+        private const nuint AliasWindow = 2048;
+
+        /// <summary>
+        /// <see cref="CopyVectors{TVector}"/> with 64-byte vectors from the end down, on AMD where a forward copy
+        /// <see cref="Aliases"/>: the last vector unaligned, then four aligned stores a step downward, then the first
+        /// vector unaligned. Out of line, so the forward path's code stays as it was.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal static void CopyVectorsDown(ref byte destination, ref byte source, uint size)
+        {
+            const nuint width = 64;
+            nuint end = size - width;
+            Vector512.LoadUnsafe(ref source, end).StoreUnsafe(ref destination, end);
+            // The aligned stores end at i (exclusive): the 64-byte boundary at or before the last vector's end.
+            nuint i = end + width - (nuint)BytesFromAligned(ref Unsafe.Add(ref destination, end + width));
+            for (; i >= 4 * width; i -= 4 * width)
+            {
+                var a = Vector512.LoadUnsafe(ref source, i - width);
+                var b = Vector512.LoadUnsafe(ref source, i - 2 * width);
+                var c = Vector512.LoadUnsafe(ref source, i - 3 * width);
+                var d = Vector512.LoadUnsafe(ref source, i - 4 * width);
+                a.StoreUnsafe(ref destination, i - width);
+                b.StoreUnsafe(ref destination, i - 2 * width);
+                c.StoreUnsafe(ref destination, i - 3 * width);
+                d.StoreUnsafe(ref destination, i - 4 * width);
+            }
+
+            for (; i >= width; i -= width)
+                Vector512.LoadUnsafe(ref source, i - width).StoreUnsafe(ref destination, i - width);
+            Vector512.LoadUnsafe(ref source).StoreUnsafe(ref destination);
+        }
+
+        /// <summary>The bytes from the 64-byte boundary at or before <paramref name="address"/> to it.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe nuint BytesFromAligned(ref byte address) => (nuint)Unsafe.AsPointer(ref address) & 63;
 #endif
 
 #if NET8_0_OR_GREATER

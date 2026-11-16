@@ -329,6 +329,8 @@ namespace Nino.Codegen.Tests
         [DataRow("keyed-member-too-short", DisplayName = "malformed: a keyed entry too short")]
         [DataRow("presence-nullable-grid-flag-02", DisplayName = "malformed: the presence byte of a slot in a grid")]
         [DataRow("length-nullable-set-single-values", DisplayName = "malformed: a set of raw nullables written as single values")]
+        [DataRow("unions-values", DisplayName = "C# unions: case type ids, the empty union")]
+        [DataRow("type-id-union-null-string", DisplayName = "malformed: a union case without a value")]
         public void PrintsTheTree(string name)
         {
             string kind = File.Exists(Corpus("valid", name + ".bin")) ? "valid" : "malicious";

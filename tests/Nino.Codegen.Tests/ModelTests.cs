@@ -536,5 +536,58 @@ namespace Nino.Codegen.Tests
             Assert.IsFalse(Type(model, "Conformance.RecordChain").Deferrable);
             Assert.IsTrue(Type(model, "Conformance.Chain").Deferrable);
         }
+        /// <summary>
+        /// A C# union (spec 7.12): a struct whose body is the type id of its case, then the case's value, as the
+        /// formatter .NET finds for the case's type writes it. Its cases come from its constructors, in declaration
+        /// order; their ids are those .NET hashes (a [NinoType]'s own, any other type's runtime-form name).
+        /// </summary>
+        [TestMethod]
+        public void UnionsListTheirCasesWithTheIdsDotNetWrites()
+        {
+            using var model = Load(GeneratedFilesTests.Conformance);
+            var choice = Type(model, "Conformance.Choice");
+            Assert.IsTrue(choice.IsUnion);
+            Assert.AreEqual(HeaderKind.None, choice.Header);
+            Assert.IsNull(choice.Elements);
+            Assert.AreSequenceEqual(new[] { "Int32", "String", "Point", "Animal", "ListInt32", "NullableInt64" },
+                choice.Cases.Select(c => c.Name).ToList());
+            Assert.AreSequenceEqual(new[]
+                {
+                    NinoTypeId.Of(typeof(int)), NinoTypeId.Of(typeof(string)), NinoTypeId.Compute("Conformance.Point"),
+                    NinoTypeId.Compute("Conformance.Animal"), NinoTypeId.Of(typeof(List<int>)), NinoTypeId.Of(typeof(long?)),
+                },
+                choice.Cases.Select(c => c.TypeId).ToList());
+            Assert.AreSequenceEqual(new[]
+                {
+                    ValueKind.Primitive, ValueKind.String, ValueKind.Type, ValueKind.Type, ValueKind.Sequence,
+                    ValueKind.Nullable,
+                },
+                choice.Cases.Select(c => c.Value.Kind).ToList());
+            // A case read as null is invalid: .NET writes the empty union for a case given null.
+            Assert.AreSequenceEqual(new[] { false, true, true, true, true, true }, choice.Cases.Select(c => c.Nullable).ToList());
+            // Only strings and raw values (a nullable one too) cannot hold the union again: .NET counts its depth.
+            Assert.AreSequenceEqual(new[] { true, true, false, false, false, true }, choice.Cases.Select(c => c.Leaf).ToList());
+            Assert.IsTrue(choice.UnionNests);
+            Assert.IsTrue(Type(model, "Conformance.UnionTree").UnionNests);
+            Assert.IsTrue(model.HoldsItself(Type(model, "Conformance.UnionTree")));
+            Assert.IsNull(choice.UnionProblem);
+        }
+
+        [TestMethod]
+        public void GenericUnionsAndTupleCasesHaveNoForm()
+        {
+            using var model = Load(GeneratedFilesTests.Shapes);
+            StringAssert.Contains(Type(model, "Shapes.Either`1").UnionProblem, "a generic C# union is not supported");
+            var tuple = Type(model, "Shapes.TupleCase").Cases[0];
+            Assert.AreEqual(ValueKind.Unsupported, tuple.Value.Kind);
+            StringAssert.Contains(tuple.Value.Problem, "whose encoding in a union case is not published");
+            var pick = Type(model, "Shapes.Pick");
+            // .NET counts the depth of any union with a case other than a string or a raw value, a class without
+            // members included.
+            Assert.IsTrue(pick.UnionNests);
+            Assert.IsFalse(pick.Cases[0].Leaf);
+            Assert.AreEqual(ValueKind.Type, pick.Cases[1].Value.Kind);
+            Assert.IsTrue(pick.Cases[1].Leaf);
+        }
     }
 }

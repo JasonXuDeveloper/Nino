@@ -58,11 +58,14 @@ env:
   # The package ids that are packed, checked and pushed (Nino.Core's is Nino.Serialization).
   PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino
 
-# Every job runs on maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]: Ubuntu, the .NET 8 and
-# 10 SDKs, rustup, gh, jq and python3, no sudo; the workspace and RUNNER_TEMP are deleted after every job, the NuGet,
-# npm, Cargo and rustup caches persist), so a release no longer waits for GitHub's runners behind other workflows. This
-# workflow runs only by hand, from main: no pull request reaches maple through it. A job installs nothing outside
-# RUNNER_TEMP and those caches.
+# Every job runs on maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]: Ubuntu, the .NET SDKs
+# global.json asks for, rustup, gh, jq and python3, no sudo), so a release no longer waits for GitHub's runners behind
+# other workflows. This workflow runs only by hand, from main: no pull request reaches maple through it. Only the
+# toolchains stay on maple (the .NET SDKs, rustup's toolchains, the Node.js of the tool cache): "Prepare maple" points
+# NuGet's, npm's and Cargo's caches, dotnet's home and the temporary files into RUNNER_TEMP/home, "Free maple's disk"
+# deletes them and the build's untracked files, and maple's job-completed hook deletes the workspace and RUNNER_TEMP
+# after the post steps (the audit-ci skill). Nothing a release needs is kept between runs: the UPM CLI and npm are
+# installed per run into RUNNER_TEMP, and every credential is a per-run OIDC token or a repository secret.
 #
 # Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
 defaults:
@@ -80,6 +83,36 @@ jobs:
     outputs:
       unity_version: ${{ steps.version.outputs.unity_version }}
     steps:
+      # maple (two runner processes on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
+      # otherwise surface as an odd build error, and keep every cache this job writes in RUNNER_TEMP, which "Free
+      # maple's disk" deletes at its end. The toolchains stay installed (the .NET SDKs, rustup's toolchains in
+      # RUSTUP_HOME); NuGet's, npm's, Cargo's and Go's caches, dotnet's home and the temporary files do not outlive the
+      # job. GitHub's runners skip it.
+      - &maple-prepare
+        name: Prepare maple
+        if: runner.environment == 'self-hosted'
+        run: |
+          need_gb=10
+          free_gb=$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print int($4 / 1048576) }')
+          echo "maple: $free_gb GB free under $RUNNER_TEMP"
+          if (( free_gb < need_gb )); then
+            echo "::error::maple has $free_gb GB free, under the $need_gb GB a job may need: free its disk, then re-run"
+            exit 1
+          fi
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home/tmp"
+          {
+            echo "NUGET_PACKAGES=$home/nuget/packages"
+            echo "NUGET_HTTP_CACHE_PATH=$home/nuget/http-cache"
+            echo "NUGET_PLUGINS_CACHE_PATH=$home/nuget/plugins-cache"
+            echo "DOTNET_CLI_HOME=$home"
+            echo "npm_config_cache=$home/npm"
+            echo "CARGO_HOME=$home/cargo"
+            echo "GOMODCACHE=$home/go/mod"
+            echo "GOCACHE=$home/go/build"
+            echo "TMPDIR=$home/tmp"
+          } >> "$GITHUB_ENV"
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -112,7 +145,9 @@ jobs:
       # The unit tests are ci.yml's (every configuration, on x64, Arm64 and Windows): the release requires that they
       # passed on main instead of running them again. The newest commit of main's first-parent history that ci.yml ran
       # on (pushed to main or run by hand there) must have passed. A push after it started no run: it changed none of
-      # ci.yml's paths, or it was a release commit, which this workflow's token pushes and so starts no workflow.
+      # ci.yml's paths, or it was a release commit, which this workflow's token pushes and so starts no workflow. A push
+      # whose merge commit has the tree its pull request's run passed on runs no tests again, and passes naming that run
+      # (ci.yml's changes job): it counts here as a pass on that commit, as it should.
       # (GitHub starts a run seconds after its push: release no sooner than that.) The release commit differs from the
       # tree tested only in versions (bump_version.py), which no unit test reads, and the Unity DLLs; the build below
       # compiles it with warnings as errors. No workflow tests it after the push (none did before this change).
@@ -216,6 +251,18 @@ jobs:
           fi
           git push origin HEAD:main "${TAGS[@]}"
 
+      # The job's caches ($RUNNER_TEMP/home, "Prepare maple") and what it built (untracked files in the checkout), the
+      # bulk of its disk, freed whatever happened. The checkout and the rest of RUNNER_TEMP stay for the post steps that
+      # run after this one (checkout's, and those of the actions inside .github/actions/setup-dotnet, which the runner
+      # reads again then); maple's job-completed hook deletes them after those (the audit-ci skill). GitHub's runners
+      # skip it.
+      - &free-maple
+        name: Free maple's disk
+        if: always() && runner.environment == 'self-hosted'
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/home"
+          git -C "$GITHUB_WORKSPACE" clean -fdxq 2>/dev/null || true
+
   publish:
     runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
@@ -225,6 +272,8 @@ jobs:
       actions: write  # start the benchmark report
       id-token: write # the OIDC token NuGet exchanges for a temporary API key
     steps:
+      - *maple-prepare
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -289,6 +338,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run report.yml --ref main -f tag_name="v$VERSION"
 
+      - *free-maple
+
   crates:
     runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
@@ -297,6 +348,8 @@ jobs:
       contents: read
       id-token: write # the OIDC token crates.io exchanges for a temporary API token
     steps:
+      - *maple-prepare
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -345,6 +398,8 @@ jobs:
             cargo +stable publish --locked -p "$crate"
           done
 
+      - *free-maple
+
   npm:
     runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
@@ -353,6 +408,8 @@ jobs:
       contents: read
       id-token: write # npm's Trusted Publishing (and its provenance statement)
     steps:
+      - *maple-prepare
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -391,6 +448,8 @@ jobs:
           TAG=latest
           if [[ "$VERSION" == *-* ]]; then TAG=next; fi
           npm publish --access public --tag "$TAG"
+
+      - *free-maple
 
   unity:
     needs: [tag, publish]

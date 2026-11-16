@@ -91,6 +91,13 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   dictionary's keys never are (.NET throws on a null key and `NinoThrow.NullKey` rejects one on read). Why: r129 found
   nino-gen's Rust target typing set elements as map keys (`IndexSet<WideString>`), which failed every .NET
   `HashSet<string>` holding null (corpus case `collections-set-null`, `TargetTests.SetStringsMayBeNullDictionaryKeysNever`).
+- Take what a layout does not publish from the .NET type, with the encoding Nino.Core's formatter for it writes, and
+  refuse what that leaves open: a C# union publishes only its case types (`union(type(int),...)`), so nino-gen takes
+  the cases from its one-argument constructors, their ids from their layouts or names, their values from
+  `CodegenModel.RootValue`, and leaves out a case that is or holds a tuple or `KeyValuePair` (written as raw memory
+  as a member, item by item as a type argument) and a generic union (`CodegenModel.Unions.cs`). Why: before #313 the
+  union encoding had no form (NINOGEN002 for every union and its holders) and `nino-gen inspect` reported valid union
+  data as "unknown type id".
 - nino-gen refuses what Nino.Core no longer serializes even in a layout an older build published
   (`System.Numerics.Vector<T>`: `CodegenModel.IsHostSizedVector`, `Shapes.OldVector`).
 - A C# feature users can declare is supported by each runtime and by nino-gen's templates, or reported as NINOGEN002

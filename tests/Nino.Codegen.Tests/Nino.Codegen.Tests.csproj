@@ -3,7 +3,9 @@
     <!-- nino-gen's tests: its layout model (IR), its command line, and the generated files committed under runtimes/
          (the conformance corpus's types and Shapes.cs), which each runtime's tests compile and run. -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <!-- net11.0 and C# 15: the C# unions of Shapes.cs. -->
+        <TargetFramework>net11.0</TargetFramework>
+        <LangVersion>preview</LangVersion>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <OutputType>Library</OutputType>

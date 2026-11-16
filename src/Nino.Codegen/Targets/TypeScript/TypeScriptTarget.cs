@@ -32,6 +32,8 @@ namespace Nino.Codegen.Targets
         private readonly Dictionary<SlotModel, TsSlot> _slotByModel = new();
         private readonly List<TsSlot> _slots = new();
         private TypeModel? _context;
+        // Whether a member is an `object`: the unions are then registered in the module's subtypes too.
+        private bool _usesObject;
 
         public TypeScriptTarget(CodegenModel model, TypeScriptOptions options) : base(model) => _options = options;
 
@@ -179,7 +181,8 @@ namespace Nino.Codegen.Targets
         /// </summary>
         private void NameClosed(List<TypeModel> layouts)
         {
-            bool usesObject = layouts.Any(t => !t.Raw && t.Members.Any(m => m.Value.Walk().Any(v => v.Kind == ValueKind.Object)));
+            bool usesObject = _usesObject =
+                layouts.Any(t => !t.Raw && t.Members.Any(m => m.Value.Walk().Any(v => v.Kind == ValueKind.Object)));
             var used = new HashSet<string>(Names, StringComparer.Ordinal);
             // The slots of closed generic types the supported types hold, through the codecs they build too.
             var slots = UsedSlots(layouts);
@@ -236,6 +239,8 @@ namespace Nino.Codegen.Targets
             {
                 if (type.Elements != null)
                     ShapeIn(type, type.Elements);
+                foreach (var item in type.Cases)
+                    ShapeIn(type, item.Value);
                 foreach (var member in type.Members)
                     ShapeIn(type, member.Value);
                 if (type.BaseValue != null)

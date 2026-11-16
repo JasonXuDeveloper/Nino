@@ -6444,8 +6444,10 @@ pub const NOT_EMULATED: &[&str] = &[
     "Conformance.BclRawHost",
     "Conformance.BclRawNullables",
     "Conformance.BclRawOffset",
+    "Conformance.Choice",
     "Conformance.GenericSlots",
     "Conformance.NestHolder",
+    "Conformance.Unions",
     "Conformance.WrappedArgs",
 ];
 

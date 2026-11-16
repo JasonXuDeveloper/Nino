@@ -163,7 +163,14 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Named:
                     throw new UnsupportedException($"{value.ClrName} is not written to TypeScript");
                 case ValueKind.Nullable:
-                    return InContext(value, Nullable(Shape(value.Element!)));
+                {
+                    var inner = Shape(value.Element!);
+                    // null is both a missing value and the empty union in TypeScript: one value, two encodings.
+                    if (inner.Header == "union")
+                        throw new UnsupportedException(
+                            $"{value.ClrName} has no TypeScript form: null would be both no value and the empty union");
+                    return InContext(value, Nullable(inner));
+                }
                 case ValueKind.Sequence:
                 {
                     var element = Shape(value.Element!);
@@ -252,6 +259,9 @@ namespace Nino.Codegen.Targets
                 return Shape(type.RawValue!);
             bool body = type.IsClassBody;
             var reaches = body ? new List<TypeModel>() : new List<TypeModel> { type };
+            // A union: its cases' values, or null for the empty union (TypeScriptTarget.UnionForm).
+            if (type.IsUnion)
+                return new TsShape("type") { Type = type, Header = "union", Reaches = reaches };
             return type.Header switch
             {
                 HeaderKind.None => new TsShape("type") { Type = type, Header = "none", Opens = body, Reaches = reaches },

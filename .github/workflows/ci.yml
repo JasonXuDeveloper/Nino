@@ -27,6 +27,7 @@ on:
       - '.github/actions/setup-dotnet/**'
       - '.github/actions/apt-install/**'
       - '.github/scripts/test_shards.py'
+      - '.github/scripts/changed_paths.py'
       - '.github/scripts/has_avx512.sh'
       - '!**/AGENTS.md'      # agent instructions only: nothing to build or test
       - '!**/CLAUDE.md'
@@ -58,7 +59,101 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
 
+# maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]; release.yml says what it has), takes
+# the short jobs of trusted runs: a push to main, a manual run, and a pull request from a branch of this repository
+# that Dependabot did not open. A pull request from a fork or from Dependabot runs them on GitHub's runners (the
+# fallback in each runs-on), as does every run while the repository variable NINO_MAPLE is false (maple offline: a job
+# for a runner that is not there waits in the queue for a day). fuzz.yml, runtimes.yml, codeql.yml and agents.yml
+# repeat the condition (runs-on cannot read env). A job on maple keeps its caches in RUNNER_TEMP and
+# deletes them at its end; maple's job-completed hook deletes the workspace and RUNNER_TEMP (the audit-ci skill).
+# The condition only routes honest runs: a fork's pull request runs its own copy of this file, so what keeps a fork's
+# code off maple is on maple (a job-started hook that refuses it) and the repository's approval of fork runs.
 jobs:
+  # What this run tests (.github/scripts/changed_paths.py, against the pull request's base or the push's before):
+  # - unit: the unit tests, for any change outside runtimes/ and benchmarks/ (they read neither);
+  # - runtime: runtime internals and trim/AOT, for any change outside runtimes/ (and Nino.Benchmark's --verify on Arm64);
+  # - integrations: always (the code generator, the corpus, and the generated code run against .NET's bytes).
+  # A push to main whose merge commit has the tree its pull request's last run tested (the branch had main merged in,
+  # AGENTS.md, Landing), and passed, runs nothing again: every group is false and "Build and Test" passes, naming that
+  # run, so release.yml still finds ci.yml passed on main. A manual run and a change to this workflow run everything.
+  changes:
+    name: Plan
+    runs-on: >-
+      ${{ vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+          (contains(fromJSON('["push", "workflow_dispatch", "schedule"]'), github.event_name) ||
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]')) &&
+          fromJSON('["self-hosted", "Linux", "X64", "maple"]') || 'ubuntu-26.04' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # the pull request's runs of this workflow
+    outputs:
+      unit: ${{ steps.diff.outputs.unit }}
+      runtime: ${{ steps.diff.outputs.runtime }}
+      integrations: ${{ steps.diff.outputs.integrations }}
+      tested_in: ${{ steps.diff.outputs.tested_in }}
+    steps:
+      # maple (two runner processes on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
+      # otherwise surface as an odd build error, and keep every cache this job writes in RUNNER_TEMP, which "Free
+      # maple's disk" deletes at its end. The toolchains stay installed (the .NET SDKs, rustup's toolchains in
+      # RUSTUP_HOME); NuGet's, npm's, Cargo's and Go's caches, dotnet's home and the temporary files do not outlive the
+      # job. GitHub's runners skip it.
+      - &maple-prepare
+        name: Prepare maple
+        if: runner.environment == 'self-hosted'
+        run: |
+          need_gb=10
+          free_gb=$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print int($4 / 1048576) }')
+          echo "maple: $free_gb GB free under $RUNNER_TEMP"
+          if (( free_gb < need_gb )); then
+            echo "::error::maple has $free_gb GB free, under the $need_gb GB a job may need: free its disk, then re-run"
+            exit 1
+          fi
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home/tmp"
+          {
+            echo "NUGET_PACKAGES=$home/nuget/packages"
+            echo "NUGET_HTTP_CACHE_PATH=$home/nuget/http-cache"
+            echo "NUGET_PLUGINS_CACHE_PATH=$home/nuget/plugins-cache"
+            echo "DOTNET_CLI_HOME=$home"
+            echo "npm_config_cache=$home/npm"
+            echo "CARGO_HOME=$home/cargo"
+            echo "GOMODCACHE=$home/go/mod"
+            echo "GOCACHE=$home/go/build"
+            echo "TMPDIR=$home/tmp"
+          } >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compare with the base
+        id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          TESTED_IN_PR: ${{ github.event_name == 'push' && 'ci.yml' || '' }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/changed_paths.py ${TESTED_IN_PR:+--tested-in-pr "$TESTED_IN_PR"} "$BASE" \
+            --all-if '^\.github/(workflows/ci\.yml|scripts/changed_paths\.py)$' \
+            'unit=^(?!runtimes/|benchmarks/)' \
+            'runtime=^(?!runtimes/)' \
+            'integrations=.' | tee -a "$GITHUB_OUTPUT"
+
+      # The job's caches ($RUNNER_TEMP/home, "Prepare maple") and what it built (untracked files in the checkout), the
+      # bulk of its disk, freed whatever happened. The checkout and the rest of RUNNER_TEMP stay for the post steps that
+      # run after this one (checkout's, and those of the actions inside .github/actions/setup-dotnet, which the runner
+      # reads again then); maple's job-completed hook deletes them after those (the audit-ci skill). GitHub's runners
+      # skip it.
+      - &free-maple
+        name: Free maple's disk
+        if: always() && runner.environment == 'self-hosted'
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/home"
+          git -C "$GITHUB_WORKSPACE" clean -fdxq 2>/dev/null || true
+
   # Every configuration runs the whole unit test suite in three shards, side by side on one runner: the ShapeMatrix
   # rows compile some 70 shapes each and take two thirds of the suite's time, so each half of them is a shard, and
   # everything else the third. A shard takes about one and a half of the runner's four vCPUs (Roslyn), so the three
@@ -71,6 +166,8 @@ jobs:
   # longest job of the workflow, so its shards are split over two runners (a and b, then c), each building on its own.
   unit-tests:
     name: Unit tests (${{ matrix.config.name }})
+    needs: changes
+    if: needs.changes.outputs.unit == 'true'
     runs-on: ${{ matrix.config.runner || 'ubuntu-26.04' }}
     timeout-minutes: 30
     strategy:
@@ -265,6 +362,8 @@ jobs:
   # runtime's own tests run in runtimes.yml.)
   integrations:
     name: Integrations and code generation
+    needs: changes
+    if: needs.changes.outputs.integrations == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -391,6 +490,8 @@ jobs:
   # the unit tests waited for.
   runtime-tests:
     name: ${{ matrix.name }}
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     defaults:
@@ -540,33 +641,51 @@ jobs:
           ./aot-tests/aot/Nino.AotTests | tee aot.txt
           [ "$(grep 'payload sha256' trim.txt)" = "$(grep 'payload sha256' aot.txt)" ]
 
-  # The one check to require: fails if any configuration failed (Unity runs in unity.yml, one seat at a time),
-  # or if the shards of a unit test configuration together did not run the whole suite.
+  # The one check to require: fails if a job the plan asked for did not pass (Unity runs in unity.yml, one seat at a
+  # time), or if the shards of a unit test configuration together did not run the whole suite.
   build-test:
     name: Build and Test
-    # It only reads the results (Python 3 and the artifacts): any Ubuntu does. Not ubuntu-26.04, whose runners the
-    # jobs above had just taken: this job waited 45 and 82 s for one in two of four runs, at the end of every run's
-    # critical path, while every job before it had started within seconds.
-    runs-on: ubuntu-24.04
-    needs: [ unit-tests, integrations, runtime-tests ]
+    # It only reads the results (Python 3 and the artifacts): maple when the run is trusted (see the top). Otherwise
+    # not ubuntu-26.04, whose runners the jobs above had just taken: this job waited 45 and 82 s for one in two of four
+    # runs, at the end of every run's critical path, while every job before it had started within seconds.
+    runs-on: >-
+      ${{ vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+          (contains(fromJSON('["push", "workflow_dispatch", "schedule"]'), github.event_name) ||
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]')) &&
+          fromJSON('["self-hosted", "Linux", "X64", "maple"]') || 'ubuntu-24.04' }}
+    needs: [ changes, unit-tests, integrations, runtime-tests ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
     timeout-minutes: 10
     steps:
+      - *maple-prepare
+
+      # A job the plan asked for must have passed, one it left out must have been skipped.
       - name: Check results
+        env:
+          PLAN: ${{ needs.changes.result }}
+          TESTED_IN: ${{ needs.changes.outputs.tested_in }}
+          UNIT: ${{ needs.changes.outputs.unit }}:${{ needs.unit-tests.result }}
+          INTEGRATIONS: ${{ needs.changes.outputs.integrations }}:${{ needs.integrations.result }}
+          RUNTIME: ${{ needs.changes.outputs.runtime }}:${{ needs.runtime-tests.result }}
         run: |
-          echo "unit tests: ${{ needs.unit-tests.result }}, integrations: ${{ needs.integrations.result }}, runtime internals and trim/AOT: ${{ needs.runtime-tests.result }}"
-          [ "${{ needs.unit-tests.result }}" = success ] || exit 1
-          [ "${{ needs.integrations.result }}" = success ] || exit 1
-          [ "${{ needs.runtime-tests.result }}" = success ] || exit 1
+          echo "plan: $PLAN; unit tests: $UNIT, integrations: $INTEGRATIONS, runtime internals and trim/AOT: $RUNTIME"
+          [ "$PLAN" = success ] || exit 1
+          if [ -n "$TESTED_IN" ]; then echo "::notice::this tree passed in its pull request: $TESTED_IN"; fi
+          for job in "$UNIT" "$INTEGRATIONS" "$RUNTIME"; do
+            case "$job" in true:success|false:skipped) ;; *) exit 1 ;; esac
+          done
 
       - name: Checkout the scripts
+        if: needs.changes.outputs.unit == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: .github/scripts
           persist-credentials: false
 
       - name: Download the unit test results
+        if: needs.changes.outputs.unit == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         # The uploads may have failed on a storage timeout: the check below then warns about the missing shards (each
         # shard checked its own part already).
@@ -578,11 +697,12 @@ jobs:
           merge-multiple: true
 
       - name: Check every test ran
+        if: needs.changes.outputs.unit == 'true'
         run: python3 .github/scripts/test_shards.py unit-results
 
       - name: Merge test results
         uses: actions/upload-artifact/merge@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
+        if: always() && needs.changes.outputs.integrations == 'true'
         continue-on-error: true
         with:
           name: test-results-${{ github.run_number }}
@@ -590,17 +710,27 @@ jobs:
           delete-merged: true
           retention-days: 30
 
-  # A pull request's quick benchmark signal: the A/B shards of benchmarks/shards.json ("ab": Nino and MemoryPack, the
-  # list ab-bench.yml runs), so a new class is benchmarked here once it is in a shard. The full, published numbers
-  # come from report.yml on release.
+      - *free-maple
+
+  # A pull request's quick benchmark signal, on request: only a pull request labeled `benchmark` runs the A/B shards
+  # of benchmarks/shards.json ("ab": Nino and MemoryPack, the list ab-bench.yml runs; a new class is benchmarked here
+  # once it is in a shard), when it is opened, reopened or pushed to (adding the label starts no run: push after it).
+  # Every pull request ran them before: six runners for up to 90 minutes, on docs and CI changes too. For a comparison
+  # with main or the last release, run ab-bench.yml on the branch instead. The published numbers come from report.yml.
   benchmark-plan:
     name: Plan the benchmark shards
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-26.04
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark')
+    runs-on: >-
+      ${{ vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.user.login != 'dependabot[bot]' &&
+          fromJSON('["self-hosted", "Linux", "X64", "maple"]') || 'ubuntu-26.04' }}
     timeout-minutes: 5
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:
+      - *maple-prepare
+
       - name: Checkout the shard list
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -612,6 +742,8 @@ jobs:
         id: plan
         run: |
           echo "shards=$(jq -c '[.ab[] | {id, filters: (.filters | join(" "))}]' benchmarks/shards.json)" >> "$GITHUB_OUTPUT"
+
+      - *free-maple
 
   benchmark:
     name: Run Benchmarks (${{ matrix.shard.id }})
@@ -644,6 +776,10 @@ jobs:
       - name: Run benchmarks
         env:
           FILTERS: ${{ matrix.shard.filters }}
+          # A pull request's run is a trend check: shards.json's ab subset in quick mode ([NinoJob] with 250 ms
+          # iterations, stopping at 2 % error). A release (report.yml) runs every case with the full protocol, the only
+          # numbers that are published (#333).
+          NINO_BENCH_QUICK: '1'
         run: |
           cd benchmarks/Nino.Benchmark
           read -ra filters <<< "$FILTERS"

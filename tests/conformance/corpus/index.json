@@ -138,7 +138,10 @@
     "generic-nest",
     "generic-nullable-arguments",
     "nullable-sequences",
-    "nullable-sequences-empty"
+    "nullable-sequences-empty",
+    "unions-values",
+    "unions-empty",
+    "union-root"
   ],
   "malicious": [
     "length-int-array-int-max",
@@ -307,6 +310,11 @@
     "type-id-object-unknown",
     "type-id-unclosed-generic",
     "type-id-generic-not-in-use",
+    "type-id-union-unknown-case",
+    "type-id-union-case-of-payload",
+    "type-id-union-null-string",
+    "type-id-union-null-class",
+    "type-id-union-null-nullable",
     "depth-chain-inline-10k",
     "depth-links-inline-10k",
     "depth-tree-inline-10k",

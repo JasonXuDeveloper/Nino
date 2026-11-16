@@ -79,6 +79,28 @@ namespace Conformance
                 .Select(m => m.Substring(0, m.IndexOf(':'))).ToList();
         }
 
+        /// <summary>Whether a layout is a C# union's (<c>[elements]::union(...)</c>, wire-format spec §7.12).</summary>
+        public static bool IsUnion(NinoTypeLayoutAttribute layout) =>
+            layout.Members.StartsWith("[elements]::union", StringComparison.Ordinal);
+
+        /// <summary>The case types of a union, in declaration order (its constructors of one argument); none for others.</summary>
+        public static List<Type> UnionCases(NinoTypeLayoutAttribute layout) => !IsUnion(layout)
+            ? new List<Type>()
+            : layout.Type.GetConstructors().Where(c => c.GetParameters().Length == 1)
+                .OrderBy(c => c.MetadataToken).Select(c => c.GetParameters()[0].ParameterType).ToList();
+
+        /// <summary>
+        /// The case a union holding <paramref name="value"/> is written as: the case of its exact type (a nullable's
+        /// value type), else the first it is assignable to, as the generated formatter picks it.
+        /// </summary>
+        public static Type UnionCase(NinoTypeLayoutAttribute layout, object value)
+        {
+            var cases = UnionCases(layout);
+            var type = value.GetType();
+            return cases.FirstOrDefault(c => (Nullable.GetUnderlyingType(c) ?? c) == type) ??
+                   cases.First(c => c.IsInstanceOfType(value));
+        }
+
         public static MemberInfo Member(Type type, string name)
         {
             const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
@@ -134,7 +156,9 @@ namespace Conformance
                 return;
             foreach (string name in MemberNames(layout))
                 Involved(MemberType(Member(layout.Type, name)), into, visited);
-            if (layout.Header == NinoHeader.TypeId)
+            foreach (var item in UnionCases(layout))
+                Involved(item, into, visited);
+            if (layout.Header == NinoHeader.TypeId && !IsUnion(layout))
                 foreach (var other in ByType.Keys)
                     if (other != type && (other.IsSubclassOf(type) || type.IsAssignableFrom(other) ||
                                           (other.BaseType != null && other.BaseType == type)))
@@ -278,6 +302,20 @@ namespace Conformance
                 }
 
                 w.WriteString("$type", Layouts.Name(type));
+                if (Layouts.IsUnion(layout))
+                {
+                    // A union: the runtime-form name of the case it holds (null when empty), then the case's value.
+                    object item = type.GetProperty("Value")!.GetValue(value);
+                    if (item == null)
+                        w.WriteNull("$case");
+                    else
+                        w.WriteString("$case", Layouts.Name(Layouts.UnionCase(layout, item)));
+                    w.WritePropertyName("value");
+                    Write(w, item);
+                    w.WriteEndObject();
+                    return;
+                }
+
                 if (layout.Members.StartsWith("[elements]"))
                 {
                     w.WritePropertyName("$elements");

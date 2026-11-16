@@ -51,10 +51,19 @@ jobs:
   # Which runtimes the push or pull request changed (.github/scripts/changed_paths.py): each job below runs only for
   # its own, the corpus changes them all, and a schedule, a manual run, a new branch or a change to this workflow runs
   # everything. Miri only for the Rust crate's library code (its tests are the simd module's own). A Go-only change
-  # once started the eleven Rust jobs too.
+  # once started the eleven Rust jobs too. On maple, the repository's self-hosted runner, for trusted runs only (a push
+  # to main, a manual run, a pull request from a branch of this repository that Dependabot did not open, while the
+  # repository variable NINO_MAPLE is not false; ci.yml, at its jobs, says why and what keeps a fork off maple). The
+  # push to main after a pull request runs again here, unlike ci.yml's and fuzz.yml's: only main saves the Rust caches
+  # every pull request restores.
   changes:
     name: Changed runtimes
-    runs-on: ubuntu-26.04
+    runs-on: >-
+      ${{ vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
+          (contains(fromJSON('["push", "workflow_dispatch", "schedule"]'), github.event_name) ||
+           (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]')) &&
+          fromJSON('["self-hosted", "Linux", "X64", "maple"]') || 'ubuntu-26.04' }}
     timeout-minutes: 5
     outputs:
       rust: ${{ steps.diff.outputs.rust }}
@@ -62,6 +71,35 @@ jobs:
       go: ${{ steps.diff.outputs.go }}
       typescript: ${{ steps.diff.outputs.typescript }}
     steps:
+      # maple (two runner processes on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
+      # otherwise surface as an odd build error, and keep every cache this job writes in RUNNER_TEMP, which "Free
+      # maple's disk" deletes at its end. The toolchains stay installed (the .NET SDKs, rustup's toolchains in
+      # RUSTUP_HOME); NuGet's, npm's, Cargo's and Go's caches, dotnet's home and the temporary files do not outlive the
+      # job. GitHub's runners skip it.
+      - name: Prepare maple
+        if: runner.environment == 'self-hosted'
+        run: |
+          need_gb=10
+          free_gb=$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print int($4 / 1048576) }')
+          echo "maple: $free_gb GB free under $RUNNER_TEMP"
+          if (( free_gb < need_gb )); then
+            echo "::error::maple has $free_gb GB free, under the $need_gb GB a job may need: free its disk, then re-run"
+            exit 1
+          fi
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home/tmp"
+          {
+            echo "NUGET_PACKAGES=$home/nuget/packages"
+            echo "NUGET_HTTP_CACHE_PATH=$home/nuget/http-cache"
+            echo "NUGET_PLUGINS_CACHE_PATH=$home/nuget/plugins-cache"
+            echo "DOTNET_CLI_HOME=$home"
+            echo "npm_config_cache=$home/npm"
+            echo "CARGO_HOME=$home/cargo"
+            echo "GOMODCACHE=$home/go/mod"
+            echo "GOCACHE=$home/go/build"
+            echo "TMPDIR=$home/tmp"
+          } >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,6 +116,17 @@ jobs:
             'miri=^runtimes/rust/(src/|tests/shared\.rs$|build\.rs$|Cargo\.(toml|lock)$)' \
             'go=^runtimes/go/|^tests/conformance/corpus/' \
             'typescript=^runtimes/typescript/|^tests/conformance/corpus/' | tee -a "$GITHUB_OUTPUT"
+
+      # The job's caches ($RUNNER_TEMP/home, "Prepare maple") and what it built (untracked files in the checkout), the
+      # bulk of its disk, freed whatever happened. The checkout and the rest of RUNNER_TEMP stay for the post steps that
+      # run after this one (checkout's, and those of the actions inside .github/actions/setup-dotnet, which the runner
+      # reads again then); maple's job-completed hook deletes them after those (the audit-ci skill). GitHub's runners
+      # skip it.
+      - name: Free maple's disk
+        if: always() && runner.environment == 'self-hosted'
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/home"
+          git -C "$GITHUB_WORKSPACE" clean -fdxq 2>/dev/null || true
 
   # The crate's only unsafe code (runtimes/rust/src/simd.rs: the string writer's transcoding and the reader's text
   # decoding) under Miri: its tests compare every block kind a target has, and the decoders, with plain ones. Miri

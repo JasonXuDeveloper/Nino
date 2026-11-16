@@ -1,0 +1,112 @@
+{
+  "case": "unions-values",
+  "description": "C# unions holding each case: an int, a string, a sealed class, a subtype behind its abstract case's own type id, a list, a nullable, the empty union, a list of unions and a union holding itself.",
+  "type": "Conformance.Unions",
+  "features": [
+    "union",
+    "type-id",
+    "seq",
+    "nullable"
+  ],
+  "size": 141,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Animal": "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0xD3594770; deferrable=false; members=Name:string:string",
+    "Conformance.Box<T>": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Name:string:string;Value:T:type(T)",
+    "Conformance.Cat": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xAD792380; deferrable=true; members=Name:string:string;Lives:float:raw(4)",
+    "Conformance.Choice": "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0xDD138175; deferrable=false; members=[elements]::union(type(Conformance.Animal),type(Conformance.Point),type(System.Collections.Generic.List<int>),type(System.Nullable<long>),type(int),type(string))",
+    "Conformance.Dog": "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x69ACA68A; deferrable=true; members=Name:string:string;Bones:int:raw(4)",
+    "Conformance.Point": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x964B64BA; deferrable=true; members=X:int:raw(4);Y:int:raw(4)",
+    "Conformance.Puppy": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x94310DEA; deferrable=true; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)",
+    "Conformance.UnionTree": "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x8689B6A3; deferrable=false; members=[elements]::union(type(Conformance.UnionTree[]),type(long))",
+    "Conformance.Unions": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x0544575E; deferrable=true; members=Number:Conformance.Choice:type(Conformance.Choice);Text:Conformance.Choice:type(Conformance.Choice);Point:Conformance.Choice:type(Conformance.Choice);Pet:Conformance.Choice:type(Conformance.Choice);Numbers:Conformance.Choice:type(Conformance.Choice);Maybe:Conformance.Choice:type(Conformance.Choice);Empty:Conformance.Choice:type(Conformance.Choice);Many:System.Collections.Generic.List<Conformance.Choice>:seq(type(Conformance.Choice));Tree:Conformance.UnionTree:type(Conformance.UnionTree)"
+  },
+  "value": {
+    "$type": "Conformance.Unions",
+    "Number": {
+      "$type": "Conformance.Choice",
+      "$case": "System.Int32",
+      "value": 42
+    },
+    "Text": {
+      "$type": "Conformance.Choice",
+      "$case": "System.String",
+      "value": "union"
+    },
+    "Point": {
+      "$type": "Conformance.Choice",
+      "$case": "Conformance.Point",
+      "value": {
+        "$type": "Conformance.Point",
+        "X": 1,
+        "Y": -2
+      }
+    },
+    "Pet": {
+      "$type": "Conformance.Choice",
+      "$case": "Conformance.Animal",
+      "value": {
+        "$type": "Conformance.Dog",
+        "Name": "rex",
+        "Bones": 3
+      }
+    },
+    "Numbers": {
+      "$type": "Conformance.Choice",
+      "$case": "System.Collections.Generic.List<System.Int32>",
+      "value": [
+        1,
+        2,
+        3
+      ]
+    },
+    "Maybe": {
+      "$type": "Conformance.Choice",
+      "$case": "System.Nullable<System.Int64>",
+      "value": 7
+    },
+    "Empty": {
+      "$type": "Conformance.Choice",
+      "$case": null,
+      "value": null
+    },
+    "Many": [
+      {
+        "$type": "Conformance.Choice",
+        "$case": "System.Int32",
+        "value": 1
+      },
+      {
+        "$type": "Conformance.Choice",
+        "$case": null,
+        "value": null
+      },
+      {
+        "$type": "Conformance.Choice",
+        "$case": "System.String",
+        "value": "two"
+      }
+    ],
+    "Tree": {
+      "$type": "Conformance.UnionTree",
+      "$case": "Conformance.UnionTree[]",
+      "value": [
+        {
+          "$type": "Conformance.UnionTree",
+          "$case": "System.Int64",
+          "value": 1
+        },
+        {
+          "$type": "Conformance.UnionTree",
+          "$case": null,
+          "value": null
+        },
+        {
+          "$type": "Conformance.UnionTree",
+          "$case": "Conformance.UnionTree[]",
+          "value": []
+        }
+      ]
+    }
+  }
+}

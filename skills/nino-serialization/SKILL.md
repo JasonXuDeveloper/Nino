@@ -149,7 +149,15 @@ record's primary constructor); structs fall back to `new T()`; otherwise NINO004
   there too.
 - On .NET 11 with C# 15, declare `[NinoType] public union Result(int, string);`. Each case needs a Nino formatter
   and is written with its Nino type id, so case order does not determine its id. An empty union writes id zero.
-  The Go, Rust and TypeScript generators report NINOGEN002 for these unions.
+  nino-gen writes a union as a TypeScript union of the cases' types (`number | string`, or `{ case, value }` tagged
+  where values cannot tell the cases apart), a Go interface (a generated type is its own case, others a struct
+  holding `Value`) and a Rust enum; it leaves out (NINOGEN002) a generic union and a union with a tuple or
+  `KeyValuePair` case.
+- A Unity client (C# 9) cannot compile a union and must not get the server's `net11.0` contract. Put the contract in
+  a `netstandard2.1` library built with the .NET 11 SDK (`LangVersion` `preview`) that declares `internal`
+  `System.Runtime.CompilerServices.UnionAttribute` and `IUnion { object Value { get; } }`, and give Unity the compiled
+  DLL: the bytes are the same. A polymorphic `[NinoType]` base is not a byte-compatible substitute (a sealed class
+  case has a presence byte after the case id; a non-sealed case writes two ids).
 - Without tracking, a shared object is written twice and a cycle throws `InvalidOperationException` while writing.
   `[NinoType(trackReferences: true)]` on the shared or cyclic class (classes only, NINO015) keeps identity: 4 bytes
   and a lookup per tracked object. Collections are never tracked. Trees need no tracking.
