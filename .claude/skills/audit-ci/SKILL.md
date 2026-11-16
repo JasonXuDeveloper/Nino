@@ -1,6 +1,6 @@
 ---
 name: audit-ci
-description: "Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, triage.yml, ab-bench.yml and the test branch's A/B workflows) - as fast and parallel as possible, green on main and the test branch, every action pinned to a SHA, path filters that run what a change touches, one Unity license seat, secrets only through Trusted Publishing or repository secrets. Use when changing a workflow, when CI is slow or red, or before a release. Triggers: .github/workflows, .github/actions, actionlint, CI, workflow, matrix, shards, path filter, failed run, slow CI, Unity license, unity.yml, fuzz.yml, ci.yml, triage.yml, issue triage, issue forms, dependabot, 工作流, 持续集成, CI 红了, CI 失败, CI 慢, 并行."
+description: "Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, triage.yml, ab-bench.yml and the test branch's A/B workflows) - as fast and parallel as possible, green on main and the test branch, every action pinned to a SHA, path filters that run what a change touches, one Unity license seat, secrets only through Trusted Publishing or repository secrets. Use when changing a workflow, when CI is slow or red, or before a release. Triggers: .github/workflows, .github/actions, actionlint, CI, workflow, matrix, shards, path filter, failed run, slow CI, Unity license, unity.yml, fuzz.yml, ci.yml, triage.yml, issue triage, issue forms, dependabot, maple, self-hosted runner, queued jobs, 工作流, 自托管, 排队, 持续集成, CI 红了, CI 失败, CI 慢, 并行."
 metadata:
   internal: true
 ---
@@ -27,7 +27,17 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   weekly). A folder another workflow owns is excluded with `!`, and a file a job links from it is re-included on
   the line after (later patterns win): ci.yml leaves out `src/Nino.Unity/**` (unity.yml's; a Burst or Unity test
   edit had started ci.yml's 16 jobs) but takes `Assets/Test/Runtime/BclFixture*.cs`, which Nino.RuntimeTests links,
-  and the package's `Runtime/*.dll`, which `UnityPackageDllTests` reads.
+  and the package's `Runtime/*.dll`, which `UnityPackageDllTests` reads. ci.yml's `changes` job splits it further:
+  the unit tests skip a change that is only under `runtimes/` or `benchmarks/` (they read neither), runtime
+  internals one only under `runtimes/`; the integrations job always runs.
+- **A push to main repeats nothing its pull request proved.** `main` moves through merge commits of pull requests
+  whose branch had main merged in, so the merge's tree is the one the pull request's last run tested:
+  `changed_paths.py --tested-in-pr <workflow>` turns every group off when the merge's first parent is in its second
+  (compare API, `behind_by` 0) and that workflow passed on a `pull_request` run of the second, and prints the run.
+  ci.yml (its "Build and Test" then passes and names the run, so release.yml's "Require ci.yml to have passed" still
+  finds a passing run on main) and fuzz.yml (the nightly run fuzzes main) use it; runtimes.yml runs again (only main
+  saves the Rust caches pull requests restore) and codeql.yml too (code scanning shows main's alerts from main's own
+  analyses). A merge of a branch that was behind main runs as before.
 - **Green**: never push a change whose workflow was not run locally in its parts (`verify`); `actionlint` (1.7.12 or newer: 1.7.7 and 1.7.8
   reject the YAML anchors of the path filters with "must be sequence node but got alias node"; `go install
   github.com/rhysd/actionlint/cmd/actionlint@latest`) with `.github/actionlint.yaml` after any workflow edit; a step that pipes a command keeps its failure (`bash -eo
@@ -44,8 +54,9 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   `benchmarks/**` and `.github/scripts/**`) runs `python3 -m py_compile` over both folders and
   `python3 -m unittest discover -s benchmarks -p 'test_*.py'` (under a second). Give a new release-time script a
   `test_*.py` in `benchmarks/` on its fixtures, and a script in a new folder a line in that step and its path filter.
-  Do not discover in `.github/scripts`: it has no tests (`test_shards.py` is ci.yml's shard checker), and unittest
-  exits 5 on "NO TESTS RAN" since Python 3.12. The same holds for checks: whatever report.yml runs before measuring
+  In `.github/scripts` name the test file (`-p 'test_changed_paths.py'`) instead of discovering `test_*.py`:
+  `test_shards.py` there is ci.yml's shard checker, not a test, and unittest exits 5 on "NO TESTS RAN" since
+  Python 3.12. The same holds for checks: whatever report.yml runs before measuring
   runs on every push, on each architecture report.yml measures. `Nino.Benchmark --verify` had run only in ci.yml's
   pull-request job (main landed without pull requests then), and v4.0.0-rc.8's failed in all ten Arm64 report shards (a
   probe called x86's CpuId, run 41853674050); it now runs in the integrations job (x64, the Debug build, 15 s) and the
@@ -155,6 +166,30 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   (it signs and keeps an artifact, no release touched). "User does not have permission to sign package" means
   the service account's role or organization is wrong, not the secrets' presence (run 43286997093; 43287841461
   signed once the owner fixed the role).
+- **maple, the self-hosted runner** (`[self-hosted, Linux, X64, maple]`: Ubuntu, the .NET SDKs global.json and
+  the jobs ask for, installed there by hand, rustup, gh, jq, python3; no sudo, so no apt, no Docker, no Chrome)
+  runs release.yml, unity-sign.yml, report.yml's jobs that are no matrix, and CI's short jobs of trusted runs:
+  ci.yml's plan, "Build and Test" and benchmark plan, fuzz.yml's plan and x64 mutational jobs, the plans of
+  runtimes.yml and codeql.yml, and agents.yml. A CI job goes there only through the one condition in its `runs-on`
+  (a push, `workflow_dispatch`, `schedule`, or a `pull_request` whose head repository is this one and whose author
+  is not Dependabot, while the repository variable `NINO_MAPLE` is not `false`), with a GitHub-hosted fallback for
+  everything else; `NINO_MAPLE=false` sends CI back to GitHub's runners when maple is offline (a job for an absent
+  self-hosted runner waits a day). The condition routes honest runs only: a fork's pull request runs its own copy of
+  the workflow and can name maple itself, so the guard is on maple (a job-started hook that refuses a pull request
+  from another repository or from Dependabot: `ACTIONS_RUNNER_HOOK_JOB_STARTED`) and the repository's approval of
+  fork runs (GitHub: "self-hosted runners should almost never be used for public repositories"). Every job there ends
+  with "Free maple's disk" (`if: always()`, deletes the workspace and RUNNER_TEMP after the uploads), installs
+  nothing outside RUNNER_TEMP and the shared NuGet, npm, Cargo and rustup caches, builds without MSBuild node reuse
+  or the compiler server (`MSBUILDDISABLENODEREUSE=1`, `DOTNET_CLI_USE_MSBUILD_SERVER=0`,
+  `UseSharedCompilation=false`: a server would outlive the job or serve another runner's), and takes its SDKs from
+  the machine (`.github/actions/setup-dotnet` names a missing one there instead of installing into
+  `/usr/share/dotnet`). Keep off it: jobs that install with apt (libFuzzer's clang, Mono, qemu) or run Docker
+  (Unity), the CodeQL analyses (a bundle of about 1.5 GB per version in its tool cache), the benchmark matrices
+  (published numbers come from GitHub's runners; report.yml's build-time benchmark measures maple, so CI sharing the
+  machine during a report adds noise), and anything a fork or Dependabot started.
+- **The pull request benchmark is on request**: ci.yml runs `benchmarks/shards.json`'s "ab" shards only for a pull
+  request labeled `benchmark` (when opened, reopened or pushed to; labeling alone starts nothing); ab-bench.yml on the
+  branch gives a comparison with main or the last release.
 - **Untrusted text never reaches a shell or a self-hosted runner.** `triage.yml` reads issues anyone can open: it
   runs on `ubuntu-latest` (GitHub-hosted), passes only the issue number to its script through `env`, never
   `${{ github.event.issue.title }}` or the body in a `run:`, and holds only `issues: write`, `contents: read` and
@@ -165,7 +200,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   labels and milestone applied and the job green (`triage.py`'s `classify`), so a broken credential never fails or
   spams an issue; check the run's log for `triage: model call failed`.
 - **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
-  10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` and ci.yml's pull-request benchmark 6 (shards.json),
+  10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` and ci.yml's labeled pull-request benchmark 6 (shards.json),
   `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines). A push to main
   should start well under the account's 40 concurrent jobs: short checks of one runner share a job, pushes fuzz with
   one libFuzzer runner (three at night), and a job runs only for the area that changed (Path filters).
