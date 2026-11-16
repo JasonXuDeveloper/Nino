@@ -22,8 +22,11 @@ scripts/sync-benchmarks.ts, reads them by these names; change one only together 
   unity-x64.md                     the Unity section (unity_report.py)
   build-x64.md                     the build section (generator_report.py)
   build-<v3|v4>-<roots>.json       Nino.GeneratorBenchmark's --json files the build section is made from
+  bench-cases.json                 the measured tag's case manifest (runtimes/csharp/tools/BenchGen): every case, its
+                                   quick subset and the libraries that break on it (library, kind, reason), which
+                                   the .NET charts draw as error
 
-An entry is {"name", "kind" (dotnet, dotnet-v3, runtime, runtime-data, unity, build, build-data), "arch" (x64,
+An entry is {"name", "kind" (dotnet, dotnet-v3, runtime, runtime-data, unity, build, build-data, cases), "arch" (x64,
 arm64), "lang" (runtimes), "format", "of" (a data file: the section it is made from), "environment" (the machine and
 the tools, as the asset names them)}; release_body.py adds "title", "summary" and "chart" (the PNG's path on the
 release-notes branch, and "chart_sha", its content's hash) to the entry of each section it draws.
@@ -61,6 +64,7 @@ NAMES = [
     (r"unity-(?P<arch>x64)\.md", {"kind": "unity", "format": "markdown-section"}),
     (r"build-(?P<arch>x64)\.md", {"kind": "build", "format": "markdown-section"}),
     (r"build-(?:v3|v4)-\d+\.json", {"kind": "build-data", "format": "generator-benchmark-json", "arch": "x64"}),
+    (r"bench-cases\.json", {"kind": "cases", "format": "bench-cases-json"}),
 ]
 
 

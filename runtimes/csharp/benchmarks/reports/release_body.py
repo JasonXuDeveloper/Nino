@@ -189,6 +189,9 @@ def dotnet_chart(path, arch, v3_path=None):
         note += " " + readme.FORM_NOTE
     if any(readme.has_na(chart) for _, _, _, chart in groups):
         note += " " + readme.NA_NOTE
+    errors = readme.error_note([pair for _, _, _, chart in groups for pair in chart])
+    if errors:
+        note += " " + errors
     return groups, summary, note
 
 
@@ -333,6 +336,7 @@ def draw(directory, manifest, tag):
             continue
         try:
             if entry["kind"] == "dotnet":
+                readme.load_cases(os.path.join(directory, "bench-cases.json"))  # none before #335: n/a by inference
                 arm64 = entry["arch"] == "arm64"
                 v3 = os.path.join(directory, "dotnet-v3-x64.md")
                 chart, summary, note = dotnet_chart(path, "Arm64" if arm64 else "x64",

@@ -78,7 +78,7 @@ def svg(chart, theme="light", title=README_TITLE, note=README_NOTE, floor=FLOOR_
             if grp is None:
                 continue
             heading, rows = grp
-            rows = [row + (None,) * (3 - len(row)) for row in rows]
+            rows = [tuple(row[:3]) + (None,) * (3 - len(row[:3])) for row in rows]  # a 4th entry: readme's error
             left = side * column
             out.append(f'<text x="{left}" y="{y}" class="g">{html.escape(heading)}</text>')
             by = y + 22
@@ -89,7 +89,7 @@ def svg(chart, theme="light", title=README_TITLE, note=README_NOTE, floor=FLOOR_
                 bold = " n" if first else ""
                 out.append(f'<text x="{left + x0 - 10}" y="{by}" class="l{bold}">{html.escape(name)}</text>')
                 if value is None:
-                    out.append(f'<text x="{left + x0}" y="{by}" class="s">n/a</text>')
+                    out.append(f'<text x="{left + x0}" y="{by}" class="s">{html.escape(label or "n/a")}</text>')
                 else:
                     w = max(3.0, width * value / top) if top else 3.0
                     colour = "a" if first else "b" if name == "Nino v3" else "c"
