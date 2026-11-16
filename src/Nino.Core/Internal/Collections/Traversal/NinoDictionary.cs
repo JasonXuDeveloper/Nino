@@ -61,13 +61,12 @@ namespace Nino.Core
             // key and key formatter. A constrained call on the formatter's type, never a cast to an interface: the
             // JIT resolves it to the struct's own method (a lookup of its instantiation where the key is a class), where
             // a generic method called through a boxed interface went through a virtual function pointer per call.
-            // netstandard2.1 (IL2CPP, Mono, where the test boxes) keeps the loop below.
+            // The writer is passed as it is, the count written there: the loop copies the writer into a local of its
+            // own, and a second copy here, in and out, was most of the call's fixed cost (one int pair 17.4 ns against
+            // LuminPack's 14.8). netstandard2.1 (IL2CPP, Mono, where the test boxes) keeps the loop below.
             if (default(TValueFormatter) is INinoPairsFormatter)
             {
-                writer.WriteLength(value.Count);
-                writer.CopyTo(ref copy);
-                default(TValueFormatter).WritePairs<TKey, TKeyFormatter>(value, ref copy);
-                copy.CopyTo(ref writer);
+                default(TValueFormatter).WritePairs<TKey, TKeyFormatter>(value, ref writer);
                 return;
             }
 #endif

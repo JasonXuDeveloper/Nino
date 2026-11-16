@@ -331,7 +331,8 @@ internal static class DispatchEmitter
         string keyConstraint = $"    where __TKeyFormatter : struct, {Core}INinoFormatter<__TKey>";
         // INinoFormatter<T>.WritePairs, for every key type and key formatter: Nino.Core calls it as a constrained call
         // on this struct's type, which the JIT resolves to this method (its instantiation looked up once per call
-        // where the key is a class), never through a cast that would box.
+        // where the key is a class), never through a cast that would box. It writes the count too, on its own copy of
+        // the writer, the one copy the call makes.
         w.Line($"public void WritePairs{pairsSignature}");
         w.Line(keyConstraint);
         w.Open();
@@ -349,13 +350,14 @@ internal static class DispatchEmitter
         w.Line("ref var pair = ref global::System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
         EmitDispatchLoop(w, t, subtypes, services,
             "for (; left > 0; left--, pair = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref pair, 1))",
-            pairs: true);
+            pairs: true, first: "writer.WriteLength(left);");
         w.Close();
         w.Line();
         w.Line(GeneratedCode.NoInline);
         w.Line($"private static void __WritePairsThroughDispatch{pairsSignature}");
         w.Line(keyConstraint);
         w.Open();
+        w.Line("target.WriteLength(pairs.Count);");
         EmitSlowLoop(w, "foreach (var pair in pairs)", pairs: true);
         w.Close();
         w.Line("#endif");
@@ -386,10 +388,12 @@ internal static class DispatchEmitter
     /// and the writer in a local. A pair's key is written first, by its formatter.
     /// </summary>
     private static void EmitDispatchLoop(CodeWriter w, string t, List<DispatchEntry> subtypes, string services,
-        string loop, bool pairs)
+        string loop, bool pairs, string? first = null)
     {
         w.Line($"{Core}Writer writer = default;");
         w.Line("target.CopyTo(ref writer);");
+        if (first != null)
+            w.Line(first);
         w.Line(loop);
         w.Open();
         EmitPairKey(w, pairs, "writer");

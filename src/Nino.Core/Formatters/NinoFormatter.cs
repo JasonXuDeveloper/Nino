@@ -30,7 +30,7 @@ namespace Nino.Core
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// Writes the pairs of <paramref name="pairs"/> (not their count), each key as
+        /// Writes the count and the pairs of <paramref name="pairs"/> (not empty), each key as
         /// <typeparamref name="TKeyFormatter"/> and each value as <see cref="Serialize"/> writes them. The formatters
         /// of polymorphic bases write them in a loop of their own, the dispatch inline, and are marked
         /// <see cref="CompilerServices.INinoPairsFormatter"/>; Nino calls this only on those. A method of this
@@ -41,6 +41,7 @@ namespace Nino.Core
         void WritePairs<TKey, TKeyFormatter>(System.Collections.Generic.Dictionary<TKey, T> pairs, ref Writer writer)
             where TKeyFormatter : struct, INinoFormatter<TKey>
         {
+            writer.WriteLength(pairs.Count);
             foreach (var pair in pairs)
             {
                 default(TKeyFormatter).Serialize(pair.Key, ref writer);
