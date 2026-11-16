@@ -2,9 +2,12 @@ name: Release
 
 # Run manually: Actions -> Release -> Run workflow (on main), enter the version (e.g. 4.0.0 or 4.1.0-beta.1).
 #   tag:     bump the version of every package (.github/scripts/bump_version.py: Directory.Build.props, the Unity
-#            package.json, the Rust crates, the npm package), build, test, copy the Unity DLLs, commit "chore(release): bump to vX.Y.Z",
+#            package.json, the Rust crates, the npm package) once ci.yml has passed on main, build, pack the NuGet
+#            packages (the artifact nuget-packages), copy the Unity DLLs, commit "chore(release): bump to vX.Y.Z",
 #            tag vX.Y.Z (and the OpenUPM tag of a pre-release, and runtimes/go/vX.Y.Z for the Go module), push.
-#   publish: from the tag, pack and push to NuGet (Trusted Publishing: a short-lived key from this workflow's OIDC
+#            The packages and the Unity DLLs come from that one build, of the bumped tree before its commit: their
+#            Source Link commit is main's commit before the bump, whose sources are the tag's.
+#   publish: push the packages tag packed to NuGet (Trusted Publishing: a short-lived key from this workflow's OIDC
 #            token, no stored secret), create the GitHub release with the notes of .github/scripts/release_notes.py
 #            (every commit since the previous release, grouped, and every contributor; a stable release starts at
 #            the previous stable one, so 4.0.0 covers everything since 3.3.13), then start the benchmark report.
@@ -52,7 +55,15 @@ concurrency:
 env:
   VERSION: ${{ inputs.version }}
   UNITY_PACKAGE: src/Nino.Unity/Packages/com.jasonxudeveloper.nino
+  # The package ids that are packed, checked and pushed (Nino.Core's is Nino.Serialization).
+  PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino
 
+# Every job runs on maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]: Ubuntu, the .NET 8 and
+# 10 SDKs, rustup, gh, jq and python3, no sudo; the workspace and RUNNER_TEMP are deleted after every job, the NuGet,
+# npm, Cargo and rustup caches persist), so a release no longer waits for GitHub's runners behind other workflows. This
+# workflow runs only by hand, from main: no pull request reaches maple through it. A job installs nothing outside
+# RUNNER_TEMP and those caches.
+#
 # Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
 defaults:
   run:
@@ -60,9 +71,12 @@ defaults:
 
 jobs:
   tag:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     if: github.ref == 'refs/heads/main'
     timeout-minutes: 30
+    permissions:
+      contents: write # push the release commit and its tags
+      actions: read   # ci.yml's runs
     outputs:
       unity_version: ${{ steps.version.outputs.unity_version }}
     steps:
@@ -87,11 +101,49 @@ jobs:
           fi
           echo "unity_version=$UNITY_VERSION" >> "$GITHUB_OUTPUT"
           # An existing tag: only publish what is still missing (NuGet skips versions it has, the release is
-          # created once), so a release whose publish job failed can be run again with corrected inputs.
+          # created once), so a release whose publish job failed can be run again with corrected inputs. The
+          # packages are then packed from the tag.
           if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
             echo "::notice::tag v$VERSION exists: publishing it without bumping or tagging"
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            git checkout -q --detach "v$VERSION"
           fi
+
+      # The unit tests are ci.yml's (every configuration, on x64, Arm64 and Windows): the release requires that they
+      # passed on main instead of running them again. The newest commit of main's first-parent history that ci.yml ran
+      # on (pushed to main or run by hand there) must have passed. A push after it started no run: it changed none of
+      # ci.yml's paths, or it was a release commit, which this workflow's token pushes and so starts no workflow.
+      # (GitHub starts a run seconds after its push: release no sooner than that.) The release commit differs from the
+      # tree tested only in versions (bump_version.py), which no unit test reads, and the Unity DLLs; the build below
+      # compiles it with warnings as errors. No workflow tests it after the push (none did before this change).
+      - name: Require ci.yml to have passed
+        if: steps.version.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list --workflow ci.yml --branch main --limit 200 --json headSha,event,status,conclusion,url \
+            --jq '[.[] | select(.event == "push" or .event == "workflow_dispatch")]' > "$RUNNER_TEMP/ci-runs.json"
+          while read -r sha; do
+            runs=$(jq -c --arg sha "$sha" '[.[] | select(.headSha == $sha)]' "$RUNNER_TEMP/ci-runs.json")
+            [[ "$runs" == '[]' ]] && continue
+            passed=$(jq -r '[.[] | select(.conclusion == "success")][0].url // empty' <<< "$runs")
+            if [[ -n "$passed" ]]; then
+              echo "ci.yml passed on $sha ($passed)"
+              if [[ "$sha" != "$(git rev-parse HEAD)" ]]; then
+                echo "The commits after it, which started no ci.yml run:"
+                git log --oneline "$sha..HEAD"
+              fi
+              exit 0
+            fi
+            if jq -e 'any(.[]; .status != "completed")' <<< "$runs" >/dev/null; then
+              echo "::error::ci.yml is still running on $sha: release once it has passed"
+            else
+              echo "::error::ci.yml did not pass on $sha ($(jq -r '.[0].url' <<< "$runs")): fix main, or re-run it, then release"
+            fi
+            exit 1
+          done < <(git rev-list --first-parent --max-count=200 HEAD)
+          echo "::error::no ci.yml run on main's last 200 commits: run CI on main (Actions -> CI - Build and Test), then release"
+          exit 1
 
       - name: Bump version
         if: steps.version.outputs.exists != 'true'
@@ -106,11 +158,29 @@ jobs:
           net8: true
           cache: false
 
-      - name: Build and test the bumped version
-        if: steps.version.outputs.exists != 'true'
+      # What a release needs of the build: the packages and the Unity DLLs, and that the bumped tree builds without a
+      # warning (ContinuousIntegrationBuild: warnings are errors).
+      - name: Build
+        run: dotnet build --configuration Release
+
+      # The solution: the projects Directory.Build.props marks IsPackable, each packed once, in one MSBuild run, from
+      # the build above.
+      - name: Pack
         run: |
-          dotnet build --configuration Release
-          dotnet test tests/Nino.UnitTests/Nino.UnitTests.csproj --no-build --configuration Release
+          dotnet pack --no-build --configuration Release --output "$RUNNER_TEMP/nuget"
+          ls "$RUNNER_TEMP/nuget"
+          # shellcheck disable=SC2086 # PACKAGE_IDS is a list of ids
+          for id in $PACKAGE_IDS; do
+            test -f "$RUNNER_TEMP/nuget/$id.$VERSION.nupkg"
+          done
+
+      - name: Keep the packages for publish
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nuget-packages
+          path: ${{ runner.temp }}/nuget
+          if-no-files-found: error
+          overwrite: true # a re-run of this job replaces them
 
       - name: Copy the Unity DLLs
         if: steps.version.outputs.exists != 'true'
@@ -147,16 +217,13 @@ jobs:
           git push origin HEAD:main "${TAGS[@]}"
 
   publish:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
     timeout-minutes: 30
     permissions:
       contents: write # the GitHub release
       actions: write  # start the benchmark report
       id-token: write # the OIDC token NuGet exchanges for a temporary API key
-    env:
-      # The package ids that are packed, checked and pushed (Nino.Core's is Nino.Serialization).
-      PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -165,22 +232,16 @@ jobs:
           fetch-depth: 0 # the release notes walk the history since the previous release
           persist-credentials: false
 
+      # dotnet nuget push only: the runner's SDK.
       - name: Setup .NET
         uses: ./.github/actions/setup-dotnet
-        with:
-          net8: true
-          cache: false
 
-      - name: Pack
-        run: |
-          dotnet build --configuration Release
-          # The solution: the projects Directory.Build.props marks IsPackable, each packed once, in one MSBuild run.
-          dotnet pack --no-build --configuration Release --output artifacts
-          ls artifacts
-          # shellcheck disable=SC2086 # PACKAGE_IDS is a list of ids
-          for id in $PACKAGE_IDS; do
-            test -f "artifacts/$id.$VERSION.nupkg"
-          done
+      # What tag packed (and checked: one package of each id at this version).
+      - name: Download the packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nuget-packages
+          path: artifacts
 
       - name: NuGet login (Trusted Publishing)
         id: nuget
@@ -229,7 +290,7 @@ jobs:
         run: gh workflow run report.yml --ref main -f tag_name="v$VERSION"
 
   crates:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
     timeout-minutes: 30
     permissions:
@@ -285,7 +346,7 @@ jobs:
           done
 
   npm:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
     timeout-minutes: 30
     permissions:
@@ -320,8 +381,11 @@ jobs:
             fi
             export NODE_AUTH_TOKEN="$FIRST_TOKEN"
           fi
-          # Trusted Publishing needs npm 11.5.1 or later: a fixed release, not whatever is newest on the day.
-          npm install -g npm@11.21.0
+          # Trusted Publishing needs npm 11.5.1 or later: a fixed release, not whatever is newest on the day. Into this
+          # job's own prefix, not the Node.js of the runner's tool cache, which other jobs share.
+          npm install -g --prefix "$RUNNER_TEMP/npm" npm@11.21.0
+          export PATH="$RUNNER_TEMP/npm/bin:$PATH"
+          npm --version
           npm ci
           cp ../../LICENSE LICENSE
           TAG=latest

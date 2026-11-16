@@ -4,8 +4,9 @@ name: Agent instructions
 # (tools/agents.sh --check). Runs on the paths that can make them stale: the instruction files and skills, and any
 # file added to or removed from a mapped directory.
 # It also checks that src/nuget-readme.md, the NuGet packages' README, is what .github/scripts/nuget_readme.py writes
-# from README.md, and compiles the Python scripts that only report.yml and release.yml run (benchmarks/*/*.py, .github/scripts/*.py)
-# and runs their tests, so a script that breaks fails on its push instead of at the next release.
+# from README.md, and compiles the Python scripts that only report.yml, release.yml and triage.yml run (benchmarks/*/*.py,
+# .github/scripts/*.py, .github/scripts/triage/*.py) and runs their tests, so a script that breaks fails on its push
+# instead of at the next release or the next issue.
 on:
   push:
     branches: [ "main" ]
@@ -51,11 +52,13 @@ jobs:
         run: tools/agents.sh --check
       - name: Check the NuGet README (.github/scripts/nuget_readme.py --check)
         run: python3 .github/scripts/nuget_readme.py --check
-      # .github/scripts has no unittest tests (test_shards.py is ci.yml's shard checker); discover there would fail
-      # with "NO TESTS RAN" (exit 5 since Python 3.12).
+      # .github/scripts itself has no unittest tests (test_shards.py is ci.yml's shard checker); discover there would
+      # fail with "NO TESTS RAN" (exit 5 since Python 3.12). Its triage folder has (the milestone rule and the checks
+      # of the model's answer); they need no package, the anthropic SDK is imported only for the model call.
       - name: Compile and test the release scripts
         env:
           PYTHONPYCACHEPREFIX: ${{ runner.temp }}/pycache
         run: |
-          python3 -m py_compile benchmarks/*/*.py .github/scripts/*.py
+          python3 -m py_compile benchmarks/*/*.py .github/scripts/*.py .github/scripts/triage/*.py
           python3 -m unittest discover -s benchmarks/reports -p 'test_*.py'
+          python3 -m unittest discover -s .github/scripts/triage -p 'test_*.py'

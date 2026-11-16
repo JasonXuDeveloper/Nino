@@ -1,6 +1,6 @@
 ---
 name: audit-ci
-description: "Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, ab-bench.yml and the test branch's A/B workflows) - as fast and parallel as possible, green on main and the test branch, every action pinned to a SHA, path filters that run what a change touches, one Unity license seat, secrets only through Trusted Publishing or repository secrets. Use when changing a workflow, when CI is slow or red, or before a release. Triggers: .github/workflows, .github/actions, actionlint, CI, workflow, matrix, shards, path filter, failed run, slow CI, Unity license, unity.yml, fuzz.yml, ci.yml, dependabot, 工作流, 持续集成, CI 红了, CI 失败, CI 慢, 并行."
+description: "Audit and change Nino's GitHub Actions (ci.yml, runtimes.yml, unity.yml, fuzz.yml, codeql.yml, release.yml, report.yml, agents.yml, triage.yml, ab-bench.yml and the test branch's A/B workflows) - as fast and parallel as possible, green on main and the test branch, every action pinned to a SHA, path filters that run what a change touches, one Unity license seat, secrets only through Trusted Publishing or repository secrets. Use when changing a workflow, when CI is slow or red, or before a release. Triggers: .github/workflows, .github/actions, actionlint, CI, workflow, matrix, shards, path filter, failed run, slow CI, Unity license, unity.yml, fuzz.yml, ci.yml, triage.yml, issue triage, issue forms, dependabot, 工作流, 持续集成, CI 红了, CI 失败, CI 慢, 并行."
 metadata:
   internal: true
 ---
@@ -155,6 +155,15 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   (it signs and keeps an artifact, no release touched). "User does not have permission to sign package" means
   the service account's role or organization is wrong, not the secrets' presence (run 43286997093; 43287841461
   signed once the owner fixed the role).
+- **Untrusted text never reaches a shell or a self-hosted runner.** `triage.yml` reads issues anyone can open: it
+  runs on `ubuntu-latest` (GitHub-hosted), passes only the issue number to its script through `env`, never
+  `${{ github.event.issue.title }}` or the body in a `run:`, and holds only `issues: write`, `contents: read` and
+  `id-token: write`. Claude is reached by Workload Identity Federation (the job's OIDC token, audience
+  `https://api.anthropic.com`, fetched right before the script since it lives about five minutes), never an API key
+  secret; the SDK is installed from `.github/scripts/triage/requirements.txt` with `--require-hashes` (regenerate it
+  with the command in its header after changing `requirements.in`). A failed model call leaves the deterministic
+  labels and milestone applied and the job green (`triage.py`'s `classify`), so a broken credential never fails or
+  spams an issue; check the run's log for `triage: model call failed`.
 - **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
   10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` and ci.yml's pull-request benchmark 6 (shards.json),
   `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines). A push to main

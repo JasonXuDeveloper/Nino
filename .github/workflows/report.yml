@@ -36,6 +36,12 @@ env:
   # The benchmark the build section comes from; a tag without it (v4.0.0-rc.7 and older) has no build section.
   GENERATOR_BENCHMARK: benchmarks/Nino.GeneratorBenchmark
 
+# The jobs that are no matrix run on maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]: no
+# sudo; the workspace and RUNNER_TEMP deleted after every job), so they wait for no GitHub runner behind the matrices:
+# target, generator, publish-runtimes, publish-generator and publish-unity. This workflow runs by hand or for a
+# published release, never for a pull request. The matrices (bench, runtimes, unity.yml) stay on GitHub's runners, as
+# does publish, whose readme.py --png renders the overview chart with the runner image's Google Chrome.
+#
 # Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
 defaults:
   run:
@@ -47,7 +53,7 @@ jobs:
     # A pre-release's Unity tag (vX.Y.Z-preview.N) has a release of its own for the signed Unity package
     # (unity-sign.yml); the numbers belong to the main release, so it starts nothing here.
     if: ${{ !contains(github.event.release.tag_name || '', '-preview.') }}
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     timeout-minutes: 10
     outputs:
       tag: ${{ steps.determine_target.outputs.target_ref }}
@@ -627,7 +633,7 @@ jobs:
     name: Publish the runtime benchmarks
     needs: [ target, runtimes, publish ]
     if: ${{ always() && needs.target.result == 'success' && needs.target.outputs.runtimes != '[]' }}
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -665,11 +671,14 @@ jobs:
   # types (benchmarks/Nino.GeneratorBenchmark: generator time, generated size, emit, re-generation after edits, IL).
   # This workflow's harness (its --json is newer than most tags) loads each side's Nino.Generator and Nino.Core by
   # path, as runtime-ab's generator lines do. Independent of the other sections; a failure leaves only this one out.
+  # On maple from the first report after v4.0.0-rc.10's (GitHub's ubuntu-26.04 x64 runner up to it): its times are of
+  # that machine, which the section's Environment line names (CPU and cores), so they compare with an earlier
+  # release's only as v4 against v3, which each run measures on one machine.
   generator:
     name: Build-time benchmark (source generator)
     needs: target
     if: needs.target.outputs.generator_skip != 'true'
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     # v3 at 1,100 types emits 62 MB of generated source: 8 minutes a run on a 4-core Xeon.
     timeout-minutes: 120
     env:
@@ -691,13 +700,11 @@ jobs:
           path: workflow
           persist-credentials: false
 
+      # This workflow's action (the runner's SDKs where it has them), from the workflow's checkout.
       - name: Setup .NET
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        uses: ./workflow/.github/actions/setup-dotnet
         with:
-          dotnet-version: |
-            11.0.x
-            10.0.x
-            8.0.x
+          net8: true
 
       # The harness's restore downloads v3's Nino.Generator and Nino.Serialization 3.3.13 (PackageDownload) into the
       # NuGet cache.
@@ -753,7 +760,7 @@ jobs:
     name: Publish the build-time benchmark
     needs: [ target, generator, publish, publish-runtimes ]
     if: ${{ always() && needs.target.result == 'success' && needs.target.outputs.generator_skip != 'true' }}
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -834,7 +841,7 @@ jobs:
     name: Publish the Unity benchmark
     needs: [ target, unity, publish, publish-runtimes, publish-generator ]
     if: ${{ always() && needs.target.result == 'success' && needs.target.outputs.unity_skip != 'true' }}
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
