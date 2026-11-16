@@ -94,11 +94,11 @@ Branch from `main`, keep a pull request to one change, add tests for behavior ch
 
 Actions → **Release** → Run workflow on `main`, and enter the version (`4.0.0`, or `4.1.0-beta.1` with
 `alpha`/`beta`/`rc`). The workflow bumps the version of every package (`.github/scripts/bump_version.py`:
-`Directory.Build.props`, the Unity `package.json`, the Rust crates, the npm package), builds and tests it, commits
-the Unity DLLs with the bump, tags it (`vX.Y.Z`, and `runtimes/go/vX.Y.Z` for the Go module), publishes the NuGet
-packages, the crates `nino-serialization-derive` and `nino-serialization` and the npm package `nino-serialization`
-(all through Trusted Publishing, no stored key; an npm pre-release under the dist-tag `next`) and creates the GitHub
-release with generated notes. Pre-releases also get the `vX.Y.Z-preview.N` tag OpenUPM reads. If a step fails after
+`Directory.Build.props`, the Unity `package.json`, the Rust crates, the npm package) once CI has passed on `main` (it
+runs no tests of its own), builds and packs it, commits the Unity DLLs with the bump, tags it (`vX.Y.Z`, and
+`runtimes/go/vX.Y.Z` for the Go module), publishes the NuGet packages, the crates `nino-serialization-derive` and
+`nino-serialization` and the npm package `nino-serialization` (all through Trusted Publishing, no stored key; an npm
+pre-release under the dist-tag `next`) and creates the GitHub release with generated notes. Pre-releases also get the `vX.Y.Z-preview.N` tag OpenUPM reads. If a step fails after
 tagging, fix the cause and re-run the failed job: each publish skips what its registry already has.
 
 Trusted Publishing is configured on a package that exists, so the first release that carries the crates and the
