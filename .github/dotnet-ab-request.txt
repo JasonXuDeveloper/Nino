@@ -385,4 +385,5 @@ cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.M
 # done (run 43803558705): GenericSealedClassTupleBase level on 9V45; NinoNullable Memory<int?>/Vec3? writes +17..26% on 9V45 (#306).
 # done (run 43817418473): NinoUnsafe.Copy is flat across source alignments on 9V45 (8 KB 33-36 ns, 24 KB 110-122) and
 # beats aligned loads, 256-bit loops and Memmove there; the 9V45 swing is not source alignment. Next: the 4K gap.
-cpu='9V45|9V74' 745c59d0 745c59d0 1 *CopyGapProbe*
+# done (run 43823366011): 4K aliasing on the 9V45: forward 46-52 ns at gaps 132-1,028 against 32-38, downward 32-36.
+cpu='9V45|9V74' bc27f032 38c21e9c 3 *CollectionsTest.NinoNullableSerialize* *CollectionsTest.NinoSerializeNullable* *CollectionsTest.NinoSerializeInts* *SimpleTest.NinoSerialize*
