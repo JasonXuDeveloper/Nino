@@ -61,8 +61,11 @@ internal static class DispatchEmitter
                 continue;
             if (e.TypeParameterList.Length == 0)
             {
-                w.Open($"partial struct {e.Self}");
-                EmitBase(w, e.TypeName, Subtypes(subtypesOf, e.TypeName, e.TypeId), services, closedForm: false);
+                var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
+                w.Open(own is { Count: > 0 and <= MaxWriteChain }
+                    ? $"partial struct {e.Self} : {CoreCompilerServices}INinoElementsFormatter<{e.TypeName}>"
+                    : $"partial struct {e.Self}");
+                EmitBase(w, e.TypeName, own, services, closedForm: false);
                 w.Close();
                 w.Line();
                 continue;
@@ -229,15 +232,11 @@ internal static class DispatchEmitter
             w.Close();
             w.Line();
             foreach (var s in subtypes)
-                w.Line(s.RawBody
-                    // The type id and the raw body in one reservation, written here rather than through
-                    // NinoObject.WriteExactRawShallow: one inlining level fewer per subtype, so a dispatch of many keeps
-                    // more of them within the JIT's budget, and one it leaves out is a call to the subtype's own
-                    // formatter, not to shared generic code that looks the formatter up (#305).
-                    ? $$"""if (value.GetType() == typeof({{s.TypeName}})) { ref byte __block = ref writer.Reserve(sizeof(int) + default({{s.FormatterName}}).BodySize); {{services}}NinoUnsafe.Write(ref __block, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref __block, sizeof(int)); return; }"""
-                    : $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); return; }""");
+                w.Line(WriteShallow(s, services, "return;"));
             w.Line(WriteOther(t, services) + ";");
             w.Close();
+            if (!closedForm)
+                EmitWriteElements(w, t, subtypes, services);
 
             w.Line();
             w.Line($"{GeneratedCode.NoInline} static {Core}Writer __WriteSubtypeDeep({t} value, {Core}Writer writer)");
@@ -279,6 +278,55 @@ internal static class DispatchEmitter
             var s = subtypes[i];
             w.Line($"{(s.Flat ? GeneratedCode.Inline : GeneratedCode.NoInline)} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
         }
+    }
+
+    /// <summary>
+    /// The write of <paramref name="s"/> when the value is exactly that subtype and its body is not too deep, ending in
+    /// <paramref name="exit"/>. A raw body's type id and block go into one reservation, written here rather than
+    /// through NinoObject.WriteExactRawShallow: one inlining level fewer per subtype, so a dispatch of many keeps more of
+    /// them within the JIT's budget, and one it leaves out is a call to the subtype's own formatter, not to shared
+    /// generic code that looks the formatter up (#305).
+    /// </summary>
+    private static string WriteShallow(DispatchEntry s, string services, string exit) => s.RawBody
+        ? $$"""if (value.GetType() == typeof({{s.TypeName}})) { ref byte __block = ref writer.Reserve(sizeof(int) + default({{s.FormatterName}}).BodySize); {{services}}NinoUnsafe.Write(ref __block, {{s.TypeId.ToString(CultureInfo.InvariantCulture)}}); default({{s.FormatterName}}).WriteRawBody({{services}}NinoObject.SameType<{{s.TypeName}}>(value), ref __block, sizeof(int)); {{exit}} }"""
+        : $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); {{exit}} }""";
+
+    /// <summary>
+    /// <c>WriteElements</c> (<c>INinoElementsFormatter</c>): the elements of an array or a list of the base in one
+    /// loop with the chain of type checks inline and the writer in a local, which the JIT keeps in registers. Written
+    /// one at a time through <c>Serialize</c>, each element took a call into the dispatch (too large to inline into the
+    /// collection loop) with the writer in memory: LuminPack's List&lt;IFoo&gt; of 1,000 values of 20 subtypes took
+    /// 5.0 us that way and 3.85 in this form (LuminPack 4.4; local x64, #305). The depth is checked once: no element
+    /// changes it.
+    /// </summary>
+    private static void EmitWriteElements(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
+    {
+        w.Line();
+        w.Open($"public void WriteElements(global::System.ReadOnlySpan<{t}> values, ref {Core}Writer target)");
+        w.Line($"if ({services}NinoObject.IsDeep(ref target))");
+        w.Open();
+        w.Line("foreach (var value in values)");
+        w.Open();
+        w.Line("if (value == null)");
+        w.Line("    target.UnsafeWrite(0);");
+        w.Line("else");
+        w.Line("    __WriteSubtype(value, ref target);");
+        w.Close();
+        w.Line("return;");
+        w.Close();
+        w.Line();
+        w.Line($"{Core}Writer writer = default;");
+        w.Line("target.CopyTo(ref writer);");
+        w.Line("foreach (var value in values)");
+        w.Open();
+        w.Line("if (value == null) { writer.UnsafeWrite(0); continue; }");
+        foreach (var s in subtypes)
+            w.Line(WriteShallow(s, services, "continue;"));
+        w.Line(WriteOther(t, services) + ";");
+        w.Close();
+        w.Line();
+        w.Line("writer.CopyTo(ref target);");
+        w.Close();
     }
 
     private static string WriteSubtype(string t) => $"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)";

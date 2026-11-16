@@ -33,6 +33,17 @@ namespace Nino.Core.CompilerServices
         T Create();
     }
 
+    /// <summary>
+    /// Generated formatters of polymorphic bases: the elements of an array or a list of the base written in one loop
+    /// (the dispatch inline, the writer in a local), the bytes of <see cref="INinoFormatter{T}.Serialize"/> for each.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoElementsFormatter<T>
+    {
+        /// <summary>Writes every element of <paramref name="values"/> (not empty) as Serialize writes one.</summary>
+        void WriteElements(ReadOnlySpan<T> values, ref Writer writer);
+    }
+
     /// <summary>The flags of <see cref="INinoBodyFormatter{T}.Traits"/>.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoBodyTraits
