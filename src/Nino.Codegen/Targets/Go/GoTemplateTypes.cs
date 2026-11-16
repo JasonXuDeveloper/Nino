@@ -341,6 +341,23 @@ namespace Nino.Codegen.Targets
         public int Offset { get; }
     }
 
+    /// <summary>A case of a C# union: the struct holding its value (<c>ChoiceInt32</c>), its type id and shape.</summary>
+    public sealed class GoCase
+    {
+        internal GoCase(string name, UnionCaseModel model, GoShape shape)
+        {
+            Name = name;
+            Model = model;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        public UnionCaseModel Model { get; }
+
+        public GoShape Shape { get; }
+    }
+
     /// <summary>A <c>[NinoType]</c> as the template writes it.</summary>
     public sealed class GoType
     {
@@ -364,6 +381,13 @@ namespace Nino.Codegen.Targets
         public bool IsAbstract => !Model.IsConcrete;
 
         public bool IsStruct => Model.IsValueType;
+
+        /// <summary>A C# union: a Go interface, implemented by a struct per case (<see cref="Cases"/>).</summary>
+        public bool IsUnion => Model.IsUnion;
+
+        /// <summary>A union's cases, in declaration order: each a struct named after the union and the case.</summary>
+        public List<GoCase> Cases => Model.Cases.Select(c =>
+            new GoCase(_target.CaseName(Model, c), c, _target.ShapeIn(Model, c.Value))).ToList();
 
         /// <summary>The id it is written behind (its name's hash for a closed generic type).</summary>
         public int Id => GoTarget.IdOf(Model);
@@ -511,7 +535,8 @@ namespace Nino.Codegen.Targets
             while (pending.Count != 0)
             {
                 var next = pending.Pop();
-                foreach (var reached in next.Members.SelectMany(m => m.Value.Walk()).SelectMany(_target.StructsIn))
+                foreach (var reached in next.Members.Select(m => m.Value).Concat(next.Cases.Select(c => c.Value))
+                             .SelectMany(v => v.Walk()).SelectMany(_target.StructsIn))
                 {
                     if (reached == Model)
                         return true;

@@ -215,6 +215,20 @@ namespace Nino.Codegen.Targets
         public List<TsField> Fields { get; }
     }
 
+    /// <summary>A case of a C# union: its name, its type id and the shape of its value.</summary>
+    public sealed class TsCase
+    {
+        internal TsCase(UnionCaseModel model, TsShape shape)
+        {
+            Model = model;
+            Shape = shape;
+        }
+
+        public UnionCaseModel Model { get; }
+
+        public TsShape Shape { get; }
+    }
+
     /// <summary>A type as the template writes it: its name, members, and how its body is read and written.</summary>
     public sealed class TsClass
     {
@@ -357,6 +371,12 @@ namespace Nino.Codegen.Targets
         public string AtDeclaration => Runs.Count(r => r.Items.Count > 1) > 1 ? "let at" : "const at";
 
         public bool IsClassBody => Model.IsClassBody;
+
+        /// <summary>A C# union: a class holding the name of its case (<c>case</c>) and the case's value (<c>value</c>).</summary>
+        public bool IsUnion => Model.IsUnion;
+
+        /// <summary>A union's cases, in declaration order.</summary>
+        public List<TsCase> Cases => Model.Cases.Select(c => new TsCase(c, _target.ShapeIn(Model, c.Value))).ToList();
 
         /// <summary><c>positional</c>, <c>tolerant</c> or <c>keyed</c>.</summary>
         public string Format => Model.Format switch

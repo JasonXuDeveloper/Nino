@@ -222,6 +222,8 @@ namespace Nino.Codegen.Targets
             {
                 if (type.Elements != null)
                     ShapeIn(type, type.Elements);
+                foreach (var item in type.Cases)
+                    ShapeIn(type, item.Value);
                 foreach (var member in type.Members)
                     ShapeIn(type, member.Value);
                 if (type.BaseValue != null)

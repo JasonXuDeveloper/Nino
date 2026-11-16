@@ -3,6 +3,70 @@
 # descriptors, bodies, polymorphic slots, then the functions values of one shape share. gofmt leaves it as it is.
 include "shapes.sbn"
 
+# A C# union (spec §7.12): an interface its cases implement, a struct per case holding its value; read and written as
+# the case's type id (0, nil, for the empty union), then the value, never nil. In an object slot, each case is written
+# behind the union's own type id (its NinoTypeID).
+func union_type(c)
+  $cases = []
+  for $k in c.cases
+    $cases = array.add $cases $k.name
+  end
+  $o = "// " + c.name + " is the C# union `" + c.model.full_name + "`: " + (array.join $cases ", ") + ", or nil for the empty union.\n"
+  $o = $o + "type " + c.name + " interface {\n\tnino.Typed\n\t// NinoUnionCase returns the .NET name of the case's type.\n\tNinoUnionCase() string\n\tis" + c.name + "()\n}\n\n"
+  for $k in c.cases
+    $tag = ""
+    for $t in extra_tags
+      $tag = $tag + ($tag == "" ? "" : " ") + $t + ":\"" + tag_name("Value") + "\""
+    end
+    $o = $o + "// " + $k.name + " is the case `" + $k.model.runtime_name + "` of " + c.name + ".\n"
+    $o = $o + "type " + $k.name + " struct {\n\tValue " + gotype($k.shape) + ($tag == "" ? "" : " `" + $tag + "`") + "\n}\n\n"
+    $o = $o + "func (" + $k.name + ") is" + c.name + "() {\n}\n\n"
+    $o = $o + "// NinoTypeID is the type id of the union, which an object slot writes the case behind.\nfunc (" + $k.name + ") NinoTypeID() int32 {\n\treturn " + c.id + "\n}\n\n"
+    $o = $o + "func (" + $k.name + ") NinoTypeName() string {\n\treturn " + go_string(c.runtime_name) + "\n}\n\n"
+    $o = $o + "func (" + $k.name + ") NinoUnionCase() string {\n\treturn " + go_string($k.model.runtime_name) + "\n}\n\n"
+  end
+  $o = $o + "// Read" + c.name + " reads a " + c.name + ": the type id of its case (0 for the empty union), then the case's value.\n"
+  $o = $o + "func Read" + c.name + "(r *nino.Reader) " + c.name + " {\n\tid := r.TypeID()\n\tif id == nino.NullTypeID {\n\t\treturn nil\n\t}\n"
+  if c.model.union_nests
+    $o = $o + "\tif !r.EnterStruct() {\n\t\treturn nil\n\t}\n"
+  end
+  $o = $o + "\tvar v " + c.name + "\n\tswitch id {\n"
+  for $k in c.cases
+    $o = $o + "\tcase " + $k.model.type_id + ":\n"
+    if $k.model.nullable
+      # A case read as nil is invalid: .NET writes the empty union for a case given null.
+      $o = $o + "\t\tif value := " + read($k.shape) + "; value != nil {\n\t\t\tv = " + $k.name + "{Value: value}\n\t\t} else {\n\t\t\tr.Fail(nino.CodeInvalidData, \"a union case without a value\")\n\t\t}\n"
+    else
+      $o = $o + "\t\tv = " + $k.name + "{Value: " + read($k.shape) + "}\n"
+    end
+  end
+  $o = $o + "\tdefault:\n\t\tr.UnknownType(id)\n\t}\n"
+  if c.model.union_nests
+    $o = $o + "\tr.ExitStruct()\n"
+  end
+  $o = $o + "\tif r.Failed() {\n\t\treturn nil\n\t}\n\treturn v\n}\n\n"
+  $o = $o + "// Read" + c.name + "Into reads a value into *v (DeserializeInto): a union is read whole.\nfunc Read" + c.name + "Into(r *nino.Reader, v *" + c.name + ") {\n\t*v = Read" + c.name + "(r)\n}\n\n"
+  # A case holding nil is written as the empty union, as .NET writes a case given null.
+  $o = $o + "func Write" + c.name + "(w *nino.Writer, v " + c.name + ") {\n\tswitch v := v.(type) {\n"
+  for $k in c.cases
+    $o = $o + "\tcase " + $k.name + ":\n"
+    if $k.model.nullable
+      $o = $o + "\t\tif v.Value == nil {\n\t\t\tbreak\n\t\t}\n"
+    end
+    $o = $o + "\t\tw.TypeID(" + $k.model.type_id + ")\n"
+    if c.model.union_nests
+      $o = $o + "\t\tif !w.EnterStruct() {\n\t\t\treturn\n\t\t}\n"
+    end
+    $o = $o + "\t\t" + write($k.shape, "v.Value") + "\n"
+    if c.model.union_nests
+      $o = $o + "\t\tw.ExitStruct()\n"
+    end
+    $o = $o + "\t\treturn\n"
+  end
+  $o = $o + "\t}\n\tw.TypeID(nino.NullTypeID)\n}\n"
+  ret $o
+end
+
 # A struct declaration: its fields with their nino tag (position or key, utf8) and the extra tags.
 func struct_decl(name, fields, keyed)
   if fields.size == 0
@@ -734,6 +798,10 @@ end
 
 for c in types
   "\n"
+  if c.is_union
+    union_type(c)
+    continue
+  end
   if c.is_abstract && c.parameters.size != 0
     # A generic abstract class or interface: a generic interface, each closed slot of it dispatching on its own.
     generic_interface(c)

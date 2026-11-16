@@ -4,6 +4,10 @@
          (the conformance corpus's types and Shapes.cs), which each runtime's tests compile and run. -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
+        <!-- With a .NET 11 SDK, net11.0 and C# 15: Shapes.cs's C# unions, and the corpus's (Nino.Conformance targets net11.0 then too). The committed generated files are written with it;
+             CI's integrations job installs that SDK. -->
+        <TargetFramework Condition=" $([MSBuild]::VersionGreaterThanOrEquals('$(NETCoreSdkVersion)', '11.0')) ">net11.0</TargetFramework>
+        <LangVersion Condition=" $([MSBuild]::VersionGreaterThanOrEquals('$(NETCoreSdkVersion)', '11.0')) ">preview</LangVersion>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <OutputType>Library</OutputType>

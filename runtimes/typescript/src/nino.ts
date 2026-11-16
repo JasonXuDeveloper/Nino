@@ -1169,6 +1169,14 @@ export class NinoReader {
     return new NinoError("a key or element is repeated in a map or set.");
   }
 
+  /**
+   * The error for a C# union (wire-format spec §7.12) holding a type id that is not one of its cases, or a case's id
+   * with a null value: .NET writes the empty union (type id 0) for a case given null.
+   */
+  invalidCase(id: number): NinoError {
+    return new NinoError(`type id 0x${(id >>> 0).toString(16)} with this value is not a case of the union.`);
+  }
+
   /** A nullable value, `Tuple` or sealed class: a presence byte, then the value if present. */
   nullable<T>(read: (reader: NinoReader) => T): T | null {
     return this.present() ? read(this) : null;

@@ -136,6 +136,8 @@ namespace Nino.Codegen.Model
                 yield return type.RawValue;
             if (type.Elements != null)
                 yield return type.Elements;
+            foreach (var item in type.Cases)
+                yield return item.Value;
             foreach (var member in type.Members)
                 yield return member.Value;
         }
@@ -287,7 +289,9 @@ namespace Nino.Codegen.Model
                     type.RawValue = layout.RawEncoding == null
                         ? Unsupported(type.Clr, "", $"{type.FullName} has no {{lang}} form")
                         : Raw(layout.RawEncoding, type.Clr);
-                if (layout.Elements != null)
+                if (type.IsUnion)
+                    Union(type);
+                else if (layout.Elements != null)
                 {
                     // The collection's own encoding (seq(...) or map(...)), resolved against the type itself; its
                     // kind is that of the collection it derives from.

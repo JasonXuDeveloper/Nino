@@ -398,5 +398,42 @@ namespace Nino.Codegen.Tests
                 File.Delete(path);
             }
         }
+#if NET11_0_OR_GREATER
+        [TestMethod]
+        public void EveryTargetLeavesOutGenericUnionsAndTupleCases()
+        {
+            foreach (var (lang, file) in new[] { ("go", "nino_types.go"), ("rust", "nino_types.rs"), ("ts", "Nino.Codegen.Tests.ts") })
+            {
+                var (text, output) = Run(lang, file);
+                StringAssert.Contains(output, "NINOGEN002: Shapes.Either`1 is not written");
+                StringAssert.Contains(output, "a generic C# union is not supported");
+                StringAssert.Contains(output, "NINOGEN002: Shapes.TupleCase is not written");
+                StringAssert.Contains(output, "whose encoding in a union case is not published");
+                Assert.IsFalse(text.Contains("TupleCase", StringComparison.Ordinal), lang);
+                Assert.IsFalse(text.Contains("Either", StringComparison.Ordinal), lang);
+            }
+        }
+
+        /// <summary>
+        /// A union is each language's sum type: a TypeScript class naming its case, a Go interface with a struct per
+        /// case, a Rust enum with a variant per case (a case named Empty after the empty union's own variant).
+        /// </summary>
+        [TestMethod]
+        public void EveryTargetWritesAUnionAsItsSumType()
+        {
+            var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts");
+            StringAssert.Contains(ts, "export class Pick {\n  case: \"Empty\" | \"PickPair\" | \"Byte\" | null = null;");
+            StringAssert.Contains(ts, "  static Byte(value: number): Pick {");
+            StringAssert.Contains(ts, "types.add(" + Nino.Core.NinoTypeId.Compute("Shapes.Pick") + ", Pick, readPick, writePick);");
+            var (go, _) = Run("go", "nino_types.go");
+            StringAssert.Contains(go, "type Pick interface {");
+            StringAssert.Contains(go, "type PickByte struct {\n\tValue uint8");
+            StringAssert.Contains(go, "func ReadPick(r *nino.Reader) Pick {");
+            var (rust, _) = Run("rust", "nino_types.rs");
+            StringAssert.Contains(rust, "pub enum Pick {\n    /// The empty union.\n    #[default]\n    Empty,");
+            StringAssert.Contains(rust, "    EmptyCase(Option<Box<Empty>>),");
+            StringAssert.Contains(rust, "    Byte(u8),");
+        }
+#endif
     }
 }

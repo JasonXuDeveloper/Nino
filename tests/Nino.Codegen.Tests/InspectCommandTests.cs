@@ -326,6 +326,10 @@ namespace Nino.Codegen.Tests
         [DataRow("deep-tolerant-chain-129", DisplayName = "a section of deferred bodies")]
         [DataRow("presence-bool-02", DisplayName = "malformed: an invalid bool")]
         [DataRow("keyed-member-too-short", DisplayName = "malformed: a keyed entry too short")]
+#if NET11_0_OR_GREATER
+        [DataRow("unions-values", DisplayName = "C# unions: case type ids, the empty union")]
+        [DataRow("type-id-union-null-string", DisplayName = "malformed: a union case without a value")]
+#endif
         public void PrintsTheTree(string name)
         {
             string kind = File.Exists(Corpus("valid", name + ".bin")) ? "valid" : "malicious";

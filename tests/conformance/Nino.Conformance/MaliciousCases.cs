@@ -320,6 +320,27 @@ namespace Conformance
                 "An Animal member holding the id of Box<System.Guid>, a closed type no code uses.", NotNull,
                 I32(NinoTypeId.Compute("Conformance.Box<System.Guid>")), V(0), new byte[16]);
 
+#if NET11_0_OR_GREATER
+            // A union (spec §7.12): the type id of one of its cases, then that case's value, never null.
+            Control<Choice>("union-case", I32(Id(typeof(int))), I32(42));
+            Control<Choice>("union-case-point", I32(Id(typeof(Point))), NotNull, I32(1), I32(2));
+            Add<Choice>("type-id", "union-unknown-case",
+                "A Choice union holding the type id of double, which is not one of its cases.", I32(Id(typeof(double))),
+                new byte[8]);
+            Add<Choice>("type-id", "union-case-of-payload",
+                "A Choice union holding the type id of Dog: a value its Animal case holds, but not a case (the case's " +
+                "own id, Animal's, comes first).", I32(Id(typeof(Dog))), V(0), I32(3));
+            Add<Choice>("type-id", "union-null-string",
+                "A Choice union holding its string case's type id and a null string: the empty union is type id 0.",
+                I32(Id(typeof(string))), V(0));
+            Add<Choice>("type-id", "union-null-class",
+                "A Choice union holding its Point case's type id and a null Point (presence byte 0).",
+                I32(Id(typeof(Point))), new byte[] { 0 });
+            Add<Choice>("type-id", "union-null-nullable",
+                "A Choice union holding its long? case's type id and a long? without a value.", I32(Id(typeof(long?))),
+                new byte[] { 0 });
+#endif
+
             // ---------------------------------------------------------- nesting
 
             // Each built at 10,000 levels (the case) and at 3 (the control, which .NET must read).
@@ -668,7 +689,7 @@ namespace Conformance
         /// <summary>The valid cases whose every strict prefix is an input that must be rejected.</summary>
         public static List<ValidCase> Truncations(List<ValidCase> valid)
         {
-            var names = new[]
+            var names = new List<string>
             {
                 "integers-mixed", "integers-null", "floats-values", "scalars-values", "dates-kinds", "enums-min",
                 "big-values", "big-values-edges", "string-ascii", "string-latin1", "string-bmp", "string-astral",
@@ -680,6 +701,9 @@ namespace Conformance
                 "references-shared", "tree-collections", "bcl-raw-values", "bcl-raw-nullables",
                 "bcl-raw-host", "bcl-raw-offset",
             };
+#if NET11_0_OR_GREATER
+            names.Add("unions-values");
+#endif
             return names.Select(n => valid.Single(c => c.Name == n)).ToList();
         }
 

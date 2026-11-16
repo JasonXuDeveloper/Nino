@@ -355,6 +355,21 @@ namespace Samples
         public Node Next;
     }
 
+#if NET11_0_OR_GREATER
+    /// <summary>A C# union: the type id of the case it holds (0 when empty), then the case's value.</summary>
+    [NinoType]
+    public union Shot(int, string, Vec2, Animal, List<long>);
+
+    [NinoType]
+    public sealed class Shots
+    {
+        public Shot One;
+        public Shot Two;
+        public Shot None;
+        public List<Shot> Many;
+    }
+
+#endif
     /// <summary>Left out of TypeScript (<c>Half</c> has no TypeScript form), with a warning.</summary>
     [NinoType]
     public sealed class Halves

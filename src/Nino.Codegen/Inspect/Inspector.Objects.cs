@@ -174,10 +174,60 @@ namespace Nino.Codegen.Inspect
                 return;
             }
 
+            if (type.IsUnion)
+            {
+                Union(type, node);
+                return;
+            }
+
             bool counted = Counted(type);
             if (counted && ++_structs + _depth > MaxDepth)
                 throw TooDeep(_r.Pos);
             Members(body, node);
+            if (counted)
+                _structs--;
+        }
+
+        /// <summary>
+        /// A C# union's body (§7.12): the type id of its case (0: the empty union), then the case's value, which is
+        /// never null. A union whose cases can hold it again counts its body toward the depth limit, as .NET does.
+        /// </summary>
+        private void Union(TypeModel type, InspectNode node)
+        {
+            int at = _r.Pos;
+            int id = _r.I32();
+            var idNode = node.Add("case type id", at);
+            idNode.Length = 4;
+            idNode.Set(TypeNames.Hex(id), id.ToString(CultureInfo.InvariantCulture));
+            if (id == 0)
+            {
+                idNode.Note = "the empty union";
+                node.AddNote("empty");
+                return;
+            }
+
+            var item = type.Cases.FirstOrDefault(c => c.TypeId == id) ??
+                       throw WireReader.Fail(at, $"type id {TypeNames.Hex(id)} is not a case of union {type.RuntimeName}");
+            idNode.Note = item.RuntimeName;
+            node.AddNote(item.RuntimeName);
+            bool counted = type.UnionNests;
+            if (counted && ++_structs + _depth > MaxDepth)
+                throw TooDeep(_r.Pos);
+            var child = node.Add("value", _r.Pos);
+            child.Type = item.RuntimeName;
+            child.Encoding = item.Value.Encoding;
+            try
+            {
+                Value(item.Value, null, child);
+            }
+            finally
+            {
+                child.Length = _r.Pos - child.Offset;
+            }
+
+            if (item.Nullable && child.Json == "null")
+                throw WireReader.Fail(child.Offset, $"a null value for case {item.RuntimeName} of union {type.RuntimeName} " +
+                                                    "(the empty union is type id 0)");
             if (counted)
                 _structs--;
         }

@@ -35,7 +35,8 @@ Nino.AotTests/               a program over every kind of type, published trimme
                              errors); prints a hash of everything written to compare runs, and checks that the block
                              shuffle keeps its instruction (pshufb) under NativeAOT
 Nino.AspNetCore.Tests/       Nino.AspNetCore: MVC and Minimal API round trips, errors, allocations, unloading
-Nino.Codegen.Tests/          nino-gen: the IR (ModelTests), targets and command line (TargetTests), nino-gen layouts
+Nino.Codegen.Tests/          nino-gen (net11.0 with a .NET 11 SDK, for the C# unions of Shapes.cs and the corpus; the
+                             committed generated files need it): the IR (ModelTests), targets and command line (TargetTests), nino-gen layouts
                              (LayoutsCommandTests), the layout attribute contract, and GeneratedFilesTests: the files committed under runtimes/ are what nino-gen
                              writes (NINO_UPDATE_GENERATED=1 rewrites them); Shapes.cs: shapes the corpus lacks;
                              InspectCommandTests: nino-gen inspect over the whole corpus (valid, malicious, truncated,

@@ -311,6 +311,40 @@ namespace Shapes
     {
         public Forest Forest;
     }
+
+#if NET11_0_OR_GREATER
+    /// <summary>A union case of a type named Empty (Rust's empty union variant), and of a raw struct.</summary>
+    [NinoType]
+    public union Pick(Empty, PickPair, byte);
+
+    [NinoType]
+    public sealed class Empty
+    {
+    }
+
+    /// <summary>Raw: a case that cannot hold its union again.</summary>
+    [NinoType]
+    public struct PickPair
+    {
+        public int A;
+        public int B;
+    }
+
+    /// <summary>A generic union: its case ids depend on its type arguments (NINOGEN002 in every language).</summary>
+    [NinoType]
+    public union Either<T>(T, string);
+
+    /// <summary>A tuple case: its encoding as a case is not published (NINOGEN002 in every language).</summary>
+    [NinoType]
+    public union TupleCase((int, int), string);
+
+    [NinoType]
+    public sealed class Picks
+    {
+        public Pick Pick;
+        public Pick[] Many;
+    }
+#endif
 }
 
 namespace Shapes.Left

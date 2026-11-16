@@ -238,6 +238,70 @@ func typeid_codec(assignable, closed, backref)
   ret $o + "};\n"
 end
 
+# A C# union (spec §7.12): a class holding the name of its case and the case's value; read and written as the case's
+# type id (0 for the empty union), then the value, never null.
+func union_class(c)
+  $n = c.name
+  $names = []
+  $types = []
+  for $k in c.cases
+    $names = array.add $names ("\"" + $k.model.name + "\"")
+    # Each type once, null once at the end.
+    $t = ts($k.shape)
+    if string.ends_with $t " | null"
+      $t = string.slice $t 0 ($t.size - 7)
+    end
+    $types = array.add $types $t
+  end
+  $o = "/** `" + c.model.full_name + "`, a C# union: `case` names the case `value` holds, null for the empty union. */\n"
+  $o = $o + "export class " + $n + " {\n  case: " + (array.join $names " | ") + " | null = null;\n"
+  $o = $o + "  value: " + (array.join (array.uniq $types) " | ") + " | null = null;\n"
+  for $k in c.cases
+    $o = $o + "\n  /** A `" + $n + "` holding its case `" + $k.model.runtime_name + "`. */\n"
+    $o = $o + "  static " + $k.model.name + "(value: " + ts($k.shape) + "): " + $n + " {\n    const v = new " + $n + "();\n"
+    $o = $o + "    v.case = \"" + $k.model.name + "\";\n    v.value = value;\n    return v;\n  }\n"
+  end
+  $o = $o + "}\n\n"
+  # A case read as null is invalid: .NET writes the empty union for a case given null.
+  $o = $o + "function read" + $n + "(r: NinoReader, v: " + $n + " = new " + $n + "()): " + $n + " {\n  const id = r.i32();\n"
+  $o = $o + "  if (id === 0) {\n    v.case = null;\n    v.value = null;\n    return v;\n  }\n"
+  if c.model.union_nests
+    $o = $o + "  r.enterStruct();\n"
+  end
+  $o = $o + "  switch (id) {\n"
+  for $k in c.cases
+    $o = $o + "    case " + $k.model.type_id + ": {\n      const value = " + read($k.shape) + ";\n"
+    if $k.model.nullable
+      $o = $o + "      if (value === null) throw r.invalidCase(id);\n"
+    end
+    $o = $o + "      v.case = \"" + $k.model.name + "\";\n      v.value = value;\n      break;\n    }\n"
+  end
+  $o = $o + "    default:\n      throw r.invalidCase(id);\n  }\n"
+  if c.model.union_nests
+    $o = $o + "  r.exitStruct();\n"
+  end
+  $o = $o + "  return v;\n}\n\n"
+  # A case given null is written as the empty union, as .NET writes it.
+  $o = $o + "function write" + $n + "(w: NinoWriter, v: " + $n + "): void {\n  switch (v.case) {\n"
+  for $k in c.cases
+    $o = $o + "    case \"" + $k.model.name + "\": {\n      const value = v.value as " + ts($k.shape) + ";\n"
+    if $k.model.nullable
+      $o = $o + "      if (value === null || value === undefined) break;\n"
+    end
+    $o = $o + "      w.i32(" + $k.model.type_id + ");\n"
+    if c.model.union_nests
+      $o = $o + "      w.enterStruct();\n"
+    end
+    $o = $o + "      " + stmt(write($k.shape, "value")) + "\n"
+    if c.model.union_nests
+      $o = $o + "      w.exitStruct();\n"
+    end
+    $o = $o + "      return;\n    }\n"
+  end
+  $o = $o + "    case null:\n      break;\n    default:\n      throw types.unwritable(v);\n  }\n  w.i32(0);\n}\n\n"
+  ret $o
+end
+
 # A set's element or a map's key read by `code`, through the hash-flooding guard when its shape has one.
 func guarded(shape, code)
   if !shape.guard
@@ -435,6 +499,10 @@ for i in interfaces
 end
 
 for c in classes
+  if c.is_union
+    union_class(c)
+    continue
+  end
   "/** `" + (c.parameters.size == 0 ? c.model.full_name : c.model.runtime_name) + "`. */\nexport " + (c.model.is_abstract ? "abstract " : "") + "class " + c.self
   if c.base_shape
     " extends " + generic_ts(c.base_shape)

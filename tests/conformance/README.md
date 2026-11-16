@@ -68,6 +68,7 @@ Lossless: every value is encoded so that no JSON parser rounds or rewrites it.
 | tuples, `KeyValuePair` | an array of the items |
 | multi-dimensional arrays | `{"lengths": [..], "items": [.. row-major]}` |
 | a `[NinoType]` (class or struct) | an object: `"$type"` (the runtime type's name, as in `layouts`), then its members by C# name, in the order the layout lists them |
+| a C# union | `{"$type", "$case", "value"}`: the union's name, the runtime-form name of the case it holds (`"System.Int32"`, null when empty) and the case's value (null when empty) |
 | a tracked object (`trackReferences`) | the first time: `"$id": n` before `"$type"`; afterwards `{"$ref": n}`. `n` counts tracked objects from 1 in document order, which is the order they are written, so it is the index the wire's back reference holds |
 
 Collections keep wire order, so a set or a map compares as a sequence. Deep cases nest their JSON as deeply as the
@@ -125,6 +126,9 @@ cases use are those of `tests/conformance/Nino.Conformance/Types.cs`.
 dotnet run --project tests/conformance/Nino.Conformance -c Release -- --out tests/conformance/corpus
 dotnet run --project tests/conformance/Nino.Conformance -c Release -- --verify tests/conformance/corpus
 ```
+
+Run both with a .NET 11 SDK: the C# unions of `Types.cs` and their cases are compiled only for net11.0 (C# 15), so a
+.NET 10 SDK writes a corpus without them, which the committed one does not match.
 
 `--out` rewrites the whole corpus; it is deterministic, so an unchanged Nino gives identical files. It probes each
 malicious input and the truncated prefixes in child processes of itself, so an input that crashes .NET does not stop

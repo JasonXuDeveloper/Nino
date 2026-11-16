@@ -2130,6 +2130,143 @@ impl Chain {
     nino::type_consts!(0x8147BA33u32 as i32, "Conformance.Chain", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x8147BA33; deferrable=true; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)");
 }
 
+/// `Conformance.Choice`, a C# union: the case it holds, or `Empty` (type id 0).
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Choice {
+    /// The empty union.
+    #[default]
+    Empty,
+    /// `System.Int32`.
+    Int32(i32),
+    /// `System.String`.
+    String(Option<nino::WideString>),
+    /// `Conformance.Point`.
+    Point(Option<Box<Point>>),
+    /// `Conformance.Animal`.
+    Animal(Option<AnimalRef>),
+    /// `System.Collections.Generic.List<System.Int32>`.
+    ListInt32(Option<Vec<i32>>),
+    /// `System.Nullable<System.Int64>`.
+    NullableInt64(Option<i64>),
+}
+impl Choice {
+    /// The value of the case it holds, where a body deferred inside it is put in place.
+    fn case_value(&mut self) -> Option<&mut dyn core::any::Any> {
+        match self {
+            Self::Empty => None,
+            Self::Int32(v) => Some(v as &mut dyn core::any::Any),
+            Self::String(v) => Some(v as &mut dyn core::any::Any),
+            Self::Point(v) => Some(v as &mut dyn core::any::Any),
+            Self::Animal(v) => Some(v as &mut dyn core::any::Any),
+            Self::ListInt32(v) => Some(v as &mut dyn core::any::Any),
+            Self::NullableInt64(v) => Some(v as &mut dyn core::any::Any),
+        }
+    }
+    fn read_case(r: &mut nino::Reader<'_>, id: i32) -> nino::Result<Self> {
+        Ok(match id {
+            546808484 => Self::Int32(r.read()?),
+            -65934901 => {
+                let value: Option<nino::WideString> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::String(value)
+            }
+            -1773443910 => {
+                let value: Option<Box<Point>> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::Point(value)
+            }
+            -749123728 => {
+                let value: Option<AnimalRef> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::Animal(value)
+            }
+            -217079013 => {
+                let value: Option<Vec<i32>> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::ListInt32(value)
+            }
+            1279255967 => {
+                let value: Option<i64> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::NullableInt64(value)
+            }
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        })
+    }
+}
+impl NinoRead for Choice {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        let mut v = Self::Empty;
+        v.read_into(r)?;
+        Ok(v)
+    }
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let id = r.i32()?;
+        if id == 0 {
+            *self = Self::Empty;
+            return Ok(());
+        }
+        // A case can hold the union again: each level counts toward the depth limit.
+        r.enter_struct()?;
+        let mark = r.defer_mark();
+        let value = Self::read_case(r, id);
+        r.exit_struct();
+        *self = value?;
+        r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<Choice>()?.case_value()));
+        Ok(())
+    }
+}
+impl NinoWrite for Choice {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::Int32(v) => {
+                w.i32(546808484);
+                w.write(v)
+            }
+            Self::String(v) if v.is_some() => {
+                w.i32(-65934901);
+                w.write(v)
+            }
+            Self::Point(v) if v.is_some() => {
+                w.i32(-1773443910);
+                w.write(v)
+            }
+            Self::Animal(v) if v.is_some() => {
+                w.i32(-749123728);
+                w.write(v)
+            }
+            Self::ListInt32(v) if v.is_some() => {
+                w.i32(-217079013);
+                w.write(v)
+            }
+            Self::NullableInt64(v) if v.is_some() => {
+                w.i32(1279255967);
+                w.write(v)
+            }
+            _ => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+impl Choice {
+    nino::type_consts!(0xDD138175u32 as i32, "Conformance.Choice", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0xDD138175; deferrable=false; members=[elements]::union(type(Conformance.Animal),type(Conformance.Point),type(System.Collections.Generic.List<int>),type(System.Nullable<long>),type(int),type(string))");
+}
+
 /// `Conformance.Circle`: Positional, header TypeId.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -6135,6 +6272,185 @@ impl TreeNode {
     nino::type_consts!(0x760566C0u32 as i32, "Conformance.TreeNode", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x760566C0; deferrable=true; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))");
 }
 
+/// `Conformance.UnionTree`, a C# union: the case it holds, or `Empty` (type id 0).
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum UnionTree {
+    /// The empty union.
+    #[default]
+    Empty,
+    /// `Conformance.UnionTree[]`.
+    UnionTreeArray(Option<Vec<UnionTree>>),
+    /// `System.Int64`.
+    Int64(i64),
+}
+impl UnionTree {
+    /// The value of the case it holds, where a body deferred inside it is put in place.
+    fn case_value(&mut self) -> Option<&mut dyn core::any::Any> {
+        match self {
+            Self::Empty => None,
+            Self::UnionTreeArray(v) => Some(v as &mut dyn core::any::Any),
+            Self::Int64(v) => Some(v as &mut dyn core::any::Any),
+        }
+    }
+    fn read_case(r: &mut nino::Reader<'_>, id: i32) -> nino::Result<Self> {
+        Ok(match id {
+            1950069485 => {
+                let value: Option<Vec<UnionTree>> = r.read()?;
+                if value.is_none() {
+                    return Err(nino::Error::new(nino::ErrorKind::UnexpectedNull, id));
+                }
+                Self::UnionTreeArray(value)
+            }
+            337757159 => Self::Int64(r.read()?),
+            _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+        })
+    }
+}
+impl NinoRead for UnionTree {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        let mut v = Self::Empty;
+        v.read_into(r)?;
+        Ok(v)
+    }
+    fn read_into(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let id = r.i32()?;
+        if id == 0 {
+            *self = Self::Empty;
+            return Ok(());
+        }
+        // A case can hold the union again: each level counts toward the depth limit.
+        r.enter_struct()?;
+        let mark = r.defer_mark();
+        let value = Self::read_case(r, id);
+        r.exit_struct();
+        *self = value?;
+        r.defer_trail(mark, nino::Step::Field(|p| p.downcast_mut::<UnionTree>()?.case_value()));
+        Ok(())
+    }
+}
+impl NinoWrite for UnionTree {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::UnionTreeArray(v) if v.is_some() => {
+                w.i32(1950069485);
+                w.write(v)
+            }
+            Self::Int64(v) => {
+                w.i32(337757159);
+                w.write(v)
+            }
+            _ => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+impl UnionTree {
+    nino::type_consts!(0x8689B6A3u32 as i32, "Conformance.UnionTree", "format=Positional; header=TypeId; trackReferences=false; raw=false; id=0x8689B6A3; deferrable=false; members=[elements]::union(type(Conformance.UnionTree[]),type(long))");
+}
+
+/// `Conformance.Unions`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
+pub struct Unions {
+    pub number: Choice,
+    pub text: Choice,
+    pub point: Choice,
+    pub pet: Choice,
+    pub numbers: Choice,
+    pub maybe: Choice,
+    pub empty: Choice,
+    pub many: Option<Vec<Choice>>,
+    pub tree: UnionTree,
+}
+
+impl NinoReadBody for Unions {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_member_into(&mut self.number, nino::field!(Self, number))?;
+        r.read_member_into(&mut self.text, nino::field!(Self, text))?;
+        r.read_member_into(&mut self.point, nino::field!(Self, point))?;
+        r.read_member_into(&mut self.pet, nino::field!(Self, pet))?;
+        r.read_member_into(&mut self.numbers, nino::field!(Self, numbers))?;
+        r.read_member_into(&mut self.maybe, nino::field!(Self, maybe))?;
+        r.read_member_into(&mut self.empty, nino::field!(Self, empty))?;
+        r.read_member_into(&mut self.many, nino::field!(Self, many))?;
+        r.read_member_into(&mut self.tree, nino::field!(Self, tree))?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for Unions {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.number)?;
+        w.write(&self.text)?;
+        w.write(&self.point)?;
+        w.write(&self.pet)?;
+        w.write(&self.numbers)?;
+        w.write(&self.maybe)?;
+        w.write(&self.empty)?;
+        w.write(&self.many)?;
+        w.write(&self.tree)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for Unions {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for Unions {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Choice as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Choice as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Choice as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Choice as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Choice as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Choice as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Choice as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<Choice>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<UnionTree as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.number.prefetch();
+        self.text.prefetch();
+        self.point.prefetch();
+        self.pet.prefetch();
+        self.numbers.prefetch();
+        self.maybe.prefetch();
+        self.empty.prefetch();
+        self.many.prefetch();
+        self.tree.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.number.prefetch_members();
+        self.text.prefetch_members();
+        self.point.prefetch_members();
+        self.pet.prefetch_members();
+        self.numbers.prefetch_members();
+        self.maybe.prefetch_members();
+        self.empty.prefetch_members();
+        self.many.prefetch_members();
+        self.tree.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl Unions {
+    nino::type_consts!(0x0544575Eu32 as i32, "Conformance.Unions", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x0544575E; deferrable=true; members=Number:Conformance.Choice:type(Conformance.Choice);Text:Conformance.Choice:type(Conformance.Choice);Point:Conformance.Choice:type(Conformance.Choice);Pet:Conformance.Choice:type(Conformance.Choice);Numbers:Conformance.Choice:type(Conformance.Choice);Maybe:Conformance.Choice:type(Conformance.Choice);Empty:Conformance.Choice:type(Conformance.Choice);Many:System.Collections.Generic.List<Conformance.Choice>:seq(type(Conformance.Choice));Tree:Conformance.UnionTree:type(Conformance.UnionTree)");
+}
+
 /// `Conformance.Targets.Utf8Value`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(rename_all = "camelCase"))]
@@ -6586,6 +6902,7 @@ pub enum AnyObject {
     Bytes(Box<Bytes>),
     Cat(Box<Cat>),
     Chain(Box<Chain>),
+    Choice(Box<Choice>),
     Circle(Box<Circle>),
     Collections(Box<Collections>),
     Dates(Box<Dates>),
@@ -6661,6 +6978,8 @@ pub enum AnyObject {
     TrackedTolerant(nino::Shared<TrackedTolerant>),
     TreeHolder(Box<TreeHolder>),
     TreeNode(Box<TreeNode>),
+    UnionTree(Box<UnionTree>),
+    Unions(Box<Unions>),
     Utf8Value(Box<Utf8Value>),
     Vec2(Box<Vec2>),
     VersionSlot(Box<VersionSlot>),
@@ -6723,6 +7042,7 @@ impl AnyObject {
             Self::Bytes(v) => &mut **v,
             Self::Cat(v) => &mut **v,
             Self::Chain(v) => &mut **v,
+            Self::Choice(v) => &mut **v,
             Self::Circle(v) => &mut **v,
             Self::Collections(v) => &mut **v,
             Self::Dates(v) => &mut **v,
@@ -6798,6 +7118,8 @@ impl AnyObject {
             Self::TrackedTolerant(v) => v,
             Self::TreeHolder(v) => &mut **v,
             Self::TreeNode(v) => &mut **v,
+            Self::UnionTree(v) => &mut **v,
+            Self::Unions(v) => &mut **v,
             Self::Utf8Value(v) => &mut **v,
             Self::Vec2(v) => &mut **v,
             Self::VersionSlot(v) => &mut **v,
@@ -6910,6 +7232,10 @@ impl NinoRead for AnyObject {
             }
             Some(Self::Chain(v)) if id == Chain::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
+                true
+            }
+            Some(Self::Choice(v)) if id == Choice::NINO_TYPE_ID => {
+                r.read_into(&mut **v)?;
                 true
             }
             Some(Self::Circle(v)) if id == Circle::NINO_TYPE_ID => {
@@ -7196,6 +7522,14 @@ impl NinoRead for AnyObject {
                 r.read_class_into(&mut **v)?;
                 true
             }
+            Some(Self::UnionTree(v)) if id == UnionTree::NINO_TYPE_ID => {
+                r.read_into(&mut **v)?;
+                true
+            }
+            Some(Self::Unions(v)) if id == Unions::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
             Some(Self::Utf8Value(v)) if id == Utf8Value::NINO_TYPE_ID => {
                 r.read_class_into(&mut **v)?;
                 true
@@ -7308,6 +7642,7 @@ impl NinoRead for AnyObject {
                 Bytes::NINO_TYPE_ID => Self::Bytes(Box::new(r.read_class()?)),
                 Cat::NINO_TYPE_ID => Self::Cat(Box::new(r.read_class()?)),
                 Chain::NINO_TYPE_ID => Self::Chain(Box::new(r.read_class()?)),
+                Choice::NINO_TYPE_ID => Self::Choice(Box::new(r.read()?)),
                 Circle::NINO_TYPE_ID => Self::Circle(Box::new(r.read_class()?)),
                 Collections::NINO_TYPE_ID => Self::Collections(Box::new(r.read_class()?)),
                 Dates::NINO_TYPE_ID => Self::Dates(Box::new(r.read_class()?)),
@@ -7383,6 +7718,8 @@ impl NinoRead for AnyObject {
                 TrackedTolerant::NINO_TYPE_ID => Self::TrackedTolerant(r.read_shared_after_id()?),
                 TreeHolder::NINO_TYPE_ID => Self::TreeHolder(Box::new(r.read_class()?)),
                 TreeNode::NINO_TYPE_ID => Self::TreeNode(Box::new(r.read_class()?)),
+                UnionTree::NINO_TYPE_ID => Self::UnionTree(Box::new(r.read()?)),
+                Unions::NINO_TYPE_ID => Self::Unions(Box::new(r.read_class()?)),
                 Utf8Value::NINO_TYPE_ID => Self::Utf8Value(Box::new(r.read_class()?)),
                 Vec2::NINO_TYPE_ID => Self::Vec2(Box::new(r.read()?)),
                 VersionSlot::NINO_TYPE_ID => Self::VersionSlot(Box::new(r.read_class()?)),
@@ -7480,6 +7817,10 @@ impl NinoWrite for AnyObject {
             Self::Chain(v) => {
                 w.i32(Chain::NINO_TYPE_ID);
                 w.write_class(&**v)
+            }
+            Self::Choice(v) => {
+                w.i32(Choice::NINO_TYPE_ID);
+                w.write(&**v)
             }
             Self::Circle(v) => {
                 w.i32(Circle::NINO_TYPE_ID);
@@ -7791,6 +8132,14 @@ impl NinoWrite for AnyObject {
             }
             Self::TreeNode(v) => {
                 w.i32(TreeNode::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+            Self::UnionTree(v) => {
+                w.i32(UnionTree::NINO_TYPE_ID);
+                w.write(&**v)
+            }
+            Self::Unions(v) => {
+                w.i32(Unions::NINO_TYPE_ID);
                 w.write_class(&**v)
             }
             Self::Utf8Value(v) => {
@@ -9074,6 +9423,7 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.Bytes" => f.visit::<Option<Box<Bytes>>>(),
         "Conformance.Cat" => f.visit::<Option<Box<Cat>>>(),
         "Conformance.Chain" => f.visit::<Option<Box<Chain>>>(),
+        "Conformance.Choice" => f.visit::<Choice>(),
         "Conformance.Circle" => f.visit::<Option<CircleRef>>(),
         "Conformance.Collections" => f.visit::<Option<Box<Collections>>>(),
         "Conformance.Dates" => f.visit::<Option<Box<Dates>>>(),
@@ -9158,6 +9508,8 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Conformance.TrackedTolerant" => f.visit::<Option<nino::Shared<TrackedTolerant>>>(),
         "Conformance.TreeHolder" => f.visit::<Option<Box<TreeHolder>>>(),
         "Conformance.TreeNode" => f.visit::<Option<Box<TreeNode>>>(),
+        "Conformance.UnionTree" => f.visit::<UnionTree>(),
+        "Conformance.Unions" => f.visit::<Option<Box<Unions>>>(),
         "Conformance.Vec2" => f.visit::<Vec2>(),
         "Conformance.WrappedArgs" => f.visit::<Option<Box<WrappedArgs>>>(),
         "Conformance.Zoo" => f.visit::<Option<Box<Zoo>>>(),

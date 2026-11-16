@@ -1,7 +1,7 @@
 {
   "rule": "For each case, every strict prefix of valid/<case>.bin (lengths 0 to size - 1) read as <type> must be an error.",
   "expected": "error",
-  "prefixCount": 11403,
+  "prefixCount": 11544,
   "cases": [
     {
       "case": "integers-mixed",
@@ -463,6 +463,17 @@
         "outcome": "error",
         "exceptions": {
           "NinoDataException": 77
+        }
+      }
+    },
+    {
+      "case": "unions-values",
+      "type": "Conformance.Unions",
+      "prefixes": 141,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "NinoDataException": 141
         }
       }
     }

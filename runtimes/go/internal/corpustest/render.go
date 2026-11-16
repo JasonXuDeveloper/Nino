@@ -135,6 +135,9 @@ func renderValue(v reflect.Value) any {
 	case reflect.String:
 		return renderString(v.String())
 	case reflect.Interface, reflect.Pointer:
+		if t.Kind() == reflect.Interface && t.Implements(tUnion) {
+			return renderUnion(v)
+		}
 		if v.IsNil() {
 			return nil
 		}
@@ -160,6 +163,10 @@ func renderValue(v reflect.Value) any {
 		}
 		return out
 	case reflect.Struct:
+		if t.Implements(tUnion) {
+			// A union's case, outside the union's interface (a top-level value).
+			return renderUnion(v)
+		}
 		name := t.Name()
 		switch {
 		case strings.HasPrefix(name, "Entry["), strings.HasPrefix(name, "Tuple2["), strings.HasPrefix(name, "NinoTuple"):
@@ -206,6 +213,25 @@ func renderValue(v reflect.Value) any {
 }
 
 func num(n int64) json.Number { return json.Number(strconv.FormatInt(n, 10)) }
+
+// tUnion is what the cases of a C# union nino-gen writes implement (a Go interface each union).
+var tUnion = reflect.TypeOf((*interface{ NinoUnionCase() string })(nil)).Elem()
+
+// renderUnion renders a C# union as {"$type", "$case", "value"}: the .NET names of the union and of the case it holds,
+// and the case's value. The empty union is nil, named after its Go interface ("Conformance." and its name).
+func renderUnion(v reflect.Value) any {
+	if v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return map[string]any{"$type": "Conformance." + v.Type().Name(), "$case": nil, "value": nil}
+		}
+		v = v.Elem()
+	}
+	c := v.Interface().(interface {
+		NinoTypeName() string
+		NinoUnionCase() string
+	})
+	return map[string]any{"$type": c.NinoTypeName(), "$case": c.NinoUnionCase(), "value": renderValue(v.FieldByName("Value"))}
+}
 
 // declaredAsArray reports whether the member is a byte[] or sbyte[] in .NET, from the type's NinoLayout. A type
 // without one (a hand-written type that gives List<byte> a type of its own) declares every []byte an array.

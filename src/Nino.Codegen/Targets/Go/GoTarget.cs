@@ -131,7 +131,8 @@ namespace Nino.Codegen.Targets
         // ---------------------------------------------------------------- which types
 
         protected override string? Problem(TypeModel type) =>
-            CodegenModel.GenericProblem(type) ?? type.SlotProblem ?? MarkerProblem(type) ?? TrackingProblem(type);
+            CodegenModel.GenericProblem(type) ?? type.SlotProblem ?? type.UnionProblem ?? MarkerProblem(type) ??
+            TrackingProblem(type);
 
         /// <summary>
         /// Why a type cannot be marked as a value of the generic slots it sits in (<see cref="TypeModel.SlotBases"/>): Go
@@ -199,6 +200,8 @@ namespace Nino.Codegen.Targets
             {
                 if (type.Elements != null)
                     ShapeIn(type, type.Elements);
+                foreach (var item in type.Cases)
+                    ShapeIn(type, item.Value);
                 foreach (var member in type.Members)
                     ShapeIn(type, member.Value);
                 foreach (var slot in type.SlotBases)
@@ -314,6 +317,16 @@ namespace Nino.Codegen.Targets
                 _ => new List<TypeModel>(),
             };
             return candidates.Where(t => t.IsValueType && !t.Raw && _supported.Contains(t));
+        }
+
+        /// <summary>
+        /// The struct of a union's case: the union's name and the case's (<c>ChoiceInt32</c>), with <c>Case</c> after
+        /// it where a generated type has that name.
+        /// </summary>
+        internal string CaseName(TypeModel union, UnionCaseModel item)
+        {
+            string name = Name(union) + item.Name;
+            return Names.Contains(name) ? name + "Case" : name;
         }
 
         /// <summary>The Go interface of a slot: the type's name, or <c>XType</c> for a class with subtypes.</summary>
