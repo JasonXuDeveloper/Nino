@@ -182,8 +182,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   Keep off it: jobs that install with apt (libFuzzer's clang, Mono, qemu) or run Docker (Unity), the CodeQL analyses
   (a bundle of about 1.5 GB per version), the unit test configurations (three processes of about 3.5 GB each), the
   mutational fuzzers (without VBMI its "SIMD" and "without AVX-512" runs take the same paths, where GitHub's x64
-  runners have AVX-512 about half the time, and the nightly two 30-minute configurations would hold the one runner
-  from every other job), the benchmark matrices (published numbers come from GitHub's runners), and anything a fork
+  runners have AVX-512 about half the time, and the nightly two 30-minute configurations would hold a runner for an
+  hour beside the other job's memory), the benchmark matrices (published numbers come from GitHub's runners), and anything a fork
   or Dependabot started.
 - **Leave nothing on maple after a job.** Every job there starts with "Prepare maple" and ends with "Free maple's
   disk" (each workflow's first maple job defines them as the anchors `&maple-prepare` and `&free-maple`, the others
@@ -233,18 +233,24 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   `RUSTUP_HOME`, and the Node.js of the tool cache. Whatever a release needs is fetched per run: the UPM CLI and npm
   into RUNNER_TEMP, credentials as OIDC tokens or repository secrets. A new maple job gets both steps; a step that
   installs something else installs it under RUNNER_TEMP.
-- **One runner process on maple.** A runner runs one job at a time, so one process is what keeps maple's jobs from
-  sharing about 8 GB of RAM (a second heavy job would swap) and keeps report.yml's build-time benchmark alone on the
-  machine as far as CI goes (the host's containers are the noise left). Its `generator` job checks it before measuring
-  (more than one `Runner.Listener` on the host fails the job), since a repository variable such as `NINO_MAPLE`
-  cannot be set from a workflow without an admin token, and a concurrency group shared by every maple job would
-  cancel all but one waiting job. On a larger host, add runner processes for CI and give the benchmark a runner of
-  its own: each runner is its own folder (a copy of the runner package) with its own
-  `./config.sh --url https://github.com/JasonXuDeveloper/Nino --token <registration token> --name maple-N --labels maple`
-  and its own service (`sudo ./svc.sh install <user>`, then `sudo ./svc.sh start`); run about one heavy job (a fuzz
-  or a unit test configuration) per 4 cores and 8 GB. The benchmark's runner then carries an extra label
-  (`maple-bench`) that the `generator` job asks for and no CI job does, with the CI runners stopped or on other
-  hardware while it measures, and the `Runner.Listener` check moves to that rule.
+- **Two runner processes on maple, light jobs only** (`maple-nino` and `maple-nino-2`). A runner runs one job at a
+  time, so two processes run two maple jobs side by side in about 7.7 GB of RAM: light jobs only (plans, checks,
+  publishing, the release's build and pack); no heavy one (a unit test configuration, a fuzzer), which would swap
+  beside another. More processes need a larger host: each runner is its own folder (a copy of the runner package)
+  with its own `./config.sh --url https://github.com/JasonXuDeveloper/Nino --token <registration token> --name
+  maple-nino-N --labels maple` and its own service (`sudo ./svc.sh install <user>`, then `sudo ./svc.sh start`), and
+  the host runs about one heavy job per 4 cores and 8 GB.
+- **The build-time benchmark waits for maple to be quiet, and never fails a release over it.** report.yml's
+  `generator` step finds its own `Runner.Worker` (the first ancestor of its shell with that name; each running job
+  is one Worker, an idle runner keeps only its `Runner.Listener`), waits until no other Worker runs on the host
+  (polling every 15 s, up to 30 minutes), watches for one every 5 s while it measures, and measures once more if one
+  started; still not quiet, it publishes with a warning in the step summary. Counting runners refused every release
+  once the second runner came; a repository variable such as `NINO_MAPLE` cannot be set from a workflow without an
+  admin token, and a concurrency group shared by every maple job would cancel all but one waiting job. The host's own
+  containers are the noise left. Tested with fake Workers (a copy of bash named `Runner.Worker`, running each command
+  with `; :` so it does not exec and rename itself): a busy start, a job during the first measurement only, and jobs
+  during both. A test's own Worker must run the step as a child `bash`, as the runner does: subshells of a renamed
+  bash keep its name and read as other jobs.
 - **The pull request benchmark is on request**: ci.yml runs `benchmarks/shards.json`'s "ab" shards only for a pull
   request labeled `benchmark` (when opened, reopened or pushed to; labeling alone starts nothing); ab-bench.yml on the
   branch gives a comparison with main or the last release.
