@@ -13,7 +13,7 @@ namespace Nino.Benchmark;
 
 // Cases/Collections/CollectionsTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project
 // (NINO_BENCH_V3=true): the same data, method names and job, Nino's and MemoryPack's cases. Only the Nino calls differ,
-// as in V3/SimpleTest.cs: NinoSerializer/NinoDeserializer -> NinoGen.Serializer/NinoGen.Deserializer,
+// as in Adapters/NinoV3Adapter.cs: NinoSerializer/NinoDeserializer -> NinoGen.Serializer/NinoGen.Deserializer,
 // NinoArrayBufferWriter -> ArrayBufferWriter<byte>; v3's generator writes the overloads of every collection type named
 // in the project. The SelfTree cases are left out: v3's generator recurses without end on a list that holds itself
 // (SelfTree : List<SelfTree>, Cases/Collections/CollectionsTest.cs): CollectionSerializerGenerator calls its filters

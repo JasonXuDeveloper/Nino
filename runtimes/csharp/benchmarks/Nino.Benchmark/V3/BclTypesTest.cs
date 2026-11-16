@@ -14,7 +14,7 @@ namespace Nino.Benchmark;
 
 // Cases/Collections/BclTypesTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project
 // (NINO_BENCH_V3=true): the same data, method names and job, Nino's and MemoryPack's cases. Only the Nino calls differ,
-// as in V3/SimpleTest.cs, and where v3 writes no overload for the type, the case takes the shortest way through one it
+// as in Adapters/NinoV3Adapter.cs, and where v3 writes no overload for the type, the case takes the shortest way through one it
 // does write (its generator's selector, CollectionSerializerGenerator.Selector, accepts unmanaged types, [NinoType]s,
 // strings, key-value pairs, tuples, nullables and IEnumerable<T> of those; anything else binds to the generic
 // Serialize<T>(T) where T : unmanaged, CS8377, and v3 has no API for a formatter of one's own):

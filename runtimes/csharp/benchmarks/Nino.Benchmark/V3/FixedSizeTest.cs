@@ -8,7 +8,7 @@ namespace Nino.Benchmark;
 
 // Cases/Collections/FixedSizeTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project
 // (NINO_BENCH_V3=true): the same types (Fixtures/FixedSizeBenchmarkData.cs), data, method names and job, Nino's and
-// MemoryPack's cases. Only the Nino calls differ, as in V3/SimpleTest.cs. v3 has no GetFixedSize, so the check that
+// MemoryPack's cases. Only the Nino calls differ, as in Adapters/NinoV3Adapter.cs. v3 has no GetFixedSize, so the check that
 // both types take v4's fixed-size path is left out: v3 writes them through its regular path.
 
 /// <summary>

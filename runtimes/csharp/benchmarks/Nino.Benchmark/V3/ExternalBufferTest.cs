@@ -9,7 +9,7 @@ namespace Nino.Benchmark;
 
 // Cases/Scenarios/ExternalBufferTest.cs ported to Nino 3.3.13 (NuGet), for the v3 build of this project
 // (NINO_BENCH_V3=true): the same data, method names and job, Nino's and MemoryPack's cases. Only the Nino calls differ,
-// as in V3/SimpleTest.cs, and two cases take v3's own way where it has no overload for the type:
+// as in Adapters/NinoV3Adapter.cs, and two cases take v3's own way where it has no overload for the type:
 //  - Memory<int>: v3's generator rejects it (CS8377: it is not unmanaged, and v3 has no formatter for it), but writes
 //    Serialize(Span<T>, IBufferWriter<byte>) for unmanaged T: the case writes MemoryValue.Span, the same 1,000 ints.
 //  - ReadOnlySequence<byte>: v3 reads a ReadOnlySpan<byte> only, so the case copies the segments into one span of a
