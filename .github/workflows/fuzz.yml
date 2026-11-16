@@ -14,7 +14,7 @@ on:
       - 'runtimes/csharp/src/Nino.Generator.Roslyn4.12/**'
       - 'runtimes/csharp/tests/Nino.Fuzz/**'
       - 'runtimes/csharp/tools/UseNinoGenerator.props'
-      - '.editorconfig'
+      - 'runtimes/csharp/.editorconfig'
       - 'runtimes/csharp/Directory.Build.props'
       - 'runtimes/csharp/src/Directory.Build.targets'
       - 'runtimes/csharp/Directory.Packages.props'
