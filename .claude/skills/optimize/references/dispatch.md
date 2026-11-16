@@ -194,4 +194,9 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   a reference type is shared code that looks the interface up and boxes each time: 20 us for the same list (a
   non-generic interface folds). Dictionaries of a polymorphic value keep `Serialize` per value (12 values: 64-72 ns
   against LuminPack's 60-63; their pair loop lives in Nino.Core, so a generated one would duplicate it).
+  Generic bases keep the element loop out too: the same loop in each closed dispatch class (`__NinoDispatch<n>`),
+  selected once per collection, wrote GenericSealedClassTupleBase 22 % and GenericOpenClassTupleBase 12 % slower
+  (7.2 to 8.8 us, 7.5 to 8.4; two rounds, local x64), their subtypes each holding a class whose nested writes, all
+  inlined into one loop, ran out of registers; the other generic bases moved within noise. The closed dispatch stays
+  marked to inline into the collection loop, as before.
 
