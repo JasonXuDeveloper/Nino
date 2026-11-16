@@ -37,7 +37,8 @@ env:
   GENERATOR_BENCHMARK: benchmarks/Nino.GeneratorBenchmark
 
 # The jobs that are no matrix run on maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]: no
-# sudo; the workspace and RUNNER_TEMP deleted after every job), so they wait for no GitHub runner behind the matrices:
+# sudo; each job's caches in RUNNER_TEMP, "Prepare maple", and the workspace and RUNNER_TEMP deleted after it, "Free
+# maple's disk", as in release.yml), so they wait for no GitHub runner behind the matrices:
 # target, generator, publish-runtimes, publish-generator and publish-unity. This workflow runs by hand or for a
 # published release, never for a pull request. The matrices (bench, runtimes, unity.yml) stay on GitHub's runners, as
 # does publish, whose readme.py --png renders the overview chart with the runner image's Google Chrome.
@@ -63,6 +64,36 @@ jobs:
       generator_skip: ${{ steps.check_generator.outputs.skip }}
       runtimes: ${{ steps.release_tree.outputs.runtimes }}
     steps:
+      # maple (one runner process on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
+      # otherwise surface as an odd build error, and keep every cache this job writes in RUNNER_TEMP, which "Free
+      # maple's disk" deletes at its end. The toolchains stay installed (the .NET SDKs, rustup's toolchains in
+      # RUSTUP_HOME); NuGet's, npm's, Cargo's and Go's caches, dotnet's home and the temporary files do not outlive the
+      # job. GitHub's runners skip it.
+      - &maple-prepare
+        name: Prepare maple
+        if: runner.environment == 'self-hosted'
+        run: |
+          need_gb=10
+          free_gb=$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print int($4 / 1048576) }')
+          echo "maple: $free_gb GB free under $RUNNER_TEMP"
+          if (( free_gb < need_gb )); then
+            echo "::error::maple has $free_gb GB free, under the $need_gb GB a job may need: free its disk, then re-run"
+            exit 1
+          fi
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home/tmp"
+          {
+            echo "NUGET_PACKAGES=$home/nuget/packages"
+            echo "NUGET_HTTP_CACHE_PATH=$home/nuget/http-cache"
+            echo "NUGET_PLUGINS_CACHE_PATH=$home/nuget/plugins-cache"
+            echo "DOTNET_CLI_HOME=$home"
+            echo "npm_config_cache=$home/npm"
+            echo "CARGO_HOME=$home/cargo"
+            echo "GOMODCACHE=$home/go/mod"
+            echo "GOCACHE=$home/go/build"
+            echo "TMPDIR=$home/tmp"
+          } >> "$GITHUB_ENV"
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -202,6 +233,13 @@ jobs:
   # before its v4 cases, on its runner, as benchmarks/run.sh does. The publish job merges the reports into one table (benchmarks/reports/merge_reports.py). The same shards run on
   # Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64 never takes); an Arm64
   # failure leaves that section out and never blocks the x64 report.
+
+      # maple keeps a job's workspace and RUNNER_TEMP (its caches included) until its next job: give the disk back,
+      # whatever happened, after the uploads. GitHub's runners skip it.
+      - &free-maple
+        name: Free maple's disk
+        if: always() && runner.environment == 'self-hosted'
+        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
   bench:
     name: Benchmark (${{ matrix.arch }} ${{ matrix.shard }})
     needs: target
@@ -639,6 +677,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG_NAME: ${{ needs.target.outputs.tag }}
     steps:
+      - *maple-prepare
+
       # This workflow's commit, for benchmarks/reports/release_body.py, with the credentials that push the charts to the
       # release-notes branch.
       - name: Checkout repository
@@ -674,6 +714,8 @@ jobs:
   # On maple from the first report after v4.0.0-rc.10's (GitHub's ubuntu-26.04 x64 runner up to it): its times are of
   # that machine, which the section's Environment line names (CPU and cores), so they compare with an earlier
   # release's only as v4 against v3, which each run measures on one machine.
+
+      - *free-maple
   generator:
     name: Build-time benchmark (source generator)
     needs: target
@@ -686,6 +728,8 @@ jobs:
       # net8.0 harness on .NET 10, the runtime of the SDK's compiler.
       DOTNET_ROLL_FORWARD: LatestMajor
     steps:
+      - *maple-prepare
+
       # The tag's generator and runtime; this workflow's commit for the harness and the report script.
       - name: Checkout the release
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -723,6 +767,19 @@ jobs:
             echo "V4_CORE=$GITHUB_WORKSPACE/release/src/Nino.Core/bin/Release/net8.0/Nino.Core.dll"
           } >> "$GITHUB_ENV"
 
+      # The times are maple's: no other job of this repository may run beside them. maple runs one runner process (the
+      # audit-ci skill), and a runner runs one job at a time, so while this job runs no CI job does. A second runner
+      # process on the host would let one, so the job refuses to measure then (a runner's Runner.Listener per process;
+      # the host's own containers are the noise left, which the section's Environment line cannot name).
+      - name: Check that maple runs this job alone
+        run: |
+          runners=$(pgrep -cx Runner.Listener || true)
+          echo "runner processes on this host: $runners"
+          if (( runners > 1 )); then
+            echo "::error::$runners runner processes run on this host: a CI job could run beside the measurement. Run maple with one runner process (the audit-ci skill), or give this job a runner of its own, then re-run"
+            exit 1
+          fi
+
       # v3 then v4 at each size, one process each; the median of the measured runs, after warm-up runs (the harness's
       # --warmup: 60 s, at least one run). Fewer runs for v3 at 1,100 types (8 minutes each), and no analysis
       # (--no-analyzers): no row of the section reads it, and v3's analyzers bind its generated code, which doubles
@@ -756,6 +813,8 @@ jobs:
   # newest v4 release, fills the README's Build row and the build tables of docs/v4-benchmarks.md from that asset
   # (benchmarks/reports/readme.py --assets) and pushes them to main: here, not in publish, which runs only for a
   # release without its .NET results and before this one exists.
+
+      - *free-maple
   publish-generator:
     name: Publish the build-time benchmark
     needs: [ target, generator, publish, publish-runtimes ]
@@ -766,6 +825,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG_NAME: ${{ needs.target.outputs.tag }}
     steps:
+      - *maple-prepare
+
       # This workflow's commit for the report script; main's README, docs and readme.py below.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -822,6 +883,8 @@ jobs:
   # player, the correctness tests and Test.Runtime.Burst.BurstBenchmark), which waits in unity.yml's concurrency group
   # for any running Unity job (one license seat at a time) and is never cancelled while it runs. A failure here
   # fails this run, visibly, and leaves only the Unity section out: no other job needs it.
+
+      - *free-maple
   unity:
     name: Unity benchmark
     needs: target
@@ -847,6 +910,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAG_NAME: ${{ needs.target.outputs.tag }}
     steps:
+      - *maple-prepare
+
       # This workflow's commit, for the report scripts, with the credentials that push the chart to the release-notes
       # branch.
       - name: Checkout repository
@@ -879,3 +944,5 @@ jobs:
           cat section.md
           python3 benchmarks/reports/release_body.py publish --tag "$TAG_NAME" --dir "$RUNNER_TEMP/assets" \
             unity-x64.md=section.md
+
+      - *free-maple

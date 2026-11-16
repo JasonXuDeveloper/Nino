@@ -64,12 +64,12 @@ defaults:
   run:
     shell: bash
 
-# The x64 mutational jobs and the plan run on maple, the repository's self-hosted runner, for trusted runs only: the
-# nightly and manual runs, a push to main, and a pull request from a branch of this repository that Dependabot did not
-# open; a fork's or Dependabot's pull request, and every run while the repository variable NINO_MAPLE is false, use
-# GitHub's runners (ci.yml, at its jobs, says why and what keeps a fork off maple). libFuzzer stays on GitHub's runners:
-# it installs clang with apt, and maple has no sudo. A job on maple deletes its workspace and RUNNER_TEMP (the build,
-# the findings once uploaded) at its end, and builds without MSBuild or compiler servers that would outlive it.
+# Only the plan of a push runs on maple, the repository's self-hosted runner (while the repository variable NINO_MAPLE
+# is not false; ci.yml, at its jobs, says what keeps a fork off maple). The fuzzers stay on GitHub's runners: maple's
+# CPU has no AVX-512 VBMI, so its "SIMD" and "without AVX-512" runs would take the same paths, where GitHub's x64
+# runners are Xeons with AVX-512 about half the time; it is one runner process on a shared host with about 8 GB, which
+# the nightly runs (two configurations side by side, 30 minutes each) would hold from every other maple job; and
+# libFuzzer installs clang with apt, which needs sudo.
 jobs:
   # A push to main whose merge commit has the tree its pull request's last run fuzzed (.github/scripts/changed_paths.py,
   # --tested-in-pr) fuzzes nothing again: the nightly run fuzzes main with thirty times the budget. Pull requests,
@@ -87,6 +87,35 @@ jobs:
     outputs:
       fuzz: ${{ steps.diff.outputs.fuzz }}
     steps:
+      # maple (one runner process on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
+      # otherwise surface as an odd build error, and keep every cache this job writes in RUNNER_TEMP, which "Free
+      # maple's disk" deletes at its end. The toolchains stay installed (the .NET SDKs, rustup's toolchains in
+      # RUSTUP_HOME); NuGet's, npm's, Cargo's and Go's caches, dotnet's home and the temporary files do not outlive the
+      # job. GitHub's runners skip it.
+      - name: Prepare maple
+        if: runner.environment == 'self-hosted'
+        run: |
+          need_gb=10
+          free_gb=$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print int($4 / 1048576) }')
+          echo "maple: $free_gb GB free under $RUNNER_TEMP"
+          if (( free_gb < need_gb )); then
+            echo "::error::maple has $free_gb GB free, under the $need_gb GB a job may need: free its disk, then re-run"
+            exit 1
+          fi
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home/tmp"
+          {
+            echo "NUGET_PACKAGES=$home/nuget/packages"
+            echo "NUGET_HTTP_CACHE_PATH=$home/nuget/http-cache"
+            echo "NUGET_PLUGINS_CACHE_PATH=$home/nuget/plugins-cache"
+            echo "DOTNET_CLI_HOME=$home"
+            echo "npm_config_cache=$home/npm"
+            echo "CARGO_HOME=$home/cargo"
+            echo "GOMODCACHE=$home/go/mod"
+            echo "GOCACHE=$home/go/build"
+            echo "TMPDIR=$home/tmp"
+          } >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -100,8 +129,7 @@ jobs:
         run: python3 .github/scripts/changed_paths.py --tested-in-pr fuzz.yml "$BASE" 'fuzz=.' | tee -a "$GITHUB_OUTPUT"
 
       # maple keeps a job's workspace and RUNNER_TEMP until its next job: give the disk back, whatever happened.
-      - &free-maple
-        name: Free maple's disk
+      - name: Free maple's disk
         if: always() && runner.environment == 'self-hosted'
         run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
@@ -113,19 +141,8 @@ jobs:
     needs: changes
     # Also when the plan was skipped (not a push) or failed: then it fuzzes.
     if: ${{ !cancelled() && needs.changes.outputs.fuzz != 'false' }}
-    runs-on: >-
-      ${{ matrix.runner ||
-          (vars.NINO_MAPLE != 'false' && github.actor != 'dependabot[bot]' &&
-           (contains(fromJSON('["push", "workflow_dispatch", "schedule"]'), github.event_name) ||
-            (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
-             github.event.pull_request.user.login != 'dependabot[bot]')) &&
-           fromJSON('["self-hosted", "Linux", "X64", "maple"]')) || 'ubuntu-26.04' }}
+    runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
     timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 90 }}
-    env:
-      # No MSBuild node or compiler server that outlives the job (or serves another job) on a self-hosted runner.
-      MSBUILDDISABLENODEREUSE: '1'
-      DOTNET_CLI_USE_MSBUILD_SERVER: '0'
-      UseSharedCompilation: 'false'
     strategy:
       fail-fast: false
       matrix:
@@ -196,9 +213,6 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30
-
-      # After the upload: the findings are kept as the artifact only.
-      - *free-maple
 
   # The targets split over runners (target i on shard i mod n): libFuzzer runs one target at a time, so one runner
   # takes the sum of every target's time. Three at night and by hand (an hour on one runner), one on pushes and

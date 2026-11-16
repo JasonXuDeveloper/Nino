@@ -93,6 +93,36 @@ jobs:
       integrations: ${{ steps.diff.outputs.integrations }}
       tested_in: ${{ steps.diff.outputs.tested_in }}
     steps:
+      # maple (one runner process on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
+      # otherwise surface as an odd build error, and keep every cache this job writes in RUNNER_TEMP, which "Free
+      # maple's disk" deletes at its end. The toolchains stay installed (the .NET SDKs, rustup's toolchains in
+      # RUSTUP_HOME); NuGet's, npm's, Cargo's and Go's caches, dotnet's home and the temporary files do not outlive the
+      # job. GitHub's runners skip it.
+      - &maple-prepare
+        name: Prepare maple
+        if: runner.environment == 'self-hosted'
+        run: |
+          need_gb=10
+          free_gb=$(df -Pk "$RUNNER_TEMP" | awk 'NR == 2 { print int($4 / 1048576) }')
+          echo "maple: $free_gb GB free under $RUNNER_TEMP"
+          if (( free_gb < need_gb )); then
+            echo "::error::maple has $free_gb GB free, under the $need_gb GB a job may need: free its disk, then re-run"
+            exit 1
+          fi
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home/tmp"
+          {
+            echo "NUGET_PACKAGES=$home/nuget/packages"
+            echo "NUGET_HTTP_CACHE_PATH=$home/nuget/http-cache"
+            echo "NUGET_PLUGINS_CACHE_PATH=$home/nuget/plugins-cache"
+            echo "DOTNET_CLI_HOME=$home"
+            echo "npm_config_cache=$home/npm"
+            echo "CARGO_HOME=$home/cargo"
+            echo "GOMODCACHE=$home/go/mod"
+            echo "GOCACHE=$home/go/build"
+            echo "TMPDIR=$home/tmp"
+          } >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -623,6 +653,8 @@ jobs:
     if: ${{ !cancelled() }}
     timeout-minutes: 10
     steps:
+      - *maple-prepare
+
       # A job the plan asked for must have passed, one it left out must have been skipped.
       - name: Check results
         env:
@@ -691,6 +723,8 @@ jobs:
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:
+      - *maple-prepare
+
       - name: Checkout the shard list
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
