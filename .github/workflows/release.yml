@@ -2,8 +2,8 @@ name: Release
 
 # Run manually: Actions -> Release -> Run workflow (on main), enter the version (e.g. 4.0.0 or 4.1.0-beta.1).
 #   tag:     bump the version of every package (.github/scripts/bump_version.py: Directory.Build.props, the Unity
-#            package.json, the Rust crates, the npm package), build, pack the NuGet packages (the artifact
-#            nuget-packages), copy the Unity DLLs, commit "chore(release): bump to vX.Y.Z",
+#            package.json, the Rust crates, the npm package) once ci.yml has passed on main, build, pack the NuGet
+#            packages (the artifact nuget-packages), copy the Unity DLLs, commit "chore(release): bump to vX.Y.Z",
 #            tag vX.Y.Z (and the OpenUPM tag of a pre-release, and runtimes/go/vX.Y.Z for the Go module), push.
 #            The packages and the Unity DLLs come from that one build, of the bumped tree before its commit: their
 #            Source Link commit is main's commit before the bump, whose sources are the tag's.
@@ -68,6 +68,9 @@ jobs:
     runs-on: ubuntu-26.04
     if: github.ref == 'refs/heads/main'
     timeout-minutes: 30
+    permissions:
+      contents: write # push the release commit and its tags
+      actions: read   # ci.yml's runs
     outputs:
       unity_version: ${{ steps.version.outputs.unity_version }}
     steps:
@@ -100,6 +103,42 @@ jobs:
             git checkout -q --detach "v$VERSION"
           fi
 
+      # The unit tests are ci.yml's (every configuration, on x64, Arm64 and Windows): the release requires that they
+      # passed on main instead of running them again. The newest commit of main's first-parent history that ci.yml ran
+      # on (pushed to main or run by hand there) must have passed. A push after it started no run: it changed none of
+      # ci.yml's paths, or it was a release commit, which this workflow's token pushes and so starts no workflow.
+      # (GitHub starts a run seconds after its push: release no sooner than that.) The release commit differs from the
+      # tree tested only in versions (bump_version.py), which no unit test reads, and the Unity DLLs; the build below
+      # compiles it with warnings as errors. No workflow tests it after the push (none did before this change).
+      - name: Require ci.yml to have passed
+        if: steps.version.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list --workflow ci.yml --branch main --limit 200 --json headSha,event,status,conclusion,url \
+            --jq '[.[] | select(.event == "push" or .event == "workflow_dispatch")]' > "$RUNNER_TEMP/ci-runs.json"
+          while read -r sha; do
+            runs=$(jq -c --arg sha "$sha" '[.[] | select(.headSha == $sha)]' "$RUNNER_TEMP/ci-runs.json")
+            [[ "$runs" == '[]' ]] && continue
+            passed=$(jq -r '[.[] | select(.conclusion == "success")][0].url // empty' <<< "$runs")
+            if [[ -n "$passed" ]]; then
+              echo "ci.yml passed on $sha ($passed)"
+              if [[ "$sha" != "$(git rev-parse HEAD)" ]]; then
+                echo "The commits after it, which started no ci.yml run:"
+                git log --oneline "$sha..HEAD"
+              fi
+              exit 0
+            fi
+            if jq -e 'any(.[]; .status != "completed")' <<< "$runs" >/dev/null; then
+              echo "::error::ci.yml is still running on $sha: release once it has passed"
+            else
+              echo "::error::ci.yml did not pass on $sha ($(jq -r '.[0].url' <<< "$runs")): fix main, or re-run it, then release"
+            fi
+            exit 1
+          done < <(git rev-list --first-parent --max-count=200 HEAD)
+          echo "::error::no ci.yml run on main's last 200 commits: run CI on main (Actions -> CI - Build and Test), then release"
+          exit 1
+
       - name: Bump version
         if: steps.version.outputs.exists != 'true'
         env:
@@ -113,6 +152,8 @@ jobs:
           net8: true
           cache: false
 
+      # What a release needs of the build: the packages and the Unity DLLs, and that the bumped tree builds without a
+      # warning (ContinuousIntegrationBuild: warnings are errors).
       - name: Build
         run: dotnet build --configuration Release
 
