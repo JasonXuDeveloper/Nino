@@ -319,6 +319,33 @@ namespace Nino.UnitTests
             NullableRuns<FarNullable>(EveryOffset);
         }
 
+        private static void ReusedRuns<T>(Func<int, T> make) where T : struct
+        {
+            foreach (int length in new[] { 127, 128, 129, 200, 257, 1000 })
+            {
+                var values = Enumerable.Range(0, length).Select(i => i % 5 == 0 ? (T?)null : make(i)).ToArray();
+                byte[] bytes = NinoSerializer.Serialize(values);
+                var target = Enumerable.Repeat((T?)make(-1), length).ToArray();
+                var same = target;
+                NinoDeserializer.Deserialize(bytes, ref target);
+                Assert.AreSame(same, target);
+                CollectionAssert.AreEqual(values, target, $"array, length {length}");
+                var list = Enumerable.Repeat((T?)make(-1), length).ToList();
+                NinoDeserializer.Deserialize(bytes, ref list);
+                CollectionAssert.AreEqual(values, list, $"list, length {length}");
+            }
+        }
+
+        /// <summary>Raw T? runs read into storage that already holds elements (the lined check-and-copy on x64).</summary>
+        [TestMethod]
+        public void RawNullableRunsReadIntoExistingStorage()
+        {
+            ReusedRuns(i => i);
+            ReusedRuns(i => (long)i * 3);
+            ReusedRuns(i => (short)i);
+            ReusedRuns(i => i * 0.5);
+        }
+
         /// <summary>
         /// A run of raw T? with an invalid presence byte throws wherever the byte lies, and the run is cleared first,
         /// so neither a collection read into nor a new array allocated uninitialized (Memory, List) is left with the
