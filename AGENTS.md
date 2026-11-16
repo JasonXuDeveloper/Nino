@@ -175,8 +175,10 @@ reusing is written down before the task ends, in the same series of commits as t
   that commit's highlight trailers; `release_notes.py` has the commands). The docs site's changelog is written from the same trailers (`audit-docs`).
 - **Landing**: `main` changes only through a pull request merged with a merge commit, never squashed or rebased:
   `release_notes.py` reads every commit's trailers, and a contributor's commits keep their author. Before opening
-  one, merge `origin/main` into the working branch and pass `verify`; its body says what and why, `Closes #N` for
-  each issue it finishes, and ends with the GitHub post footer. The owner approves and merges (an agent merges only
+  one, merge `origin/main` into the working branch and pass `verify`. Its title is a Conventional Commits subject as
+  a commit's (`type(scope): summary`, `!` before the colon for a wire-format or other breaking change; the merge
+  commit's title is that subject plus ` (#N)`); its body says what and why, `Closes #N` for each issue it finishes
+  and `Refs #N` for one it only advances, and ends with the GitHub post footer. The owner approves and merges (an agent merges only
   when the owner asks), after the pull request's CI is green. A contributor's pull request is reviewed against
   `feature`; fix it on their branch where maintainers may push, otherwise merge it into ours with their commits kept,
   so it shows as merged once ours lands. The test branch moves only by merge. No force push, never trigger a release.
