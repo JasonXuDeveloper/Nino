@@ -189,16 +189,25 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Adding a case
 
-- In a class that declares its cases (`[BenchCase]`: `SimpleTest`, `PolymorphicTest`, `WorkloadTest`; #271 moves the
-  rest): add the attribute and
+- In a class that declares its cases (`[BenchCase]`: `SimpleTest`, `PolymorphicTest`, `WorkloadTest`,
+  `CollectionsTest`, `CommonTypesTest`, `FixedSizeTest`, `BclTypesTest`, `NullableTest`; #271 moves the rest): add the
+  attribute and
   the value's field, run `dotnet run --project runtimes/csharp/tools/BenchGen`, never edit a `.Cases.g.cs` by hand;
   the methods of every library and the v3 part follow from the adapters (`Nino.Benchmark/Adapters/`), and a new
   library is one adapter. The rest of this list (`Verify.cs`, chart groups, `shards.json`) still applies.
   `runtimes/csharp/benchmarks/README.md`, "Cases and adapters", has the details. Why: a hand-written method per
   library and case is about 4,000 lines that drift apart; the generated ones compile to the IL of the hand-written
-  ones (identical IL in all 240 v4 and 80 v3 methods of the three classes, and identical Tier1 code of their Nino
-  cases). Compare `asm.py` listings of interceptors by call site, never by name: the generated files renumber them
-  (`Serialize295` was another call site after the move, and looked four times larger).
+  ones (identical IL in all 240 v4 and 80 v3 methods of the first three classes, and identical Tier1 code of their
+  Nino cases; in the next five, identical IL in all 650 v4 and 200 v3 methods but for field names and the bytes moving
+  from `Serialized<Case>[slot]` arrays to a field per library). Compare `asm.py` listings of interceptors by call site,
+  never by name: the generated files renumber them (`Serialize295` was another call site after the move, and looked
+  four times larger). Compare IL with the renamed fields mapped back (a script that rewrites the old names), never by
+  eye. A migration that moves where values or bytes are allocated is proven by one A/B on runners of the classes it
+  touched, not by IL alone: allocation order alone moves timings (4K aliasing).
+- Keep a method no adapter expresses in the class, beside its cases (protobuf-net's `.Items`, a conversion of a model
+  of its own, v3's way through a type it writes no overload for), rather than growing BenchGen into a language: an
+  adapter is for what every case of a library does. A variant every case of a library needs (MessagePack with options)
+  is an adapter `Like` the library's, gated by `When`, with the plain adapter's `Unless`.
 - .NET: a class in `runtimes/csharp/benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
   MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest`, `NullableTest`,
   `CollectionsTest`'s nullable collections and the workloads), a `Verify.cs` entry, its class in a chart group
@@ -336,7 +345,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
   every library it measures (the owner's choice, 2026-11-11: real-world payloads, not SimpleClass); v3 runs every case
   3.3.13 can do the job of, in its own way (the owner, 2026-11-13: "v3和v4支持的东西应该一样多"; leave a case out
   only with proof that v3 cannot do it, the missing API or the generator's code, shown to the owner): every class has
-  its port (`V3/<Class>.cs`, whose header lists what it does differently and what it leaves out, with the proof; the
+  its port (`V3/<Class>.cs`, or the v3 part of a class that declares its cases, whose summary lists what it does
+  differently and what it leaves out, with the proof; the
   overview chart shows `NullableFieldsArray`, `NullableStructs` and `NullableLongs` after the polymorphic group,
   `readme.py`'s `NULLABLE_CASES` in `CHART_CASES`; PooledGraphTest's `Leaves` are the reuse chart's "Into existing
   objects · leaves" bar). Find v3's way in the decompiled 3.3.13 (`ilspycmd -p` on `nino.serialization/3.3.13/lib/net8.0/

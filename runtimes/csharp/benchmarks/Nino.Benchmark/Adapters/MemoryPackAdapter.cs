@@ -5,7 +5,7 @@ using MemoryPack;
 
 namespace Nino.Benchmark.Adapters;
 
-[BenchLibrary("MemoryPack", Order = 1, Slot = 1, Builds = "v4 v3")]
+[BenchLibrary("MemoryPack", Order = 2, Slot = 1, Builds = "v4 v3")]
 internal static class MemoryPackAdapter
 {
     public static void Setup(out ArrayBufferWriter<byte> buffer, int capacity)
@@ -14,6 +14,9 @@ internal static class MemoryPackAdapter
     }
 
     public static byte[] ToBytes<T>(T value) => MemoryPackSerializer.Serialize(value);
+
+    // [BenchClass(Serialize = "array")]: to a new byte[], the API's own size.
+    public static byte[] SerializeToArray<T>(T value) => MemoryPackSerializer.Serialize(value);
 
     public static int Serialize<T>(ArrayBufferWriter<byte> buffer, T value)
     {

@@ -19,6 +19,9 @@ internal static class NinoV3Adapter
 
     public static byte[] ToBytes<T>(T value) => NinoGen.Serializer.Serialize(value);
 
+    // [BenchClass(Serialize = "array")]: to a new byte[], the API's own size.
+    public static byte[] SerializeToArray<T>(T value) => NinoGen.Serializer.Serialize(value);
+
     public static int Serialize<T>(ArrayBufferWriter<byte> buffer, T value)
     {
         buffer.ResetWrittenCount();

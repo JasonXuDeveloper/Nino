@@ -1,13 +1,14 @@
 // Writes the timed methods of the .NET benchmarks (runtimes/csharp/benchmarks/Nino.Benchmark) from their cases and the
 // libraries' adapters:
 //     dotnet run --project runtimes/csharp/tools/BenchGen [-- --check] [-- <.NET root>]
-// For each file that declares a class with [BenchCase] attributes it writes <file>.Cases.g.cs beside it: the buffers
-// (each adapter's Setup), the bytes every case reads (ToBytes, and Prepare for a value made outside the timed region),
-// their payload sizes, the [GlobalSetup], and per case and library one serialize and one deserialize method, each the
-// body of the adapter's Serialize or Deserialize with the case's names put in. The methods keep the names every script
-// and the docs site read (<Library>Serialize<Case>, <Library>Deserialize<Case>), and their IL is what the same method
-// written by hand compiles to: an adapter's generic call in a benchmark would take Nino's slower generic path, so the
-// adapters are templates (Adapters/, not compiled) and this tool expands them as text, reading syntax only.
+// For each class with [BenchCase] attributes (on any of its partial declarations) it writes <Class>.Cases.g.cs beside
+// the file that declares <Class>: the buffers (each adapter's Setup), the bytes every case reads (ToBytes, and Prepare
+// for a value made outside the timed region), their payload sizes, the [GlobalSetup], and per case and library one
+// serialize and one deserialize method, each the body of the adapter's template with the case's names put in. The
+// methods keep the names every script and the docs site read (<Library>Serialize<Case>, <Library>Deserialize<Case>),
+// and their IL is what the same method written by hand compiles to: an adapter's generic call in a benchmark would
+// take Nino's slower generic path, so the adapters are templates (Adapters/, not compiled) and this tool expands them as
+// text, reading syntax only. A method the class writes itself is kept: BenchGen writes the others.
 // The file holds the v4 build's class and, under NINO_BENCH_V3, the v3 build's (the adapters whose Builds name v3).
 // --check writes nothing and fails while a file is out of date (ci.yml).
 using System;
@@ -42,16 +43,15 @@ internal static class Program
         string project = Path.Combine(root, Project);
         var adapters = Directory.GetFiles(Path.Combine(project, "Adapters"), "*.cs").Order(StringComparer.Ordinal)
             .SelectMany(Adapter.Read).ToList();
+        foreach (var adapter in adapters.Where(a => a.Like != null))
+            adapter.Inherit(adapters.Single(a => a.Like == null && a.Name == adapter.Like && a.Builds.Intersect(adapter.Builds).Any()));
         var sources = Directory.GetFiles(project, "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.EndsWith(".g.cs", StringComparison.Ordinal) && !Ignored(project, f))
             .Order(StringComparer.Ordinal).ToList();
 
         var expected = new Dictionary<string, string>();
-        foreach (string source in sources)
-        {
-            string? text = Generate(source, adapters);
-            if (text != null) expected[source[..^3] + Suffix] = text;
-        }
+        foreach (var (path, text) in Generate(sources, adapters))
+            expected[path] = text;
 
         int stale = 0;
         foreach (string file in Directory.GetFiles(project, "*" + Suffix, SearchOption.AllDirectories)
@@ -62,7 +62,7 @@ internal static class Program
             if (!check) File.Delete(file);
         }
 
-        foreach (var (path, content) in expected)
+        foreach (var (path, content) in expected.OrderBy(e => e.Key, StringComparer.Ordinal))
         {
             string relative = Path.GetRelativePath(root, path);
             if (File.Exists(path) && File.ReadAllText(path) == content)
@@ -105,47 +105,62 @@ internal static class Program
         return null;
     }
 
-    /// <summary>The generated file of one source file, or null when it declares no cases.</summary>
-    private static string? Generate(string source, List<Adapter> adapters)
+    /// <summary>The generated file of each class that declares cases: its path and text.</summary>
+    private static IEnumerable<(string Path, string Text)> Generate(List<string> sources, List<Adapter> adapters)
     {
-        string text = File.ReadAllText(source);
-        var parts = new List<string>();
-        string? className = null;
-        foreach (var (build, symbol) in Builds)
+        var texts = sources.ToDictionary(s => s, File.ReadAllText);
+        // Per build, every partial declaration of every class, by its full name.
+        var views = new List<Dictionary<string, List<Part>>>();
+        foreach (var (_, symbol) in Builds)
         {
             var options = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview)
                 .WithPreprocessorSymbols(symbol.Length > 0 ? new[] { symbol } : Array.Empty<string>());
-            var unit = (CompilationUnitSyntax)CSharpSyntaxTree.ParseText(text, options, source).GetRoot();
-            var classes = unit.DescendantNodes().OfType<ClassDeclarationSyntax>()
-                .Where(c => Attributes(c.AttributeLists, "BenchCase").Any()).ToList();
-            if (classes.Count == 0)
+            var parts = new Dictionary<string, List<Part>>();
+            foreach (string source in sources)
             {
-                parts.Add("");
-                continue;
+                var unit = (CompilationUnitSyntax)CSharpSyntaxTree.ParseText(texts[source], options, source).GetRoot();
+                foreach (var c in unit.DescendantNodes().OfType<ClassDeclarationSyntax>())
+                {
+                    string ns = c.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().FirstOrDefault()?.Name.ToString() ?? "";
+                    string key = ns + "." + c.Identifier.ValueText;
+                    if (!parts.TryGetValue(key, out var list)) parts[key] = list = [];
+                    list.Add(new Part(source, c, unit));
+                }
             }
 
-            if (classes.Count > 1)
-                throw new InvalidOperationException($"{source}: one class with [BenchCase] per file");
-            var bench = new BenchClass(classes[0], unit, adapters.Where(a => a.Builds.Contains(build)).ToList());
-            className = bench.Name;
-            parts.Add(bench.Write());
+            views.Add(parts);
         }
 
-        if (className == null) return null;
-        var sb = new StringBuilder();
-        sb.Append("// <auto-generated>\n");
-        sb.Append($"// Generated by runtimes/csharp/tools/BenchGen from {Path.GetFileName(source)}'s [BenchCase] attributes and the adapters in\n");
-        sb.Append("// Adapters/. Do not edit by hand: change those and run\n");
-        sb.Append("//     dotnet run --project runtimes/csharp/tools/BenchGen\n");
-        sb.Append("// ci.yml fails while this file is out of date (BenchGen --check).\n");
-        sb.Append("// </auto-generated>\n");
-        sb.Append("#nullable disable\n");
-        sb.Append("#if !NINO_BENCH_V3\n");
-        sb.Append(parts[0]);
-        sb.Append("#else\n");
-        sb.Append(parts[1]);
-        sb.Append("#endif\n");
-        return sb.ToString();
+        var classes = views.SelectMany(v => v).Where(p => p.Value.Any(d => Attributes(d.Class.AttributeLists, "BenchCase").Any()))
+            .Select(p => p.Key).Distinct().Order(StringComparer.Ordinal);
+        foreach (string key in classes)
+        {
+            string name = key[(key.LastIndexOf('.') + 1)..];
+            // The file named after the class holds it; the generated file goes beside it.
+            var all = views.SelectMany(v => v.TryGetValue(key, out var p) ? p : []).ToList();
+            string main = all.Select(p => p.File).FirstOrDefault(f => Path.GetFileName(f) == name + ".cs") ?? all[0].File;
+            var sb = new StringBuilder();
+            sb.Append("// <auto-generated>\n");
+            sb.Append($"// Generated by runtimes/csharp/tools/BenchGen from {name}'s [BenchCase] attributes and the adapters in Adapters/.\n");
+            sb.Append("// Do not edit by hand: change those and run\n");
+            sb.Append("//     dotnet run --project runtimes/csharp/tools/BenchGen\n");
+            sb.Append("// ci.yml fails while this file is out of date (BenchGen --check).\n");
+            sb.Append("// </auto-generated>\n");
+            sb.Append("#nullable disable\n");
+            for (int b = 0; b < Builds.Length; b++)
+            {
+                sb.Append(b == 0 ? "#if !NINO_BENCH_V3\n" : "#else\n");
+                if (views[b].TryGetValue(key, out var parts) && parts.Any(d => Attributes(d.Class.AttributeLists, "BenchCase").Any()))
+                {
+                    // The class's own file first, then its other parts in the order of their names.
+                    parts = parts.OrderBy(p => p.File == main ? 0 : 1).ThenBy(p => p.File, StringComparer.Ordinal).ToList();
+                    sb.Append(new BenchClass(parts, Builds[b].Name, adapters.Where(a => a.Builds.Contains(Builds[b].Name)).ToList()).Write());
+                }
+            }
+
+            sb.Append("#endif\n");
+            yield return (Path.Combine(Path.GetDirectoryName(main)!, name + Suffix), sb.ToString());
+        }
     }
 
     internal static IEnumerable<AttributeSyntax> Attributes(SyntaxList<AttributeListSyntax> lists, string name) =>
@@ -169,6 +184,9 @@ internal static class Program
     };
 }
 
+/// <summary>One partial declaration of a class and the file it is in.</summary>
+internal sealed record Part(string File, ClassDeclarationSyntax Class, CompilationUnitSyntax Unit);
+
 /// <summary>A library's adapter: a class of Adapters/ with [BenchLibrary] whose methods are the templates.</summary>
 internal sealed class Adapter
 {
@@ -176,10 +194,11 @@ internal sealed class Adapter
     public int Order, Slot;
     public bool Baseline;
     public string[] Builds = [];
-    public string? Prepared;
+    public string? Prepared, PrepareFrom, When, Unless, Like, Reads;
     public readonly Dictionary<string, string> Args = new();
     public readonly Dictionary<string, MethodDeclarationSyntax> Methods = new();
     public List<string> Usings = [];
+    private string _file = "";
 
     public static IEnumerable<Adapter> Read(string file)
     {
@@ -189,7 +208,7 @@ internal sealed class Adapter
         {
             var library = Program.Attributes(c.AttributeLists, "BenchLibrary").FirstOrDefault();
             if (library == null) continue;
-            var adapter = new Adapter { Usings = unit.Usings.Select(u => u.ToString()).ToList() };
+            var adapter = new Adapter { Usings = unit.Usings.Select(u => u.ToString()).ToList(), _file = file };
             foreach (var arg in library.ArgumentList!.Arguments)
             {
                 string value = Program.Value(arg.Expression);
@@ -201,6 +220,11 @@ internal sealed class Adapter
                     case "Baseline": adapter.Baseline = value == "true"; break;
                     case "Builds": adapter.Builds = value.Split(' ', StringSplitOptions.RemoveEmptyEntries); break;
                     case "Prepared": adapter.Prepared = value; break;
+                    case "PrepareFrom": adapter.PrepareFrom = value; break;
+                    case "When": adapter.When = value; break;
+                    case "Unless": adapter.Unless = value; break;
+                    case "Like": adapter.Like = value; break;
+                    case "Reads": adapter.Reads = value; break;
                     case var other: throw new InvalidOperationException($"{file}: unknown BenchLibrary argument {other}");
                 }
             }
@@ -210,13 +234,31 @@ internal sealed class Adapter
                     Program.Value(arg.ArgumentList.Arguments[1].Expression);
             foreach (var m in c.Members.OfType<MethodDeclarationSyntax>())
                 adapter.Methods[m.Identifier.ValueText] = m;
-            foreach (string required in new[] { "Setup", "ToBytes", "Serialize", "Deserialize" })
-                if (!adapter.Methods.ContainsKey(required))
-                    throw new InvalidOperationException($"{file}: {adapter.Name} has no {required}");
-            if (adapter.Prepared != null != adapter.Methods.ContainsKey("Prepare"))
-                throw new InvalidOperationException($"{file}: Prepared and Prepare go together");
+            if (adapter.Like == null) adapter.Validate();
             yield return adapter;
         }
+    }
+
+    /// <summary>An adapter <c>Like</c> another takes the templates it does not write from it.</summary>
+    public void Inherit(Adapter from)
+    {
+        foreach (var (name, method) in from.Methods)
+            Methods.TryAdd(name, method);
+        foreach (var (name, format) in from.Args)
+            Args.TryAdd(name, format);
+        Usings = Usings.Concat(from.Usings).Distinct().ToList();
+        Validate();
+    }
+
+    private void Validate()
+    {
+        foreach (string required in new[] { "Setup", "Serialize", "Deserialize" })
+            if (!Methods.ContainsKey(required))
+                throw new InvalidOperationException($"{_file}: {Name} has no {required}");
+        if (Reads == null && !Methods.ContainsKey("ToBytes"))
+            throw new InvalidOperationException($"{_file}: {Name} has no ToBytes and reads no other library's bytes");
+        if (Prepared != null != Methods.ContainsKey("Prepare"))
+            throw new InvalidOperationException($"{_file}: Prepared and Prepare go together");
     }
 
     /// <summary>The adapter's instance fields: one per out parameter of Setup, <c>_&lt;library&gt;&lt;Parameter&gt;</c>.</summary>
@@ -224,26 +266,42 @@ internal sealed class Adapter
         Methods["Setup"].ParameterList.Parameters.Where(p => p.Modifiers.Any(SyntaxKind.OutKeyword)).Select(p =>
         {
             string name = p.Identifier.ValueText;
-            return (name, p.Type!.ToString(), Field(char.ToUpperInvariant(name[0]) + name[1..]));
+            return (name, p.Type!.ToString(), StateField(char.ToUpperInvariant(name[0]) + name[1..]));
         });
 
+    /// <summary>
+    /// The buffers belong to the library whose Setup makes them: an adapter <c>Like</c> another writes to that one's.
+    /// </summary>
+    private string StateField(string suffix) => Field(Like ?? Name, suffix);
+
     /// <summary>An instance field of this library: <c>_&lt;library&gt;&lt;suffix&gt;</c>.</summary>
-    public string Field(string suffix) => "_" + char.ToLowerInvariant(Name[0]) + Name[1..] + suffix;
+    public string Field(string suffix) => Field(Name, suffix);
+
+    private static string Field(string library, string suffix) =>
+        "_" + char.ToLowerInvariant(library[0]) + library[1..] + suffix;
 }
 
 /// <summary>
 /// A case: its name and properties ([BenchCase]), over the class's ([BenchClass]) and BenchGen's defaults. A property
-/// is a format: <c>{Case}</c>, <c>{Library}</c>, <c>{Slot}</c> and other properties' names are put in.
+/// is a format: <c>{Case}</c>, <c>{Library}</c>, <c>{Slot}</c>, other properties' names and <c>{Type:Property}</c>
+/// (the type of the field a property names) are put in.
 /// </summary>
-internal sealed class BenchCase(string name, Dictionary<string, string> properties)
+internal sealed class BenchCase(string name, Dictionary<string, string> properties, IReadOnlyDictionary<string, string> fields)
 {
     public readonly string Name = name;
     public readonly Dictionary<string, string> Properties = properties;
-    public string Type = "";
+    private readonly IReadOnlyDictionary<string, string> _fields = fields;
 
     /// <summary>The value of a property, or null when neither the case, its class nor the defaults set it.</summary>
     public string? Get(string property, Adapter? library = null) =>
         Properties.TryGetValue(property, out string? format) ? Expand(format, library) : null;
+
+    public bool Has(string property) => Properties.ContainsKey(property);
+
+    /// <summary>The type of a field of the class.</summary>
+    public string TypeOf(string field) => _fields.TryGetValue(field, out string? type)
+        ? type
+        : throw new InvalidOperationException($"case {Name} reads {field}, no field of the class");
 
     public string Expand(string format, Adapter? library = null)
     {
@@ -263,6 +321,7 @@ internal sealed class BenchCase(string name, Dictionary<string, string> properti
                 "Case" => Name,
                 "Library" => library?.Name ?? throw new InvalidOperationException($"{Name}: {{Library}} outside a library"),
                 "Slot" => library?.Slot.ToString() ?? throw new InvalidOperationException($"{Name}: {{Slot}} outside a library"),
+                _ when key.StartsWith("Type:") => TypeOf(Get(key[5..], library) ?? throw new MissingProperty(key[5..])),
                 _ => Get(key, library) ?? throw new MissingProperty(key),
             });
             i = end;
@@ -271,8 +330,6 @@ internal sealed class BenchCase(string name, Dictionary<string, string> properti
         return sb.ToString();
     }
 
-    public bool Has(string property) => Properties.ContainsKey(property);
-
     /// <summary>A copy that reads the previous version's data: Old* properties in place of their own.</summary>
     public BenchCase Old()
     {
@@ -280,7 +337,7 @@ internal sealed class BenchCase(string name, Dictionary<string, string> properti
         foreach (var (key, value) in Properties)
             if (key.StartsWith("Old") && key is not ("Old" or "OldBytes"))
                 properties[key[3..]] = value;
-        return new BenchCase(Name, properties) { Type = Type };
+        return new BenchCase(Name, properties, _fields);
     }
 }
 
@@ -297,60 +354,71 @@ internal sealed class BenchClass
         ["Bytes"] = "Serialized{Case}[{Slot}]",
         ["OldBytes"] = "{Library}{Case}OldBytes",
         ["Order"] = "verb",
+        ["Serialize"] = "buffer",
         ["JsonContext"] = "CaseJson",
         ["NinoGen"] = "NinoGen",
     };
 
-    public readonly string Name;
+    private readonly string _name;
     private readonly string _namespace;
     private readonly List<string> _usings;
     private readonly List<Adapter> _adapters;
-    private readonly HashSet<string> _fields;
+    private readonly HashSet<string> _fields, _methods;
     private readonly List<(BenchCase Case, List<Row> Rows)> _cases = [];
-    private readonly bool _arrays, _byCase;
+    private readonly bool _arrays, _byCase, _toArray;
     private readonly string _buffer;
 
     /// <summary>A library's methods for a case: the names its templates get.</summary>
     private sealed record Row(Adapter Adapter, Dictionary<string, string> Args, Dictionary<string, string>? OldArgs);
 
-    public BenchClass(ClassDeclarationSyntax c, CompilationUnitSyntax unit, List<Adapter> adapters)
+    public BenchClass(List<Part> parts, string build, List<Adapter> adapters)
     {
-        Name = c.Identifier.ValueText;
-        _namespace = c.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().First().Name.ToString();
-        var fields = unit.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(k => k.Identifier.ValueText == Name)
-            .SelectMany(k => k.Members.OfType<FieldDeclarationSyntax>())
+        _name = parts[0].Class.Identifier.ValueText;
+        _namespace = parts[0].Class.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().First().Name.ToString();
+        var fields = parts.SelectMany(p => p.Class.Members.OfType<FieldDeclarationSyntax>())
             .SelectMany(f => f.Declaration.Variables.Select(v => (v.Identifier.ValueText, f.Declaration.Type.ToString())))
             .ToDictionary(v => v.Item1, v => v.Item2);
         _fields = fields.Keys.ToHashSet();
+        _methods = parts.SelectMany(p => p.Class.Members.OfType<MethodDeclarationSyntax>())
+            .Where(m => m.Body != null || m.ExpressionBody != null).Select(m => m.Identifier.ValueText).ToHashSet();
 
         var classProperties = new Dictionary<string, string>(Defaults);
-        foreach (var attribute in Program.Attributes(c.AttributeLists, "BenchClass"))
+        foreach (var attribute in parts.SelectMany(p => Program.Attributes(p.Class.AttributeLists, "BenchClass")))
         foreach (var a in attribute.ArgumentList!.Arguments)
             classProperties[a.NameEquals!.Name.Identifier.ValueText] = Program.Value(a.Expression);
         _arrays = classProperties["Bytes"].Contains('[');
         _byCase = classProperties["Order"] == "case";
+        _toArray = classProperties["Serialize"] == "array";
 
-        foreach (var attribute in Program.Attributes(c.AttributeLists, "BenchCase"))
+        foreach (var attribute in parts.SelectMany(p => Program.Attributes(p.Class.AttributeLists, "BenchCase")))
         {
             var arguments = attribute.ArgumentList!.Arguments;
             var properties = new Dictionary<string, string>(classProperties);
             foreach (var a in arguments.Skip(1))
                 properties[a.NameEquals!.Name.Identifier.ValueText] = Program.Value(a.Expression);
-            var benchCase = new BenchCase(Program.Value(arguments[0].Expression), properties);
-            string value = benchCase.Get("Value")!;
-            if (!fields.TryGetValue(value, out string? type))
-                throw new InvalidOperationException($"{Name}: case {benchCase.Name} reads {value}, no field of the class");
-            benchCase.Type = type;
-            if (benchCase.Has("Old") && !_fields.Contains(benchCase.Get("Old")!))
-                throw new InvalidOperationException($"{Name}: case {benchCase.Name} reads {benchCase.Get("Old")}, no field of the class");
-            // The previous version's data has a message and type info of its own.
-            foreach (string own in new[] { "Proto", "Json" })
-                if (benchCase.Has("Old") && benchCase.Has(own) && !benchCase.Has("Old" + own))
-                    throw new InvalidOperationException($"{Name}: case {benchCase.Name} reads Old data and needs Old{own}");
+            var benchCase = new BenchCase(Program.Value(arguments[0].Expression), properties, fields);
+            if (benchCase.Get("Builds") is { } builds && !builds.Split(' ').Contains(build))
+                continue;
+            benchCase.TypeOf(benchCase.Get("Value")!);
+            if (benchCase.Has("Old"))
+            {
+                benchCase.TypeOf(benchCase.Get("Old")!);
+                // The previous version's data has a message and type info of its own.
+                foreach (string own in new[] { "Proto", "Json" })
+                    if (benchCase.Has(own) && !benchCase.Has("Old" + own))
+                        throw new InvalidOperationException($"{_name}: case {benchCase.Name} reads Old data and needs Old{own}");
+            }
 
+            var libraries = benchCase.Get("Libraries")?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var without = benchCase.Get("Without")?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
             var rows = new List<Row>();
             foreach (var adapter in adapters.OrderBy(a => a.Order))
             {
+                if (libraries != null && !libraries.Contains(adapter.Name)) continue;
+                if (without.Contains(adapter.Name)) continue;
+                if (adapter.When != null && benchCase.Get(adapter.When) is null or "false") continue;
+                if (adapter.Unless != null && benchCase.Get(adapter.Unless) is not (null or "false")) continue;
+                if (_toArray && !adapter.Methods.ContainsKey("SerializeToArray")) continue;
                 var args = Bind(adapter, benchCase);
                 var oldArgs = benchCase.Has("Old") ? Bind(adapter, benchCase.Old()) : null;
                 if (args != null && (oldArgs != null || !benchCase.Has("Old")))
@@ -362,7 +430,8 @@ internal sealed class BenchClass
 
         _buffer = classProperties["Buffer"];
         _adapters = adapters.Where(a => _cases.Any(c => c.Rows.Any(r => r.Adapter == a))).OrderBy(a => a.Order).ToList();
-        _usings = unit.Usings.Select(u => u.ToString()).Concat(_adapters.SelectMany(a => a.Usings)).Distinct()
+        _usings = parts.SelectMany(p => p.Unit.Usings).Select(u => u.ToString())
+            .Concat(_adapters.SelectMany(a => a.Usings)).Distinct()
             .OrderBy(u => u.Contains(" = ") ? 2 : Namespace(u) == "System" || Namespace(u).StartsWith("System.") ? 0 : 1)
             .ThenBy(Namespace, StringComparer.Ordinal).ToList();
     }
@@ -389,60 +458,85 @@ internal sealed class BenchClass
 
     private static bool InPlace(BenchCase c, Adapter a) => c.Get("InPlace") == "true" && a.Methods.ContainsKey("DeserializeInto");
     private static string Target(BenchCase c, Adapter a) => a.Field(c.Name);
-    private static string Bytes(BenchCase c, Adapter a) => c.Get("Bytes", a)!;
-    private static string ReadBytes(BenchCase c, Adapter a) => c.Has("Old") ? c.Get("OldBytes", a)! : Bytes(c, a);
 
-    /// <summary>The value a library writes: the case's field, or the field its Prepare makes.</summary>
-    private static string Value(BenchCase c, Adapter a) => a.Prepared != null ? c.Name + a.Prepared : c.Get("Value")!;
+    /// <summary>The library whose bytes a library reads: its own, or the one it <c>Reads</c>.</summary>
+    private Adapter Source(Adapter a) => a.Reads == null ? a : _adapters.Single(s => s.Name == a.Reads);
+
+    private string Bytes(BenchCase c, Adapter a) => c.Get("Bytes", Source(a))!;
+    private string ReadBytes(BenchCase c, Adapter a) => c.Has("Old") ? c.Get("OldBytes", Source(a))! : Bytes(c, a);
+
+    /// <summary>The field a library writes: its own value of the case (&lt;Library&gt;Value), or the case's.</summary>
+    private static string Field(BenchCase c, Adapter a) => c.Get(a.Name + "Value") ?? c.Get("Value")!;
+
+    /// <summary>The value a library writes: its field, or the field its Prepare makes.</summary>
+    private static string Value(BenchCase c, Adapter a) => a.Prepared != null ? c.Name + a.Prepared : Field(c, a);
+
+    /// <summary>The field a library's Prepare reads: its own, or that of the library it prepares from.</summary>
+    private string PrepareSource(BenchCase c, Adapter a) =>
+        a.PrepareFrom == null ? Field(c, a) : Field(c, _adapters.Single(s => s.Name == a.PrepareFrom));
+
+    /// <summary>
+    /// Whether the class holds the adapter's state (Setup's buffers): not for an adapter <c>Like</c> another, which
+    /// writes to that one's, nor for one whose serialize methods all write to a new array without it.
+    /// </summary>
+    private bool Owns(Adapter a) => (a.Like == null || !_adapters.Any(o => o.Like == null && o.Name == a.Like)) &&
+        (!_toArray || a.Methods["SerializeToArray"].ParameterList.Parameters.Count > 1);
+
+    private IEnumerable<Row> Owning(List<Row> rows) => rows.Where(r => r.Adapter.Reads == null);
 
     public string Write()
     {
         var sb = new StringBuilder();
         foreach (string u in _usings) sb.Append(u).Append('\n');
         sb.Append('\n').Append($"namespace {_namespace};\n\n");
-        sb.Append($"partial class {Name}\n{{\n");
+        sb.Append($"partial class {_name}\n{{\n");
 
-        foreach (var adapter in _adapters)
+        foreach (var adapter in _adapters.Where(Owns))
         foreach (var (_, type, field) in adapter.State())
             sb.Append($"    private {type} {field};\n");
         foreach (var (c, rows) in _cases)
         foreach (var row in rows.Where(r => InPlace(c, r.Adapter)))
-            sb.Append($"    private {c.Type} {Target(c, row.Adapter)};\n");
+            sb.Append($"    private {c.TypeOf(Field(c, row.Adapter))} {Target(c, row.Adapter)};\n");
         sb.Append('\n');
 
         if (_arrays)
         {
-            var slots = string.Join(", ", _adapters.OrderBy(a => a.Slot).Select(a => $"{a.Name} {a.Slot}"));
+            var slots = string.Join(", ", _adapters.Where(a => a.Reads == null).OrderBy(a => a.Slot).Select(a => $"{a.Name} {a.Slot}"));
             sb.Append($"    // Serialized<Case>[slot]: the bytes each library reads ({slots}).\n");
         }
 
         foreach (var (c, rows) in _cases)
         {
+            if (rows.Count == 0) continue;
             if (_arrays)
                 sb.Append($"    private static readonly byte[][] {Bytes(c, rows[0].Adapter).Split('[')[0]};\n");
             foreach (var row in rows.Where(r => r.Adapter.Prepared != null && !_fields.Contains(Value(c, r.Adapter))))
                 sb.Append($"    private static readonly {Template.Type(row.Adapter.Methods["Prepare"], Map(row, c))} {Value(c, row.Adapter)};\n");
             if (_arrays) continue;
-            foreach (var row in rows)
+            foreach (var row in Owning(rows).Where(r => !_fields.Contains(Bytes(c, r.Adapter))))
                 sb.Append($"    private static readonly byte[] {Bytes(c, row.Adapter)};\n");
             if (c.Has("Old"))
-                foreach (var row in rows)
+                foreach (var row in Owning(rows))
                     sb.Append($"    private static readonly byte[] {c.Get("OldBytes", row.Adapter)};\n");
         }
 
-        sb.Append($"\n    static {Name}()\n    {{\n");
+        sb.Append($"\n    static {_name}()\n    {{\n");
+        if (_methods.Contains("OnStaticInit"))
+            sb.Append("        OnStaticInit();\n");
         foreach (var (c, rows) in _cases)
         {
+            if (rows.Count == 0) continue;
             if (_arrays)
-                sb.Append($"        {Bytes(c, rows[0].Adapter).Split('[')[0]} = new byte[{rows.Max(r => r.Adapter.Slot) + 1}][];\n");
+                sb.Append($"        {Bytes(c, rows[0].Adapter).Split('[')[0]} = new byte[{Owning(rows).Max(r => r.Adapter.Slot) + 1}][];\n");
             foreach (var row in rows.Where(r => r.Adapter.Prepared != null && !_fields.Contains(Value(c, r.Adapter))))
-                sb.Append($"        {Value(c, row.Adapter)} = {Template.Expression(row.Adapter.Methods["Prepare"], Map(row, c))};\n");
-            foreach (var row in _arrays ? rows.OrderBy(r => r.Adapter.Slot) : rows.AsEnumerable())
+                sb.Append($"        {Value(c, row.Adapter)} = {Template.Expression(row.Adapter.Methods["Prepare"], Map(row, c, value: PrepareSource(c, row.Adapter)))};\n");
+            foreach (var row in (_arrays ? Owning(rows).OrderBy(r => r.Adapter.Slot) : Owning(rows))
+                         .Where(r => !_fields.Contains(Bytes(c, r.Adapter))))
                 sb.Append($"        {Bytes(c, row.Adapter)} = {Template.Expression(row.Adapter.Methods["ToBytes"], Map(row, c, value: Value(c, row.Adapter)))};\n");
             if (c.Has("Old"))
             {
                 var old = c.Old();
-                foreach (var row in rows)
+                foreach (var row in Owning(rows))
                 {
                     // The previous version's value, prepared as the current one is (a message parsed from it).
                     string value = old.Get("Old")!;
@@ -464,7 +558,7 @@ internal sealed class BenchClass
 
         sb.Append("    }\n\n");
         sb.Append("    [GlobalSetup]\n    public void Setup()\n    {\n        OnSetup();\n");
-        foreach (var adapter in _adapters)
+        foreach (var adapter in _adapters.Where(Owns))
             sb.Append(Template.Statements(adapter.Methods["Setup"], State(adapter)));
         foreach (var (c, rows) in _cases)
         foreach (var row in rows.Where(r => InPlace(c, r.Adapter)))
@@ -472,6 +566,11 @@ internal sealed class BenchClass
         sb.Append("    }\n\n");
         sb.Append("    /// <summary>The class's own setup, before the buffers'.</summary>\n");
         sb.Append("    partial void OnSetup();\n");
+        if (_methods.Contains("OnStaticInit"))
+        {
+            sb.Append("\n    /// <summary>The class's own values, made before the bytes.</summary>\n");
+            sb.Append("    static partial void OnStaticInit();\n");
+        }
 
         var methods = _byCase
             ? _cases.SelectMany(c => new[] { "Serialize", "Deserialize" }.Select(verb => (verb, c)))
@@ -480,17 +579,22 @@ internal sealed class BenchClass
         foreach (var row in rows)
         {
             var adapter = row.Adapter;
+            string name = $"{adapter.Name}{verb}{c.Name}";
+            if (_methods.Contains(name)) continue; // the class writes it
             MethodDeclarationSyntax method;
             Dictionary<string, string> bound;
             if (verb == "Serialize")
-                (method, bound) = (adapter.Methods[verb], Map(row, c, value: Value(c, adapter)));
+                (method, bound) = (adapter.Methods[_toArray ? "SerializeToArray" : verb], Map(row, c, value: Value(c, adapter)));
             else if (InPlace(c, adapter))
                 (method, bound) = (adapter.Methods["DeserializeInto"], Map(row, c, bytes: ReadBytes(c, adapter), target: Target(c, adapter)));
             else
                 (method, bound) = (adapter.Methods[verb], Map(row, c, bytes: ReadBytes(c, adapter)));
+            string returns = verb == "Deserialize" && c.Get("Returns") is { } r ? r : Template.Type(method, bound);
             sb.Append('\n');
             sb.Append($"    [Benchmark{(adapter.Baseline ? "(Baseline = true)" : "")}, BenchmarkCategory(\"{c.Name}{verb}\")]\n");
-            sb.Append($"    public {Template.Type(method, bound)} {adapter.Name}{verb}{c.Name}()\n    {{\n");
+            if (verb == "Deserialize" && adapter.Baseline && c.Get("ReadsNull") == "true")
+                sb.Append("    [ReadsNull]\n");
+            sb.Append($"    public {returns} {name}()\n    {{\n");
             sb.Append(Template.Statements(method, bound));
             sb.Append("    }\n");
         }
@@ -511,8 +615,9 @@ internal sealed class BenchClass
     {
         var map = new Dictionary<string, string>(old ? row.OldArgs! : row.Args)
         {
-            ["T"] = c.Type, ["value"] = value ?? c.Get("Value")!,
+            ["T"] = c.TypeOf(Field(c, row.Adapter)), ["value"] = value ?? Field(c, row.Adapter),
         };
+        if (old) map["T"] = c.TypeOf(c.Get("Value")!);
         if (bytes != null) map["bytes"] = bytes;
         if (target != null) map["target"] = target;
         foreach (var (parameter, field) in State(row.Adapter)) map[parameter] = field;

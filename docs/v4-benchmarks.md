@@ -569,7 +569,7 @@ package from nuget.org, each feature in v3's own way: what shares objects writes
 version tolerance is v3's `WEAK_VERSION_TOLERANCE` in a project of its own, what v4 reads in place v3 reads anew (it
 reads no object in place; a list keeps itself and gets new elements), and a type v3 writes no overload for goes
 through one it does (a `Memory<int>` through its span, an immutable collection read as an array and built from it).
-Each port's header lists what it does differently and what it leaves out, and why. [`runtimes/csharp/benchmarks/run.sh`](../runtimes/csharp/benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
+Each port's header (or the summary of a class whose methods BenchGen writes from its cases, v3's included) lists what it does differently and what it leaves out, and why. [`runtimes/csharp/benchmarks/run.sh`](../runtimes/csharp/benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
 suite) and prints v4 against v3. The release workflow runs the same protocol for every release and publishes the
 result in the release notes ("v3 3.3.13 vs v4 (same machine)"), where the documentation site and these tables take
 their v3 ratios from.
