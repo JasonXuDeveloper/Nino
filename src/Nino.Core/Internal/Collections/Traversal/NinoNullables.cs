@@ -434,16 +434,30 @@ namespace Nino.Core
             if (AdvSimd.Arm64.IsSupported)
                 return AdvSimd.Multiply(value, AdvSimd.Arm64.VectorTableLookup(value, spread));
             if (Ssse3.IsSupported)
-            {
-                var flags = Ssse3.Shuffle(value, spread);
-#if NET10_0_OR_GREATER
-                if (Gfni.IsSupported)
-                    return Gfni.GaloisFieldMultiply(value, flags);
-#endif
-                return Ssse3.Sign(value.AsSByte(), flags.AsSByte()).AsByte();
-            }
-
+                return Times(value, Ssse3.Shuffle(value, spread));
             return value;
+        }
+
+        /// <summary><paramref name="value"/>'s bytes times <paramref name="by"/>'s, each 0 or 1: gf2p8mulb, else psignb.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Times(Vector128<byte> value, Vector128<byte> by)
+        {
+#if NET10_0_OR_GREATER
+            if (Gfni.IsSupported)
+                return Gfni.GaloisFieldMultiply(value, by);
+#endif
+            return Ssse3.Sign(value.AsSByte(), by.AsSByte()).AsByte();
+        }
+
+        /// <summary><see cref="Times(Vector128{byte}, Vector128{byte})"/> for 32-byte vectors: vgf2p8mulb, else vpsignb.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Times(Vector256<byte> value, Vector256<byte> by)
+        {
+#if NET10_0_OR_GREATER
+            if (Gfni.V256.IsSupported)
+                return Gfni.V256.GaloisFieldMultiply(value, by);
+#endif
+            return Avx2.Sign(value.AsSByte(), by.AsSByte()).AsByte();
         }
 
         /// <summary>The bytes the first, second and third 8-byte words of a present element keep.</summary>
@@ -842,17 +856,9 @@ namespace Nino.Core
             public void Copy(ref byte destination, ref byte source, nuint offset)
             {
                 var a = Vector512.LoadUnsafe(ref source, offset);
-#if NET10_0_OR_GREATER
-                if (Multiplies && Gfni.V512.IsSupported)
-                {
-                    Kept(a).StoreUnsafe(ref destination, offset);
-                    return;
-                }
-#endif
-
                 if (Stride != 24)
                 {
-                    Present(a, Tile(a), Keep).StoreUnsafe(ref destination, offset);
+                    Cleaned(a).StoreUnsafe(ref destination, offset);
                     return;
                 }
 
@@ -904,20 +910,10 @@ namespace Nino.Core
                 var b = Vector512.LoadUnsafe(ref source, offset + 64);
                 var c = Vector512.LoadUnsafe(ref source, offset + 128);
                 var d = Vector512.LoadUnsafe(ref source, offset + 192);
-#if NET10_0_OR_GREATER
-                if (Multiplies && Gfni.V512.IsSupported)
-                {
-                    Kept(a).StoreUnsafe(ref destination, offset);
-                    Kept(b).StoreUnsafe(ref destination, offset + 64);
-                    Kept(c).StoreUnsafe(ref destination, offset + 128);
-                    Kept(d).StoreUnsafe(ref destination, offset + 192);
-                    return;
-                }
-#endif
-                Present(a, Tile(a), Keep).StoreUnsafe(ref destination, offset);
-                Present(b, Tile(b), Keep).StoreUnsafe(ref destination, offset + 64);
-                Present(c, Tile(c), Keep).StoreUnsafe(ref destination, offset + 128);
-                Present(d, Tile(d), Keep).StoreUnsafe(ref destination, offset + 192);
+                Cleaned(a).StoreUnsafe(ref destination, offset);
+                Cleaned(b).StoreUnsafe(ref destination, offset + 64);
+                Cleaned(c).StoreUnsafe(ref destination, offset + 128);
+                Cleaned(d).StoreUnsafe(ref destination, offset + 192);
             }
 
             /// <summary>
@@ -957,14 +953,6 @@ namespace Nino.Core
             public void Copy(ref byte destination, ref byte source, nuint offset)
             {
                 var a = Vector256.LoadUnsafe(ref source, offset);
-#if NET10_0_OR_GREATER
-                if (Multiplies && Gfni.V256.IsSupported)
-                {
-                    Kept(a).StoreUnsafe(ref destination, offset);
-                    return;
-                }
-#endif
-
                 if (Stride != 24)
                 {
                     Cleaned(a).StoreUnsafe(ref destination, offset);
@@ -1024,16 +1012,6 @@ namespace Nino.Core
                 var b = Vector256.LoadUnsafe(ref source, offset + 32);
                 var c = Vector256.LoadUnsafe(ref source, offset + 64);
                 var d = Vector256.LoadUnsafe(ref source, offset + 96);
-#if NET10_0_OR_GREATER
-                if (Multiplies && Gfni.V256.IsSupported)
-                {
-                    Kept(a).StoreUnsafe(ref destination, offset);
-                    Kept(b).StoreUnsafe(ref destination, offset + 32);
-                    Kept(c).StoreUnsafe(ref destination, offset + 64);
-                    Kept(d).StoreUnsafe(ref destination, offset + 96);
-                    return;
-                }
-#endif
                 Cleaned(a).StoreUnsafe(ref destination, offset);
                 Cleaned(b).StoreUnsafe(ref destination, offset + 32);
                 Cleaned(c).StoreUnsafe(ref destination, offset + 64);
@@ -1041,7 +1019,8 @@ namespace Nino.Core
             }
 
             /// <summary>
-            /// One vector of a stride that tiles it (2 to 16 bytes) as the wire holds it, without GFNI: with AVX2 each
+            /// One vector of a stride that tiles it (2 to 16 bytes) as the wire holds it: multiplied by its flags with
+            /// GFNI (<see cref="Kept(Vector256{byte})"/>), else with AVX2 each
             /// byte takes its element's flag (vpshufb, zero in the padding) and keeps its value by its sign (vpsignb:
             /// kept where 1, cleared where 0; a flag is 0 or 1 in every <c>Nullable</c> the runtime makes), two
             /// operations where the lane test took four, as fast as GFNI's multiplication: 16,000 bytes of a 16-byte
@@ -1052,6 +1031,10 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private static Vector256<byte> Cleaned(Vector256<byte> a)
             {
+#if NET10_0_OR_GREATER
+                if (Multiplies && Gfni.V256.IsSupported)
+                    return Kept(a);
+#endif
                 if (Avx2.IsSupported)
                 {
                     var spread = SpreadFlags;
@@ -1059,17 +1042,6 @@ namespace Nino.Core
                 }
 
                 return Present(a, Tile(a), Keep.GetLower());
-            }
-
-            /// <summary><paramref name="value"/>'s bytes times <paramref name="by"/>'s, each 0 or 1: vgf2p8mulb, else vpsignb.</summary>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private static Vector256<byte> Times(Vector256<byte> value, Vector256<byte> by)
-            {
-#if NET10_0_OR_GREATER
-                if (Gfni.V256.IsSupported)
-                    return Gfni.V256.GaloisFieldMultiply(value, by);
-#endif
-                return Avx2.Sign(value.AsSByte(), by.AsSByte()).AsByte();
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1159,17 +1131,6 @@ namespace Nino.Core
             private static Vector128<byte> Cleaned(Vector128<byte> a) => Ssse3.IsSupported
                 ? Spread(a, SpreadFlags)
                 : a & Present(Tile(a)) & Keep.GetLower().GetLower();
-
-            /// <summary><paramref name="value"/>'s bytes times <paramref name="by"/>'s, each 0 or 1: gf2p8mulb, else psignb.</summary>
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private static Vector128<byte> Times(Vector128<byte> value, Vector128<byte> by)
-            {
-#if NET10_0_OR_GREATER
-                if (Gfni.IsSupported)
-                    return Gfni.GaloisFieldMultiply(value, by);
-#endif
-                return Ssse3.Sign(value.AsSByte(), by.AsSByte()).AsByte();
-            }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private static Vector128<byte> Tile(Vector128<byte> value) => Stride != 16
