@@ -222,8 +222,15 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   through a span (`foreach (ref readonly var pair in span)`): 18 / 26 / 53 / 120 / 355. (4) The chain's fallback for
   a subtype it does not know called the registry with `ref writer`, which exposed the local's address and kept its
   fields in memory; `writer = __WriteSubtypeDeep(value, writer)` (by value, as the deep path already was) put the
-  cursor and the free space in registers: 16 / 24 / 44 / 93 / 275 (the element loops of lists take the same
-  fallback: `List<IFoo>` of 1,000 on par, 3.21 against 3.24 us). (5) The enumerator path (removed entries, bodies too
+  cursor and the free space in registers: 16 / 24 / 44 / 93 / 275. Keep it to the pair loop: in the element loops of
+  arrays and lists (`WriteElements`) the same fallback cut PolymorphicFooArray's loop from 295 stack accesses to 59
+  and was on par locally, yet runner A/B run 43849791156 (main f7beb993 against 71be18c9, 3 rounds) measured
+  `NinoSerializePolymorphicFooArray` (20 subtypes, nine levels deep) 12 % slower on Neoverse-N2 and 5 % on EPYC 9V74,
+  `NinoSerializePolymorphicClass` (its 1,000-element list) 4-8 % slower on 7763, 9V74 and N2, and
+  `NinoSerializeNonGenericBase` (8 subtypes) 6 % slower on 9V74 though 22-23 % faster on Xeon 8573C and 6975P (a
+  guess, not measured: those CPUs forward the writer's stores cheaply, and the loop with it in registers spilled the
+  value instead). The element loops went back to main's code (the registry called with `ref writer`); a list loop
+  with the writer in registers is a separate experiment, judged per CPU. (5) The enumerator path (removed entries, bodies too
   deep) out of line in `__WritePairsThroughDispatch`: on par, 6,848 bytes of loop against 7,135. (6) A reference and
   a count in place of the span, whose index kept a bounds check and spilled: 15 / 23 / 39-41 / 80-82 / 237-245 for
   int keys, 17-18 / 26-27 / 53-55 / 120-122 / 354-437 for string keys, ahead of LuminPack at every size (at 4 int
