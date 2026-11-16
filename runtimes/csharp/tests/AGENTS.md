@@ -7,8 +7,8 @@ runtimes outside .NET test themselves (`runtimes/*/AGENTS.md`); the shared corpu
 audits the structure, `audit-security` the fuzzer and the hostile-input tests; the `verify` skill lists the commands.
 
 ```
-conformance/                 the corpus every runtime reads and writes, and Nino.Conformance, which writes and
-                             verifies it (conformance/AGENTS.md)
+Nino.Conformance/            writes and verifies the corpus every runtime reads and writes, which stays at
+                             tests/conformance (tests/conformance/AGENTS.md)
 Nino.UnitTests/              the main suite (net8.0, net10.0, and net11.0; netstandard2.1
                              compile-only, as Unity builds it);
                              its types are marked version tolerant; -p:NinoCoreTfm picks a Nino.Core
@@ -90,7 +90,7 @@ Generator/                   the generator, the analyzer and the code fixes: inc
                              (IncrementalGeneratorTests), the runtimes/csharp/tools/CodeGen output checks (*FormattersGenerationTests)
   Analyzer/                  AnalyzerTests (every rule; the AnalyzerReleases files), a partial file per group of rules
                              (Types, Construction, Members, Utf8, InterfaceMembers, Vectors, Features, Pooling,
-                             Registrations); the callbacks' rules and fixes (CallbackAnalyzerTests: NINO038-NINO044)
+                             Registrations, Unions: C# 15, net11.0); the callbacks' rules and fixes (CallbackAnalyzerTests: NINO038-NINO044)
   CodeFixes/                 CodeFixTests, a partial file per group of fixes (Types, Members, Annotations, Utf8,
                              InterfaceMembers, WeakTolerance, Features, Pooling)
   LayoutBaseline/            the layout baseline: LayoutRulesTests (its rules and TOML on the shared sources, linked),
