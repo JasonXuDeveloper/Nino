@@ -206,7 +206,7 @@ namespace Nino.Core.Internal
             int keySize, int pairSize, int mask, int bias)
         {
             var buckets = ObjectFields.At<int[]>(dictionary, MapBuckets);
-            var entries = Unsafe.As<CollectionFields.MapEntry<TKey, TValue>[]>(
+            var entries = Unsafe.As<NinoDictionaryEntry<TKey, TValue>[]>(
                 ObjectFields.At<object>(dictionary, MapEntries));
             if (buckets == null || buckets.Length == 0 || entries == null || entries.Length < count ||
                 ObjectFields.At<int>(dictionary, MapBound) != 0)
@@ -327,7 +327,7 @@ namespace Nino.Core.Internal
             if (key == null)
                 NinoThrow.NullKey(dictionary);
             var buckets = ObjectFields.At<int[]>(dictionary, MapBuckets);
-            var entries = Unsafe.As<CollectionFields.MapEntry<TKey, TValue>[]>(
+            var entries = Unsafe.As<NinoDictionaryEntry<TKey, TValue>[]>(
                 ObjectFields.At<object>(dictionary, MapEntries));
             ulong multiplier = MapFastMod >= 0 ? ObjectFields.At<ulong>(dictionary, MapFastMod) : 0;
             ref int bound = ref ObjectFields.At<int>(dictionary, MapBound);
@@ -432,7 +432,7 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void Walk<TKey, TValue>(Dictionary<TKey, TValue> dictionary, TKey key)
         {
-            var entries = Unsafe.As<CollectionFields.MapEntry<TKey, TValue>[]>(
+            var entries = Unsafe.As<NinoDictionaryEntry<TKey, TValue>[]>(
                 ObjectFields.At<object>(dictionary, MapEntries));
             int bound = ObjectFields.At<int>(dictionary, MapBound);
             int at, left = NinoLimits.MaxHashCollisions;

@@ -24,17 +24,6 @@ namespace Nino.Core.Internal
 #pragma warning restore CS0649
         }
 
-        /// <summary>An entry of <see cref="Dictionary{TKey,TValue}"/> (hashCode, next, key, value).</summary>
-        internal struct MapEntry<TKey, TValue>
-        {
-#pragma warning disable CS0649 // read through Unsafe.As
-            public int HashCode;
-            public int Next;
-            public TKey Key;
-            public TValue Value;
-#pragma warning restore CS0649
-        }
-
         /// <summary>
         /// The raw value of a <see cref="SetEntry{T}"/> as a block (<see cref="INinoBlockFormatter{T}"/>), so that a
         /// set's entries are written by <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>: several entries at
@@ -88,23 +77,23 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The raw key and value of a <see cref="MapEntry{TKey,TValue}"/> as one block, as
+        /// The raw key and value of a <see cref="NinoDictionaryEntry{TKey,TValue}"/> as one block, as
         /// <see cref="SetEntryBlock{T}"/> for a set's entries.
         /// </summary>
-        internal struct MapEntryBlock<TKey, TValue> : INinoFormatter<MapEntry<TKey, TValue>>,
-            INinoBlockFormatter<MapEntry<TKey, TValue>>
+        internal struct MapEntryBlock<TKey, TValue> : INinoFormatter<NinoDictionaryEntry<TKey, TValue>>,
+            INinoBlockFormatter<NinoDictionaryEntry<TKey, TValue>>
         {
             public int FixedSize => Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>();
 
             public NinoBlockMap BlockMap()
             {
-                var entry = default(MapEntry<TKey, TValue>);
+                var entry = default(NinoDictionaryEntry<TKey, TValue>);
                 return new NinoBlockMap().Raw<TKey>(NinoBlocks.Offset(ref entry, ref entry.Key), 0)
                     .Raw<TValue>(NinoBlocks.Offset(ref entry, ref entry.Value), Unsafe.SizeOf<TKey>());
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void WriteFixed(in MapEntry<TKey, TValue> value, ref byte destination)
+            public void WriteFixed(in NinoDictionaryEntry<TKey, TValue> value, ref byte destination)
             {
                 NinoUnsafe.Write(ref destination, 0, value.Key);
                 NinoUnsafe.Write(ref destination, Unsafe.SizeOf<TKey>(), value.Value);
@@ -112,18 +101,18 @@ namespace Nino.Core.Internal
                 NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref destination, Unsafe.SizeOf<TKey>()));
             }
 
-            public void ReadBlock(ref MapEntry<TKey, TValue> value, ref byte source) =>
+            public void ReadBlock(ref NinoDictionaryEntry<TKey, TValue> value, ref byte source) =>
                 throw new NotSupportedException();
 
-            public void Serialize(MapEntry<TKey, TValue> value, ref Writer writer) => throw new NotSupportedException();
+            public void Serialize(NinoDictionaryEntry<TKey, TValue> value, ref Writer writer) => throw new NotSupportedException();
 
-            public void Deserialize(ref Reader reader, ref MapEntry<TKey, TValue> value) =>
+            public void Deserialize(ref Reader reader, ref NinoDictionaryEntry<TKey, TValue> value) =>
                 throw new NotSupportedException();
         }
 
         /// <summary>
         /// The entries of <paramref name="set"/> when all of its first Count are in use (none removed since), else
-        /// null. Read for element types without references only, whose entries are laid out in field order.
+        /// null. The entries' layout is the runtime's for the element type, the same as the mirror's (references included).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static SetEntry<T>[] Entries<T>(HashSet<T> set, int count) =>
@@ -131,12 +120,20 @@ namespace Nino.Core.Internal
                 ? Unsafe.As<SetEntry<T>[]>(ObjectFields.At<object>(set, CollectionViews.HashSetEntries))
                 : null;
 
-        /// <summary>As <see cref="Entries{T}(HashSet{T}, int)"/>, for a dictionary.</summary>
+        /// <summary>
+        /// As <see cref="Entries{T}(HashSet{T}, int)"/>, for a dictionary, and also null where
+        /// <see cref="CollectionViews.Dictionary"/> is not set: read in place of the enumerator, a loop over an array,
+        /// where the enumerator stays in memory and checks the version per pair. At least <paramref name="count"/> long.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static MapEntry<TKey, TValue>[] Entries<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count) =>
-            ObjectFields.At<int>(dictionary, CollectionViews.DictionaryBound) == count
-                ? Unsafe.As<MapEntry<TKey, TValue>[]>(ObjectFields.At<object>(dictionary, CollectionViews.DictionaryEntries))
-                : null;
+        public static NinoDictionaryEntry<TKey, TValue>[] Entries<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count)
+        {
+            if (!CollectionViews.Dictionary || ObjectFields.At<int>(dictionary, CollectionViews.DictionaryBound) != count)
+                return null;
+            var entries = Unsafe.As<NinoDictionaryEntry<TKey, TValue>[]>(
+                ObjectFields.At<object>(dictionary, CollectionViews.DictionaryEntries));
+            return entries != null && count <= entries.Length ? entries : null;
+        }
 
         /// <summary>
         /// The <see cref="List{T}"/> that <paramref name="collection"/> wraps (what its constructors without a list
