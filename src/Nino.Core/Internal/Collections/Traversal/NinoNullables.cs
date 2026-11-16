@@ -503,34 +503,6 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// The widest vector one element holds whole, for strides the kernels above do not take: 64 bytes where
-        /// <see cref="NinoSimd.Prefer512"/>, 32, 16; 0 for a stride under 16 bytes or no vectors.
-        /// </summary>
-        private static readonly int PieceWidth = !Vector128.IsHardwareAccelerated || Stride < 16 ? 0
-            : Stride >= 64 && NinoSimd.Prefer512 ? 64
-            : Stride >= 32 && Vector256.IsHardwareAccelerated ? 32 : 16;
-
-        /// <summary>
-        /// Whether a run of any other stride from 17 bytes (20, 28, 40, 72, ...: a <c>Guid?</c>, a struct of four
-        /// or nine words) is written by <see cref="CopyPieces"/>, an element at a time in pieces that tile it: where
-        /// no vector clears it across elements (<see cref="ClearedByVector"/>: it takes every flag
-        /// that is at most 64 bytes before its value's end).
-        /// </summary>
-        // Not strides of 17 to 31 bytes where 32-byte vectors copy (AVX2): a 16-byte vector and a word an element
-        // took what the masked copy and the pass over the flags after it take (Guid?, 1,000: 1,510 to 1,590 ns
-        // both, local, DOTNET_EnableAVX512=0); with 16-byte vectors alone the pieces took 1,667 against 2,203.
-        private static readonly bool Pieces = PieceWidth != 0 && !Lanes && !HoldsNullables && WholeBytes &&
-                                              !ClearedByVector &&
-                                              (PieceWidth >= 32 || !Vector256.IsHardwareAccelerated);
-
-        /// <summary>The pieces of one element, widest first: vectors of 64, 32 and 16 bytes, then a word of each size its last 15 bytes need.</summary>
-        private static readonly int Pieces64 = PieceWidth == 64 ? Stride / 64 : 0;
-
-        private static readonly int Pieces32 = PieceWidth >= 32 ? (Stride - 64 * Pieces64) / 32 : 0;
-
-        private static readonly int Pieces16 = (Stride - 64 * Pieces64 - 32 * Pieces32) / 16;
-
-        /// <summary>
         /// For a 24-byte stride with a shuffle within 16-byte lanes (pshufb), the indices that give each byte an element
         /// keeps its element's flag, for the three vectors of a period (<paramref name="k"/>) of
         /// <paramref name="width"/> bytes: from the vector itself (the flag in the byte's own 16-byte lane) or, with
@@ -572,104 +544,357 @@ namespace Nino.Core
             Before16_0 = Spread24(16, 0, true).GetLower(), Before16_1 = Spread24(16, 1, true).GetLower(),
             Before16_2 = Spread24(16, 2, true).GetLower();
 
-        /// <summary>The bytes one element keeps, and where its last cleared byte ends: pieces from there on keep every byte.</summary>
-        private static readonly byte[] PieceKeeps = Keeps();
-
-        private static readonly int PieceKeepEnd = Array.LastIndexOf(PieceKeeps, (byte)0) + 1;
+        /// <summary>
+        /// The vectors <see cref="CopyPieces"/> moves an element in: 64 bytes where <see cref="NinoSimd.Prefer512"/>
+        /// and the element holds one, 32 where 32-byte vectors copy (AVX2), 16 (SSE2, Arm64); 0 for a stride of 16
+        /// bytes or less, or no vectors.
+        /// </summary>
+        private static readonly int PieceWidth = !Vector128.IsHardwareAccelerated || Stride <= 16 ? 0
+            : Stride >= 64 && NinoSimd.Prefer512 ? 64
+            : Vector256.IsHardwareAccelerated ? 32 : 16;
 
         /// <summary>
-        /// Copies <paramref name="count"/> elements (one or more) as the wire holds them, each in pieces that tile
-        /// it: vectors of <see cref="PieceWidth"/> bytes and narrower ones, then a word of 8, 4, 2 and 1 bytes as
-        /// its length needs, every piece ANDed with the element's flag spread over it (0 - flag: a flag is 0 or 1
-        /// in every <c>Nullable</c> the runtime makes) and, up to the element's last padding, with the bytes it
-        /// keeps. Stores in address order, none past the element: a last vector that ended with the element,
-        /// overlapping the piece before, and the first vector stored last, took 1.7 to 1.9 times as long for a
-        /// 72-byte stride (wip/simd-coverage, local); one 64-byte store an element of 40 bytes, 24 bytes into the
-        /// next, took twice the pieces' time. Read from the source, never from the destination.
+        /// Whether a run of any other stride from 17 bytes (20, 28, 40, 72, ...: a <c>Guid?</c>, a struct of five
+        /// or nine words) is written by <see cref="CopyPieces"/>, an element at a time: where no vector clears it
+        /// across elements (<see cref="ClearedByVector"/>: it takes every flag that is at most 64 bytes before its
+        /// value's end).
         /// </summary>
-        // Fully optimized from the first call (the class is initialized by then, so its fields are constants): the
-        // loops over an element's pieces have constant counts, and on-stack replacement spilled the vectors.
+        private static readonly bool Pieces = PieceWidth != 0 && !Lanes && !HoldsNullables && WholeBytes &&
+                                              !ClearedByVector;
+
+        /// <summary>The whole vectors of <see cref="PieceWidth"/> bytes in one element, and the bytes after them.</summary>
+        private static readonly int PieceVectors = PieceWidth == 0 ? 0 : Stride / PieceWidth;
+
+        private static readonly int PieceTail = PieceWidth == 0 ? 0 : Stride % PieceWidth;
+
+        /// <summary>
+        /// Whether the bytes after an element's whole vectors are one more vector that runs at most 12 bytes into the
+        /// next element (which writes them again), not narrower pieces that end with it: one store for up to four.
+        /// Further ahead it lost (local, AVX-512 Xeon with <c>DOTNET_EnableAVX512=0</c>, 1,000 elements): 40 bytes as
+        /// two 32-byte vectors, 24 past the element, 2,430 ns against 1,810 for a vector and a word; 48 bytes as two,
+        /// 16 past, 2,520 against 2,050; 72 bytes as three, 24 past, 3,620 against 2,500.
+        /// </summary>
+        private static readonly bool PieceRunsAhead = PieceTail != 0 && PieceWidth - PieceTail <= 12;
+
+        /// <summary>
+        /// The bytes an element keeps over its whole vectors and the one after them (0xFF past the element: the
+        /// next one's bytes, which it writes again).
+        /// </summary>
+        private static readonly byte[] PieceKeeps = PieceKeepTable();
+
+        private static byte[] PieceKeepTable()
+        {
+            var bytes = new byte[Math.Max((PieceVectors + 1) * PieceWidth, Stride)];
+            bytes.AsSpan().Fill(0xFF);
+            Keeps().CopyTo(bytes, 0);
+            return bytes;
+        }
+
+        /// <summary>The bytes an element keeps from 0, 1, 2 and 3 piece widths on (64 bytes each).</summary>
+        private static readonly Vector512<byte> PieceKeep0 = PieceKeepRow(0), PieceKeep1 = PieceKeepRow(1),
+            PieceKeep2 = PieceKeepRow(2), PieceKeep3 = PieceKeepRow(3);
+
+        private static Vector512<byte> PieceKeepRow(int k)
+        {
+            var bytes = new byte[64];
+            bytes.AsSpan().Fill(0xFF);
+            if (PieceWidth != 0)
+                for (int i = 0; i < 64 && k * PieceWidth + i < Stride; i++)
+                    bytes[i] = PieceKeeps[k * PieceWidth + i];
+            return Vector512.Create(bytes);
+        }
+
+        /// <summary>Where the last byte an element clears ends: pieces from there on keep every byte.</summary>
+        private static readonly int PieceKeepEnd = Array.LastIndexOf(Keeps(), (byte)0) + 1;
+
+        /// <summary>
+        /// Copies <paramref name="count"/> elements (one or more) as the wire holds them, each in vectors of
+        /// <see cref="PieceWidth"/> bytes, then either one more that runs into the next element
+        /// (<see cref="PieceRunsAhead"/>; never the last one, so nothing is written past the run) or narrower
+        /// pieces that end with it (a vector of 32 or 16 bytes, then a word of 8, 4, 2 and 1 bytes as its length
+        /// needs). A vector is multiplied by the element's flag spread from its first byte (vpbroadcastb, pshufb,
+        /// dup; a flag is 0 or 1 in every <c>Nullable</c> the runtime makes), ANDed with the bytes it keeps up to
+        /// the last one it clears: two operations, one past it; a word is ANDed with 0 - flag. Stores in address
+        /// order, each element read from the source, never from the destination (the store before may have run into
+        /// it).
+        /// </summary>
+        // Fully optimized from the first call (the class is initialized by then, so its fields are constants). The
+        // loop before it (wip/simd-coverage's pieces, 453b953c) spread the flag from a general register, looped over
+        // an element's vectors and tested at every piece whether it kept every byte, and AVX2 left strides of 17 to
+        // 31 bytes to the masked copy and a pass over the flags. Local, 1,000 elements, ns, before / this
+        // (DOTNET_EnableAVX512=0): 20 bytes 1,170-1,330 / 830-990, 28 bytes 1,470 / 1,100, 32 bytes 1,380 / 1,230,
+        // 48 bytes 2,030-2,190 / 1,680, 72 bytes 2,520-2,630 / 2,230-2,250; DOTNET_EnableAVX2=0: 20 bytes 1,610-1,740
+        // / 740-940, 28 bytes 2,930 / 1,020, 48 bytes 3,100 / 1,730, 72 bytes 4,240 / 3,240.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         private static void CopyPieces(ref byte destination, ref byte source, int count)
         {
             ref byte keep = ref MemoryMarshal.GetArrayDataReference(PieceKeeps);
-            ref byte end = ref Unsafe.Add(ref source, (nuint)(uint)count * (nuint)Stride);
-            do
+            ref byte last = ref Unsafe.Add(ref source, (nuint)(uint)(count - 1) * (nuint)Stride);
+            while (Unsafe.IsAddressLessThan(ref source, ref last))
             {
-                ulong present = 0UL - source;
-                nuint at = 0;
-                Vector256<byte> present32 = default;
-                Vector128<byte> present16;
-                if (PieceWidth == 64)
-                {
-                    var present64 = Vector512.Create((byte)present);
-                    for (int i = 0; i < Pieces64; i++, at += 64)
-                        (at < (nuint)PieceKeepEnd
-                            ? Vector512.LoadUnsafe(ref source, at) & present64 & Vector512.LoadUnsafe(ref keep, at)
-                            : Vector512.LoadUnsafe(ref source, at) & present64).StoreUnsafe(ref destination, at);
-                    present32 = present64.GetLower();
-                }
-                else if (PieceWidth == 32)
-                {
-                    present32 = Vector256.Create((byte)present);
-                }
-
-                if (PieceWidth >= 32)
-                {
-                    for (int i = 0; i < Pieces32; i++, at += 32)
-                        (at < (nuint)PieceKeepEnd
-                            ? Vector256.LoadUnsafe(ref source, at) & present32 & Vector256.LoadUnsafe(ref keep, at)
-                            : Vector256.LoadUnsafe(ref source, at) & present32).StoreUnsafe(ref destination, at);
-                    present16 = present32.GetLower();
-                }
-                else
-                {
-                    present16 = Vector128.Create((byte)present);
-                }
-
-                for (int i = 0; i < Pieces16; i++, at += 16)
-                    (at < (nuint)PieceKeepEnd
-                        ? Vector128.LoadUnsafe(ref source, at) & present16 & Vector128.LoadUnsafe(ref keep, at)
-                        : Vector128.LoadUnsafe(ref source, at) & present16).StoreUnsafe(ref destination, at);
-
-                if ((Stride & 8) != 0)
-                {
-                    ulong word = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, at)) & present;
-                    if (at < (nuint)PieceKeepEnd)
-                        word &= Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref keep, at));
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), word);
-                    at += 8;
-                }
-
-                if ((Stride & 4) != 0)
-                {
-                    uint word = Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref source, at)) & (uint)present;
-                    if (at < (nuint)PieceKeepEnd)
-                        word &= Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref keep, at));
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), word);
-                    at += 4;
-                }
-
-                if ((Stride & 2) != 0)
-                {
-                    ushort word = (ushort)(Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref source, at)) & (uint)present);
-                    if (at < (nuint)PieceKeepEnd)
-                        word &= Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref keep, at));
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), word);
-                    at += 2;
-                }
-
-                if ((Stride & 1) != 0)
-                {
-                    byte last = (byte)(Unsafe.Add(ref source, at) & (uint)present);
-                    if (at < (nuint)PieceKeepEnd)
-                        last &= Unsafe.Add(ref keep, at);
-                    Unsafe.Add(ref destination, at) = last;
-                }
-
+                Piece(ref destination, ref source, ref keep, PieceRunsAhead);
                 source = ref Unsafe.Add(ref source, Stride);
                 destination = ref Unsafe.Add(ref destination, Stride);
-            } while (Unsafe.IsAddressLessThan(ref source, ref end));
+            }
+
+            Piece(ref destination, ref source, ref keep, false);
+        }
+
+        /// <summary>
+        /// One element of <see cref="CopyPieces"/>, its last vector running ahead when <paramref name="ahead"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Piece(ref byte destination, ref byte source, ref byte keep, bool ahead)
+        {
+            var head = PieceVectors == 0 ? Vector128.LoadUnsafe(ref source) : default;
+            Vector256<byte> present32 = default;
+            Vector128<byte> present16;
+            if (PieceWidth == 64)
+            {
+                var present64 = Whole512(ref destination, ref source, ref keep, head, ahead);
+                if (ahead)
+                    return;
+                present32 = present64.GetLower();
+                present16 = present32.GetLower();
+            }
+            else if (PieceWidth == 32)
+            {
+                present32 = Whole256(ref destination, ref source, ref keep, head, ahead);
+                if (ahead)
+                    return;
+                present16 = present32.GetLower();
+            }
+            else
+            {
+                present16 = Whole128(ref destination, ref source, ref keep, head, ahead);
+                if (ahead)
+                    return;
+            }
+
+            nuint at = (nuint)(PieceWidth * PieceVectors);
+            if (PieceWidth == 64 && (PieceTail & 32) != 0)
+            {
+                Kept256(Vector256.LoadUnsafe(ref source, at), present32 & Vector256.LoadUnsafe(ref keep, at))
+                    .StoreUnsafe(ref destination, at);
+                at += 32;
+            }
+
+            if (PieceWidth >= 32 && (PieceTail & 16) != 0)
+            {
+                Kept128(Vector128.LoadUnsafe(ref source, at), present16 & Vector128.LoadUnsafe(ref keep, at))
+                    .StoreUnsafe(ref destination, at);
+                at += 16;
+            }
+
+            ulong present = 0UL - source;
+            if ((Stride & 8) != 0)
+            {
+                ulong word = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, at)) & present;
+                word &= Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref keep, at));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), word);
+                at += 8;
+            }
+
+            if ((Stride & 4) != 0)
+            {
+                uint word = Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref source, at)) & (uint)present;
+                word &= Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref keep, at));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), word);
+                at += 4;
+            }
+
+            if ((Stride & 2) != 0)
+            {
+                uint word = Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref source, at)) & (uint)present;
+                word &= Unsafe.ReadUnaligned<ushort>(ref Unsafe.Add(ref keep, at));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, at), (ushort)word);
+                at += 2;
+            }
+
+            if ((Stride & 1) != 0)
+                Unsafe.Add(ref destination, at) =
+                    (byte)(Unsafe.Add(ref source, at) & (uint)present & Unsafe.Add(ref keep, at));
+        }
+
+        /// <summary>
+        /// The element's whole vectors of 64 bytes, and the one after them when <paramref name="ahead"/>, up to four
+        /// loaded before any is stored, each multiplied by the element's flag spread over it (from the first one
+        /// when there is one, else from <paramref name="head"/>), ANDed up to the last byte the element clears with
+        /// the bytes it keeps; returns the flag spread.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector512<byte> Whole512(ref byte destination, ref byte source, ref byte keep,
+            Vector128<byte> head, bool ahead)
+        {
+            int n = PieceVectors + (ahead ? 1 : 0);
+            Vector512<byte> a = default, b = default, c = default, d = default;
+            if (n > 0)
+            {
+                a = Vector512.LoadUnsafe(ref source);
+                head = a.GetLower().GetLower();
+            }
+
+            var present = Spread512(head);
+            if (n > 1)
+                b = Vector512.LoadUnsafe(ref source, 64);
+            if (n > 2)
+                c = Vector512.LoadUnsafe(ref source, 128);
+            if (n > 3)
+                d = Vector512.LoadUnsafe(ref source, 192);
+            if (n > 0)
+                (PieceKeepEnd > 0 ? Kept512(a, present & PieceKeep0) : Kept512(a, present))
+                    .StoreUnsafe(ref destination);
+            if (n > 1)
+                (PieceKeepEnd > 64 ? Kept512(b, present & PieceKeep1) : Kept512(b, present))
+                    .StoreUnsafe(ref destination, 64);
+            if (n > 2)
+                (PieceKeepEnd > 128 ? Kept512(c, present & PieceKeep2) : Kept512(c, present))
+                    .StoreUnsafe(ref destination, 128);
+            if (n > 3)
+                (PieceKeepEnd > 192 ? Kept512(d, present & PieceKeep3) : Kept512(d, present))
+                    .StoreUnsafe(ref destination, 192);
+            for (nuint at = 256; at < (nuint)(64 * n); at += 64)
+                Kept512(Vector512.LoadUnsafe(ref source, at), present & Vector512.LoadUnsafe(ref keep, at))
+                    .StoreUnsafe(ref destination, at);
+            return present;
+        }
+
+        /// <summary>
+        /// The element's whole vectors of 32 bytes, and the one after them when <paramref name="ahead"/>, up to four
+        /// loaded before any is stored, each multiplied by the element's flag spread over it (from the first one
+        /// when there is one, else from <paramref name="head"/>), ANDed up to the last byte the element clears with
+        /// the bytes it keeps; returns the flag spread.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Whole256(ref byte destination, ref byte source, ref byte keep,
+            Vector128<byte> head, bool ahead)
+        {
+            int n = PieceVectors + (ahead ? 1 : 0);
+            Vector256<byte> a = default, b = default, c = default, d = default;
+            if (n > 0)
+            {
+                a = Vector256.LoadUnsafe(ref source);
+                head = a.GetLower();
+            }
+
+            var present = Spread256(head);
+            if (n > 1)
+                b = Vector256.LoadUnsafe(ref source, 32);
+            if (n > 2)
+                c = Vector256.LoadUnsafe(ref source, 64);
+            if (n > 3)
+                d = Vector256.LoadUnsafe(ref source, 96);
+            if (n > 0)
+                (PieceKeepEnd > 0 ? Kept256(a, present & PieceKeep0.GetLower()) : Kept256(a, present))
+                    .StoreUnsafe(ref destination);
+            if (n > 1)
+                (PieceKeepEnd > 32 ? Kept256(b, present & PieceKeep1.GetLower()) : Kept256(b, present))
+                    .StoreUnsafe(ref destination, 32);
+            if (n > 2)
+                (PieceKeepEnd > 64 ? Kept256(c, present & PieceKeep2.GetLower()) : Kept256(c, present))
+                    .StoreUnsafe(ref destination, 64);
+            if (n > 3)
+                (PieceKeepEnd > 96 ? Kept256(d, present & PieceKeep3.GetLower()) : Kept256(d, present))
+                    .StoreUnsafe(ref destination, 96);
+            for (nuint at = 128; at < (nuint)(32 * n); at += 32)
+                Kept256(Vector256.LoadUnsafe(ref source, at), present & Vector256.LoadUnsafe(ref keep, at))
+                    .StoreUnsafe(ref destination, at);
+            return present;
+        }
+
+        /// <summary>
+        /// The element's whole vectors of 16 bytes, and the one after them when <paramref name="ahead"/>, up to four
+        /// loaded before any is stored, each multiplied by the element's flag spread over it (from the first one
+        /// when there is one, else from <paramref name="head"/>), ANDed up to the last byte the element clears with
+        /// the bytes it keeps; returns the flag spread.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Whole128(ref byte destination, ref byte source, ref byte keep,
+            Vector128<byte> head, bool ahead)
+        {
+            int n = PieceVectors + (ahead ? 1 : 0);
+            Vector128<byte> a = default, b = default, c = default, d = default;
+            if (n > 0)
+            {
+                a = Vector128.LoadUnsafe(ref source);
+                head = a;
+            }
+
+            var present = Spread128(head);
+            if (n > 1)
+                b = Vector128.LoadUnsafe(ref source, 16);
+            if (n > 2)
+                c = Vector128.LoadUnsafe(ref source, 32);
+            if (n > 3)
+                d = Vector128.LoadUnsafe(ref source, 48);
+            if (n > 0)
+                (PieceKeepEnd > 0 ? Kept128(a, present & PieceKeep0.GetLower().GetLower()) : Kept128(a, present))
+                    .StoreUnsafe(ref destination);
+            if (n > 1)
+                (PieceKeepEnd > 16 ? Kept128(b, present & PieceKeep1.GetLower().GetLower()) : Kept128(b, present))
+                    .StoreUnsafe(ref destination, 16);
+            if (n > 2)
+                (PieceKeepEnd > 32 ? Kept128(c, present & PieceKeep2.GetLower().GetLower()) : Kept128(c, present))
+                    .StoreUnsafe(ref destination, 32);
+            if (n > 3)
+                (PieceKeepEnd > 48 ? Kept128(d, present & PieceKeep3.GetLower().GetLower()) : Kept128(d, present))
+                    .StoreUnsafe(ref destination, 48);
+            for (nuint at = 64; at < (nuint)(16 * n); at += 16)
+                Kept128(Vector128.LoadUnsafe(ref source, at), present & Vector128.LoadUnsafe(ref keep, at))
+                    .StoreUnsafe(ref destination, at);
+            return present;
+        }
+
+        /// <summary>
+        /// <paramref name="value"/>'s bytes kept where <paramref name="by"/>'s are 1, zero where they are 0: a
+        /// multiplication (GFNI), else ANDed with 0 - by.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector512<byte> Kept512(Vector512<byte> value, Vector512<byte> by)
+        {
+#if NET10_0_OR_GREATER
+            if (Gfni.V512.IsSupported)
+                return Gfni.V512.GaloisFieldMultiply(value, by);
+#endif
+            return value & (Vector512<byte>.Zero - by);
+        }
+
+        /// <summary><see cref="Kept512"/> for 32 bytes: vgf2p8mulb, else vpsignb.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Kept256(Vector256<byte> value, Vector256<byte> by) => Times(value, by);
+
+        /// <summary><see cref="Kept512"/> for 16 bytes: mul (Arm64), gf2p8mulb or psignb, else an AND.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Kept128(Vector128<byte> value, Vector128<byte> by)
+        {
+            if (AdvSimd.Arm64.IsSupported)
+                return AdvSimd.Multiply(value, by);
+            if (Ssse3.IsSupported)
+                return Times(value, by);
+            return value & (Vector128<byte>.Zero - by);
+        }
+
+        /// <summary>The first byte of <paramref name="head"/> in each of 64 bytes: vpbroadcastb.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector512<byte> Spread512(Vector128<byte> head) =>
+            Avx512BW.IsSupported ? Avx512BW.BroadcastScalarToVector512(head) : default;
+
+        /// <summary>The first byte of <paramref name="head"/> in each of 32 bytes: vpbroadcastb.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Spread256(Vector128<byte> head) =>
+            Avx2.IsSupported ? Avx2.BroadcastScalarToVector256(head) : default;
+
+        /// <summary>The first byte of <paramref name="head"/> in each of 16 bytes: dup, vpbroadcastb, pshufb.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Spread128(Vector128<byte> head)
+        {
+            if (AdvSimd.Arm64.IsSupported)
+                return AdvSimd.DuplicateSelectedScalarToVector128(head, 0);
+            if (Avx2.IsSupported)
+                return Avx2.BroadcastScalarToVector128(head);
+            if (Ssse3.IsSupported)
+                return Ssse3.Shuffle(head, Vector128<byte>.Zero);
+            return Vector128.Create(head.ToScalar());
         }
 
         /// <summary>
