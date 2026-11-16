@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://nino.xgamedev.net
+    about: Guides, the wire format and answers to common questions.
+  - name: Security vulnerability
+    url: https://github.com/JasonXuDeveloper/Nino/security/advisories/new
+    about: Report a vulnerability privately, as .github/SECURITY.md describes, never in a public issue.

@@ -90,15 +90,28 @@ Branch from `main`, keep a pull request to one change, add tests for behavior ch
 `docs/`, the public skill `skills/nino-serialization`, and the website,
 [JasonXuDeveloper/Nino.Docs](https://github.com/JasonXuDeveloper/Nino.Docs)) when users see the change. A change to the binary format must update the golden bytes tests on purpose.
 
+## Issues
+
+The issue forms (`.github/ISSUE_TEMPLATE`) set the kind label and the issue type; `triage.yml` then adds the area
+labels picked in the form and the milestone the latest release tag gives, and asks Claude Haiku once (through
+Workload Identity Federation, no stored key) for the kind, areas, a likely duplicate or parent issue and a suggested
+split. It never closes, edits or creates an issue. Its rule and checks are tested by
+`python3 -m unittest discover -s .github/scripts/triage`; `--dry-run` prints what it would do to an issue without
+applying anything or calling the model:
+
+```bash
+GITHUB_TOKEN=$(gh auth token) python3 .github/scripts/triage/triage.py --issue 251 --dry-run
+```
+
 ## Releasing (maintainers)
 
 Actions → **Release** → Run workflow on `main`, and enter the version (`4.0.0`, or `4.1.0-beta.1` with
 `alpha`/`beta`/`rc`). The workflow bumps the version of every package (`.github/scripts/bump_version.py`:
-`Directory.Build.props`, the Unity `package.json`, the Rust crates, the npm package), builds and tests it, commits
-the Unity DLLs with the bump, tags it (`vX.Y.Z`, and `runtimes/go/vX.Y.Z` for the Go module), publishes the NuGet
-packages, the crates `nino-serialization-derive` and `nino-serialization` and the npm package `nino-serialization`
-(all through Trusted Publishing, no stored key; an npm pre-release under the dist-tag `next`) and creates the GitHub
-release with generated notes. Pre-releases also get the `vX.Y.Z-preview.N` tag OpenUPM reads. If a step fails after
+`Directory.Build.props`, the Unity `package.json`, the Rust crates, the npm package) once CI has passed on `main` (it
+runs no tests of its own), builds and packs it, commits the Unity DLLs with the bump, tags it (`vX.Y.Z`, and
+`runtimes/go/vX.Y.Z` for the Go module), publishes the NuGet packages, the crates `nino-serialization-derive` and
+`nino-serialization` and the npm package `nino-serialization` (all through Trusted Publishing, no stored key; an npm
+pre-release under the dist-tag `next`) and creates the GitHub release with generated notes. Pre-releases also get the `vX.Y.Z-preview.N` tag OpenUPM reads. If a step fails after
 tagging, fix the cause and re-run the failed job: each publish skips what its registry already has.
 
 Trusted Publishing is configured on a package that exists, so the first release that carries the crates and the

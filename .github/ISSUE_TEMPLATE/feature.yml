@@ -1,0 +1,46 @@
+# Each option of the Area dropdown is an "area: <option>" label; .github/scripts/triage/triage.py applies it and reads
+# the Breaking change checkbox to choose the milestone.
+name: Feature request
+description: A new capability, type, setting or platform.
+type: Feature
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do and what stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What you would like Nino to do, with an example of the code you would write.
+    validations:
+      required: true
+  - type: checkboxes
+    id: breaking
+    attributes:
+      label: Breaking change
+      options:
+        - label: This would change the public API or the bytes Nino writes in a way existing users must adapt to
+          required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Nino is this about? Pick every one that applies, or leave it empty if unsure.
+      multiple: true
+      options:
+        - core
+        - generator
+        - analyzer
+        - codegen
+        - unity
+        - go
+        - rust
+        - typescript
+        - docs
+        - benchmarks
+        - dotnet-11
