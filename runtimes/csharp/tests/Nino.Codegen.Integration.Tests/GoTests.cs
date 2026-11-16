@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Tests;
 using Samples;
@@ -67,6 +68,7 @@ func main() {
                 Assert.AreEqual(0, Program.Run(new[]
                 {
                     "--assembly", typeof(Player).Assembly.Location, "--lang", "go", "--package", "samples",
+                    "--roots", GenericSamples.RootsOption,
                     "--out", Path.Combine(dir, "samples"),
                 }, log), log.ToString());
                 string runtime = RepositoryFiles.Of("runtimes", "go");
@@ -75,6 +77,7 @@ func main() {
                     "replace github.com/JasonXuDeveloper/Nino/runtimes/go/v4 => " + runtime.Replace('\\', '/') + "\n");
                 File.WriteAllText(Path.Combine(dir, "main.go"), Harness);
                 var cases = GenericSamples.Cases(ordered: true);
+                cases.AddRange(GenericSamples.RootCases().Select(c => (c.Type, c.Bytes)));
                 GenericSamples.WriteCases(Path.Combine(dir, "cases.txt"), cases);
 
                 var vet = GenericSamples.Run(dir, "go", "vet", "./...");

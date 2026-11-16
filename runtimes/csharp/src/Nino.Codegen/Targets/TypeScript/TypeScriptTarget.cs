@@ -82,6 +82,8 @@ namespace Nino.Codegen.Targets
             // Every member shaped, so every codec the module and the generic codecs build is known.
             foreach (var c in classes.Concat(generics))
                 _ = c.Derived;
+            // The roots, shaped before the slots and closed types they meet are named.
+            var roots = ShapeRoots(r => Shape(r.Value)).Select(r => new TsRoot(r.Root, r.Shape)).ToList();
             foreach (var slot in _slotClosed)
                 slot.Shape = ClosedShape(slot.Closed);
             // The slots' closed types are named; a slot's own codec is shaped once all are.
@@ -105,6 +107,7 @@ namespace Nino.Codegen.Targets
             renderer.Set("classes", classes);
             renderer.Set("registered", registered);
             renderer.Set("codecs", codecs);
+            renderer.Set("roots", roots);
             renderer.Set("generics", generics);
             renderer.Set("closed", _closed);
             renderer.Set("slot_closed", _slotClosed);

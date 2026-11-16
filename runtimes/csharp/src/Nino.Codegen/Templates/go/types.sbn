@@ -931,6 +931,15 @@ if uses_elements
   "\n// ninoNonNil writes nil elements as an empty collection.\nfunc ninoNonNil[T any](v []T) []T {\n\tif v == nil {\n\t\treturn []T{}\n\t}\n\treturn v\n}\n"
 end
 
+# The top-level values of --roots: a payload of a type with no layout of its own (a collection, a nullable).
+for $r in roots
+  $t = gotype($r.shape)
+  "\n// Read" + $r.name + " reads `" + $r.runtime_name + "` as a whole payload (--roots): nino.Deserialize(data, Read" + $r.name + ").\n"
+  "func Read" + $r.name + "(r *nino.Reader) " + $t + " {\n\treturn " + read($r.shape) + "\n}\n"
+  "\n// Write" + $r.name + " writes `" + $r.runtime_name + "` as a whole payload: nino.Serialize(v, Write" + $r.name + ").\n"
+  "func Write" + $r.name + "(w *nino.Writer, v " + $t + ") {\n\t" + write($r.shape, "v") + "\n}\n"
+end
+
 # The functions shared by values of one shape.
 $i = 0
 while $i < helper_count()
@@ -1071,6 +1080,10 @@ for c in types
     $f = c.is_abstract ? c.slot_functions : c.name
     "\t\treturn codecOf(Read" + $f + ", Read" + $f + "Into, Write" + $f + "), true\n"
   end
+end
+for $r in roots
+  "\tcase " + go_string($r.runtime_name) + ":\n"
+  "\t\treturn codecOf(Read" + $r.name + ", func(r *nino.Reader, p *" + gotype($r.shape) + ") { *p = Read" + $r.name + "(r) }, Write" + $r.name + "), true\n"
 end
 ~}}
 	}

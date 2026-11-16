@@ -724,6 +724,12 @@ if slot_closed.size != 0
   "\n"
 end
 
+# The top-level values of --roots: a payload of a type with no layout of its own (a collection, a nullable).
+for $r in roots
+  "/** `" + $r.runtime_name + "` as a whole payload (--roots): `deserialize(" + $r.name + "Codec, data)`. */\n"
+  "export const " + $r.name + "Codec: NinoCodec<" + ts($r.shape) + "> = {\n  read: (r) => " + read($r.shape) + ",\n  write: (w, v) => {\n    " + stmt(write($r.shape, "v")) + "\n  },\n" + (read_into($r.shape, "v") == read($r.shape) ? "" : "  readInto: (r, v) => " + read_into($r.shape, "v") + ",\n") + "};\n\n"
+end
+
 # The functions shared by values of one shape, in the order the code above first used them.
 $i = 0
 while $i < helper_count()

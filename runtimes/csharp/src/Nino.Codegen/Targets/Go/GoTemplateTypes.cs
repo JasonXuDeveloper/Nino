@@ -7,6 +7,24 @@ using Nino.Core.Internal;
 
 namespace Nino.Codegen.Targets
 {
+    /// <summary>A top-level value (<c>--roots</c>): its Read and Write functions.</summary>
+    public sealed class GoRoot
+    {
+        internal GoRoot(RootModel root, GoShape shape)
+        {
+            Name = root.Name;
+            RuntimeName = root.RuntimeName;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        /// <summary>The runtime-form name of its .NET type.</summary>
+        public string RuntimeName { get; }
+
+        public GoShape Shape { get; }
+    }
+
     /// <summary>
     /// The codec of a generic definition (<c>boxCodec[T]</c>): the codecs of its parameters (<c>p0</c>...), and those it
     /// builds once from them for the values holding them (<c>d0</c>...), in the order they are built.

@@ -107,6 +107,24 @@ namespace Nino.Codegen.Targets
         public string? Subclass { get; internal set; }
     }
 
+    /// <summary>A top-level value (<c>--roots</c>): its XCodec.</summary>
+    public sealed class TsRoot
+    {
+        internal TsRoot(RootModel root, TsShape shape)
+        {
+            Name = root.Name;
+            RuntimeName = root.RuntimeName;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        /// <summary>The runtime-form name of its .NET type.</summary>
+        public string RuntimeName { get; }
+
+        public TsShape Shape { get; }
+    }
+
     /// <summary>
     /// A closed generic type in a polymorphic slot: a subclass (<c>BoxInt32 extends Box&lt;number&gt;</c>) whose
     /// constructor the writers switch on, and its codecs (<c>closed$0</c>) built in the module, read and written behind

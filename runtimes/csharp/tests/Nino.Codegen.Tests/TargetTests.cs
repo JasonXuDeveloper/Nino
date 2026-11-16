@@ -104,6 +104,47 @@ namespace Nino.Codegen.Tests
             }
         }
 
+        private const string Roots =
+            "Ints=System.Collections.Generic.List<System.Int32>;Things=System.Collections.Generic.Dictionary<System.String,Shapes.ThingClass>;MaybeLong=System.Nullable<System.Int64>";
+
+        /// <summary>--roots names whole payloads of types with no layout of their own, in every language.</summary>
+        [TestMethod]
+        public void EveryTargetWritesRoots()
+        {
+            var (ts, _) = Run("ts", "Nino.Codegen.Tests.ts", "--roots", Roots);
+            StringAssert.Contains(ts, "export const IntsCodec: NinoCodec<number[] | null> = {");
+            StringAssert.Contains(ts, "export const ThingsCodec: NinoCodec<Map<string | null, ThingClass | null> | null> = {");
+            StringAssert.Contains(ts, "export const MaybeLongCodec: NinoCodec<bigint | null> = {");
+
+            var (go, _) = Run("go", "nino_types.go", "--roots", Roots);
+            StringAssert.Contains(go, "func ReadInts(r *nino.Reader) []int32 {");
+            StringAssert.Contains(go, "func WriteMaybeLong(w *nino.Writer, v *int64) {");
+            StringAssert.Contains(go, "case \"System.Collections.Generic.List<System.Int32>\":\n\t\treturn codecOf(ReadInts, ");
+
+            var (rust, _) = Run("rust", "nino_types.rs", "--roots", Roots);
+            StringAssert.Contains(rust, "pub type Ints = Option<Vec<i32>>;");
+            StringAssert.Contains(rust, "pub type MaybeLong = Option<i64>;");
+            StringAssert.Contains(rust, "\"System.Collections.Generic.List<System.Int32>\" => f.visit::<Ints>(),");
+
+            var (none, _) = Run("go", "nino_types.go");
+            Assert.IsFalse(none.Contains("ReadInts", StringComparison.Ordinal));
+        }
+
+        [TestMethod]
+        public void RootsRejectBadRequests()
+        {
+            foreach (var roots in new[]
+            {
+                "ints=System.Int32[]x",                                   // an unknown type
+                "1x=System.Int32[]",                                      // not an identifier
+                "A=System.Int32[];A=System.Int64[]",                      // a name twice
+                "A",                                                      // no type
+                "A=Shapes.ThingClass",                                    // a [NinoType]: it has its codec
+                "ThingClass=System.Int32[]",                              // a generated name
+            })
+                Assert.ThrowsExactly<ArgumentException>(() => Run("rust", "nino_types.rs", "--roots", roots), roots);
+        }
+
         [TestMethod]
         public void RustPutsStructsBehindTheirIdInSlots()
         {

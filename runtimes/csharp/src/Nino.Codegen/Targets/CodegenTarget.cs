@@ -37,6 +37,52 @@ namespace Nino.Codegen.Targets
 
         public List<string> Warnings { get; } = new();
 
+        /// <summary>The top-level values to write codecs of (<c>--roots</c>: name and type), resolved by <see cref="ResolveRoots"/>.</summary>
+        public IReadOnlyList<KeyValuePair<string, string>> RootRequests { get; set; } =
+            Array.Empty<KeyValuePair<string, string>>();
+
+        /// <summary>
+        /// The roots requested (<see cref="RootRequests"/>) as the model sees them. Throws an
+        /// <see cref="ArgumentException"/> for a type the assembly and its references do not have, or one Nino.Core
+        /// has no formatter nino-gen knows for, since the command line asked for it by name.
+        /// </summary>
+        private protected List<RootModel> ResolveRoots() => RootRequests.Select(r =>
+        {
+            var type = _model.ResolveType(r.Value) ?? throw new ArgumentException(
+                $"--roots: {r.Key}={r.Value}: no such type in the assembly or the assemblies it references " +
+                "(write its runtime-form name: System.Int32[], System.Collections.Generic.List<Namespace.Item>).");
+            if (_model.Types.Any(t => t.Clr == type))
+                throw new ArgumentException(
+                    $"--roots: {r.Key}={r.Value}: a [NinoType], which has its codec already.");
+            var value = _model.RootValue(type) ?? throw new ArgumentException(
+                $"--roots: {r.Key}={r.Value}: Nino has no formatter nino-gen knows for it.");
+            return new RootModel(r.Key, type, value);
+        }).ToList();
+
+        /// <summary>
+        /// Shapes each root with <paramref name="shape"/>, leaving out with a warning one the language cannot express;
+        /// after <see cref="ResolveTypes"/>, whose names a root's may not take.
+        /// </summary>
+        private protected List<(RootModel Root, TShape Shape)> ShapeRoots<TShape>(Func<RootModel, TShape> shape)
+        {
+            var shaped = new List<(RootModel, TShape)>();
+            foreach (var root in ResolveRoots())
+            {
+                if (Names.Contains(root.Name, StringComparer.Ordinal) || Reserved(root.Name))
+                    throw new ArgumentException($"--roots: {root.Name} is the name of a generated type; choose another.");
+                try
+                {
+                    shaped.Add((root, shape(root)));
+                }
+                catch (UnsupportedException e)
+                {
+                    Warnings.Add($"root {root.Name} ({root.RuntimeName}) is not written to {Language}: {e.Message}.");
+                }
+            }
+
+            return shaped;
+        }
+
         /// <summary>The language, as the warnings name it.</summary>
         protected abstract string Language { get; }
 

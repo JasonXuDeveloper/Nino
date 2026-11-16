@@ -55,6 +55,9 @@ namespace Nino.Codegen.Targets
                 _ = c.Markers;
             }
 
+            // The roots, shaped before the helpers, raw structs, enums and slots they meet are listed.
+            var roots = ShapeRoots(r => Shape(r.Value, false)).Select(r => new GoRoot(r.Root, r.Shape)).ToList();
+
             // Those a slot can hold: an object slot any, a typed slot those assignable to its type, a slot of a closed
             // generic type those assignable to it (shaping one may add slots its codec needs: until none is added).
             var added = new HashSet<ClosedTypeModel>();
@@ -95,6 +98,7 @@ namespace Nino.Codegen.Targets
             renderer.Set("raw_structs", _rawStructs.OrderBy(Name, StringComparer.Ordinal)
                 .Select(s => new GoRawStruct(this, s)).ToList());
             renderer.Set("types", classes.OrderBy(c => c.Name, StringComparer.Ordinal).ToList());
+            renderer.Set("roots", roots);
             renderer.Set("named", _namedCollections.OrderBy(n => n.Name, StringComparer.Ordinal).ToList());
             renderer.Set("tuples", _tuples.OrderBy(n => n).ToList());
             renderer.Set("uses_object", _usesObject);

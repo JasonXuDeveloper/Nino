@@ -42,6 +42,9 @@ namespace Nino.Codegen.Targets
                 _ = t.ElementsMember;
             }
 
+            // The roots, shaped before the raw structs, enums and slots they meet are listed.
+            var roots = ShapeRoots(r => Shape(r.Value, false)).Select(r => new RustRoot(r.Root, r.Shape)).ToList();
+
             // The slots of closed generic types: shaping their closed types may name more (until none is added).
             for (int count = -1; count != _slotNames.Count;)
             {
@@ -73,6 +76,7 @@ namespace Nino.Codegen.Targets
             renderer.Set("types", all.Where(t => !t.Model.Raw && t.Model.IsConcrete)
                 .OrderBy(t => t.Name, StringComparer.Ordinal).ToList());
             renderer.Set("refs", refs.OrderBy(r => r.Name, StringComparer.Ordinal).ToList());
+            renderer.Set("roots", roots);
             renderer.Set("named", _namedCollections.OrderBy(n => n.Name, StringComparer.Ordinal).ToList());
             renderer.Set("tops", all.Where(t => !t.Model.IsGenericDefinition)
                 .OrderBy(t => t.RuntimeName, StringComparer.Ordinal).ToList());
