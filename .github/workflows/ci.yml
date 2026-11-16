@@ -273,10 +273,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # .NET 11 too: the conformance corpus and nino-gen's tests build for net11.0 with it (C# 15 unions), and the
+      # solution builds with it (global.json rolls forward).
       - name: Setup .NET
         uses: ./.github/actions/setup-dotnet
         with:
           net8: true
+          net11: true
 
       # Nino.Codegen in builds: Node runs the generated TypeScript (type stripping, Node 22.18+) and tsc checks it;
       # scratch projects build with build/Nino.Codegen.targets for TypeScript, Go and Rust, and the old
