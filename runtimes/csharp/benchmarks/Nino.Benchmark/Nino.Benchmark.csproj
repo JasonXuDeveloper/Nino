@@ -70,7 +70,7 @@
         <Compile Remove="**/*.cs"/>
         <Compile Include="Program.cs;Harness/Verify.cs;Harness/PayloadColumn.cs;Harness/NinoJobAttribute.cs;Harness/BenchCase.cs;V3/*.cs"/>
         <!-- The classes whose cases BenchGen writes: the same file for both builds, the v3 part under NINO_BENCH_V3. -->
-        <Compile Include="Cases/Scenarios/SimpleTest*.cs;Cases/Graphs/PolymorphicTest*.cs;Workloads/WorkloadTest*.cs;Cases/Collections/CollectionsTest*.cs;Cases/Collections/CommonTypesTest*.cs;Cases/Collections/FixedSizeTest*.cs;Cases/Collections/BclTypesTest*.cs;Cases/Scenarios/NullableTest*.cs;Cases/Graphs/GenericPolymorphicTest*.cs;Cases/Scenarios/VersionTolerantTest*.cs"/>
+        <Compile Include="Cases/Scenarios/SimpleTest*.cs;Cases/Graphs/PolymorphicTest*.cs;Workloads/WorkloadTest*.cs;Cases/Collections/CollectionsTest*.cs;Cases/Collections/CommonTypesTest*.cs;Cases/Collections/FixedSizeTest*.cs;Cases/Collections/BclTypesTest*.cs;Cases/Scenarios/NullableTest*.cs;Cases/Graphs/GenericPolymorphicTest*.cs;Cases/Scenarios/VersionTolerantTest*.cs;Cases/Scenarios/AppDataTest*.cs;Cases/Collections/StringsTest*.cs;Cases/Collections/RawArraysTest*.cs"/>
         <!-- The data and models every class shares with v4, but protobuf's and JSON's (CaseFormats.cs,
              ProtobufModel.cs: the v3 run times Nino and MemoryPack) and TolerantClass.cs (built by V3/Versioned). -->
         <Compile Include="Fixtures/*.cs" Exclude="Fixtures/CaseFormats.cs;Fixtures/ProtobufModel.cs;Fixtures/TolerantClass.cs"/>

@@ -94,6 +94,16 @@ partial class CollectionsTest
     private static readonly byte[] MessagePackHashSetBytes;
     private static readonly byte[] ProtobufHashSetBytes;
     private static readonly byte[] LuminPackHashSetBytes;
+    private static readonly byte[] NinoRandomIntSetBytes;
+    private static readonly byte[] MemoryPackRandomIntSetBytes;
+    private static readonly byte[] MessagePackRandomIntSetBytes;
+    private static readonly byte[] ProtobufRandomIntSetBytes;
+    private static readonly byte[] LuminPackRandomIntSetBytes;
+    private static readonly byte[] NinoStringSetBytes;
+    private static readonly byte[] MemoryPackStringSetBytes;
+    private static readonly byte[] MessagePackStringSetBytes;
+    private static readonly byte[] ProtobufStringSetBytes;
+    private static readonly byte[] LuminPackStringSetBytes;
     private static readonly byte[] NinoIntDictionaryBytes;
     private static readonly byte[] MemoryPackIntDictionaryBytes;
     private static readonly byte[] MessagePackIntDictionaryBytes;
@@ -250,6 +260,18 @@ partial class CollectionsTest
         ProtobufHashSetBytes = ProtobufModel.Serialize(HashSet);
         LuminPackHashSetBytes = LuminPackBuffers.Bytes(HashSet, (v, w) => LuminPackSerializer.Serialize(v, w));
 
+        NinoRandomIntSetBytes = NinoSerializer.Serialize(RandomIntSet);
+        MemoryPackRandomIntSetBytes = MemoryPackSerializer.Serialize(RandomIntSet);
+        MessagePackRandomIntSetBytes = MessagePackSerializer.Serialize(RandomIntSet);
+        ProtobufRandomIntSetBytes = ProtobufModel.Serialize(RandomIntSet);
+        LuminPackRandomIntSetBytes = LuminPackBuffers.Bytes(RandomIntSet, (v, w) => LuminPackSerializer.Serialize(v, w));
+
+        NinoStringSetBytes = NinoSerializer.Serialize(StringSet);
+        MemoryPackStringSetBytes = MemoryPackSerializer.Serialize(StringSet);
+        MessagePackStringSetBytes = MessagePackSerializer.Serialize(StringSet);
+        ProtobufStringSetBytes = ProtobufModel.Serialize(StringSet);
+        LuminPackStringSetBytes = LuminPackBuffers.Bytes(StringSet, (v, w) => LuminPackSerializer.Serialize(v, w));
+
         NinoIntDictionaryBytes = NinoSerializer.Serialize(IntDictionary);
         MemoryPackIntDictionaryBytes = MemoryPackSerializer.Serialize(IntDictionary);
         MessagePackIntDictionaryBytes = MessagePackSerializer.Serialize(IntDictionary);
@@ -364,6 +386,8 @@ partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTupleList), NinoTupleListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeKeyValuePairs), NinoKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeHashSet), NinoHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeRandomIntSet), NinoRandomIntSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringSet), NinoStringSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeIntDictionary), NinoIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeQueue), NinoQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLinkedList), NinoLinkedListBytes.Length);
@@ -401,6 +425,8 @@ partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTupleList), MemoryPackTupleListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeKeyValuePairs), MemoryPackKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeHashSet), MemoryPackHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeRandomIntSet), MemoryPackRandomIntSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringSet), MemoryPackStringSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeIntDictionary), MemoryPackIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeQueue), MemoryPackQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeLinkedList), MemoryPackLinkedListBytes.Length);
@@ -451,6 +477,8 @@ partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeTupleList), MessagePackTupleListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeKeyValuePairs), MessagePackKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeHashSet), MessagePackHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeRandomIntSet), MessagePackRandomIntSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeStringSet), MessagePackStringSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeIntDictionary), MessagePackIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeQueue), MessagePackQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeLinkedList), MessagePackLinkedListBytes.Length);
@@ -474,6 +502,8 @@ partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeTupleList), ProtobufTupleListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeKeyValuePairs), ProtobufKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeHashSet), ProtobufHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeRandomIntSet), ProtobufRandomIntSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeStringSet), ProtobufStringSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeIntDictionary), ProtobufIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeQueue), ProtobufQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeLinkedList), ProtobufLinkedListBytes.Length);
@@ -512,6 +542,8 @@ partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTupleList), LuminPackTupleListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeKeyValuePairs), LuminPackKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeHashSet), LuminPackHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeRandomIntSet), LuminPackRandomIntSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeStringSet), LuminPackStringSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeIntDictionary), LuminPackIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeQueue), LuminPackQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeLinkedList), LuminPackLinkedListBytes.Length);
@@ -1301,6 +1333,150 @@ partial class CollectionsTest
     {
         HashSet<int> result = default;
         LuminPackSerializer.Deserialize(LuminPackHashSetBytes, ref result);
+        return result;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("RandomIntSetSerialize")]
+    public int NinoSerializeRandomIntSet()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(RandomIntSet, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetSerialize")]
+    public int MemoryPackSerializeRandomIntSet()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, RandomIntSet);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetSerialize")]
+    public int MessagePackSerializeRandomIntSet()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, RandomIntSet);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetSerialize")]
+    public int ProtobufSerializeRandomIntSet()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, RandomIntSet);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetSerialize")]
+    public int LuminPackSerializeRandomIntSet()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(RandomIntSet, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("RandomIntSetDeserialize")]
+    public HashSet<int> NinoDeserializeRandomIntSet()
+    {
+        return NinoDeserializer.Deserialize<HashSet<int>>(NinoRandomIntSetBytes);
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetDeserialize")]
+    public HashSet<int> MemoryPackDeserializeRandomIntSet()
+    {
+        return MemoryPackSerializer.Deserialize<HashSet<int>>(MemoryPackRandomIntSetBytes);
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetDeserialize")]
+    public HashSet<int> MessagePackDeserializeRandomIntSet()
+    {
+        return MessagePackSerializer.Deserialize<HashSet<int>>(MessagePackRandomIntSetBytes);
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetDeserialize")]
+    public HashSet<int> ProtobufDeserializeRandomIntSet()
+    {
+        return Serializer.Deserialize<HashSet<int>>(new ReadOnlySpan<byte>(ProtobufRandomIntSetBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetDeserialize")]
+    public HashSet<int> LuminPackDeserializeRandomIntSet()
+    {
+        HashSet<int> result = default;
+        LuminPackSerializer.Deserialize(LuminPackRandomIntSetBytes, ref result);
+        return result;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("StringSetSerialize")]
+    public int NinoSerializeStringSet()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(StringSet, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetSerialize")]
+    public int MemoryPackSerializeStringSet()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, StringSet);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetSerialize")]
+    public int MessagePackSerializeStringSet()
+    {
+        _messagePackBuffer.ResetWrittenCount();
+        MessagePackSerializer.Serialize(_messagePackBuffer, StringSet);
+        return _messagePackBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetSerialize")]
+    public int ProtobufSerializeStringSet()
+    {
+        _protobufStream.SetLength(0);
+        Serializer.Serialize(_protobufStream, StringSet);
+        return (int)_protobufStream.Length;
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetSerialize")]
+    public int LuminPackSerializeStringSet()
+    {
+        _luminPackBuffer.ResetCore();
+        LuminPackSerializer.Serialize(StringSet, _luminPackBuffer);
+        return _luminPackBuffer.CurrentIndex;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("StringSetDeserialize")]
+    public HashSet<string> NinoDeserializeStringSet()
+    {
+        return NinoDeserializer.Deserialize<HashSet<string>>(NinoStringSetBytes);
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetDeserialize")]
+    public HashSet<string> MemoryPackDeserializeStringSet()
+    {
+        return MemoryPackSerializer.Deserialize<HashSet<string>>(MemoryPackStringSetBytes);
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetDeserialize")]
+    public HashSet<string> MessagePackDeserializeStringSet()
+    {
+        return MessagePackSerializer.Deserialize<HashSet<string>>(MessagePackStringSetBytes);
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetDeserialize")]
+    public HashSet<string> ProtobufDeserializeStringSet()
+    {
+        return Serializer.Deserialize<HashSet<string>>(new ReadOnlySpan<byte>(ProtobufStringSetBytes));
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetDeserialize")]
+    public HashSet<string> LuminPackDeserializeStringSet()
+    {
+        HashSet<string> result = default;
+        LuminPackSerializer.Deserialize(LuminPackStringSetBytes, ref result);
         return result;
     }
 
@@ -2710,6 +2886,10 @@ partial class CollectionsTest
     private static readonly byte[] MemoryPackKeyValuePairsBytes;
     private static readonly byte[] NinoHashSetBytes;
     private static readonly byte[] MemoryPackHashSetBytes;
+    private static readonly byte[] NinoRandomIntSetBytes;
+    private static readonly byte[] MemoryPackRandomIntSetBytes;
+    private static readonly byte[] NinoStringSetBytes;
+    private static readonly byte[] MemoryPackStringSetBytes;
     private static readonly byte[] NinoIntDictionaryBytes;
     private static readonly byte[] MemoryPackIntDictionaryBytes;
     private static readonly byte[] NinoQueueBytes;
@@ -2758,6 +2938,12 @@ partial class CollectionsTest
         NinoHashSetBytes = NinoGen.Serializer.Serialize(HashSet);
         MemoryPackHashSetBytes = MemoryPackSerializer.Serialize(HashSet);
 
+        NinoRandomIntSetBytes = NinoGen.Serializer.Serialize(RandomIntSet);
+        MemoryPackRandomIntSetBytes = MemoryPackSerializer.Serialize(RandomIntSet);
+
+        NinoStringSetBytes = NinoGen.Serializer.Serialize(StringSet);
+        MemoryPackStringSetBytes = MemoryPackSerializer.Serialize(StringSet);
+
         NinoIntDictionaryBytes = NinoGen.Serializer.Serialize(IntDictionary);
         MemoryPackIntDictionaryBytes = MemoryPackSerializer.Serialize(IntDictionary);
 
@@ -2801,6 +2987,8 @@ partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTupleList), NinoTupleListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeKeyValuePairs), NinoKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeHashSet), NinoHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeRandomIntSet), NinoRandomIntSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringSet), NinoStringSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeIntDictionary), NinoIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeQueue), NinoQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLinkedList), NinoLinkedListBytes.Length);
@@ -2821,6 +3009,8 @@ partial class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTupleList), MemoryPackTupleListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeKeyValuePairs), MemoryPackKeyValuePairsBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeHashSet), MemoryPackHashSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeRandomIntSet), MemoryPackRandomIntSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringSet), MemoryPackStringSetBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeIntDictionary), MemoryPackIntDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeQueue), MemoryPackQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeLinkedList), MemoryPackLinkedListBytes.Length);
@@ -3047,6 +3237,64 @@ partial class CollectionsTest
     public HashSet<int> MemoryPackDeserializeHashSet()
     {
         return MemoryPackSerializer.Deserialize<HashSet<int>>(MemoryPackHashSetBytes);
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("RandomIntSetSerialize")]
+    public int NinoSerializeRandomIntSet()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(RandomIntSet, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetSerialize")]
+    public int MemoryPackSerializeRandomIntSet()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, RandomIntSet);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("RandomIntSetDeserialize")]
+    public HashSet<int> NinoDeserializeRandomIntSet()
+    {
+        NinoGen.Deserializer.Deserialize(NinoRandomIntSetBytes, out HashSet<int> ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("RandomIntSetDeserialize")]
+    public HashSet<int> MemoryPackDeserializeRandomIntSet()
+    {
+        return MemoryPackSerializer.Deserialize<HashSet<int>>(MemoryPackRandomIntSetBytes);
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("StringSetSerialize")]
+    public int NinoSerializeStringSet()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(StringSet, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetSerialize")]
+    public int MemoryPackSerializeStringSet()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, StringSet);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("StringSetDeserialize")]
+    public HashSet<string> NinoDeserializeStringSet()
+    {
+        NinoGen.Deserializer.Deserialize(NinoStringSetBytes, out HashSet<string> ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("StringSetDeserialize")]
+    public HashSet<string> MemoryPackDeserializeStringSet()
+    {
+        return MemoryPackSerializer.Deserialize<HashSet<string>>(MemoryPackStringSetBytes);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("IntDictionarySerialize")]
