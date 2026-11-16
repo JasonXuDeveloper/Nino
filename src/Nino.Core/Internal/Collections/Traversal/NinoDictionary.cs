@@ -57,21 +57,16 @@ namespace Nino.Core
 
             Writer copy = default;
 #if NET8_0_OR_GREATER
-            // A polymorphic value: the base's generated pair loop, the dispatch inline (INinoPairsFormatter), for keys
-            // of a word written as it lies in memory, or strings. netstandard2.1 (IL2CPP, Mono, where the test boxes)
-            // keeps the loop below.
-            if (default(TValueFormatter) is INinoPairsFormatter &&
-                (typeof(TKeyFormatter) == typeof(StringFormatter) ||
-                 RawFormatter.Is<TKey, TKeyFormatter>() && WordKey<TKey>.Size != 0))
+            // A polymorphic value: the base's generated pair loop, the dispatch inline (INinoPairsFormatter), for any
+            // key and key formatter. A constrained call on the formatter's type, never a cast to an interface: the
+            // JIT resolves it to the struct's own method (a lookup of its instantiation where the key is a class), where
+            // a generic method called through a boxed interface went through a virtual function pointer per call.
+            // netstandard2.1 (IL2CPP, Mono, where the test boxes) keeps the loop below.
+            if (default(TValueFormatter) is INinoPairsFormatter)
             {
                 writer.WriteLength(value.Count);
                 writer.CopyTo(ref copy);
-                if (typeof(TKeyFormatter) == typeof(StringFormatter))
-                    ((INinoPairsFormatter)default(TValueFormatter)).WriteStringPairs(value, ref copy);
-                else if (WordKey<TKey>.Size == sizeof(int))
-                    ((INinoPairsFormatter)default(TValueFormatter)).WritePairs32(value, ref copy);
-                else
-                    ((INinoPairsFormatter)default(TValueFormatter)).WritePairs64(value, ref copy);
+                default(TValueFormatter).WritePairs<TKey, TKeyFormatter>(value, ref copy);
                 copy.CopyTo(ref writer);
                 return;
             }
@@ -658,24 +653,4 @@ namespace Nino.Core
             source = reader;
         }
     }
-
-#if NET8_0_OR_GREATER
-    /// <summary>
-    /// The size of <typeparamref name="T"/> as a dictionary key the generated pair loops write as an <c>int</c> or a
-    /// <c>long</c> (<see cref="INinoPairsFormatter"/>), or 0: a primitive or an enum of 4 or 8 bytes whose memory is its
-    /// wire form. Only these: a dictionary's entries of such a key lie as those of an <c>int</c> or a <c>long</c> key,
-    /// which those of a struct of the same size need not. A field of a class generic over the key alone, so the test
-    /// folds where the pair loop is shared code over a class value.
-    /// </summary>
-    internal static class WordKey<T>
-    {
-        public static readonly int Size =
-            BitConverter.IsLittleEndian && (typeof(T).IsPrimitive || typeof(T).IsEnum) &&
-            NinoLayout<T>.IsCanonical && !NinoLayout<T>.HasPadding &&
-            NinoLayout<T>.WireSize == Unsafe.SizeOf<T>() &&
-            (Unsafe.SizeOf<T>() == sizeof(int) || Unsafe.SizeOf<T>() == sizeof(long))
-                ? Unsafe.SizeOf<T>()
-                : 0;
-    }
-#endif
 }

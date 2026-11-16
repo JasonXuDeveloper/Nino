@@ -327,13 +327,12 @@ internal static class DispatchEmitter
 
         w.Line();
         w.Line(PairsBuild);
-        EmitWritePairs(w, t, services, "WritePairs32", "int", $"{Core}UnmanagedFormatter<int>");
-        EmitWritePairs(w, t, services, "WritePairs64", "long", $"{Core}UnmanagedFormatter<long>");
-        EmitWritePairs(w, t, services, "WriteStringPairs", "string", $"{Core}StringFormatter");
         string pairsSignature = $"<__TKey, __TKeyFormatter>(global::System.Collections.Generic.Dictionary<__TKey, {t}> pairs, ref {Core}Writer target)";
         string keyConstraint = $"    where __TKeyFormatter : struct, {Core}INinoFormatter<__TKey>";
-        w.Line();
-        w.Line($"private static void __WritePairs{pairsSignature}");
+        // INinoFormatter<T>.WritePairs, for every key type and key formatter: Nino.Core calls it as a constrained call
+        // on this struct's type, which the JIT resolves to this method (its instantiation looked up once per call
+        // where the key is a class), never through a cast that would box.
+        w.Line($"public void WritePairs{pairsSignature}");
         w.Line(keyConstraint);
         w.Open();
         // The entries in place of the enumerator, whose MoveNext stayed a call per pair. A dictionary with removed
@@ -365,14 +364,6 @@ internal static class DispatchEmitter
     /// <summary>The condition of the pair loops (<c>INinoPairsFormatter</c>): the builds of Nino.Core that call them.</summary>
     private const string PairsBuild = "#if NET8_0_OR_GREATER";
 
-    /// <summary>
-    /// A method of <c>INinoPairsFormatter</c>: the pair loop for keys read as <paramref name="key"/>. Each is a line
-    /// over one generic loop; the interface's methods are not generic, which a call from shared code could not
-    /// devirtualize.
-    /// </summary>
-    private static void EmitWritePairs(CodeWriter w, string t, string services, string name, string key,
-        string keyFormatter) =>
-        w.Line($"public void {name}(object dictionary, ref {Core}Writer writer) => __WritePairs<{key}, {keyFormatter}>({services}NinoObject.SameType<global::System.Collections.Generic.Dictionary<{key}, {t}>>(dictionary), ref writer);");
 
     /// <summary>
     /// A loop headed by <paramref name="loop"/> that writes each value as <c>Serialize</c> does, through the dispatch

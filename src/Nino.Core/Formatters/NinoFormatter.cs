@@ -27,6 +27,27 @@ namespace Nino.Core
         /// (each dropped instance is recycled exactly once).
         /// </summary>
         void Deserialize(ref Reader reader, ref T value);
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Writes the pairs of <paramref name="pairs"/> (not their count), each key as
+        /// <typeparamref name="TKeyFormatter"/> and each value as <see cref="Serialize"/> writes them. The formatters
+        /// of polymorphic bases write them in a loop of their own, the dispatch inline, and are marked
+        /// <see cref="CompilerServices.INinoPairsFormatter"/>; Nino calls this only on those. A method of this
+        /// interface, which dictionary formatters are already constrained to, so that call is a constrained call the
+        /// JIT resolves to the formatter's own method, for any key type and key formatter.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        void WritePairs<TKey, TKeyFormatter>(System.Collections.Generic.Dictionary<TKey, T> pairs, ref Writer writer)
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+        {
+            foreach (var pair in pairs)
+            {
+                default(TKeyFormatter).Serialize(pair.Key, ref writer);
+                Serialize(pair.Value, ref writer);
+            }
+        }
+#endif
     }
 
     /// <summary>

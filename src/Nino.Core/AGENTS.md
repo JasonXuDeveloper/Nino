@@ -99,9 +99,9 @@ Registration/                what a generated registry calls at startup:
 ## Formatters/
 
 ```
-NinoFormatter.cs             INinoFormatter<T>; NinoFormatterBase<T> and its struct wrappers (StructFormatter,
-                             FixedStructFormatter, TopStructFormatter, NestingFormatter), RawFormatter,
-                             INinoSizedFormatter / NinoSized, CachedFormatter<T>
+NinoFormatter.cs             INinoFormatter<T> (WritePairs: a dictionary's pairs, .NET 8+); NinoFormatterBase<T> and its
+                             struct wrappers (StructFormatter, FixedStructFormatter, TopStructFormatter,
+                             NestingFormatter), RawFormatter, INinoSizedFormatter / NinoSized, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
                              NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;
                              NinoMissingFormatter<T> (the never-null stand-in of a type without one)
