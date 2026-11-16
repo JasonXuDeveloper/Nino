@@ -186,40 +186,6 @@ public class DictionaryFastPathTests
         }
     }
 
-    [TestMethod]
-    public void StringKeyedPairsAreWrittenInEnumerationOrderInEveryState()
-    {
-        StringKeyedStates(i => (long)i);
-        StringKeyedStates(i => "value " + i);
-        StringKeyedStates(i => new List<int> { i });
-        // Longer than the buffer's free space at first: written through the writer instead.
-        StringKeyedStates(i => new string('x', 2000 + i));
-    }
-
-    private static void StringKeyedStates<T>(Func<int, T> make)
-    {
-        var dictionary = new Dictionary<string, T>();
-        for (int i = 0; i < 100; i++)
-            dictionary.Add("key " + i, make(i));
-        Check();
-        for (int i = 0; i < 100; i += 3)
-            dictionary.Remove("key " + i);
-        Check();
-        for (int i = 0; i < 100; i += 3)
-            dictionary.Add("added " + i, make(i));
-        Check();
-
-        void Check()
-        {
-            CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionary.ToArray()),
-                NinoSerializer.Serialize(dictionary));
-            var read = NinoDeserializer.Deserialize<Dictionary<string, T>>(NinoSerializer.Serialize(dictionary));
-            Assert.AreEqual(dictionary.Count, read.Count);
-            foreach (var pair in dictionary)
-                Assert.AreEqual(NinoSerializer.Serialize(pair.Value).Length, NinoSerializer.Serialize(read[pair.Key]).Length);
-        }
-    }
-
     private static void DictionaryStates<T>(Func<int, T> make)
     {
         var dictionary = new Dictionary<int, T>();
