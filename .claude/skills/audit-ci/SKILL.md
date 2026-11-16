@@ -263,8 +263,8 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   with `; :` so it does not exec and rename itself): a busy start, a job during the first measurement only, and jobs
   during both. A test's own Worker must run the step as a child `bash`, as the runner does: subshells of a renamed
   bash keep its name and read as other jobs.
-- **The pull request benchmark is on request**: ci.yml runs `runtimes/csharp/benchmarks/shards.json`'s "ab" shards only for a pull
-  request labeled `benchmark` (when opened, reopened or pushed to; labeling alone starts nothing), in quick mode
+- **The pull request benchmark is on request**: ci.yml runs `runtimes/csharp/benchmarks/bench-cases.json`'s quick subset
+  (`[BenchCase(Quick = true)]`, Nino and MemoryPack, three shards) only for a pull request labeled `benchmark` (when opened, reopened or pushed to; labeling alone starts nothing), in quick mode
   (`NINO_BENCH_QUICK=1`: a trend, never published), and runtimes.yml's `benchmark` job the Go, Rust and TypeScript
   benches of the runtimes the pull request changed, quick too (each bench reads `NINO_BENCH_QUICK`); report.yml at a
   release runs every case with the full protocol (#333; its runtime jobs took 3, 6 and 11 minutes of their 40 in
@@ -285,7 +285,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   `::warning::` line follows. Suggestions (a duplicate, a split) are comments only on issues from outside the
   maintainers, since a comment emails the author; a maintainer's own go to the run's summary (`wants_comment`).
 - **Concurrency budget**: every matrix that can grow with a request or a file has `max-parallel` (`runtime-ab.yml`
-  10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` and ci.yml's labeled pull-request benchmark 6 (shards.json),
+  10, `dotnet-ab.yml` 8, `report.yml`'s bench 12, `ab-bench.yml` 6 (shards.json), ci.yml's labeled pull-request benchmark 3 (the quick shards),
   `unity.yml` 1), and request caps keep a run's job count bounded (8 runtime lines, 3 .NET lines). A push to main
   should start well under the account's 40 concurrent jobs: short checks of one runner share a job, pushes fuzz with
   one libFuzzer runner (three at night), and a job runs only for the area that changed (Path filters).
