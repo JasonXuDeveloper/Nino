@@ -209,7 +209,7 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 - In a class that declares its cases (`[BenchCase]`: `SimpleTest`, `PolymorphicTest`, `WorkloadTest`,
   `GenericPolymorphicTest`, `CollectionsTest`, `CommonTypesTest`, `FixedSizeTest`, `BclTypesTest`, `NullableTest`,
-  `VersionTolerantTest`: every class that compares libraries case by case; the scenario classes, Pooled*, Reference,
+  `VersionTolerantTest`, `StringsTest`, `RawArraysTest`, `AppDataTest`: every class that compares libraries case by case; the scenario classes, Pooled*, Reference,
   Untrusted, ExternalBuffer and Scattered, stay hand-written with their `V3/` ports): add the attribute and
   the value's field, run `dotnet run --project runtimes/csharp/tools/BenchGen`, never edit a `.Cases.g.cs` by hand;
   the methods of every library and the v3 part follow from the adapters (`Nino.Benchmark/Adapters/`), and a new
