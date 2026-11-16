@@ -28,12 +28,26 @@ runs:
     # every job here at "Setup .NET").
     - id: have
       shell: bash
+      env:
+        NET8: ${{ inputs.net8 }}
       run: |
         sdks="$(dotnet --list-sdks 2>/dev/null || true)"
         echo "$sdks"
         grep -qE '^10\.' <<< "$sdks" && echo net10=true >> "$GITHUB_OUTPUT" || echo net10=false >> "$GITHUB_OUTPUT"
         grep -qE '^8\.' <<< "$sdks" && echo net8=true >> "$GITHUB_OUTPUT" || echo net8=false >> "$GITHUB_OUTPUT"
         grep -qE '^11\.' <<< "$sdks" && echo net11=true >> "$GITHUB_OUTPUT" || echo net11=false >> "$GITHUB_OUTPUT"
+        # A self-hosted runner (maple) has no sudo, and actions/setup-dotnet installs into /usr/share/dotnet on Linux:
+        # it uses its own SDKs only, and a missing one is the machine's to install, once, for the runner's user.
+        if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
+          missing=()
+          grep -qE '^10\.' <<< "$sdks" || missing+=(10.0)
+          grep -qE '^11\.' <<< "$sdks" || missing+=(11.0)
+          if [[ "$NET8" == true ]] && ! grep -qE '^8\.' <<< "$sdks"; then missing+=(8.0); fi
+          if (( ${#missing[@]} )); then
+            echo "::error::this self-hosted runner lacks the .NET SDK ${missing[*]}: install it into the dotnet root of its user (dotnet-install.sh --channel <version> --install-dir <the folder of its dotnet>); CI's jobs go to GitHub's runners while the repository variable NINO_MAPLE is false"
+            exit 1
+          fi
+        fi
 
     # The .NET 10 runtime too where the image lacks it: net10.0 test builds run on it.
     - if: steps.have.outputs.net11 != 'true' || steps.have.outputs.net10 != 'true'
@@ -48,7 +62,8 @@ runs:
       with:
         dotnet-version: 8.0.x
 
-    - if: inputs.cache != '' && inputs.cache != 'false'
+    # Not on a self-hosted runner: its job's NuGet packages live in RUNNER_TEMP ("Prepare maple") and go with the job.
+    - if: inputs.cache != '' && inputs.cache != 'false' && runner.environment != 'self-hosted'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.nuget/packages
