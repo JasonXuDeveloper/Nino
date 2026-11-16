@@ -227,7 +227,16 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   22 / 49 / 103 / 296), string 17 / 26 / 53 / 120 / 350 (#325 the same, LuminPack 22 / 46 / 126 / 280 / 797), `Guid`
   15 / 21 / 38 / 84 / 240 (#325 20 / 30 / 67 / 157 / 453, LuminPack 15 / 23 / 50 / 106 / 301), a struct of two ints
   17 / 25 / 42 / 85 / 239 (#325 19 / 32 / 64 / 156 / 449, LuminPack 16 / 30 / 66 / 157 / 457); asm.py found no method
-  of PolymorphicTest or GenericPolymorphicTest worse than #325's. How the form was found, each step measured (#308,
+  of PolymorphicTest or GenericPolymorphicTest worse than #325's. Pass the caller's writer to the loop as it is
+  (`ref writer`) and let the loop write the count on the local copy it makes anyway: `NinoDictionary.Write` copied the
+  writer in and out around the call too (two 48-byte copies and their zeroing, the count written on the copy in
+  memory), most of the call's fixed cost; the rule that keeps the writer's address from any call not inlined
+  (`NinoDictionary.Write`'s own comment) costs nothing here, since every caller holds the writer by reference already (a body's `__WriteBody`: 2,160 bytes
+  and 25 stack accesses to 1,946 and 9, `NinoDictionary.Write` 372 / 20 to 143 / 4). Evidence (minimum ns at 0 / 1 /
+  4 / 12 pairs, three alternating rounds): int 6.8 / 17.3 / 24.8 / 41.7 to 6.4 / 11.4 / 18.8 / 35.9 (LuminPack 14.5
+  / 15.0 / 22.7 / 49.8), string 6.7 / 15.6 / 25.5 / 52.7 to 6.4 / 11.8 / 22.8 / 49.9 (LuminPack 14.9 / 21.7 / 46.1
+  / 123.1), `Guid` 6.7 / 18.0 / 24.0 / 40.6 to 6.4 / 12.1 / 18.1 / 34.7 (LuminPack 14.5 / 14.9 / 23.4 / 53.9).
+  How the form was found, each step measured (#308,
   LuminPack's IFoo of 20 subtypes, values FooA-FooD, a class holding the dictionary, alternating processes):
   base 18 / 31 / 66 / 150 / 460 for int keys, 20 / 36 / 81 / 195 / 590 for string keys; LuminPack 16 / 24 / 51 / 100 /
   290 and 23 / 47 / 128 / 287 / 816. Lost before this form: a generated `WriteFrom<TSource>` over a struct source of
