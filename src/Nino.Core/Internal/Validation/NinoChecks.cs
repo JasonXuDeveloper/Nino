@@ -154,6 +154,67 @@ namespace Nino.Core.Internal
             return !ops.HasMaskedBits(any, mask);
         }
 
+        /// <summary>
+        /// <see cref="CopyFlagsBest"/> on x64 with every store but the first and the last on a whole vector of the
+        /// target: the loads follow the source at any phase (a split load costs less than a split store), and the
+        /// presence mask is rotated once to the phase of the target's vectors in the run. Copying T? slots from the
+        /// wire changes no byte, so nothing is realigned in registers: one OR a vector beside the copy.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool CopyFlagsLinedBest(ref byte target, ref byte source, int bytes, Vector128<ulong> mask)
+        {
+            if (NinoSimd.Prefer512)
+                return CopyFlagsLined<Vector512<byte>, NinoVectors512>(ref target, ref source, bytes, mask);
+            if (Vector256.IsHardwareAccelerated)
+                return CopyFlagsLined<Vector256<byte>, NinoVectors256>(ref target, ref source, bytes, mask);
+            return CopyFlagsLined<Vector128<byte>, NinoVectors128>(ref target, ref source, bytes, mask);
+        }
+
+        /// <summary>
+        /// <see cref="CopyFlagsLinedBest"/> at one width: <paramref name="bytes"/> is at least two vectors and a whole
+        /// number of strides, and the stride divides 16, so the last vector, at <c>bytes - width</c>, starts an element.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        internal static bool CopyFlagsLined<TVector, TOps>(ref byte target, ref byte source, int bytes, Vector128<ulong> mask)
+            where TVector : struct
+            where TOps : struct, INinoVectors<TVector>
+        {
+            var ops = default(TOps);
+            nuint width = (nuint)Unsafe.SizeOf<TVector>();
+            nuint end = (nuint)bytes - width;
+            var first = ops.Load(ref source, 0);
+            var last = ops.Load(ref source, end);
+            ops.Store(first, ref target, 0);
+            nuint at = NinoUnsafe.BytesToAligned(ref target, width);
+            // A body vector at offset `at` (+ a multiple of 16) sees the flags `at % 16` bytes further on.
+            var lined = Vector128.Shuffle(mask.AsByte(),
+                (Vector128.Create((byte)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) +
+                 Vector128.Create((byte)at)) & Vector128.Create((byte)15)).AsUInt64();
+            TVector any = default;
+            for (; at + 3 * width < end; at += 4 * width)
+            {
+                var a = ops.Load(ref source, at);
+                var b = ops.Load(ref source, at + width);
+                var c = ops.Load(ref source, at + 2 * width);
+                var d = ops.Load(ref source, at + 3 * width);
+                ops.Store(a, ref target, at);
+                ops.Store(b, ref target, at + width);
+                ops.Store(c, ref target, at + 2 * width);
+                ops.Store(d, ref target, at + 3 * width);
+                any = ops.Or(any, ops.Or(ops.Or(a, b), ops.Or(c, d)));
+            }
+
+            for (; at < end; at += width)
+            {
+                var a = ops.Load(ref source, at);
+                ops.Store(a, ref target, at);
+                any = ops.Or(any, a);
+            }
+
+            ops.Store(last, ref target, end);
+            return !ops.HasMaskedBits(ops.Or(first, last), mask) && !ops.HasMaskedBits(any, lined);
+        }
+
         // Tier 0 leaves calls inside the scan, so compile this validator with its helpers inlined from the start.
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
         internal static bool ValidFlagBlocks<TVector, TOps>(ref byte first, int bytes, int stride)
