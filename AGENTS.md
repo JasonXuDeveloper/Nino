@@ -217,6 +217,9 @@ asking, and give the owner its link.
   `documentation` and `question` are gone). A new label only when none fits, created with a color and a description in the same
   family (areas: one hue per part, languages in their brand color; kinds: bug red, perf green, simd teal, the rest
   light). Dependabot's labels (`dependencies`, `.NET`, `github_actions`) stay its own.
+- **Voice**: issues, pull requests and comments are posted under the owner's GitHub account, so write them as the
+  project speaks, never about "the owner" in the third person ("Not planned: ...", not "Not planned, the owner's
+  decision"); a decision is stated as made, with its reason.
 - **Body**: the title is imperative and says what done is ("Measure X on Y", "Fix Z"). The body says what and why
   with the evidence (commit, run id, per-CPU numbers, stack trace), a checklist of what done means, `Due before
   rc.N.` when it blocks a release, and ends with the GitHub post footer. A milestone's description says what the
