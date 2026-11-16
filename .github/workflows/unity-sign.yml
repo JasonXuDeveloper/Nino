@@ -37,8 +37,12 @@ env:
   PACKAGE_DIR: src/Nino.Unity/Packages/com.jasonxudeveloper.nino
 
 jobs:
+  # On maple, the repository's self-hosted runner (no sudo; the workspace and RUNNER_TEMP deleted after every job), as
+  # release.yml's jobs. Its callers are release.yml (run by hand from main) and a push to the test branch: never a pull
+  # request, which the condition also refuses should a caller ever be one.
   sign:
-    runs-on: ubuntu-26.04
+    if: ${{ !startsWith(github.event_name, 'pull_request') }}
+    runs-on: [self-hosted, Linux, X64, maple]
     timeout-minutes: 15
     permissions:
       contents: write # the release asset
@@ -48,11 +52,28 @@ jobs:
         with:
           ref: ${{ inputs.unity_version && format('v{0}', inputs.unity_version) || github.sha }}
 
+      # Under a home of this job's own (UPM_HOME, in RUNNER_TEMP): the installer writes to $HOME/.upm and appends to
+      # the shell profile, and the CLI keeps its state under $HOME, which on a self-hosted runner outlives the job and
+      # is shared with other jobs; nothing of a signing run should. The installer needs unzip: where the runner has
+      # none, python3's zipfile stands in for it (the installer's only use, unzip -q <zip> -d <dir>).
       - name: Install the UPM CLI
         run: |
+          UPM_HOME="$RUNNER_TEMP/upm-home"
+          mkdir -p "$UPM_HOME"
+          echo "UPM_HOME=$UPM_HOME" >> "$GITHUB_ENV"
+          if ! command -v unzip >/dev/null; then
+            mkdir -p "$RUNNER_TEMP/shims"
+            cat > "$RUNNER_TEMP/shims/unzip" <<'SHIM'
+          #!/bin/sh
+          [ "$1" = -q ] && [ "$3" = -d ] || { echo "unzip shim: unexpected arguments: $*" >&2; exit 2; }
+          exec python3 -m zipfile -e "$2" "$4"
+          SHIM
+            chmod +x "$RUNNER_TEMP/shims/unzip"
+            export PATH="$RUNNER_TEMP/shims:$PATH"
+          fi
           curl -fsSL "https://cdn.packages.unity.com/upm-cli/install.sh" -o "$RUNNER_TEMP/upm-install.sh"
-          bash "$RUNNER_TEMP/upm-install.sh" "$UPM_CLI_VERSION"
-          echo "$HOME/.upm/bin" >> "$GITHUB_PATH"
+          HOME="$UPM_HOME" bash "$RUNNER_TEMP/upm-install.sh" "$UPM_CLI_VERSION"
+          echo "$UPM_HOME/.upm/bin" >> "$GITHUB_PATH"
 
       - name: Pack and sign
         env:
@@ -64,6 +85,7 @@ jobs:
             echo "::error::set the repository secrets UPM_SERVICE_ACCOUNT_KEY_ID, UPM_SERVICE_ACCOUNT_KEY_SECRET and UPM_ORG_ID"
             exit 1
           fi
+          export HOME="$UPM_HOME"
           upm --version || true
           mkdir -p "$RUNNER_TEMP/upm"
           upm pack "$PACKAGE_DIR" --organization-id "$UPM_ORG_ID" --destination "$RUNNER_TEMP/upm"

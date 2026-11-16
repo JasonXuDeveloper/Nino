@@ -58,6 +58,12 @@ env:
   # The package ids that are packed, checked and pushed (Nino.Core's is Nino.Serialization).
   PACKAGE_IDS: Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.Codegen Nino.Codegen.Tool Nino
 
+# Every job runs on maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]: Ubuntu, the .NET 8 and
+# 10 SDKs, rustup, gh, jq and python3, no sudo; the workspace and RUNNER_TEMP are deleted after every job, the NuGet,
+# npm, Cargo and rustup caches persist), so a release no longer waits for GitHub's runners behind other workflows. This
+# workflow runs only by hand, from main: no pull request reaches maple through it. A job installs nothing outside
+# RUNNER_TEMP and those caches.
+#
 # Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
 defaults:
   run:
@@ -65,7 +71,7 @@ defaults:
 
 jobs:
   tag:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     if: github.ref == 'refs/heads/main'
     timeout-minutes: 30
     permissions:
@@ -211,7 +217,7 @@ jobs:
           git push origin HEAD:main "${TAGS[@]}"
 
   publish:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
     timeout-minutes: 30
     permissions:
@@ -284,7 +290,7 @@ jobs:
         run: gh workflow run report.yml --ref main -f tag_name="v$VERSION"
 
   crates:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
     timeout-minutes: 30
     permissions:
@@ -340,7 +346,7 @@ jobs:
           done
 
   npm:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, maple]
     needs: tag
     timeout-minutes: 30
     permissions:
@@ -375,8 +381,11 @@ jobs:
             fi
             export NODE_AUTH_TOKEN="$FIRST_TOKEN"
           fi
-          # Trusted Publishing needs npm 11.5.1 or later: a fixed release, not whatever is newest on the day.
-          npm install -g npm@11.21.0
+          # Trusted Publishing needs npm 11.5.1 or later: a fixed release, not whatever is newest on the day. Into this
+          # job's own prefix, not the Node.js of the runner's tool cache, which other jobs share.
+          npm install -g --prefix "$RUNNER_TEMP/npm" npm@11.21.0
+          export PATH="$RUNNER_TEMP/npm/bin:$PATH"
+          npm --version
           npm ci
           cp ../../LICENSE LICENSE
           TAG=latest
