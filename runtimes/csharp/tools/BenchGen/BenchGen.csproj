@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Writes the timed methods of the .NET benchmarks from their cases and the libraries' adapters (see Program.cs for
+      how to run it). Like tools/CodeGen, not part of runtimes/csharp/Nino.slnx: it reads syntax only, and the files it
+      writes are committed; ci.yml runs it with check to fail while one is out of date.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <RootNamespace>Nino.BenchGen</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(NinoTestRoslynVersion)"/>
+    </ItemGroup>
+
+</Project>
