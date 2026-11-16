@@ -226,11 +226,11 @@ asking, and give the owner its link.
   has none), and asks Claude Haiku once for the kind, areas, a duplicate, a parent and a suggested split. It never
   overrides a label or milestone a person set, never closes or edits an issue, never creates an issue or a label: a
   duplicate gets the `duplicate` label and a comment, a split only a comment, and an issue no `area:` label fits a
-  comment naming the area it suggests (a maintainer creates it, as above, with its option in the forms). It reads
-  every `kind:` label for the milestone rule (`KIND_ALIASES`: `simd` counts as perf; platform, refactor and test as
-  other). The forms in `.github/ISSUE_TEMPLATE` carry the kind
-  label and the type; a new `area:` label also gets an option in each form's Area dropdown (the label without its
-  prefix).
+  comment naming the area it suggests (a maintainer creates it, as above, with its option in the forms); on a
+  maintainer's own issue that comment goes to the run's summary instead, since a comment emails the issue's author.
+  It reads every `kind:` label for the milestone rule (`KIND_ALIASES`: `simd` counts as perf; platform, refactor and
+  test as other). The forms in `.github/ISSUE_TEMPLATE` carry the kind label and the type; a new `area:` label also
+  gets an option in each form's Area dropdown (the label without its prefix).
 - **Closing**: `Closes #N` in the fixing commit's body, or a comment with the result (runner numbers, the commit)
   and close with a reason (`completed`, `not_planned`, `duplicate`).
 

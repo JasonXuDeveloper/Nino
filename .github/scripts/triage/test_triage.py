@@ -18,6 +18,7 @@ from triage import (
     parse_classification,
     parse_tag,
     upsert_comment,
+    wants_comment,
 )
 
 AREAS = {"area: core", "area: generator", "area: unity", "area: dotnet-11"}
@@ -152,6 +153,14 @@ class Comment(unittest.TestCase):
         self.assertNotIn("@all", body)
         self.assertNotIn("<img", body)
         self.assertNotIn("](", body)
+
+
+class CommentAudience(unittest.TestCase):
+    def test_only_issues_from_outside_the_maintainers_get_a_comment(self):
+        for association in ("OWNER", "MEMBER", "COLLABORATOR"):
+            self.assertFalse(wants_comment({"author_association": association}))
+        for association in ("CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "NONE", None):
+            self.assertTrue(wants_comment({"author_association": association}))
 
 
 class NewAreaComment(unittest.TestCase):

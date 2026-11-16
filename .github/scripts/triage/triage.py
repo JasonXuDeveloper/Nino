@@ -12,8 +12,10 @@ against the repository before it is applied. If the model call fails for any rea
 applies and the script exits 0, so a broken credential never fails or spams an issue.
 
 The script never edits or closes an issue's title or body, never creates issues, and keeps at most one comment of
-its own per issue (found by COMMENT_MARKER and updated in place on a re-run). --dry-run prints the plan, applies
-nothing and skips the model call.
+its own per issue (found by COMMENT_MARKER and updated in place on a re-run). It comments only on an issue opened by
+someone outside the repository's maintainers: a comment emails the issue's author, and a maintainer reads the
+suggestion in the run's summary instead (wants_comment). --dry-run prints the plan, applies nothing and skips the
+model call.
 """
 from __future__ import annotations
 
@@ -56,6 +58,8 @@ KIND_ALIASES = {
 AREA_PREFIX = "area: "
 KIND_PREFIX = "kind: "
 DUPLICATE_LABEL = "duplicate"
+# An issue's author_association for the repository's maintainers, who get no comment (wants_comment).
+MAINTAINER_ASSOCIATIONS = ("OWNER", "MEMBER", "COLLABORATOR")
 # Headings of the issue forms in .github/ISSUE_TEMPLATE (the `label:` of the fields read here).
 AREA_HEADING = "Area"
 BREAKING_HEADING = "Breaking change"
@@ -433,6 +437,18 @@ def comment_body(plan: Plan) -> str | None:
     return COMMENT_MARKER + "\n" + "\n\n".join(parts) + reason
 
 
+def wants_comment(issue: dict) -> bool:
+    """Whether a suggestion goes to the issue as a comment: not for a maintainer's own issue, whom it would email."""
+    return issue.get("author_association") not in MAINTAINER_ASSOCIATIONS
+
+
+def write_summary(body: str) -> None:
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if path:
+        with open(path, "a", encoding="utf-8") as summary:
+            summary.write(body.removeprefix(COMMENT_MARKER).strip() + "\n")
+
+
 def apply_plan(gh: GitHub, issue: dict, plan: Plan) -> None:
     number = issue["number"]
     if plan.labels:
@@ -444,8 +460,11 @@ def apply_plan(gh: GitHub, issue: dict, plan: Plan) -> None:
     if plan.parent:
         attach_to_parent(gh, issue, plan.parent)
     body = comment_body(plan)
-    if body:
+    if body and wants_comment(issue):
         upsert_comment(gh, number, body)
+    elif body:
+        log(f"#{number} was opened by a maintainer; the suggestion is in the run's summary, not a comment")
+        write_summary(body)
 
 
 def find_or_create_milestone(gh: GitHub, title: str) -> int | None:
