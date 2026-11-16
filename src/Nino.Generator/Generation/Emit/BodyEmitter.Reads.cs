@@ -429,12 +429,16 @@ internal sealed partial class BodyEmitter
     {
         string p = "__p" + _blocks++;
         _w.Line($"ref byte {p} = ref {r}.ReadBlock({block.Total});");
+        EmitRawBlockStores(group, block, p, inPlace);
+    }
+
+    /// <summary>The raw members of <paramref name="group"/> stored from block <paramref name="p"/>, one by one.</summary>
+    private void EmitRawBlockStores(MemberRange group, RawBlock block, string p, bool inPlace)
+    {
+        // A bool through its own read, which rejects a byte other than 0 or 1; types with values to check in
+        // Untrusted mode through theirs.
         for (int i = 0; i < group.Count; i++)
-        {
-            // A bool through its own read, which rejects a byte other than 0 or 1; types with values to check in
-            // Untrusted mode through theirs.
             _w.Line(Store(_m, group[i], inPlace, ReadRaw(group[i], p, block.Offsets[i]), _mode.Target));
-        }
     }
 
     /// <summary>
@@ -452,8 +456,7 @@ internal sealed partial class BodyEmitter
         _w.Line($"if ({_m.Self}.__FieldBlockRead)");
         _w.Line($"    {CoreCompilerServices}NinoFieldBlock.Read(ref {Ref(_m, group[0], _mode.Target)}, ref {p}, {block.Total});");
         _w.Open("else");
-        for (int i = 0; i < group.Count; i++)
-            _w.Line(Store(_m, group[i], true, ReadRaw(group[i], p, block.Offsets[i]), _mode.Target));
+        EmitRawBlockStores(group, block, p, inPlace: true);
         _w.Close();
     }
 
