@@ -712,9 +712,9 @@ jobs:
 
       - *free-maple
 
-  # A pull request's quick benchmark signal, on request: only a pull request labeled `benchmark` runs the A/B shards
-  # of runtimes/csharp/benchmarks/shards.json ("ab": Nino and MemoryPack, the list ab-bench.yml runs; a new class is benchmarked here
-  # once it is in a shard), when it is opened, reopened or pushed to (adding the label starts no run: push after it).
+  # A pull request's quick benchmark signal, on request: only a pull request labeled `benchmark` runs the quick subset
+  # of runtimes/csharp/benchmarks/bench-cases.json (the cases with [BenchCase(Quick = true)], Nino and MemoryPack, in
+  # three shards; #333), when it is opened, reopened or pushed to (adding the label starts no run: push after it).
   # Every pull request ran them before: six runners for up to 90 minutes, on docs and CI changes too. For a comparison
   # with main or the last release, run ab-bench.yml on the branch instead. The published numbers come from report.yml.
   benchmark-plan:
@@ -731,17 +731,24 @@ jobs:
     steps:
       - *maple-prepare
 
-      - name: Checkout the shard list
+      - name: Checkout the case manifest
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: runtimes/csharp/benchmarks/shards.json
+          sparse-checkout: runtimes/csharp/benchmarks/bench-cases.json
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
       - name: Plan
         id: plan
+        # The quick cases in turn over three shards; per case each of Nino and MemoryPack that has its methods, both
+        # operations, by exact method name (SimpleClass is not SimpleClasses).
         run: |
-          echo "shards=$(jq -c '[.ab[] | {id, filters: (.filters | join(" "))}]' runtimes/csharp/benchmarks/shards.json)" >> "$GITHUB_OUTPUT"
+          shards=$(jq -c '[.cases | map(select(.quick)) | to_entries | group_by(.key % 3)[]
+            | {id: "quick-\(.[0].key % 3 + 1)", filters: ([.[].value | . as $c
+                | ($c.libraries.v4 | map(select(. == "Nino" or . == "MemoryPack")))[] as $l
+                | ("Serialize", "Deserialize") as $v | "*.\($c.class).\($l)\($v)\($c.case)"] | join(" "))}]' \
+            runtimes/csharp/benchmarks/bench-cases.json)
+          echo "shards=$shards" >> "$GITHUB_OUTPUT"
 
       - *free-maple
 
@@ -753,7 +760,7 @@ jobs:
     timeout-minutes: 90
     strategy:
       fail-fast: false
-      max-parallel: 6   # grows with shards.json, like ab-bench.yml's
+      max-parallel: 3   # the three quick shards
       matrix:
         shard: ${{ fromJSON(needs.benchmark-plan.outputs.shards) }}
     steps:
@@ -776,7 +783,7 @@ jobs:
       - name: Run benchmarks
         env:
           FILTERS: ${{ matrix.shard.filters }}
-          # A pull request's run is a trend check: shards.json's ab subset in quick mode ([NinoJob] with 250 ms
+          # A pull request's run is a trend check: bench-cases.json's quick subset in quick mode ([NinoJob] with 250 ms
           # iterations, stopping at 2 % error). A release (report.yml) runs every case with the full protocol, the only
           # numbers that are published (#333).
           NINO_BENCH_QUICK: '1'

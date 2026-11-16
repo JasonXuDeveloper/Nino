@@ -54,6 +54,8 @@ KEYS = {
     "BENCH_REPORTS": ("{root}/benchmarks/reports", "benchmarks/reports"),
     "BENCH_COMPARE": ("{root}/benchmarks/compare", "benchmarks/compare"),
     "SHARDS": ("{root}/benchmarks/shards.json", "benchmarks/shards.json"),
+    # The case manifest BenchGen writes (#335): the cases, their quick subset and the libraries that break on them.
+    "BENCH_CASES": ("{root}/benchmarks/bench-cases.json",),
     "GO_RUNTIME": ("runtimes/go",),
     "GO_BENCH": ("runtimes/go/bench",),
     "RUST_RUNTIME": ("runtimes/rust",),
