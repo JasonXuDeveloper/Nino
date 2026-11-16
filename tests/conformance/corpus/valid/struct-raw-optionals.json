@@ -1,0 +1,65 @@
+{
+  "case": "struct-raw-optionals",
+  "description": "Raw structs that hold nullables as a member, in an array and a list, and as the value of a nullable member (a presence byte, then the struct).",
+  "type": "Conformance.RawOptionals",
+  "features": [
+    "raw-struct",
+    "nullable",
+    "seq"
+  ],
+  "size": 346,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.RawOptional": "format=Positional; header=None; trackReferences=false; raw=true; id=0x1C1AA5B4; deferrable=false; members=raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}",
+    "Conformance.RawOptionals": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x0F7CD49F; deferrable=true; members=One:Conformance.RawOptional:raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}};Array:Conformance.RawOptional[]:seq(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}});List:System.Collections.Generic.List<Conformance.RawOptional>:seq(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}});Maybe:System.Nullable<Conformance.RawOptional>:nullable(raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)},Price:System.Nullable<decimal>@24:raw(24){hasValue:bool@0:raw(1),value:decimal@8:raw(16)},Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}})"
+  },
+  "value": {
+    "$type": "Conformance.RawOptionals",
+    "One": {
+      "$type": "Conformance.RawOptional",
+      "Id": 1,
+      "Total": "-9223372036854775808",
+      "Price": null,
+      "Count": null
+    },
+    "Array": [
+      {
+        "$type": "Conformance.RawOptional",
+        "Id": 2,
+        "Total": 5,
+        "Price": "-0.001",
+        "Count": -1
+      },
+      {
+        "$type": "Conformance.RawOptional",
+        "Id": 0,
+        "Total": null,
+        "Price": null,
+        "Count": null
+      },
+      {
+        "$type": "Conformance.RawOptional",
+        "Id": 3,
+        "Total": null,
+        "Price": null,
+        "Count": 2147483647
+      }
+    ],
+    "List": [
+      {
+        "$type": "Conformance.RawOptional",
+        "Id": 0,
+        "Total": null,
+        "Price": "79228162514264337593543950335",
+        "Count": null
+      }
+    ],
+    "Maybe": {
+      "$type": "Conformance.RawOptional",
+      "Id": 4,
+      "Total": 0,
+      "Price": null,
+      "Count": null
+    }
+  }
+}

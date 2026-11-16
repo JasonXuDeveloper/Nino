@@ -26,6 +26,13 @@ func FuzzReader(f *testing.F) {
 	f.Add([]byte{21}, hx("05000000"+strings.Repeat("00000200 00000000 0000000000000000", 4)+"00001D00 00000000 0000000000000000"))
 	f.Add([]byte{22}, hx("06000000 00000000 01000000 02000000 03000000 04000000 FFFFFFFF"))
 	f.Add([]byte{27}, hx("05000000 0000000000000000 0100000000000000 0200000000000000 0300000000000000 00C0692AC9000000"))
+	// Sets of T? (the slots of a T?[], an element read twice rejected): distinct with a null and a zero, null twice,
+	// a value twice, two NaNs, and 17 slots (past the pairwise check) ending in a repeat.
+	f.Add([]byte{36}, hx("03000000 0000000000000000 0100000000000000 0100000007000000"))
+	f.Add([]byte{36}, hx("02000000 0000000000000000 0000000007000000"))
+	f.Add([]byte{36}, hx("02000000 0100000007000000 0100000007000000"))
+	f.Add([]byte{37}, hx("02000000 0100000000000000 000000000000F87F 0100000000000000 010000000000F07F"))
+	f.Add([]byte{36}, hx("11000000"+strings.Repeat("0100000001000000 0100000002000000 0100000003000000 0100000004000000", 4)+"0100000004000000"))
 	f.Add([]byte{23}, hx("06000000"+strings.Repeat("0000803F 01 02 0300", 5)+"0000803F 02 02 0300"))
 	f.Fuzz(func(t *testing.T, program, data []byte) {
 		if len(program) > 64 {
@@ -202,11 +209,64 @@ func fuzzOp(t *testing.T, op byte, r *Reader, w *Writer) {
 	case 27:
 		v := ReadBlock[TimeOnly](r)
 		check(func(w *Writer) { WriteBlock(w, v) }, func(b *Reader) bool { return equalSlices(ReadBlock[TimeOnly](b), v) })
+	case 28:
+		fuzzNinoNullables[uint8](r, check)
+	case 29:
+		fuzzNinoNullables[int16](r, check)
+	case 30:
+		fuzzNinoNullables[int32](r, check)
+	case 31:
+		fuzzNinoNullables[float64](r, check)
+	case 32:
+		fuzzNullableSlots[uint8](r, check)
+	case 33:
+		fuzzNullableSlots[int16](r, check)
+	case 34:
+		fuzzNullableSlots[int32](r, check)
+	case 35:
+		fuzzNullableSlots[float64](r, check)
+	case 36:
+		fuzzSlotSet[int32](r, check)
+	case 37:
+		fuzzSlotSet[float64](r, check)
 	}
 }
 
 // fuzzOps is the number of ops fuzzOp runs.
-const fuzzOps = 28
+const fuzzOps = 38
+
+// fuzzSlotSet reads a set of T? (the slots, then the check for an element read twice): what it accepts holds no
+// two equal elements by Go's comparison either (a NaN aside, which Go keeps apart), and reads back as a set.
+func fuzzSlotSet[T Primitive](r *Reader, check func(write func(*Writer), read func(*Reader) bool)) {
+	v := CheckUniqueValues(r, ReadNullableSlots[T](r))
+	check(func(w *Writer) { WriteNullableSlots(w, v) }, func(b *Reader) bool {
+		seen := make(map[NullableSlot[T]]struct{}, len(v))
+		for _, e := range v {
+			seen[e] = struct{}{}
+		}
+		nans := 0
+		for _, e := range v {
+			if e != e {
+				nans++
+			}
+		}
+		return len(seen) == len(v) && nans <= 1 && equalSlices(CheckUniqueValues(b, ReadNullableSlots[T](b)), v)
+	})
+}
+
+// fuzzNullableSlots reads a block of the slots of T?; what it accepts is written back as the same values, bit for
+// bit: the padding and the absent values of the slots read are zeros in memory, whatever the data held there.
+func fuzzNullableSlots[T Primitive](r *Reader, check func(write func(*Writer), read func(*Reader) bool)) {
+	v := ReadNullableSlots[T](r)
+	check(func(w *Writer) { WriteNullableSlots(w, v) }, func(b *Reader) bool { return equalSlices(ReadNullableSlots[T](b), v) })
+}
+
+// fuzzNinoNullables reads a block of NinoNullable<T>; what it accepts is written back as the same bytes and values
+// (the padding of a value read is zeros: the bytes above the presence's first, checked, or untouched memory).
+func fuzzNinoNullables[T Primitive](r *Reader, check func(write func(*Writer), read func(*Reader) bool)) {
+	v := ReadNinoNullables[T](r)
+	check(func(w *Writer) { WriteNinoNullables(w, v) }, func(b *Reader) bool { return equalSlices(ReadNinoNullables[T](b), v) })
+}
 
 // equalSlices reports whether a and b are both nil, or both not nil with the same memory (bit for bit: a NaN equals
 // itself; the types compared have no padding).

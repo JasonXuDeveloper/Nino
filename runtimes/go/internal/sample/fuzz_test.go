@@ -84,14 +84,47 @@ func seeds() []seed {
 	b, err = nino.Serialize(&Collections{Ints: []int32{1}, StringSet: []*string{&s, nil}, Grid: &Grid[int32]{Lengths: [2]int{1, 2}, Items: []int32{1, 2}}}, WriteCollections)
 	add("Conformance.Collections", b, err)
 	one := int32(1)
-	b, err = nino.Serialize(&Nullables{Int: &one, IntArray: []*int32{&one, nil}, PaddedArray: []*Padded{{1, 2}, nil}}, WriteNullables)
+	slot := nino.NullableSlotOf(one)
+	b, err = nino.Serialize(&Nullables{Int: &one, IntArray: []nino.NullableSlot[int32]{slot, {}}, PaddedArray: []nino.NullableSlot[Padded]{nino.NullableSlotOf(Padded{1, 2}), {}}}, WriteNullables)
 	add("Conformance.Nullables", b, err)
-	b, err = nino.Serialize(&NinoNullables{Guid: &nino.Guid{1}, DecimalArray: []*nino.Decimal{{Lo: 1}, nil}, PaddedList: []*Padded{nil, {1, 2}}}, WriteNinoNullables)
+	b, err = nino.Serialize(&NullableSequences{
+		IntSet: []nino.NullableSlot[int32]{slot, {}}, Grid: &Grid[nino.NullableSlot[int32]]{Lengths: [2]int{1, 2}, Items: []nino.NullableSlot[int32]{{}, slot}},
+		PaddedGrid: &Grid[nino.NullableSlot[Padded]]{Lengths: [2]int{1, 1}, Items: []nino.NullableSlot[Padded]{nino.NullableSlotOf(Padded{1, 2})}},
+		Nested:     [][]nino.NullableSlot[int32]{{slot}, nil},
+		Values:     []nino.Entry[int32, *int64]{{Key: 1}}, Pairs: []nino.Entry[int32, *int32]{{Key: 1, Value: &one}},
+	}, WriteNullableSequences)
+	add("Conformance.NullableSequences", b, err)
+	count := nino.NinoNullableOf[int32](3)
+	b, err = nino.Serialize(&NinoNullables{
+		Guid:         nino.NinoNullableOf(nino.Guid{1}),
+		DecimalArray: []nino.NinoNullable[nino.Decimal]{nino.NinoNullableOf(nino.Decimal{Lo: 1}), {}},
+		PaddedList:   []nino.NinoNullable[Padded]{{}, nino.NinoNullableOf(Padded{1, 2})},
+		DecimalMap:   []nino.Entry[int32, nino.NinoNullable[nino.Decimal]]{{Key: 1}},
+		Fields:       NinoNullableFields{Tag: 1, Count: count},
+	}, WriteNinoNullables)
 	add("Conformance.NinoNullables", b, err)
+	b, err = nino.Serialize(&NinoNullableRuns{
+		IntArray: []nino.NinoNullable[int32]{count, {}}, ByteList: []nino.NinoNullable[uint8]{{}},
+	}, WriteNinoNullableRuns)
+	add("Conformance.NinoNullableRuns", b, err)
+	total := int64(5)
+	optional := RawOptional{Id: 1, Total: &total, Price: &nino.Decimal{Lo: 15, Flags: 1 << 16}, Count: count}
+	b, err = nino.Serialize(optional, WriteRawOptional)
+	add("Conformance.RawOptional", b, err)
+	b, err = nino.Serialize(&RawOptionals{One: optional, Array: []RawOptional{{}, optional}, Maybe: &optional}, WriteRawOptionals)
+	add("Conformance.RawOptionals", b, err)
 	b, err = nino.Serialize(&KeyedHolder{Keyed: &KeyedV1{Name: &s, Items: []int32{1}}}, WriteKeyedHolder)
 	add("Conformance.KeyedHolder", b, err)
 	b, err = nino.Serialize(&TreeHolder{Tree: Tree{Tree{}, nil}, DictTree: DictTree{{Key: "a", Value: nil}}}, WriteTreeHolder)
 	add("Conformance.TreeHolder", b, err)
+	// A HashSet<int?>: null, 0 and 7; then null twice and 7 twice, which every reader rejects.
+	for _, slots := range [][]nino.NullableSlot[int32]{{{}, nino.NullableSlotOf[int32](0), slot}, {{}, {}}, {slot, slot}} {
+		b, err = nino.Serialize(slots, func(w *nino.Writer, v []nino.NullableSlot[int32]) {
+			w.Present(true)
+			nino.WriteNullableSlots(w, v)
+		})
+		add("Conformance.Targets.MaybeIntSet", b, err)
+	}
 	return out
 }
 

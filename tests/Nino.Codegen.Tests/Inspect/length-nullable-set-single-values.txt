@@ -1,0 +1,6 @@
+nino-gen inspect: Conformance.Targets.MaybeIntSet, 15 byte(s) from offset 0
+  offset  length  value
+       0       5  value: Conformance.Targets.MaybeIntSet
+       0       1    presence = 1
+       1       4    Values: System.Collections.Generic.HashSet<System.Nullable<int>> [seq(raw(8){...}]
+nino-gen: malformed data at offset 1: invalid length 2: 16 byte(s) or more claimed, 10 left

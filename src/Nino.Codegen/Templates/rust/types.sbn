@@ -13,9 +13,7 @@ prim_types = {
 func bare(s)
   case s.kind
   when "seq"
-    if s.mode == "rawnullables"
-      ret "nino::RawNullables<" + rtype(s.element) + ">"
-    else if s.mode == "set"
+    if s.mode == "set"
       ret (std_maps ? "std::collections::HashSet<" : "indexmap::IndexSet<") + rtype(s.element) + ">"
     end
     ret "Vec<" + rtype(s.element) + ">"
@@ -54,6 +52,10 @@ func rtype(s)
     ret name(s.struct)
   when "rawnullable"
     ret "Option<" + rtype(s.inner) + ">"
+  when "nullableslot"
+    ret "nino::NullableSlot<" + rtype(s.inner) + ">"
+  when "ninonullable"
+    ret "nino::NinoNullable<" + rtype(s.inner) + ">"
   when "tuple"
     $parts = []
     for $i in s.items

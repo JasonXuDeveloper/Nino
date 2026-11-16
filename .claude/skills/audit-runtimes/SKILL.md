@@ -23,20 +23,62 @@ Each runtime's rules are in its `AGENTS.md` (`runtimes/go`, `runtimes/rust`, `ru
   14-byte stride where .NET writes 16 in all three languages, and Rust's `RawNullables<i128>` 24 where .NET writes
   32. Pin such a value against bytes .NET writes (`Shapes.Strides`: ModelTests, and each runtime's shapes test), not
   a round trip, which agrees with itself.
-- Teach nino-gen every .NET type that is given an existing encoding, and prove it with a twin: nino-gen resolves an
-  encoding against the member's .NET type by name (`CodegenModel.Value` for `nullable`, `CodegenModel.Raw` for a
-  nullable in raw memory, `ArgumentEncoding` and `NullableStride` for type arguments, which no layout describes), and
-  so does Rust's `tests/conformance/gen.py`, so the same encoding under a new type name has no form there. Why:
-  `NinoNullable<T>` is published as `T?` (`nullable(raw(n))`, the stride of `T?[]`), and nino-gen left every type
-  holding one out of all three languages (NINOGEN002) while `nino-gen inspect` failed with "has no decodable form"
-  (#285; `CodegenModel.IsNullable`). The twin is the same sample declared both ways (the corpus's `NinoNullables` and
-  `NullableTwins`, Shapes.cs' `NinoNullableArgs` and `NullableArgs`), whose IR
-  (`ModelTests.NinoNullableIsTheValueOfNullable`), generated members and codecs
-  (`TargetTests.NinoNullableIsGeneratedAsNullable`), inspect tree and bytes are compared, with a corpus case written
-  from one and read as the other (`ninonullables-from-nullable`). Inside a plain struct copied as raw memory the two
-  are not the same bytes (the presence is a whole `T`, the value at `T`'s size): TypeScript and Go read the offsets
-  the layout gives, Rust's `Option<T>` in raw memory only the layout of `T?`, so Rust leaves a `T` wider than its
-  alignment out there (`TargetTests.RustLeavesOutANinoNullableWiderThanItsAlignmentInRawMemory`).
+- Teach nino-gen every .NET type that is given an existing encoding, and prove it against bytes .NET writes:
+  nino-gen resolves an encoding against the member's .NET type by name (`CodegenModel.Value` for `nullable`,
+  `CodegenModel.Raw` for a nullable in raw memory, `ArgumentEncoding`, `RawArgument` and `NullableSlot` for type
+  arguments, which no layout describes), and so do Rust's `tests/conformance/gen.py` and Go's struct tags
+  (`ninoNullableName`), so the same encoding under a new type name has no form there, or the wrong one. Why:
+  `NinoNullable<T>` was first published as `T?`, and nino-gen left every type holding one out of all three
+  languages (NINOGEN002) while `nino-gen inspect` failed with "has no decodable form" (#285). Since #297 it is a raw
+  struct wherever it is, published with the text of a `T?` in raw memory, the value at `T`'s size
+  (`raw(2S){hasValue:bool@0:raw(1),value:T@S:...}`): what tells the two apart is the type's name alone where `T` is
+  as large as its alignment, and they differ in what a reader rejects (zeros above the presence's first byte and in
+  an absent value, as .NET's untrusted mode: `ValueModel.Clean`; a `T?`'s padding and absent value come from memory
+  as they are) and in the type each language gives it (Rust `nino::NinoNullable<T>`, whose codecs go by the type;
+  Go `nino.NinoNullable[T]`, a value; TypeScript the alias `NinoNullable<T>` of `T | null`: the bullet on a type for each encoding, below). The proof is the IR (`ModelTests.NinoNullableIsItsMemoryWhereverItIs`), the generated members
+  (`TargetTests.NinoNullableIsGeneratedInEveryLanguage`), .NET's bytes read by `nino-gen inspect`
+  (`ReadsNinoNullableWhereverNinoCoreWritesIt`) and pinned in each runtime's shapes test (`NinoNullableArgsHex`,
+  where no layout describes the type arguments), the corpus's `ninonullables-*` cases with their `untrusted` ones,
+  and a twin for the part that is the same bytes: runs of a narrow `T` declared both ways (`NinoNullableRuns` and
+  `NullableTwins`, `ninonullable-runs-from-nullable`).
+- Give an encoding that depends on where a value sits a form for each place, in the IR and in every runtime, and
+  pin each place against bytes .NET writes: a raw `T?` is a slot of a fixed size (`T`'s alignment plus its size) as
+  the element of every sequence, grids and nested ones included, and a presence byte with the value when present
+  as a single value (a member, a map's key or value, a pair's or a tuple's item: spec §6.2, §6.5). The layout says
+  which (`seq(raw(8){hasValue...})`, `grid(2,raw(8){...})` against `nullable(raw(4))`); inside a type argument
+  nino-gen works it out (`CodegenModel.ElementEncoding`, `NullableSlot`), and Rust, whose codecs go by the type,
+  needs a type for each: `Option<T>` the single value and `nino::NullableSlot<T>` the element of every container (a
+  `Vec`, a `VecDeque`, a set, a `Grid`; one form for the slot: the list type `RawNullables<T>` it first had beside
+  the element type was removed, the owner's decision). Why: when .NET made every sequence write slots (#295), `T?[]` and
+  `List<T?>` were the only containers with the slot here: nino-gen read a `Box<HashSet<int?>>` as single values
+  (`generic-nullable-arguments` failed in `nino-gen inspect`), and its Rust wrote a `HashSet<int?>` as a
+  `RawNullables` (a `Vec`: no repeated element rejected) and an `int?[,]` as `Grid<Option<i32>, 2>`, single values
+  where .NET writes slots. The proof is the IR (`ModelTests.RawNullablesAreSlotsInEverySequenceAndSingleValuesElsewhere`),
+  .NET's bytes pinned in each runtime's shapes test (`NullableSlotsHex`, `NullableGridsHex`: a queue, a stack, a
+  linked list, a sorted set, an interface, nested, a set inside type arguments, grids of ranks 2 and 3), the
+  integration harnesses (`Samples.Slots`) and the corpus's `nullable-sequences`, `presence-nullable-set-*`,
+  `presence-nullable-grid-*` and `length-nullable-set-single-values`. A shape added for one container kind can show
+  a bug the corpus never reached: `List<Queue<int?>>` was the first list of lists read into in TypeScript, whose
+  `readInto` did not compile (`values[i]` is not narrowed by a null check as `v.items` is: shapes.sbn `read_into`).
+- Give each encoding of one .NET shape a type of its own in a language whose types can carry it, recognized by the
+  type itself, and never pick the encoding of a host type from a layout's text: a type without a layout then has no
+  way to say it. Why: Go held .NET's `NinoNullable<T>` as the `*T` of a `T?`, and struct tags read it as its memory
+  only where a `NinoLayout` named `Nino.Core.NinoNullable<`, so a tagged type without a layout could not hold one at
+  all, and a list of them was a pointer and an allocation an element. `nino.NinoNullable[T]` (a value: `HasValue`,
+  `Value`; tags know it with or without a layout, and a layout naming the other nullable is a `TagError`) reads 1000
+  of an `int` as one block (`ReadNinoNullables`) in 4.2 µs against 23.8 µs for the `[]*int32` it replaced and writes
+  them in 1.4 µs against 3.3 µs, no allocation an element (748 to 1; local Xeon, `BenchmarkNinoNullables`, a decision
+  only). TypeScript's types cannot carry a second encoding at run time without a wrapper object, so there it is a
+  name alone (`type NinoNullable<T> = T | null`, the owner's decision), and Rust has `NinoNullable<T>` and
+  `NullableSlot<T>`. The element of a `T?` sequence has the same three names everywhere (the owner's rule: the
+  languages follow Rust's naming): Go `nino.NullableSlot[T]` (a value; `[]nino.NullableSlot[int32]` read as one
+  block by `ReadNullableSlots` in 4.2 µs against 18.5 µs for the `[]*int32` it replaced, written in 1.5 µs against
+  3.4 µs, 748 allocations to 1; `BenchmarkNullableSlots`, local, a decision only), TypeScript the alias
+  `NullableSlot<T>`; a single `T?` stays `*T` and `T | null`. Struct tags take `[]nino.NullableSlot[T]` as the one
+  way to hold slots: a `[]*T` is a single `T?` an element, and under a layout that declares slots a `TagError`
+  (`variantElementNullable`, which picked the encoding from the layout's text, is gone). The proof is `TargetTests.NinoNullableIsGeneratedInEveryLanguage`, Go's `TestTagNinoNullable`
+  (no layout and layout) and `TestNinoNullables` (each block against `NinoNullableAt` an element, every byte
+  changed).
 - Resolve a raw field's type from the layout when the name it publishes is canonical rather than declared:
   `DateTimeOffset` publishes `offsetMinutes` (an int at 0) and `dateTime` (at 8), which no runtime declares (.NET 10
   `_offsetMinutes`, .NET 8 a short), so reflection found nothing and nino-gen left every type holding one out

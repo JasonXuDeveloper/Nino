@@ -1,0 +1,32 @@
+{
+  "case": "nullable-sequences-empty",
+  "description": "Empty and null sequences of raw nullables.",
+  "type": "Conformance.NullableSequences",
+  "features": [
+    "nullable",
+    "seq",
+    "grid"
+  ],
+  "size": 33,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.NullableSequences": "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xDB16AFA3; deferrable=true; members=IntSet:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongSet:System.Collections.Generic.HashSet<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});Grid:System.Nullable<int>[,]:grid(2,raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});PaddedGrid:System.Nullable<Conformance.Padded>[,]:grid(2,raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Nested:System.Collections.Generic.List<System.Collections.Generic.HashSet<System.Nullable<int>>>:seq(seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}));Values:System.Collections.Generic.Dictionary<int, System.Nullable<long>>:map(raw(4),nullable(raw(8)));Pairs:System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, System.Nullable<int>>>:seq(pair(raw(4),nullable(raw(4))))",
+    "Conformance.Padded": "format=Positional; header=None; trackReferences=false; raw=true; id=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}"
+  },
+  "value": {
+    "$type": "Conformance.NullableSequences",
+    "IntSet": [],
+    "LongSet": null,
+    "Grid": {
+      "lengths": [
+        0,
+        3
+      ],
+      "items": []
+    },
+    "PaddedGrid": null,
+    "Nested": [],
+    "Values": null,
+    "Pairs": null
+  }
+}

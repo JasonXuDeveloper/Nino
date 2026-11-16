@@ -18,6 +18,12 @@ namespace Nino.Immutable
                 return;
             }
 
+            if (ImmutableCollections.Slots<T>.Possible)
+            {
+                ImmutableCollections.WriteEnumerated<T, TFormatter>(value, ref writer);
+                return;
+            }
+
             // No count: patched after the elements.
             int countPos = writer.ReserveInt32();
             int count = 0;

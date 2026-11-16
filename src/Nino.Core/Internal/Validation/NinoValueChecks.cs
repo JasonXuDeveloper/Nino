@@ -23,7 +23,13 @@ namespace Nino.Core.Internal
         // to 23, at most 28), nothing else; DateOnly: day numbers up to DateOnly.MaxValue's; TimeOnly: ticks below one day;
         // DateTimeOffset (its fields where ValueViews found them): an offset of at most 14 hours, and a UTC and a local
         // time that are both valid dates, as its constructor requires.
-        public const int Bool = 1, DateTime = 2, Decimal = 3, DateOnly = 4, TimeOnly = 5, DateTimeOffset = 6;
+        // NinoNullable<T> (Presence, with T's size in the bits above KindBits): a presence of 0 or 1 in its first byte
+        // and zeros in its others, and a value of zeros where the presence is 0 (GetValueOrDefault returns it).
+        public const int Bool = 1, DateTime = 2, Decimal = 3, DateOnly = 4, TimeOnly = 5, DateTimeOffset = 6,
+            Presence = 7;
+
+        /// <summary>The bits of a kind; a <see cref="Presence"/> keeps T's size above them.</summary>
+        public const int KindBits = 8;
         private const int MaxOffsetMinutes = 14 * 60;
 
         private const ulong DateTimeTicksMask = 0x3FFF_FFFF_FFFF_FFFF;
@@ -77,12 +83,26 @@ namespace Nino.Core.Internal
             // Each test branch-free, or-ed in (bad is non-zero once one fails), one branch per loop.
             ulong bad = 0;
             ref byte at = ref field;
-            switch (kind)
+            switch (kind & ((1 << KindBits) - 1))
             {
                 case Bool:
                     for (int n = count; n > 0; n--, at = ref Unsafe.Add(ref at, stride))
                         bad |= at;
                     return (bad & 0xFE) == 0;
+                case Presence:
+                    int size = kind >> KindBits;
+                    for (int n = count; n > 0; n--, at = ref Unsafe.Add(ref at, stride))
+                    {
+                        // All ones where the value is absent: its bytes then count as the presence's upper ones do.
+                        uint absent = (uint)at - 1;
+                        bad |= at & 0xFEu;
+                        for (int b = 1; b < size; b++)
+                            bad |= Unsafe.Add(ref at, b);
+                        for (int b = 0; b < size; b++)
+                            bad |= Unsafe.Add(ref at, size + b) & absent;
+                    }
+
+                    return bad == 0;
                 case DateTime:
                     // Both sides below 2^62: the difference wraps past 2^63 exactly when the ticks are past the maximum.
                     for (int n = count; n > 0; n--, at = ref Unsafe.Add(ref at, stride))
@@ -182,9 +202,12 @@ namespace Nino.Core.Internal
                 for (int i = 0; i < pairs.Length; i += 2)
                 {
                     int offset = pairs[i];
-                    switch (pairs[i + 1])
+                    switch (pairs[i + 1] & ((1 << KindBits) - 1))
                     {
                         case Bool:
+                            break;
+                        case Presence:
+                            passes.Add(null); // the value's bytes depend on its presence: the scalar loop
                             break;
                         case DateTime:
                             Add(passes, 8, offset, stride, period, DateTimeTicksMask, MaxDateTimeTicks);

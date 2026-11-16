@@ -21,8 +21,9 @@ NinoDeserializer.cs          the public Deserialize<T> (a new value, or into an 
 NinoSettings.cs              every process-wide setting (MaxDepth, MaxCollectionLength, MaxHashCollisions, Untrusted,
                              pool sizes, SetRecycler<T>), plain fields frozen on first use (NinoLimits)
 NinoDataException.cs         the exception every check of the data throws (an InvalidOperationException)
-NinoNullable.cs              NinoNullable<T>: a nullable value whose memory is always clean (its presence a whole T), written
-                             as T?; its arrays and lists are block copies where T is as large as its alignment
+NinoNullable.cs              NinoNullable<T>: a nullable value whose memory is always clean (its presence a whole T), a
+                             raw struct written as that memory everywhere (two T a value; the bytes of a T? run where T
+                             is as large as its alignment)
 NinoKernels.cs               NinoKernels: native Permute / Interleave32 / NormalizeBoolSlots / Narrow / Widen /
                              NarrowAscii / WidenAscii function pointers the netstandard2.1 build calls when registered (Unity's Burst and WebGL
                              kernels), with their scalar forms
@@ -106,9 +107,9 @@ NinoFormatterResolver.cs     builds formatter types by reflection for unregister
 BuiltInFormatters.cs         the [assembly: NinoFormatter] table of the BCL formatters below (generator and resolver read it)
 BoxedFormatter.cs            BoxedFormatter: NinoFormatterCache<T> for a runtime Type (the Boxed APIs)
 PrimitiveFormatters.cs       UnmanagedFormatter<T> (raw bytes), RawValueFormatter<T>, IntPtr / UIntPtr (8 bytes),
-                             DateTimeOffset, String (Latin-1 or UTF-16), Utf8String, Nullable, ObjectFormatter
-NinoNullableFormatters.cs    NinoNullable<T>, NinoNullable<T>[] and List<NinoNullable<T>>: the bytes of T?, T?[] and
-                             List<T?> (NinoNullables<T>.Write / Read)
+                             DateTimeOffset, String (Latin-1 or UTF-16), Utf8String, Nullable,
+                             UnmanagedNullableFormatter (a raw T?: one presence byte and the value alone, a slot of
+                             a fixed size as the element of any collection), ObjectFormatter
 Collections/                the collection formatters, a folder per kind:
   Arrays/
     ArrayFormatter.cs        general T[] and reuse
@@ -218,7 +219,9 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 
 ```
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
-NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed)
+NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed);
+                             the block kinds every collection moves as one run (raw values, DateTimeOffset, block
+                             formatters, slots: INinoSlotFormatter, raw T?)
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
@@ -255,7 +258,8 @@ NinoLayout.Convert.cs        conversion field by field where the runtime differs
 NinoLayout.Measure.cs        offsets read from an instance (MeasureMemory)
 NinoLayoutCore.cs            the struct layout algorithm shared with the generator (RawLayout): NinoLeaf, NinoLayoutModel
                              (one runtime's rules; Canonical), Measure, CoreCLR's auto layout (PlaceAuto)
-NinoMask.cs                  NinoMask: padding cleared while copying values to the wire (vector masks, 8-byte words)
+NinoMask.cs                  NinoMask: padding, and Nullable values without one, cleared while copying values to the wire
+                             (vector masks, 8-byte words; CopyCleared: both in one pass with AVX-512 VBMI and GFNI)
 ObjectFields.cs              an object's fields at byte offsets
 ObjectTypes.cs               mirror-class instances retyped to the runtime's class (also compiled into Nino.Immutable)
 ValueViews.cs                where value types' fields are on this runtime (DateTimeOffset: UTC ticks, minutes and their
@@ -283,8 +287,8 @@ NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates i
 NinoThrow.cs                 throw helpers, out of line (NinoDataException for the data, InvalidOperationException else)
 NinoUntrusted.cs             the top-level reads in NinoSettings.Untrusted mode (trailing bytes, value checks)
 NinoValueChecks.cs           the fields of a raw type Untrusted mode checks (bool, DateTime, decimal, DateOnly, TimeOnly,
-                             DateTimeOffset), checked a field at a time over a run of values, as vectors with periodic
-                             masks on .NET 8+
+                             DateTimeOffset, a NinoNullable<T>'s presence and absent value), checked a field at a time
+                             over a run of values, as vectors with periodic masks on .NET 8+
 ```
 
 ### Internal/Buffers/

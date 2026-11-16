@@ -153,6 +153,7 @@ public static class Program
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.ObjectTypes", "Usable"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "List"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "Stack"),
+        (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "Collection"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "Queue"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "SortedList"),
         (typeof(NinoSerializer).Assembly, "Nino.Core.Internal.CollectionViews", "SortedSet"),
@@ -366,6 +367,12 @@ public static class Program
         Case("ConcurrentQueue", new ConcurrentQueue<int>(ints));
         Case("ConcurrentStack", new ConcurrentStack<int>(ints));
         Case("ObservableColl", new ObservableCollection<int>(ints));
+        Case("Collection<int>", new Collection<int>(ints.ToList()));
+        Case("Collection<string>", new Collection<string>(strs.ToList()));
+        Case("Collection<int?>", new Collection<int?>(ints.Select(i => i % 3 == 0 ? (int?)null : i).ToList()));
+        Case("Collection around an array", new Collection<int>(ints.ToArray()));
+        Case("HashSet<int?>", new HashSet<int?>(ints.Select(i => i % 3 == 0 ? (int?)null : i)));
+        Case("HashSet<long?>", new HashSet<long?>(ints.Select(i => i % 3 == 0 ? (long?)null : i * 5000000000L)));
         Case("IList<int>", (IList<int>)ints.ToList());
         Case("IEnumerable<str>", (IEnumerable<string>)strs.ToList());
         Case("Item", new Item { Id = 3, Name = "n", Pairs = ints.Take(9).Select(i => (i, (long)i)).ToList(),

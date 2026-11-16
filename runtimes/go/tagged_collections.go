@@ -10,7 +10,7 @@ import (
 // The builder's codecs of slices, arrays and maps: blocks where generated code takes one, the most common maps on the
 // unsafe path, and map pairs written in key order.
 
-func (b *builder) slice(c *codec, variant uint8) error {
+func (b *builder) slice(c *codec) error {
 	t := c.typ
 	et := t.Elem()
 	c.min = 4
@@ -33,15 +33,10 @@ func (b *builder) slice(c *codec, variant uint8) error {
 		}
 		return nil
 	}
-	// []*T of a raw T: the fixed stride, unless the layout says each element is a single T?.
-	if et.Kind() == reflect.Pointer && variant != variantElementNullable && et.Elem().Kind() != reflect.String {
-		pe, err := b.codec(et, variantDefault, nil)
-		if err != nil {
-			return err
-		}
-		if pe.kind == kNullable && pe.elem.rawCapable() {
-			return b.stride(c, pe.elem)
-		}
+	// []nino.NullableSlot[T]: a slot of a fixed size each, the elements of any sequence of T? of a raw T (an array, a
+	// list, a set, a queue). A []*T is a single T? per element (seq(nullable(...)): a T that is not raw in .NET).
+	if isNullableSlotType(et) {
+		return b.stride(c)
 	}
 	e, err := b.codec(et, variantDefault, nil)
 	if err != nil {
@@ -144,16 +139,36 @@ func (b *builder) slice(c *codec, variant uint8) error {
 	return nil
 }
 
-// stride: T?[] of a raw T (spec §6.2): hasValue, padding to T's alignment, then T (zero when absent).
-func (b *builder) stride(c *codec, e *codec) error {
-	t := c.typ
-	if e.align == 0 {
-		return typeErr(t, "the stride of a Nullable<%s> element has no canonical alignment", e.typ)
+// slotOf: the codec of the nino.NullableSlot[T] et, the element of the collection t (a slice, or a set's key), and
+// of its value.
+func (b *builder) slotOf(t, et reflect.Type) (slot, value *codec, err error) {
+	if value, err = b.codec(et.Field(1).Type, variantDefault, nil); err != nil {
+		return nil, nil, err
 	}
-	a := e.align
-	stride := a + e.size
-	c.kind, c.elem, c.size, c.min = kStride, e, stride, 4
+	if !value.rawCapable() || value.kind == kDTO {
+		return nil, nil, typeErr(t, "a NullableSlot holds a raw value (a number, a date, a raw struct), not %s", value.typ)
+	}
+	slot, err = b.slot(et, value)
+	return slot, value, err
+}
+
+// stride: a sequence of T? of a raw T (spec §6.2: T?[], List<T?>, Queue<T?>, ...), a slice of
+// nino.NullableSlot[T]: a slot of a fixed size each (builder.slot). A set of them is a map (mapCodec), which
+// rejects an element read twice.
+func (b *builder) stride(c *codec) error {
+	t := c.typ
 	et := t.Elem()
+	e, value, err := b.slotOf(t, et)
+	if err != nil {
+		return err
+	}
+	stride := e.size
+	c.kind, c.elem, c.size, c.min = kStride, value, stride, 4
+	if f, ok := blockSlices[et]; ok && b.fast {
+		// Slots of numbers on the unsafe path: one block, as generated code reads and writes them.
+		c.read, c.write = f()
+		return nil
+	}
 	c.read = func(r *Reader, v reflect.Value) {
 		n := r.Length(stride)
 		if n < 0 {
@@ -162,15 +177,7 @@ func (b *builder) stride(c *codec, e *codec) error {
 		}
 		s := reflect.MakeSlice(t, n, n)
 		for i := 0; i < n && r.err == nil; i++ {
-			present := r.Present()
-			r.Skip(a - 1)
-			if !present {
-				r.Skip(e.size)
-				continue
-			}
-			p := reflect.New(et.Elem())
-			e.read(r, p.Elem())
-			s.Index(i).Set(p)
+			e.read(r, s.Index(i))
 		}
 		if r.err == nil {
 			v.Set(s)
@@ -184,14 +191,7 @@ func (b *builder) stride(c *codec, e *codec) error {
 		n := v.Len()
 		w.Length(n)
 		for i := 0; i < n && w.err == nil; i++ {
-			p := v.Index(i)
-			if p.IsNil() {
-				w.ExtendZero(stride)
-				continue
-			}
-			w.U8(1)
-			w.ExtendZero(a - 1)
-			e.write(w, p.Elem())
+			e.write(w, v.Index(i))
 		}
 	}
 	return nil
@@ -199,13 +199,20 @@ func (b *builder) stride(c *codec, e *codec) error {
 
 func (b *builder) mapCodec(c *codec) error {
 	t := c.typ
-	kc, err := b.codec(t.Key(), variantDefault, nil)
+	kt, vt := t.Key(), t.Elem()
+	set := vt.Kind() == reflect.Struct && vt.NumField() == 0
+	var kc *codec
+	var err error
+	if set && isNullableSlotType(kt) {
+		// A set of T? of a raw T (HashSet<T?>): its elements are slots, as in every sequence.
+		kc, _, err = b.slotOf(t, kt)
+	} else {
+		kc, err = b.codec(kt, variantDefault, nil)
+	}
 	if err != nil {
 		return err
 	}
 	c.key, c.min = kc, 4
-	kt, vt := t.Key(), t.Elem()
-	set := vt.Kind() == reflect.Struct && vt.NumField() == 0
 	var vc *codec
 	if !set {
 		if vc, err = b.codec(vt, variantDefault, nil); err != nil {
@@ -305,7 +312,7 @@ func (b *builder) mapCodec(c *codec) error {
 }
 
 // blockSlices holds, for the element types whose slices generated code reads and writes as one block other than
-// numbers (bool and the BlockValue types), a read and a write on the unsafe path. A slice type with such elements
+// numbers (bool, the BlockValue types and a NinoNullable of a number), a read and a write on the unsafe path. A slice type with such elements
 // has their layout whatever its name, so the codecs set and take it as a []T.
 var blockSlices = map[reflect.Type]func() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)){
 	reflect.TypeFor[bool](): func() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
@@ -318,6 +325,36 @@ var blockSlices = map[reflect.Type]func() (func(*Reader, reflect.Value), func(*W
 	reflect.TypeFor[Guid]():     blockValues[Guid],
 	reflect.TypeFor[Int128]():   blockValues[Int128],
 	reflect.TypeFor[UInt128]():  blockValues[UInt128],
+
+	reflect.TypeFor[NinoNullable[int8]]():    ninoNullableBlocks[int8],
+	reflect.TypeFor[NinoNullable[uint8]]():   ninoNullableBlocks[uint8],
+	reflect.TypeFor[NinoNullable[int16]]():   ninoNullableBlocks[int16],
+	reflect.TypeFor[NinoNullable[uint16]]():  ninoNullableBlocks[uint16],
+	reflect.TypeFor[NinoNullable[int32]]():   ninoNullableBlocks[int32],
+	reflect.TypeFor[NinoNullable[uint32]]():  ninoNullableBlocks[uint32],
+	reflect.TypeFor[NinoNullable[int64]]():   ninoNullableBlocks[int64],
+	reflect.TypeFor[NinoNullable[uint64]]():  ninoNullableBlocks[uint64],
+	reflect.TypeFor[NinoNullable[float32]](): ninoNullableBlocks[float32],
+	reflect.TypeFor[NinoNullable[float64]](): ninoNullableBlocks[float64],
+
+	reflect.TypeFor[NullableSlot[int8]]():    nullableSlotBlocks[int8],
+	reflect.TypeFor[NullableSlot[uint8]]():   nullableSlotBlocks[uint8],
+	reflect.TypeFor[NullableSlot[int16]]():   nullableSlotBlocks[int16],
+	reflect.TypeFor[NullableSlot[uint16]]():  nullableSlotBlocks[uint16],
+	reflect.TypeFor[NullableSlot[int32]]():   nullableSlotBlocks[int32],
+	reflect.TypeFor[NullableSlot[uint32]]():  nullableSlotBlocks[uint32],
+	reflect.TypeFor[NullableSlot[int64]]():   nullableSlotBlocks[int64],
+	reflect.TypeFor[NullableSlot[uint64]]():  nullableSlotBlocks[uint64],
+	reflect.TypeFor[NullableSlot[float32]](): nullableSlotBlocks[float32],
+	reflect.TypeFor[NullableSlot[float64]](): nullableSlotBlocks[float64],
+}
+
+func nullableSlotBlocks[T Primitive]() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+	return blockSlice(ReadNullableSlots[T], WriteNullableSlots[T])
+}
+
+func ninoNullableBlocks[T Primitive]() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
+	return blockSlice(ReadNinoNullables[T], WriteNinoNullables[T])
 }
 
 func blockValues[T BlockValue]() (func(*Reader, reflect.Value), func(*Writer, reflect.Value)) {
@@ -446,6 +483,26 @@ func keyOrder(keys reflect.Value) []int {
 			}
 			return 0
 		})
+	case reflect.Struct:
+		if isNullableSlotType(keys.Type().Elem()) {
+			// A set of T?: null first, then the values (their own order when they are numbers).
+			present := make([]int, 0, n)
+			order = order[:0]
+			for i := 0; i < n; i++ {
+				if keys.Index(i).Field(0).Bool() {
+					present = append(present, i)
+				} else {
+					order = append(order, i)
+				}
+			}
+			values := reflect.MakeSlice(reflect.SliceOf(keys.Type().Elem().Field(1).Type), len(present), len(present))
+			for at, i := range present {
+				values.Index(at).Set(keys.Index(i).Field(1))
+			}
+			for _, at := range keyOrder(values) {
+				order = append(order, present[at])
+			}
+		}
 	}
 	return order
 }

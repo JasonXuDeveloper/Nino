@@ -48,12 +48,46 @@ namespace Nino.Core
                 return;
             }
 
+            // Slots (raw T?): copied out and written as one block, as an array of them is.
+            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            {
+                WriteSlots(value, ref writer);
+                return;
+            }
+
             // Elements with references through the writer parameter, which their formatters' calls take anyway: a copy
             // in and out of WriteEach for each set cost more (NinoElements.WritesOnLocal).
             if (NinoElements.WritesOnLocal<T>())
                 writer = WriteEach(value, writer);
             else
                 WriteEach(value, ref writer);
+        }
+
+        /// <summary>
+        /// The count and the slots, out of line. Where a run of slots can be written over itself
+        /// (<see cref="INinoSlotFormatter{T}.SlotsWriteInPlace"/>) and the set has no free entry, the values are
+        /// packed out of the entries as raw elements are (<see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>),
+        /// then written over themselves as slots, which clears their padding and absent values (1,000 <c>int?</c>:
+        /// 227 ns against 1,140 from a rented copy, local); else from a rented copy (CopyTo: enumeration order).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteSlots(TSet value, ref Writer writer)
+        {
+            var slots = NinoSlots<T, TFormatter>.Formatter;
+            int count = value.Count;
+            var entries = slots.SlotsWriteInPlace && CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
+            if (entries == null || count > entries.Length)
+            {
+                NinoCollections.WriteCopied<T, TFormatter>(value, null, ref writer);
+                return;
+            }
+
+            int size = Unsafe.SizeOf<T>();
+            ref byte elements = ref writer.ReserveCounted(count, size);
+            NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBytes<T>>(ref elements,
+                ref entries[0], count, size);
+            slots.WriteSlots(ref elements,
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, T>(ref elements), count));
         }
 
         /// <summary>The <paramref name="count"/> raw elements of a set with free entries, in enumeration
@@ -93,7 +127,7 @@ namespace Nino.Core
         {
             writer.WriteLength(value.Count);
             foreach (var item in value)
-                default(TFormatter).Serialize(item, ref writer);
+                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref TSet value)
@@ -126,9 +160,16 @@ namespace Nino.Core
                 int size = Unsafe.SizeOf<T>();
                 ref byte src = ref reader.ReadElements(length, size);
                 // Filled directly where it can be, else added out of line (each checks bools: 0 or 1).
-                if (created && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
+                if (TryFill(set, ref src, length, created))
                     return;
                 AddRaw(set, ref src, length);
+                return;
+            }
+
+            // Slots (raw T?), out of line.
+            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            {
+                ReadSlots(set, length, created, ref reader);
                 return;
             }
 
@@ -143,11 +184,22 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref reader, ref item);
-                if (!set.Add(item))
-                    NinoThrow.DuplicateKey(set.GetType());
+                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
+                Add(set, item, insert: false, walk: false);
             }
         }
+
+        /// <summary>
+        /// Fills the entries of <paramref name="set"/> directly from <paramref name="length"/> raw values at
+        /// <paramref name="src"/> where it can (<see cref="HashTables"/>): a new plain set (default comparer), or a
+        /// plain one read into, empty once cleared. False where the set was left to add them.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryFill(TSet set, ref byte src, int length, bool created) =>
+            HashTables.Set && (created
+                ? HashTables.TryFill(set, ref src, length, Unsafe.SizeOf<T>())
+                : typeof(TSet) == typeof(HashSet<T>) && set.Count == 0 &&
+                  HashTables.TryRefill(set, ref src, length, Unsafe.SizeOf<T>()));
 
         /// <summary>
         /// Reads and adds <paramref name="length"/> elements, out of line with the reader by value (see
@@ -165,21 +217,91 @@ namespace Nino.Core
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref reader, ref item);
-                if (insert)
-                {
-                    HashTables.Insert(set, item);
-                }
-                else
-                {
-                    if (!set.Add(item))
-                        NinoThrow.DuplicateKey(set.GetType());
-                    if (walk)
-                        HashTables.Walk(set, item);
-                }
+                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
+                Add(set, item, insert, walk);
             }
 
             return reader;
+        }
+
+        /// <summary>
+        /// Adds one element as <see cref="AddEach"/> chose for the run: inserted where the set is as expected, else
+        /// added by the set, its bucket walked after where the plan says so.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Add(TSet set, T item, bool insert, bool walk)
+        {
+            if (insert)
+            {
+                HashTables.Insert(set, item);
+                return;
+            }
+
+            if (!set.Add(item))
+                NinoThrow.DuplicateKey(set.GetType());
+            if (walk)
+                HashTables.Walk(set, item);
+        }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> slots (raw <c>T?</c>). Where a slot is its value's memory they are checked
+        /// in the data and added from it as raw elements are, the entries filled directly where they can be
+        /// (<see cref="TryFill"/>); else <see cref="AddSlots"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadSlots(TSet set, int length, bool created, ref Reader reader)
+        {
+            var slots = NinoSlots<T, TFormatter>.Formatter;
+            if (!slots.SlotsAreMemory)
+            {
+                AddSlots(set, length, ref reader);
+                return;
+            }
+
+            int size = Unsafe.SizeOf<T>();
+            ref byte src = ref reader.ReadElements(length, size);
+            slots.CheckSlots(ref src, length);
+            if (TryFill(set, ref src, length, created))
+                return;
+            AddFrom(set, ref src, length);
+        }
+
+        /// <summary>
+        /// Adds <paramref name="length"/> elements from their checked bytes as <see cref="AddEach"/> adds them: inserted
+        /// where the set is empty, with the default comparer and sized for them (an existing set read into, cleared),
+        /// else added by the set, its bucket walked after.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void AddFrom(TSet set, ref byte src, int length)
+        {
+            int size = Unsafe.SizeOf<T>();
+            bool insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
+            bool walk = HashTables.Plan<T>.Walks;
+            for (int i = 0; i < length; i++)
+            {
+                Add(set, NinoUnsafe.Read<T>(ref src), insert, walk);
+                src = ref Unsafe.Add(ref src, size);
+            }
+        }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> slots (raw <c>T?</c>) as one run into a rented array, checked and
+        /// converted by the run's kernels, then adds each as <see cref="AddEach"/> does: one element at a time
+        /// through the reader took two and a half times as long (1,000 <c>int?</c>: 12,174 ns against 4,842 before
+        /// slots, local).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void AddSlots(TSet set, int length, ref Reader reader)
+        {
+            var rented = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
+            try
+            {
+                AddFrom(set, ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(rented)), length);
+            }
+            finally
+            {
+                NinoCollections.ReturnRented(rented);
+            }
         }
 
         /// <summary>
@@ -190,17 +312,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void AddRaw(TSet set, ref byte src, int length)
         {
-            int size = Unsafe.SizeOf<T>();
             if (!NinoLayout<T>.CopiesAsIs)
-                NinoChecks.Values<T>(ref src, length, size);
-            for (int i = 0; i < length; i++)
-            {
-                T item = NinoUnsafe.Read<T>(ref src);
-                if (!set.Add(item))
-                    NinoThrow.DuplicateKey(set.GetType());
-                HashTables.Added(set, item);
-                src = ref Unsafe.Add(ref src, size);
-            }
+                NinoChecks.Values<T>(ref src, length, Unsafe.SizeOf<T>());
+            AddFrom(set, ref src, length);
         }
     }
 }

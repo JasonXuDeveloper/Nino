@@ -167,6 +167,8 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Sequence:
                 {
                     var element = Shape(value.Element!);
+                    // A raw T? is a slot there, which its declared type says (NullableSlot<T>).
+                    element.SlotElement = element is { Kind: "rawnullable", Clean: false };
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     if (value.IsByteArray)
@@ -298,12 +300,13 @@ namespace Nino.Codegen.Targets
                     throw new UnsupportedException($"{value.ClrName} ({value.Encoding}) has no TypeScript form");
                 case ValueKind.RawNullable:
                 {
-                    // T? in the canonical Nullable<T> layout: the flag, then the value at its offset (zeroed when absent).
+                    // T? in the canonical Nullable<T> layout, or a NinoNullable<T>: the flag, then the value at its
+                    // offset (zeroed when absent).
                     var inner = RawShape(value.Element!);
                     return new TsShape("rawnullable")
                     {
                         Inner = inner, FlagOffset = value.FlagOffset, ValueOffset = value.ValueOffset,
-                        Size = value.Size, Zeroed = true,
+                        Clean = value.Clean, Size = value.Size, Zeroed = true,
                     };
                 }
                 case ValueKind.RawTuple:

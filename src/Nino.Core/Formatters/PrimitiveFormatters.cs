@@ -240,6 +240,37 @@ namespace Nino.Core
     }
 
     /// <summary>
+    /// <c>T?</c> of a raw <typeparamref name="T"/>. A single value (a member, a tuple's item, a dictionary's key or
+    /// value) is the bytes of <see cref="NullableFormatter{T,TFormatter}"/>: a presence byte, then the value when
+    /// present. As the element of a collection it is a slot of a fixed size (the presence byte, zeros up to T's
+    /// alignment, then T, zero when absent: <see cref="NinoNullables{T}"/>), so every collection of them is one
+    /// block, as <c>T?[]</c> and <c>List&lt;T?&gt;</c> are (<see cref="NullableArrayFormatter{T}"/>).
+    /// </summary>
+    public struct UnmanagedNullableFormatter<[NinoRaw] T> : INinoFormatter<T?>, INinoSlotFormatter<T?> where T : unmanaged
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(T? value, ref Writer writer) => writer.WriteNullableRaw(value);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref Reader reader, ref T? value) => reader.ReadNullableRaw(ref value);
+
+        int INinoSlotFormatter<T?>.SlotStride => NinoNullables<T>.Stride;
+
+        void INinoSlotFormatter<T?>.WriteSlots(ref byte destination, ReadOnlySpan<T?> values) =>
+            NinoNullables<T>.WriteSlots(ref destination, values);
+
+        void INinoSlotFormatter<T?>.ReadSlots(Span<T?> values, ref Reader reader) =>
+            NinoNullables<T>.ReadPrechecked(values, ref reader);
+
+        bool INinoSlotFormatter<T?>.SlotsAreMemory => NinoNullables<T>.Raw;
+
+        bool INinoSlotFormatter<T?>.SlotsWriteInPlace => NinoNullables<T>.InPlace;
+
+        void INinoSlotFormatter<T?>.CheckSlots(ref byte slots, int count) =>
+            NinoChecks.Flags(ref slots, count, NinoNullables<T>.Stride);
+    }
+
+    /// <summary>
     /// Writes an <see cref="object"/> whose values are <c>[NinoType]</c>s as type id plus body, dispatching through
     /// <see cref="NinoSubtypes{TBase}"/>. Not generic: a formatter generic over a reference type runs as shared
     /// code, which reaches the registry through the generic dictionary on every value (about 1.5x slower).

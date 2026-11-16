@@ -181,7 +181,7 @@ type tagAll struct {
 	Label   tagLabel                `nino:"17"`
 	OptInt  *int32                  `nino:"18"`
 	OptRaw  *tagRaw                 `nino:"19"`
-	Stride  []*int32                `nino:"20"`
+	Stride  []NullableSlot[int32]   `nino:"20"`
 	Map     map[string]int32        `nino:"21"`
 	Set     map[int32]struct{}      `nino:"22"`
 	Pairs   []Entry[int32, *string] `nino:"23"`
@@ -226,13 +226,13 @@ func writeAllByHand(w *Writer, v *tagAll) {
 		w.I64(v.OptRaw.B)
 	}
 	w.Length(len(v.Stride))
-	for _, p := range v.Stride {
-		if p == nil {
+	for _, e := range v.Stride {
+		if !e.HasValue {
 			w.ExtendZero(8)
 		} else {
 			w.U8(1)
 			w.ExtendZero(3)
-			w.I32(*p)
+			w.I32(e.Value)
 		}
 	}
 	w.Length(len(v.Map)) // one key: no order to choose
@@ -262,7 +262,7 @@ func sampleAll() *tagAll {
 		Off: DateTimeOffset{UtcTicks: 638000000000000000, OffsetMinutes: -60}, Text: "héllo", Utf: str("é😀"),
 		Bytes: []byte{1, 2, 3}, Ints: []int32{1, -1, 1 << 30}, Bools: []bool{true, false},
 		Raw: tagRaw{1, 2}, Raws: []tagRaw{{3, 4}, {5, 6}}, Label: tagLabel{"x", 9}, OptInt: &seven,
-		OptRaw: &tagRaw{7, 8}, OptVec: &tagRawStruct{9, 10}, Stride: []*int32{&seven, nil}, Map: map[string]int32{"k": 1},
+		OptRaw: &tagRaw{7, 8}, OptVec: &tagRawStruct{9, 10}, Stride: []NullableSlot[int32]{NullableSlotOf(seven), {}}, Map: map[string]int32{"k": 1},
 		Set: map[int32]struct{}{5: {}}, Pairs: []Entry[int32, *string]{{1, str("a")}, {2, nil}},
 		Small: &tagSmall{A: 1, B: str("b")}, Skipped: 99,
 	}
@@ -514,9 +514,9 @@ func TestTagRaw(t *testing.T) {
 			// The bytes .NET writes: B at 16, 48 bytes; Int128? and UInt128? elements at a stride of 16 + 16.
 			{tagWide{1, Int128{Lo: ^uint64(1), Hi: ^uint64(0)}, 3},
 				"01 000000000000000000000000000000 FEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF 03000000 000000000000000000000000"},
-			{[]*Int128{{Lo: 5}, nil}, "02000000 01 000000000000000000000000000000 05000000000000000000000000000000" +
+			{[]NullableSlot[Int128]{NullableSlotOf(Int128{Lo: 5}), {}}, "02000000 01 000000000000000000000000000000 05000000000000000000000000000000" +
 				" 00000000000000000000000000000000 00000000000000000000000000000000"},
-			{[]*UInt128{nil, {Lo: 6}}, "02000000 00000000000000000000000000000000 00000000000000000000000000000000" +
+			{[]NullableSlot[UInt128]{{}, NullableSlotOf(UInt128{Lo: 6})}, "02000000 00000000000000000000000000000000 00000000000000000000000000000000" +
 				" 01 000000000000000000000000000000 06000000000000000000000000000000"},
 		} {
 			got, err := Marshal(c.v)
@@ -617,6 +617,213 @@ func (badTolerantGap) NinoLayout() string {
 }
 func (badElements) NinoLayout() string { return "members=[elements]::seq(raw(4));A:int:raw(4)" }
 
+// A T? field of a raw struct lies in its memory as the slot it is in a sequence (spec §6.2), with or without a
+// layout: Id at 0, Total at 8 (16 bytes), Inner at 24 (a tagRaw?: 24 bytes), Count at 48, 56 bytes.
+type tagRawOptional struct {
+	Id    int32               `nino:"0"`
+	Total *int64              `nino:"1"`
+	Inner *tagRawStruct       `nino:"2"`
+	Count NinoNullable[int32] `nino:"3"`
+}
+
+type tagRawOptionalLaidOut tagRawOptional
+
+func (tagRawOptionalLaidOut) NinoLayout() string {
+	return "header=None; raw=true; members=raw(56){Id:int@0:raw(4),Total:System.Nullable<long>@8:raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)}," +
+		"Inner:System.Nullable<Test.Raw>@24:raw(24){hasValue:bool@0:raw(1),value:Test.Raw@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}}," +
+		"Count:Nino.Core.NinoNullable<int>@48:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}"
+}
+
+func TestTagRawOptional(t *testing.T) {
+	const present = "07000000 00000000 0100000000000000 0500000000000000" +
+		" 0100000000000000 0100000000000000 0200000000000000 01000000 03000000"
+	bothModes(t, func(t *testing.T) {
+		five := int64(5)
+		full := tagRawOptional{Id: 7, Total: &five, Inner: &tagRawStruct{1, 2}, Count: NinoNullableOf[int32](3)}
+		for _, c := range []struct {
+			v    tagRawOptional
+			want string
+		}{{full, present}, {tagRawOptional{Id: 7}, "07" + strings.Repeat("00", 55)}} {
+			laidOut := tagRawOptionalLaidOut(c.v)
+			for _, v := range []any{c.v, laidOut, []tagRawOptional{c.v}} {
+				want := mustHex(t, c.want)
+				if reflect.TypeOf(v).Kind() == reflect.Slice {
+					want = append([]byte{1, 0, 0, 0}, want...)
+				}
+				got, err := Marshal(v)
+				if err != nil || !bytes.Equal(got, want) {
+					t.Fatalf("%T: got %X, %v\nwant %X", v, got, err, want)
+				}
+				// Read over a value that holds every field: an absent slot clears its field.
+				back := reflect.New(reflect.TypeOf(v))
+				if back.Elem().Kind() == reflect.Struct {
+					back.Elem().Set(reflect.ValueOf(full).Convert(back.Elem().Type()))
+				}
+				if err := UnmarshalExact(got, back.Interface()); err != nil || !reflect.DeepEqual(back.Elem().Interface(), v) {
+					t.Fatalf("%T read back: %v, %+v", v, err, back.Elem())
+				}
+			}
+		}
+		// Held through a pointer the type is a class, written member by member: each T? a presence byte and its value.
+		const class = "01 07000000 01 0500000000000000 01 0100000000000000 0200000000000000 01000000 03000000"
+		if got, err := Marshal(&full); err != nil || !bytes.Equal(got, mustHex(t, class)) {
+			t.Fatalf("as a class: got %X, %v\nwant %s", got, err, class)
+		}
+		// A presence other than 0 or 1 is rejected (.NET: with NinoSettings.Untrusted), in Total, Inner and Count.
+		for _, at := range []int{8, 24, 48} {
+			bad := mustHex(t, present)
+			bad[at] = 2
+			var v tagRawOptional
+			if err := Unmarshal(bad, &v); err == nil {
+				t.Fatalf("a presence of 2 at %d was read", at)
+			}
+		}
+	})
+}
+
+// .NET's NinoNullable<T> is a nino.NinoNullable[T]: its memory wherever it is (a presence and a value of a T each),
+// where a *T is a T?, a presence byte and the value (Plain). The type says so by itself; a layout, when there is
+// one, has to agree.
+type tagNinoNullableFields struct {
+	Tag   uint8               `nino:"0"`
+	Count NinoNullable[int32] `nino:"1"`
+}
+
+type tagNinoNullables struct {
+	One    NinoNullable[int32]           `nino:"0"`
+	Wide   NinoNullable[Decimal]         `nino:"1"`
+	Run    []NinoNullable[int32]         `nino:"2"`
+	Map    map[int32]NinoNullable[int64] `nino:"3"`
+	Fields tagNinoNullableFields         `nino:"4"`
+	Plain  *int32                        `nino:"5"`
+}
+
+// The same types with the layouts a generator emits.
+type tagNinoNullableFieldsLaidOut tagNinoNullableFields
+
+func (tagNinoNullableFieldsLaidOut) NinoLayout() string {
+	return "header=None; raw=true; members=raw(12){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}}"
+}
+
+type tagNinoNullablesLaidOut struct {
+	One    NinoNullable[int32]           `nino:"0"`
+	Wide   NinoNullable[Decimal]         `nino:"1"`
+	Run    []NinoNullable[int32]         `nino:"2"`
+	Map    map[int32]NinoNullable[int64] `nino:"3"`
+	Fields tagNinoNullableFieldsLaidOut  `nino:"4"`
+	Plain  *int32                        `nino:"5"`
+}
+
+func (tagNinoNullablesLaidOut) NinoLayout() string {
+	return "format=Positional; header=Presence; members=" +
+		"One:Nino.Core.NinoNullable<int>:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)};" +
+		"Wide:Nino.Core.NinoNullable<decimal>:raw(32){hasValue:bool@0:raw(1),value:decimal@16:raw(16)};" +
+		"Run:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});" +
+		"Map:System.Collections.Generic.Dictionary<int, Nino.Core.NinoNullable<long>>:map(raw(4),raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});" +
+		"Fields:Test.Fields:raw(12){Tag:byte@0:raw(1),Count:Nino.Core.NinoNullable<int>@4:raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}};" +
+		"Plain:System.Nullable<int>:nullable(raw(4))"
+}
+
+func TestTagNinoNullable(t *testing.T) {
+	const want = "01 0100000007000000 0000000000000000000000000000000000000000000000000000000000000000" +
+		" 02000000 0100000005000000 0000000000000000 01000000 01000000 00000000000000000000000000000000" +
+		" 02000000 0100000003000000 01 09000000"
+	check := func(t *testing.T, v any, read func([]byte) (any, error)) {
+		got, err := Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(got, mustHex(t, want)) {
+			t.Fatalf("got %X\nwant %s", got, want)
+		}
+		if back, err := read(got); err != nil || !reflect.DeepEqual(back, v) {
+			t.Fatalf("read back: %v, %+v", err, back)
+		}
+		// What .NET's untrusted mode rejects: a presence other than 0 or 1, a byte above its first, and a byte in a
+		// value that is absent (One, One, Wide, the second of Run, Map's value, Fields.Count).
+		for _, at := range []int{1, 2, 9 + 20, 45 + 8 + 4, 65 + 9, 77 + 5} {
+			bad := bytes.Clone(got)
+			bad[at] |= 2
+			if _, err := read(bad); err == nil {
+				t.Fatalf("a byte set at %d was read", at)
+			}
+		}
+	}
+	bothModes(t, func(t *testing.T) {
+		seven, nine := NinoNullableOf[int32](7), int32(9)
+		run := []NinoNullable[int32]{NinoNullableOf[int32](5), {}}
+		absent := map[int32]NinoNullable[int64]{1: {}}
+		// An absent value is zeros on the wire whatever Value holds.
+		stale := []NinoNullable[int32]{NinoNullableOf[int32](5), {Value: 8}}
+		if got, err := Marshal(stale); err != nil || !bytes.Equal(got, mustHex(t, "02000000 0100000005000000 0000000000000000")) {
+			t.Fatalf("an absent element with a value: %X, %v", got, err)
+		}
+		t.Run("no layout", func(t *testing.T) {
+			v := &tagNinoNullables{
+				One: seven, Run: run, Map: absent,
+				Fields: tagNinoNullableFields{Tag: 2, Count: NinoNullableOf[int32](3)}, Plain: &nine,
+			}
+			check(t, v, func(b []byte) (any, error) {
+				var back *tagNinoNullables
+				err := UnmarshalExact(b, &back)
+				return back, err
+			})
+		})
+		t.Run("layout", func(t *testing.T) {
+			v := &tagNinoNullablesLaidOut{
+				One: seven, Run: run, Map: absent,
+				Fields: tagNinoNullableFieldsLaidOut{Tag: 2, Count: NinoNullableOf[int32](3)}, Plain: &nine,
+			}
+			check(t, v, func(b []byte) (any, error) {
+				var back *tagNinoNullablesLaidOut
+				err := UnmarshalExact(b, &back)
+				return back, err
+			})
+		})
+	})
+	if v, ok := NinoNullableOf("x").Get(); v != "x" || !ok {
+		t.Fatalf("Get of a value: %q, %v", v, ok)
+	}
+	if v, ok := (NinoNullable[int32]{Value: 4}).Get(); v != 0 || ok {
+		t.Fatalf("Get of an absent value: %d, %v", v, ok)
+	}
+}
+
+// A layout and the Go type have to name the same nullable: a run of a narrow NinoNullable<T> has the bytes of a T?
+// run, so the sizes would let either through.
+type (
+	badNinoNullablePointer struct {
+		Run []NullableSlot[int32] `nino:"0"`
+	}
+	badNullableSlotAlone struct {
+		One NullableSlot[int32] `nino:"0"`
+	}
+	badNullableSlotText struct {
+		Run []NullableSlot[string] `nino:"0"`
+	}
+	badPointerRun struct {
+		Run []*int32 `nino:"0"`
+	}
+	badNullableValue struct {
+		Run []NinoNullable[int32] `nino:"0"`
+	}
+	badNinoNullableText struct {
+		S NinoNullable[string] `nino:"0"`
+	}
+)
+
+func (badNinoNullablePointer) NinoLayout() string {
+	return "members=Run:Nino.Core.NinoNullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+}
+
+func (badPointerRun) NinoLayout() string {
+	return "members=Run:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+}
+
+func (badNullableValue) NinoLayout() string {
+	return "members=Run:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+}
+
 func TestTagErrors(t *testing.T) {
 	for _, c := range []struct {
 		v     any
@@ -646,6 +853,12 @@ func TestTagErrors(t *testing.T) {
 		{badEmbeddedPtr{}, "tagRaw", "embedded pointer"},
 		{badElements{}, "", "collections"},
 		{badPtrPtr{}, "P", "pointer to a ptr"},
+		{badNinoNullablePointer{}, "Run", "is a nino.NinoNullable[T]"},
+		{badNullableValue{}, "Run", "a T? a *T"},
+		{badNullableSlotAlone{}, "One", "a single T? is a *T"},
+		{badNullableSlotText{}, "Run", "a NullableSlot holds a raw value"},
+		{badPointerRun{}, "Run", "nino.NullableSlot"},
+		{badNinoNullableText{}, "S", "holds a raw value"},
 	} {
 		err := Check(reflect.TypeOf(c.v))
 		var te *TagError
@@ -929,6 +1142,62 @@ func TestTagBlocks(t *testing.T) {
 		bad[1+4+1] = 2
 		if err := UnmarshalExact(bad, &back); !errors.Is(err, ErrInvalidData) {
 			t.Fatalf("a bool of 2: %v", err)
+		}
+	})
+}
+
+// A set of T? of a raw T (HashSet<T?>) is a map keyed by nino.NullableSlot[T]: the slots of a T?[], written null
+// first and then in the values' order, and an element read twice (null, or a value) is rejected, with or without a
+// layout.
+type tagSlotSet struct {
+	Ints  map[NullableSlot[int32]]struct{}   `nino:"0"`
+	Wide  map[NullableSlot[Int128]]struct{}  `nino:"1"`
+	Reals map[NullableSlot[float64]]struct{} `nino:"2"`
+}
+
+type tagSlotSetLaidOut struct {
+	Ints map[NullableSlot[int32]]struct{} `nino:"0"`
+}
+
+func (tagSlotSetLaidOut) NinoLayout() string {
+	return "header=None; members=Ints:System.Collections.Generic.HashSet<System.Nullable<int>>:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})"
+}
+
+func TestTagSlotSets(t *testing.T) {
+	const ints = "03000000 0000000000000000 01000000FEFFFFFF 0100000007000000"
+	bothModes(t, func(t *testing.T) {
+		v := tagSlotSet{
+			Ints:  map[NullableSlot[int32]]struct{}{NullableSlotOf[int32](7): {}, {}: {}, NullableSlotOf[int32](-2): {}},
+			Wide:  map[NullableSlot[Int128]]struct{}{NullableSlotOf(Int128{Lo: 5}): {}},
+			Reals: map[NullableSlot[float64]]struct{}{},
+		}
+		want := mustHex(t, ints+"01000000 01"+strings.Repeat("00", 15)+"05"+strings.Repeat("00", 15)+"00000000")
+		got, err := Marshal(v)
+		if err != nil || !bytes.Equal(got, want) {
+			t.Fatalf("got %X, %v\nwant %X", got, err, want)
+		}
+		var back tagSlotSet
+		if err := UnmarshalExact(got, &back); err != nil || !reflect.DeepEqual(back, v) {
+			t.Fatalf("read back: %v, %+v", err, back)
+		}
+		laidOut := tagSlotSetLaidOut{Ints: v.Ints}
+		if got, err := Marshal(laidOut); err != nil || !bytes.Equal(got, mustHex(t, ints)) {
+			t.Fatalf("with a layout: got %X, %v", got, err)
+		}
+		// Null twice (whatever lies under the second), a value twice, two NaNs.
+		for name, bad := range map[string]string{
+			"null twice":    "02000000 0000000000000000 0000000007000000" + "00000000 00000000",
+			"a value twice": "02000000 0100000007000000 0100000007000000" + "00000000 00000000",
+			"a NaN twice":   "00000000 00000000 02000000 0100000000000000 000000000000F87F 0100000000000000 010000000000F07F",
+		} {
+			var e *Error
+			if err := Unmarshal(mustHex(t, bad), &back); !errors.As(err, &e) || e.Code != CodeDuplicateKey {
+				t.Fatalf("%s: %v", name, err)
+			}
+		}
+		var one tagSlotSetLaidOut
+		if err := Unmarshal(mustHex(t, "02000000 0000000000000000 0000000000000000"), &one); err == nil {
+			t.Fatal("null twice with a layout was read")
 		}
 	})
 }

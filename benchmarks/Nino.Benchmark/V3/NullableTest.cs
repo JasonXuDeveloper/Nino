@@ -20,7 +20,9 @@ namespace Nino.Benchmark;
 /// Nullable values: a class of eight nullable members, half of them null, alone and in an array of 100; one
 /// <c>SimpleStruct?</c> with a value, <c>SimpleStruct?[100]</c> and <c>SimpleClass[100]</c> with every fifth element null,
 /// and one null <c>SimpleClass</c>; a struct that holds a reference (<see cref="ManagedStruct"/>), with a value and
-/// nullable, alone and in an array of 100. Against MemoryPack (SafeNullable for the nullable structs) and MessagePack.
+/// nullable, alone and in an array of 100; a raw struct with nullable members (<see cref="RawNullable"/>), alone and
+/// in an array of 1,000, and <c>string[1000]</c> with every fifth element null. Against MemoryPack (SafeNullable for
+/// the nullable structs and for RawNullable's members) and MessagePack (the first six cases).
 /// </summary>
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
@@ -53,6 +55,21 @@ public class NullableTest : IReadBack
     private static readonly byte[][] SerializedManagedStructs = [MemoryPackSerializer.Serialize(Manageds), NinoGen.Serializer.Serialize(Manageds)];
     private static readonly byte[][] SerializedNullableManagedStruct = [MemoryPackSerializer.Serialize(NullableManaged), NinoGen.Serializer.Serialize(NullableManaged)];
     private static readonly byte[][] SerializedNullableManagedStructs = [MemoryPackSerializer.Serialize(NullableManageds), NinoGen.Serializer.Serialize(NullableManageds)];
+
+    // NullableTest.RawNullable.cs: a raw struct with nullable members, alone and in an array of 1,000 (Nino and
+    // MemoryPack's SafeNullable form), and NullableTest.NullableStrings.cs: string[1000] with every fifth element null.
+    private static readonly RawNullable Raw = RawNullable.Create(3);
+    private static readonly RawNullable[] Raws = RawNullable.CreateArray(1000);
+    private static readonly RawNullableMemoryPack RawMemoryPack = RawNullableMemoryPack.From(Raw);
+    private static readonly RawNullableMemoryPack[] RawsMemoryPack = SafeNullables.From(Raws);
+    private static readonly byte[] NinoRawNullableBytes = NinoGen.Serializer.Serialize(Raw);
+    private static readonly byte[] MemoryPackRawNullableBytes = MemoryPackSerializer.Serialize(RawMemoryPack);
+    private static readonly byte[] NinoRawNullablesBytes = NinoGen.Serializer.Serialize(Raws);
+    private static readonly byte[] MemoryPackRawNullablesBytes = MemoryPackSerializer.Serialize(RawsMemoryPack);
+    private static readonly string[] Strings =
+        Enumerable.Range(0, 1000).Select(i => i % 5 == 0 ? null : "item-" + i.ToString("D4")).ToArray();
+    private static readonly byte[] NinoNullableStringsBytes = NinoGen.Serializer.Serialize(Strings);
+    private static readonly byte[] MemoryPackNullableStringsBytes = MemoryPackSerializer.Serialize(Strings);
 
     // v3 3.3.13 has no NinoArrayBufferWriter; its IBufferWriter<byte> overload is the reused-buffer path.
     private ArrayBufferWriter<byte> _ninoBuffer;
@@ -107,6 +124,13 @@ public class NullableTest : IReadBack
             BenchmarkPayloadRegistry.Register($"{managed[i]}SerializeNullableManagedStruct", SerializedNullableManagedStruct[i].Length);
             BenchmarkPayloadRegistry.Register($"{managed[i]}SerializeNullableManagedStructs", SerializedNullableManagedStructs[i].Length);
         }
+
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeRawNullable), NinoRawNullableBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeRawNullable), MemoryPackRawNullableBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeRawNullables), NinoRawNullablesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeRawNullables), MemoryPackRawNullablesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNullableStrings), NinoNullableStringsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNullableStrings), MemoryPackNullableStringsBytes.Length);
     }
 
     [GlobalSetup]
@@ -462,4 +486,85 @@ public class NullableTest : IReadBack
     [Benchmark, BenchmarkCategory("NullableManagedStructsDeserialize")]
     public ManagedStruct?[] MemoryPackDeserializeNullableManagedStructs() =>
         MemoryPackSerializer.Deserialize<ManagedStruct?[]>(SerializedNullableManagedStructs[0]);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("RawNullableSerialize")]
+    public int NinoSerializeRawNullable()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(Raw, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("RawNullableSerialize")]
+    public int MemoryPackSerializeRawNullable()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, RawMemoryPack);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("RawNullableDeserialize")]
+    public RawNullable NinoDeserializeRawNullable()
+    {
+        NinoGen.Deserializer.Deserialize(NinoRawNullableBytes, out RawNullable ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("RawNullableDeserialize")]
+    public RawNullableMemoryPack MemoryPackDeserializeRawNullable() =>
+        MemoryPackSerializer.Deserialize<RawNullableMemoryPack>(MemoryPackRawNullableBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("RawNullablesSerialize")]
+    public int NinoSerializeRawNullables()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(Raws, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("RawNullablesSerialize")]
+    public int MemoryPackSerializeRawNullables()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, RawsMemoryPack);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("RawNullablesDeserialize")]
+    public RawNullable[] NinoDeserializeRawNullables()
+    {
+        NinoGen.Deserializer.Deserialize(NinoRawNullablesBytes, out RawNullable[] ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("RawNullablesDeserialize")]
+    public RawNullableMemoryPack[] MemoryPackDeserializeRawNullables() =>
+        MemoryPackSerializer.Deserialize<RawNullableMemoryPack[]>(MemoryPackRawNullablesBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableStringsSerialize")]
+    public int NinoSerializeNullableStrings()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoGen.Serializer.Serialize(Strings, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStringsSerialize")]
+    public int MemoryPackSerializeNullableStrings()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, Strings);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("NullableStringsDeserialize")]
+    public string[] NinoDeserializeNullableStrings()
+    {
+        NinoGen.Deserializer.Deserialize(NinoNullableStringsBytes, out string[] ret);
+        return ret;
+    }
+
+    [Benchmark, BenchmarkCategory("NullableStringsDeserialize")]
+    public string[] MemoryPackDeserializeNullableStrings() =>
+        MemoryPackSerializer.Deserialize<string[]>(MemoryPackNullableStringsBytes);
 }

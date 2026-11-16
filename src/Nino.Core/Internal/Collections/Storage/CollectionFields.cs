@@ -64,6 +64,30 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
+        /// The value of a <see cref="SetEntry{T}"/> moved as its bytes, whatever they hold: for values the caller
+        /// makes the wire's bytes after the move (slots: <see cref="INinoSlotFormatter{T}.SlotsAreMemory"/>), where
+        /// <see cref="SetEntryBlock{T}"/> takes only values that are the wire's bytes already. Writes only.
+        /// </summary>
+        internal struct SetEntryBytes<T> : INinoFormatter<SetEntry<T>>, INinoBlockFormatter<SetEntry<T>>
+        {
+            public int FixedSize => Unsafe.SizeOf<T>();
+
+            public NinoBlockMap BlockMap()
+            {
+                var entry = default(SetEntry<T>);
+                return new NinoBlockMap().Bytes(NinoBlocks.Offset(ref entry, ref entry.Value), 0, Unsafe.SizeOf<T>());
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void WriteFixed(in SetEntry<T> value, ref byte destination) =>
+                NinoUnsafe.Write(ref destination, value.Value);
+
+            public void ReadBlock(ref SetEntry<T> value, ref byte source) => throw new NotSupportedException();
+            public void Serialize(SetEntry<T> value, ref Writer writer) => throw new NotSupportedException();
+            public void Deserialize(ref Reader reader, ref SetEntry<T> value) => throw new NotSupportedException();
+        }
+
+        /// <summary>
         /// The raw key and value of a <see cref="MapEntry{TKey,TValue}"/> as one block, as
         /// <see cref="SetEntryBlock{T}"/> for a set's entries.
         /// </summary>
@@ -113,6 +137,18 @@ namespace Nino.Core.Internal
             ObjectFields.At<int>(dictionary, CollectionViews.DictionaryBound) == count
                 ? Unsafe.As<MapEntry<TKey, TValue>[]>(ObjectFields.At<object>(dictionary, CollectionViews.DictionaryEntries))
                 : null;
+
+        /// <summary>
+        /// The <see cref="List{T}"/> that <paramref name="collection"/> wraps (what its constructors without a list
+        /// make, and <c>ObservableCollection</c>'s), or null when it wraps another <see cref="IList{T}"/>. Call where
+        /// <see cref="CollectionViews.Collection"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static List<T> List<T>(System.Collections.ObjectModel.Collection<T> collection)
+        {
+            object items = ObjectFields.At<object>(collection, CollectionViews.CollectionItems);
+            return items != null && items.GetType() == typeof(List<T>) ? Unsafe.As<List<T>>(items) : null;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T[] Items<T>(List<T> list) => ref ObjectFields.At<T[]>(list, CollectionViews.ListItems);

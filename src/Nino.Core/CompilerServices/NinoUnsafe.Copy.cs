@@ -283,6 +283,18 @@ namespace Nino.Core.CompilerServices
         private const uint MaxVector256Copy = 1024 * 1024;
 
         /// <summary>
+        /// The bytes from <paramref name="destination"/> to the next address that is a multiple of
+        /// <paramref name="width"/> (a power of two), <paramref name="width"/> itself where it is one already: where a
+        /// loop that wrote its first vector as it lies goes on with aligned stores. The address may change under the
+        /// loop (a compacting collection): the stores are then unaligned, never wrong.
+        /// </summary>
+        // CopyVectors below keeps the expression in place: it is inlined into every long copy, at the edge of its
+        // callers' inlining budgets.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe nuint BytesToAligned(ref byte destination, nuint width) =>
+            width - ((nuint)Unsafe.AsPointer(ref destination) & (width - 1));
+
+        /// <summary>
         /// Copies at least one vector (<typeparamref name="TVector"/>, a <c>Vector256</c> or <c>Vector512</c> of bytes)
         /// with vector loads and stores: the first one unaligned, then four at a time with aligned stores (an unaligned
         /// store straddles two cache lines), and the last one unaligned, overlapping. Measured on an AVX-512 Xeon

@@ -2,7 +2,7 @@
 
 mod samples;
 
-use nino::{deserialize, deserialize_exact, serialize, type_id, ErrorKind, RawNullables, Utf8};
+use nino::{deserialize, deserialize_exact, serialize, type_id, ErrorKind, NinoNullable, NullableSlot, Utf8};
 use samples::*;
 
 fn hex(s: &str) -> Vec<u8> {
@@ -131,31 +131,112 @@ fn a4_strings() {
 
 #[test]
 fn a6_raw_nullables() {
-    let v = RawNullables::<i64>(vec![Some(1), None]);
+    let slots = |values: &[Option<i64>]| values.iter().copied().map(NullableSlot).collect::<Vec<_>>();
+    let v = slots(&[Some(1), None]);
     let bytes = serialize(&v).unwrap();
     assert_eq!(bytes, hex("02000000 01 00000000000000 0100000000000000 00000000000000000000000000000000"));
-    assert_eq!(deserialize_exact::<RawNullables<i64>>(&bytes).unwrap(), v);
+    assert_eq!(deserialize_exact::<Vec<NullableSlot<i64>>>(&bytes).unwrap(), v);
 
-    let v = RawNullables::<i32>(vec![Some(1), None]);
+    let v = vec![NullableSlot(Some(1i32)), NullableSlot(None)];
     assert_eq!(serialize(&v).unwrap(), hex("02000000 01000000 01000000 00000000 00000000"));
-    // One T? per element (IList<int?>).
+    // A Vec of Options is a presence byte and the value an element: what .NET writes for a T? whose T is not raw.
     assert_eq!(serialize(&vec![Some(1i32), None]).unwrap(), hex("02000000 01 01000000 00"));
     assert_eq!(serialize(&Some(7i32)).unwrap(), hex("01 07000000"));
     assert_eq!(serialize(&None::<i64>).unwrap(), hex("00"));
 
     // Int128 is aligned to 16 in the canonical layout (5.2): the value 16 bytes after the flag, as .NET writes it.
-    let v = RawNullables::<i128>(vec![Some(5)]);
+    let v = vec![NullableSlot(Some(5i128))];
     let bytes = serialize(&v).unwrap();
     assert_eq!(bytes, hex("01000000 01 000000000000000000000000000000 05000000000000000000000000000000"));
-    assert_eq!(deserialize_exact::<RawNullables<i128>>(&bytes).unwrap(), v);
+    assert_eq!(deserialize_exact::<Vec<NullableSlot<i128>>>(&bytes).unwrap(), v);
 
     // Padding and flags are checked.
     assert_eq!(
-        deserialize::<RawNullables<i32>>(&hex("01000000 02000000 01000000")).unwrap_err().kind(),
+        deserialize::<Vec<NullableSlot<i32>>>(&hex("01000000 02000000 01000000")).unwrap_err().kind(),
         ErrorKind::InvalidPresence
     );
     // The value bytes of a null element are not looked at (.NET writes zeros there).
-    assert_eq!(deserialize_exact::<RawNullables<i32>>(&hex("01000000 00000000 01000000")).unwrap().0, vec![None]);
+    let null = deserialize_exact::<Vec<NullableSlot<i32>>>(&hex("01000000 00000000 01000000")).unwrap();
+    assert_eq!(null, vec![NullableSlot(None)]);
+    // An Option of the list is its null (a length of -1), and a list read into keeps its allocation.
+    assert_eq!(serialize(&None::<Vec<NullableSlot<i32>>>).unwrap(), hex("ffffffff"));
+    let mut reused = Vec::with_capacity(8);
+    nino::deserialize_into(&hex("01000000 01000000 09000000"), &mut reused).unwrap();
+    assert_eq!((reused.as_slice(), reused.capacity()), ([NullableSlot(Some(9i32))].as_slice(), 8));
+}
+
+/// A raw `T?` is the slot of 6.2 as the element of every sequence (`NullableSlot<T>`): the bytes of a `T?[]` in a
+/// queue, a set, a grid and nested; a single value (a map's value, a pair's item) stays a presence byte and the value.
+#[test]
+fn a6_raw_nullable_elements() {
+    use nino::Grid;
+    use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
+
+    // Queue<int?> {5, null}, as int?[] {5, null}.
+    let queue = VecDeque::from([NullableSlot(Some(5i32)), NullableSlot(None)]);
+    let bytes = serialize(&queue).unwrap();
+    assert_eq!(bytes, hex("02000000 01000000 05000000 00000000 00000000"));
+    assert_eq!(serialize(&vec![NullableSlot(Some(5i32)), NullableSlot(None)]).unwrap(), bytes);
+    assert_eq!(deserialize_exact::<VecDeque<NullableSlot<i32>>>(&bytes).unwrap(), queue);
+    assert_eq!(deserialize_exact::<HashSet<NullableSlot<i32>>>(&bytes).unwrap().len(), 2);
+    // SortedSet<long?> {null, 7}: 16 bytes an element.
+    let sorted = BTreeSet::from([NullableSlot(None), NullableSlot(Some(7i64))]);
+    let bytes = serialize(&sorted).unwrap();
+    assert_eq!(bytes, hex("02000000 00000000000000000000000000000000 0100000000000000 0700000000000000"));
+    assert_eq!(deserialize_exact::<BTreeSet<NullableSlot<i64>>>(&bytes).unwrap(), sorted);
+    // int?[1,2] {{5, null}}, and List<HashSet<int?>> {{5}}.
+    let grid = Grid::new([1, 2], vec![NullableSlot(Some(5i32)), NullableSlot(None)]).unwrap();
+    let bytes = serialize(&grid).unwrap();
+    assert_eq!(bytes, hex("01000000 02000000 01000000 05000000 00000000 00000000"));
+    assert_eq!(deserialize_exact::<Grid<NullableSlot<i32>, 2>>(&bytes).unwrap(), grid);
+    let nested = vec![HashSet::from([NullableSlot(Some(5i32))])];
+    assert_eq!(serialize(&nested).unwrap(), hex("01000000 01000000 01000000 05000000"));
+    // Dictionary<int, long?> {1: null, 2: 7}: single values.
+    let map = BTreeMap::from([(1i32, None), (2, Some(7i64))]);
+    assert_eq!(serialize(&map).unwrap(), hex("02000000 01000000 00 02000000 01 0700000000000000"));
+
+    // A presence byte other than 0 or 1 is rejected in every container, an element read twice in a set, and the
+    // elements written as single values (10 bytes where two slots are 16).
+    let read = |text: &str| deserialize_exact::<HashSet<NullableSlot<i32>>>(&hex(text)).map(|_| ());
+    assert_eq!(read("01000000 02000000 07000000").unwrap_err().kind(), ErrorKind::InvalidPresence);
+    assert_eq!(read("02000000 00000000 00000000 00000000 00000000").unwrap_err().kind(), ErrorKind::DuplicateKey);
+    assert!(read("02000000 01 01000000 01 02000000").is_err());
+    let flag = hex("01000000 01000000 ff000000 07000000");
+    assert_eq!(deserialize_exact::<Grid<NullableSlot<i32>, 2>>(&flag).unwrap_err().kind(), ErrorKind::InvalidPresence);
+    // The value bytes of a null element are not looked at, so two nulls that differ there are one element.
+    assert_eq!(read("02000000 00000000 00000000 00000000 01000000").unwrap_err().kind(), ErrorKind::DuplicateKey);
+}
+
+/// .NET's `NinoNullable<T>`: its memory wherever it is, a presence and a value of a `T` each. Not the bytes of a
+/// `T?`, but for a run of a `T` as large as its alignment.
+#[test]
+fn nino_nullable_is_its_memory() {
+    let price = NinoNullable(Some(nino::Decimal { flags: 1 << 16, hi: 0, lo: 15 })); // 1.5
+    let bytes = serialize(&price).unwrap();
+    assert_eq!(bytes, hex("01000000000000000000000000000000 00000100 00000000 0f00000000000000"));
+    assert_eq!(deserialize_exact::<NinoNullable<nino::Decimal>>(&bytes).unwrap(), price);
+    assert_eq!(serialize(&NinoNullable::<nino::Decimal>(None)).unwrap(), [0u8; 32]);
+    assert_eq!(serialize(&price.0).unwrap(), hex("01 00000100 00000000 0f00000000000000"));
+
+    let run = vec![NinoNullable(Some(5i32)), NinoNullable(None)];
+    let bytes = serialize(&run).unwrap();
+    assert_eq!(bytes, hex("02000000 01000000 05000000 00000000 00000000"));
+    assert_eq!(deserialize_exact::<Vec<NinoNullable<i32>>>(&bytes).unwrap(), run);
+    assert_eq!(serialize(&vec![NullableSlot(Some(5i32)), NullableSlot(None)]).unwrap(), bytes);
+    // A wider T: 32 bytes an element, where a decimal?[] element is 24.
+    assert_eq!(serialize(&vec![price]).unwrap().len(), 4 + 32);
+    assert_eq!(serialize(&vec![NullableSlot(price.0)]).unwrap().len(), 4 + 24);
+
+    // What .NET's untrusted mode rejects: a presence other than 0 or 1, a byte above its first, a byte in a value
+    // that is absent; and the value's own checks where it is present (a decimal's scale).
+    let read = |text: &str| deserialize_exact::<NinoNullable<i32>>(&hex(text)).map(|v| v.0);
+    assert_eq!(read("01000000 07000000").unwrap(), Some(7));
+    assert_eq!(read("02000000 07000000").unwrap_err().kind(), ErrorKind::InvalidPresence);
+    assert_eq!(read("01000100 07000000").unwrap_err().kind(), ErrorKind::InvalidBits);
+    assert_eq!(read("00000000 07000000").unwrap_err().kind(), ErrorKind::InvalidBits);
+    assert!(read("01000000 070000").is_err());
+    let scale = hex("01000000000000000000000000000000 0000c800 00000000 0f00000000000000");
+    assert!(deserialize_exact::<NinoNullable<nino::Decimal>>(&scale).is_err());
 }
 
 /// `{ byte A; Int128 B; }`: B at 16, 32 bytes (the specification, 5.2). Through the derive, which sets the ALIGN.

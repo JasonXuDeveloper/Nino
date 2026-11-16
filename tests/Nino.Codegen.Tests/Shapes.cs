@@ -146,39 +146,60 @@ namespace Shapes
     }
 
     /// <summary>
-    /// <c>NinoNullable&lt;T&gt;</c> where the corpus lacks it: inside type arguments, which nino-gen works out as it does
-    /// those of <c>T?</c> (a presence byte and the value alone and in sets and maps, the fixed stride in arrays and
-    /// lists), and of an enum. <see cref="NullableArgs"/> is the same type with <c>T?</c>.
+    /// Raw nullables as the elements of the sequences the corpus lacks (a queue, a stack, a linked list, a sorted
+    /// set, a list interface, nested, and a set inside type arguments, where nino-gen works the encoding out): a slot
+    /// of a fixed size each, as in an array (wire-format spec §6.2). In a dictionary's value and a tuple's item they
+    /// are single values: a presence byte, then the value.
+    /// </summary>
+    [NinoType]
+    public sealed class NullableSlots
+    {
+        public Queue<int?> Queue;
+        public Stack<long?> Stack;
+        public LinkedList<byte?> Linked;
+        public SortedSet<int?> Sorted;
+        public IReadOnlyList<TupleCell?> ReadOnly;
+        public List<Queue<int?>> Nested;
+        public Generic.Box<HashSet<int?>> BoxedSet;
+        public Generic.Box<List<HashSet<long?>>> BoxedNested;
+        public Dictionary<int, long?> Map;
+        public Generic.Box<Dictionary<int, long?>> BoxedMap;
+        public List<(int, int?)> Tuples;
+    }
+
+    /// <summary>Raw nullables as the elements of arrays of two and three dimensions: slots too (TypeScript has no grids).</summary>
+    [NinoType]
+    public sealed class NullableGrids
+    {
+        public int?[,] Grid;
+        public long?[,,] Cube;
+        public TupleCell?[,] Cells;
+    }
+
+    /// <summary>
+    /// <c>NinoNullable&lt;T&gt;</c> where the corpus lacks it: of an enum and of a struct of several fields, inside
+    /// type arguments (which no layout describes: nino-gen works them out as the raw struct it is everywhere, a
+    /// presence and a value of a <c>T</c> each), in a set and in a tuple.
     /// </summary>
     [NinoType]
     public sealed class NinoNullableArgs
     {
         public NinoNullable<Flags> Enum;
         public NinoNullable<Flags>[] Enums;
+        public NinoNullable<TupleCell> Cell;
         public Generic.Box<NinoNullable<int>> One;
+        public Generic.Box<NinoNullable<decimal>> Wide;
         public Generic.Box<NinoNullable<TupleCell>[]> Array;
         public Generic.Box<List<NinoNullable<long>>> List;
         public HashSet<NinoNullable<int>> Set;
         public Dictionary<int, NinoNullable<double>> Map;
-    }
-
-    /// <summary><see cref="NinoNullableArgs"/> declared with <c>T?</c>: the same layout encodings and bytes.</summary>
-    [NinoType]
-    public sealed class NullableArgs
-    {
-        public Flags? Enum;
-        public Flags?[] Enums;
-        public Generic.Box<int?> One;
-        public Generic.Box<TupleCell?[]> Array;
-        public Generic.Box<List<long?>> List;
-        public HashSet<int?> Set;
-        public Dictionary<int, double?> Map;
+        public (byte, NinoNullable<System.Guid>) Tuple;
     }
 
     /// <summary>
-    /// <c>NinoNullable&lt;T&gt;</c> inside a plain struct: raw memory, its presence a whole <c>T</c> (1 in its first
-    /// byte) and then the value. For a <c>T</c> as large as its alignment those are the bytes of <c>T?</c> there (the
-    /// flag, padding to the alignment, the value): 8 for an int.
+    /// <c>NinoNullable&lt;T&gt;</c> inside a plain struct: its memory there too, a presence of a whole <c>T</c> (1 in
+    /// its first byte) and then the value, 8 bytes for an int (which a <c>T?</c> is there as well, for a <c>T</c> as
+    /// large as its alignment).
     /// </summary>
     public struct HoldsNinoNullable
     {
@@ -187,9 +208,8 @@ namespace Shapes
     }
 
     /// <summary>
-    /// A <c>T</c> larger than its alignment (a decimal: 16 bytes aligned to 8) is 32 bytes there, the value at 16,
-    /// where a <c>decimal?</c> is 24, the value at 8. TypeScript and Go read the flag and the value where they are;
-    /// Rust's <c>Option&lt;T&gt;</c> in raw memory is the layout of <c>T?</c> only, so it leaves the type out.
+    /// A <c>T</c> larger than its alignment (a decimal: 16 bytes aligned to 8) is 32 bytes, the value at 16, where a
+    /// <c>decimal?</c> is 24 there, the value at 8.
     /// </summary>
     public struct HoldsWideNinoNullable
     {

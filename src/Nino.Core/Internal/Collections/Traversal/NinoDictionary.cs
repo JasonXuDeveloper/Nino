@@ -157,7 +157,8 @@ namespace Nino.Core
         public static int MinPairSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => NinoElements.MinWireSize<TKey, TKeyFormatter>() + NinoElements.MinWireSize<TValue, TValueFormatter>();
+            get => NinoElements.MinSingleSize<TKey, TKeyFormatter>() +
+                   NinoElements.MinSingleSize<TValue, TValueFormatter>();
         }
 
         /// <summary>

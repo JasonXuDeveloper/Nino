@@ -149,10 +149,17 @@ func (b *builder) fill(c *codec, variant uint8) error {
 	case reflect.Pointer:
 		return b.pointer(c, variant)
 	case reflect.Slice:
-		return b.slice(c, variant)
+		return b.slice(c)
 	case reflect.Map:
 		return b.mapCodec(c)
 	case reflect.Struct:
+		if isNinoNullableType(t) {
+			return b.ninoNullable(c)
+		}
+		if isNullableSlotType(t) {
+			// Only b.slice builds its codec: the type has no bytes of its own anywhere else.
+			return typeErr(t, "a NullableSlot is the element of a sequence of T? ([]nino.NullableSlot[T]): a single T? is a *T")
+		}
 		p, err := b.plan(t)
 		if err != nil {
 			return err
@@ -385,6 +392,102 @@ func (b *builder) nullable(c *codec) error {
 		} else {
 			e.write(w, v.Elem())
 		}
+	}
+	return nil
+}
+
+// slot: the codec of t, a T? of a raw T (e), where it has a fixed size (spec §6.2): a nino.NullableSlot[T], the
+// element of a sequence, or a *T, a field of a raw struct. hasValue (0 or 1, checked as every bool), padding to T's
+// alignment, then T (zeros when absent).
+func (b *builder) slot(t reflect.Type, e *codec) (*codec, error) {
+	if e.align == 0 {
+		return nil, typeErr(t, "the slot of a Nullable<%s> has no canonical alignment", e.typ)
+	}
+	a := e.align
+	c := &codec{typ: t, kind: kSlot, elem: e, size: a + e.size, align: a, min: a + e.size}
+	// Where the value of a present slot is read into and written from, and whether it holds one.
+	target := func(v reflect.Value) reflect.Value {
+		v.Field(0).SetBool(true)
+		return v.Field(1)
+	}
+	source := func(v reflect.Value) (reflect.Value, bool) { return v.Field(1), v.Field(0).Bool() }
+	if t.Kind() == reflect.Pointer {
+		et := t.Elem()
+		target = func(v reflect.Value) reflect.Value {
+			p := reflect.New(et)
+			v.Set(p)
+			return p.Elem()
+		}
+		source = func(v reflect.Value) (reflect.Value, bool) {
+			if v.IsNil() {
+				return v, false
+			}
+			return v.Elem(), true
+		}
+	}
+	c.read = func(r *Reader, v reflect.Value) {
+		present := r.Present()
+		r.Skip(a - 1)
+		if !present {
+			r.Skip(e.size)
+			v.SetZero()
+			return
+		}
+		e.read(r, target(v))
+	}
+	c.write = func(w *Writer, v reflect.Value) {
+		x, present := source(v)
+		if !present {
+			w.ExtendZero(a + e.size)
+			return
+		}
+		w.U8(1)
+		w.ExtendZero(a - 1)
+		e.write(w, x)
+	}
+	return c, nil
+}
+
+// ninoNullable: a nino.NinoNullable[T], .NET's NinoNullable<T> of a raw T, its memory wherever it is: the presence,
+// a whole T (0 or 1 in its first byte, zeros above), then the value, zeros when absent. Reading checks all of it
+// (NinoNullableAt). The type says so by itself, whatever the layout.
+func (b *builder) ninoNullable(c *codec) error {
+	t := c.typ
+	e, err := b.codec(t.Field(1).Type, variantDefault, nil)
+	if err != nil {
+		return err
+	}
+	if !e.rawCapable() || e.kind == kDTO {
+		return typeErr(t, "a NinoNullable holds a raw value (a number, a date, a raw struct), not %s", t.Field(1).Type)
+	}
+	size := e.size
+	c.kind, c.elem, c.size, c.align, c.min = kNinoNullable, e, 2*size, e.align, 2*size
+	c.read = func(r *Reader, v reflect.Value) {
+		if len(r.buf) < 2*size {
+			r.eof()
+			return
+		}
+		present := r.NinoNullableAt(r.buf[:size], r.buf[size:2*size])
+		if r.err != nil {
+			return
+		}
+		r.Skip(size)
+		if !present {
+			r.Skip(size)
+			v.SetZero()
+			return
+		}
+		e.read(r, v.Field(1))
+		v.Field(0).SetBool(r.err == nil)
+	}
+	c.write = func(w *Writer, v reflect.Value) {
+		if !v.Field(0).Bool() {
+			w.ExtendZero(2 * size)
+			return
+		}
+		w.U8(1)
+		w.ExtendZero(size - 1)
+		e.write(w, v.Field(1))
 	}
 	return nil
 }

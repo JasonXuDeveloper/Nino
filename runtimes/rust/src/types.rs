@@ -60,7 +60,7 @@ macro_rules! fixed {
             #[inline]
             fn encode_fixed(&self, out: &mut [u8]) {
                 if let Some(dst) = out.first_chunk_mut::<$n>() {
-                    *dst = self.encode();
+                    store_words(dst, &self.encode());
                 }
             }
 
@@ -94,11 +94,22 @@ macro_rules! fixed {
             #[inline]
             fn encode_raw(&self, out: &mut [u8]) {
                 if let Some(dst) = out.first_chunk_mut::<$n>() {
-                    *dst = self.encode();
+                    store_words(dst, &self.encode());
                 }
             }
         }
     };
+}
+
+/// Copies `bytes` to `dst` eight bytes at a time. `dst` is mostly a part of [`crate::simd::extend_fixed`]'s buffer on
+/// the stack, which the compiler drops only when every store into it is a register's width: a `Guid` stored as one
+/// 16-byte copy at offset 4 of a `Guid?` slot stayed in memory, and the copy out of the buffer, split at other
+/// offsets, waited for that store on every element.
+#[inline(always)]
+fn store_words<const N: usize>(dst: &mut [u8; N], bytes: &[u8; N]) {
+    for (d, s) in dst.chunks_mut(8).zip(bytes.chunks(8)) {
+        d.copy_from_slice(s);
+    }
 }
 
 /// `chunks` decoded one by one (a block whose quick test failed).
@@ -108,8 +119,8 @@ fn decode_each<T, const N: usize>(chunks: &[[u8; N]], decode: fn(&[u8; N]) -> Re
     crate::simd::decode_block(chunks.iter(), decode)
 }
 
-/// A value copied as raw bytes in the canonical layout (the specification, 5): what a `T?[]` of it holds at a
-/// fixed stride ([`RawNullables`]). Generated raw structs implement it too.
+/// A value copied as raw bytes in the canonical layout (the specification, 5): what a sequence of `T?` of it holds in
+/// slots of a fixed size ([`NullableSlot`]). Generated raw structs implement it too.
 pub trait Raw: Sized + 'static {
     /// Its size in the canonical layout.
     const SIZE: usize;
@@ -816,8 +827,8 @@ impl NinoWrite for Utf8 {
 }
 
 /// `Nullable<T>` of a raw `T` in the canonical layout (the specification, 5.2 and 6.2): the presence byte, zeros up to
-/// `T`'s alignment, then `T` (zero when absent). What a raw struct holds as a `T?` field and a [`RawNullables`]
-/// element is.
+/// `T`'s alignment, then `T` (zero when absent). What a raw struct holds as a `T?` field and a [`NullableSlot`]
+/// is.
 impl<T: Raw> Raw for Option<T> {
     const SIZE: usize = T::ALIGN.saturating_add(T::SIZE);
     const ALIGN: usize = T::ALIGN;
@@ -845,47 +856,188 @@ impl<T: Raw> Raw for Option<T> {
     }
 }
 
-// ---------------------------------------------------------------------- arrays
+/// .NET's `NinoNullable<T>` (`Nino.Core`), a nullable raw `T` that is written as its memory wherever it is (a member,
+/// an element of any collection, a field of a raw struct), `2 * size(T)` bytes: the presence, a whole `T` (0 or 1 in
+/// its first byte, zeros above), then the value, zeros when absent. A `T?` is not these bytes: alone it is a
+/// presence byte and the value only when present (`Option<T>`), and in an array a stride of `T`'s alignment plus
+/// its size ([`NullableSlot`]), which is the same only for a `T` as large as its alignment.
+///
+/// It wraps the `Option<T>` it stands for (`.0`, [`From`] both ways, [`core::ops::Deref`]). Reading rejects a
+/// presence other than 0 or 1, a byte set above it and an absent value that is not zeros, as .NET's untrusted mode
+/// does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NinoNullable<T>(pub Option<T>);
 
-/// A `T?[]` or `List<T?>` of a raw `T` (the specification, 6.2): each element at a fixed stride of
-/// `align(T) + size(T)` bytes, the presence byte first and the value at offset `align(T)`, zeroed when absent.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
-pub struct RawNullables<T>(pub Vec<Option<T>>);
-
-impl<T: Raw> RawNullables<T> {
-    const STRIDE: usize = <Option<T> as Raw>::SIZE;
+impl<T> Default for NinoNullable<T> {
+    fn default() -> Self {
+        Self(None)
+    }
 }
 
-impl<T: Raw> NinoRead for RawNullables<T> {
-    const MIN_SIZE: usize = 4;
+impl<T> From<Option<T>> for NinoNullable<T> {
+    fn from(value: Option<T>) -> Self {
+        Self(value)
+    }
+}
 
+impl<T> From<NinoNullable<T>> for Option<T> {
+    fn from(value: NinoNullable<T>) -> Self {
+        value.0
+    }
+}
+
+impl<T> core::ops::Deref for NinoNullable<T> {
+    type Target = Option<T>;
+
+    fn deref(&self) -> &Option<T> {
+        &self.0
+    }
+}
+
+impl<T> core::ops::DerefMut for NinoNullable<T> {
+    fn deref_mut(&mut self) -> &mut Option<T> {
+        &mut self.0
+    }
+}
+
+impl<T: Raw> Raw for NinoNullable<T> {
+    const SIZE: usize = T::SIZE.saturating_mul(2);
+    const ALIGN: usize = T::ALIGN;
+
+    #[inline]
+    fn decode_raw(bytes: &[u8]) -> Result<Self> {
+        let (presence, value) = bytes.split_at_checked(T::SIZE).ok_or_else(Error::end)?;
+        let value = value.get(..T::SIZE).ok_or_else(Error::end)?;
+        let (&flag, above) = presence.split_first().ok_or_else(Error::end)?;
+        if flag > 1 {
+            return Err(Error::new(ErrorKind::InvalidPresence, i32::from(flag)));
+        }
+        // Each run ORed whole, with no early exit: the compiler tests it a word or a vector at a time.
+        let set = |bytes: &[u8]| bytes.iter().fold(0, |all, &b| all | b) != 0;
+        if set(above) || (flag == 0 && set(value)) {
+            return Err(Error::of(ErrorKind::InvalidBits));
+        }
+        if flag == 0 {
+            return Ok(Self(None));
+        }
+        T::decode_raw(value).map(|v| Self(Some(v)))
+    }
+
+    #[inline]
+    fn encode_raw(&self, out: &mut [u8]) {
+        if let (Some(v), Some((presence, value))) = (&self.0, out.split_at_mut_checked(T::SIZE)) {
+            if let Some(flag) = presence.first_mut() {
+                *flag = 1;
+            }
+            v.encode_raw(value);
+        }
+    }
+}
+
+// `raw_read!` and `raw_write!` take a block of a constant size, which a generic `T` cannot give on stable Rust.
+impl<T: Raw> NinoRead for NinoNullable<T> {
+    const MIN_SIZE: usize = <Self as Raw>::SIZE;
+    const FIXED_SIZE: usize = <Self as Raw>::SIZE;
+
+    #[inline]
+    fn decode_fixed(b: &[u8]) -> Result<Self> {
+        Self::decode_raw(b)
+    }
+
+    #[inline]
     fn read(r: &mut Reader<'_>) -> Result<Self> {
-        Self::read_option(r)?.ok_or_else(Error::null)
-    }
-
-    fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
-        let Some(count) = r.length(Self::STRIDE)? else { return Ok(None) };
-        let bytes = r.take(count.checked_mul(Self::STRIDE).ok_or_else(Error::too_large)?)?;
-        let mut values = Vec::with_capacity(count);
-        for element in bytes.chunks_exact(Self::STRIDE.max(1)) {
-            values.push(Option::<T>::decode_raw(element)?);
-        }
-        Ok(Some(Self(values)))
+        Self::decode_raw(r.take(<Self as Raw>::SIZE)?)
     }
 }
 
-impl<T: Raw> NinoWrite for RawNullables<T> {
+impl<T: Raw> NinoWrite for NinoNullable<T> {
+    const FIXED_SIZE: usize = <Self as Raw>::SIZE;
+
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        self.encode_raw(out);
+    }
+
+    #[inline]
     fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        w.length(self.0.len())?;
-        let out = w.reserve(self.0.len().saturating_mul(Self::STRIDE));
-        for (element, value) in out.chunks_exact_mut(Self::STRIDE.max(1)).zip(&self.0) {
-            value.encode_raw(element);
-        }
+        self.encode_raw(w.reserve(<Self as Raw>::SIZE));
         Ok(())
     }
+}
 
-    fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
-        w.or_null_length(value)
+// ---------------------------------------------------------------------- arrays
+
+/// A `T?` of a raw `T` as the element of a sequence (the specification, 6.2): a slot of `align(T) + size(T)` bytes
+/// in every sequence, the presence byte first and the value at offset `align(T)`, zeroed when absent. The element
+/// type of every collection of them: `Vec<NullableSlot<i32>>` is an `int?[]` or a `List<int?>`,
+/// `HashSet<NullableSlot<i32>>` a `HashSet<int?>`, `Grid<NullableSlot<i32>, 2>` an `int?[,]`. A single `T?` (a
+/// member, a map's key or value, a tuple's item) is not these bytes: it is an `Option<T>`, a presence byte and the
+/// value only when present.
+///
+/// It wraps the `Option<T>` it stands for (`.0`, [`From`] both ways, [`core::ops::Deref`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NullableSlot<T>(pub Option<T>);
+
+impl<T> Default for NullableSlot<T> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<T> From<Option<T>> for NullableSlot<T> {
+    fn from(value: Option<T>) -> Self {
+        Self(value)
+    }
+}
+
+impl<T> From<NullableSlot<T>> for Option<T> {
+    fn from(value: NullableSlot<T>) -> Self {
+        value.0
+    }
+}
+
+impl<T> core::ops::Deref for NullableSlot<T> {
+    type Target = Option<T>;
+
+    fn deref(&self) -> &Option<T> {
+        &self.0
+    }
+}
+
+impl<T> core::ops::DerefMut for NullableSlot<T> {
+    fn deref_mut(&mut self) -> &mut Option<T> {
+        &mut self.0
+    }
+}
+
+// The slot is `Raw for Option<T>`; a collection reads and writes a run of them as one block (`FIXED_SIZE`).
+impl<T: Raw> NinoRead for NullableSlot<T> {
+    const MIN_SIZE: usize = <Option<T> as Raw>::SIZE;
+    const FIXED_SIZE: usize = <Option<T> as Raw>::SIZE;
+
+    #[inline]
+    fn decode_fixed(b: &[u8]) -> Result<Self> {
+        Option::<T>::decode_raw(b).map(Self)
+    }
+
+    #[inline]
+    fn read(r: &mut Reader<'_>) -> Result<Self> {
+        Self::decode_fixed(r.take(<Option<T> as Raw>::SIZE)?)
+    }
+}
+
+impl<T: Raw> NinoWrite for NullableSlot<T> {
+    const FIXED_SIZE: usize = <Option<T> as Raw>::SIZE;
+
+    #[inline]
+    fn encode_fixed(&self, out: &mut [u8]) {
+        self.0.encode_raw(out);
+    }
+
+    #[inline]
+    fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
+        self.0.encode_raw(w.reserve(<Option<T> as Raw>::SIZE));
+        Ok(())
     }
 }
 

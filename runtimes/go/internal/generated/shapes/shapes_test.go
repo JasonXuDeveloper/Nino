@@ -199,8 +199,11 @@ func writeEach[T any](w *nino.Writer, v []T, write func(*nino.Writer, T)) {
 func TestNullableStridesAsDotNetWritesThem(t *testing.T) {
 	const want = "01" + "02000000" + "01000000" + "0100000002000000fcff0300" + "00000000000000000000000000000000" +
 		"01" + "02000000" + "00000000000000000000000000000000" + "01000000" + "0100000002000000fcff0300"
-	cell := &TupleCell{A: 1, Inside: TupleInside{A: 2, T: NinoTuple2[uint8, int16]{Item1: 3, Item2: -4}}}
-	strides := &Strides{Cells: []*TupleCell{cell, nil}, Boxed: &Box[[]*TupleCell]{Value: []*TupleCell{nil, cell}}}
+	cell := nino.NullableSlotOf(TupleCell{A: 1, Inside: TupleInside{A: 2, T: NinoTuple2[uint8, int16]{Item1: 3, Item2: -4}}})
+	strides := &Strides{
+		Cells: []nino.NullableSlot[TupleCell]{cell, {}},
+		Boxed: &Box[[]nino.NullableSlot[TupleCell]]{Value: []nino.NullableSlot[TupleCell]{{}, cell}},
+	}
 	data, err := nino.Serialize(strides, WriteStrides)
 	if err != nil {
 		t.Fatal(err)
@@ -214,22 +217,124 @@ func TestNullableStridesAsDotNetWritesThem(t *testing.T) {
 	}
 }
 
-// NinoNullable<T> is read and written as T?, inside type arguments too: the bytes .NET writes for the NinoNullableArgs
-// (and the NullableArgs, the same type declared with T?) of tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex.
+// A raw T? is a slot of a fixed size as the element of every sequence (a queue, a stack, a linked list, a sorted set,
+// a list interface, nested, a set inside type arguments), and a single value (a presence byte, then the value) in a
+// dictionary and a tuple: the bytes .NET writes for the NullableSlots of tests/Nino.Codegen.Tests/ModelTests.cs,
+// NullableSlotsHex.
+func TestNullableSlotsAsDotNetWritesThem(t *testing.T) {
+	const want = "0102000000010000000500000000000000000000000200000000000000000000000000000000000000010000000000000007000000000000000200" +
+		"00000000010903000000000000000000000001000000ffffffff010000000300000002000000010000000100000000000000000000000000000000" +
+		"000000000000000000000003000000010000000100000001000000ffffffff00000000010200000001000000040000000000000000000000010100" +
+		"000002000000000000000000000000000000000000000100000000000000feffffffffffffff020000000100000000020000000107000000000000" +
+		"00010100000003000000010800000000000000020000000100000000020000000109000000"
+	// Queue<int?> {5, null}: the two slots of an int?[]. Dictionary<int, long?> {1: null, 2: 7}: single values.
+	const queue, dictionary = "0200000001000000050000000000000000000000", "02000000010000000002000000010700000000000000"
+	// The elements of the sequences are slots; a dictionary's value and a tuple's item are single values, pointers.
+	i32, i64 := nino.NullableSlotOf[int32], nino.NullableSlotOf[int64]
+	seven, eight, nine := int64(7), int64(8), int32(9)
+	value := &NullableSlots{
+		Queue:       []nino.NullableSlot[int32]{i32(5), {}},
+		Stack:       []nino.NullableSlot[int64]{{}, i64(7)},
+		Linked:      []nino.NullableSlot[uint8]{{}, nino.NullableSlotOf[uint8](9)},
+		Sorted:      []nino.NullableSlot[int32]{{}, i32(-1), i32(3)},
+		ReadOnly:    []nino.NullableSlot[TupleCell]{nino.NullableSlotOf(TupleCell{A: 1}), {}},
+		Nested:      [][]nino.NullableSlot[int32]{{i32(1)}, nil, {}},
+		BoxedSet:    &Box[[]nino.NullableSlot[int32]]{Value: []nino.NullableSlot[int32]{i32(4), {}}},
+		BoxedNested: &Box[[][]nino.NullableSlot[int64]]{Value: [][]nino.NullableSlot[int64]{{{}, i64(-2)}}},
+		Map:         []nino.Entry[int32, *int64]{{Key: 1}, {Key: 2, Value: &seven}},
+		BoxedMap:    &Box[[]nino.Entry[int32, *int64]]{Value: []nino.Entry[int32, *int64]{{Key: 3, Value: &eight}}},
+		Tuples:      []NinoTuple2[int32, *int32]{{Item1: 1}, {Item1: 2, Item2: &nine}},
+	}
+	data, err := nino.Serialize(value, WriteNullableSlots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := hex.EncodeToString(data)
+	if got != want {
+		t.Fatalf("wrote\n %s\nwant %s", got, want)
+	}
+	if got[2:2+len(queue)] != queue || got[430:430+len(dictionary)] != dictionary {
+		t.Fatalf("the queue or the dictionary is not where .NET writes it: %s", got)
+	}
+	back, err := nino.DeserializeExact(data, ReadNullableSlots)
+	if err != nil || !reflect.DeepEqual(back, value) {
+		t.Fatalf("read back: %v, %+v", err, back)
+	}
+	// A presence byte other than 0 or 1 is rejected in every sequence: the queue's first slot (at 5), the sorted
+	// set's second (at 77), the set's inside a type argument (at 158).
+	for _, at := range []int{5, 77, 158} {
+		bad := append([]byte(nil), data...)
+		bad[at] = 2
+		if _, err := nino.DeserializeExact(bad, ReadNullableSlots); err == nil {
+			t.Fatalf("a presence of 2 at %d was read", at)
+		}
+	}
+	// A set of slots rejects an element read twice: the sorted set's third slot made the second (-1), and the set
+	// inside a type argument made two nulls (its first slot, 4, cleared).
+	twice := append([]byte(nil), data...)
+	copy(twice[85:93], data[77:85])
+	nulls := append([]byte(nil), data...)
+	clear(nulls[158:166])
+	for name, bad := range map[string][]byte{"a value": twice, "null": nulls} {
+		var e *nino.Error
+		if _, err := nino.DeserializeExact(bad, ReadNullableSlots); !errors.As(err, &e) || e.Code != nino.CodeDuplicateKey {
+			t.Fatalf("%s twice in a set: %v", name, err)
+		}
+	}
+}
+
+// The elements of arrays of two and three dimensions are slots too: the bytes .NET writes for the NullableGrids of
+// ModelTests.cs, NullableGridsHex.
+func TestNullableGridsAsDotNetWritesThem(t *testing.T) {
+	const want = "0101000000020000000100000005000000000000000000000001000000020000000100000000000000000000000000000000000000010000000000" +
+		"0000070000000000000002000000010000000000000000000000000000000000000001000000010000000000000000000000"
+	value := &NullableGrids{
+		Grid:  &NinoGrid[nino.NullableSlot[int32]]{Lengths: []int{1, 2}, Items: []nino.NullableSlot[int32]{nino.NullableSlotOf[int32](5), {}}},
+		Cube:  &NinoGrid[nino.NullableSlot[int64]]{Lengths: []int{1, 2, 1}, Items: []nino.NullableSlot[int64]{{}, nino.NullableSlotOf[int64](7)}},
+		Cells: &NinoGrid[nino.NullableSlot[TupleCell]]{Lengths: []int{2, 1}, Items: []nino.NullableSlot[TupleCell]{{}, nino.NullableSlotOf(TupleCell{A: 1})}},
+	}
+	data, err := nino.Serialize(value, WriteNullableGrids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hex.EncodeToString(data); got != want {
+		t.Fatalf("wrote\n %s\nwant %s", got, want)
+	}
+	back, err := nino.DeserializeExact(data, ReadNullableGrids)
+	if err != nil || !reflect.DeepEqual(back, value) {
+		t.Fatalf("read back: %v, %+v", err, back)
+	}
+	// The presence byte of the grid's first element (at 9) and of the cube's second (at 53).
+	for _, at := range []int{9, 53} {
+		bad := append([]byte(nil), data...)
+		bad[at] = 0xff
+		if _, err := nino.DeserializeExact(bad, ReadNullableGrids); err == nil {
+			t.Fatalf("a presence of 0xff at %d was read", at)
+		}
+	}
+}
+
+// NinoNullable<T> is its memory wherever it is (a presence and a value of a T each), inside type arguments too: the
+// bytes .NET writes for the NinoNullableArgs of tests/Nino.Codegen.Tests/ModelTests.cs, NinoNullableArgsHex.
 func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
-	const want = "0101000000000001000002000000010000000000000001000000000000000000000000000000000000000000000001010700000001020000000000" +
-		"00000000000000000000000000000100000001000000000000000000000001020000000100000000000000ffffffffffffffff0000000000000000" +
-		"000000000000000002000000010400000000020000000100000001000000000000e03f0200000000"
-	ptr := func(v int32) *int32 { return &v }
-	a, b, minusOne, half := FlagsA, FlagsB, int64(-1), 0.5
+	const want = "0101000000000000000000000000010000020000000100000000000000010000000000000000000000000000000000000000000000010000000000" +
+		"000000000000010000000000000000000000010100000007000000010100000000000000000000000000000000000100000000000f000000000000" +
+		"0001020000000000000000000000000000000000000000000000000000000100000000000000000000000100000000000000000000000102000000" +
+		"0100000000000000ffffffffffffffff00000000000000000000000000000000020000000100000004000000000000000000000002000000010000" +
+		"000100000000000000000000000000e03f020000000000000000000000000000000000000009010000000000000000000000000000003322110055" +
+		"4477668899aabbccddeeff"
+	guid := nino.Guid{0x33, 0x22, 0x11, 0x00, 0x55, 0x44, 0x77, 0x66, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 	value := &NinoNullableArgsType{
-		Enum:  &b,
-		Enums: []*Flags{&a, nil},
-		One:   &Box[*int32]{Value: ptr(7)},
-		Array: &Box[[]*TupleCell]{Value: []*TupleCell{nil, {A: 1}}},
-		List:  &Box[[]*int64]{Value: []*int64{&minusOne, nil}},
-		Set:   []*int32{ptr(4), nil},
-		Map:   []nino.Entry[int32, *float64]{{Key: 1, Value: &half}, {Key: 2}},
+		Enum:  nino.NinoNullableOf(FlagsB),
+		Enums: []nino.NinoNullable[Flags]{nino.NinoNullableOf(FlagsA), {}},
+		Cell:  nino.NinoNullableOf(TupleCell{A: 1}),
+		One:   &Box[nino.NinoNullable[int32]]{Value: nino.NinoNullableOf[int32](7)},
+		Wide:  &Box[nino.NinoNullable[nino.Decimal]]{Value: nino.NinoNullableOf(nino.Decimal{Flags: 1 << 16, Lo: 15})},
+		Array: &Box[[]nino.NinoNullable[TupleCell]]{Value: []nino.NinoNullable[TupleCell]{{}, nino.NinoNullableOf(TupleCell{A: 1})}},
+		List:  &Box[[]nino.NinoNullable[int64]]{Value: []nino.NinoNullable[int64]{nino.NinoNullableOf[int64](-1), {}}},
+		Set:   []nino.NinoNullable[int32]{nino.NinoNullableOf[int32](4), {}},
+		Map:   []nino.Entry[int32, nino.NinoNullable[float64]]{{Key: 1, Value: nino.NinoNullableOf(0.5)}, {Key: 2}},
+		Tuple: NinoTuple2[uint8, nino.NinoNullable[nino.Guid]]{Item1: 9, Item2: nino.NinoNullableOf(guid)},
 	}
 	data, err := nino.Serialize(value, WriteNinoNullableArgsType)
 	if err != nil {
@@ -242,25 +347,24 @@ func TestNinoNullableAsDotNetWritesIt(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(back, value) {
 		t.Fatalf("read back: %v, %+v", err, back)
 	}
-	// The same type declared with T?: it reads these bytes to the same fields and writes them back.
-	twin, err := nino.DeserializeExact(data, ReadNullableArgs)
-	if err != nil || !reflect.DeepEqual(*twin, NullableArgs(*value)) {
-		t.Fatalf("read as T?: %v, %+v", err, twin)
-	}
-	again, err := nino.Serialize(twin, WriteNullableArgs)
-	if err != nil || hex.EncodeToString(again) != want {
-		t.Fatalf("wrote as T?: %v\n %x", err, again)
+	// What .NET's untrusted mode rejects: a byte above the presence's first (One, a type argument, at 78), and a
+	// byte in a value that is absent (the second of Enums, at 37).
+	for _, at := range []int{78 + 3, 37 + 8} {
+		bad := append([]byte(nil), data...)
+		bad[at] = 1
+		if _, err := nino.DeserializeExact(bad, ReadNinoNullableArgsType); err == nil {
+			t.Fatalf("a byte set at %d was read", at)
+		}
 	}
 }
 
-// NinoNullable<T> inside a raw struct, where .NET holds it: the presence a whole T (1 in its first byte), then the
-// value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
+// NinoNullable<T> inside a raw struct, its memory there as everywhere: the presence a whole T (1 in its first byte),
+// then the value, at 4 for an int and at 16 for a decimal. The bytes .NET writes for the values of
 // tests/Nino.Codegen.Tests/ModelTests.cs (NinoNullableRawHex, NinoNullableRawWideHex).
 func TestNinoNullableInsideRawStructsAsDotNetWritesIt(t *testing.T) {
-	seven, minusOne := int32(7), int32(-1)
 	narrow := &NinoNullableRawType{
-		One:  HoldsNinoNullable{A: 1, B: &seven},
-		Many: []HoldsNinoNullable{{A: 2}, {A: 3, B: &minusOne}},
+		One:  HoldsNinoNullable{A: 1, B: nino.NinoNullableOf[int32](7)},
+		Many: []HoldsNinoNullable{{A: 2}, {A: 3, B: nino.NinoNullableOf[int32](-1)}},
 	}
 	data, err := nino.Serialize(narrow, WriteNinoNullableRawType)
 	if err != nil {
@@ -274,7 +378,7 @@ func TestNinoNullableInsideRawStructsAsDotNetWritesIt(t *testing.T) {
 	}
 
 	wide := &NinoNullableRawWideType{
-		One:  HoldsWideNinoNullable{A: 1, B: &nino.Decimal{Flags: 1 << 16, Lo: 15}},
+		One:  HoldsWideNinoNullable{A: 1, B: nino.NinoNullableOf(nino.Decimal{Flags: 1 << 16, Lo: 15})},
 		Many: []HoldsWideNinoNullable{{A: 2}},
 	}
 	data, err = nino.Serialize(wide, WriteNinoNullableRawWideType)

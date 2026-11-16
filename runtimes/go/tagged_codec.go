@@ -31,14 +31,16 @@ const (
 	kBytes
 	kPrimSlice // slice of fixed-size numbers: one block
 	kSlice
-	kStride // slice of nullable raw values: the fixed stride (spec §6.2)
+	kStride // slice of nino.NullableSlot (any sequence of T? of a raw T): a slot of a fixed size each (spec §6.2)
 	kSet
 	kMap
 	kNullable
-	kClass     // pointer to a class: presence byte or type id, then the body
-	kStruct    // a struct written member by member
-	kRawStruct // a raw struct
-	kIface     // interface: type id, then a registered type
+	kSlot         // a T? of a raw T where it has a fixed size: an element of a kStride, a field of a raw struct (a *T)
+	kNinoNullable // .NET's NinoNullable<T>: raw memory, a presence and a value of a T each
+	kClass        // pointer to a class: presence byte or type id, then the body
+	kStruct       // a struct written member by member
+	kRawStruct    // a raw struct
+	kIface        // interface: type id, then a registered type
 )
 
 // codec reads and writes one Go type. read and write take an addressable value.
@@ -60,7 +62,9 @@ type codec struct {
 }
 
 // rawCapable: the value can be a field of a raw struct (a fixed-size leaf or a raw struct).
-func (c *codec) rawCapable() bool { return c.kind <= kHalf || c.kind == kRawStruct }
+func (c *codec) rawCapable() bool {
+	return c.kind <= kHalf || c.kind == kRawStruct || c.kind == kNinoNullable
+}
 
 // plan is the body of a struct type.
 type plan struct {
@@ -86,8 +90,9 @@ type field struct {
 	c       *codec
 	key     int32
 	formers []int32
-	off     int // raw offset
-	member  int // index of the layout member, -1 without one
+	off     int    // raw offset
+	raw     *codec // the field inside the type's raw block (c, or the slot of a T?); nil when it cannot lie in one
+	member  int    // index of the layout member, -1 without one
 }
 
 func (p *plan) fieldValue(v reflect.Value, f *field) reflect.Value {
@@ -252,8 +257,8 @@ func (p *plan) readRaw(r *Reader, v reflect.Value) {
 		if f.off > pos {
 			r.Skip(f.off - pos)
 		}
-		f.c.read(r, p.fieldValue(v, f))
-		pos = f.off + f.c.size
+		f.raw.read(r, p.fieldValue(v, f))
+		pos = f.off + f.raw.size
 	}
 	r.Skip(p.size - pos)
 }
@@ -265,8 +270,8 @@ func (p *plan) writeRaw(w *Writer, v reflect.Value) {
 		if f.off > pos {
 			w.ExtendZero(f.off - pos)
 		}
-		f.c.write(w, p.fieldValue(v, f))
-		pos = f.off + f.c.size
+		f.raw.write(w, p.fieldValue(v, f))
+		pos = f.off + f.raw.size
 	}
 	if p.size > pos {
 		w.ExtendZero(p.size - pos)

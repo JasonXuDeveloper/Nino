@@ -33,35 +33,13 @@ namespace Nino.Core
             if (NinoNullables<T>.Raw)
             {
                 var current = value;
-#if NET8_0_OR_GREATER
-                // Reused arrays with smaller strides benefit from the shared read path.
-                if (Unsafe.SizeOf<T?>() is 8 or 16)
-                {
-                    if (current != null && current.Length == length)
-                        NinoNullables<T>.ReadPrechecked(current, ref reader);
-                    else
-                        ReadNew(current, length, ref reader, ref value);
-                    return;
-                }
-#endif
                 var array = NinoElements.NewOrSame(current, length);
-                NinoNullables<T>.ReadPrechecked(array, ref reader);
+                NinoNullables<T>.ReadPrechecked(array, ref reader, array == current);
                 NinoElements.Publish(ref value, current, array);
                 return;
             }
 
             NinoNullables<T>.ReadPrechecked(NinoElements.EnsureLength(ref value, length, overwritten: true), ref reader);
         }
-
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadNew(T?[] current, int length, ref Reader reader, ref T?[] value)
-        {
-            var array = NinoUnsafe.NewArray<T?>(length, uninitialized: true);
-            if (length < 128 || !NinoNullables<T>.TryReadFresh(array, length, ref reader))
-                NinoNullables<T>.ReadPrechecked(array, ref reader);
-            NinoElements.Publish(ref value, current, array);
-        }
-#endif
     }
 }

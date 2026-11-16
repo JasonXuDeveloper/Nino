@@ -76,7 +76,7 @@ namespace Nino.Core
         {
             writer.WriteLength(value.Count);
             foreach (var item in value)
-                default(TFormatter).Serialize(item, ref writer);
+                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
             return writer;
         }
 
@@ -109,12 +109,25 @@ namespace Nino.Core
                 return;
             }
 
+            // Slots (raw T?): read as one run, as an array of them is, then added.
+            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            {
+                NinoCollections.AddSlots<TQueue, T, TFormatter, Adder>(queue, length, ref reader);
+                return;
+            }
+
             for (int i = 0; i < length; i++)
             {
                 T item = default;
-                default(TFormatter).Deserialize(ref reader, ref item);
+                NinoElements.ReadOne<T, TFormatter>(ref reader, ref item);
                 queue.Enqueue(item);
             }
+        }
+
+        private struct Adder : INinoAdder<TQueue, T>
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Add(TQueue target, T item) => target.Enqueue(item);
         }
     }
 }

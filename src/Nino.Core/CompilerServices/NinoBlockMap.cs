@@ -38,6 +38,19 @@ namespace Nino.Core.CompilerServices
         }
 
         /// <summary>
+        /// <paramref name="size"/> bytes at <paramref name="memory"/> in the value and <paramref name="wire"/> in the
+        /// block, moved as they lie: for a caller that makes them the wire's bytes itself, over the whole run (slots,
+        /// cleared by their kernels after the move).
+        /// </summary>
+        internal NinoBlockMap Bytes(int memory, int wire, int size)
+        {
+            if (_failed || memory < 0)
+                return Fail();
+            Add(memory, wire, size);
+            return this;
+        }
+
+        /// <summary>
         /// An item of <typeparamref name="TItem"/> at <paramref name="memory"/> in the value and <paramref name="wire"/>
         /// in the block, written by <typeparamref name="TFormatter"/> as a block (<see cref="INinoBlockFormatter{T}"/>)
         /// whose own map is merged in.

@@ -75,10 +75,10 @@ FORMS = [("NinoNullable", "Nino (NinoNullable)"), ("MemoryPackConverted", "Memor
 FORM_NOTE = ("Nullable cases: MemoryPack writes SafeNullable<T> data the model already holds; MemoryPack (converted) "
              "converts the model's T? to it and back inside the timed region; MemoryPack (T?, unsafe) copies T? with its "
              "uninitialized padding (one value can give different bytes, with leftover memory in them). "
-             "Nino (NinoNullable) is NinoNullable<T> in place of T?, the same bytes. Nino's T? is always safe.")
+             "Nino (NinoNullable) is NinoNullable<T> in place of T?: its own bytes, two T a value. Nino's T? is always safe.")
 FORM_NOTE_ZH = ("可空值：MemoryPack 写的是模型里已备好的 SafeNullable<T>；MemoryPack (converted) 在计时内把模型的 T? "
                 "转成它、读完再转回；MemoryPack (T?, unsafe) 直接拷贝 T?，连同未初始化的填充字节（同一个值可能写出不同的字节，"
-                "还会带出进程里残留的内存）。Nino (NinoNullable) 是用 NinoNullable<T> 代替 T?，字节相同。Nino 的 T? 始终安全。")
+                "还会带出进程里残留的内存）。Nino (NinoNullable) 是用 NinoNullable<T> 代替 T?：写它自己的内存，每个值占两个 T，字节与 T? 不通用。Nino 的 T? 始终安全。")
 
 
 def has_forms(chart):
@@ -389,9 +389,17 @@ SIMPLE_CASES = [("SimpleClass", "`SimpleClass`"), ("SimpleClasses", "`SimpleClas
                 ("NullableStruct", "`SimpleStruct?`"), ("NullableStructs", "`SimpleStruct?[100]`, every fifth null"),
                 ("NullableObject", "`SimpleClass` reference, null"),
                 ("NullableObjects", "`SimpleClass[100]`, every fifth null"),
+                ("NullableStrings", "`string[1000]`, every fifth null"),
+                ("RawNullable", "`RawNullable` (`int`, `long?`, `double?`)"), ("RawNullables", "`RawNullable[1000]`"),
                 ("NullableLongs", "`long?[1000]`, every fifth null"), ("NullableInts", "`List<int?>`, 1,000"),
                 ("NullableDecimals", "`decimal?[1000]`"),
                 ("NullableVec3s", "`Vec3?[1000]` (three floats), every fifth null"),
+                ("NullableQueueInts", "`Queue<int?>`, 1,000"), ("NullableHashSetInts", "`HashSet<int?>`, 1,000"),
+                ("NullableLinkedListInts", "`LinkedList<int?>`, 1,000"),
+                ("NullableCollectionInts", "`Collection<int?>`, 1,000"),
+                ("NullableConcurrentQueueInts", "`ConcurrentQueue<int?>`, 1,000"),
+                ("NullableGridInts", "`int?[40, 25]`"), ("NullableMemoryInts", "`Memory<int?>`, 1,000"),
+                ("NullableIListInts", "`IList<int?>`, 1,000"),
                 ("ManagedStruct", "`ManagedStruct` (`int`, `string`, `double`)"),
                 ("ManagedStructs", "`ManagedStruct[100]`"), ("NullableManagedStruct", "`ManagedStruct?`"),
                 ("NullableManagedStructs", "`ManagedStruct?[100]`, every fifth null")]

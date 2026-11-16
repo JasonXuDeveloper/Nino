@@ -178,71 +178,84 @@ namespace Nino.Codegen.Tests
         }
 
         /// <summary>
-        /// A type declared with <c>NinoNullable&lt;T&gt;</c> gets the member types and the codec of the same type declared
-        /// with <c>T?</c>, in every language: single values, arrays and lists (the corpus's types) and inside type
-        /// arguments (Shapes.cs). <paramref name="goName"/>: Go keeps names starting with Nino for the runtime's.
+        /// A raw <c>T?</c> as the element of a sequence is a slot of a fixed size in every language, whatever the
+        /// sequence, under the same name in every language: Rust <c>nino::NullableSlot&lt;T&gt;</c> and Go
+        /// <c>nino.NullableSlot[T]</c> as the element of a list, a set or a grid alike (<c>Option&lt;T&gt;</c> and
+        /// <c>*T</c> are the single value), TypeScript the runtime's alias <c>NullableSlot&lt;T&gt;</c> of
+        /// <c>T | null</c>; it stays a single value in a dictionary and a tuple.
         /// </summary>
         [TestMethod]
-        [DataRow("conformance", "NinoNullables", "NinoNullablesType", "NullableTwins")]
-        [DataRow("shapes", "NinoNullableArgs", "NinoNullableArgsType", "NullableArgs")]
-        public void NinoNullableIsGeneratedAsNullable(string assembly, string ninoNullable, string goName, string nullable)
+        public void RawNullableSlotsAreGeneratedInEveryLanguage()
         {
-            string path = assembly == "shapes" ? GeneratedFilesTests.Shapes : GeneratedFilesTests.Conformance;
-            string Text(string lang)
-            {
-                var (files, output) = GeneratedFilesTests.Generate("--assembly", path, "--lang", lang);
-                Assert.IsFalse(output.Contains(ninoNullable, StringComparison.Ordinal), output);
-                return System.Linq.Enumerable.Single(files, f => !f.Key.StartsWith("nino.", StringComparison.Ordinal) &&
-                                                                 f.Key != ".nino-gen").Value;
-            }
-
-            // The declaration and the two bodies of a type, from each one's first line to the line that closes it.
-            static string Parts(string text, string name, params string[] starts)
-            {
-                var parts = new System.Text.StringBuilder();
-                foreach (string start in starts)
-                {
-                    string first = string.Format(System.Globalization.CultureInfo.InvariantCulture, start, name);
-                    int at = text.IndexOf(first, StringComparison.Ordinal);
-                    Assert.IsGreaterThanOrEqualTo(0, at, first);
-                    int end = text.IndexOf("\n}\n", at, StringComparison.Ordinal);
-                    parts.Append(text, at, end + 3 - at);
-                }
-
-                return parts.ToString().Replace(name, "X", StringComparison.Ordinal);
-            }
-
-            void Same(string lang, string actualName, params string[] starts)
-            {
-                string text = Text(lang);
-                Assert.AreEqual(Parts(text, nullable, starts), Parts(text, actualName, starts), lang);
-            }
-
-            Same("ts", ninoNullable, "export class {0} {{", "function readBody${0}(", "function writeBody${0}(");
-            Same("go", goName, "type {0} struct {{", "func read{0}Body(", "func write{0}Body(");
-            Same("rust", ninoNullable, "pub struct {0} {{", "impl NinoReadBody for {0} {{", "impl NinoWriteBody for {0} {{");
+            var (rust, rustOutput) = Run("rust", "nino_types.rs");
+            StringAssert.Contains(rust, "    pub queue: Option<Vec<nino::NullableSlot<i32>>>,\n    pub stack: Option<Vec<nino::NullableSlot<i64>>>,");
+            StringAssert.Contains(rust, "    pub sorted: Option<indexmap::IndexSet<nino::NullableSlot<i32>>>,");
+            StringAssert.Contains(rust, "    pub nested: Option<Vec<Option<Vec<nino::NullableSlot<i32>>>>>,");
+            StringAssert.Contains(rust, "    pub boxed_nested: Option<Box<BoxType<Option<Vec<Option<indexmap::IndexSet<nino::NullableSlot<i64>>>>>>>>,");
+            StringAssert.Contains(rust, "    pub map: Option<indexmap::IndexMap<i32, Option<i64>>>,");
+            StringAssert.Contains(rust, "    pub tuples: Option<Vec<(i32, Option<i32>)>>,");
+            StringAssert.Contains(rust, "    pub grid: Option<nino::Grid<nino::NullableSlot<i32>, 2>>,\n    pub cube: Option<nino::Grid<nino::NullableSlot<i64>, 3>>,");
+            var (ts, tsOutput) = Run("ts", "Nino.Codegen.Tests.ts");
+            StringAssert.Contains(ts, "  queue: NullableSlot<number>[] | null = null;\n  stack: NullableSlot<bigint>[] | null = null;");
+            StringAssert.Contains(ts, "  sorted: Set<NullableSlot<number>> | null = null;");
+            StringAssert.Contains(ts, "  boxedNested: Box<(Set<NullableSlot<bigint>> | null)[] | null> | null = null;");
+            StringAssert.Contains(ts, "  tuples: ([number, number | null])[] | null = null;");
+            StringAssert.Contains(ts, "import { NinoReader, NinoSubtypes, NinoWriter, type NinoCodec, type NinoNullable, type NullableSlot } from");
+            StringAssert.Contains(ts, "  map: Map<number, bigint | null> | null = null;");
+            // A set's slots are taken as one run, then each read at its offset.
+            StringAssert.Contains(ts, "for (let i = 0, at = r.take(length * 8); i < length; i++, at += 8) values.add(");
+            StringAssert.Contains(tsOutput, "Shapes.NullableGrids is not written to TypeScript");
+            var (go, goOutput) = Run("go", "nino_types.go");
+            Assert.IsTrue(Regex.IsMatch(go, @"\n\tQueue +\[\]nino\.NullableSlot\[int32\] "));
+            Assert.IsTrue(Regex.IsMatch(go, @"\n\tSorted +\[\]nino\.NullableSlot\[int32\] "));
+            Assert.IsTrue(Regex.IsMatch(go, @"\n\tBoxedNested +\*Box\[\[\]\[\]nino\.NullableSlot\[int64\]\] "));
+            Assert.IsTrue(Regex.IsMatch(go, @"\n\tMap +\[\]nino\.Entry\[int32, \*int64\] "));
+            Assert.IsTrue(Regex.IsMatch(go, @"\n\tTuples +\[\]NinoTuple2\[int32, \*int32\] "));
+            Assert.IsTrue(Regex.IsMatch(go, @"\n\tCube +\*NinoGrid\[nino\.NullableSlot\[int64\]\] "));
+            // A run of a number is one block; any other element is decoded at its offsets into the value type.
+            StringAssert.Contains(go, "v.Queue = nino.ReadNullableSlots[int32](r)");
+            StringAssert.Contains(go, "return nino.NullableSlot[nino.Int128]{HasValue: true, Value: ");
+            foreach (string output in new[] { rustOutput, goOutput })
+                Assert.IsFalse(output.Contains("Nullable", StringComparison.Ordinal), output);
+            Assert.IsFalse(tsOutput.Contains("NullableSlots", StringComparison.Ordinal), tsOutput);
         }
 
         /// <summary>
-        /// Inside a plain struct a <c>NinoNullable&lt;T&gt;</c> is a nullable value in every language where <c>T</c> is as
-        /// large as its alignment (the layout of <c>T?</c>, which Rust's <c>Option&lt;T&gt;</c> in raw memory is). A
-        /// wider <c>T</c> (decimal) has its value further on: TypeScript and Go read it there, Rust leaves the type out.
+        /// A <c>NinoNullable&lt;T&gt;</c> has a type of its own in Go and Rust (<c>nino.NinoNullable[T]</c>, a value
+        /// and whether it has one; <c>nino::NinoNullable&lt;T&gt;</c>, an <c>Option&lt;T&gt;</c> with those bytes),
+        /// where a single <c>T?</c> is a <c>*T</c> and an <c>Option&lt;T&gt;</c>, and in TypeScript the runtime's alias
+        /// <c>NinoNullable&lt;T&gt;</c> of the <c>T | null</c> a <c>T?</c> is, with nothing at run time; every
+        /// type holding one is written: alone, in every collection, in type arguments, and inside raw structs
+        /// whatever the size of <c>T</c>.
         /// </summary>
         [TestMethod]
-        public void RustLeavesOutANinoNullableWiderThanItsAlignmentInRawMemory()
+        public void NinoNullableIsGeneratedInEveryLanguage()
         {
-            var (rust, output) = Run("rust", "nino_types.rs");
-            StringAssert.Contains(rust, "pub struct HoldsNinoNullable {\n    pub a: u8,\n    pub b: Option<i32>,\n}");
-            StringAssert.Contains(output, "Shapes.NinoNullableRawWide is not written to Rust");
-            StringAssert.Contains(output, "is not the flag then the value at its alignment");
-            Assert.IsFalse(rust.Contains("HoldsWideNinoNullable", StringComparison.Ordinal));
+            string[] names = { "NinoNullable", "HoldsNinoNullable", "HoldsWideNinoNullable" };
+            var (rust, rustOutput) = Run("rust", "nino_types.rs");
+            StringAssert.Contains(rust, "pub struct HoldsNinoNullable {\n    pub a: u8,\n    pub b: nino::NinoNullable<i32>,\n}");
+            StringAssert.Contains(rust, "pub struct HoldsWideNinoNullable {\n    pub a: u8,\n    pub b: nino::NinoNullable<nino::Decimal>,\n}");
+            StringAssert.Contains(rust, "    pub r#enum: nino::NinoNullable<i64>,\n    pub enums: Option<Vec<nino::NinoNullable<i64>>>,");
+            StringAssert.Contains(rust, "    pub one: Option<Box<BoxType<nino::NinoNullable<i32>>>>,");
+            StringAssert.Contains(rust, "    pub set: Option<indexmap::IndexSet<nino::NinoNullable<i32>>>,");
             var (ts, tsOutput) = Run("ts", "Nino.Codegen.Tests.ts");
-            StringAssert.Contains(ts, "export class HoldsWideNinoNullable {\n  a: number = 0;\n  b: string | null = null;\n}");
+            StringAssert.Contains(ts, "export class HoldsWideNinoNullable {\n  a: number = 0;\n  b: NinoNullable<string> = null;\n}");
+            StringAssert.Contains(ts, "  one: Box<NinoNullable<number>> | null = null;");
+            // The alias of T | null is imported by the file that names it, and a T? member stays T | null.
+            StringAssert.Contains(ts, ", type NinoNullable");
+            StringAssert.Contains(ts, "  maybe: Box<number | null> | null = null;");
+            StringAssert.Contains(ts, "r.ninoNullableAt(");
             var (go, goOutput) = Run("go", "nino_types.go");
             Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go,
-                @"type HoldsWideNinoNullable struct \{\n\tA uint8 +`[^`]*`\n\tB \*nino\.Decimal "));
-            foreach (string text in new[] { tsOutput, goOutput })
-                Assert.IsFalse(text.Contains("NinoNullable", StringComparison.Ordinal), text);
+                @"type HoldsWideNinoNullable struct \{\n\tA uint8 +`[^`]*`\n\tB nino\.NinoNullable\[nino\.Decimal\] "));
+            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(go, @"\n\tOne +\*Box\[nino\.NinoNullable\[int32\]\] "));
+            // A run of a number is one block; any other element is decoded at its offsets into the value type.
+            StringAssert.Contains(go, "v.Set = nino.ReadNinoNullables[int32](r)");
+            StringAssert.Contains(go, "return nino.NinoNullable[nino.Decimal]{HasValue: true, Value: ");
+            StringAssert.Contains(go, "r.NinoNullableAt(b[0:16], b[16:32])");
+            foreach (string output in new[] { rustOutput, tsOutput, goOutput })
+            foreach (string name in names)
+                Assert.IsFalse(output.Contains(name, StringComparison.Ordinal), output);
         }
 
         [TestMethod]

@@ -18,16 +18,23 @@ Copying a `T?` as raw memory (what MemoryPack does) therefore produces different
 versions. Nino defines the bytes instead:
 
 - A single `T?` is a presence byte followed by the value when present.
-- A `T?` array or list with unmanaged `T` uses the canonical (64-bit corefx) `Nullable<T>` layout: a
+- A `T?` element of a sequence (an array, a list, a set, a queue, a collection interface, ...) with a raw
+  `T` uses the canonical (64-bit corefx) `Nullable<T>` layout: a
   presence byte, zero padding up to `T`'s alignment, then `T` (zero when null). On runtimes whose
   `Nullable<T>` matches, the block is copied as is (padding cleared). Elsewhere it is converted element
   by element: `NullableLayout<T>` probes the runtime's field offsets once (it builds `default(T)` as a
   `T?` and finds the flag byte) instead of assuming an order.
-- The two encodings are not interchangeable. `int?[]` and `List<int?>` members use the fixed stride (here 8
-  bytes per element: flag, 3 bytes of padding, value), while a member declared as an interface
-  (`IList<int?>`, `IEnumerable<int?>`, `ICollection<int?>`...) writes each element on its own: 1 byte for null,
-  1 + 4 bytes otherwise, whatever collection it holds. Changing a member between the two kinds changes the
-  format.
+- The two encodings are not interchangeable. The elements of every sequence (`int?[]`, `List<int?>`,
+  `Queue<int?>`, `HashSet<int?>`, `IList<int?>`, `Memory<int?>`, `int?[,]`...) use the fixed stride (here 8 bytes
+  per element: flag, 3 bytes of padding, value), so one sequence type can replace another without changing the
+  bytes. A `T?` that is not the element of a sequence is written on its own: 1 byte for null, 1 + 4 bytes
+  otherwise (a member, a dictionary's key or value, the item of a pair or a tuple, also inside a collection:
+  `Dictionary<int, int?>`, `List<(int, int?)>`), and so is a `T?` whose `T` is not raw (`DateTimeOffset?`, a
+  struct holding a reference). Up to 4.0.0-rc.10 only arrays and lists used the fixed stride: data of other
+  sequences written then is not read now.
+- `NinoNullable<T>` (Nino.Core) is a third encoding, not interchangeable with either: its own memory wherever it
+  stands, a presence of `size(T)` bytes and the value (`2 * size(T)`), which no runtime lays out differently, so it
+  is copied with nothing to clear. It is the bytes of a slot only for a `T` as large as its alignment (spec §5.1).
 
 ### `ValueTuple`, `DateTimeOffset`, `decimal` and other BCL structs differ by runtime
 
@@ -44,8 +51,10 @@ host's memory:
 - Inside a plain raw struct they take the canonical layout (spec §5.2: 64-bit CoreCLR's, with `DateTimeOffset` as
   .NET 10 lays it out, `nint`/`nuint`/pointers and function pointers as 8 bytes, the SIMD vectors aligned as on x64). A runtime whose
   layout is the canonical one copies the struct; every other one finds its field offsets once from an instance
-  (`MeasureMemory`) and converts field by field. A raw `[NinoType]` struct requires all of its fields to be raw, so
-  one holding a tuple, pair or nullable is written member by member.
+  (`MeasureMemory`) and converts field by field. A raw `[NinoType]` struct requires all of its fields to be raw, or
+  a `T?` of a raw `T` or a `NinoNullable<T>` (spec §5.1 rule 3), so one holding a tuple, pair, `nint` or
+  `DateTimeOffset` is written member by member (raw would make it larger, stop checking its bools in the default mode
+  and stop its callbacks).
 - A function pointer (`delegate*`) is a pointer: 8 bytes, zero-extended, on every runtime. Reflection reports its
   field differently (.NET 8+ a function pointer type; .NET Framework, Mono and IL2CPP an `IntPtr`, which would be
   sign-extended), so the generator, which sees the field's type, lists the `delegate*` fields of every struct the
@@ -181,7 +190,7 @@ A raw copy includes padding. Padding usually stays zero, but code that builds st
 memory (`SkipLocalsInit`, `stackalloc`, `GC.AllocateUninitializedArray`, native memory) can leave stale
 data there. Copied as is, two equal values could serialize to different bytes, and stale memory would leak
 into the output. Nino clears padding on write, and writes zeros for the value of every absent `Nullable` it copies
-(a `T?[]` or `List<T?>` element, a `Nullable` field of a raw struct), which such memory fills with stale bytes just
+(the element of any sequence of a raw `T?`, a `Nullable` field of a raw struct), which such memory fills with stale bytes just
 as well: a rented or uninitialized `int?[]` holds whatever was there before in the value of each null. Blocks use a
 masked copy (SIMD when accelerated) rather than a copy followed by masking, which would reload freshly stored bytes
 and stall on store forwarding. Types without padding pay nothing: the check is a JIT-time constant.
@@ -189,7 +198,7 @@ and stall on store forwarding. Types without padding pay nothing: the check is a
 ### A raw struct's `bool` fields and `Nullable` flags are unchecked by default
 
 Reading a raw struct copies its block, so the default mode does not check a `bool` field or a `Nullable` flag inside
-it: the default mode copies raw blocks as they are, at no cost (the owner's decision, round 104). A byte other than 0 or 1 there is undefined
+it, nor a `NinoNullable<T>` (a raw struct itself: its presence and its absent value): the default mode copies raw blocks as they are, at no cost (the owner's decision, round 104). A byte other than 0 or 1 there is undefined
 behavior to the JIT, not only a wrong value: a `long?` with a flag of 2 was boxed as null by one compiled body and as
 a value by another, so the struct compared unequal to itself and was lost in a `Dictionary`. `NinoSettings.Untrusted`
 rejects such bytes (the corpus's `presence-raw-*` cases are `untrusted`), and the docs tell users to read untrusted

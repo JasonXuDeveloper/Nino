@@ -99,19 +99,31 @@ namespace Conformance
             Lengths<StringList>("string-list", 0, Concat(V(1), V(0)));
             Lengths<PointList>("point-list", 0, Concat(NotNull, I32(1), I32(2), new byte[] { 0 }));
             Lengths<IntMap>("int-map", 8, Concat(I32(1), I32(2), I32(3), I32(4)));
+            Lengths<MaybeIntSet>("nullable-set", 8, Concat(I32(1), I32(1), I32(1), I32(2)));
+            // The elements a single T? each (a presence byte and the value: the encoding before the fixed stride).
+            Add<MaybeIntSet>("length", "nullable-set-single-values",
+                "HashSet<int?>: two elements written as a presence byte and the value each (10 bytes), not as two " +
+                "slots of 8.", NotNull, I32(2), new byte[] { 1 }, I32(1), new byte[] { 1 }, I32(2));
             Lengths<StringSet>("string-set", 0, Concat(V(3), new byte[] { (byte)'a' }, V(1)));
 
-            // A slot of a NinoNullable<T> collection cut short, as of a T?[]: ninonullables-values is the control.
-            Add<NinoNullables>("length", "ninonullable-slot-truncated",
-                "ninonullables-values without its last 12 bytes: the last of PaddedList's three 24-byte slots is half " +
-                "there.", validBytes["ninonullables-values"][..^12]);
-            Add<NinoNullables>("length", "ninonullable-list-past-end",
-                "ninonullables-values with PaddedList's count 4 where 3 slots are present.",
-                Patched("ninonullables-values", 469, 4));
+            // NinoNullable<T>, 2 x size(T) bytes wherever it is: ninonullables-values is the control. Where its
+            // members start: the null flag, the four single values, then each collection's count and elements.
+            const int nnLong = 1, nnDecimal = nnLong + 16, nnGuid = nnDecimal + 32, nnPadded = nnGuid + 32,
+                nnLongArray = nnPadded + 32 + 4, nnLongList = nnLongArray + 4 * 16 + 4,
+                nnDecimalArray = nnLongList + 3 * 16 + 4, nnDecimalList = nnDecimalArray + 3 * 32 + 4,
+                nnGuidArray = nnDecimalList + 2 * 32 + 4, nnGuidList = nnGuidArray + 2 * 32 + 4,
+                nnPaddedArray = nnGuidList + 3 * 32 + 4, nnPaddedList = nnPaddedArray + 2 * 32 + 4,
+                nnGuidQueue = nnPaddedList + 3 * 32 + 4, nnDecimalMap = nnGuidQueue + 2 * 32 + 4,
+                nnFields = nnDecimalMap + 2 * (4 + 32), nnFieldsArray = nnFields + 48 + 4;
+            Add<NinoNullables>("length", "ninonullable-element-truncated",
+                "ninonullables-values without its last 24 bytes: the last of FieldsArray's three 48-byte elements is " +
+                "half there.", validBytes["ninonullables-values"][..^24]);
             Add<NinoNullables>("length", "ninonullable-array-past-end",
-                "ninonullables-values with LongArray's count 5 where 4 slots are meant: the fifth is LongList's count " +
-                "and its first slot's start, and the members after it run past the end.",
-                Patched("ninonullables-values", 61, 5));
+                "ninonullables-values with FieldsArray's count 4 where 3 elements are present.",
+                Patched("ninonullables-values", nnFieldsArray - 4, 4));
+            Add<NinoNullableRuns>("length", "ninonullable-list-past-end",
+                "ninonullable-runs with ByteList's count 4 where 3 elements (2 bytes each) are present.",
+                Patched("ninonullable-runs", validBytes["ninonullable-runs"].Length - 3 * 2 - 4, 4));
 
             Control<Grid>("grid", NotNull, I32(2), I32(2), I32(1), I32(2), I32(3), I32(4));
             Control<BigSlot>("bigint", NotNull, I32(4), new byte[4]);
@@ -233,6 +245,8 @@ namespace Conformance
             Control<TextValue>("null-flag", new byte[] { 1 }, V(1));
             Control<MaybeInt>("nullable", NotNull, new byte[] { 1 }, I32(7));
             Control<MaybeIntArray>("nullable-array", NotNull, I32(1), new byte[] { 1, 0, 0, 0 }, I32(7));
+            Control<MaybeIntSet>("nullable-set", NotNull, I32(1), new byte[] { 1, 0, 0, 0 }, I32(7));
+            Control<MaybeIntGrid>("nullable-grid", NotNull, I32(1), I32(1), new byte[] { 1, 0, 0, 0 }, I32(7));
             Control<Integers>("root-null-flag", new byte[] { 1 }, new byte[62]);
             foreach (byte b in new byte[] { 2, 0xFF })
             {
@@ -248,6 +262,12 @@ namespace Conformance
                 Add<MaybeIntArray>("presence", $"nullable-array-flag-{hex}",
                     $"An int?[] element (fixed stride: flag, 3 padding bytes, value) whose flag is 0x{hex}.", NotNull,
                     I32(1), new byte[] { b, 0, 0, 0 }, I32(7));
+                Add<MaybeIntSet>("presence", $"nullable-set-flag-{hex}",
+                    $"A HashSet<int?> element (fixed stride, as an int?[]'s) whose flag is 0x{hex}.", NotNull,
+                    I32(1), new byte[] { b, 0, 0, 0 }, I32(7));
+                Add<MaybeIntGrid>("presence", $"nullable-grid-flag-{hex}",
+                    $"An int?[,] element (fixed stride) whose flag is 0x{hex}.", NotNull,
+                    I32(1), I32(1), new byte[] { b, 0, 0, 0 }, I32(7));
                 Add<Integers>("presence", $"root-null-flag-{hex}", $"The top-level object's null flag of 0x{hex}.",
                     new[] { b }, new byte[62]);
 
@@ -259,6 +279,9 @@ namespace Conformance
                 AddUntrusted<BclRawNullables>("presence", $"raw-nullable-flag-{hex}",
                     $"bcl-raw-nullables with the has-value byte of Nullables.B (an int? at byte 4 of the raw struct) 0x{hex}.",
                     Patched("bcl-raw-nullables", 1 + 4, b));
+                AddUntrusted<RawOptional>("presence", $"raw-optional-flag-{hex}",
+                    $"struct-root-raw-optional with the has-value byte of Total (a long? at byte 8 of the raw [NinoType] struct) 0x{hex}.",
+                    Patched("struct-root-raw-optional", 8, b));
                 AddUntrusted<BclRawNullables>("presence", $"raw-nullable-tuple-flag-{hex}",
                     $"bcl-raw-nullables with the has-value byte of Nullables.C (an (int, long)? at byte 16) 0x{hex}.",
                     Patched("bcl-raw-nullables", 1 + 16, b));
@@ -266,25 +289,59 @@ namespace Conformance
                     $"bcl-raw-nullables with the has-value byte of Array[1].B (a block of raw structs) 0x{hex}.",
                     Patched("bcl-raw-nullables", 1 + 40 + 4 + 40 + 4, b));
 
-                // NinoNullable<T>: the bytes of T?, so the same flags are rejected. ninonullables-values is the
-                // control; the offsets are its members' (1: the null flag; then 9, 17, 17 and 17 bytes of single
-                // values; then each collection's count and slots of 16, 16, 24, 24, 20, 20, 24 and 24 bytes).
+                // NinoNullable<T> is raw memory wherever it is, so its presence is checked as a raw struct's bool
+                // is: in untrusted mode only.
                 void NinoNullableFlag(string name, string what, int offset) =>
-                    Add<NinoNullables>("presence", $"ninonullable-{name}-flag-{hex}",
-                        $"ninonullables-values with the has-value byte of {what} 0x{hex}.",
+                    AddUntrusted<NinoNullables>("presence", $"ninonullable-{name}-flag-{hex}",
+                        $"ninonullables-values with the first presence byte of {what} 0x{hex}.",
                         Patched("ninonullables-values", offset, b));
 
-                NinoNullableFlag("long", "Long (a NinoNullable<long>: the flag, then the value)", 1);
-                NinoNullableFlag("padded", "Padded (a NinoNullable of a struct with padding)", 44);
-                NinoNullableFlag("long-array", "LongArray[1], which has no value (a slot of 16 bytes: flag, 7 " +
-                                               "padding bytes, value)", 65 + 16);
-                NinoNullableFlag("long-list", "LongList[1], which has a value", 133 + 16);
-                NinoNullableFlag("decimal-array", "DecimalArray[0] (a slot of 24 bytes: flag, 7 padding bytes, value)",
-                    185);
-                NinoNullableFlag("guid-list", "GuidList[2] (a slot of 20 bytes: flag, 3 padding bytes, value)",
-                    357 + 40);
-                NinoNullableFlag("padded-array", "PaddedArray[1], which has no value (a slot of 24 bytes)", 421 + 24);
+                NinoNullableFlag("long", "Long (a NinoNullable<long>: 8 bytes of presence, then the value)", nnLong);
+                NinoNullableFlag("padded", "Padded (a NinoNullable of a struct with padding: 16 bytes of presence)",
+                    nnPadded);
+                NinoNullableFlag("long-array", "LongArray[1], which has no value", nnLongArray + 16);
+                NinoNullableFlag("long-list", "LongList[1], which has a value", nnLongList + 16);
+                NinoNullableFlag("decimal-array", "DecimalArray[0] (an element of 32 bytes)", nnDecimalArray);
+                NinoNullableFlag("guid-list", "GuidList[2] (an element of 32 bytes)", nnGuidList + 64);
+                NinoNullableFlag("padded-array", "PaddedArray[1], which has no value", nnPaddedArray + 32);
+                NinoNullableFlag("guid-queue", "GuidQueue's first element", nnGuidQueue);
+                NinoNullableFlag("decimal-map", "DecimalMap's first value (after its 4-byte key)", nnDecimalMap + 4);
+                NinoNullableFlag("field", "Fields.Count (at byte 4 of the raw struct)", nnFields + 4);
+                NinoNullableFlag("field-array", "FieldsArray[2].Price (at byte 16 of the third raw struct)",
+                    nnFieldsArray + 2 * 48 + 16);
             }
+
+            // The rest of a NinoNullable<T>'s memory, which .NET checks in untrusted mode too: zeros above the first
+            // byte of its presence (a whole T), and zeros for a value that is absent.
+            void NinoNullableByte(string name, string what, string control, int offset) =>
+                AddUntrusted<NinoNullables>("presence", $"ninonullable-{name}", $"{control} with {what} 0x01.",
+                    Patched(control, offset, 1));
+
+            NinoNullableByte("long-upper-byte", "the last byte of Long's presence (8 bytes: 01, then zeros)",
+                "ninonullables-values", nnLong + 7);
+            NinoNullableByte("padded-upper-byte",
+                "the second byte of Padded's presence (16 bytes; in its value that byte is padding)",
+                "ninonullables-values", nnPadded + 1);
+            NinoNullableByte("decimal-array-upper-byte", "the last byte of the presence of DecimalArray[0]",
+                "ninonullables-values", nnDecimalArray + 15);
+            NinoNullableByte("guid-queue-upper-byte", "the fifth byte of the presence of GuidQueue's first element",
+                "ninonullables-values", nnGuidQueue + 4);
+            NinoNullableByte("field-upper-byte", "the second byte of the presence of Fields.Count",
+                "ninonullables-values", nnFields + 4 + 1);
+            NinoNullableByte("long-absent-value", "a byte of Long's value, which is absent", "ninonullables-null",
+                nnLong + 8);
+            NinoNullableByte("decimal-absent-value", "the last byte of Decimal's value, which is absent",
+                "ninonullables-null", nnDecimal + 31);
+            NinoNullableByte("long-array-absent-value", "a byte of the value of LongArray[1], which is absent",
+                "ninonullables-values", nnLongArray + 16 + 8 + 3);
+            NinoNullableByte("decimal-map-absent-value", "a byte of DecimalMap's second value, which is absent",
+                "ninonullables-values", nnDecimalMap + 36 + 4 + 16);
+            NinoNullableByte("field-array-absent-value", "a byte of the value of FieldsArray[0].Count, which is absent",
+                "ninonullables-values", nnFieldsArray + 4 + 4);
+            // A value that is present is checked as its T is.
+            AddUntrusted<NinoNullables>("decimal", "ninonullable-bad-scale",
+                "ninonullables-values with a scale of 200 in the value of DecimalArray[0] (present: a decimal's scale " +
+                "is at most 28).", Patched("ninonullables-values", nnDecimalArray + 16 + 2, 200));
 
             // ---------------------------------------------------------- type ids
 
@@ -516,6 +573,8 @@ namespace Conformance
             Control<StringMap>("distinct", NotNull, I32(2), V(3), new byte[] { (byte)'a' }, I32(1), V(2), Utf16("b"), I32(2));
             Control<StringSet>("distinct", NotNull, I32(2), V(1), V(0));
             Control<SortedMap>("distinct", NotNull, I32(2), I32(3), I32(1), I32(4), I32(2));
+            // A null and a zero are two elements: the slots of null and of 0.
+            Control<MaybeIntSet>("distinct", NotNull, I32(2), new byte[8], I32(1), I32(0));
             Add<IntMap>("duplicate", "int-map", "Dictionary<int, int> with the key 1 twice.", NotNull, I32(2), I32(1),
                 I32(10), I32(1), I32(20));
             Add<StringMap>("duplicate", "string-map", "Dictionary<string, int> with the key \"a\" twice.", NotNull,
@@ -527,6 +586,11 @@ namespace Conformance
             Add<StringSet>("duplicate", "string-set", "HashSet<string> with \"\" twice.", NotNull, I32(2), V(1), V(1));
             Add<StringSet>("duplicate", "string-set-null", "HashSet<string> with null twice.", NotNull, I32(2), V(0),
                 V(0));
+            // The slots of a HashSet<int?> (the presence byte, three of padding, the value): spec 6.2.
+            Add<MaybeIntSet>("duplicate", "nullable-set", "HashSet<int?> with 7 twice.", NotNull, I32(2), I32(1),
+                I32(7), I32(1), I32(7));
+            Add<MaybeIntSet>("duplicate", "nullable-set-null", "HashSet<int?> with null twice.", NotNull, I32(2),
+                new byte[8], new byte[8]);
             Add<SortedMap>("duplicate", "sorted-map", "SortedDictionary<int, int> with the key 3 twice.", NotNull,
                 I32(2), I32(3), I32(1), I32(3), I32(2));
 

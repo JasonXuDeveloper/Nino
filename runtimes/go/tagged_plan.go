@@ -137,6 +137,51 @@ func isEntryType(t reflect.Type) bool {
 	return t.PkgPath() == ninoPkg && strings.HasPrefix(t.Name(), "Entry[")
 }
 
+// nullablesIn reports which nullable values t holds as itself, its elements, keys or values (a nino.Entry's
+// included): a nino.NinoNullable[T] (value), and a T? (pointer): a nino.NullableSlot[T], or a pointer to a value
+// that is no struct of the caller's (a *int32, a *nino.Decimal; a pointer to a caller's struct may be a class).
+// depth bounds a slice type that holds itself.
+func nullablesIn(t reflect.Type, depth int) (value, pointer bool) {
+	if depth == 0 {
+		return false, false
+	}
+	both := func(a, b reflect.Type) (bool, bool) {
+		av, ap := nullablesIn(a, depth-1)
+		bv, bp := nullablesIn(b, depth-1)
+		return av || bv, ap || bp
+	}
+	switch t.Kind() {
+	case reflect.Slice:
+		return nullablesIn(t.Elem(), depth-1)
+	case reflect.Map:
+		return both(t.Key(), t.Elem())
+	case reflect.Pointer:
+		e := t.Elem()
+		return false, e.Kind() != reflect.Struct || e.PkgPath() == ninoPkg
+	case reflect.Struct:
+		if isNinoNullableType(t) {
+			return true, false
+		}
+		if isNullableSlotType(t) {
+			return false, true
+		}
+		if isEntryType(t) {
+			return both(t.Field(0).Type, t.Field(1).Type)
+		}
+	}
+	return false, false
+}
+
+// isNinoNullableType reports whether t is a nino.NinoNullable[T].
+func isNinoNullableType(t reflect.Type) bool {
+	return t.PkgPath() == ninoPkg && strings.HasPrefix(t.Name(), "NinoNullable[")
+}
+
+// isNullableSlotType reports whether t is a nino.NullableSlot[T].
+func isNullableSlotType(t reflect.Type) bool {
+	return t.PkgPath() == ninoPkg && strings.HasPrefix(t.Name(), "NullableSlot[")
+}
+
 // plan returns the plan of the struct type t (built at most once per build; in progress when t holds itself).
 func (b *builder) plan(t reflect.Type) (*plan, error) {
 	if p, ok := b.plans[t]; ok {
@@ -187,7 +232,7 @@ func (b *builder) buildPlan(p *plan) error {
 		} else if d.hasMembers && d.rawEnc == nil {
 			f.member = order[i]
 		}
-		if err := b.fieldCodec(p, d, fi, f); err != nil {
+		if err := b.fieldCodec(p, d, fi, f, order[i]); err != nil {
 			return err
 		}
 	}
@@ -333,13 +378,26 @@ func checkMemberCount(p *plan, d *layoutDecl, n int) error {
 	return nil
 }
 
-// fieldCodec builds the codec of field f (its member already set), in the variant its tag and its layout member
-// ask for, and checks it against the member's encoding.
-func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field) error {
+// ninoNullableName is how a layout names .NET's NinoNullable<T> in a member's or a raw field's type.
+const ninoNullableName = "Nino.Core.NinoNullable<"
+
+// fieldCodec builds the codec of field f (its member already set; at is its place among the plan's fields), in the
+// variant its tag and its layout member ask for, and checks it against the member's encoding.
+func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field, at int) error {
 	t := p.typ
 	var enc *encoding
+	declared := ""
 	if f.member >= 0 {
-		enc = d.members[f.member].enc
+		enc, declared = d.members[f.member].enc, d.members[f.member].typ
+	} else if d.rawEnc != nil && at < len(d.rawEnc.fields) {
+		declared = d.rawEnc.fields[at].typ
+	}
+	if declared != "" {
+		// A run of a narrow T has the bytes of a T? run, so the sizes alone would let the wrong one through.
+		value, pointer := nullablesIn(fi.sf.Type, 8)
+		if named := strings.Contains(declared, ninoNullableName); (named && pointer) || (!named && value) {
+			return &TagError{Type: t, Field: fi.path, Detail: "the layout declares " + declared + ": a .NET NinoNullable<T> is a nino.NinoNullable[T], a T? a *T (a nino.NullableSlot[T] as the element of a sequence)"}
+		}
 	}
 	variant := variantDefault
 	if fi.tag.utf8 {
@@ -347,9 +405,6 @@ func (b *builder) fieldCodec(p *plan, d *layoutDecl, fi rawFieldInfo, f *field) 
 	}
 	if enc != nil && enc.kind == "utf8" && !fi.tag.utf8 {
 		variant = variantUTF8 // the layout says utf8: follow it
-	}
-	if enc != nil && enc.kind == "seq" && len(enc.args) == 1 && enc.args[0].kind == "nullable" {
-		variant = variantElementNullable
 	}
 	if enc != nil {
 		switch enc.kind {
@@ -471,18 +526,21 @@ func (b *builder) rawLayout(p *plan, d *layoutDecl) error {
 		p.raw, p.size, p.align = true, e.size, 1
 		for i := range p.fields {
 			f := &p.fields[i]
-			if !f.c.rawCapable() || f.c.kind == kDTO {
+			if err := b.rawField(f); err != nil {
+				return err
+			}
+			if f.raw == nil {
 				return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("%s cannot be a field of a raw struct", f.c.typ)}
 			}
 			lf := e.fields[i]
 			f.off = lf.off
-			if err := checkEncoding(f.c, lf.enc); err != nil {
+			if err := checkEncoding(f.raw, lf.enc); err != nil {
 				return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("raw field %s is %s: %v", lf.name, lf.enc.text, err)}
 			}
-			if f.off+f.c.size > p.size {
-				return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("at %d, %d bytes do not fit in %d", f.off, f.c.size, p.size)}
+			if f.off+f.raw.size > p.size {
+				return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("at %d, %d bytes do not fit in %d", f.off, f.raw.size, p.size)}
 			}
-			p.align = max(p.align, f.c.align)
+			p.align = max(p.align, f.raw.align)
 		}
 		return b.sortRaw(p)
 	}
@@ -498,7 +556,10 @@ func (b *builder) rawLayout(p *plan, d *layoutDecl) error {
 	end, align := 0, 1
 	for i := range p.fields {
 		c := p.fields[i].c
-		if !c.rawCapable() {
+		if err := b.rawField(&p.fields[i]); err != nil {
+			return err
+		}
+		if p.fields[i].raw == nil {
 			if c.size > 0 {
 				p.rawErr = fmt.Sprintf("field %s (%s) has no raw layout of its own", p.fields[i].name, c.typ)
 			}
@@ -507,14 +568,32 @@ func (b *builder) rawLayout(p *plan, d *layoutDecl) error {
 	}
 	for i := range p.fields {
 		f := &p.fields[i]
-		if f.c.align == 0 {
+		if f.raw.align == 0 {
 			return &TagError{Type: t, Field: f.name, Detail: fmt.Sprintf("a raw struct holding %s needs its offsets: declare them in NinoLayout (raw(n){...})", f.c.typ)}
 		}
-		f.off = roundUp(end, f.c.align)
-		end = f.off + f.c.size
-		align = max(align, f.c.align)
+		f.off = roundUp(end, f.raw.align)
+		end = f.off + f.raw.size
+		align = max(align, f.raw.align)
 	}
 	p.raw, p.size, p.align = true, roundUp(end, align), align
+	return nil
+}
+
+// rawField sets the field's codec inside a raw struct's memory (f.raw), nil when it cannot lie there: the codec of
+// a raw value, and for a T? of one (a *T) the slot .NET writes there, as in a sequence. The field keeps its own
+// codec (f.c) for where the type is written member by member: a class body, held through a pointer.
+func (b *builder) rawField(f *field) error {
+	c := f.c
+	switch {
+	case c.kind == kNullable && c.elem.rawCapable():
+		s, err := b.slot(c.typ, c.elem)
+		if err != nil {
+			return err
+		}
+		f.raw = s
+	case c.rawCapable():
+		f.raw = c
+	}
 	return nil
 }
 
@@ -522,7 +601,7 @@ func (b *builder) sortRaw(p *plan) error {
 	slices.SortStableFunc(p.fields, func(a, b field) int { return cmp.Compare(a.off, b.off) })
 	for i := 1; i < len(p.fields); i++ {
 		prev := &p.fields[i-1]
-		if p.fields[i].off < prev.off+prev.c.size {
+		if p.fields[i].off < prev.off+prev.raw.size {
 			return &TagError{Type: p.typ, Field: p.fields[i].name, Detail: "overlaps " + prev.name}
 		}
 	}
@@ -550,7 +629,7 @@ func checkEncoding(c *codec, e *encoding) error {
 				return fmt.Errorf("%d bytes, the Go type takes %d", e.size, c.size)
 			}
 			return nil
-		case c.rawCapable() && c.kind != kDTO:
+		case c.rawCapable() || c.kind == kSlot:
 			if e.size != c.size {
 				return fmt.Errorf("%d bytes, the Go type takes %d", e.size, c.size)
 			}
@@ -595,6 +674,9 @@ func checkEncoding(c *codec, e *encoding) error {
 			ec := c.elem
 			if c.kind == kSet {
 				ec = c.key
+			}
+			if ec.kind == kNullable && e.args[0].kind == "raw" {
+				return fmt.Errorf("a slot of %d bytes an element: a sequence of T? of a raw T is a []nino.NullableSlot[T], a *T a single T?", e.args[0].size)
 			}
 			return checkEncoding(ec, e.args[0])
 		case kStride:

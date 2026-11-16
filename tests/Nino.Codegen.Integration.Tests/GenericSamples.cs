@@ -82,18 +82,33 @@ namespace Nino.Codegen.Integration.Tests
             BoxedList = new Box<List<NinoNullable<long>>> { Value = new List<NinoNullable<long>> { 1, default } },
         };
 
-        /// <summary>The values of <see cref="Sparse"/> declared with <c>T?</c>.</summary>
-        internal static SparseTwin SparseTwin() => new()
+        /// <summary>
+        /// Raw nullables with and without values in each sequence, and in a dictionary's value; one element in each
+        /// set unless <paramref name="ordered"/> (written in the same order by any set).
+        /// </summary>
+        internal static Slots Slots(bool ordered)
         {
-            One = 7,
-            Point = new Vec2 { X = 1.5f, Y = -2 },
-            Array = new long?[] { long.MinValue, null, 3 },
-            List = new List<Rank?> { null, Rank.Gold },
-            Guids = new Guid?[] { new Guid("0f8fad5b-d9cb-469f-a165-70867728950e"), null },
-            Points = new List<Vec2?> { null, new Vec2 { X = 3, Y = 4 } },
-            Boxed = new Box<int?> { Label = "boxed", Value = -1 },
-            BoxedList = new Box<List<long?>> { Value = new List<long?> { 1, null } },
-        };
+            var stack = new Stack<Vec2?>();
+            stack.Push(null);
+            stack.Push(new Vec2 { X = 1.5f, Y = -2 });
+            var value = new Slots
+            {
+                Queue = new Queue<long?>(new long?[] { long.MinValue, null, 3 }),
+                Set = new HashSet<int?> { 4 },
+                Stack = stack,
+                Nested = new List<SortedSet<int?>> { new() { null }, null, new() },
+                BoxedSet = new Box<HashSet<int?>> { Label = "boxed", Value = new HashSet<int?> { null } },
+                Map = new Dictionary<int, long?> { [1] = null },
+            };
+            if (ordered)
+            {
+                value.Set.Add(null);
+                value.Nested[0].UnionWith(new int?[] { 2, -2 });
+                value.BoxedSet.Value.Add(7);
+            }
+
+            return value;
+        }
 
         /// <summary><see cref="Full"/> with at most one entry in each map: written in the same order by any map.</summary>
         internal static Generics SingleEntries()
@@ -110,18 +125,16 @@ namespace Nino.Codegen.Integration.Tests
         /// </summary>
         internal static List<(string Type, byte[] Bytes)> Cases(bool ordered)
         {
-            // NinoNullable<T> is T? on the wire: one value's bytes, whichever type it was declared with.
-            var sparse = NinoSerializer.Serialize(Sparse());
-            Assert.AreEqual(Hex(NinoSerializer.Serialize(SparseTwin())), Hex(sparse));
             var cases = new List<(string, byte[])>
             {
                 ("Samples.Generics", NinoSerializer.Serialize(SingleEntries())),
                 ("Samples.Generics", NinoSerializer.Serialize(new Generics())),
                 ("Samples.Generics", NinoSerializer.Serialize<Generics>(null)),
                 ("Samples.Tag", NinoSerializer.Serialize(new Tag { Name = "tag", Weight = -1 })),
-                ("Samples.Sparse", sparse),
-                ("Samples.SparseTwin", sparse),
+                ("Samples.Sparse", NinoSerializer.Serialize(Sparse())),
                 ("Samples.Sparse", NinoSerializer.Serialize(new Sparse())),
+                ("Samples.Slots", NinoSerializer.Serialize(Slots(ordered))),
+                ("Samples.Slots", NinoSerializer.Serialize(new Slots())),
                 ("Samples.Pens", NinoSerializer.Serialize(Pens())),
                 ("Samples.Pens", NinoSerializer.Serialize(new Pens { Anything = new Patch<int> { Value = 5 } })),
             };
