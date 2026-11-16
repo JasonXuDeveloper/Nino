@@ -48,6 +48,12 @@ runners measure. Runners still decide (round 123).
   controls reproduce it: the string-miss probe timed a seven-char ASCII hit at 29–44 ns after 100 ms per case, and
   near 3.7 ns on both builds after an isolated one-second warmup (Tier1 listings). The fixture that held validates
   first, warms every case path and its wrapper for two seconds, then alternates complete processes over four rounds.
+- Never read a gap off a hand-timed loop that calls one method over and over (a Stopwatch around `b.NinoX()`) until
+  the same loop, run after other calls, agrees: the method can stay on its on-stack-replacement code (`Tier1-OSR` in
+  `DOTNET_JitDisasmSummary`) for the whole process. LuminPack's `ActiveBuff[]` serialize measured 985 to 1,097 ns
+  against LuminPack's 475 in three such probes, and 475 to 481 against 505 once the probe first wrote other arrays;
+  a reflection sweep of every pair with `DOTNET_TC_CallCountingDelayMs=0` showed `Scalars` at 9.5x and
+  `SkillLevels` reads at 4.8x, each within 10 % when timed alone (#305).
 
 In the Unity player, time small cases without allocation: `NinoSerializer.Serialize` to a new array made the
 6000.3 player's string rows bimodal (the same case 1.0x or 1.3x from run to run); `SerializeTo` a reused
