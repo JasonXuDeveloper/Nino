@@ -172,6 +172,53 @@ namespace Nino.Core.CompilerServices
             ReadExactBody<TSub, TFormatter>(ref reader, ref Unsafe.As<TBase, TSub>(ref value));
         }
 
+        /// <summary>
+        /// Generated subtype dispatch, inline: reads the body of <typeparamref name="TSub"/> (its type id consumed) into
+        /// a slot declared as <typeparamref name="TBase"/> when the slot holds null or a <typeparamref name="TSub"/> and
+        /// the body is not too deep to read in place; false, with nothing read, otherwise (a slot holding another
+        /// type, a deferred or too deep body), which the caller reads out of line
+        /// (<see cref="ReadSubtypeOutOfLine{T,TDispatch}"/>). Nothing here calls a method that takes the reader by
+        /// reference: wherever the dispatch is inlined (a collection's loop), the reader's fields stay in registers.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryReadExact<TBase, TSub, TFormatter>(ref Reader reader, ref TBase value)
+            where TBase : class
+            where TSub : class, TBase
+            where TFormatter : struct, INinoBodyFormatter<TSub>
+        {
+            var old = value;
+            int depth = reader.Depth;
+            if ((old != null && old.GetType() != typeof(TSub)) || depth >= NinoDepth.Inline)
+                return false;
+
+            if ((default(TFormatter).Traits & NinoBodyTraits.Nests) == 0)
+            {
+                default(TFormatter).ReadBody(ref reader, ref Unsafe.As<TBase, TSub>(ref value));
+                return true;
+            }
+
+            reader.Depth = depth + 1;
+            default(TFormatter).ReadBody(ref reader, ref Unsafe.As<TBase, TSub>(ref value));
+            reader.ExitBody(depth);
+            return true;
+        }
+
+        /// <summary>
+        /// Generated subtype dispatch: the read <see cref="TryReadExact{TBase,TSub,TFormatter}"/> left (or an id the
+        /// inline switch does not hold), through the dispatch's complete read (<see cref="INinoSubtypeDispatch{T}"/>,
+        /// a constrained call on its struct). Out of line with the reader by value and returned: its address reaching a
+        /// call would keep the caller's reader in memory (a collection loop stored and reloaded its cursor and the
+        /// bytes left per element, #305).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static Reader ReadSubtypeOutOfLine<T, TDispatch>(int id, Reader reader, scoped ref T value)
+            where T : class
+            where TDispatch : struct, INinoSubtypeDispatch<T>
+        {
+            default(TDispatch).ReadSubtype(id, ref reader, ref value);
+            return reader;
+        }
+
         /// <summary><see cref="ReadExact{TBase,TSub,TFormatter}"/> into a slot holding an instance of another type.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadReplacing<TBase, TSub, TFormatter>(ref Reader reader, ref TBase value)

@@ -66,7 +66,7 @@ internal static class DispatchEmitter
                 {
                     // The pair loops only where Nino.Core calls them (its .NET 8+ builds): IL2CPP compiles every
                     // method of a type, called or not.
-                    w.Line($"partial struct {e.Self} : {CoreCompilerServices}INinoElementsFormatter<{e.TypeName}>");
+                    w.Line($"partial struct {e.Self} : {CoreCompilerServices}INinoElementsFormatter<{e.TypeName}>, {Dispatch(e.TypeName)}");
                     w.Line(PairsBuild);
                     w.Line($"    , {CoreCompilerServices}INinoPairsFormatter");
                     w.Line("#endif");
@@ -74,10 +74,10 @@ internal static class DispatchEmitter
                 }
                 else
                 {
-                    w.Open($"partial struct {e.Self}");
+                    w.Open(own is { Count: > 0 } ? $"partial struct {e.Self} : {Dispatch(e.TypeName)}" : $"partial struct {e.Self}");
                 }
 
-                EmitBase(w, e.TypeName, own, services, closedForm: false);
+                EmitBase(w, e.TypeName, own, services, closedForm: false, e.Self);
                 w.Close();
                 w.Line();
                 continue;
@@ -93,8 +93,11 @@ internal static class DispatchEmitter
             {
                 foreach (var c in closed)
                 {
-                    w.Open($"static class __NinoDispatch{closedCount++}");
-                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true);
+                    // A struct: the out-of-line read calls its dispatch through a constrained call (TDispatch).
+                    var subtypes = Subtypes(subtypesOf, c, 0);
+                    string self = $"__NinoDispatch{closedCount++}";
+                    w.Open(subtypes is { Count: > 0 } ? $"struct {self} : {Dispatch(c)}" : $"struct {self}");
+                    EmitBase(w, c, subtypes, services, closedForm: true, self);
                     w.Close();
                     w.Line();
                 }
@@ -158,14 +161,9 @@ internal static class DispatchEmitter
     /// <summary>A type name as a comment shows it: without the <c>global::</c> qualifier.</summary>
     private static string Display(string typeName) => typeName.Replace("global::", "");
 
-    private static void EmitReadSwitch(CodeWriter w, List<DispatchEntry> subtypes)
-    {
-        w.Open("switch (id)");
-        for (int i = 0; i < subtypes.Count; i++)
-            // The subtype's name after the id: the ids alone do not say which type a case reads.
-            w.Line($"case {subtypes[i].TypeId.ToString(CultureInfo.InvariantCulture)}: __ReadExact{i}(ref reader, ref value); return; // {Display(subtypes[i].TypeName)}");
-        w.Close();
-    }
+    private static string Dispatch(string t) => $"{CoreCompilerServices}INinoSubtypeDispatch<{t}>";
+
+    private static string Id(DispatchEntry s) => s.TypeId.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     /// The subtypes of <paramref name="baseType"/> (other than itself, id <paramref name="baseId"/>) that bases dispatch
@@ -218,7 +216,8 @@ internal static class DispatchEmitter
     }
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
-    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services, bool closedForm)
+    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services, bool closedForm,
+        string self)
     {
         // value.GetType() == typeof(X) compiles to one method table compare. WriteExactShallow is inlined where the
         // caller's inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A
@@ -270,26 +269,42 @@ internal static class DispatchEmitter
             return;
         }
 
+        // The read: a switch on the ids inlined into the caller (an element loop), as LuminPack reads its unions (out of
+        // line, each element took a call and two jumps: LuminPack's List<IFoo> of 1,000 read in 21.0 us against 18.1
+        // inlined, LuminPack 17.5; Dictionary<int, IFoo> 362 against 314 ns; local x64, #305), holding only what a
+        // fresh read of a flat subtype needs (no class body inside, DispatchEntry.Flat: subtypes holding a class each,
+        // inlined too, read 3-14 % slower on every runner CPU, GenericSealedClassTupleBase, GenericOpenClassTupleBase,
+        // run 43764424839). Everything else (other subtypes, a slot holding another type, a body too deep, unknown
+        // ids) is the complete switch out of line, the reader by value (NinoObject.ReadSubtypeOutOfLine): with each
+        // subtype's whole read inline and its cold paths taking the reader by reference, the JIT left the last cases
+        // of a 20-subtype switch as calls and the reader's address reached them, so the loop kept the reader in memory.
         w.Line();
         w.Line(GeneratedCode.Inline);
         w.Open(ReadSubtype(t));
-        EmitReadSwitch(w, subtypes);
-        w.Line(ReadOther(t, services) + ";");
+        if (subtypes.Exists(static s => s.Flat))
+        {
+            w.Open("switch (id)");
+            foreach (var s in subtypes)
+            {
+                // The subtype's name after the id: the ids alone do not say which type a case reads.
+                if (s.Flat)
+                    w.Line($"case {Id(s)}: if ({services}NinoObject.TryReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value)) return; break; // {Display(s.TypeName)}");
+            }
+
+            w.Close();
+        }
+
+        w.Line($"reader = {services}NinoObject.ReadSubtypeOutOfLine<{t}, {self}>(id, reader, ref value);");
         w.Close();
 
-        // Each subtype's instance check and body in a method of this non-generic struct, where NinoObject.ReadExact is
-        // not shared code (see there), and the switch inlined into the element loop, as LuminPack reads its unions: out
-        // of line, each element took a call and two jumps (LuminPack's List<IFoo> of 1,000 read in 21.0 us against 18.1
-        // inlined, LuminPack 17.5; Dictionary<int, IFoo> 362 against 314 ns; local x64, #305). Only flat bodies (no
-        // class body inside, DispatchEntry.Flat) are inlined into the switch: subtypes holding a class each, inlined
-        // too, read 3-14 % slower on every runner CPU (GenericSealedClassTupleBase, GenericOpenClassTupleBase, run
-        // 43764424839), the rest 11-20 % faster.
         w.Line();
-        for (int i = 0; i < subtypes.Count; i++)
-        {
-            var s = subtypes[i];
-            w.Line($"{(s.Flat ? GeneratedCode.Inline : GeneratedCode.NoInline)} static void __ReadExact{i}(ref {Core}Reader reader, ref {t} value) => {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value);");
-        }
+        w.Open($"void {Dispatch(t)}.ReadSubtype(int id, ref {Core}Reader reader, ref {t} value)");
+        w.Open("switch (id)");
+        foreach (var s in subtypes)
+            w.Line($"case {Id(s)}: {services}NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref reader, ref value); return; // {Display(s.TypeName)}");
+        w.Close();
+        w.Line($"{services}NinoSubtypes<{t}>.Deserialize(id, ref reader, ref value);");
+        w.Close();
     }
 
     /// <summary>

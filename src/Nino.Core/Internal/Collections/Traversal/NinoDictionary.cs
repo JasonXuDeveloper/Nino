@@ -628,14 +628,27 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadGuarded(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
         {
+            // Where the dictionary is as expected (new, sized for the pairs), the pairs are read into its entries and
+            // its buckets built after them (HashTables.Link: hash flooding, repeated keys); else each is added by the
+            // dictionary and its bucket walked after it.
+            if (HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length))
+            {
+                try
+                {
+                    source = ReadEntries(dictionary, length, source);
+                }
+                catch
+                {
+                    // Data rejected part way: the dictionary is left empty, holding no reference the read stored.
+                    HashTables.Unlink(dictionary);
+                    throw;
+                }
+
+                return;
+            }
+
             // A local reader, so its fields stay in registers inside the loop.
             Reader reader = source;
-            // Each key added here, its bucket walked as it is, where the dictionary is as expected (new, sized for the
-            // pairs); else added by the dictionary, and its bucket walked after (HashTables: hash flooding).
-            // One loop (the formatters inlined once), the choice made per pair: predicted, and cheaper than a second
-            // copy of the loop, which kept more of its state on the stack.
-            // The plan read once, into locals (HashTables.Plan).
-            bool insert = HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length);
             bool walk = HashTables.Plan<TKey, TValue>.Walks;
             for (int i = 0; i < length; i++)
             {
@@ -643,19 +656,35 @@ namespace Nino.Core
                 TValue item = default;
                 default(TKeyFormatter).Deserialize(ref reader, ref key);
                 default(TValueFormatter).Deserialize(ref reader, ref item);
-                if (insert)
-                {
-                    HashTables.Insert(dictionary, key, item);
-                }
-                else
-                {
-                    NinoCollections.AddUnique(dictionary, key, item);
-                    if (walk)
-                        HashTables.Walk(dictionary, key);
-                }
+                NinoCollections.AddUnique(dictionary, key, item);
+                if (walk)
+                    HashTables.Walk(dictionary, key);
             }
 
             source = reader;
+        }
+
+        /// <summary>
+        /// Reads <paramref name="length"/> pairs straight into the entries of a dictionary
+        /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepted, each key and value in its place with nothing but
+        /// the formatters in the loop, then builds the buckets in one pass (<see cref="HashTables.Link{TKey,TValue}"/>).
+        /// A key added one at a time (HashTables.Insert, a call per pair that loaded the table's fields again each time)
+        /// read a <c>Dictionary&lt;int, IFoo&gt;</c> of 100 pairs about 10 % slower than LuminPack, which fills the
+        /// entries this way (#320). The reader by value and returned: its address reaching no call, its fields stay in
+        /// registers in the loop.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadEntries(Dictionary<TKey, TValue> dictionary, int length, Reader reader)
+        {
+            ref var entry = ref NinoUnsafe.GetArrayDataReference(HashTables.Entries(dictionary));
+            for (int left = length; left > 0; left--, entry = ref Unsafe.Add(ref entry, 1))
+            {
+                default(TKeyFormatter).Deserialize(ref reader, ref entry.Key);
+                default(TValueFormatter).Deserialize(ref reader, ref entry.Value);
+            }
+
+            HashTables.Link(dictionary, length);
+            return reader;
         }
     }
 
