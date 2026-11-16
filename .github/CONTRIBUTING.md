@@ -92,7 +92,7 @@ method whose machine code changed.
 ## Pull requests
 
 Commit under your own name and email (an AI agent working for you too: the author line in AGENTS.md is the
-maintainer's own). Branch from `main`, keep a pull request to one change (it is merged with a merge commit, so each commit stays as
+maintainer's own). Branch from `main`, title the pull request as a commit (`type(scope): summary`), keep it to one change (it is merged with a merge commit, so each commit stays as
 written: Conventional Commits, with the release-note trailers of `.github/scripts/release_notes.py` where users see
 the change), add tests for behavior changes, and update the docs (README,
 `docs/`, the public skill `skills/nino-serialization`, and the website,
