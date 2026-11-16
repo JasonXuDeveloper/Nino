@@ -189,6 +189,13 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Adding a case
 
+- In a class that declares its cases (`[BenchCase]`, `SimpleTest` so far; #271 moves the rest): add the attribute and
+  the value's field, run `dotnet run --project runtimes/csharp/tools/BenchGen`, never edit a `.Cases.g.cs` by hand;
+  the methods of every library and the v3 part follow from the adapters (`Nino.Benchmark/Adapters/`), and a new
+  library is one adapter. The rest of this list (`Verify.cs`, chart groups, `shards.json`) still applies.
+  `runtimes/csharp/benchmarks/README.md`, "Cases and adapters", has the details. Why: a hand-written method per
+  library and case is about 4,000 lines that drift apart; the generated ones compile to the IL of the hand-written
+  ones (SimpleTest: identical IL in all 60 v4 and 20 v3 methods, and identical Tier1 code of its Nino cases).
 - .NET: a class in `runtimes/csharp/benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
   MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest`, `NullableTest`,
   `CollectionsTest`'s nullable collections and the workloads), a `Verify.cs` entry, its class in a chart group

@@ -21,6 +21,9 @@ Nino.Benchmark/              the BenchmarkDotNet suite: Cases/Collections, Cases
                              CollectionsTest, BclTypesTest, ScatteredTest, UntrustedTest, ExternalBufferTest), Workloads/ (WorkloadTest: 12 real-world
                              payloads, the headline numbers, also against Google.Protobuf through
                              workloads.proto, which --write-proto generates, and System.Text.Json), CpuProbe (block copies against Memmove),
+                             Adapters/ (one per library: the templates runtimes/csharp/tools/BenchGen expands, not
+                             compiled), <Class>.Cases.g.cs (BenchGen's output for a class with [BenchCase]s: its timed
+                             methods, v4 and v3; README.md, Cases and adapters), Harness/BenchCase.cs (the attribute),
                              Harness/Verify.cs (--verify: every case reads back right), Harness/NinoCoreBuild.cs (stops a process that
                              loaded another Nino.Core build than its framework's), NinoJobAttribute (the job, quick mode), PayloadColumn; V3/ +
                              Fixtures/ contains shared models and payloads (ProtobufModel.cs: protobuf-net's model, the
@@ -106,7 +109,9 @@ reports/                     what a release publishes: the results of runners as
   but report.yml builds it, so a break shows only at a release (51a7bd18's `--write-proto` did, until the rc.10
   review).
 - A new benchmark case gets its v3 port in the class's `V3/` file and its v3 globs in `shards.json` (Nino and
-  MemoryPack only), or a line in that file saying why 3.3.13 cannot express it.
+  MemoryPack only), or a line in that file saying why 3.3.13 cannot express it. In a class that declares its cases
+  (`[BenchCase]`) it is the attribute and its field, then BenchGen, which writes the v3 part too; never edit a
+  `.Cases.g.cs` by hand (ci.yml runs `BenchGen --check`).
 - A script that reads BenchmarkDotNet reports does it through `reports/bdn.py` (one parser, one unit table, one floor);
   the 1 ns floor is the docs site's (`src/lib/benchmarks.ts`) too.
 

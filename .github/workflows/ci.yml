@@ -453,6 +453,12 @@ jobs:
             exit 1
           fi
 
+      # The benchmarks' timed methods are what BenchGen writes from each class's cases and the adapters
+      # (runtimes/csharp/tools/BenchGen): a case or an adapter changed without running it fails here.
+      - name: Check the generated benchmark methods
+        if: ${{ !cancelled() }}
+        run: dotnet run --project runtimes/csharp/tools/BenchGen -- --check
+
       # Every benchmark case reads back what the others read and writes its payload's bytes (Verify.cs), on every
       # push: report.yml runs it first on each shard, where a failure showed only at a release. The Arm64 runtime
       # internals job runs it on Arm64.

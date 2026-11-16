@@ -1,0 +1,26 @@
+// A BenchGen template (runtimes/csharp/tools/BenchGen), not compiled: MemoryPack, in both builds (the v3 run times it
+// on the same machine as the v4 run, compare/compare_v3.py).
+using System.Buffers;
+using MemoryPack;
+
+namespace Nino.Benchmark.Adapters;
+
+[BenchLibrary("MemoryPack", Order = 1, Slot = 1, Builds = "v4 v3")]
+internal static class MemoryPackAdapter
+{
+    public static void Setup(out ArrayBufferWriter<byte> buffer)
+    {
+        buffer = new ArrayBufferWriter<byte>(320 * 1024);
+    }
+
+    public static byte[] ToBytes<T>(T value) => MemoryPackSerializer.Serialize(value);
+
+    public static int Serialize<T>(ArrayBufferWriter<byte> buffer, T value)
+    {
+        buffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(buffer, value);
+        return buffer.WrittenCount;
+    }
+
+    public static T Deserialize<T>(byte[] bytes) => MemoryPackSerializer.Deserialize<T>(bytes);
+}
