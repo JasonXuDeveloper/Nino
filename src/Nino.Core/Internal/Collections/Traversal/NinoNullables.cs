@@ -218,6 +218,44 @@ namespace Nino.Core
         /// For 24 with AVX-512 VBMI, the vpermb / vpermt2b indices that give each byte of the three vectors of a period
         /// its element's flag: from the first vector, then the first and second, then the second and third.
         /// </summary>
+        /// <summary>
+        /// For a 24-byte stride, by where a 64-byte line of the destination starts in an element (0, 4, ... 20 bytes
+        /// in, a sixth each): the dword permutation (vpermt2d) of the line before and the line that gives each dword
+        /// its element's first dword (the flag's), and the bytes the wire keeps there.
+        /// </summary>
+        private static readonly Vector512<uint>[] GatherIndex = Stride == 24 ? GatherIndexes() : null;
+
+        private static readonly Vector512<byte>[] GatherKeep = Stride == 24 ? GatherKeeps() : null;
+
+        private static Vector512<uint>[] GatherIndexes()
+        {
+            var rows = new Vector512<uint>[Stride / 4];
+            var dwords = new uint[16];
+            for (int p = 0; p < Stride; p += 4)
+            {
+                for (int d = 0; d < 16; d++)
+                    dwords[d] = (uint)(16 + d - (p + 4 * d) % Stride / 4);
+                rows[p / 4] = Vector512.Create(dwords);
+            }
+
+            return rows;
+        }
+
+        private static Vector512<byte>[] GatherKeeps()
+        {
+            var rows = new Vector512<byte>[Stride / 4];
+            var keep = Keeps();
+            var bytes = new byte[64];
+            for (int p = 0; p < Stride; p += 4)
+            {
+                for (int b = 0; b < 64; b++)
+                    bytes[b] = keep[(p + b) % Stride];
+                rows[p / 4] = Vector512.Create(bytes);
+            }
+
+            return rows;
+        }
+
         private static readonly Vector512<byte> FlagBytes0 = FlagBytes(0);
 
         private static readonly Vector512<byte> FlagBytes1 = FlagBytes(1);
@@ -654,13 +692,15 @@ namespace Nino.Core
                     Lanes512.CopyRealigned(ref destination, ref source, total, head);
                     return;
                 }
-#if NET10_0_OR_GREATER
-                else if (typeof(TVector) == typeof(Vector512<byte>) && Stride == 24 && head % 4 == 0 &&
-                         Avx512Vbmi.IsSupported && Gfni.V512.IsSupported && WholeBytes)
+                else if (typeof(TVector) == typeof(Vector512<byte>) && Stride == 24 && head % 4 == 0)
                 {
-                    i = Lanes512.CopyRealigned24(ref destination, ref source, total, head);
+                    // The first and the last step as they lie, the lines between them gathered at the
+                    // destination's phase.
+                    lanes.Copy(ref destination, ref source, 0);
+                    Lanes512.CopyGathered24(ref destination, ref source, total, head);
+                    lanes.Copy(ref destination, ref source, end);
+                    return;
                 }
-#endif
             }
 
             if (Stride != 24)
@@ -746,46 +786,57 @@ namespace Nino.Core
                 Cleaned(Vector512.LoadUnsafe(ref source, total - 64)).StoreUnsafe(ref destination, total - 64);
             }
 
-#if NET10_0_OR_GREATER
             /// <summary>
-            /// <see cref="CopyRealigned"/> for a 24-byte stride (AVX-512 VBMI and GFNI): each vector of a 192-byte
-            /// period cleaned where it lies (vpermb or vpermt2b, vpandd, vgf2p8mulb), the stores on the destination's
-            /// 64-byte boundaries from two consecutive results (vpermt2d); returns the period from which the caller's
-            /// loop writes the rest (its first step writes again bytes this wrote, the same).
+            /// The 64-byte lines of the destination from <c>head + 64</c> to the last whole one, for a 24-byte stride
+            /// whose elements never start a line (<paramref name="head"/>, the bytes to the first, a multiple of 4;
+            /// the caller writes the first and the last 192 bytes): each line loaded where it lies in the source, each
+            /// dword given its element's first dword from the line before and the line (vpermt2d, one uop), the
+            /// presence its bit 0 spread over the dword (vpslld 31, vpsrad 31: a flag is 0 or 1 in every
+            /// <c>Nullable</c> the runtime makes) and ANDed with the line and the bytes kept (vpternlogd). One port-5
+            /// operation a vector where the permutation of the flags (vpermb and two vpermt2b, three uops each on
+            /// Intel), the AND, the multiplication and the realignment (vpermt2d) took four or more, and every store
+            /// aligned. 1,000 <c>decimal?</c> in the kernel harness 381 ns against 475 for that form (a copy 248);
+            /// it needs AVX-512F alone.
             /// </summary>
             [MethodImpl(MethodImplOptions.NoInlining)]
-            public static nuint CopyRealigned24(ref byte destination, ref byte source, nuint total, nuint head)
+            public static void CopyGathered24(ref byte destination, ref byte source, nuint total, nuint head)
             {
-                var index = Vector512.Create(0u, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) +
-                            Vector512.Create((uint)head >> 2);
-                Vector512<byte> f0 = FlagBytes0, f1 = FlagBytes1, f2 = FlagBytes2, k0 = Keep, k1 = Keep1, k2 = Keep2;
-                var r0 = Vector512.LoadUnsafe(ref source);
-                var previous = Gfni.V512.GaloisFieldMultiply(r0, Avx512Vbmi.PermuteVar64x8(r0, f0) & k0);
-                previous.StoreUnsafe(ref destination);
-                nuint i = 0;
-                // previous is the vector at i (a period's first); the store at i + head takes its last bytes and the
-                // next one's first.
-                for (; i + 256 <= total; i += 192)
+                nuint at = head + 64;
+                var previous = Vector512.LoadUnsafe(ref source, head);
+                int p0 = (int)(at % 24), p1 = (int)((at + 64) % 24), p2 = (int)((at + 128) % 24);
+                Vector512<uint> i0 = GatherIndex[p0 / 4], i1 = GatherIndex[p1 / 4], i2 = GatherIndex[p2 / 4];
+                Vector512<byte> k0 = GatherKeep[p0 / 4], k1 = GatherKeep[p1 / 4], k2 = GatherKeep[p2 / 4];
+                for (; at + 192 <= total; at += 192)
                 {
-                    var a = Vector512.LoadUnsafe(ref source, i);
-                    var b = Vector512.LoadUnsafe(ref source, i + 64);
-                    var c = Vector512.LoadUnsafe(ref source, i + 128);
-                    var d = Vector512.LoadUnsafe(ref source, i + 192);
-                    var cb = Gfni.V512.GaloisFieldMultiply(b, Avx512Vbmi.PermuteVar64x8x2(a, f1, b) & k1);
-                    var cc = Gfni.V512.GaloisFieldMultiply(c, Avx512Vbmi.PermuteVar64x8x2(b, f2, c) & k2);
-                    var cd = Gfni.V512.GaloisFieldMultiply(d, Avx512Vbmi.PermuteVar64x8(d, f0) & k0);
-                    Avx512F.PermuteVar16x32x2(previous.AsUInt32(), index, cb.AsUInt32()).AsByte()
-                        .StoreUnsafe(ref destination, i + head);
-                    Avx512F.PermuteVar16x32x2(cb.AsUInt32(), index, cc.AsUInt32()).AsByte()
-                        .StoreUnsafe(ref destination, i + 64 + head);
-                    Avx512F.PermuteVar16x32x2(cc.AsUInt32(), index, cd.AsUInt32()).AsByte()
-                        .StoreUnsafe(ref destination, i + 128 + head);
-                    previous = cd;
+                    var a = Vector512.LoadUnsafe(ref source, at);
+                    var b = Vector512.LoadUnsafe(ref source, at + 64);
+                    var c = Vector512.LoadUnsafe(ref source, at + 128);
+                    Gathered(previous, a, i0, k0).StoreUnsafe(ref destination, at);
+                    Gathered(a, b, i1, k1).StoreUnsafe(ref destination, at + 64);
+                    Gathered(b, c, i2, k2).StoreUnsafe(ref destination, at + 128);
+                    previous = c;
                 }
 
-                return i;
+                for (; at + 64 <= total; at += 64)
+                {
+                    var a = Vector512.LoadUnsafe(ref source, at);
+                    Gathered(previous, a, i0, k0).StoreUnsafe(ref destination, at);
+                    previous = a;
+                    (i0, i1, i2) = (i1, i2, i0);
+                    (k0, k1, k2) = (k1, k2, k0);
+                }
             }
-#endif
+
+            /// <summary>One line of <see cref="CopyGathered24"/>.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Vector512<byte> Gathered(Vector512<byte> previous, Vector512<byte> line,
+                Vector512<uint> index, Vector512<byte> keep)
+            {
+                var first = Avx512F.PermuteVar16x32x2(previous.AsUInt32(), index, line.AsUInt32());
+                var present = Avx512F.ShiftRightArithmetic(Avx512F.ShiftLeftLogical(first, 31).AsInt32(), 31);
+                return Avx512F.TernaryLogic(line, present.AsByte(), keep, 0x80);
+            }
+
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Copy(ref byte destination, ref byte source, nuint offset)
@@ -1404,14 +1455,16 @@ namespace Nino.Core
 #endif
 
         /// <summary>Reads the elements after the count check has bounded the full fixed-stride payload.</summary>
-        public static void ReadPrechecked(Span<T?> destination, ref Reader reader) =>
-            ReadPrechecked(ref MemoryMarshal.GetReference(destination), destination.Length, ref reader);
+        /// <param name="reused">Whether <paramref name="destination"/> is storage that already held elements (an
+        /// existing array or list), not one just allocated.</param>
+        public static void ReadPrechecked(Span<T?> destination, ref Reader reader, bool reused = false) =>
+            ReadPrechecked(ref MemoryMarshal.GetReference(destination), destination.Length, ref reader, reused);
 
         /// <summary>
         /// <see cref="ReadPrechecked(Span{T?}, ref Reader)"/> of <paramref name="count"/> elements from
         /// <paramref name="item"/>.
         /// </summary>
-        internal static void ReadPrechecked(ref T? item, int count, ref Reader reader)
+        internal static void ReadPrechecked(ref T? item, int count, ref Reader reader, bool reused = false)
         {
             int bytes = count * Stride;
             ref byte src = ref reader.UnsafeAdvance(bytes);
@@ -1435,9 +1488,16 @@ namespace Nino.Core
                 // On AMD and Arm64 a vector loop checks while it copies: Memmove (rep movsb on AMD) gains nothing there
                 // over Nino's own copy, and a separate check pass cost long? and Vec3? runs 10-20 % on EPYC 7763 and
                 // Neoverse-N2 (1,000 elements, run 43714421476 against the fused kernel of f8d9e34d).
-                if (FusesCheck && count >= 128 && NinoChecks.TryFlagMask(Stride, out var mask))
+                // Into an array that already holds elements (a reused destination), x64 checks while it copies with
+                // its stores on the destination's lines (NinoChecks.CopyFlagsLined): 1,000 int? 197 -> 126 ns, long?
+                // 380 -> 258 (local AVX-512 Xeon, in process). Not into a new array, whose lines Memmove writes
+                // without reading them: there the same loop took 1,222 ns against 961.
+                if ((FusesCheck || (reused && Vector128.IsHardwareAccelerated)) && count >= 128 &&
+                    NinoChecks.TryFlagMask(Stride, out var mask))
                 {
-                    if (NinoChecks.CopyFlagsBest(ref destination, ref src, bytes, mask))
+                    if (reused && !AdvSimd.Arm64.IsSupported
+                            ? NinoChecks.CopyFlagsLinedBest(ref destination, ref src, bytes, mask)
+                            : NinoChecks.CopyFlagsBest(ref destination, ref src, bytes, mask))
                         return;
                     Unsafe.InitBlockUnaligned(ref destination, 0, (uint)bytes);
                     NinoChecks.Flags(ref src, count, Stride);

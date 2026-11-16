@@ -34,7 +34,7 @@ namespace Nino.Core
             {
                 var current = value;
                 var array = NinoElements.NewOrSame(current, length);
-                NinoNullables<T>.ReadPrechecked(array, ref reader);
+                NinoNullables<T>.ReadPrechecked(array, ref reader, array == current);
                 NinoElements.Publish(ref value, current, array);
                 return;
             }
