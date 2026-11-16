@@ -192,8 +192,12 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   marked `AggressiveInlining`: the JIT refused to inline a 20-subtype chain even so (a call per element again, 4.9 us),
   and a test for a generic interface (`default(TFormatter) is INinoElementsFormatter<T>`) per element in a loop over
   a reference type is shared code that looks the interface up and boxes each time: 20 us for the same list (a
-  non-generic interface folds). Dictionaries of a polymorphic value keep `Serialize` per value (12 values: 64-72 ns
-  against LuminPack's 60-63; their pair loop lives in Nino.Core, so a generated one would duplicate it).
+  non-generic interface folds). Dictionaries of a polymorphic value keep `Serialize` per value: a generated loop over
+  a struct source of pairs (`WriteFrom<TSource>`, keys written by the source, the dispatch inline) is a generic
+  interface method called from shared code (the value type a class), which looks up its instantiation per call:
+  `Dictionary<int, IFoo>` of 12 values 143-147 ns against 58-72 per value (LuminPack 49-60). Nino's fixed cost per call
+  is already the lower one (an empty dictionary 4.6 ns against LuminPack's 15.9, one pair 14.3 against 16.8); the
+  remaining gap is about 0.6 ns a pair, the call into the dispatch.
   Generic bases keep the element loop out too: the same loop in each closed dispatch class (`__NinoDispatch<n>`),
   selected once per collection, wrote GenericSealedClassTupleBase 22 % and GenericOpenClassTupleBase 12 % slower
   (7.2 to 8.8 us, 7.5 to 8.4; two rounds, local x64), their subtypes each holding a class whose nested writes, all
