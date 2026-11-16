@@ -140,6 +140,16 @@ writers](#long-copies-and-writers), [Sequences](#sequences), [Masked copy](#mask
   int>` 0.844 (head 128 ns in 22 of 24 rounds; base 105, 151 or 182; floor median 1.006), `Queue<int>` 0.690 (head 74
   or 43, base 93-109 or 58; floor 0.999). Not on other CPUs: AMD's rep movsb lost to the loop 2-30 times up to 16 KB,
   and other C runtimes' memmove was not measured.
+- Copy downward on AMD when the destination lies fewer than 2,048 bytes past the source modulo 4 KB
+  (`NinoUnsafe.Aliases`, `CopyVectorsDown`, 64-byte vectors up to 32 KB): copying forward, each load then matches the
+  low 12 bits of a store still pending and waits for it (4K aliasing), and where a serializer's buffer falls against the
+  array it writes changes from build to build and process to process. CopyGapProbe, run 43823366011, 8,000 bytes: on
+  the EPYC 9V45 forward 46-52 ns at distances of 132 to 1,028 bytes against 32-38 elsewhere, downward 32-36 at every
+  distance but 4,036 (40 against 33); on the 9V74 downward 70-79 everywhere, forward 76-81. This was the 9V45's
+  NinoNullable `Memory<int>` and `Vec3` writes moving by 17-31 % between builds (run 43790865491, 43803558705).
+  Source alignment was not it (AlignedCopyProbe, run 43817418473: `NinoUnsafe.Copy` 33-36 ns for 8 KB at every source
+  shift, faster than aligned loads, 32-byte loops and Memmove). An earlier downward copy for the 7763 and 9V74
+  (df177383, never landed) used a 1 KB window and 32-byte vectors too.
 - Skip the copy when a growing byte writer is empty, otherwise copy its bounded written span
   (`NinoArrayBufferWriter.Grow`). The local Arm64 probe lowered growth latency with the same allocations, at the cost
   of a larger native helper.
