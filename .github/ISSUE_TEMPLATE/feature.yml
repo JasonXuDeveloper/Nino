@@ -3,7 +3,7 @@
 name: Feature request
 description: A new capability, type, setting or platform.
 type: Feature
-labels: ["enhancement"]
+labels: ["kind: feature"]
 body:
   - type: textarea
     id: problem
