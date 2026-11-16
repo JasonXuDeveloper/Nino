@@ -380,7 +380,7 @@
 # done (run 43790865491): a2c66aa against d909fd3 (lined reuse reads, direct HashSet<T?> refill, CopyGathered24): reuse
 # HashSet<int?> -52..-67% everywhere; recheck below the 9V45 GenericSealedClassTupleBase write (+48%) and small T? writes.
 # The Memmove probe again on Intel only (run 43782562246 drew AMD and Neoverse-N2 alone: no gain there).
-cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *NullableTest.NinoNullable*
+# done (run 43869481647): cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *NullableTest.NinoNullable*
 # done (run 43803558705): short-string writer d0135190 -> 07cc0cf1: InterfaceStrings writes -21..-61%, LogBatch -4..-17%; kept.
 # done (run 43803558705): GenericSealedClassTupleBase level on 9V45; NinoNullable Memory<int?>/Vec3? writes +17..26% on 9V45 (#306).
 # done (run 43817418473): NinoUnsafe.Copy is flat across source alignments on 9V45 (8 KB 33-36 ns, 24 KB 110-122) and
@@ -392,6 +392,10 @@ cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.M
 # done (run 43849791156): 9V74 HashSet<int?> NinoNullable write -15%, Memory -11%: the earlier +23% was noise; #326 merged.
 # done (run 43864499819): dictionary loop with main's element fallback: PolymorphicClassArray -12..-20% on 6975P, 9V74, 9V45, 7763, N2; rest level. #325 merged.
 # claude/simd-coverage-ab 3724739: T? pieces kernel without VBMI (#279, #290, #291) on 7763 (AVX2) and N2; floor line.
-cpu='7763|Neoverse' 8fa416bf 37247394 12 *NullableStridesTest.Nino* *CollectionsTest.NinoSerializeNullable*
-cpu='7763|Neoverse' 8fa416bf 37247394 12 *CollectionsTest.NinoSerializeNullable* *NullableStridesTest.Nino*
-cpu='7763|Neoverse' 8fa416bf 8fa416bf 12 *NullableStridesTest.Nino* *CollectionsTest.NinoSerializeNullable*
+# done (run 43869481647): cpu='7763|Neoverse' 8fa416bf 37247394 12 *NullableStridesTest.Nino* *CollectionsTest.NinoSerializeNullable*
+# done (run 43869481647): cpu='7763|Neoverse' 8fa416bf 37247394 12 *CollectionsTest.NinoSerializeNullable* *NullableStridesTest.Nino*
+# done (run 43869481647): cpu='7763|Neoverse' 8fa416bf 8fa416bf 12 *NullableStridesTest.Nino* *CollectionsTest.NinoSerializeNullable*
+# simd-coverage 37247394: int? runs (stride 8, code untouched) read 0.93x on EPYC 7763 in run 43869481647, whose
+# floor line did not run. Floor and A/B on the same 7763 slots.
+cpu='7763' 8fa416bf 37247394 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
+cpu='7763' 8fa416bf 8fa416bf 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
