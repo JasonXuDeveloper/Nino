@@ -1,0 +1,1 @@
+Performance: On AMD processors, block copies run downward when a forward copy would hit 4K aliasing: on GitHub's EPYC 9V45, NinoNullable writes of `Memory<int?>`, `Vec3?[]` and `Collection<int?>` take 31 to 33 % less time, and the 9V74 is level or faster.
