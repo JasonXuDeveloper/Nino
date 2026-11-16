@@ -401,5 +401,5 @@
 # done (run 43887807866): cpu='7763' 8fa416bf 8fa416bf 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
 # Result of run 43887807866: int? 0.93-0.94x against a floor of 1.00x (7763). 8414f369 skips the piece tables for
 # strides without pieces; floor again on the same slots.
-cpu='7763' 8fa416bf 8414f369 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
-cpu='7763' 8fa416bf 8fa416bf 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
+# done (run 43894580385): cpu='7763' 8fa416bf 8414f369 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
+# done (run 43894580385): cpu='7763' 8fa416bf 8fa416bf 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
