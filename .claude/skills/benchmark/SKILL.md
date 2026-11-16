@@ -1,6 +1,6 @@
 ---
 name: benchmark
-description: "How to measure Nino and what may be published - the .NET BenchmarkDotNet suite (quick mode, filters, v3 3.3.13 back to back, MemoryPack, MessagePack, protobuf-net), member-by-member and generator benchmarks, the Go, Rust and TypeScript benches, A/B runs on GitHub runners (ab-request.txt, dotnet-ab-request.txt, runtime-ab, dotnet-ab, ab-bench) judged per CPU against the noise floor, adding a benchmark case, and the release numbers report.yml writes and the docs site syncs. Use when running, adding or reading a benchmark, deciding whether a change is faster, or touching a number in README, docs or a release. Triggers: benchmark, bench, BenchmarkDotNet, run.sh, QUICK=1, FILTER, A/B, AB, ab-request.txt, dotnet-ab-request.txt, runtime-ab, dotnet-ab, ab-bench.yml, report.yml, benchstat, criterion, tinybench, noise floor, floor, runner numbers, Performance trailer, Performance Report, shards.json, runner 的数字, 基准, 跑分, 跑个AB, 测一下, 测速, 性能数据, 发布数据."
+description: "How to measure Nino and what may be published - the .NET BenchmarkDotNet suite (quick mode, filters, v3 3.3.13 back to back, MemoryPack, MessagePack, protobuf-net, LuminPack), member-by-member and generator benchmarks, the Go, Rust and TypeScript benches, A/B runs on GitHub runners (ab-request.txt, dotnet-ab-request.txt, runtime-ab, dotnet-ab, ab-bench) judged per CPU against the noise floor, adding a benchmark case, and the release numbers report.yml writes and the docs site syncs. Use when running, adding or reading a benchmark, deciding whether a change is faster, or touching a number in README, docs or a release. Triggers: benchmark, bench, LuminPack, BenchmarkDotNet, run.sh, QUICK=1, FILTER, A/B, AB, ab-request.txt, dotnet-ab-request.txt, runtime-ab, dotnet-ab, ab-bench.yml, report.yml, benchstat, criterion, tinybench, noise floor, floor, runner numbers, Performance trailer, Performance Report, shards.json, runner 的数字, 基准, 跑分, 跑个AB, 测一下, 测速, 性能数据, 发布数据."
 metadata:
   internal: true
 ---
@@ -180,18 +180,33 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
 
 ## Upgrading a competitor
 
-- When `Directory.Packages.props` moves MemoryPack, MessagePack, protobuf-net or Google.Protobuf to a new version
+- When `Directory.Packages.props` moves MemoryPack, MessagePack, protobuf-net, Google.Protobuf or LuminPack to a new version
   (or the benchmark's .NET, which is System.Text.Json's), update the version
   the docs site names in the same series: `git grep <old version>` in Nino.Docs (the home page's
   `src/components/home-sections.tsx`, the benchmark and `vs-*` pages in both languages, `scripts/csharp-check`). Why:
   the site syncs the numbers from the release's assets but writes each library's version by hand, so new numbers would
   sit next to the old version.
+- On a LuminPack upgrade, retry each case benchmarks/README.md (LuminPack) leaves out: every one is a 1.1.9 bug or
+  limit (generator errors CS0111/CS0136/LuminPack015, its own bytes read back wrong, a version-tolerant read past the
+  old members), and a fixed one gets its methods and `--verify`.
+- Add a competitor as LuminPack was (#304): its methods `<Prefix>Serialize<Case>` / `<Prefix>Deserialize<Case>` with a
+  prefix no other library's starts with, its fastest documented calls into a reused writer sized like the others', a
+  case only once `--verify` reads it back equal, every case it cannot run in a table in benchmarks/README.md with
+  the reason, the report shards' explicit-prefix globs (`shards.json`, SimpleTest's), `compare/ab.py`'s `RIVALS`, and
+  the docs site's `otherLibs` (Nino.Docs `src/lib/benchmarks.ts`) and `readme.py`'s `OTHERS` once its rows should be
+  published. Run each new case before trusting it: LuminPack 1.1.9 read its own bytes of `LogBatch`, `AoiUpdate`,
+  `WorldRegion` and `StateSnapshot` wrong, and its byte[] `Serialize` of a 1,000-element polymorphic list wrote past its
+  growing 32 KiB writer and corrupted the native heap (`malloc(): corrupted top size`, the process gone mid-`--verify`;
+  `Harness/LuminPackBuffers.cs` sizes its writers up front). Keep a competitor's source generator out of the v3 build
+  and in the narrowest mode that still writes every type a case needs (LuminPack's `Medium`: `Full` wrote 8.6 MB and
+  failed on `BclTypesTest`'s types, `Light` wrote no top-level arrays).
 
 ## Adding a case
 
 - .NET: a class in `benchmarks/Nino.Benchmark` with Nino and every competitor that can express the case (MemoryPack,
   MessagePack, protobuf-net; Google.Protobuf and System.Text.Json in `SimpleTest`, `PolymorphicTest`, `NullableTest`,
-  `CollectionsTest`'s nullable collections and the workloads), a `Verify.cs` entry, its class in a chart group
+  `CollectionsTest`'s nullable collections and the workloads; LuminPack in `SimpleTest`, `PolymorphicTest`,
+  `GenericPolymorphicTest`, `CollectionsTest` and `WorkloadTest`, through `Harness/LuminPackBuffers.cs`), a `Verify.cs` entry, its class in a chart group
   (`readme.py`'s `GROUPS`, the site's `dotnetGroups` in `src/lib/benchmarks.ts`; a class neither names lands in
   "Others"), its v3 port (below), the class in `shards.json` (the report and A/B shards): a report
   shard picked by the minutes each shard's "Run benchmarks" step took in the last report, and at most about 70 cases
