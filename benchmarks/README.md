@@ -32,7 +32,7 @@ FILTER='*.Nino* *.MemoryPack*' benchmarks/run.sh    # Nino and MemoryPack only (
 the error is within 2% of the mean. Do not publish its numbers: the README, the docs site
 and the release notes use the full protocol, which is what supports "x× faster" and "on par" (within 5%).
 
-Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
+Requires the .NET 11 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
 reports are in `<out>/v3` and `<out>/v4`. Both runs use one project, `benchmarks/Nino.Benchmark`: built with
 `NINO_BENCH_V3=true` (an environment variable, so the builds BenchmarkDotNet makes for its runs take it too), it
 references Nino 3.3.13 from nuget.org instead of the repository's code, compiles `V3/*.cs` (the same classes ported to
@@ -414,7 +414,7 @@ as `bigint`); JSON gets them as plain JSON (64-bit integers as strings, maps as 
 `bigint` or `Map`, so it does less work than Nino. Neither carries the type of a polymorphic value (`Zoo`, `Player.Pet`),
 which Nino and protobuf (a `oneof`) do. The bench's dependencies are in its own `package.json` and lockfile
 (`npm ci`, which run.sh does); `npm run generate:proto` regenerates `proto/bench_pb.ts` (buf and protoc-gen-es, no
-protoc). It needs the .NET 10 SDK, Node 22.18+ (which runs TypeScript directly) and, for the Chromium run, Playwright
+protoc). It needs the .NET 11 SDK, Node 22.18+ (which runs TypeScript directly) and, for the Chromium run, Playwright
 with Chromium; the browser gets the bench bundled by esbuild. The release's section is the Node run
 (`NINO_BENCH_JSON`).
 
