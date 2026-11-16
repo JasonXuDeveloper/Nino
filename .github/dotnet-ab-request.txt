@@ -379,6 +379,9 @@
 # 24-byte gathers on AVX-512 (ab79109a), the redundancy merges (dictionary string pairs, HashSet<T?> refilled in place,
 # one cursor copy). Both sides carry a probe commit with reuse-read cases (a2c66aa6 on 56b55d89, d909fd3d on dea7532a;
 # not for main). MemoryPack's memcpy rides along as the floor.
-cpu='EPYC|Xeon|Neoverse' a2c66aa6 d909fd3d 2 *CollectionsTest.NinoReuse* *CollectionsTest.Nino*Nullable* *NullableTest.Nino* *CollectionsTest.MemoryPackUnsafe*Nullable* *PolymorphicTest.Nino* *SimpleTest.Nino* *CollectionsTest.Nino*Dictionary *CollectionsTest.Nino*HashSet
+# done (run 43790865491): a2c66aa against d909fd3 (lined reuse reads, direct HashSet<T?> refill, CopyGathered24): reuse
+# HashSet<int?> -52..-67% everywhere; recheck below the 9V45 GenericSealedClassTupleBase write (+48%) and small T? writes.
 # The Memmove probe again on Intel only (run 43782562246 drew AMD and Neoverse-N2 alone: no gain there).
 cpu='Xeon' 56b55d89 253f6c8b 2 *CollectionsTest.NinoNullable* *CollectionsTest.MemoryPackUnsafe* *NullableTest.NinoNullable*
+cpu='EPYC|Xeon|Neoverse' d0135190 07cc0cf1 2 *SimpleTest.Nino* *NullableTest.Nino*String* *WorkloadTest.Nino* *BclTypesTest.Nino*
+cpu='EPYC' a2c66aa6 d0135190 2 *GenericPolymorphicTest.NinoSerialize* *CollectionsTest.NinoNullableSerialize* *CollectionsTest.NinoSerializeNullable*
