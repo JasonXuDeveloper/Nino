@@ -129,7 +129,7 @@ Node 22.18 or later, which runs their TypeScript as it is (type stripping).
 ## Benchmarks
 
 `bench/run.sh [scenario]` compares the generated code with Protocol Buffers (protobuf-es), MessagePack (msgpackr) and
-`JSON` in Node and in headless Chromium, timed by tinybench, on data written by Nino in .NET (it needs the .NET 10 SDK
+`JSON` in Node and in headless Chromium, timed by tinybench, on data written by Nino in .NET (it needs the .NET 11 SDK
 and, for Chromium, Playwright; the bench's own dependencies come from `bench/package-lock.json`, never this package's).
 Each pass takes the next of 64 variants of a scenario's data, since V8 reuses work on an input it has just read (a
 repeated JSON text parses many times faster), and each serializer runs with only its own data live (a full GC marks
