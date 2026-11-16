@@ -11,6 +11,7 @@ from triage import (
     form_areas,
     form_breaking,
     has_kind_label,
+    kind_from_labels,
     latest_version,
     milestone_title,
     neutralize,
@@ -101,8 +102,17 @@ class IssueForms(unittest.TestCase):
 class KindLabels(unittest.TestCase):
     def test_any_kind_label_is_a_persons_choice(self):
         self.assertTrue(has_kind_label({"kind: refactor"}))
-        self.assertTrue(has_kind_label({"enhancement", "area: core"}))
+        self.assertTrue(has_kind_label({"kind: feature", "area: core"}))
+        self.assertFalse(has_kind_label({"enhancement", "area: core"}))
         self.assertFalse(has_kind_label({"area: core", "good first issue"}))
+
+    def test_kind_from_labels_reads_every_kind_label(self):
+        self.assertEqual(kind_from_labels({"kind: feature"}), "feature")
+        self.assertEqual(kind_from_labels({"kind: docs", "area: docs"}), "docs")
+        self.assertEqual(kind_from_labels({"kind: simd"}), "perf")
+        self.assertEqual(kind_from_labels({"kind: test"}), "other")
+        self.assertEqual(kind_from_labels({"kind: bug", "kind: test"}), "bug")
+        self.assertIsNone(kind_from_labels({"enhancement"}))
 
 
 class ModelAnswer(unittest.TestCase):
@@ -112,6 +122,14 @@ class ModelAnswer(unittest.TestCase):
     def test_valid_answer(self):
         result = parse_classification(dict(self.ANSWER))
         self.assertEqual((result.kind, result.parent, result.split_into), ("bug", 12, ["Fix A"]))
+
+    def test_new_area_is_a_label_suffix(self):
+        self.assertIsNone(parse_classification(dict(self.ANSWER)).new_area)
+        self.assertEqual(parse_classification({**self.ANSWER, "new_area": "area: ASP.NET Core!"}).new_area,
+                         "asp-net-core")
+        self.assertIsNone(parse_classification({**self.ANSWER, "new_area": "  ** "}).new_area)
+        with self.assertRaises(TypeError):
+            parse_classification({**self.ANSWER, "new_area": 3})
 
     def test_rejects_answers_outside_the_schema(self):
         for key, value in [("kind", "spam"), ("breaking", "yes"), ("parent", True), ("duplicate_of", "12"),
@@ -143,6 +161,13 @@ class CommentAudience(unittest.TestCase):
             self.assertFalse(wants_comment({"author_association": association}))
         for association in ("CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "NONE", None):
             self.assertTrue(wants_comment({"author_association": association}))
+
+
+class NewAreaComment(unittest.TestCase):
+    def test_suggests_a_new_area_without_creating_it(self):
+        body = comment_body(Plan(issue=1, kind="feature", breaking=False, latest_tag=None, new_area="aspnetcore"))
+        self.assertTrue(body.startswith(COMMENT_MARKER))
+        self.assertIn("`area: aspnetcore`", body)
 
 
 class FakeGitHub:
