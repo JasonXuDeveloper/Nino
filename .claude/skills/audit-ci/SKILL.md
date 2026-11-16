@@ -167,26 +167,48 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   the service account's role or organization is wrong, not the secrets' presence (run 43286997093; 43287841461
   signed once the owner fixed the role).
 - **maple, the self-hosted runner** (`[self-hosted, Linux, X64, maple]`: Ubuntu, the .NET SDKs global.json and
-  the jobs ask for, installed there by hand, rustup, gh, jq, python3; no sudo, so no apt, no Docker, no Chrome)
-  runs release.yml, unity-sign.yml, report.yml's jobs that are no matrix, and CI's short jobs of trusted runs:
-  ci.yml's plan, "Build and Test" and benchmark plan, fuzz.yml's plan and x64 mutational jobs, the plans of
-  runtimes.yml and codeql.yml, and agents.yml. A CI job goes there only through the one condition in its `runs-on`
-  (a push, `workflow_dispatch`, `schedule`, or a `pull_request` whose head repository is this one and whose author
-  is not Dependabot, while the repository variable `NINO_MAPLE` is not `false`), with a GitHub-hosted fallback for
-  everything else; `NINO_MAPLE=false` sends CI back to GitHub's runners when maple is offline (a job for an absent
-  self-hosted runner waits a day). The condition routes honest runs only: a fork's pull request runs its own copy of
-  the workflow and can name maple itself, so the guard is on maple (a job-started hook that refuses a pull request
-  from another repository or from Dependabot: `ACTIONS_RUNNER_HOOK_JOB_STARTED`) and the repository's approval of
-  fork runs (GitHub: "self-hosted runners should almost never be used for public repositories"). Every job there ends
-  with "Free maple's disk" (`if: always()`, deletes the workspace and RUNNER_TEMP after the uploads), installs
-  nothing outside RUNNER_TEMP and the shared NuGet, npm, Cargo and rustup caches, builds without MSBuild node reuse
-  or the compiler server (`MSBUILDDISABLENODEREUSE=1`, `DOTNET_CLI_USE_MSBUILD_SERVER=0`,
-  `UseSharedCompilation=false`: a server would outlive the job or serve another runner's), and takes its SDKs from
-  the machine (`.github/actions/setup-dotnet` names a missing one there instead of installing into
-  `/usr/share/dotnet`). Keep off it: jobs that install with apt (libFuzzer's clang, Mono, qemu) or run Docker
-  (Unity), the CodeQL analyses (a bundle of about 1.5 GB per version in its tool cache), the benchmark matrices
-  (published numbers come from GitHub's runners; report.yml's build-time benchmark measures maple, so CI sharing the
-  machine during a report adds noise), and anything a fork or Dependabot started.
+  the jobs ask for, installed there by hand, rustup, gh, jq, python3; no sudo, so no apt, no Docker of ours, no
+  Chrome; about 7.7 GB of RAM, 72 GB of disk with some 44 GB free, no AVX-512 VBMI; a shared host that also runs
+  some 13 Docker containers and an rclone mount) runs release.yml, unity-sign.yml, report.yml's jobs that are no
+  matrix, and CI's short jobs of trusted runs: ci.yml's plan, "Build and Test" and benchmark plan, fuzz.yml's plan,
+  the plans of runtimes.yml and codeql.yml, and agents.yml. A CI job goes there only through the one condition in
+  its `runs-on` (a push, `workflow_dispatch`, `schedule`, or a `pull_request` whose head repository is this one and
+  whose author is not Dependabot, while the repository variable `NINO_MAPLE` is not `false`), with a GitHub-hosted
+  fallback for everything else; `NINO_MAPLE=false` sends CI back to GitHub's runners when maple is offline (a job for
+  an absent self-hosted runner waits a day). The condition routes honest runs only: a fork's pull request runs its
+  own copy of the workflow and can name maple itself, so the guard is on maple (a job-started hook that refuses a
+  pull request from another repository or from Dependabot: `ACTIONS_RUNNER_HOOK_JOB_STARTED`) and the repository's
+  approval of fork runs (GitHub: "self-hosted runners should almost never be used for public repositories").
+  Keep off it: jobs that install with apt (libFuzzer's clang, Mono, qemu) or run Docker (Unity), the CodeQL analyses
+  (a bundle of about 1.5 GB per version), the unit test configurations (three processes of about 3.5 GB each), the
+  mutational fuzzers (without VBMI its "SIMD" and "without AVX-512" runs take the same paths, where GitHub's x64
+  runners have AVX-512 about half the time, and the nightly two 30-minute configurations would hold the one runner
+  from every other job), the benchmark matrices (published numbers come from GitHub's runners), and anything a fork
+  or Dependabot started.
+- **Leave nothing on maple after a job.** Every job there starts with "Prepare maple" and ends with "Free maple's
+  disk" (each workflow's first maple job defines them as the anchors `&maple-prepare` and `&free-maple`, the others
+  use them; inline steps, not a local action, since release.yml and report.yml check out tags that lack one). Prepare
+  fails at once below 10 GB free under the work directory (the largest job, release's build and pack with its own
+  NuGet packages, needs a few GB; a full disk would show as an odd build error), then points every cache into
+  `$RUNNER_TEMP/home`: `NUGET_PACKAGES`, `NUGET_HTTP_CACHE_PATH`, `NUGET_PLUGINS_CACHE_PATH`, `DOTNET_CLI_HOME`,
+  `npm_config_cache`, `CARGO_HOME`, `GOMODCACHE`, `GOCACHE` and `TMPDIR`. Free (`if: always()`, after the uploads)
+  deletes the workspace and RUNNER_TEMP. Only the toolchains stay: the .NET SDKs (`.github/actions/setup-dotnet`
+  names a missing one on a self-hosted runner instead of installing into `/usr/share/dotnet`), rustup's toolchains in
+  `RUSTUP_HOME`, and the Node.js of the tool cache. Whatever a release needs is fetched per run: the UPM CLI and npm
+  into RUNNER_TEMP, credentials as OIDC tokens or repository secrets. A new maple job gets both steps; a step that
+  installs something else installs it under RUNNER_TEMP.
+- **One runner process on maple.** A runner runs one job at a time, so one process is what keeps maple's jobs from
+  sharing about 8 GB of RAM (a second heavy job would swap) and keeps report.yml's build-time benchmark alone on the
+  machine as far as CI goes (the host's containers are the noise left). Its `generator` job checks it before measuring
+  (more than one `Runner.Listener` on the host fails the job), since a repository variable such as `NINO_MAPLE`
+  cannot be set from a workflow without an admin token, and a concurrency group shared by every maple job would
+  cancel all but one waiting job. On a larger host, add runner processes for CI and give the benchmark a runner of
+  its own: each runner is its own folder (a copy of the runner package) with its own
+  `./config.sh --url https://github.com/JasonXuDeveloper/Nino --token <registration token> --name maple-N --labels maple`
+  and its own service (`sudo ./svc.sh install <user>`, then `sudo ./svc.sh start`); run about one heavy job (a fuzz
+  or a unit test configuration) per 4 cores and 8 GB. The benchmark's runner then carries an extra label
+  (`maple-bench`) that the `generator` job asks for and no CI job does, with the CI runners stopped or on other
+  hardware while it measures, and the `Runner.Listener` check moves to that rule.
 - **The pull request benchmark is on request**: ci.yml runs `benchmarks/shards.json`'s "ab" shards only for a pull
   request labeled `benchmark` (when opened, reopened or pushed to; labeling alone starts nothing); ab-bench.yml on the
   branch gives a comparison with main or the last release.
