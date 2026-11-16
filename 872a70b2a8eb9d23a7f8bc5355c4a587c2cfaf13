@@ -1,0 +1,1 @@
+Added: `nino-gen` writes C# unions in TypeScript (a union of its cases' types, or tagged by case where values cannot tell the cases apart), Go (a sealed interface its generated types implement) and Rust (an enum), and `nino-gen inspect` reads them; a generic union and a union with a tuple or `KeyValuePair` case are left out with NINOGEN002.
