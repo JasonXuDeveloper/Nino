@@ -147,6 +147,11 @@ internal static class Program
             sb.Append("// ci.yml fails while this file is out of date (BenchGen --check).\n");
             sb.Append("// </auto-generated>\n");
             sb.Append("#nullable disable\n");
+            // A class built only under a condition ([BenchClass(Condition = ...)]): its generated part too.
+            string? condition = all.SelectMany(p => Program.Attributes(p.Class.AttributeLists, "BenchClass"))
+                .SelectMany(a => a.ArgumentList!.Arguments).Where(a => a.NameEquals?.Name.Identifier.ValueText == "Condition")
+                .Select(a => Program.Value(a.Expression)).FirstOrDefault();
+            if (condition != null) sb.Append($"#if {condition}\n");
             for (int b = 0; b < Builds.Length; b++)
             {
                 sb.Append(b == 0 ? "#if !NINO_BENCH_V3\n" : "#else\n");
@@ -159,6 +164,7 @@ internal static class Program
             }
 
             sb.Append("#endif\n");
+            if (condition != null) sb.Append("#endif\n");
             yield return (Path.Combine(Path.GetDirectoryName(main)!, name + Suffix), sb.ToString());
         }
     }

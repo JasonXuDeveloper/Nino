@@ -114,6 +114,15 @@ public sealed class BenchClassAttribute : Attribute
     /// </summary>
     public string? Serialize { get; set; }
 
+    /// <summary>
+    /// A preprocessor condition around the generated file, the one around the class's own (!NINO_BENCH_LEGACY: a class
+    /// older releases cannot build).
+    /// </summary>
+    public string? Condition { get; set; }
+
+    /// <summary>The v3 build's generated serializers of every case (<see cref="BenchCaseAttribute.NinoGen"/>).</summary>
+    public string? NinoGen { get; set; }
+
     /// <summary>The return type of every deserialize method (<see cref="BenchCaseAttribute.Returns"/>).</summary>
     public string? Returns { get; set; }
 }

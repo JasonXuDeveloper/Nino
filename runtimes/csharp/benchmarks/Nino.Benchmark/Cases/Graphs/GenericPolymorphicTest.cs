@@ -1,17 +1,14 @@
 // Generic polymorphic bases need a generator with the fix for #203 (rc.7): left out of A/B runs against older releases.
 #if !NINO_BENCH_LEGACY
 using System;
-using System.Buffers;
-using System.IO;
 using System.Linq;
-using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using MemoryPack;
 using MemoryPack.Formatters;
-using MessagePack;
+#if !NINO_BENCH_V3
 using Nino.Core;
-using ProtoBuf;
 using ProtoBuf.Meta;
+#endif
 
 #nullable disable
 namespace Nino.Benchmark;
@@ -25,7 +22,17 @@ namespace Nino.Benchmark;
 /// non-generic base and the subtypes of each closed generic one added to its runtime model; MessagePack only the
 /// non-generic base: its unions are attributes on the base type, which cannot name different subtypes for each type
 /// argument.
+/// The timed methods are GenericPolymorphicTest.Cases.g.cs, generated from the cases below and the adapters (Adapters/,
+/// runtimes/csharp/tools/BenchGen); the v3 build times Nino 3.3.13, which writes every [NinoType] class with its type id
+/// (a base and its subtypes need nothing more), and MemoryPack on the same values.
 /// </summary>
+[BenchCase("NonGenericBase")]
+[BenchCase("GenericIntBase", Without = "MessagePack")]
+[BenchCase("GenericUnmanagedTupleBase", Without = "MessagePack")]
+[BenchCase("GenericManagedTupleBase", Without = "MessagePack")]
+[BenchCase("GenericSealedClassTupleBase", Without = "MessagePack")]
+[BenchCase("GenericOpenClassTupleBase", Without = "MessagePack")]
+[BenchClass(Buffer = "1 << 16", Bytes = "{Library}{Case}Bytes", Condition = "!NINO_BENCH_LEGACY")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
 [MinColumn, MaxColumn]
@@ -34,7 +41,7 @@ namespace Nino.Benchmark;
 [GcServer(true)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
-public class GenericPolymorphicTest
+public partial class GenericPolymorphicTest
 {
     private const int N = 1000;
     // First, so that the data below is serialized with them.
@@ -52,51 +59,6 @@ public class GenericPolymorphicTest
     private static readonly ProbeBox<(ProbeSealedItem, int)>[] GenericSealedClassTupleBase = Make<ProbeBox<(ProbeSealedItem, int)>>(i => i switch { 0 => new ProbeScA { V = (SealedItems[i], i) }, 1 => new ProbeScB { V = (SealedItems[i], i) }, 2 => new ProbeScC { V = (SealedItems[i], i) }, 3 => new ProbeScD { V = (SealedItems[i], i) }, 4 => new ProbeScE { V = (SealedItems[i], i) }, 5 => new ProbeScF { V = (SealedItems[i], i) }, 6 => new ProbeScG { V = (SealedItems[i], i) }, _ => new ProbeScH { V = (SealedItems[i], i) } });
     private static readonly ProbeBox<(ProbeOpenItem, int)>[] GenericOpenClassTupleBase = Make<ProbeBox<(ProbeOpenItem, int)>>(i => i switch { 0 => new ProbeOcA { V = (OpenItems[i], i) }, 1 => new ProbeOcB { V = (OpenItems[i], i) }, 2 => new ProbeOcC { V = (OpenItems[i], i) }, 3 => new ProbeOcD { V = (OpenItems[i], i) }, 4 => new ProbeOcE { V = (OpenItems[i], i) }, 5 => new ProbeOcF { V = (OpenItems[i], i) }, 6 => new ProbeOcG { V = (OpenItems[i], i) }, _ => new ProbeOcH { V = (OpenItems[i], i) } });
 
-    private static readonly byte[] NinoNonGenericBaseBytes = NinoSerializer.Serialize(NonGenericBase);
-    private static readonly byte[] MessagePackNonGenericBaseBytes = MessagePackSerializer.Serialize(NonGenericBase);
-    private static readonly byte[] ProtobufNonGenericBaseBytes = ProtobufModel.Serialize(NonGenericBase);
-    private static readonly byte[] MemoryPackNonGenericBaseBytes = MemoryPackSerializer.Serialize(NonGenericBase);
-    private static readonly byte[] NinoGenericIntBaseBytes = NinoSerializer.Serialize(GenericIntBase);
-    private static readonly byte[] ProtobufGenericIntBaseBytes = ProtobufModel.Serialize(GenericIntBase);
-    private static readonly byte[] MemoryPackGenericIntBaseBytes = MemoryPackSerializer.Serialize(GenericIntBase);
-    private static readonly byte[] NinoGenericUnmanagedTupleBaseBytes = NinoSerializer.Serialize(GenericUnmanagedTupleBase);
-    private static readonly byte[] ProtobufGenericUnmanagedTupleBaseBytes = ProtobufModel.Serialize(GenericUnmanagedTupleBase);
-    private static readonly byte[] MemoryPackGenericUnmanagedTupleBaseBytes = MemoryPackSerializer.Serialize(GenericUnmanagedTupleBase);
-    private static readonly byte[] NinoGenericManagedTupleBaseBytes = NinoSerializer.Serialize(GenericManagedTupleBase);
-    private static readonly byte[] ProtobufGenericManagedTupleBaseBytes = ProtobufModel.Serialize(GenericManagedTupleBase);
-    private static readonly byte[] MemoryPackGenericManagedTupleBaseBytes = MemoryPackSerializer.Serialize(GenericManagedTupleBase);
-    private static readonly byte[] NinoGenericSealedClassTupleBaseBytes = NinoSerializer.Serialize(GenericSealedClassTupleBase);
-    private static readonly byte[] ProtobufGenericSealedClassTupleBaseBytes = ProtobufModel.Serialize(GenericSealedClassTupleBase);
-    private static readonly byte[] MemoryPackGenericSealedClassTupleBaseBytes = MemoryPackSerializer.Serialize(GenericSealedClassTupleBase);
-    private static readonly byte[] NinoGenericOpenClassTupleBaseBytes = NinoSerializer.Serialize(GenericOpenClassTupleBase);
-    private static readonly byte[] ProtobufGenericOpenClassTupleBaseBytes = ProtobufModel.Serialize(GenericOpenClassTupleBase);
-    private static readonly byte[] MemoryPackGenericOpenClassTupleBaseBytes = MemoryPackSerializer.Serialize(GenericOpenClassTupleBase);
-
-    private readonly NinoArrayBufferWriter _buffer = new(1 << 16);
-
-    static GenericPolymorphicTest()
-    {
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeNonGenericBase), NinoNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeNonGenericBase), MemoryPackNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericIntBase), NinoGenericIntBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericIntBase), MemoryPackGenericIntBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericUnmanagedTupleBase), NinoGenericUnmanagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericUnmanagedTupleBase), MemoryPackGenericUnmanagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericManagedTupleBase), NinoGenericManagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericManagedTupleBase), MemoryPackGenericManagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericSealedClassTupleBase), NinoGenericSealedClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericSealedClassTupleBase), MemoryPackGenericSealedClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeGenericOpenClassTupleBase), NinoGenericOpenClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeGenericOpenClassTupleBase), MemoryPackGenericOpenClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeNonGenericBase), MessagePackNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeNonGenericBase), ProtobufNonGenericBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericIntBase), ProtobufGenericIntBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericUnmanagedTupleBase), ProtobufGenericUnmanagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericManagedTupleBase), ProtobufGenericManagedTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericSealedClassTupleBase), ProtobufGenericSealedClassTupleBaseBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeGenericOpenClassTupleBase), ProtobufGenericOpenClassTupleBaseBytes.Length);
-    }
-
     private static bool RegisterUnions()
     {
         MemoryPackFormatterProvider.Register(new DynamicUnionFormatter<ProbeBox<int>>((0, typeof(ProbeBoxA)), (1, typeof(ProbeBoxB)), (2, typeof(ProbeBoxC)), (3, typeof(ProbeBoxD)), (4, typeof(ProbeBoxE)), (5, typeof(ProbeBoxF)), (6, typeof(ProbeBoxG)), (7, typeof(ProbeBoxH))));
@@ -104,13 +66,22 @@ public class GenericPolymorphicTest
         MemoryPackFormatterProvider.Register(new DynamicUnionFormatter<ProbeBox<(int, string)>>((0, typeof(ProbeStrA)), (1, typeof(ProbeStrB)), (2, typeof(ProbeStrC)), (3, typeof(ProbeStrD)), (4, typeof(ProbeStrE)), (5, typeof(ProbeStrF)), (6, typeof(ProbeStrG)), (7, typeof(ProbeStrH))));
         MemoryPackFormatterProvider.Register(new DynamicUnionFormatter<ProbeBox<(ProbeSealedItem, int)>>((0, typeof(ProbeScA)), (1, typeof(ProbeScB)), (2, typeof(ProbeScC)), (3, typeof(ProbeScD)), (4, typeof(ProbeScE)), (5, typeof(ProbeScF)), (6, typeof(ProbeScG)), (7, typeof(ProbeScH))));
         MemoryPackFormatterProvider.Register(new DynamicUnionFormatter<ProbeBox<(ProbeOpenItem, int)>>((0, typeof(ProbeOcA)), (1, typeof(ProbeOcB)), (2, typeof(ProbeOcC)), (3, typeof(ProbeOcD)), (4, typeof(ProbeOcE)), (5, typeof(ProbeOcF)), (6, typeof(ProbeOcG)), (7, typeof(ProbeOcH))));
+#if !NINO_BENCH_V3
         ProtobufSubtypes<int>(typeof(ProbeBoxA), typeof(ProbeBoxB), typeof(ProbeBoxC), typeof(ProbeBoxD), typeof(ProbeBoxE), typeof(ProbeBoxF), typeof(ProbeBoxG), typeof(ProbeBoxH));
         ProtobufSubtypes<(int, long)>(typeof(ProbeTupA), typeof(ProbeTupB), typeof(ProbeTupC), typeof(ProbeTupD), typeof(ProbeTupE), typeof(ProbeTupF), typeof(ProbeTupG), typeof(ProbeTupH));
         ProtobufSubtypes<(int, string)>(typeof(ProbeStrA), typeof(ProbeStrB), typeof(ProbeStrC), typeof(ProbeStrD), typeof(ProbeStrE), typeof(ProbeStrF), typeof(ProbeStrG), typeof(ProbeStrH));
         ProtobufSubtypes<(ProbeSealedItem, int)>(typeof(ProbeScA), typeof(ProbeScB), typeof(ProbeScC), typeof(ProbeScD), typeof(ProbeScE), typeof(ProbeScF), typeof(ProbeScG), typeof(ProbeScH));
         ProtobufSubtypes<(ProbeOpenItem, int)>(typeof(ProbeOcA), typeof(ProbeOcB), typeof(ProbeOcC), typeof(ProbeOcD), typeof(ProbeOcE), typeof(ProbeOcF), typeof(ProbeOcG), typeof(ProbeOcH));
+#endif
         return true;
     }
+
+    private static T[] Make<T>(Func<int, T> create)
+    {
+        var random = new Random(42);
+        return Enumerable.Range(0, N).Select(_ => create(random.Next(8))).ToArray();
+    }
+#if !NINO_BENCH_V3
 
     /// <summary>protobuf-net's way for a generic base: the subtypes of one closed type, added to its model.</summary>
     private static void ProtobufSubtypes<T>(params Type[] subtypes)
@@ -120,12 +91,11 @@ public class GenericPolymorphicTest
             meta.AddSubType(10 + i, subtypes[i]);
     }
 
-    /// <summary>Both libraries read back what was written: the values read are written by Nino as the originals are.</summary>
-    private readonly ArrayBufferWriter<byte> _messagePackBuffer = new(1 << 16);
-    private readonly MemoryStream _protobufStream = new(1 << 16);
-
-    [GlobalSetup]
-    public void Verify()
+    /// <summary>
+    /// Both libraries read back what was written: the values read are written by Nino as the originals are (v3's
+    /// per-type overloads cannot express this generic check; --verify checks the same for both builds).
+    /// </summary>
+    partial void OnSetup()
     {
         Check(NonGenericBase, MemoryPackNonGenericBaseBytes);
         Check(GenericIntBase, MemoryPackGenericIntBaseBytes);
@@ -143,239 +113,6 @@ public class GenericPolymorphicTest
             throw new InvalidOperationException($"{typeof(T)} does not round-trip");
     }
 
-    private static T[] Make<T>(Func<int, T> create)
-    {
-        var random = new Random(42);
-        return Enumerable.Range(0, N).Select(_ => create(random.Next(8))).ToArray();
-    }
-
-    [Benchmark(Baseline = true), BenchmarkCategory("NonGenericBaseSerialize")]
-    public int NinoSerializeNonGenericBase()
-    {
-        _buffer.ResetWrittenCount();
-        NinoSerializer.Serialize(NonGenericBase, _buffer);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark, BenchmarkCategory("NonGenericBaseSerialize")]
-    public int MemoryPackSerializeNonGenericBase()
-    {
-        _buffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_buffer, NonGenericBase);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericIntBaseSerialize")]
-    public int NinoSerializeGenericIntBase()
-    {
-        _buffer.ResetWrittenCount();
-        NinoSerializer.Serialize(GenericIntBase, _buffer);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericIntBaseSerialize")]
-    public int MemoryPackSerializeGenericIntBase()
-    {
-        _buffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_buffer, GenericIntBase);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericUnmanagedTupleBaseSerialize")]
-    public int NinoSerializeGenericUnmanagedTupleBase()
-    {
-        _buffer.ResetWrittenCount();
-        NinoSerializer.Serialize(GenericUnmanagedTupleBase, _buffer);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericUnmanagedTupleBaseSerialize")]
-    public int MemoryPackSerializeGenericUnmanagedTupleBase()
-    {
-        _buffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_buffer, GenericUnmanagedTupleBase);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericManagedTupleBaseSerialize")]
-    public int NinoSerializeGenericManagedTupleBase()
-    {
-        _buffer.ResetWrittenCount();
-        NinoSerializer.Serialize(GenericManagedTupleBase, _buffer);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericManagedTupleBaseSerialize")]
-    public int MemoryPackSerializeGenericManagedTupleBase()
-    {
-        _buffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_buffer, GenericManagedTupleBase);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericSealedClassTupleBaseSerialize")]
-    public int NinoSerializeGenericSealedClassTupleBase()
-    {
-        _buffer.ResetWrittenCount();
-        NinoSerializer.Serialize(GenericSealedClassTupleBase, _buffer);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericSealedClassTupleBaseSerialize")]
-    public int MemoryPackSerializeGenericSealedClassTupleBase()
-    {
-        _buffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_buffer, GenericSealedClassTupleBase);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericOpenClassTupleBaseSerialize")]
-    public int NinoSerializeGenericOpenClassTupleBase()
-    {
-        _buffer.ResetWrittenCount();
-        NinoSerializer.Serialize(GenericOpenClassTupleBase, _buffer);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericOpenClassTupleBaseSerialize")]
-    public int MemoryPackSerializeGenericOpenClassTupleBase()
-    {
-        _buffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_buffer, GenericOpenClassTupleBase);
-        return _buffer.WrittenCount;
-    }
-
-    [Benchmark(Baseline = true), BenchmarkCategory("NonGenericBaseDeserialize")]
-    public ProbeBase[] NinoDeserializeNonGenericBase() =>
-        NinoDeserializer.Deserialize<ProbeBase[]>(NinoNonGenericBaseBytes);
-
-    [Benchmark, BenchmarkCategory("NonGenericBaseDeserialize")]
-    public ProbeBase[] MemoryPackDeserializeNonGenericBase() =>
-        MemoryPackSerializer.Deserialize<ProbeBase[]>(MemoryPackNonGenericBaseBytes);
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericIntBaseDeserialize")]
-    public ProbeBox<int>[] NinoDeserializeGenericIntBase() =>
-        NinoDeserializer.Deserialize<ProbeBox<int>[]>(NinoGenericIntBaseBytes);
-
-    [Benchmark, BenchmarkCategory("GenericIntBaseDeserialize")]
-    public ProbeBox<int>[] MemoryPackDeserializeGenericIntBase() =>
-        MemoryPackSerializer.Deserialize<ProbeBox<int>[]>(MemoryPackGenericIntBaseBytes);
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericUnmanagedTupleBaseDeserialize")]
-    public ProbeBox<(int, long)>[] NinoDeserializeGenericUnmanagedTupleBase() =>
-        NinoDeserializer.Deserialize<ProbeBox<(int, long)>[]>(NinoGenericUnmanagedTupleBaseBytes);
-
-    [Benchmark, BenchmarkCategory("GenericUnmanagedTupleBaseDeserialize")]
-    public ProbeBox<(int, long)>[] MemoryPackDeserializeGenericUnmanagedTupleBase() =>
-        MemoryPackSerializer.Deserialize<ProbeBox<(int, long)>[]>(MemoryPackGenericUnmanagedTupleBaseBytes);
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericManagedTupleBaseDeserialize")]
-    public ProbeBox<(int, string)>[] NinoDeserializeGenericManagedTupleBase() =>
-        NinoDeserializer.Deserialize<ProbeBox<(int, string)>[]>(NinoGenericManagedTupleBaseBytes);
-
-    [Benchmark, BenchmarkCategory("GenericManagedTupleBaseDeserialize")]
-    public ProbeBox<(int, string)>[] MemoryPackDeserializeGenericManagedTupleBase() =>
-        MemoryPackSerializer.Deserialize<ProbeBox<(int, string)>[]>(MemoryPackGenericManagedTupleBaseBytes);
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericSealedClassTupleBaseDeserialize")]
-    public ProbeBox<(ProbeSealedItem, int)>[] NinoDeserializeGenericSealedClassTupleBase() =>
-        NinoDeserializer.Deserialize<ProbeBox<(ProbeSealedItem, int)>[]>(NinoGenericSealedClassTupleBaseBytes);
-
-    [Benchmark, BenchmarkCategory("GenericSealedClassTupleBaseDeserialize")]
-    public ProbeBox<(ProbeSealedItem, int)>[] MemoryPackDeserializeGenericSealedClassTupleBase() =>
-        MemoryPackSerializer.Deserialize<ProbeBox<(ProbeSealedItem, int)>[]>(MemoryPackGenericSealedClassTupleBaseBytes);
-
-    [Benchmark(Baseline = true), BenchmarkCategory("GenericOpenClassTupleBaseDeserialize")]
-    public ProbeBox<(ProbeOpenItem, int)>[] NinoDeserializeGenericOpenClassTupleBase() =>
-        NinoDeserializer.Deserialize<ProbeBox<(ProbeOpenItem, int)>[]>(NinoGenericOpenClassTupleBaseBytes);
-
-    [Benchmark, BenchmarkCategory("GenericOpenClassTupleBaseDeserialize")]
-    public ProbeBox<(ProbeOpenItem, int)>[] MemoryPackDeserializeGenericOpenClassTupleBase() =>
-        MemoryPackSerializer.Deserialize<ProbeBox<(ProbeOpenItem, int)>[]>(MemoryPackGenericOpenClassTupleBaseBytes);
-
-    // MessagePack and protobuf-net.
-    [Benchmark, BenchmarkCategory("NonGenericBaseSerialize")]
-    public int MessagePackSerializeNonGenericBase()
-    {
-        _messagePackBuffer.ResetWrittenCount();
-        MessagePackSerializer.Serialize(_messagePackBuffer, NonGenericBase);
-        return _messagePackBuffer.WrittenCount;
-    }
-
-    [Benchmark, BenchmarkCategory("NonGenericBaseSerialize")]
-    public int ProtobufSerializeNonGenericBase()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, NonGenericBase);
-        return (int)_protobufStream.Length;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericIntBaseSerialize")]
-    public int ProtobufSerializeGenericIntBase()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, GenericIntBase);
-        return (int)_protobufStream.Length;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericUnmanagedTupleBaseSerialize")]
-    public int ProtobufSerializeGenericUnmanagedTupleBase()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, GenericUnmanagedTupleBase);
-        return (int)_protobufStream.Length;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericManagedTupleBaseSerialize")]
-    public int ProtobufSerializeGenericManagedTupleBase()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, GenericManagedTupleBase);
-        return (int)_protobufStream.Length;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericSealedClassTupleBaseSerialize")]
-    public int ProtobufSerializeGenericSealedClassTupleBase()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, GenericSealedClassTupleBase);
-        return (int)_protobufStream.Length;
-    }
-
-    [Benchmark, BenchmarkCategory("GenericOpenClassTupleBaseSerialize")]
-    public int ProtobufSerializeGenericOpenClassTupleBase()
-    {
-        _protobufStream.SetLength(0);
-        Serializer.Serialize(_protobufStream, GenericOpenClassTupleBase);
-        return (int)_protobufStream.Length;
-    }
-
-    [Benchmark, BenchmarkCategory("NonGenericBaseDeserialize")]
-    public ProbeBase[] MessagePackDeserializeNonGenericBase() =>
-        MessagePackSerializer.Deserialize<ProbeBase[]>(MessagePackNonGenericBaseBytes);
-
-    [Benchmark, BenchmarkCategory("NonGenericBaseDeserialize")]
-    public ProbeBase[] ProtobufDeserializeNonGenericBase() =>
-        Serializer.Deserialize<ProbeBase[]>(new ReadOnlySpan<byte>(ProtobufNonGenericBaseBytes));
-
-    [Benchmark, BenchmarkCategory("GenericIntBaseDeserialize")]
-    public ProbeBox<int>[] ProtobufDeserializeGenericIntBase() =>
-        Serializer.Deserialize<ProbeBox<int>[]>(new ReadOnlySpan<byte>(ProtobufGenericIntBaseBytes));
-
-    [Benchmark, BenchmarkCategory("GenericUnmanagedTupleBaseDeserialize")]
-    public ProbeBox<(int, long)>[] ProtobufDeserializeGenericUnmanagedTupleBase() =>
-        Serializer.Deserialize<ProbeBox<(int, long)>[]>(new ReadOnlySpan<byte>(ProtobufGenericUnmanagedTupleBaseBytes));
-
-    [Benchmark, BenchmarkCategory("GenericManagedTupleBaseDeserialize")]
-    public ProbeBox<(int, string)>[] ProtobufDeserializeGenericManagedTupleBase() =>
-        Serializer.Deserialize<ProbeBox<(int, string)>[]>(new ReadOnlySpan<byte>(ProtobufGenericManagedTupleBaseBytes));
-
-    [Benchmark, BenchmarkCategory("GenericSealedClassTupleBaseDeserialize")]
-    public ProbeBox<(ProbeSealedItem, int)>[] ProtobufDeserializeGenericSealedClassTupleBase() =>
-        Serializer.Deserialize<ProbeBox<(ProbeSealedItem, int)>[]>(new ReadOnlySpan<byte>(ProtobufGenericSealedClassTupleBaseBytes));
-
-    [Benchmark, BenchmarkCategory("GenericOpenClassTupleBaseDeserialize")]
-    public ProbeBox<(ProbeOpenItem, int)>[] ProtobufDeserializeGenericOpenClassTupleBase() =>
-        Serializer.Deserialize<ProbeBox<(ProbeOpenItem, int)>[]>(new ReadOnlySpan<byte>(ProtobufGenericOpenClassTupleBaseBytes));
+#endif
 }
 #endif

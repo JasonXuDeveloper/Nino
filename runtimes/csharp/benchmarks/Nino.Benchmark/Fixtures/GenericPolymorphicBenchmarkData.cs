@@ -12,7 +12,7 @@ using ProtoBuf;
 #nullable disable
 namespace Nino.Benchmark;
 
-// GenericPolymorphicTest's types, shared with its v3 port (V3/GenericPolymorphicTest.cs).
+// GenericPolymorphicTest's types, shared with its v3 build (the v3 part of GenericPolymorphicTest.Cases.g.cs).
 
 [NinoType, MemoryPackable, ProtoContract] public sealed partial class ProbeSealedItem { [ProtoMember(1)] public int X; [ProtoMember(2)] public long Y; }
 [NinoType, MemoryPackable, ProtoContract] public partial class ProbeOpenItem { [ProtoMember(1)] public int X; [ProtoMember(2)] public long Y; }
