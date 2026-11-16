@@ -337,6 +337,18 @@ messages with `runtimes/csharp/tests/Nino.Codegen.Tests/Inspect/*.txt` (`NINO_UP
 6. **Regenerate and test** ([Tests](#tests)), then the site: the type mapping of each language, and its "What Is Not
    Generated" list for a language that leaves it out (`audit-docs`).
 
+### Top-level values (`--roots`)
+
+A `[NinoType]` gets its codec by itself; a payload whose type has no layout of its own (`List<int>`, `string[]`,
+`Dictionary<string, Item>`, `long?`) has nothing to name it. `--roots "Ints=System.Collections.Generic.List<System.Int32>;..."`
+(the item metadata `Roots`) names each such type: `CodegenArguments.Roots` parses the pairs, `CodegenTarget.ResolveRoots`
+resolves each runtime-form name (`CodegenModel.ResolveType`) and its value (`CodegenModel.RootValue`, what Nino.Core's
+formatter for the type writes), and each target shapes it like a member. TypeScript writes `IntsCodec`
+(`deserialize(IntsCodec, data)`), Go `ReadInts` and `WriteInts` (`nino.Deserialize(data, ReadInts)`) and a
+`NinoCodecOf` case, Rust `pub type Ints = ...` (`nino::deserialize::<Ints>`) and a `with_nino_type` arm. A name that
+is not an identifier, is used twice or clashes with a generated name, an unknown type, and a `[NinoType]` (it has its
+codec already) fail the run; a type a language cannot express is a warning and is left out of that language.
+
 ## Tests
 
 `runtimes/csharp/tests/Nino.Codegen.Tests` (in runtimes/csharp/Nino.slnx) checks the IR, each target and the command line, and that the generated files

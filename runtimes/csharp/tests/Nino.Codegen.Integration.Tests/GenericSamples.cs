@@ -159,6 +159,23 @@ namespace Nino.Codegen.Integration.Tests
             return cases;
         }
 
+        /// <summary>The <c>--roots</c> option every language's harness generates with.</summary>
+        internal const string RootsOption =
+            "Ints=System.Collections.Generic.List<System.Int32>;Tags=System.Collections.Generic.Dictionary<System.String,Samples.Tag>;" +
+            "MaybeLong=System.Nullable<System.Int64>;Words=System.String[]";
+
+        /// <summary>Whole payloads of types with no layout of their own, read through <see cref="RootsOption"/>.</summary>
+        internal static List<(string Name, string Type, byte[] Bytes)> RootCases() => new()
+        {
+            ("Ints", "System.Collections.Generic.List<System.Int32>", NinoSerializer.Serialize(new List<int> { 1, -2, int.MaxValue })),
+            ("Ints", "System.Collections.Generic.List<System.Int32>", NinoSerializer.Serialize<List<int>>(null)),
+            ("Tags", "System.Collections.Generic.Dictionary<System.String,Samples.Tag>",
+                NinoSerializer.Serialize(new Dictionary<string, Tag> { ["a"] = new Tag { Name = "a", Weight = 3 } })),
+            ("MaybeLong", "System.Nullable<System.Int64>", NinoSerializer.Serialize<long?>(-7)),
+            ("MaybeLong", "System.Nullable<System.Int64>", NinoSerializer.Serialize<long?>(null)),
+            ("Words", "System.String[]", NinoSerializer.Serialize(new[] { "x", null, "中" })),
+        };
+
         internal static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
 
         /// <summary>

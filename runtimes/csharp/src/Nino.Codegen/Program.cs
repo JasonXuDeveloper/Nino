@@ -68,6 +68,7 @@ namespace Nino.Codegen
                         TypedNumericArrays = options.Get("numeric-arrays") == "typed",
                         RuntimeModule = runtime.Length == 0 ? null : runtime,
                     });
+                    target.RootRequests = options.Roots();
                     files[options.Get("name", source + ".ts")] = target.Render(source);
                     // The runtime is written next to the code unless the code imports it from a package.
                     if (runtime.Length == 0)
@@ -84,6 +85,7 @@ namespace Nino.Codegen
                                                               StringSplitOptions.TrimEntries).ToList(),
                         TagNaming = Naming(options.Get("tag-names")),
                     });
+                    target.RootRequests = options.Roots();
                     files[options.Get("name", "nino_types.go")] = target.Render(source);
                     warnings = target.Warnings;
                     break;
@@ -97,6 +99,7 @@ namespace Nino.Codegen
                         WideStrings = options.Get("strings") == "wide",
                         StdMaps = options.Get("maps") == "std",
                     });
+                    target.RootRequests = options.Roots();
                     files[options.Get("name", "nino_types.rs")] = target.Render(source);
                     warnings = target.Warnings;
                     break;

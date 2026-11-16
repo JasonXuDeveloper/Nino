@@ -11,7 +11,7 @@
           </ItemGroup>
 
         The item is the language (typescript or ts, go, rust); each metadata is the nino-gen option of the same name
-        (docs/codegen.md): Out (relative to the project; default ts/, go/ or rust/ next to it), Name, and
+        (docs/codegen.md): Out (relative to the project; default ts/, go/ or rust/ next to it), Name, Roots and
           typescript  Names, ImportExtension, Runtime
           go          Package, Tags, TagNames
           rust        Serde, SerdeNames, Strings, Maps
@@ -75,6 +75,7 @@
             <_NinoCodegenItem NinoArgs="--lang &quot;%(_NinoCodegenItem.Identity)&quot; --out &quot;%(_NinoCodegenItem.NinoOut)&quot;"
                  NinoKey="$([MSBuild]::StableStringHash('%(_NinoCodegenItem.Identity)|%(_NinoCodegenItem.NinoOut)'))"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Name)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --name &quot;%(_NinoCodegenItem.Name)&quot;"/>
+            <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Roots)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --roots &quot;%(_NinoCodegenItem.Roots)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Names)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --names &quot;%(_NinoCodegenItem.Names)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.ImportExtension)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --import-extension &quot;%(_NinoCodegenItem.ImportExtension)&quot;"/>
             <_NinoCodegenItem Condition="'%(_NinoCodegenItem.Runtime)' != ''" NinoArgs="%(_NinoCodegenItem.NinoArgs) --runtime &quot;%(_NinoCodegenItem.Runtime)&quot;"/>

@@ -6,6 +6,24 @@ using Nino.Codegen.Model;
 
 namespace Nino.Codegen.Targets
 {
+    /// <summary>A top-level value (<c>--roots</c>): a type alias of its Rust type, which reads and writes it.</summary>
+    public sealed class RustRoot
+    {
+        internal RustRoot(RootModel root, RustShape shape)
+        {
+            Name = root.Name;
+            RuntimeName = root.RuntimeName;
+            Shape = shape;
+        }
+
+        public string Name { get; }
+
+        /// <summary>The runtime-form name of its .NET type.</summary>
+        public string RuntimeName { get; }
+
+        public RustShape Shape { get; }
+    }
+
     /// <summary>A collection of itself (<c>class Tree : List&lt;Tree&gt;</c>): a newtype counting its nesting.</summary>
     public sealed class RustNamed
     {

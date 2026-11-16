@@ -39,7 +39,7 @@ namespace Nino.Codegen.Integration.Tests
             Assert.AreEqual(0, Nino.Codegen.Program.Run(new[]
             {
                 "--assembly", typeof(Player).Assembly.Location, "--lang", "ts", "--out", directory,
-                "--import-extension", ".ts",
+                "--import-extension", ".ts", "--roots", GenericSamples.RootsOption,
             }.Concat(options).ToArray(), log));
             output = log.ToString();
             File.Copy(Path.Combine(AppContext.BaseDirectory, "harness.ts"), Path.Combine(directory, "harness.ts"));
@@ -271,6 +271,17 @@ namespace Nino.Codegen.Integration.Tests
                      })
                 StringAssert.Contains(results[numbers].Json, expected);
             StringAssert.Contains(results[numbers + 1].Json, "\"ints\":[],\"uInts\":null");
+        }
+
+        /// <summary>Whole payloads of types with no layout of their own, through the codecs <c>--roots</c> names.</summary>
+        [TestMethod]
+        public void RoundTripsRoots()
+        {
+            var cases = GenericSamples.RootCases().Select(c => (c.Name + "Codec", c.Bytes)).ToList();
+            var results = RunNode(cases);
+            for (int i = 0; i < cases.Count; i++)
+                Assert.AreEqual(GenericSamples.Hex(cases[i].Bytes), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Error}");
+            StringAssert.Contains(results[0].Json, "[1,-2,2147483647]");
         }
 
         /// <summary>Closed generic types as members: read with the codecs built from those of their arguments.</summary>

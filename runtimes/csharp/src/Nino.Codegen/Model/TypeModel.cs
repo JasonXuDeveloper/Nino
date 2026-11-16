@@ -314,4 +314,33 @@ namespace Nino.Codegen.Model
 
         public override string ToString() => RuntimeName;
     }
+
+    /// <summary>
+    /// A top-level value named on the command line (<c>--roots Vectors=System.Numerics.Vector4[]</c>): a payload of a
+    /// type that is no <c>[NinoType]</c> (a collection, a nullable, a primitive), which each target writes a codec of
+    /// under <see cref="Name"/>, as Nino.Core reads it with the formatter it finds for the type.
+    /// </summary>
+    public sealed class RootModel
+    {
+        internal RootModel(string name, Type clr, ValueModel value)
+        {
+            Name = name;
+            Clr = clr;
+            Value = value;
+            RuntimeName = TypeNames.Runtime(clr);
+        }
+
+        /// <summary>The name its codec takes (<c>Vectors</c>: <c>VectorsCodec</c>, <c>ReadVectors</c>, <c>Vectors</c>).</summary>
+        public string Name { get; }
+
+        public Type Clr { get; }
+
+        /// <summary>What the payload is on the wire (<see cref="CodegenModel.RootValue"/>).</summary>
+        public ValueModel Value { get; }
+
+        /// <summary>The runtime-form name of its type (<c>System.Numerics.Vector4[]</c>).</summary>
+        public string RuntimeName { get; }
+
+        public override string ToString() => $"{Name}={RuntimeName}";
+    }
 }

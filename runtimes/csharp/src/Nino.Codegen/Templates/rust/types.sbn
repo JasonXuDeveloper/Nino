@@ -767,6 +767,12 @@ impl NinoWrite for {{ n.name }} {
     }
 }
 {{~ end ~}}
+{{~ for r in roots ~}}
+
+/// `{{ r.runtime_name }}` as a whole payload (`--roots`): read and write it with `nino::deserialize::<{{ r.name }}>` and
+/// `nino::serialize`.
+pub type {{ r.name }} = {{ rtype(r.shape) }};
+{{~ end ~}}
 
 /// Runs a generic function on the Rust type of a .NET type ([`with_nino_type`]).
 pub trait NinoVisit<R> {
@@ -779,6 +785,9 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
     Some(match name {
 {{~ for t in tops ~}}
         {{ rust_string(t.runtime_name) }} => f.visit::<{{ t.top }}>(),
+{{~ end ~}}
+{{~ for r in roots ~}}
+        {{ rust_string(r.runtime_name) }} => f.visit::<{{ r.name }}>(),
 {{~ end ~}}
         _ => return None,
     })

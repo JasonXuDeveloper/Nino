@@ -69,6 +69,7 @@ namespace Nino.Codegen
             new CodegenOption("out", "Out", null, "<dir>", null),
             new CodegenOption("references", null, null, "<file>", null),
             new CodegenOption("name", "Name", null, "<file name>", null),
+            new CodegenOption("roots", "Roots", null, "<Name=Type;...>", ""),
             new CodegenOption("names", "Names", CodegenLanguage.TypeScript, "camel|keep", "camel",
                 new[] { "camel", "keep" }),
             new CodegenOption("import-extension", "ImportExtension", CodegenLanguage.TypeScript,
@@ -214,5 +215,29 @@ namespace Nino.Codegen
 
         /// <summary>Whether the option was given.</summary>
         public bool Has(string name) => _given.ContainsKey(name);
+
+        /// <summary>
+        /// <c>--roots</c>: the top-level values to write codecs of, <c>Name=Type</c> separated by <c>;</c>, each type by
+        /// its runtime-form name (<c>Ints=System.Int32[];Pairs=System.Collections.Generic.Dictionary&lt;System.Int32,System.Int32&gt;</c>).
+        /// Throws an <see cref="ArgumentException"/> for an entry that is not a name and a type, or a name given twice.
+        /// </summary>
+        public IReadOnlyList<KeyValuePair<string, string>> Roots()
+        {
+            var roots = new List<KeyValuePair<string, string>>();
+            foreach (string entry in Get("roots").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                int equals = entry.IndexOf('=');
+                string name = equals < 0 ? "" : entry.Substring(0, equals).Trim();
+                string type = equals < 0 ? "" : entry.Substring(equals + 1).Trim();
+                if (name.Length == 0 || type.Length == 0 || !char.IsLetter(name[0]) || !name.All(char.IsLetterOrDigit))
+                    throw new ArgumentException(
+                        $"--roots: \"{entry}\" is not Name=Type (a name of letters and digits, then a type's runtime-form name).");
+                if (roots.Any(r => r.Key == name))
+                    throw new ArgumentException($"--roots: {name} is given twice.");
+                roots.Add(new KeyValuePair<string, string>(name, type));
+            }
+
+            return roots;
+        }
     }
 }

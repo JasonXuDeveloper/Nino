@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Tests;
 using Samples;
@@ -59,7 +60,7 @@ fn main() {
                 Assert.AreEqual(0, Program.Run(new[]
                 {
                     "--assembly", typeof(Player).Assembly.Location, "--lang", "rust", "--maps", maps,
-                    "--name", "nino_types.rs", "--out", Path.Combine(dir, "src"),
+                    "--name", "nino_types.rs", "--out", Path.Combine(dir, "src"), "--roots", GenericSamples.RootsOption,
                 }, log), log.ToString());
                 string runtime = RepositoryFiles.Of("runtimes", "rust").Replace('\\', '/');
                 bool indexmap = maps == "indexmap";
@@ -70,6 +71,7 @@ fn main() {
                 File.WriteAllText(Path.Combine(dir, "src", "main.rs"), Harness);
                 // std's HashMap writes in its own order: only maps of one entry are written back byte for byte.
                 var cases = GenericSamples.Cases(ordered: indexmap);
+                cases.AddRange(GenericSamples.RootCases().Select(c => (c.Type, c.Bytes)));
                 GenericSamples.WriteCases(Path.Combine(dir, "cases.txt"), cases);
 
                 var run = GenericSamples.Run(dir, "cargo", "run", "--quiet", "--", "cases.txt");
