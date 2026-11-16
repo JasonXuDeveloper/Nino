@@ -1,6 +1,6 @@
 // The benchmark in headless Chromium (Playwright): node browser.mjs <compiled directory> <data directory> [scenario]
 // The page loads the bundled bench.js (esbuild, run.sh) and the data from a route, so nothing else is served.
-// NINO_BENCH_TIME: tinybench's time per task in milliseconds.
+// NINO_BENCH_TIME: tinybench's time per task in milliseconds (NINO_BENCH_QUICK=1: 100).
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -22,10 +22,13 @@ await page.route("http://bench/**", async (route) => {
 });
 await page.goto("http://bench/");
 console.log(`${await browser.version()}`);
-const time = Number(process.env.NINO_BENCH_TIME) || undefined;
-console.log(await page.evaluate(async ([only, time]) => {
+// Quick mode (NINO_BENCH_QUICK=1, the trend check a pull request labeled `benchmark` runs): 100 ms per task, 25 ms warm-up.
+const quick = process.env.NINO_BENCH_QUICK === "1";
+const time = Number(process.env.NINO_BENCH_TIME) || (quick ? 100 : undefined);
+const warmupTime = quick ? 25 : undefined;
+console.log(await page.evaluate(async ([only, time, warmupTime]) => {
   const { run, table } = await import("/bench.js");
   const read = async (name) => new Uint8Array(await (await fetch(`/data/${name}.bin`)).arrayBuffer());
-  return table(await run(read, only, { time }));
-}, [only, time]));
+  return table(await run(read, only, { time, warmupTime }));
+}, [only, time, warmupTime]));
 await browser.close();

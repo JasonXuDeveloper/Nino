@@ -487,9 +487,20 @@ fn benches(c: &mut Criterion) {
     tracked(c);
 }
 
+/// The release's timing (500 ms warm-up, 2 s measured), or quick mode's (NINO_BENCH_QUICK=1, the trend check a pull
+/// request labeled `benchmark` runs, as the .NET suite's quick job): 100 ms and 300 ms, 10 samples.
+fn config() -> Criterion {
+    let ms = std::time::Duration::from_millis;
+    if std::env::var("NINO_BENCH_QUICK").as_deref() == Ok("1") {
+        Criterion::default().warm_up_time(ms(100)).measurement_time(ms(300)).sample_size(10)
+    } else {
+        Criterion::default().warm_up_time(ms(500)).measurement_time(ms(2000))
+    }
+}
+
 criterion_group! {
     name = compare;
-    config = Criterion::default().warm_up_time(std::time::Duration::from_millis(500)).measurement_time(std::time::Duration::from_secs(2));
+    config = config();
     targets = benches
 }
 criterion_main!(compare);

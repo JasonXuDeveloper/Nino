@@ -4,7 +4,8 @@
 # pass in turn (bench.ts says why).
 #
 # usage: runtimes/typescript/bench/run.sh [scenario]   (e.g. lookup; default: all)
-# NINO_BENCH_TIME: tinybench's time per task in milliseconds (default 1000).
+# NINO_BENCH_TIME: tinybench's time per task in milliseconds (default 1000); NINO_BENCH_QUICK=1: 100, with 25 ms of
+# warm-up (the trend check a pull request labeled `benchmark` runs).
 # Requires the .NET 11 SDK, Node 22.18+ (it runs TypeScript directly) and, for the Chromium run, Playwright with
 # Chromium (global: NODE_PATH); the rest comes from package-lock.json.
 set -euo pipefail
