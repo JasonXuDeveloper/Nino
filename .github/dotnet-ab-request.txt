@@ -397,5 +397,9 @@
 # done (run 43869481647): cpu='7763|Neoverse' 8fa416bf 8fa416bf 12 *NullableStridesTest.Nino* *CollectionsTest.NinoSerializeNullable*
 # simd-coverage 37247394: int? runs (stride 8, code untouched) read 0.93x on EPYC 7763 in run 43869481647, whose
 # floor line did not run. Floor and A/B on the same 7763 slots.
-cpu='7763' 8fa416bf 37247394 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
+# done (run 43887807866): cpu='7763' 8fa416bf 37247394 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
+# done (run 43887807866): cpu='7763' 8fa416bf 8fa416bf 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
+# Result of run 43887807866: int? 0.93-0.94x against a floor of 1.00x (7763). 8414f369 skips the piece tables for
+# strides without pieces; floor again on the same slots.
+cpu='7763' 8fa416bf 8414f369 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
 cpu='7763' 8fa416bf 8fa416bf 12 *CollectionsTest.NinoSerializeNullableInts *CollectionsTest.NinoSerializeNullableIListInts *CollectionsTest.NinoSerializeNullableCollectionInts *NullableStridesTest.NinoSerializeNullableGuids
