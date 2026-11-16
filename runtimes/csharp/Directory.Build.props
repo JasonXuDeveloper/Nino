@@ -52,6 +52,6 @@
              nuget.org prints HTML as text and a packed README never sees report.yml's numbers. Written by
              .github/scripts/nuget_readme.py from README.md: never edit it by hand. -->
         <None Include="$(MSBuildThisFileDirectory)src/nuget-readme.md" Pack="true" PackagePath="README.md" Visible="false"/>
-        <None Include="$(MSBuildThisFileDirectory)docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
+        <None Include="$(MSBuildThisFileDirectory)..\..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
     </ItemGroup>
 </Project>
