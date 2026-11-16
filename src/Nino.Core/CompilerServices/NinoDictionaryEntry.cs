@@ -44,5 +44,10 @@ namespace Nino.Core.CompilerServices
             count = dictionary.Count;
             return CollectionFields.Entries(dictionary, count);
         }
+
+        /// <summary>The entry after <paramref name="entry"/>, for a loop over <see cref="InUse"/>'s entries.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref NinoDictionaryEntry<TKey, TValue> Next<TKey, TValue>(
+            ref NinoDictionaryEntry<TKey, TValue> entry) => ref Unsafe.Add(ref entry, 1);
     }
 }

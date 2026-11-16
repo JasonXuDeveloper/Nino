@@ -62,20 +62,9 @@ internal static class DispatchEmitter
             if (e.TypeParameterList.Length == 0)
             {
                 var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
-                if (own is { Count: > 0 and <= MaxWriteChain })
-                {
-                    // The pair loops only where Nino.Core calls them (its .NET 8+ builds): IL2CPP compiles every
-                    // method of a type, called or not.
-                    w.Line($"partial struct {e.Self} : {CoreCompilerServices}INinoElementsFormatter<{e.TypeName}>");
-                    w.Line(PairsBuild);
-                    w.Line($"    , {CoreCompilerServices}INinoPairsFormatter");
-                    w.Line("#endif");
-                    w.Open();
-                }
-                else
-                {
-                    w.Open($"partial struct {e.Self}");
-                }
+                w.Open(own is { Count: > 0 and <= MaxWriteChain }
+                    ? $"partial struct {e.Self} : {CoreCompilerServices}INinoElementsFormatter<{e.TypeName}>, {CoreCompilerServices}INinoPairsFormatter"
+                    : $"partial struct {e.Self}");
 
                 EmitBase(w, e.TypeName, own, services, closedForm: false);
                 w.Close();
@@ -326,7 +315,6 @@ internal static class DispatchEmitter
         w.Close();
 
         w.Line();
-        w.Line(PairsBuild);
         string pairsSignature = $"<__TKey, __TKeyFormatter>(global::System.Collections.Generic.Dictionary<__TKey, {t}> pairs, ref {Core}Writer target)";
         string keyConstraint = $"    where __TKeyFormatter : struct, {Core}INinoFormatter<__TKey>";
         // INinoFormatter<T>.WritePairs, for every key type and key formatter: Nino.Core calls it as a constrained call
@@ -347,9 +335,9 @@ internal static class DispatchEmitter
         w.Line("return;");
         w.Close();
         w.Line();
-        w.Line("ref var pair = ref global::System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
+        w.Line($"ref var pair = ref {services}NinoUnsafe.GetArrayDataReference(entries);");
         EmitDispatchLoop(w, t, subtypes, services,
-            "for (; left > 0; left--, pair = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref pair, 1))",
+            $"for (; left > 0; left--, pair = ref {services}NinoDictionaryEntries.Next(ref pair))",
             pairs: true, first: "writer.WriteLength(left);");
         w.Close();
         w.Line();
@@ -360,11 +348,7 @@ internal static class DispatchEmitter
         w.Line("target.WriteLength(pairs.Count);");
         EmitSlowLoop(w, "foreach (var pair in pairs)", pairs: true);
         w.Close();
-        w.Line("#endif");
     }
-
-    /// <summary>The condition of the pair loops (<c>INinoPairsFormatter</c>): the builds of Nino.Core that call them.</summary>
-    private const string PairsBuild = "#if NET8_0_OR_GREATER";
 
 
     /// <summary>

@@ -55,22 +55,25 @@ namespace Nino.Core
                 return;
             }
 
-            Writer copy = default;
-#if NET8_0_OR_GREATER
             // A polymorphic value: the base's generated pair loop, the dispatch inline (INinoPairsFormatter), for any
             // key and key formatter. A constrained call on the formatter's type, never a cast to an interface: the
             // JIT resolves it to the struct's own method (a lookup of its instantiation where the key is a class), where
             // a generic method called through a boxed interface went through a virtual function pointer per call.
             // The writer is passed as it is, the count written there: the loop copies the writer into a local of its
             // own, and a second copy here, in and out, was most of the call's fixed cost (one int pair 17.4 ns against
-            // LuminPack's 14.8). netstandard2.1 (IL2CPP, Mono, where the test boxes) keeps the loop below.
+            // LuminPack's 14.8). The marker is read from a field in the netstandard2.1 build: IL2CPP and Mono box
+            // default(TFormatter) at each test.
+#if NET8_0_OR_GREATER
             if (default(TValueFormatter) is INinoPairsFormatter)
+#else
+            if (PairsLoop<TValueFormatter>.Generated)
+#endif
             {
                 default(TValueFormatter).WritePairs<TKey, TKeyFormatter>(value, ref writer);
                 return;
             }
-#endif
 
+            Writer copy = default;
             writer.CopyTo(ref copy);
             WritePairs(value, ref copy);
             copy.CopyTo(ref writer);
@@ -652,4 +655,16 @@ namespace Nino.Core
             source = reader;
         }
     }
+
+#if !NET8_0_OR_GREATER
+    /// <summary>
+    /// Whether <typeparamref name="TFormatter"/> writes a dictionary's pairs in a loop of its own
+    /// (<see cref="INinoPairsFormatter"/>), tested once: a class generic over the formatter alone, so the field is not
+    /// shared code where the dictionary's loop is.
+    /// </summary>
+    internal static class PairsLoop<TFormatter> where TFormatter : struct
+    {
+        public static readonly bool Generated = typeof(INinoPairsFormatter).IsAssignableFrom(typeof(TFormatter));
+    }
+#endif
 }

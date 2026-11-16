@@ -148,14 +148,12 @@ namespace Nino.UnitTests
         public void Deserialize(ref Reader reader, ref DispatchRoot value) =>
             default(RootFormatter).Deserialize(ref reader, ref value);
 
-#if NET8_0_OR_GREATER
         public void WritePairs<TKey, TKeyFormatter>(Dictionary<TKey, DispatchRoot> pairs, ref Writer writer)
             where TKeyFormatter : struct, INinoFormatter<TKey>
         {
             PairCalls++;
             default(RootFormatter).WritePairs<TKey, TKeyFormatter>(pairs, ref writer);
         }
-#endif
     }
 
     /// <summary>A dictionary of the dispatch root whose keys are written as UTF-8.</summary>
@@ -268,9 +266,7 @@ namespace Nino.UnitTests
         public void PairLoopServesEveryKeyFormatter()
         {
             Assert.IsTrue(typeof(INinoPairsFormatter).IsAssignableFrom(typeof(RootFormatter)));
-#if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
             Assert.AreEqual(typeof(RootFormatter), typeof(RootFormatter).GetMethod("WritePairs")!.DeclaringType);
-#endif
             DispatchRoot[] values =
             {
                 new DispatchSibling { A = 1, D = 2.5 }, null, new DispatchLeaf { A = 3, B = "leaf", C = 4 },
@@ -328,10 +324,8 @@ namespace Nino.UnitTests
                 NinoDictionary<TKey, DispatchRoot, TKeyFormatter, RecordingRootFormatter>.Write(dictionary, ref writer);
                 writer.Flush();
                 CollectionAssert.AreEqual(expected.WrittenSpan.ToArray(), actual.WrittenSpan.ToArray());
-#if NET8_0_OR_GREATER && !NINO_CORE_NETSTANDARD
                 // The generated pair loop took the pairs: NinoDictionary named no key type to get there.
                 Assert.AreEqual(calls + 1, RecordingRootFormatter.PairCalls, typeof(TKey).Name);
-#endif
 
                 // Then with an entry removed: no longer read in place.
                 dictionary.Add(key(values.Length + round), values[0]);

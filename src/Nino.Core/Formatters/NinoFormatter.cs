@@ -28,7 +28,6 @@ namespace Nino.Core
         /// </summary>
         void Deserialize(ref Reader reader, ref T value);
 
-#if NET8_0_OR_GREATER
         /// <summary>
         /// Writes the count and the pairs of <paramref name="pairs"/> (not empty), each key as
         /// <typeparamref name="TKeyFormatter"/> and each value as <see cref="Serialize"/> writes them. The formatters
@@ -48,7 +47,6 @@ namespace Nino.Core
                 Serialize(pair.Value, ref writer);
             }
         }
-#endif
     }
 
     /// <summary>
