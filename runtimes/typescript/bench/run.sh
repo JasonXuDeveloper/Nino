@@ -5,7 +5,7 @@
 #
 # usage: runtimes/typescript/bench/run.sh [scenario]   (e.g. lookup; default: all)
 # NINO_BENCH_TIME: tinybench's time per task in milliseconds (default 1000).
-# Requires the .NET 10 SDK, Node 22.18+ (it runs TypeScript directly) and, for the Chromium run, Playwright with
+# Requires the .NET 11 SDK, Node 22.18+ (it runs TypeScript directly) and, for the Chromium run, Playwright with
 # Chromium (global: NODE_PATH); the rest comes from package-lock.json.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
