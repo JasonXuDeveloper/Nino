@@ -197,7 +197,9 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   interface method called from shared code (the value type a class), which looks up its instantiation per call:
   `Dictionary<int, IFoo>` of 12 values 143-147 ns against 58-72 per value (LuminPack 49-60). Nino's fixed cost per call
   is already the lower one (an empty dictionary 4.6 ns against LuminPack's 15.9, one pair 14.3 against 16.8); the
-  remaining gap is about 0.6 ns a pair, the call into the dispatch.
+  remaining gap is about 0.6 ns a pair, the call into the dispatch. Nor a non-generic entry point over the entries' memory (`WriteEntries(ref first, count,
+  stride, key and value offsets)`, raw keys copied as bytes): the layout's static readonly fields in shared generic
+  code and the interface call cost more than they saved (one pair 14.3 to 22.5 ns, 12 pairs 59 to 72).
   Generic bases keep the element loop out too: the same loop in each closed dispatch class (`__NinoDispatch<n>`),
   selected once per collection, wrote GenericSealedClassTupleBase 22 % and GenericOpenClassTupleBase 12 % slower
   (7.2 to 8.8 us, 7.5 to 8.4; two rounds, local x64), their subtypes each holding a class whose nested writes, all
