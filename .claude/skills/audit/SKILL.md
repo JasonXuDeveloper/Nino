@@ -59,6 +59,6 @@ which goes on the same list: nothing is dropped silently.
    the wrong way; read every test an agent changed: assertions stay.
 2. Land one branch at a time on `origin/main` (cherry-pick, fix the messages), with `verify` for what it touched; a
    hot-path branch lands only with runner numbers against main.
-3. After the code lands, run `audit-docs` with the to-do list, then `verify`, then fast-forward `main`.
+3. After the code lands, run `audit-docs` with the to-do list, then `verify`, then the pull request to `main` (AGENTS.md, Rules, Landing).
 4. Update the skills with what the round taught and cross-check them (AGENTS.md, Workflows).
 5. Remove finished worktrees (`git worktree remove`, `git worktree prune`).
