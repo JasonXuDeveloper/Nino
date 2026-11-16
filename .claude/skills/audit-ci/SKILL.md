@@ -264,8 +264,9 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   during both. A test's own Worker must run the step as a child `bash`, as the runner does: subshells of a renamed
   bash keep its name and read as other jobs.
 - **The pull request benchmark is on request**: ci.yml runs `benchmarks/shards.json`'s "ab" shards only for a pull
-  request labeled `benchmark` (when opened, reopened or pushed to; labeling alone starts nothing); ab-bench.yml on the
-  branch gives a comparison with main or the last release.
+  request labeled `benchmark` (when opened, reopened or pushed to; labeling alone starts nothing), in quick mode
+  (`NINO_BENCH_QUICK=1`: a trend, never published); report.yml at a release runs every case with the full protocol
+  (#333). ab-bench.yml on the branch gives a comparison with main or the last release.
 - **Untrusted text never reaches a shell or a self-hosted runner.** `triage.yml` reads issues anyone can open: it
   runs on `ubuntu-latest` (GitHub-hosted), passes only the issue number to its script through `env`, never
   `${{ github.event.issue.title }}` or the body in a `run:`, and holds only `issues: write`, `contents: read` and
