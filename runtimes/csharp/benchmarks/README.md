@@ -161,8 +161,9 @@ alone.
 ### Cases and adapters
 
 A class can declare its cases instead of writing their methods ([#271](https://github.com/JasonXuDeveloper/Nino/issues/271);
-`SimpleTest`, `PolymorphicTest`, `WorkloadTest`, `CollectionsTest`, `CommonTypesTest`, `FixedSizeTest`,
-`BclTypesTest` and `NullableTest` so far, the other classes are still written by hand): one
+every class that compares libraries case by case: `SimpleTest`, `PolymorphicTest`, `GenericPolymorphicTest`,
+`WorkloadTest`, `CollectionsTest`, `CommonTypesTest`, `FixedSizeTest`, `BclTypesTest`, `NullableTest` and
+`VersionTolerantTest`): one
 `[BenchCase("Name", ...)]` per case on the class, and a library per adapter in `Nino.Benchmark/Adapters/`. An adapter
 is a C# class of templates (`Setup`, `ToBytes`, `Serialize`, `Deserialize`, `DeserializeInto` for a read into an
 existing object, and `Prepare` for a value made outside the timed region, as Google.Protobuf's message), not compiled:
@@ -195,6 +196,7 @@ in, and default to the class's `[BenchClass]`:
 | `Buffer` (class) | each buffer's capacity | `320 * 1024` |
 | `Bytes` (class) | where each library's bytes go: an array per case, or a field per library and case (`{Library}{Case}Payload`) | `Serialized{Case}[{Slot}]` |
 | `OldBytes` (class) | the previous version's bytes | `{Library}{Case}OldBytes` |
+| `Condition` (class) | a preprocessor condition around the generated file, the one around the class (`!NINO_BENCH_LEGACY`) | none |
 | `Order` (class) | `verb` (every Serialize method, then every Deserialize) or `case` | `verb` |
 | `Serialize` (class) | `buffer` (each library's reused buffer) or `array` (a new `byte[]` of the API's own size: each adapter's `SerializeToArray`, `FixedSizeTest`) | `buffer` |
 
@@ -218,6 +220,14 @@ of one file only).
 dotnet run --project runtimes/csharp/tools/BenchGen               # after changing a case or an adapter
 dotnet run --project runtimes/csharp/tools/BenchGen -- --check    # what ci.yml runs: fails while a file is out of date
 ```
+
+The scenario classes are written by hand, each with its own `V3/` port: they time one of Nino's features in the way
+each library has of doing it, not a serialize and a deserialize per library. `PooledTest` and `PooledGraphTest` (new,
+pooled, overwritten in place), `ReferenceTest` (a graph with shared references and cycles, Nino and MemoryPack only),
+`UntrustedTest` (Nino's untrusted mode, in a process of its own), `ExternalBufferTest` (every library writing to the
+caller's one writer and reading a segmented sequence) and `ScatteredTest` (a million objects out of memory order,
+serialized only, their bytes not kept). Their method names are the ones the charts and the docs site read, and a
+library added there is a method in the class.
 
 A case added to such a class is one attribute and its field; a library added is one adapter (its `Order` places its
 methods, its `Slot` its bytes in an array), then BenchGen, `--verify`, and its globs in `shards.json`.
