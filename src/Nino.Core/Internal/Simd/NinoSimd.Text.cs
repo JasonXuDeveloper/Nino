@@ -102,6 +102,31 @@ namespace Nino.Core.Internal
             return true;
         }
 
+#if NET10_0_OR_GREATER
+        // Up to 16 chars with AVX-512BW+VL (NinoStrings.WriteChars): a fault-suppressing masked load of exactly the
+        // string's n chars, a test of their high bytes, and one 16-byte store into the space MaxSize reserves; one
+        // short path for every length up to 16, where the shared form has three (a loop, words, two overlapping
+        // vectors). Each helper returns once, so the caller's test is a branch on the vector, not on a bool kept in a
+        // register. The load takes a pointer: fixed, as a string can move between taking its address and the load (a
+        // pinned slot is two stores to the stack); a masked store as well cost 0.3 ns more per string (str9 writes 3.6
+        // against 3.35 us), so the store is a plain one.
+
+        /// <summary>The <paramref name="n"/> chars at <paramref name="chars"/> (at most 16), zeros after.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe Vector256<ushort> LoadMasked16(ref char chars, nuint n)
+        {
+            fixed (char* source = &chars)
+                return Avx512BW.VL.MaskLoad((ushort*)source,
+                    Vector256.LessThan(Vector256<ushort>.Indices, Vector256.Create((ushort)n)), Vector256<ushort>.Zero);
+        }
+
+        /// <summary>The low bytes of the 16 chars of <paramref name="chars"/> at <paramref name="destination"/>,
+        /// which has room for 16 bytes (<see cref="NinoStrings.MaxSize"/> reserves them).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void StoreNarrow16(ref byte destination, Vector256<ushort> chars) =>
+            Avx512BW.VL.ConvertToVector128Byte(chars).StoreUnsafe(ref destination);
+#endif
+
         // n > 16. Narrow the ASCII prefix, then finish with the widest suitable Latin-1 kernel.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool NarrowVector(ref ushort source, ref byte destination, nuint n)
