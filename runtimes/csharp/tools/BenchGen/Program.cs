@@ -644,7 +644,7 @@ internal sealed class BenchClass
         foreach (var adapter in _adapters)
         {
             foreach (var (c, _) in _cases.Where(c => c.Rows.Any(r => r.Adapter == adapter)))
-                sb.Append($"        BenchmarkPayloadRegistry.Register(nameof({adapter.Name}Serialize{c.Name}), {Bytes(c, adapter)}.Length);\n");
+                sb.Append($"        BenchmarkPayloadRegistry.Register(nameof({adapter.Name}Serialize{c.Name}), {Bytes(c, adapter)});\n");
             if (adapter != _adapters[^1]) sb.Append('\n');
         }
 

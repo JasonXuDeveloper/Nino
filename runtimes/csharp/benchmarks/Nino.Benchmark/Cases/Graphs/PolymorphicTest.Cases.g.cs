@@ -74,33 +74,33 @@ partial class PolymorphicTest
         SerializedPolymorphicClassArray[5] = JsonSerializer.SerializeToUtf8Bytes(PolymorphicClassArray, CaseJson.Default.PolymorphicClassBaseArray);
         SerializedPolymorphicClassArray[9] = LuminPackBuffers.Bytes(PolymorphicClassArray, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClass), SerializedPolymorphicClass[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooArray), SerializedPolymorphicFooArray[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClassArray), SerializedPolymorphicClassArray[2].Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClass), SerializedPolymorphicClass[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooArray), SerializedPolymorphicFooArray[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClassArray), SerializedPolymorphicClassArray[2]);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClass), SerializedPolymorphicClass[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[1].Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClass), SerializedPolymorphicClass[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[1]);
 
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicClass), SerializedPolymorphicClass[0].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[0].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[0].Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicClass), SerializedPolymorphicClass[0]);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[0]);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[0]);
 
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicClass), SerializedPolymorphicClass[3].Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicFooArray), SerializedPolymorphicFooArray[3].Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicClassArray), SerializedPolymorphicClassArray[3].Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicClass), SerializedPolymorphicClass[3]);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicFooArray), SerializedPolymorphicFooArray[3]);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePolymorphicClassArray), SerializedPolymorphicClassArray[3]);
 
-        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicClass), SerializedPolymorphicClass[4].Length);
-        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicFooArray), SerializedPolymorphicFooArray[4].Length);
-        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicClassArray), SerializedPolymorphicClassArray[4].Length);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicClass), SerializedPolymorphicClass[4]);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicFooArray), SerializedPolymorphicFooArray[4]);
+        BenchmarkPayloadRegistry.Register(nameof(GoogleProtobufSerializePolymorphicClassArray), SerializedPolymorphicClassArray[4]);
 
-        BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicClass), SerializedPolymorphicClass[5].Length);
-        BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicFooArray), SerializedPolymorphicFooArray[5].Length);
-        BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicClassArray), SerializedPolymorphicClassArray[5].Length);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicClass), SerializedPolymorphicClass[5]);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicFooArray), SerializedPolymorphicFooArray[5]);
+        BenchmarkPayloadRegistry.Register(nameof(JsonSerializePolymorphicClassArray), SerializedPolymorphicClassArray[5]);
 
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicClass), SerializedPolymorphicClass[9].Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[9].Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[9].Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicClass), SerializedPolymorphicClass[9]);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[9]);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[9]);
     }
 
     [GlobalSetup]
@@ -458,13 +458,13 @@ partial class PolymorphicTest
         SerializedPolymorphicClassArray[1] = MemoryPackSerializer.Serialize(PolymorphicClassArray);
         SerializedPolymorphicClassArray[2] = NinoGen.Serializer.Serialize(PolymorphicClassArray);
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClass), SerializedPolymorphicClass[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooArray), SerializedPolymorphicFooArray[2].Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClassArray), SerializedPolymorphicClassArray[2].Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClass), SerializedPolymorphicClass[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicFooArray), SerializedPolymorphicFooArray[2]);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePolymorphicClassArray), SerializedPolymorphicClassArray[2]);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClass), SerializedPolymorphicClass[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[1].Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[1].Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClass), SerializedPolymorphicClass[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicFooArray), SerializedPolymorphicFooArray[1]);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePolymorphicClassArray), SerializedPolymorphicClassArray[1]);
     }
 
     [GlobalSetup]

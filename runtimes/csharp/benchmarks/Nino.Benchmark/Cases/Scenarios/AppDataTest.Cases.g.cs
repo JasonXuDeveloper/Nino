@@ -116,49 +116,49 @@ partial class AppDataTest
         ProtobufEventsBytes = ProtobufModel.Serialize(Events);
         LuminPackEventsBytes = LuminPackBuffers.Bytes(Events, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePlayers), NinoPlayersBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeZoos), NinoZoosBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeOrderBooks), NinoOrderBooksBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeArticles), NinoArticlesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeMeshes), NinoMeshesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSampleSets), NinoSampleSetsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLookups), NinoLookupsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeEvents), NinoEventsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePlayers), NinoPlayersBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeZoos), NinoZoosBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeOrderBooks), NinoOrderBooksBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeArticles), NinoArticlesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeMeshes), NinoMeshesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSampleSets), NinoSampleSetsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLookups), NinoLookupsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeEvents), NinoEventsBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePlayers), MemoryPackPlayersBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeZoos), MemoryPackZoosBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeOrderBooks), MemoryPackOrderBooksBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeArticles), MemoryPackArticlesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeMeshes), MemoryPackMeshesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSampleSets), MemoryPackSampleSetsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeLookups), MemoryPackLookupsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeEvents), MemoryPackEventsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePlayers), MemoryPackPlayersBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeZoos), MemoryPackZoosBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeOrderBooks), MemoryPackOrderBooksBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeArticles), MemoryPackArticlesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeMeshes), MemoryPackMeshesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSampleSets), MemoryPackSampleSetsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeLookups), MemoryPackLookupsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeEvents), MemoryPackEventsBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePlayers), MessagePackPlayersBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeZoos), MessagePackZoosBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeOrderBooks), MessagePackOrderBooksBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeArticles), MessagePackArticlesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeMeshes), MessagePackMeshesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSampleSets), MessagePackSampleSetsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeLookups), MessagePackLookupsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeEvents), MessagePackEventsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializePlayers), MessagePackPlayersBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeZoos), MessagePackZoosBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeOrderBooks), MessagePackOrderBooksBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeArticles), MessagePackArticlesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeMeshes), MessagePackMeshesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeSampleSets), MessagePackSampleSetsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeLookups), MessagePackLookupsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeEvents), MessagePackEventsBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePlayers), ProtobufPlayersBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeZoos), ProtobufZoosBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeOrderBooks), ProtobufOrderBooksBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeArticles), ProtobufArticlesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeMeshes), ProtobufMeshesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSampleSets), ProtobufSampleSetsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeLookups), ProtobufLookupsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeEvents), ProtobufEventsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializePlayers), ProtobufPlayersBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeZoos), ProtobufZoosBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeOrderBooks), ProtobufOrderBooksBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeArticles), ProtobufArticlesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeMeshes), ProtobufMeshesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeSampleSets), ProtobufSampleSetsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeLookups), ProtobufLookupsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeEvents), ProtobufEventsBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePlayers), LuminPackPlayersBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeZoos), LuminPackZoosBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeOrderBooks), LuminPackOrderBooksBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeArticles), LuminPackArticlesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSampleSets), LuminPackSampleSetsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeLookups), LuminPackLookupsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeEvents), LuminPackEventsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializePlayers), LuminPackPlayersBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeZoos), LuminPackZoosBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeOrderBooks), LuminPackOrderBooksBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeArticles), LuminPackArticlesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeSampleSets), LuminPackSampleSetsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeLookups), LuminPackLookupsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeEvents), LuminPackEventsBytes);
     }
 
     [GlobalSetup]
@@ -791,23 +791,23 @@ partial class AppDataTest
         NinoEventsBytes = NinoGen.Serializer.Serialize(Events);
         MemoryPackEventsBytes = MemoryPackSerializer.Serialize(Events);
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePlayers), NinoPlayersBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeZoos), NinoZoosBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeOrderBooks), NinoOrderBooksBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeArticles), NinoArticlesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeMeshes), NinoMeshesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSampleSets), NinoSampleSetsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLookups), NinoLookupsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeEvents), NinoEventsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializePlayers), NinoPlayersBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeZoos), NinoZoosBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeOrderBooks), NinoOrderBooksBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeArticles), NinoArticlesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeMeshes), NinoMeshesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSampleSets), NinoSampleSetsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLookups), NinoLookupsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeEvents), NinoEventsBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePlayers), MemoryPackPlayersBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeZoos), MemoryPackZoosBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeOrderBooks), MemoryPackOrderBooksBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeArticles), MemoryPackArticlesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeMeshes), MemoryPackMeshesBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSampleSets), MemoryPackSampleSetsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeLookups), MemoryPackLookupsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeEvents), MemoryPackEventsBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializePlayers), MemoryPackPlayersBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeZoos), MemoryPackZoosBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeOrderBooks), MemoryPackOrderBooksBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeArticles), MemoryPackArticlesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeMeshes), MemoryPackMeshesBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSampleSets), MemoryPackSampleSetsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeLookups), MemoryPackLookupsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeEvents), MemoryPackEventsBytes);
     }
 
     [GlobalSetup]

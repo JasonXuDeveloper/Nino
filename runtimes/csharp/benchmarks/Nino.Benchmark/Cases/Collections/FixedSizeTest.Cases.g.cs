@@ -61,25 +61,25 @@ partial class FixedSizeTest
         ProtobufFixedClassesBytes = ProtobufModel.Serialize(FixedClasses);
         LuminPackFixedClassesBytes = LuminPackBuffers.Bytes(FixedClasses, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedStruct), NinoFixedStructBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClass), NinoFixedClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClasses), NinoFixedClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedStruct), NinoFixedStructBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClass), NinoFixedClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClasses), NinoFixedClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedStruct), MemoryPackFixedStructBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedClass), MemoryPackFixedClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedClasses), MemoryPackFixedClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedStruct), MemoryPackFixedStructBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedClass), MemoryPackFixedClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedClasses), MemoryPackFixedClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeFixedStruct), MessagePackFixedStructBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeFixedClass), MessagePackFixedClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeFixedClasses), MessagePackFixedClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeFixedStruct), MessagePackFixedStructBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeFixedClass), MessagePackFixedClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeFixedClasses), MessagePackFixedClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedStruct), ProtobufFixedStructBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedClass), ProtobufFixedClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedClasses), ProtobufFixedClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedStruct), ProtobufFixedStructBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedClass), ProtobufFixedClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeFixedClasses), ProtobufFixedClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedStruct), LuminPackFixedStructBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedClass), LuminPackFixedClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedClasses), LuminPackFixedClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedStruct), LuminPackFixedStructBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedClass), LuminPackFixedClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeFixedClasses), LuminPackFixedClassesBytes);
     }
 
     [GlobalSetup]
@@ -318,13 +318,13 @@ partial class FixedSizeTest
         NinoFixedClassesBytes = NinoGen.Serializer.Serialize(FixedClasses);
         MemoryPackFixedClassesBytes = MemoryPackSerializer.Serialize(FixedClasses);
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedStruct), NinoFixedStructBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClass), NinoFixedClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClasses), NinoFixedClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedStruct), NinoFixedStructBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClass), NinoFixedClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeFixedClasses), NinoFixedClassesBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedStruct), MemoryPackFixedStructBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedClass), MemoryPackFixedClassBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedClasses), MemoryPackFixedClassesBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedStruct), MemoryPackFixedStructBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedClass), MemoryPackFixedClassBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeFixedClasses), MemoryPackFixedClassesBytes);
     }
 
     [GlobalSetup]

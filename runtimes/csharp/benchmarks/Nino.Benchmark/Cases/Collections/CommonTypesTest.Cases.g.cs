@@ -72,28 +72,28 @@ partial class CommonTypesTest
         ProtobufStringDictionaryBytes = ProtobufModel.Serialize(Strings);
         LuminPackStringDictionaryBytes = LuminPackBuffers.Bytes(Strings, (v, w) => LuminPackSerializer.Serialize(v, w));
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTree), NinoTreeBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeInventory), NinoInventoryBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeWaypoints), NinoWaypointsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringDictionary), NinoStringDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTree), NinoTreeBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeInventory), NinoInventoryBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeWaypoints), NinoWaypointsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringDictionary), NinoStringDictionaryBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTree), MemoryPackTreeBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeInventory), MemoryPackInventoryBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeWaypoints), MemoryPackWaypointsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringDictionary), MemoryPackStringDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTree), MemoryPackTreeBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeInventory), MemoryPackInventoryBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeWaypoints), MemoryPackWaypointsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringDictionary), MemoryPackStringDictionaryBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeTree), MessagePackTreeBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeInventory), MessagePackInventoryBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeWaypoints), MessagePackWaypointsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeStringDictionary), MessagePackStringDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeTree), MessagePackTreeBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeInventory), MessagePackInventoryBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeWaypoints), MessagePackWaypointsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MessagePackSerializeStringDictionary), MessagePackStringDictionaryBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeInventory), ProtobufInventoryBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeWaypoints), ProtobufWaypointsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeStringDictionary), ProtobufStringDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeInventory), ProtobufInventoryBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeWaypoints), ProtobufWaypointsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(ProtobufSerializeStringDictionary), ProtobufStringDictionaryBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTree), LuminPackTreeBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeInventory), LuminPackInventoryBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeStringDictionary), LuminPackStringDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeTree), LuminPackTreeBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeInventory), LuminPackInventoryBytes);
+        BenchmarkPayloadRegistry.Register(nameof(LuminPackSerializeStringDictionary), LuminPackStringDictionaryBytes);
     }
 
     [GlobalSetup]
@@ -407,15 +407,15 @@ partial class CommonTypesTest
         NinoStringDictionaryBytes = NinoGen.Serializer.Serialize(Strings);
         MemoryPackStringDictionaryBytes = MemoryPackSerializer.Serialize(Strings);
 
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTree), NinoTreeBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeInventory), NinoInventoryBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeWaypoints), NinoWaypointsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringDictionary), NinoStringDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTree), NinoTreeBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeInventory), NinoInventoryBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeWaypoints), NinoWaypointsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringDictionary), NinoStringDictionaryBytes);
 
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTree), MemoryPackTreeBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeInventory), MemoryPackInventoryBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeWaypoints), MemoryPackWaypointsBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringDictionary), MemoryPackStringDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeTree), MemoryPackTreeBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeInventory), MemoryPackInventoryBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeWaypoints), MemoryPackWaypointsBytes);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringDictionary), MemoryPackStringDictionaryBytes);
     }
 
     [GlobalSetup]
