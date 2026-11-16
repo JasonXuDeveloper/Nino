@@ -71,7 +71,7 @@ jobs:
       go: ${{ steps.diff.outputs.go }}
       typescript: ${{ steps.diff.outputs.typescript }}
     steps:
-      # maple (one runner process on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
+      # maple (two runner processes on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
       # otherwise surface as an odd build error, and keep every cache this job writes in RUNNER_TEMP, which "Free
       # maple's disk" deletes at its end. The toolchains stay installed (the .NET SDKs, rustup's toolchains in
       # RUSTUP_HOME); NuGet's, npm's, Cargo's and Go's caches, dotnet's home and the temporary files do not outlive the

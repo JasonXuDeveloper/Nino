@@ -67,9 +67,9 @@ defaults:
 # Only the plan of a push runs on maple, the repository's self-hosted runner (while the repository variable NINO_MAPLE
 # is not false; ci.yml, at its jobs, says what keeps a fork off maple). The fuzzers stay on GitHub's runners: maple's
 # CPU has no AVX-512 VBMI, so its "SIMD" and "without AVX-512" runs would take the same paths, where GitHub's x64
-# runners are Xeons with AVX-512 about half the time; it is one runner process on a shared host with about 8 GB, which
-# the nightly runs (two configurations side by side, 30 minutes each) would hold from every other maple job; and
-# libFuzzer installs clang with apt, which needs sudo.
+# runners are Xeons with AVX-512 about half the time; it is a shared host with about 8 GB, where the nightly runs (two
+# configurations side by side, 30 minutes each) would hold a runner for an hour and crowd the other maple job's
+# memory; and libFuzzer installs clang with apt, which needs sudo.
 jobs:
   # A push to main whose merge commit has the tree its pull request's last run fuzzed (.github/scripts/changed_paths.py,
   # --tested-in-pr) fuzzes nothing again: the nightly run fuzzes main with thirty times the budget. Pull requests,
@@ -87,7 +87,7 @@ jobs:
     outputs:
       fuzz: ${{ steps.diff.outputs.fuzz }}
     steps:
-      # maple (one runner process on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
+      # maple (two runner processes on a shared host, 72 GB of disk): stop at once on a nearly full disk, which would
       # otherwise surface as an odd build error, and keep every cache this job writes in RUNNER_TEMP, which "Free
       # maple's disk" deletes at its end. The toolchains stay installed (the .NET SDKs, rustup's toolchains in
       # RUSTUP_HOME); NuGet's, npm's, Cargo's and Go's caches, dotnet's home and the temporary files do not outlive the
