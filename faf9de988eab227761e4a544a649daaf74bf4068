@@ -1,0 +1,1 @@
+Performance: Raw `T?` collections of elements from 17 bytes (`Guid?`, structs of five to nine words) serialize 1.5–1.6x as fast on AVX2 (EPYC 7763) and 1.8x on Neoverse-N2 (runner A/B, runs 43869481647 and 43894580385).
