@@ -53,6 +53,13 @@ its own `AGENTS.md` maps every file in it.
   the test branch's A/B workflows reach in another commit's tree (a project, a benchmark, a report script) is not
   replaced but added: the new place first in `.github/scripts/layout.py`'s `KEYS`, the old kept for the tags and
   commits that still have it, with a case in `test_layout.py` (`audit-ci`, "A workflow finds every path").
+- Move an `.editorconfig` with the files it configures, and rewrite every section that names a path (a glob with a
+  `/`) relative to its new place; then prove each such section applies with a probe that breaks its rule (a
+  culture-sensitive `StartsWith` in the generator must fail the build with CA1310 as an error). Why: a section's path
+  is relative to the file, not the solution, so a wrong one matches nothing and says nothing. The root
+  `.editorconfig`'s `[{Nino.Generator,Nino.Generator.CodeFixes}/**.cs]`, meant for `src/Nino.Generator`, never matched
+  from the day it was added (the probe gave a warning, not the error), and stayed at the root after the move into
+  `runtimes/csharp` (round of 2026-11-16).
 - Prove a move or split of code changed nothing: for the generator, build runtimes/csharp/tests/Nino.UnitTests with
   `-p:EmitCompilerGeneratedFiles=true` before (a clean worktree of the base) and after, and `diff -r` every
   `obj/**/generated` tree (byte-identical when the generator and its tests were split, test files moved too: Roslyn
