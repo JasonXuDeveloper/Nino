@@ -18,7 +18,11 @@
     </ItemGroup>
 
     <!-- Roslyn. The generator is compiled against the oldest compiler each of its builds supports: 4.3 here (Unity),
-         4.8 and 4.12 in Nino.Generator.Roslyn4.8 and Nino.Generator.Roslyn4.12 (VersionOverride). -->
+         4.8 and 4.12 in Nino.Generator.Roslyn4.8 and Nino.Generator.Roslyn4.12 (VersionOverride). The tests compile with
+         the compiler of the .NET 11 SDK (NinoTestRoslynVersion, a VersionOverride in Nino.UnitTests), which parses C# 15. -->
+    <PropertyGroup>
+        <NinoTestRoslynVersion>5.12.0</NinoTestRoslynVersion>
+    </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0"/>

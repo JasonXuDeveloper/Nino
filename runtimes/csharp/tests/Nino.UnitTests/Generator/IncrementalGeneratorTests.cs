@@ -254,13 +254,13 @@ public class IncrementalGeneratorTests
         // function pointer type: the registry names the fields of every struct the compilation sees (by assembly and
         // runtime name, loading no type) for Nino.Core to lay out as pointers, zero-extended. A struct of another
         // assembly that a member names, ones declared here that only generic code reaches, generic and nested ones,
-        // auto-properties and positional record structs; an nint is no function pointer.
+        // auto-properties; an nint is no function pointer. (Not positional record structs: the compiler of the .NET 11
+        // SDK rejects a delegate* parameter there, CS8908, as the tests' Roslyn 5.12 does.)
         var library = CreateNamed("FnLib", ("Lib.cs", "namespace Lib { public unsafe struct Remote { public int A; public delegate*<int> Call; } }"));
         var compilation = CreateNamed("FnApp",
                 ("Types.cs", Usings + "public unsafe struct Local { public byte A; public delegate*<int> F; public nint N; }\n" +
                              "public unsafe struct Generic<T> where T : unmanaged { public T V; public delegate*<T, void> F; }\n" +
                              "public unsafe class Outer { private struct Hidden { public delegate* unmanaged<void> G { get; set; } } }\n" +
-                             "public unsafe record struct Positional(delegate*<int> P, int Q);\n" +
                              "public struct Plain { public nint N; }\n" +
                              "[NinoType] public class Holder { public Lib.Remote R; }\n}"))
             .AddReferences(library.ToMetadataReference());
@@ -274,7 +274,6 @@ public class IncrementalGeneratorTests
                 "\"FnApp\", \"Inc.Local\", \"F\");",
                 "\"FnApp\", \"Inc.Generic<T>\", \"F\");",
                 "\"FnApp\", \"Inc.Outer+Hidden\", \"<G>k__BackingField\");",
-                "\"FnApp\", \"Inc.Positional\", \"<P>k__BackingField\");",
             }, PointerRegistrations(driver, "FnApp"));
     }
 

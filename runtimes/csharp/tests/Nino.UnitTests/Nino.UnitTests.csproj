@@ -51,9 +51,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
-        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
+        <!-- The tests compile, analyze and fix C# with the Roslyn of the .NET 11 SDK, which parses C# 15 (unions); the
+             generator builds keep the Roslyn each targets (Directory.Packages.props: 4.3 for Unity, 4.8, 4.12). -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(NinoTestRoslynVersion)" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" VersionOverride="$(NinoTestRoslynVersion)" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" VersionOverride="$(NinoTestRoslynVersion)" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing.MSTest" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.MSTest" />
