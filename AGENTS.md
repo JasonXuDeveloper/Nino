@@ -48,7 +48,7 @@ one (CI runs `tools/agents.sh --check`, which also checks that every file is in 
 ## Layout
 
 ```
-runtimes/csharp/ .NET: Nino.slnx, Directory.Build.props, Directory.Packages.props, global.json and nuget.config, and
+runtimes/csharp/ .NET: Nino.slnx, Directory.Build.props, Directory.Packages.props, .editorconfig, global.json and nuget.config, and
   src/          the packages: Nino.Core (runtime), Nino.Generator (+ CodeFixes, Roslyn4.8/4.12 builds), Nino.Immutable,
                 Nino.AspNetCore, Nino.Codegen (+ .Tool: nino-gen), Nino.Unity (the Unity project and package),
                 Nino.UnityTypes; src/Nino is the meta package

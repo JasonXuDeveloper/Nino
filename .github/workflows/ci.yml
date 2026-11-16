@@ -16,7 +16,7 @@ on:
       - 'runtimes/csharp/benchmarks/Nino.Benchmark/**'
       - 'runtimes/csharp/benchmarks/Nino.GeneratorBenchmark/**'
       - 'tests/**'
-      - '.editorconfig'
+      - 'runtimes/csharp/.editorconfig'
       - '.github/workflows/ci.yml'
       - '.github/actions/setup-dotnet/**'
       - '.github/actions/apt-install/**'

@@ -9,12 +9,13 @@ dotnet_diagnostic.CA1510.severity = none
 dotnet_diagnostic.CA1512.severity = none
 
 # Analyzer code (the generator and the code fixes) runs inside the compiler and the IDE: no culture-sensitive string
-# operations.
-[{Nino.Generator,Nino.Generator.CodeFixes}/**.cs]
+# operations. (A section's path is relative to this file: src/Nino.Generator, which the Roslyn 4.8 and 4.12 builds
+# compile too.)
+[src/{Nino.Generator,Nino.Generator.CodeFixes}/**.cs]
 dotnet_diagnostic.CA1309.severity = error
 dotnet_diagnostic.CA1310.severity = error
 dotnet_diagnostic.CA1311.severity = error
 
 # These projects group files by responsibility. Moving a file between folders does not rename its type.
-[{runtimes/csharp/src/Nino.Core,runtimes/csharp/src/Nino.Generator,runtimes/csharp/tests/Nino.UnitTests,runtimes/csharp/tests/Nino.UnitTests.Subset,runtimes/csharp/tests/Nino.Codegen.Tests,runtimes/csharp/tests/Nino.Codegen.Integration.Tests,runtimes/csharp/benchmarks/Nino.Benchmark,runtimes/csharp/tests/Nino.Conformance}/**.cs]
+[{src/Nino.Core,src/Nino.Generator,tests/Nino.UnitTests,tests/Nino.UnitTests.Subset,tests/Nino.Codegen.Tests,tests/Nino.Codegen.Integration.Tests,benchmarks/Nino.Benchmark,tests/Nino.Conformance}/**.cs]
 dotnet_style_namespace_match_folder = false
