@@ -62,7 +62,8 @@ runs:
       with:
         dotnet-version: 8.0.x
 
-    - if: inputs.cache != '' && inputs.cache != 'false'
+    # Not on a self-hosted runner: its job's NuGet packages live in RUNNER_TEMP ("Prepare maple") and go with the job.
+    - if: inputs.cache != '' && inputs.cache != 'false' && runner.environment != 'self-hosted'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.nuget/packages

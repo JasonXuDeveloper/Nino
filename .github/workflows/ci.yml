@@ -64,7 +64,8 @@ env:
 # that Dependabot did not open. A pull request from a fork or from Dependabot runs them on GitHub's runners (the
 # fallback in each runs-on), as does every run while the repository variable NINO_MAPLE is false (maple offline: a job
 # for a runner that is not there waits in the queue for a day). fuzz.yml, runtimes.yml, codeql.yml and agents.yml
-# repeat the condition (runs-on cannot read env). A job on maple deletes its workspace and RUNNER_TEMP at its end.
+# repeat the condition (runs-on cannot read env). A job on maple keeps its caches in RUNNER_TEMP and
+# deletes them at its end; maple's job-completed hook deletes the workspace and RUNNER_TEMP (the audit-ci skill).
 # The condition only routes honest runs: a fork's pull request runs its own copy of this file, so what keeps a fork's
 # code off maple is on maple (a job-started hook that refuses it) and the repository's approval of fork runs.
 jobs:
@@ -141,12 +142,17 @@ jobs:
             'runtime=^(?!runtimes/)' \
             'integrations=.' | tee -a "$GITHUB_OUTPUT"
 
-      # maple keeps a job's workspace and RUNNER_TEMP until its next job: give the disk back, whatever happened.
-      # GitHub's runners skip it.
+      # The job's caches ($RUNNER_TEMP/home, "Prepare maple") and what it built (untracked files in the checkout), the
+      # bulk of its disk, freed whatever happened. The checkout and the rest of RUNNER_TEMP stay for the post steps that
+      # run after this one (checkout's, and those of the actions inside .github/actions/setup-dotnet, which the runner
+      # reads again then); maple's job-completed hook deletes them after those (the audit-ci skill). GitHub's runners
+      # skip it.
       - &free-maple
         name: Free maple's disk
         if: always() && runner.environment == 'self-hosted'
-        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/home"
+          git -C "$GITHUB_WORKSPACE" clean -fdxq 2>/dev/null || true
 
   # Every configuration runs the whole unit test suite in three shards, side by side on one runner: the ShapeMatrix
   # rows compile some 70 shapes each and take two thirds of the suite's time, so each half of them is a shard, and

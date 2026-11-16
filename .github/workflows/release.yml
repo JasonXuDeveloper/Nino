@@ -62,8 +62,9 @@ env:
 # global.json asks for, rustup, gh, jq and python3, no sudo), so a release no longer waits for GitHub's runners behind
 # other workflows. This workflow runs only by hand, from main: no pull request reaches maple through it. Only the
 # toolchains stay on maple (the .NET SDKs, rustup's toolchains, the Node.js of the tool cache): "Prepare maple" points
-# NuGet's, npm's and Cargo's caches, dotnet's home and the temporary files into RUNNER_TEMP, and "Free maple's disk"
-# deletes it and the workspace after every job. Nothing a release needs is kept between runs: the UPM CLI and npm are
+# NuGet's, npm's and Cargo's caches, dotnet's home and the temporary files into RUNNER_TEMP/home, "Free maple's disk"
+# deletes them and the build's untracked files, and maple's job-completed hook deletes the workspace and RUNNER_TEMP
+# after the post steps (the audit-ci skill). Nothing a release needs is kept between runs: the UPM CLI and npm are
 # installed per run into RUNNER_TEMP, and every credential is a per-run OIDC token or a repository secret.
 #
 # Bash with -e and -o pipefail for every run step: a command piped into tee, grep or sed fails its step when it fails.
@@ -250,12 +251,17 @@ jobs:
           fi
           git push origin HEAD:main "${TAGS[@]}"
 
-      # maple keeps a job's workspace and RUNNER_TEMP (its caches included) until its next job: give the disk back,
-      # whatever happened, after the uploads. GitHub's runners skip it.
+      # The job's caches ($RUNNER_TEMP/home, "Prepare maple") and what it built (untracked files in the checkout), the
+      # bulk of its disk, freed whatever happened. The checkout and the rest of RUNNER_TEMP stay for the post steps that
+      # run after this one (checkout's, and those of the actions inside .github/actions/setup-dotnet, which the runner
+      # reads again then); maple's job-completed hook deletes them after those (the audit-ci skill). GitHub's runners
+      # skip it.
       - &free-maple
         name: Free maple's disk
         if: always() && runner.environment == 'self-hosted'
-        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/home"
+          git -C "$GITHUB_WORKSPACE" clean -fdxq 2>/dev/null || true
 
   publish:
     runs-on: [self-hosted, Linux, X64, maple]

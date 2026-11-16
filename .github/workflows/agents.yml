@@ -101,7 +101,13 @@ jobs:
           python3 -m unittest discover -s .github/scripts -p 'test_changed_paths.py'
           python3 -m unittest discover -s .github/scripts/triage -p 'test_*.py'
 
-      # maple keeps a job's workspace and RUNNER_TEMP until its next job: give the disk back, whatever happened.
+      # The job's caches ($RUNNER_TEMP/home, "Prepare maple") and what it built (untracked files in the checkout), the
+      # bulk of its disk, freed whatever happened. The checkout and the rest of RUNNER_TEMP stay for the post steps that
+      # run after this one (checkout's, and those of the actions inside .github/actions/setup-dotnet, which the runner
+      # reads again then); maple's job-completed hook deletes them after those (the audit-ci skill). GitHub's runners
+      # skip it.
       - name: Free maple's disk
         if: always() && runner.environment == 'self-hosted'
-        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/home"
+          git -C "$GITHUB_WORKSPACE" clean -fdxq 2>/dev/null || true

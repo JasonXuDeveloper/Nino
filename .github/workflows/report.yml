@@ -37,8 +37,8 @@ env:
   GENERATOR_BENCHMARK: benchmarks/Nino.GeneratorBenchmark
 
 # The jobs that are no matrix run on maple, the repository's self-hosted runner ([self-hosted, Linux, X64, maple]: no
-# sudo; each job's caches in RUNNER_TEMP, "Prepare maple", and the workspace and RUNNER_TEMP deleted after it, "Free
-# maple's disk", as in release.yml), so they wait for no GitHub runner behind the matrices:
+# sudo; each job's caches in RUNNER_TEMP/home, "Prepare maple", deleted at its end, "Free maple's disk", and the rest by
+# maple's job-completed hook, as in release.yml), so they wait for no GitHub runner behind the matrices:
 # target, generator, publish-runtimes, publish-generator and publish-unity. This workflow runs by hand or for a
 # published release, never for a pull request. The matrices (bench, runtimes, unity.yml) stay on GitHub's runners, as
 # does publish, whose readme.py --png renders the overview chart with the runner image's Google Chrome.
@@ -234,12 +234,17 @@ jobs:
   # Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64 never takes); an Arm64
   # failure leaves that section out and never blocks the x64 report.
 
-      # maple keeps a job's workspace and RUNNER_TEMP (its caches included) until its next job: give the disk back,
-      # whatever happened, after the uploads. GitHub's runners skip it.
+      # The job's caches ($RUNNER_TEMP/home, "Prepare maple") and what it built (untracked files in the checkout), the
+      # bulk of its disk, freed whatever happened. The checkout and the rest of RUNNER_TEMP stay for the post steps that
+      # run after this one (checkout's, and those of the actions inside .github/actions/setup-dotnet, which the runner
+      # reads again then); maple's job-completed hook deletes them after those (the audit-ci skill). GitHub's runners
+      # skip it.
       - &free-maple
         name: Free maple's disk
         if: always() && runner.environment == 'self-hosted'
-        run: find "$GITHUB_WORKSPACE" "$RUNNER_TEMP" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+        run: |
+          rm -rf "${RUNNER_TEMP:?}/home"
+          git -C "$GITHUB_WORKSPACE" clean -fdxq 2>/dev/null || true
   bench:
     name: Benchmark (${{ matrix.arch }} ${{ matrix.shard }})
     needs: target
