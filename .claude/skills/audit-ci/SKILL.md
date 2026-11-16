@@ -192,7 +192,43 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   NuGet packages, needs a few GB; a full disk would show as an odd build error), then points every cache into
   `$RUNNER_TEMP/home`: `NUGET_PACKAGES`, `NUGET_HTTP_CACHE_PATH`, `NUGET_PLUGINS_CACHE_PATH`, `DOTNET_CLI_HOME`,
   `npm_config_cache`, `CARGO_HOME`, `GOMODCACHE`, `GOCACHE` and `TMPDIR`. Free (`if: always()`, after the uploads)
-  deletes the workspace and RUNNER_TEMP. Only the toolchains stay: the .NET SDKs (`.github/actions/setup-dotnet`
+  deletes only what no post step reads: `$RUNNER_TEMP/home` and the checkout's untracked files (`git clean -fdx`).
+  Never the checkout itself or the rest of RUNNER_TEMP: post steps run after every step of the job, and the runner
+  reads `.github/actions/setup-dotnet/action.yml` again then for the post steps of the actions inside it (run
+  43847416342: a Free step that deleted the workspace failed the job with "Can't find 'action.yml' ... under
+  .../.github/actions/setup-dotnet"); checkout's post step reads `.git`. maple's job-completed hook, which runs after
+  the post steps, deletes the rest; it must hold at least this (`ACTIONS_RUNNER_HOOK_JOB_COMPLETED` in the runner's
+  `.env`, the script outside the runner's folder):
+
+  ```bash
+  #!/usr/bin/env bash
+  # After every job and its post steps: the job's checkouts (_work/<repo>/*) and RUNNER_TEMP (_work/_temp).
+  set -u
+  repo_dir=$(dirname "${GITHUB_WORKSPACE:?}")
+  find "$repo_dir" "${RUNNER_TEMP:?}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
+  df -h "$repo_dir" | tail -n 1
+  exit 0
+  ```
+
+  Its job-started hook (`ACTIONS_RUNNER_HOOK_JOB_STARTED`), the guard against forks the maple bullet names; a
+  non-zero exit fails the job before any step:
+
+  ```bash
+  #!/usr/bin/env bash
+  set -euo pipefail
+  case "$GITHUB_EVENT_NAME" in
+    push|workflow_dispatch|schedule|release|workflow_call) exit 0 ;;
+    pull_request) ;;
+    *) echo "maple refuses $GITHUB_EVENT_NAME"; exit 1 ;;
+  esac
+  head=$(jq -r '.pull_request.head.repo.full_name' "$GITHUB_EVENT_PATH")
+  author=$(jq -r '.pull_request.user.login' "$GITHUB_EVENT_PATH")
+  [[ "$head" == "$GITHUB_REPOSITORY" && "$author" != 'dependabot[bot]' && "$GITHUB_ACTOR" != 'dependabot[bot]' ]] ||
+    { echo "maple refuses a pull request from $head by $author"; exit 1; }
+  ```
+
+  No `actions/cache` there (setup-dotnet skips its `cache` input on a self-hosted runner): the job's caches are its
+  own and go with it, and a cache action's post step would read paths Free deleted. Only the toolchains stay: the .NET SDKs (`.github/actions/setup-dotnet`
   names a missing one on a self-hosted runner instead of installing into `/usr/share/dotnet`), rustup's toolchains in
   `RUSTUP_HOME`, and the Node.js of the tool cache. Whatever a release needs is fetched per run: the UPM CLI and npm
   into RUNNER_TEMP, credentials as OIDC tokens or repository secrets. A new maple job gets both steps; a step that
