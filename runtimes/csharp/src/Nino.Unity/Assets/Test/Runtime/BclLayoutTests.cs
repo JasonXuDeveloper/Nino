@@ -217,7 +217,7 @@ namespace Test.Runtime
         /// <typeparamref name="T"/>'s size in compiled code and the distance between elements of a <c>T[]</c> as the
         /// runtime lays the array out (UnsafeAddrOfPinnedArrayElement uses the runtime's element size).
         /// </summary>
-        private static string Sizes<T>(string name) where T : struct
+        private static string Sizes<T>(string name)
         {
             var array = new T[2];
             var handle = System.Runtime.InteropServices.GCHandle.Alloc(array, System.Runtime.InteropServices.GCHandleType.Pinned);
