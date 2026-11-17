@@ -188,24 +188,24 @@ namespace Test.Runtime.Burst
         [Test, Order(0)] // first: the cases after it read and write these values
         public unsafe void LayoutOfNullableStruct()
         {
-            Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}", "NINO_LAYOUT|start");
             var value = new Nino.Benchmark.SimpleStruct { Id = 0x11223344, CreateTime = new DateTime(0x0123456789ABCDEFL) };
             Nino.Benchmark.SimpleStruct? nullable = value;
             string Bytes(void* p, int n) => BitConverter.ToString(new ReadOnlySpan<byte>(p, n).ToArray());
-            var arrayBytes = NinoSerializer.Serialize(new Nino.Benchmark.SimpleStruct?[] { value, null, value });
-            var back = NinoDeserializer.Deserialize<Nino.Benchmark.SimpleStruct?[]>(arrayBytes);
-            var backValue = back[2].GetValueOrDefault();
-            Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}",
-                $"NINO_LAYOUT|SizeOf<SimpleStruct>={System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct>()}" +
+            void Log(string line) => Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}", "NINO_LAYOUT|" + line);
+            // The memory first, before Nino touches the values: a write past a value's end corrupts the heap.
+            Log($"SizeOf<SimpleStruct>={System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct>()}" +
                 $"|SizeOf<SimpleStruct?>={System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct?>()}" +
                 $"|value={Bytes(&value, System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct>())}" +
                 $"|nullable={Bytes(&nullable, System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct?>())}" +
-                $"|single={BitConverter.ToString(NinoSerializer.Serialize(nullable))}" +
-                $"|array={BitConverter.ToString(arrayBytes)}" +
-                $"|back[2]={backValue.Id:X8},{backValue.CreateTime.Ticks:X16},{back[1].HasValue}" +
                 $"|generic:SizeOf<T>={SizeOf<Nino.Benchmark.SimpleStruct>()},SizeOf<T?>={SizeOf<Nino.Benchmark.SimpleStruct?>()}" +
-                $",value={Dump(value)},nullable={Dump(nullable)}" +
-                $"|plain={BitConverter.ToString(NinoSerializer.Serialize(value))}");
+                $",value={Dump(value)},nullable={Dump(nullable)}");
+            Log($"plain={BitConverter.ToString(NinoSerializer.Serialize(value))}");
+            Log($"single={BitConverter.ToString(NinoSerializer.Serialize(nullable))}");
+            var arrayBytes = NinoSerializer.Serialize(new Nino.Benchmark.SimpleStruct?[] { value, null, value });
+            Log($"array={BitConverter.ToString(arrayBytes)}");
+            var back = NinoDeserializer.Deserialize<Nino.Benchmark.SimpleStruct?[]>(arrayBytes);
+            var backValue = back[2].GetValueOrDefault();
+            Log($"back[2]={backValue.Id:X8},{backValue.CreateTime.Ticks:X16},{back[1].HasValue}");
             Assert.AreEqual(value.Id, backValue.Id, "Id read back");
             Assert.AreEqual(value.CreateTime, backValue.CreateTime, "CreateTime read back");
         }
