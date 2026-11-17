@@ -1,8 +1,12 @@
-# `npx @bufbuild/buf generate` writes benchpb/bench.pb.go (protoc-gen-go v1.36.12 on PATH; see benchpb/bench.proto).
+# generate.sh --proto writes benchpb/ from the .NET suite's .proto files (Nino.Benchmark --write-proto: protobuf-net's
+# contracts of the models), with protoc-gen-go v1.36.12 on PATH and buf (npx @bufbuild/buf).
 version: v2
-inputs:
-  - directory: .
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpb
 plugins:
   - local: protoc-gen-go
-    out: .
+    out: benchpb
     opt: paths=source_relative

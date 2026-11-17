@@ -387,17 +387,20 @@ Checks of the generated machine code: `go build -gcflags=-d=ssa/check_bce/debug=
 
 ## Benchmarks
 
-`bench` is a separate module, so the runtime's own module has no dependencies. It compares Nino with Protocol Buffers
-(google.golang.org/protobuf), `github.com/vmihailenco/msgpack/v5`, `encoding/json` and `encoding/gob` on the data of
-the .NET benchmark's `SimpleClass` (one, and a list of 100), on a list of 1,000,000 records with two strings each in
-an order unrelated to where they are in memory (`scattered-1m`, larger than the caches), on 1,000 strings (ASCII;
-and ASCII, Latin-1 and other text in turn) and on sets (`int-set-1000`, `string-set-1000`: a `HashSet<int>` and a
-`HashSet<string>` of 1,000, which the others write as lists), with `testing.B`; summarize several counts with benchstat:
+`bench` is a separate module, so the runtime's own module has no dependencies. It runs the .NET suite's cases
+(runtimes/csharp/benchmarks) on the bytes .NET writes: the code nino-gen generates for their types (`model/`) reads
+each case and must write the same bytes back, so every run is also a conformance check. It compares Nino with
+Protocol Buffers (google.golang.org/protobuf, on the messages of the suite's `.proto` files, read from protobuf-net's
+bytes), `github.com/vmihailenco/msgpack/v5`, `encoding/json` and `encoding/gob`, one adapter each (`adapter_*.go`);
+a serializer that does not read a case back (an interface value, a shared reference, a NaN) has no row for it. With
+the .NET SDK, write the data and run `testing.B`; summarize several counts with benchstat:
 
 ```sh
 cd runtimes/go/bench
+./generate.sh --data                                          # data/; without --data, model/ too
 go test -run='^$' -bench=. -benchmem -count=6 . | tee bench.txt
 go run golang.org/x/perf/cmd/benchstat@latest bench.txt
+NINO_BENCH_CASES='^Simple' go test -run='^$' -bench=. .       # some cases; NINO_BENCH_QUICK=1: the quick subset
 ```
 
 The benchmarks are `Benchmark{Serialize,Deserialize}/<case>/<serializer>`; see runtimes/csharp/benchmarks/README.md.

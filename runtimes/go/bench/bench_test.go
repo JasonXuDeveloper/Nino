@@ -1,291 +1,118 @@
 package bench
 
 import (
-	"bytes"
-	"encoding/gob"
-	"encoding/json"
-	"math/rand"
-	"reflect"
 	"testing"
 
-	"github.com/JasonXuDeveloper/Nino/runtimes/go/bench/benchpb"
 	nino "github.com/JasonXuDeveloper/Nino/runtimes/go/v4"
-	"github.com/vmihailenco/msgpack/v5"
-	"google.golang.org/protobuf/proto"
 )
 
-func one() *SimpleClass { return NewSimpleClass(rand.New(rand.NewSource(20240607))) }
+// The cases of the .NET suite on the bytes it wrote (generate.sh): for each, the generated codec reads .NET's Nino
+// bytes and must write them back, then every adapter (adapter_*.go) that can express the case is timed. The
+// benchmarks are Benchmark{Serialize,Deserialize}/<case>/<adapter>; an adapter that cannot express a case is
+// skipped with the reason.
 
-func list() []*SimpleClass {
-	rnd := rand.New(rand.NewSource(20240607))
-	v := make([]*SimpleClass, 100)
-	for i := range v {
-		v[i] = NewSimpleClass(rnd)
+// load reads the cases, or skips: without generate.sh's data there is nothing to run.
+func load(tb testing.TB) []*Case {
+	cases, missing, err := loadCases(dataDir())
+	if err != nil {
+		tb.Skipf("no benchmark data (run generate.sh --data, or set NINO_BENCH_DATA): %v", err)
 	}
-	return v
+	for _, m := range missing {
+		tb.Log(m)
+	}
+	return cases
 }
 
-// A serializer of one case's value: encode appends the value's bytes to dst (reusing its room where the library
-// can), decode reads them into a new value and returns it.
-
-func equals[T any](v T) func(any) bool {
-	return func(got any) bool { return reflect.DeepEqual(got, v) }
+// value reads the case's value from .NET's Nino bytes with the generated codec, and checks it writes them back.
+// An object holding a .NET type Go has no form of (BclTypesTest's BigInteger, Uri...) is not a case Go can
+// express: its reason, and no value.
+func value(tb testing.TB, c *Case) (any, string) {
+	data, err := c.Bytes("nino")
+	if err != nil || data == nil {
+		tb.Fatalf("%s: no Nino bytes: %v", c.Name, err)
+	}
+	v, err := nino.DeserializeExact(data, c.codec.Read)
+	if e, ok := err.(*nino.Error); ok && e.Code == nino.CodeUnknownType && c.Type == "System.Object" {
+		return nil, "an object holding a .NET type with no Go form: " + err.Error()
+	}
+	if err != nil {
+		tb.Fatalf("%s: reading .NET's bytes: %v", c.Name, err)
+	}
+	if err := checkNino(c, v, data); err != nil {
+		tb.Fatalf("%s: %v", c.Name, err)
+	}
+	return v, ""
 }
 
-type codec struct {
-	name   string
-	encode func(dst []byte) ([]byte, error)
-	decode func(data []byte) (any, error)
-	// same reports whether a decoded value equals the one encoded.
-	same func(got any) bool
-}
-
-// A case: every serializer compared on its value, Nino first, made when the case runs (so that a large value is
-// not kept alive, and its heap scanned by the collector, while the other cases run). The benchmarks are
-// Benchmark{Serialize,Deserialize}/<case>/<serializer>.
-type benchCase struct {
-	name   string
-	codecs func() []codec
-}
-
-// ninoCodec is the codec in the shape nino-gen generates.
-func ninoCodec[T any](v T, write func(*nino.Writer, T), read func(*nino.Reader) T) codec {
-	return codec{"Nino",
-		func(dst []byte) ([]byte, error) { return nino.Append(dst, v, write) },
-		func(data []byte) (any, error) { return nino.Deserialize(data, read) },
-		equals(v)}
-}
-
-// tagsCodec is the struct-tag path: nino.MarshalAppend and nino.Unmarshal.
-func tagsCodec[T any](v T) codec {
-	return codec{"NinoTags",
-		func(dst []byte) ([]byte, error) { return nino.MarshalAppend(dst, v) },
-		func(data []byte) (any, error) {
-			var out T
-			err := nino.Unmarshal(data, &out)
-			return out, err
-		},
-		equals(v)}
-}
-
-// protoCodec marshals the message the value maps to (benchpb), made once outside the timing, as an application
-// that keeps its data in generated protobuf structs would.
-func protoCodec[M proto.Message](m M, fresh func() M) codec {
-	opts := proto.MarshalOptions{}
-	return codec{"Protobuf",
-		func(dst []byte) ([]byte, error) { return opts.MarshalAppend(dst, m) },
-		func(data []byte) (any, error) {
-			out := fresh()
-			err := proto.Unmarshal(data, out)
-			return out, err
-		},
-		func(got any) bool { return proto.Equal(got.(proto.Message), m) }}
-}
-
-// msgpackCodec reuses one encoder and its buffer, as a long-lived writer would.
-func msgpackCodec[T any](v T) codec {
-	var buf bytes.Buffer
-	enc := msgpack.NewEncoder(&buf)
-	return codec{"MessagePack",
-		func(dst []byte) ([]byte, error) {
-			buf.Reset()
-			enc.Reset(&buf)
-			err := enc.Encode(v)
-			return append(dst, buf.Bytes()...), err
-		},
-		func(data []byte) (any, error) {
-			var out T
-			err := msgpack.Unmarshal(data, &out)
-			return out, err
-		},
-		equals(v)}
-}
-
-func jsonCodec[T any](v T) codec {
-	return codec{"JSON",
-		func(dst []byte) ([]byte, error) {
-			b, err := json.Marshal(v)
-			return append(dst, b...), err
-		},
-		func(data []byte) (any, error) {
-			var out T
-			err := json.Unmarshal(data, &out)
-			return out, err
-		},
-		equals(v)}
-}
-
-// gobCodec uses a new encoder and decoder per value (each message carries its type), as a one-shot serializer
-// would.
-func gobCodec[T any](v T) codec {
-	var buf bytes.Buffer
-	return codec{"Gob",
-		func(dst []byte) ([]byte, error) {
-			buf.Reset()
-			err := gob.NewEncoder(&buf).Encode(v)
-			return append(dst, buf.Bytes()...), err
-		},
-		func(data []byte) (any, error) {
-			var out T
-			err := gob.NewDecoder(bytes.NewReader(data)).Decode(&out)
-			return out, err
-		},
-		equals(v)}
-}
-
-func stringsCase(name string, values func() []string) benchCase {
-	return benchCase{name, func() []codec {
-		v := values()
-		return []codec{
-			ninoCodec(v, WriteStrings, ReadStrings),
-			tagsCodec(v),
-			protoCodec(&benchpb.Strings{Values: v}, func() *benchpb.Strings { return &benchpb.Strings{} }),
-			msgpackCodec(v),
-			jsonCodec(v),
-			gobCodec(v),
+// TestCases reads and writes back every case, and checks every adapter on it, logging which cannot and the sizes.
+func TestCases(t *testing.T) {
+	for _, c := range load(t) {
+		v, why := value(t, c)
+		if why != "" {
+			t.Logf("%s: skipped: %s", c.Name, why)
+			continue
 		}
-	}}
-}
-
-func cases() []benchCase {
-	return []benchCase{
-		{"simple-class", func() []codec {
-			v := one()
-			return []codec{
-				ninoCodec(v, WriteSimpleClass, ReadSimpleClass),
-				tagsCodec(v),
-				protoCodec(protoSimpleClass(v), func() *benchpb.SimpleClass { return &benchpb.SimpleClass{} }),
-				msgpackCodec(v),
-				jsonCodec(v),
-				gobCodec(v),
+		for _, a := range adapters {
+			codec, why := a.Prepare(c, v)
+			if codec == nil {
+				t.Logf("%s/%s: skipped: %s", c.Name, a.Name(), why)
+				continue
 			}
-		}},
-		{"simple-class-100", func() []codec {
-			vs := list()
-			return []codec{
-				ninoCodec(vs, WriteSimpleClasses, ReadSimpleClasses),
-				tagsCodec(vs),
-				protoCodec(protoSimpleClasses(vs), func() *benchpb.SimpleClasses { return &benchpb.SimpleClasses{} }),
-				msgpackCodec(vs),
-				jsonCodec(vs),
-				gobCodec(vs),
-			}
-		}},
-		{"scattered-1m", func() []codec {
-			v := ScatteredRecords()
-			return []codec{
-				ninoCodec(v, WriteRecords, ReadRecords),
-				tagsCodec(v),
-				protoCodec(protoRecords(v), func() *benchpb.Records { return &benchpb.Records{} }),
-				msgpackCodec(v),
-				jsonCodec(v),
-				gobCodec(v),
-			}
-		}},
-		{"int-set-1000", func() []codec {
-			v := SetInts()
-			return []codec{
-				ninoCodec(v, WriteIntSet, ReadIntSet),
-				tagsCodec(v),
-				protoCodec(&benchpb.Ints{Values: v}, func() *benchpb.Ints { return &benchpb.Ints{} }),
-				msgpackCodec(v),
-				jsonCodec(v),
-				gobCodec(v),
-			}
-		}},
-		{"string-set-1000", func() []codec {
-			v := SetStrings()
-			texts := make([]string, len(v))
-			for i, s := range v {
-				texts[i] = *s
-			}
-			return []codec{
-				ninoCodec(v, WriteStringSet, ReadStringSet),
-				tagsCodec(v),
-				protoCodec(&benchpb.Strings{Values: texts}, func() *benchpb.Strings { return &benchpb.Strings{} }),
-				msgpackCodec(v),
-				jsonCodec(v),
-				gobCodec(v),
-			}
-		}},
-		stringsCase("strings-1000", ASCIIStrings),
-		stringsCase("strings-mixed-1000", MixedStrings),
-		// The same strings as a [NinoUtf8] string[]: Nino only (the others write what they write above).
-		{"strings-mixed-utf8-1000", func() []codec {
-			mixed := MixedStrings()
-			return []codec{ninoCodec(mixed, WriteUtf8Strings, ReadUtf8Strings)}
-		}},
-	}
-}
-
-// TestRoundTrip checks that every serializer compared reads back what it wrote, and logs the sizes.
-func TestRoundTrip(t *testing.T) {
-	for _, c := range cases() {
-		for _, s := range c.codecs() {
-			data, err := s.encode(nil)
-			if err != nil {
-				t.Fatalf("%s/%s: %v", c.name, s.name, err)
-			}
-			got, err := s.decode(data)
-			if err != nil {
-				t.Fatalf("%s/%s: %v", c.name, s.name, err)
-			}
-			if !s.same(got) {
-				t.Fatalf("%s/%s: read back differs", c.name, s.name)
-			}
-			t.Logf("%s/%s: %d bytes", c.name, s.name, len(data))
+			data, _ := codec.Encode(nil)
+			t.Logf("%s/%s: %d bytes", c.Name, a.Name(), len(data))
 		}
-	}
-	// The struct-tag path reads the codec's bytes too (it writes the maps in key order, so the bytes may differ).
-	v := one()
-	data, _ := nino.Serialize(v, WriteSimpleClass)
-	var back *SimpleClass
-	if err := nino.UnmarshalExact(data, &back); err != nil || !reflect.DeepEqual(back, v) {
-		t.Fatalf("tags reading the codec's bytes: %v", err)
 	}
 }
 
 // Each benchmark reports the encoded size of its value as wire-B (after the loop, which resets the metrics), and
-// sets it as the bytes per op, for MB/s.
+// sets it as the bytes per op, for MB/s. Each case's value lives only while its benchmarks run.
 
 func BenchmarkSerialize(b *testing.B) {
-	for _, c := range cases() {
-		b.Run(c.name, func(b *testing.B) {
-			for _, s := range c.codecs() {
-				b.Run(s.name, func(b *testing.B) {
-					buf, err := s.encode(nil)
-					if err != nil {
-						b.Fatal(err)
-					}
-					b.SetBytes(int64(len(buf)))
-					b.ReportAllocs()
-					for b.Loop() {
-						buf, _ = s.encode(buf[:0])
-					}
-					b.ReportMetric(float64(len(buf)), "wire-B")
-				})
-			}
-		})
-	}
+	run(b, func(b *testing.B, codec *Codec) {
+		buf, err := codec.Encode(nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.SetBytes(int64(len(buf)))
+		b.ReportAllocs()
+		for b.Loop() {
+			buf, _ = codec.Encode(buf[:0])
+		}
+		b.ReportMetric(float64(len(buf)), "wire-B")
+	})
 }
 
 func BenchmarkDeserialize(b *testing.B) {
-	for _, c := range cases() {
-		b.Run(c.name, func(b *testing.B) {
-			for _, s := range c.codecs() {
-				b.Run(s.name, func(b *testing.B) {
-					data, err := s.encode(nil)
-					if err != nil {
-						b.Fatal(err)
+	run(b, func(b *testing.B, codec *Codec) {
+		data, err := codec.Encode(nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+		b.SetBytes(int64(len(data)))
+		b.ReportAllocs()
+		for b.Loop() {
+			if _, err := codec.Decode(data); err != nil {
+				b.Fatal(err)
+			}
+		}
+		b.ReportMetric(float64(len(data)), "wire-B")
+	})
+}
+
+func run(b *testing.B, time func(*testing.B, *Codec)) {
+	for _, c := range load(b) {
+		b.Run(c.Name, func(b *testing.B) {
+			v, why := value(b, c)
+			if why != "" {
+				b.Skip(why)
+			}
+			for _, a := range adapters {
+				b.Run(a.Name(), func(b *testing.B) {
+					codec, why := a.Prepare(c, v)
+					if codec == nil {
+						b.Skip(why)
 					}
-					b.SetBytes(int64(len(data)))
-					b.ReportAllocs()
-					for b.Loop() {
-						if _, err := s.decode(data); err != nil {
-							b.Fatal(err)
-						}
-					}
-					b.ReportMetric(float64(len(data)), "wire-B")
+					time(b, codec)
 				})
 			}
 		})
