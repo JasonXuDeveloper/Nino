@@ -117,6 +117,9 @@ Nino.UnitTests.csproj        targets, references (Nino.Core, Immutable, UnityTyp
 
 ## Rules for these files
 
+- A test never reads a field `Pack` or `[FieldOffset]` may leave unaligned through reflection (`FieldInfo.GetValue`):
+  CoreCLR on Arm64 and Arm32 dies with SIGBUS there. It writes what it read again and compares the bytes
+  (`platforms`, references/layouts.md).
 - A hostile-input check asserts the exact exception type (`Assert.ThrowsExactly<NinoDataException>`); the caller's
   mistakes and the write side throw `InvalidOperationException`.
 - A new way to declare a type adds a dimension to `Corner/Modeling/ShapeMatrixTests.cs`; a new path through a runtime's

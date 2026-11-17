@@ -36,13 +36,20 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   ("Test the AVX-512 paths"), and a run misses the net10.0 AVX-512 paths only when all four x64 jobs drew EPYCs. Do not add a pinned
   AVX-512 runner or Intel SDE for certainty: the owner decided against it (round 121).
 - Never read a pointer field by reflection: `FieldInfo.GetValue` on `IntPtr`'s `void*` crashed Mono 6.8 with SIGSEGV.
-- On macOS Arm64, isolate a `FieldDesc::GetInstanceField` SIGBUS before blaming the wire reader. The conformance
-  JSON projection of `Packed.B` in `structs-values` and `structs-empty-collections` can hit CoreCLR's `ldapr`
-  when the packed `long` crosses a 16-byte boundary. A standalone boxed Pack=1 struct with a byte followed by a
-  long reproduces through `FieldInfo.GetValue` on 10.0.0 and 10.0.14 when the field address is 9 modulo 16.
-  Logging or changing runtimes can move the boxed object and hide the fault.
-  [Standalone repro](packed-reflection-repro.cs): copy it to `Program.cs` in a net10.0 console project with
-  `AllowUnsafeBlocks` enabled. Run on macOS Arm64 with either runtime to reproduce exit 138 without Nino.
+- Never read a field that `Pack` or `[FieldOffset]` may leave unaligned through `FieldInfo.GetValue`, in Nino.Core or
+  in a test: CoreCLR's reflection loads a `long` or `double` with an instruction that needs alignment, and the process
+  dies with SIGBUS, which no `catch` stops. On Arm64 it is `ldapr` (`FieldDesc::GetInstanceField`, when the field
+  address is 9 modulo 16, so logging or another runtime moves the box and hides it; macOS Arm64 and ci.yml's Arm64
+  runtime-internals job at a5211dda); on Arm32 every unaligned one (qemu-arm reproduces it). Nino.Core's
+  `MeasureMemory` measured fields that way where the model does not describe the runtime (Arm32 does not model
+  auto-layout structs), and the first `Serialize` of a Pack = 4 struct holding a Pack = 1 struct and a
+  `DateTimeOffset` crashed Arm32 .NET: `Visit` now takes a packed or explicit struct's offsets from the model where
+  the model gives the runtime's size (`AddPacked`, c1e7c285), and IL2CPP, which ignores `Pack`, still reflects over
+  its aligned fields. A test checks such a value by writing what it read again and comparing the bytes (BclStructs'
+  `readsByBytes`, 8d9b34bd), never through `Contents`. The conformance JSON projection of `Packed.B` in
+  `structs-values` and `structs-empty-collections` hits the same fault on macOS Arm64; isolate it before blaming the
+  wire reader. [Standalone repro](packed-reflection-repro.cs): copy it to `Program.cs` in a net10.0 console project
+  with `AllowUnsafeBlocks` enabled; on macOS Arm64 it exits 138 without Nino.
 - Take a fact about a type that the generator sees from generated code, never from reflection at run time (the
   owner's rule): reflection differs per runtime, NativeAOT keeps only the metadata it is asked for, and every probe
   costs at startup. A function pointer (`delegate*`) is a pointer, 8 bytes zero-extended, but .NET 8 and later report

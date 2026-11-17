@@ -54,7 +54,19 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   `RawLayout.IsPortable` measures both of its models with `Pack` applied, so it calls such a struct portable and
   generated code copied it as raw memory where it is a member (#378, fixed in fe7aff6f). A new layout form gets a
   case in `LayoutShapes` (BclFixtureTypes.cs), which Nino.RuntimeTests (.NET, Mono) and Unity's
-  `StructLayoutsWriteCoreClrBytes` (editor and IL2CPP player) check against CoreCLR x64's bytes.
+  `StructLayoutsWriteCoreClrBytes` (editor and IL2CPP player) check against CoreCLR x64's bytes, each shape alone,
+  nullable, in collections, inside a struct and as a member of a `[NinoType]`; the Unity test logs every shape's
+  `SizeOf<T>` and `SizeOf<T?>` on the runtime that runs it. No Unity document states the rule: libil2cpp's own
+  `FieldLayout::LayoutFields` applies `Pack` (`min(alignment, packing)`), but it places only generic instances; a
+  non-generic type's offsets are those of the C++ struct il2cpp.exe writes, which the C++ compiler lays out, so check
+  a generic struct with `Pack` (`PackedPair1<T>`) apart from a plain one. Burst gets `Pack` wrong as well: it reports
+  another size than C# and Mono for a struct whose `Pack` under-aligns a field (Unity issue 21013, UUM-143671; Burst
+  1.8.13 and 1.8.29, fixed in 7000.0.0a17, open for 6000.6 and 6000.7 in Nov 2026). Nino's kernels take bytes and
+  offset tables, never such a struct, so pass Burst only bytes, never a user's packed struct type.
+- Expect an unaligned load to crash Arm32 IL2CPP players (Android ARMv7), as it crashed Arm32 .NET: IL2CPP compiles
+  the C# as written, and an unaligned `long`, `double` or `float` access becomes `ldrd`/`vldr`, which fault (K4os.LZ4
+  issue 40, Unity Addressables IN-40828). Read and write through `Unsafe.ReadUnaligned` / `WriteUnaligned` or byte
+  copies wherever an offset can be unaligned (`layouts.md`, unaligned fields by reflection; `emulation.md`, Arm32).
 - Debug an IL2CPP-only failure in the benchmark player (unity.yml with `benchmark`, `-ninoBenchmark`), since CoreCLR
   and Mono cannot show it: log each fact in its own line as soon as it exists, the memory first, before any Nino call,
   because a write past a value corrupts the heap and the player crashes (SIGSEGV, or NUnit's `StringBuilder` failing)
