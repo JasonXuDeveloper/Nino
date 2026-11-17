@@ -792,3 +792,25 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         _ => return None,
     })
 }
+{{~ if serde ~}}
+
+/// [`NinoVisit`] for types that are serde's too (`--serde`, with the `serde` feature): [`with_nino_serde_type`].
+#[cfg(feature = "serde")]
+pub trait NinoSerdeVisit<R> {
+    fn visit<T: NinoRead + NinoWrite + serde::Serialize + serde::de::DeserializeOwned + 'static>(self) -> R;
+}
+
+/// [`with_nino_type`] with the serde traits on the type too, for code that also hands it to a serde format.
+#[cfg(feature = "serde")]
+pub fn with_nino_serde_type<R>(name: &str, f: impl NinoSerdeVisit<R>) -> Option<R> {
+    Some(match name {
+{{~ for t in tops ~}}
+        {{ rust_string(t.runtime_name) }} => f.visit::<{{ t.top }}>(),
+{{~ end ~}}
+{{~ for r in roots ~}}
+        {{ rust_string(r.runtime_name) }} => f.visit::<{{ r.name }}>(),
+{{~ end ~}}
+        _ => return None,
+    })
+}
+{{~ end ~}}
