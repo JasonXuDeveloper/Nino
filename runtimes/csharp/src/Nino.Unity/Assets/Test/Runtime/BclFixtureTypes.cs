@@ -41,8 +41,9 @@ public sealed class LaneParticle
     }
 }
 
-// Structs under every [StructLayout] form (#378): IL2CPP ignores Pack, so a struct Pack moves is laid out apart there
-// (a Pack = 4 { int; DateTime } is 12 bytes on CoreCLR and Mono, 16 on IL2CPP). Each runtime must still write and read
+// Structs under every [StructLayout] form (#378): IL2CPP's Pack never moves a BCL struct field (DateTime, decimal,
+// Guid), so such a struct is laid out apart there (a Pack = 4 { int; DateTime } is 12 bytes on CoreCLR and Mono, 16 on
+// IL2CPP). Each runtime must still write and read
 // CoreCLR x64's bytes, on its own, as a T?, in arrays and lists, inside a plain struct, and as a member of a [NinoType]
 // (generated code's raw members). LayoutShapes.Visit lists the cases once for Nino.RuntimeTests and BclLayoutTests.
 
@@ -113,12 +114,15 @@ public struct ExplicitGapSized
     [System.Runtime.InteropServices.FieldOffset(13)] public short C;
 }
 
-/// <summary>A Pack = 4 struct at an odd explicit offset.</summary>
+/// <summary>
+/// A Pack = 4 struct at an explicit offset, after a gap. At 8, not an odd offset: IL2CPP on Unity 6000.6 refuses to
+/// load an explicit struct field at offset 1 (TypeLoadException "Invalid field offset", 2022.3 loads it).
+/// </summary>
 [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit)]
 public struct ExplicitHoldsPacked
 {
     [System.Runtime.InteropServices.FieldOffset(0)] public byte A;
-    [System.Runtime.InteropServices.FieldOffset(1)] public PackedIntDateTime4 P;
+    [System.Runtime.InteropServices.FieldOffset(8)] public PackedIntDateTime4 P;
 }
 
 /// <summary>Pack and Size together: 5 bytes of fields, 12 of struct.</summary>

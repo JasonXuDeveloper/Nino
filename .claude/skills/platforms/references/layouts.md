@@ -44,7 +44,7 @@ write CoreCLR x64's bytes, `Vector<T>` widths, and reading field types by reflec
   `MeasureMemory` measured fields that way where the model does not describe the runtime (Arm32 does not model
   auto-layout structs), and the first `Serialize` of a Pack = 4 struct holding a Pack = 1 struct and a
   `DateTimeOffset` crashed Arm32 .NET: `Visit` now takes a packed or explicit struct's offsets from the model where
-  the model gives the runtime's size (`AddPacked`, c1e7c285), and IL2CPP, which ignores `Pack`, still reflects over
+  the model gives the runtime's size (`AddPacked`, c1e7c285), and IL2CPP, whose `Pack` never moves a BCL struct field, still reflects over
   its aligned fields. A test checks such a value by writing what it read again and comparing the bytes (BclStructs'
   `readsByBytes`, 8d9b34bd), never through `Contents`. The conformance JSON projection of `Packed.B` in
   `structs-values` and `structs-empty-collections` hits the same fault on macOS Arm64; isolate it before blaming the

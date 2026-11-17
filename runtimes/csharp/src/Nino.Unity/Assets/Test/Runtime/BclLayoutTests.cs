@@ -99,9 +99,9 @@ namespace Test.Runtime
         }
 
         /// <summary>
-        /// Structs under every StructLayout form (Pack, Size, Explicit; BclFixtureTypes.cs, LayoutShapes) against
-        /// CoreCLR's bytes both ways: IL2CPP ignores Pack, so a struct Pack moves is laid out apart there (#378). Each
-        /// logs this runtime's size of it first, so a write past a value that crashes the player leaves the line.
+        /// Structs under every StructLayout form (Pack, Size, Explicit, Auto; BclFixtureTypes.cs, LayoutShapes) against
+        /// CoreCLR's bytes both ways: IL2CPP's Pack never moves a BCL struct field (DateTime, decimal, Guid), so such a
+        /// struct is laid out apart there (#378). Logs this runtime's sizes, and each failure as it is found.
         /// </summary>
         [Test]
         public void StructLayoutsWriteCoreClrBytes()

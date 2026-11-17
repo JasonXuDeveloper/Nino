@@ -45,14 +45,23 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   `UnmanagedFormatter<T>`, `Writer.Write<T>`), on the layout's converted paths behind a `static readonly bool`
   (`NinoLayout<T>.HoldsHostSizedVector`): a JIT constant, folded away on canonical types (`asm.py compare`: no method
   changed), where the layout of no size threw `NullReferenceException` before.
-- Never assume a struct's memory follows `[StructLayout(Pack = n)]` under IL2CPP: it ignores `Pack`, in code made for
-  the type and in shared generic code alike. Measure the layout on the running runtime (`NinoLayout`, which converts
-  where memory and the canonical layout differ), never from the declaration. The benchmark's `SimpleStruct` (`int` +
-  `DateTime`, `Pack = 4`) is 12 bytes with its `DateTime` at 4 on CoreCLR and Mono, and 16 bytes with it at 8 on IL2CPP
-  (Unity 2022.3 and 6000.6 players, unity.yml run 44063778182); its `T?` is 24 bytes there. Nino.Core writes the
+- Never assume a struct's memory follows `[StructLayout(Pack = n)]` under IL2CPP: `Pack` there lowers the alignment
+  of primitive fields (`long`, `double`, `float`, enums) and of a struct that has its own `Pack`, but never of a BCL
+  struct field (`DateTime`, `decimal`, `Guid`, `TimeSpan`, `DateTimeOffset`), which keeps its natural 8, in code made
+  for the type and in generic structs alike. `Size`, `Explicit`, `Auto`, `fixed` buffers and `CharSet` lay out as on
+  Mono (the `LayoutShapes` sizes, unity.yml run 44097003122, the same on 2022.3 and 6000.6: Pack 1 over every leaf 70
+  bytes on Mono and 96 on IL2CPP, `PackedPair1<DateTime>` 9 and 16, `PackedPair1<long>` 9 on both). IL2CPP on 6000.6
+  also refuses to load an `Explicit` struct whose struct field lies at offset 1 (`TypeLoadException` "Invalid field
+  offset"; 2022.3 loads it), so such a type cannot be used there at all. Measure the layout on the running runtime
+  (`NinoLayout`, which converts where memory and the canonical layout differ), never from the declaration. The
+  benchmark's `SimpleStruct` (`int` + `DateTime`, `Pack = 4`) is 12 bytes with its `DateTime` at 4 on CoreCLR and Mono,
+  and 16 bytes with it at 8 on IL2CPP (Unity 2022.3 and 6000.6 players, unity.yml run 44063778182); its `T?` is 24 bytes there. Nino.Core writes the
   canonical 12 bytes from it, and the reads that lost 4 bytes and wrote past a value are #378. The generator's
   `RawLayout.IsPortable` measures both of its models with `Pack` applied, so it calls such a struct portable and
-  generated code copied it as raw memory where it is a member (#378, fixed in fe7aff6f). A new layout form gets a
+  generated code copied it as raw memory where it is a member (#378, fixed in fe7aff6f). Never let NUnit format a
+  list of failures in the IL2CPP player (`CollectionAssert.IsEmpty`): it crashed there (SIGSEGV in
+  `MsgUtils.FormatCollection`) and lost them; log each failure in its own line as it is found and fail with one
+  string. A new layout form gets a
   case in `LayoutShapes` (BclFixtureTypes.cs), which Nino.RuntimeTests (.NET, Mono) and Unity's
   `StructLayoutsWriteCoreClrBytes` (editor and IL2CPP player) check against CoreCLR x64's bytes, each shape alone,
   nullable, in collections, inside a struct and as a member of a `[NinoType]`; the Unity test logs every shape's
