@@ -1,25 +1,19 @@
 #!/usr/bin/env bash
-# Nino's generated TypeScript against Protocol Buffers (protobuf-es), MessagePack (msgpackr) and JSON, timed by
-# tinybench, in Node and in headless Chromium, on data written by Nino in .NET: 64 variants of each scenario, one a
-# pass in turn (bench.ts says why).
+# The .NET suite's cases in Nino's generated TypeScript against Protocol Buffers (protobuf-es), MessagePack (msgpackr)
+# and JSON, timed by tinybench, in Node and in headless Chromium (bench.ts says how).
 #
-# usage: runtimes/typescript/bench/run.sh [scenario]   (e.g. lookup; default: all)
-# NINO_BENCH_TIME: tinybench's time per task in milliseconds (default 1000); NINO_BENCH_QUICK=1: 100, with 25 ms of
-# warm-up (the trend check a pull request labeled `benchmark` runs).
-# Requires the .NET 11 SDK, Node 22.18+ (it runs TypeScript directly) and, for the Chromium run, Playwright with
-# Chromium (global: NODE_PATH); the rest comes from package-lock.json.
+# usage: runtimes/typescript/bench/run.sh [cases]   (case names separated by |, * for any run, e.g. 'Simple*|Players';
+# default: all)
+# NINO_BENCH_TIME: tinybench's time per task in milliseconds (default 1000); NINO_BENCH_QUICK=1: the quick cases at
+# 100, with 25 ms of warm-up (the trend check a pull request labeled `benchmark` runs).
+# Requires the .NET SDK, Node 22.18+ (it runs TypeScript directly) and, for the Chromium run, Playwright with Chromium
+# (global: NODE_PATH); the rest comes from package-lock.json.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-CSHARP=$(cd "$HERE/../../csharp" && pwd)
 OUT=$HERE/out
 
-rm -rf "$OUT" "$HERE/gen"
 (cd "$HERE" && npm ci --no-audit --no-fund > /dev/null)
-dotnet build -c Release "$CSHARP/src/Nino.Codegen" > /dev/null
-dotnet build -c Release "$HERE" > /dev/null
-dotnet "$HERE/bin/Release/net10.0/Bench.dll" "$OUT/data"
-dotnet "$CSHARP/src/Nino.Codegen/bin/Release/net8.0/nino-gen.dll" --assembly "$HERE/bin/Release/net10.0/Bench.dll" \
-  --lang ts --out "$HERE/gen" --import-extension .ts
+"$HERE/generate.sh"
 (cd "$HERE" && npx tsc -p . && npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
   --outfile="$OUT/js/bench.js")
 

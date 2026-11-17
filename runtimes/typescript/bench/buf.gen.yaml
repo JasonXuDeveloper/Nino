@@ -1,10 +1,10 @@
-# `npm run generate:proto` writes proto/bench_pb.ts from proto/bench.proto.
+# generate.sh: the .NET suite's .proto files (cases.proto, workloads.proto, protobuf-net's bcl.proto) as protobuf-es
+# messages in gen/pb: JavaScript and declarations, since Node's type stripping cannot run the TypeScript
+# enums target=ts writes.
 version: v2
-inputs:
-  - directory: proto
 plugins:
   - local: protoc-gen-es
-    out: proto
+    out: gen/pb
     opt:
-      - target=ts
-      - import_extension=ts
+      - target=js+dts
+      - import_extension=js

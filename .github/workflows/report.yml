@@ -663,13 +663,18 @@ jobs:
         working-directory: ${{ env.TYPESCRIPT_BENCH }}
         run: |
           set -euo pipefail
-          dotnet build -c Release "$CODEGEN" > /dev/null
-          dotnet build -c Release . > /dev/null
-          dotnet bin/Release/net10.0/Bench.dll out/data
-          dotnet "$CODEGEN/bin/Release/net8.0/nino-gen.dll" --assembly bin/Release/net10.0/Bench.dll \
-            --lang ts --out gen --import-extension .ts
           # tinybench, protobuf-es and msgpackr (releases before them compared with JSON only, without a lockfile).
           if [[ -f package-lock.json ]]; then npm ci --no-audit --no-fund; fi
+          if [[ -x generate.sh ]]; then
+            # Since the .NET suite's cases (#339): their data, model and messages from the tag's .NET suite.
+            ./generate.sh
+          else
+            dotnet build -c Release "$CODEGEN" > /dev/null
+            dotnet build -c Release . > /dev/null
+            dotnet bin/Release/net10.0/Bench.dll out/data
+            dotnet "$CODEGEN/bin/Release/net8.0/nino-gen.dll" --assembly bin/Release/net10.0/Bench.dll \
+              --lang ts --out gen --import-extension .ts
+          fi
           NINO_BENCH_JSON="$RUNNER_TEMP/bench.json" node --no-warnings node.ts out/data
           mkdir -p "$RUNNER_TEMP/out"
           cp "$RUNNER_TEMP/bench.json" "$RUNNER_TEMP/out/$ASSET.json"

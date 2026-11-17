@@ -144,10 +144,13 @@ Node 22.18 or later, which runs their TypeScript as it is (type stripping).
 
 ## Benchmarks
 
-`bench/run.sh [scenario]` compares the generated code with Protocol Buffers (protobuf-es), MessagePack (msgpackr) and
-`JSON` in Node and in headless Chromium, timed by tinybench, on data written by Nino in .NET (it needs the .NET 11 SDK
-and, for Chromium, Playwright; the bench's own dependencies come from `bench/package-lock.json`, never this package's).
-Each pass takes the next of 64 variants of a scenario's data, since V8 reuses work on an input it has just read (a
-repeated JSON text parses many times faster), and each serializer runs with only its own data live (a full GC marks
-what is live, and V8 starts one for every 64 MB of new `ArrayBuffer`s no scavenge freed). See runtimes/csharp/benchmarks/README.md ("Runtimes outside .NET"). Compare before and after a change on one machine; do not publish
-the numbers.
+`bench/run.sh [cases]` times the cases of the .NET suite (`runtimes/csharp/benchmarks`) in the generated code against
+Protocol Buffers (protobuf-es), MessagePack (msgpackr) and `JSON` in Node and in headless Chromium, timed by tinybench,
+on the bytes .NET writes for them (it needs the .NET SDK and, for Chromium, Playwright; the bench's own dependencies
+come from `bench/package-lock.json`, never this package's). `bench/generate.sh` writes the data, the cases' types
+(`bench/gen/model.ts`) and the protobuf messages; each case's codec is found by its .NET type (`ninoCodecOf`), so a new
+C# case needs no edit here. Each pass takes the next of up to 64 variants of a case's value, since V8 reuses work on
+an input it has just read (a repeated JSON text parses many times faster), and each serializer runs with only its own
+data live (a full GC marks what is live, and V8 starts one for every 64 MB of new `ArrayBuffer`s no scavenge freed).
+See runtimes/csharp/benchmarks/README.md ("Runtimes outside .NET"). Compare before and after a change on one machine;
+do not publish the numbers.

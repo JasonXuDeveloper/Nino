@@ -26,7 +26,7 @@ Every number that counts comes from a GitHub runner. Local runs only choose betw
 | Generator time and generated size | `runtimes/csharp/benchmarks/Nino.GeneratorBenchmark` (`audit-generator`); on runners, `generator` lines of runtime-ab (below) |
 | Go | `cd runtimes/go/bench && go test -run='^$' -bench=. -benchmem -count=6 . \| tee bench.txt`, then benchstat |
 | Rust | `bench/generate.sh --data`, then `cargo bench -p nino-bench --bench compare` (`NINO_BENCH_CASES='Simple*'` for some cases; and `--bench text` for transcoding, `--bench blocks` for blocks of fixed-size elements). Back to back across worktrees with the shared `CARGO_TARGET_DIR`, touch each side's `.rs` and `Cargo.toml` files before its run, or give each side its own target directory: every worktree builds the workspace's crates under the same artifact names, and cargo, finding them newer than the other side's sources, ran one binary for both sides (land/rust's first local run) |
-| TypeScript | `runtimes/typescript/bench/run.sh [scenario]` (Node and headless Chromium) |
+| TypeScript | `runtimes/typescript/bench/run.sh [cases]` (Node and headless Chromium; `[cases]` names separated by `|` with `*` for any run, as `NINO_BENCH_CASES` in Rust's) |
 | Unity, IL2CPP and Burst | `unity.yml` only (one license seat, `audit-ci`) |
 
 To choose between local variants of a read or write path when BenchmarkDotNet's quick mode varies more than the

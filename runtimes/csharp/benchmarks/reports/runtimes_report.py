@@ -90,14 +90,25 @@ def typescript(path, tag):
     who = pivot(cells, ["Nino", "Protobuf", "MessagePack", "JSON"])
     # Benches since the rotation take a different variant of the values on each pass (bench.ts, "Inputs rotate").
     variants = max((r.get("variants", 1) for r in data["rows"]), default=1)
-    turn = (f" (each pass the next of {variants} variants, so that no pass reads what the one before read)"
+    turn = (f" (each pass the next of up to {variants} variants, so that no pass reads what the one before read)"
             if variants > 1 else "")
-    intro = (f"The code nino-gen generates for `runtimes/typescript/bench` (`Program.cs`'s types), against Protocol "
-             f"Buffers (protobuf-es), MessagePack (msgpackr) and `JSON` (to and from UTF-8 bytes), in Node {data.get('node', '')}, on data .NET "
-             f"wrote, timed by tinybench {data.get('tinybench', '')}: the mean time of a pass over each scenario's "
-             f"values{turn}, ± its relative margin of error, and passes per second.")
+    # Since the .NET suite's cases (#339) a row is a case (a name without spaces) and a pass is its value; before,
+    # a scenario ("Player x1000") and its values.
+    cases = not any(" " in r["scenario"] for r in data["rows"])
+    if cases:
+        intro = (f"`runtimes/typescript/bench` (tinybench {data.get('tinybench', '')}, in Node {data.get('node', '')}): "
+                 "the .NET suite's cases, read from the bytes Nino.Benchmark writes and written back to them, with the "
+                 "code nino-gen generates (`Nino`) against Protocol Buffers (protobuf-es, on the messages of the "
+                 "suite's .proto files), MessagePack (msgpackr) and `JSON` (to and from UTF-8 bytes), each only where it "
+                 f"reads the case back: the mean time of a pass over each case's value{turn}, ± its relative margin of "
+                 "error, and passes per second.")
+    else:
+        intro = (f"The code nino-gen generates for `runtimes/typescript/bench` (`Program.cs`'s types), against Protocol "
+                 f"Buffers (protobuf-es), MessagePack (msgpackr) and `JSON` (to and from UTF-8 bytes), in Node {data.get('node', '')}, on data .NET "
+                 f"wrote, timed by tinybench {data.get('tinybench', '')}: the mean time of a pass over each scenario's "
+                 f"values{turn}, ± its relative margin of error, and passes per second.")
     return section("typescript", tag, f"Generated TypeScript of {tag} against Protocol Buffers, MessagePack and JSON, "
-                   "in Node", intro, grid(cells, who, "Scenario"))
+                   "in Node", intro, grid(cells, who, "Case" if cases else "Scenario"))
 
 
 def typescript_json_only(data, tag):

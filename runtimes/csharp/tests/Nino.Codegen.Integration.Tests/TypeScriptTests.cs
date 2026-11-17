@@ -273,11 +273,15 @@ namespace Nino.Codegen.Integration.Tests
             StringAssert.Contains(results[numbers + 1].Json, "\"ints\":[],\"uInts\":null");
         }
 
-        /// <summary>Whole payloads of types with no layout of their own, through the codecs <c>--roots</c> names.</summary>
+        /// <summary>
+        /// Whole payloads of types with no layout of their own, through the codecs <c>--roots</c> names, and the same
+        /// codecs found by their .NET types (<c>ninoCodecOf</c>, as the benchmark finds a case's).
+        /// </summary>
         [TestMethod]
         public void RoundTripsRoots()
         {
-            var cases = GenericSamples.RootCases().Select(c => (c.Name + "Codec", c.Bytes)).ToList();
+            var cases = GenericSamples.RootCases().Select(c => (c.Name + "Codec", c.Bytes))
+                .Concat(GenericSamples.RootCases().Select(c => (c.Type, c.Bytes))).ToList();
             var results = RunNode(cases);
             for (int i = 0; i < cases.Count; i++)
                 Assert.AreEqual(GenericSamples.Hex(cases[i].Bytes), results[i].Hex, $"case {i} ({cases[i].Item1}): {results[i].Error}");

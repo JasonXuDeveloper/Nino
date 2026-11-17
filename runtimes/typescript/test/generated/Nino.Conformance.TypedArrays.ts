@@ -5411,6 +5411,112 @@ types.add(-261423298, WrapListNullableVec2, (r) => readWrap(r, closed$20), (w, v
 types.add(1607602110, WrapListNullableInt32, (r) => readWrap(r, closed$21), (w, v) => writeWrap(w, v, closed$21));
 types.add(1978865399, WrapNullable, (r) => readWrap(r, closed$22), (w, v) => writeWrap(w, v, closed$22));
 
+/**
+ * The codec of the type of that .NET name (`Namespace.Outer+Inner`, or a root's runtime-form name), as a member of its
+ * type is written (with its header); `undefined` for a type this module does not write.
+ */
+export function ninoCodecOf(name: string): NinoCodec<unknown> | undefined {
+  switch (name) {
+    case "Conformance.Animal": return AnimalCodec;
+    case "Conformance.Targets.AnimalSlot": return AnimalSlotCodec;
+    case "Conformance.Bag": return BagCodec;
+    case "Conformance.BagHolder": return BagHolderCodec;
+    case "Conformance.BclRaw": return BclRawCodec;
+    case "Conformance.BclRawHost": return BclRawHostCodec;
+    case "Conformance.BclRawNullables": return BclRawNullablesCodec;
+    case "Conformance.BlueLink": return BlueLinkCodec;
+    case "Conformance.Targets.BoolArray": return BoolArrayCodec;
+    case "Conformance.Targets.BoolValue": return BoolValueCodec;
+    case "Conformance.Targets.ByteArray": return ByteArrayCodec;
+    case "Conformance.Bytes": return BytesCodec;
+    case "Conformance.Cat": return CatCodec;
+    case "Conformance.Chain": return ChainCodec;
+    case "Conformance.Choice": return ChoiceCodec;
+    case "Conformance.Circle": return CircleCodec;
+    case "Conformance.Dog": return DogCodec;
+    case "Conformance.Targets.DogSlot": return DogSlotCodec;
+    case "Conformance.Empty": return EmptyCodec;
+    case "Conformance.Enums": return EnumsCodec;
+    case "Conformance.GenericSlots": return GenericSlotsCodec;
+    case "Conformance.IShape": return IShapeCodec;
+    case "Conformance.Inner": return InnerCodec;
+    case "Conformance.Targets.IntArray": return IntArrayCodec;
+    case "Conformance.Targets.IntMap": return IntMapCodec;
+    case "Conformance.Targets.IntSet": return IntSetCodec;
+    case "Conformance.IntShelf": return IntShelfCodec;
+    case "Conformance.Integers": return IntegersCodec;
+    case "Conformance.KeyedBag": return KeyedBagCodec;
+    case "Conformance.KeyedChain": return KeyedChainCodec;
+    case "Conformance.KeyedHolder": return KeyedHolderCodec;
+    case "Conformance.KeyedStruct": return KeyedStructCodec;
+    case "Conformance.KeyedV1": return KeyedV1Codec;
+    case "Conformance.KeyedV2": return KeyedV2Codec;
+    case "Conformance.Label": return LabelCodec;
+    case "Conformance.Link": return LinkCodec;
+    case "Conformance.Targets.LongList": return LongListCodec;
+    case "Conformance.Targets.MaybeInt": return MaybeIntCodec;
+    case "Conformance.Targets.MaybeIntArray": return MaybeIntArrayCodec;
+    case "Conformance.Targets.MaybeIntSet": return MaybeIntSetCodec;
+    case "Conformance.Middle": return MiddleCodec;
+    case "Conformance.Mixed": return MixedCodec;
+    case "Conformance.NestHolder": return NestHolderCodec;
+    case "Conformance.Nested": return NestedCodec;
+    case "Conformance.NinoNullableFields": return NinoNullableFieldsCodec;
+    case "Conformance.NinoNullableRuns": return NinoNullableRunsCodec;
+    case "Conformance.NinoNullables": return NinoNullablesCodec;
+    case "Conformance.NullableTwins": return NullableTwinsCodec;
+    case "Conformance.Nullables": return NullablesCodec;
+    case "Conformance.Targets.ObjectSlot": return ObjectSlotCodec;
+    case "Conformance.Outer": return OuterCodec;
+    case "Conformance.Packed": return PackedCodec;
+    case "Conformance.Padded": return PaddedCodec;
+    case "Conformance.Targets.PaddedArray": return PaddedArrayCodec;
+    case "Conformance.Plain": return PlainCodec;
+    case "Conformance.Point": return PointCodec;
+    case "Conformance.Targets.PointList": return PointListCodec;
+    case "Conformance.PointSet": return PointSetCodec;
+    case "Conformance.Puppy": return PuppyCodec;
+    case "Conformance.RawOptional": return RawOptionalCodec;
+    case "Conformance.RawOptionals": return RawOptionalsCodec;
+    case "Conformance.RecordChain": return RecordChainCodec;
+    case "Conformance.RedLink": return RedLinkCodec;
+    case "Conformance.Targets.ShapeSlot": return ShapeSlotCodec;
+    case "Conformance.Sized": return SizedCodec;
+    case "Conformance.Targets.SortedMap": return SortedMapCodec;
+    case "Conformance.Square": return SquareCodec;
+    case "Conformance.StringCollections": return StringCollectionsCodec;
+    case "Conformance.Targets.StringList": return StringListCodec;
+    case "Conformance.Targets.StringMap": return StringMapCodec;
+    case "Conformance.Targets.StringSet": return StringSetCodec;
+    case "Conformance.Strings": return StringsCodec;
+    case "Conformance.Structs": return StructsCodec;
+    case "Conformance.Targets.TextValue": return TextValueCodec;
+    case "Conformance.TolerantBag": return TolerantBagCodec;
+    case "Conformance.TolerantBase": return TolerantBaseCodec;
+    case "Conformance.TolerantChain": return TolerantChainCodec;
+    case "Conformance.TolerantEmpty": return TolerantEmptyCodec;
+    case "Conformance.TolerantHolder": return TolerantHolderCodec;
+    case "Conformance.TolerantLeaf": return TolerantLeafCodec;
+    case "Conformance.TolerantRoot": return TolerantRootCodec;
+    case "Conformance.TolerantV1": return TolerantV1Codec;
+    case "Conformance.TolerantV2": return TolerantV2Codec;
+    case "Conformance.Tracked": return TrackedCodec;
+    case "Conformance.TrackedHolder": return TrackedHolderCodec;
+    case "Conformance.TrackedLeaf": return TrackedLeafCodec;
+    case "Conformance.TrackedMix": return TrackedMixCodec;
+    case "Conformance.TrackedNode": return TrackedNodeCodec;
+    case "Conformance.TrackedTolerant": return TrackedTolerantCodec;
+    case "Conformance.TreeNode": return TreeNodeCodec;
+    case "Conformance.UnionTree": return UnionTreeCodec;
+    case "Conformance.Unions": return UnionsCodec;
+    case "Conformance.Targets.Utf8Value": return Utf8ValueCodec;
+    case "Conformance.Vec2": return Vec2Codec;
+    case "Conformance.WrappedArgs": return WrappedArgsCodec;
+    case "Conformance.Zoo": return ZooCodec;
+  }
+  return undefined;
+}
+
 function read$0(r: NinoReader): (Bag | null)[] | null {
   const length = r.length();
   if (length < 0) return null;

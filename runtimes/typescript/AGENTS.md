@@ -36,9 +36,12 @@ test/
   generated/                 Nino.Conformance.ts (also as .TypedArrays.ts, --numeric-arrays typed) and
                              Nino.Codegen.Tests.ts: nino-gen's output for the corpus's types and
                              runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs (do not edit)
-bench/                       the generated TypeScript against protobuf-es, msgpackr and JSON (tinybench) in Node
-                             (node.ts) and headless Chromium (browser.mjs); Bench.csproj + Program.cs write the data in
-                             .NET; proto/ and buf.*.yaml the protobuf messages; run.sh runs it all; own package.json
+bench/                       the .NET suite's cases (runtimes/csharp/benchmarks) in the generated TypeScript against
+                             protobuf-es, msgpackr and JSON (tinybench) in Node (node.ts) and headless Chromium
+                             (browser.mjs); bench.ts finds each case's codec by its .NET type (ninoCodecOf);
+                             generate.sh writes out/data (the cases' bytes), gen/model.ts (nino-gen on the schema) and
+                             gen/pb (the suite's .proto files, buf.gen.yaml), all ignored; run.sh runs it all; own
+                             package.json
 ```
 
 Generated files: `test/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`;
