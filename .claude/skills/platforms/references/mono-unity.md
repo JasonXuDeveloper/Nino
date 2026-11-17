@@ -45,6 +45,20 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   `UnmanagedFormatter<T>`, `Writer.Write<T>`), on the layout's converted paths behind a `static readonly bool`
   (`NinoLayout<T>.HoldsHostSizedVector`): a JIT constant, folded away on canonical types (`asm.py compare`: no method
   changed), where the layout of no size threw `NullReferenceException` before.
+- Never assume a struct's memory follows `[StructLayout(Pack = n)]` under IL2CPP: it ignores `Pack`, in code made for
+  the type and in shared generic code alike. Measure the layout on the running runtime (`NinoLayout`, which converts
+  where memory and the canonical layout differ), never from the declaration. The benchmark's `SimpleStruct` (`int` +
+  `DateTime`, `Pack = 4`) is 12 bytes with its `DateTime` at 4 on CoreCLR and Mono, and 16 bytes with it at 8 on IL2CPP
+  (Unity 2022.3 and 6000.6 players, unity.yml run 44063778182); its `T?` is 24 bytes there. Nino.Core writes the
+  canonical 12 bytes from it, and the reads that lost 4 bytes and wrote past a value are #378. The generator's
+  `RawLayout.IsPortable` measures both of its models with `Pack` applied, so it calls such a struct portable and
+  generated code copies it as raw memory where it is a member (#378).
+- Debug an IL2CPP-only failure in the benchmark player (unity.yml with `benchmark`, `-ninoBenchmark`), since CoreCLR
+  and Mono cannot show it: log each fact in its own line as soon as it exists, the memory first, before any Nino call,
+  because a write past a value corrupts the heap and the player crashes (SIGSEGV, or NUnit's `StringBuilder` failing)
+  before later output or the results XML is written. Read the lines from the artifact
+  `test-results-unity-<version>/player/standalone-player.log`, not the job log. Never read Nino.Core's internal
+  generic statics by reflection there (runs 44019990430 and 44063778182 lost their results to crashes).
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).
 - WebGL had no Burst until Burst 1.8.26 (Web) and Unity 6000.6 (WebAssembly64), which run no kernel of Nino's (next

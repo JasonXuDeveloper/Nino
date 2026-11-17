@@ -85,5 +85,6 @@ about to run or change: most of these cost a session before they were written do
 - **Mono, Unity, IL2CPP and WebGL** ([references/mono-unity.md](references/mono-unity.md)): gate every netstandard
   `Vector<T>` operation on what Mono accelerates, not on `IsHardwareAccelerated`; no module initializers on HybridCLR;
   no run-time decisions from attributes on generic parameters (IL2CPP keeps none); never throw from a generic cache's
-  static initializer; no runtime code generation under IL2CPP; WebGL has no Burst (C kernels, SIMD only under
+  static initializer; no runtime code generation under IL2CPP; IL2CPP ignores `StructLayout.Pack` (measure layouts on
+  the running runtime) and an IL2CPP-only failure is debugged in the benchmark player, logging before any Nino call; WebGL has no Burst (C kernels, SIMD only under
   `__wasm_simd128__`, vector extensions instead of `wasm_simd128.h`); the Burst kernels write Nino.Core's bytes.

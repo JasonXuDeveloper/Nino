@@ -58,6 +58,13 @@ value, a kernel hook or a kernel threshold. How to build and run Unity is `platf
 
 ## Native kernels
 
+- Call a `NinoKernels` hook only within its contract, and check the contract in Core, not in the kernel: `Permute`'s
+  source and destination ranges never overlap. Nino.Core's scalar forms tolerate an overlap, so .NET never shows a
+  breach. Burst's 16-byte path stores whole vectors past each value, and its AVX2 path loads before it stores only from
+  256 values on. A `HashSet<T?>` of a raw `T` written in place (netstandard2.1, `NinoMask.CopyMasked`) passed its own
+  bytes as both ranges, and from 16 values on it wrote zeros after the first value in Unity (SSSE3 kernels, and AVX2
+  below 256 values). `NinoMask.Apart` now gates the call (0cf14425). `KernelHookTests`' scalar `Permute` asserts the
+  ranges are apart, so a hook test fails on a breach.
 - Use a prefix-returning kernel for data-dependent nullable-bool normalization, rather than extending the static
   `Permute` table with a mask it cannot express. Keep whole-run presence validation and overlap handling in Core;
   reject an invalid active value before storing its vector group, return the leading slot count, and let Core
