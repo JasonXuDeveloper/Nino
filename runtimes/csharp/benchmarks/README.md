@@ -524,9 +524,10 @@ cross JIT above shows ARM64.
 
 ## Runtimes outside .NET
 
-Each runtime is benchmarked with its language's standard tool, against Protocol Buffers and MessagePack in every
-case, plus each language's usual serializers. Every case has a value of the same data for each serializer (the
-protobuf messages mirror the types field for field), and every serializer is checked to read back what it wrote
+Each runtime is benchmarked with its language's standard tool on this suite's cases (`--write-data`, above), against
+Protocol Buffers (on the messages of `cases.proto` and `workloads.proto`, read from protobuf-net's bytes) and
+MessagePack, plus each language's usual serializers. The code nino-gen generates reads each case's Nino bytes and
+must write them back exactly, and every other serializer is checked to read back the value it wrote
 before it is timed. `report.yml`'s `runtimes` job runs each as below on one x64 runner and on one Arm64 runner, and
 `runtimes_report.py` turns its output into the release's sections: a row per case and operation, a column per
 serializer (Nino first), and the encoded sizes. Local numbers are for comparing changes back to back on one machine; never publish them.
@@ -534,47 +535,46 @@ serializer (Nino first), and the encoded sizes. Local numbers are for comparing 
 samples, tinybench 100 ms per task with 25 ms of warm-up): runtimes.yml's `benchmark` job runs them so for a pull
 request labeled `benchmark` that changes the runtime, its section in the job's summary, a trend only.
 
-The string cases are the same in all three: 1,000 short ASCII strings (`"string 0"` to `"string 999"`), and 1,000
-strings of ASCII, Latin-1 (`"crème brûlée i"`, one byte a char in Nino) and other text (`"строка 字符串 🎉 i"`,
-UTF-16 in Nino, with a char outside the BMP) in turn. TypeScript rotates these through 63 more variants of the
-same lengths and scripts (below).
-
 ### TypeScript
 
-`runtimes/typescript/bench/` measures the TypeScript that nino-gen generates against Protocol Buffers (protobuf-es,
-code generated from `proto/bench.proto`), MessagePack (msgpackr) and `JSON`, in Node and in headless Chromium
-(Playwright), timed by [tinybench](https://github.com/tinylibs/tinybench) (warm-up, then samples for a set time; the
-mean, its relative margin of error, p75/p99 and passes per second):
+`runtimes/typescript/bench/` times this suite's cases in the TypeScript nino-gen generates against Protocol Buffers
+(protobuf-es), MessagePack (msgpackr) and `JSON`, in Node and in headless Chromium (Playwright), with
+[tinybench](https://github.com/tinylibs/tinybench) (warm-up, then samples for a set time; the mean, its relative margin
+of error, p75/p99 and passes per second):
 
 ```sh
-runtimes/typescript/bench/run.sh           # every scenario
-runtimes/typescript/bench/run.sh lookup    # the scenarios whose data file starts with "lookup"
-NINO_BENCH_TIME=300 runtimes/typescript/bench/run.sh strings   # 300 ms per task instead of 1,000
+runtimes/typescript/bench/run.sh                  # every case
+runtimes/typescript/bench/run.sh '^Simple'        # the cases whose name matches (NINO_BENCH_CASES too)
+NINO_BENCH_TIME=300 runtimes/typescript/bench/run.sh Players   # 300 ms per task instead of 1,000
 ```
 
-`Program.cs` declares the types and writes each scenario's values, serialized by Nino in .NET, to
-`bench/out/data`; `nino-gen --lang ts` generates their TypeScript into `bench/gen`. Before a scenario is timed, every
-value is read and written back in TypeScript and must give exactly the bytes .NET wrote, and every protobuf message
-must read back equal. A task is one pass over all of a scenario's values. Nino has a third task, `serializeInto`: the
-same values written with `serializeInto` into one `NinoWriter` reset before each value, as an application that sends
-each value before the next one does; it allocates no `ArrayBuffer` once the writer is large enough, where `serialize`
-takes a new 64 KiB (or larger) buffer as its results fill the last one.
+`generate.sh` writes the cases' bytes (`--write-data`) to `bench/out/data`, their types and codecs
+(`nino-gen --lang ts` on `Nino.Benchmark.Schema` with `roots.txt`) to `bench/gen/model.ts`, and the messages of the
+suite's `.proto` files (buf and protoc-gen-es, no protoc) to `bench/gen/pb`, all ignored. `bench.ts` finds each case's
+codec by its .NET type (`ninoCodecOf`), so a case declared here needs no TypeScript edit. A case runs when the
+generated code writes .NET's bytes back exactly: TypeScript reads a `DateTime` as a `Date` (to the millisecond, without
+its kind), so the cases holding one (`SimpleTest`'s, `NullableTest`'s structs, `TolerantClass`) are left out with the
+reason, as are objects holding a .NET type it has no form of. A task is one pass over the case's value. Nino has a
+third task, `serializeInto`: the value written with `serializeInto` into one `NinoWriter` reset before each pass, as an
+application that sends each value before the next one does; it allocates no `ArrayBuffer` once the writer is large
+enough, where `serialize` takes a new 64 KiB (or larger) buffer as its results fill the last one.
 
-Inputs rotate: `Program.cs` writes each scenario in 64 variants (the first is the original data; the others have their
-own random seed and scramble the fixed text letter for letter within its script, so shapes, lengths and encodings stay
-the same), every serializer gets all 64 ready before the timing, and each pass of every task, serialize and
-deserialize, takes the next variant in turn. Repeating one input lets V8 reuse work: a repeated JSON text parses along
-the hidden-class transitions and internalized keys of the previous parse (a Lookup-like text took 0.21 ms a parse
-repeated, 7.8 to 8.4 ms with 200 different texts in turn), which made `JSON.parse` look several times faster than it
-is. The sizes are a variant's mean. Holding every variant takes about 1.3 GB in Node. MessagePack (standard maps, no msgpackr
-records) gets the values Nino read, as they are (classes and `Map`s as maps, `bigint`s as 64-bit integers, read back
-as `bigint`); JSON gets them as plain JSON (64-bit integers as strings, maps as objects) and is not converted back to
-`bigint` or `Map`, so it does less work than Nino. Neither carries the type of a polymorphic value (`Zoo`, `Player.Pet`),
-which Nino and protobuf (a `oneof`) do. The bench's dependencies are in its own `package.json` and lockfile
-(`npm ci`, which run.sh does); `npm run generate:proto` regenerates `proto/bench_pb.ts` (buf and protoc-gen-es, no
-protoc). It needs the .NET 11 SDK, Node 22.18+ (which runs TypeScript directly) and, for the Chromium run, Playwright
-with Chromium; the browser gets the bench bundled by esbuild. The release's section is the Node run
-(`NINO_BENCH_JSON`).
+Inputs rotate: each case's value is made in up to 64 variants (the first is .NET's; the others rotate the letters of
+every string, Map key and Set member, so shapes, lengths and encodings stay the same; fewer for a large value, 16 MiB
+of Nino's bytes in all), every serializer gets them ready before the timing, and each pass of every task takes the
+next variant in turn. Repeating one input lets V8 reuse work: a repeated JSON text parses along the hidden-class
+transitions and internalized keys of the previous parse (a Lookup-like text took 0.21 ms a parse repeated, 7.8 to 8.4
+ms with 200 different texts in turn), which made `JSON.parse` look several times faster than it is. The sizes are a
+variant's mean. Protocol Buffers reads protobuf-net's bytes into its message once and rotates that message's text the
+same way. MessagePack (standard maps, no msgpackr records) gets the values Nino read, as they are (classes and `Map`s
+as maps, sets and typed arrays as arrays, `bigint`s as 64-bit integers, read back as `bigint`); JSON gets them as
+plain JSON (64-bit integers as strings, maps as objects); each must read back the same plain data (a NaN, which JSON
+writes as null, leaves JSON out of the case). Neither is converted back to `bigint`, `Map` or a class, so they do less
+work than Nino, and neither carries the type of a polymorphic value, which Nino and protobuf (a `oneof`) do. The
+bench's dependencies are in its own `package.json` and lockfile (`npm ci`, which run.sh does). It needs the .NET SDK,
+Node 22.18+ (which runs TypeScript directly) and, for the Chromium run, Playwright with Chromium; the browser gets the
+bench bundled by esbuild. The release's section is the Node run (`NINO_BENCH_JSON`); runtimes.yml runs every case for
+a millisecond per task on each push that changes a runtime.
 
 ### Go
 
