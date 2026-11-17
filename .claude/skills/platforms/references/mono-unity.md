@@ -72,6 +72,17 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   another size than C# and Mono for a struct whose `Pack` under-aligns a field (Unity issue 21013, UUM-143671; Burst
   1.8.13 and 1.8.29, fixed in 7000.0.0a17, open for 6000.6 and 6000.7 in Nov 2026). Nino's kernels take bytes and
   offset tables, never such a struct, so pass Burst only bytes, never a user's packed struct type.
+- Never build a formatter at run time for a generic struct (`T?` included) that holds a packed struct on IL2CPP:
+  libil2cpp computes a generic instance's field offsets itself (`FieldLayout::LayoutFields`), which reflection and
+  fully shared generic code use, and they differ from the C++ struct compiled code uses (unity.yml run 44102730242,
+  both Unity versions: `Around<PackedIntDateTime4>`'s `B` at 8 compiled and 4 by reflection, `Around<PackedPair1<long>>`
+  at 1 and 8; a `PackedPair1<long>?` built in shared code got its value at 8 of 10 bytes and the player's heap broke).
+  `NinoReflection.Il2CppSplitLayoutIn` finds such types and the resolver and `NinoFormatterCache.Build` refuse them
+  with `NotSupportedException` (Il2CppSplitLayoutTests pins the rule; Unity's `StructLayoutsWriteCoreClrBytes`
+  requires every shape that read wrong bytes to be refused, and nothing refused on Mono). Generated formatters are
+  compiled for their types and stay right; `docs/pitfalls.md` tells users what to do. Probe a layout question in the
+  player by logging `Unsafe.ByteOffset` of a field (compiled) next to the first byte `FieldInfo.GetValue` returns from a
+  box filled with each byte's offset (reflection).
 - Expect an unaligned load to crash Arm32 IL2CPP players (Android ARMv7), as it crashed Arm32 .NET: IL2CPP compiles
   the C# as written, and an unaligned `long`, `double` or `float` access becomes `ldrd`/`vldr`, which fault (K4os.LZ4
   issue 40, Unity Addressables IN-40828). Read and write through `Unsafe.ReadUnaligned` / `WriteUnaligned` or byte
