@@ -110,20 +110,25 @@ namespace Test.Runtime
             LayoutShapes.Visit(cases);
             Debug.Log($"Nino StructLayout sizes ({RuntimeName()}): " + string.Join(", ", cases.SizeLines));
 #if ENABLE_IL2CPP
-            // Each of these read or wrote other bytes on IL2CPP (unity.yml runs 44102730242, 44108765619): a generic
-            // struct, T? included, whose fields IL2CPP places in two ways. Nino refuses to build their formatters there.
-            foreach (string split in new[]
+            // Generic structs IL2CPP lays out in two ways (#378). Those code here names (SplitHolder's members, the
+            // closed calls of SplitStructsNamedInCodeWriteCoreClrBytes) have registered formatters and offsets, so
+            // generic code writes them right too (run 44140455419); those reached only through generic code are refused.
+            foreach (string named in new[]
                      {
                          "Around<PackedIntDateTime4>", "Around<HoldsPacked>", "Around<PackedLeaves1>",
                          "Around<PackedMix4>", "Around<ExplicitHoldsPacked>", "HoldsPacked?", "PackedLeaves1?",
-                         "PackedMix4?", "ExplicitHoldsPacked?", "PackedPair1<long>?",
-                         // Arrays IL2CPP allocates with other elements than its code indexes (#378; the T?[] whose
-                         // elements do not fit are never built: LayoutShapes.ElementsFit).
-                         "PackedPair1<long>[]", "List<PackedPair1<long>>", "PackedPair1<long>?[]",
+                         "PackedMix4?", "ExplicitHoldsPacked?", "PackedPair1<long>?", "PackedPair1<long>[]",
+                         "List<PackedPair1<long>>",
                      })
             {
-                if (!cases.Refused.Contains("layout " + split))
-                    cases.Failed.Add($"layout {split} was not refused on IL2CPP");
+                if (cases.Refused.Contains("layout " + named))
+                    cases.Failed.Add($"layout {named} was refused on IL2CPP, though code names it");
+            }
+
+            foreach (string generic in new[] { "PackedPair1<DateTime>", "PackedPair1<DateTime>?", "PacksNatural?" })
+            {
+                if (!cases.Refused.Contains("layout " + generic))
+                    cases.Failed.Add($"layout {generic}, reached only through generic code, was not refused on IL2CPP");
             }
 #else
             foreach (string refused in cases.Refused)
