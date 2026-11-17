@@ -99,7 +99,7 @@ namespace Nino.Core.Internal
             if (leaf == NinoLeaf.Unsupported || value == null)
                 return false;
             values.Add(new Measured(type, (ObjectFields.At<byte>(value, 0) & 1) << bit));
-            if (leaf != NinoLeaf.None)
+            if (leaf != NinoLeaf.None || AddPacked(type, values.Count - 1, values))
                 return true;
             foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
@@ -110,6 +110,58 @@ namespace Nino.Core.Internal
                 var underlying = Nullable.GetUnderlyingType(fieldType);
                 if (underlying == null ? !Visit(field.GetValue(value), fieldType, bit, values)
                     : !VisitNullable(field.GetValue(value) != null, fieldType, underlying, bit, values))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// The values below a struct laid out by <c>Pack</c> or <c>[FieldOffset]</c>, which may put a field where
+        /// reflection cannot read it: CoreCLR's <c>FieldInfo.GetValue</c> loads an unaligned <c>long</c> or <c>double</c>
+        /// with an aligned instruction on Arm32 and Arm64 (SIGBUS; a Pack = 4 struct holding a Pack = 1 one and a
+        /// <c>DateTimeOffset</c>, which Arm32 measures). Added from the layout model, each at its offset from the value
+        /// that holds it (<paramref name="index"/> first), where the model places the struct at this runtime's size;
+        /// false otherwise, with nothing added. IL2CPP ignores <c>Pack</c>: its sizes differ, and its fields, read by
+        /// reflection, lie aligned.
+        /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
+        private static bool AddPacked(Type type, int index, List<Measured> values)
+        {
+            var layout = type.StructLayoutAttribute;
+            if (layout == null || !(layout.Value == System.Runtime.InteropServices.LayoutKind.Explicit ||
+                                    layout.Value == System.Runtime.InteropServices.LayoutKind.Sequential && layout.Pack > 0))
+                return false;
+            if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, Runtime, 0, new List<NinoLayoutCore.Leaf>(),
+                    out int size, out _) || size != RuntimeSizeOf(type))
+                return false;
+            int start = values.Count;
+            if (AddModeled(type, index, values))
+                return true;
+            values.RemoveRange(start, values.Count - start);
+            return false;
+        }
+
+        /// <summary>The fields of <paramref name="type"/> (value <paramref name="index"/>) and theirs, as the model places them.</summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = FieldsJustification)]
+        private static bool AddModeled(Type type, int index, List<Measured> values)
+        {
+            var offsets = new List<int>();
+            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, Runtime, 0, new List<NinoLayoutCore.Leaf>(),
+                    out _, out _, offsets) || offsets.Count != fields.Length)
+                return false;
+            for (int i = 0; i < fields.Length; i++)
+            {
+                var fieldType = NinoReflection.LayoutFieldType(fields[i]);
+                // A Nullable's flag and value, and pointers, are measured as Visit measures them.
+                if (fieldType.IsPointer || Nullable.GetUnderlyingType(fieldType) != null)
+                    return false;
+                int at = values.Count;
+                values.Add(new Measured(fieldType, 0, index, offsets[i]));
+                var leaf = default(RuntimeView).Leaf(fieldType);
+                if (leaf == NinoLeaf.Unsupported || leaf == NinoLeaf.None && !AddModeled(fieldType, at, values))
                     return false;
             }
 
@@ -145,11 +197,17 @@ namespace Nino.Core.Internal
             var fields = nullable.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             if (fields.Length != 2 || fields[0].FieldType != typeof(bool))
                 return null;
-            var sizeOf = typeof(NinoLayout).GetMethod(nameof(SizeOf), BindingFlags.NonPublic | BindingFlags.Static)!;
-            int size = (int)sizeOf.MakeGenericMethod(underlying).Invoke(null, null)!;
-            valueOffset = (int)sizeOf.MakeGenericMethod(nullable).Invoke(null, null)! - size;
+            int size = RuntimeSizeOf(underlying);
+            valueOffset = RuntimeSizeOf(nullable) - size;
             return valueOffset > 0 ? MeasureMemory(underlying, size) : null;
         }
+
+        /// <summary><c>Unsafe.SizeOf</c> of a type known at run time.</summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2060", Justification = "Measured only where reflection works; null otherwise.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Measured only where reflection works; null otherwise.")]
+        private static int RuntimeSizeOf(Type type) =>
+            (int)typeof(NinoLayout).GetMethod(nameof(SizeOf), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(type).Invoke(null, null)!;
 
         private static int SizeOf<T>() => Unsafe.SizeOf<T>();
     }
