@@ -2,7 +2,8 @@
 # The .NET suite's cases in Nino's generated TypeScript against Protocol Buffers (protobuf-es), MessagePack (msgpackr)
 # and JSON, timed by tinybench, in Node and in headless Chromium (bench.ts says how).
 #
-# usage: runtimes/typescript/bench/run.sh [cases]   (a regular expression of case names, e.g. '^Simple'; default: all)
+# usage: runtimes/typescript/bench/run.sh [cases]   (case names separated by |, * for any run, e.g. 'Simple*|Players';
+# default: all)
 # NINO_BENCH_TIME: tinybench's time per task in milliseconds (default 1000); NINO_BENCH_QUICK=1: the quick cases at
 # 100, with 25 ms of warm-up (the trend check a pull request labeled `benchmark` runs).
 # Requires the .NET SDK, Node 22.18+ (it runs TypeScript directly) and, for the Chromium run, Playwright with Chromium

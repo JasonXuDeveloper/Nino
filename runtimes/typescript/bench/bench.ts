@@ -59,7 +59,7 @@ export interface Options {
   warmupTime?: number;
   /** Only the cases cases.json marks quick (NINO_BENCH_QUICK=1). */
   quick?: boolean;
-  /** Only the cases whose name matches (NINO_BENCH_CASES, a regular expression). */
+  /** Only the cases whose name matches (NINO_BENCH_CASES: names separated by `|`, `*` for any run of characters). */
   only?: string;
   /** Where a case that cannot run, or a serializer that cannot express a case, is reported. */
   log?: (line: string) => void;
@@ -294,6 +294,23 @@ async function scenario(c: Case, data: Uint8Array, proto: Uint8Array | null, cod
 }
 
 /**
+ * The case filter (NINO_BENCH_CASES, as the Rust benchmark's): names separated by `|`, each matched as a whole, with
+ * `*` for any run of characters. No regular expression is built from it.
+ */
+function matcher(pattern: string): (name: string) => boolean {
+  const glob = (p: string, name: string): boolean => {
+    const star = p.indexOf("*");
+    if (star < 0) return p === name;
+    const head = p.slice(0, star), tail = p.slice(star + 1);
+    if (!name.startsWith(head)) return false;
+    for (let i = head.length; i <= name.length; i++) if (glob(tail, name.slice(i))) return true;
+    return false;
+  };
+  const alternatives = pattern.split("|");
+  return (name) => alternatives.some((a) => glob(a, name));
+}
+
+/**
  * Runs the cases of cases.json that the model has a codec for, in its order, filtered by `options`; `read` gives a
  * file of the data directory, or null when there is none.
  */
@@ -302,10 +319,10 @@ export async function run(read: (name: string) => Promise<Uint8Array | null>, op
   const list = await read("cases.json");
   if (!list) throw new Error("no cases.json: run generate.sh");
   const all = JSON.parse(new TextDecoder().decode(list)) as Case[];
-  const only = options.only ? new RegExp(options.only) : null;
+  const only = options.only ? matcher(options.only) : null;
   const rows: Row[] = [];
   for (const c of all) {
-    if ((options.quick && !c.quick) || (only && !only.test(c.case))) continue;
+    if ((options.quick && !c.quick) || (only && !only(c.case))) continue;
     const codec = ninoCodecOf(c.type);
     if (!codec) {
       log(`${c.case}: skipped: nino-gen writes no TypeScript codec for ${c.type} (generate.sh's warnings say why)`);

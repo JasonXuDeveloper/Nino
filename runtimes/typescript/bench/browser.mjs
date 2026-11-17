@@ -1,6 +1,6 @@
 // The benchmark in headless Chromium (Playwright): node browser.mjs <compiled directory> <data directory> [cases]
 // The page loads the bundled bench.js (esbuild, run.sh) and the data from a route, so nothing else is served.
-// [cases] or NINO_BENCH_CASES: a regular expression of case names. NINO_BENCH_TIME: tinybench's time per task in
+// [cases] or NINO_BENCH_CASES: case names separated by |, * for any run. NINO_BENCH_TIME: tinybench's time per task in
 // milliseconds (NINO_BENCH_QUICK=1: the quick cases at 100).
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

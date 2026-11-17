@@ -544,7 +544,7 @@ of error, p75/p99 and passes per second):
 
 ```sh
 runtimes/typescript/bench/run.sh                  # every case
-runtimes/typescript/bench/run.sh '^Simple'        # the cases whose name matches (NINO_BENCH_CASES too)
+runtimes/typescript/bench/run.sh 'Simple*|Players'  # these cases (NINO_BENCH_CASES too; * for any run)
 NINO_BENCH_TIME=300 runtimes/typescript/bench/run.sh Players   # 300 ms per task instead of 1,000
 ```
 

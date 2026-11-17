@@ -1,4 +1,4 @@
-// The benchmark in Node: node node.ts <data directory> [cases]   ([cases]: a regular expression of case names)
+// The benchmark in Node: node node.ts <data directory> [cases]   ([cases]: case names separated by |, * for any run)
 // NINO_BENCH_CASES picks cases the same way; NINO_BENCH_QUICK=1 runs the quick ones at 100 ms per task with 25 ms of
 // warm-up (the trend check a pull request labeled `benchmark` runs); NINO_BENCH_TIME sets tinybench's time per task in
 // milliseconds (default 1000). With NINO_BENCH_JSON=<file>, the rows are also written to that file as JSON
