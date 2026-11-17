@@ -104,7 +104,23 @@ call of a raw value holding one registers its formatter, which is then compiled 
 out from those offsets on every runtime. What the generator cannot see is still refused on IL2CPP with a
 `NotSupportedException` naming the type: a formatter reached only through generic code (`Save<T>(T value)` calling
 `NinoSerializer.Serialize(value)`), or a struct with a field generated code cannot name (private, an auto-property's).
-Name the type in code, use `NinoNullable<T>` instead of `T?`, or remove the `Pack`. IL2CPP on Unity 6000.6 also refuses to load an `Explicit` struct with a struct field at offset 1.
+Name the type in code, use `NinoNullable<T>` instead of `T?`, or remove the `Pack`.
+
+Arrays of these structs are another IL2CPP bug, in its runtime, which no serializer can fix for the arrays users
+create themselves (libil2cpp's source, as HybridCLR's `il2cpp_plus` mirrors it for Unity 2022.3 and 6000.3; #378). Its
+`GenericClass::CreateClass` never copies a generic definition's packing, so every generic instance is laid out at run
+time without `Pack` while its C++ struct keeps it (`PackedPair1<long>`: 16 bytes against 9); and a non-generic packed
+struct's run-time alignment applies `Pack` while its C++ struct keeps a `DateTime` field 8-aligned, so a generic struct
+holding it is 24 bytes at run time and 32 in C++. An array is allocated with the run-time element size and indexed by
+compiled code with the C++ `sizeof`: filling a `HoldsPacked?[]` that user code created (36-byte elements, 40-byte
+writes) writes past it and corrupts the heap, without Nino, and `Array.Copy`, `Array.Clear` or a list's growth move
+other bytes than compiled code reads (Unity 2022.3.62f2 and 6000.6.9f1 measure the same). Nino measures both sizes,
+and the arrays and lists it creates of such a type get enough memory for compiled code (spare elements, then the
+length set back), so reading never writes past them and the values read are those compiled code sees; writing reads
+the user's arrays as their compiled code laid them out. Nothing is refused. In a Unity project, keep `Pack` off generic
+structs and off structs that a generic struct or `T?` holds, use a non-generic struct where a generic one would hold a
+packed struct (its layout comes from il2cpp.exe on both sides), and `NinoNullable<T>` of a non-generic `T` instead of
+`T?` (two `T`s, laid out alike by both). IL2CPP on Unity 6000.6 also refuses to load an `Explicit` struct with a struct field at offset 1.
 `LayoutShapes` (Unity's `Assets/Test/Runtime/BclFixtureTypes.cs`) checks every layout form on every runtime.
 
 ### `Vector<T>` is not serializable
