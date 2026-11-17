@@ -52,7 +52,9 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   (Unity 2022.3 and 6000.6 players, unity.yml run 44063778182); its `T?` is 24 bytes there. Nino.Core writes the
   canonical 12 bytes from it, and the reads that lost 4 bytes and wrote past a value are #378. The generator's
   `RawLayout.IsPortable` measures both of its models with `Pack` applied, so it calls such a struct portable and
-  generated code copies it as raw memory where it is a member (#378).
+  generated code copied it as raw memory where it is a member (#378, fixed in fe7aff6f). A new layout form gets a
+  case in `LayoutShapes` (BclFixtureTypes.cs), which Nino.RuntimeTests (.NET, Mono) and Unity's
+  `StructLayoutsWriteCoreClrBytes` (editor and IL2CPP player) check against CoreCLR x64's bytes.
 - Debug an IL2CPP-only failure in the benchmark player (unity.yml with `benchmark`, `-ninoBenchmark`), since CoreCLR
   and Mono cannot show it: log each fact in its own line as soon as it exists, the memory first, before any Nino call,
   because a write past a value corrupts the heap and the player crashes (SIGSEGV, or NUnit's `StringBuilder` failing)
