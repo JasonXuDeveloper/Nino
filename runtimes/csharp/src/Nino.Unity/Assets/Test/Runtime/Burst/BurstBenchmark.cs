@@ -128,20 +128,45 @@ namespace Test.Runtime.Burst
         {
             c.Prepare();
             byte[] expected = null;
+            string first = null;
             foreach (var (group, isa) in _groups)
             {
                 Use(isa);
                 byte[] bytes = c.Serialize();
-                expected ??= bytes;
-                Assert.IsTrue(bytes.SequenceEqual(expected), $"{c.Name}: different bytes ({group})");
-                Assert.IsTrue(c.ReadBack().SequenceEqual(expected), $"{c.Name}: read back differently ({group})");
+                if (expected == null)
+                {
+                    expected = bytes;
+                    first = group;
+                }
+
+                // Which side is .NET's tells which path is wrong (an old case's bytes are another version's).
+                string Net(byte[] b) => c.Old ? "" : b.SequenceEqual(c.Bytes) ? ", .NET's: the first" : ", .NET's: neither";
+                Same(expected, bytes, $"{c.Name}: the value writes other bytes ({group}) than ({first}){Net(expected)}");
+                byte[] back = c.ReadBack();
+                Same(expected, back,
+                    $"{c.Name}: .NET's bytes read ({group}) write other bytes than the value read ({first}){(back.SequenceEqual(c.Bytes) ? ", .NET's: the second" : Net(expected))}");
             }
 
             NinoBurst.Register();
             if (c.Old || expected.SequenceEqual(c.Bytes))
                 return;
-            Assert.AreEqual(c.Bytes.Length, expected.Length, $"{c.Name}: not .NET's bytes");
+            if (c.Bytes.Length != expected.Length)
+                Same(c.Bytes, expected, $"{c.Name}: not .NET's bytes");
             Debug.LogWarning($"{c.Name}: .NET's bytes in another order");
+        }
+
+        /// <summary>Fails with where <paramref name="actual"/> first differs, and the bytes around it on both sides.</summary>
+        private static void Same(byte[] expected, byte[] actual, string message)
+        {
+            int n = Math.Min(expected.Length, actual.Length), at = 0;
+            while (at < n && expected[at] == actual[at])
+                at++;
+            if (at == n && expected.Length == actual.Length)
+                return;
+            int from = Math.Max(0, at - 8);
+            string Hex(byte[] b) => BitConverter.ToString(b, Math.Min(from, b.Length), Math.Max(0, Math.Min(40, b.Length - from)));
+            Assert.Fail($"{message}: {expected.Length} and {actual.Length} bytes, first difference at {at}; from {from}:\n" +
+                        $"  {Hex(expected)}\n  {Hex(actual)}");
         }
 
         // The sample groups and the kernels each measures (-1: none), set by Environment.
