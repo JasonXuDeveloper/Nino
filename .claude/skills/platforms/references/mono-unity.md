@@ -79,8 +79,15 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   at 1 and 8; a `PackedPair1<long>?` built in shared code got its value at 8 of 10 bytes and the player's heap broke).
   `NinoReflection.Il2CppSplitLayoutIn` finds such types and the resolver and `NinoFormatterCache.Build` refuse them
   with `NotSupportedException` (Il2CppSplitLayoutTests pins the rule; Unity's `StructLayoutsWriteCoreClrBytes`
-  requires every shape that read wrong bytes to be refused, and nothing refused on Mono). Generated formatters are
-  compiled for their types and stay right; `docs/pitfalls.md` tells users what to do. Probe a layout question in the
+  requires every shape that read wrong bytes to be refused through generic code, and nothing refused on Mono). Never
+  measure such a struct by reflection for a generated formatter either: compiled code copies the C++ layout, so the
+  generator's `SplitLayouts` (the same rule over symbols; keep the two in step) registers, in the registry's static
+  constructor, the offsets compiled code takes (`NinoLayoutOffsets.Register`, `Unsafe.ByteOffset` of each field;
+  `RegisterNullable` for `T?`), `NinoLayout` measures from them, and a top-level call of a raw value holding one
+  registers its formatter so it is compiled code too (the owner's rule: what v3 supported must not throw; Unity's
+  `SplitStructsNamedInCodeWriteCoreClrBytes` and `SplitHolder` check it; Il2CppSplitLayoutTests checks that the
+  tables lay out as reflection does on CoreCLR). A struct the generator cannot name every field of stays refused
+  (`NinoLayout.Info.Il2CppSplit`); `docs/pitfalls.md` tells users what to do. Probe a layout question in the
   player by logging `Unsafe.ByteOffset` of a field (compiled) next to the first byte `FieldInfo.GetValue` returns from a
   box filled with each byte's offset (reflection).
 - Expect an unaligned load to crash Arm32 IL2CPP players (Android ARMv7), as it crashed Arm32 .NET: IL2CPP compiles
