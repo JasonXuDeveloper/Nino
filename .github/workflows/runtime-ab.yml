@@ -18,6 +18,8 @@ name: Runtime A/B (test branch)
 # Both commits must be on a branch of this repository (main, or this branch: push them here, merging, never
 # force-pushing).
 # The filter is a `go test -bench` regexp, a criterion filter or a bench.ts case name. Numbers are for development only.
+# After the filter, "<base env> <head env>" (NAME=VALUE or -) set a variable for one side (rust and go: the Go
+# benchmark's NINO_BENCH_QUICK=1 or NINO_BENCH_CASES=<regexp> to time some of the .NET suite's cases).
 on:
   push:
     branches: [bench/ab]
@@ -152,12 +154,22 @@ jobs:
               go)
                 go_base=$(tree_path "$base" GO_RUNTIME)
                 go_head=$(tree_path "$head" GO_RUNTIME)
+                # Since #337 the Go benchmark runs the .NET suite's cases: each side's data from its own
+                # Nino.Benchmark (bench/generate.sh --data), written once per commit.
+                for side in base head; do
+                  ref=$base go_dir=$go_base; [[ $side == head ]] && ref=$head go_dir=$go_head
+                  gen="$RUNNER_TEMP/$ref/$go_dir/bench/generate.sh"
+                  if [[ $godir == bench && -x $gen && ! -d "$RUNNER_TEMP/$ref/$go_dir/bench/data" ]]; then
+                    "$gen" --data > /dev/null
+                  fi
+                done
                 : > "$out/base.txt"; : > "$out/head.txt"
                 for _ in $(seq "$rounds"); do
                   for side in base head; do
-                    ref=$base go_dir=$go_base; [[ $side == head ]] && ref=$head go_dir=$go_head
+                    ref=$base go_dir=$go_base side_env=$base_env
+                    [[ $side == head ]] && ref=$head go_dir=$go_head side_env=$head_env
                     (cd "$RUNNER_TEMP/$ref/$go_dir/$godir" &&
-                      go test -run '^$' -bench "${filter:-.}" -benchmem -count 1) >> "$out/$side.txt"
+                      /usr/bin/env "$side_env" go test -run '^$' -bench "${filter:-.}" -benchmem -count 1) >> "$out/$side.txt"
                   done
                 done
                 "$(go env GOPATH)/bin/benchstat" base="$out/base.txt" head="$out/head.txt" | tee "$out/go.txt"
