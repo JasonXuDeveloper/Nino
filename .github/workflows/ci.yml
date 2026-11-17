@@ -477,6 +477,17 @@ jobs:
             exit 1
           fi
 
+      # The Go benchmark's model (runtimes/go/bench/model) is what nino-gen writes today from the schema, with a root
+      # for each case whose type is not a [NinoType] (generate.sh, which also writes the cases' data, ignored).
+      - name: Check the Go benchmark's model
+        if: ${{ !cancelled() }}
+        run: |
+          runtimes/go/bench/generate.sh
+          if ! git diff --exit-code --stat -- runtimes/go/bench/model; then
+            echo "::error::runtimes/go/bench/model is out of date: run runtimes/go/bench/generate.sh and commit it"
+            exit 1
+          fi
+
       # Every benchmark case reads back what the others read and writes its payload's bytes (Verify.cs), on every
       # push: report.yml runs it first on each shard, where a failure showed only at a release. The Arm64 runtime
       # internals job runs it on Arm64.

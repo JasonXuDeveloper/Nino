@@ -554,9 +554,17 @@ jobs:
         if: ${{ !cancelled() }}
         run: go test -race -count=1 ./...
 
+      # The benchmark module reads the .NET suite's cases: each written by Nino.Benchmark (bench/generate.sh --data),
+      # read and written back to the same bytes by the generated model, and checked with every adapter.
+      - name: Set up .NET (the benchmark's data)
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/setup-dotnet
+
       - name: Test the benchmark module
         if: ${{ !cancelled() }}
-        run: (cd bench && go test -count=1 ./...)
+        run: |
+          bench/generate.sh --data
+          (cd bench && go test -count=1 ./...)
 
       # The string kernels' assembly is what internal/asm (its own module, with avo) writes: go generate leaves the
       # committed strings_wire_amd64.s and strings_wire_arm64.s unchanged.
@@ -695,9 +703,10 @@ jobs:
         with:
           persist-credentials: false
 
-      # The TypeScript benchmark's data and types come from .NET (Bench.csproj and nino-gen).
+      # The TypeScript benchmark's data and types come from .NET (Bench.csproj and nino-gen), the Go benchmark's data
+      # too (Nino.Benchmark --write-data, bench/generate.sh).
       - name: Set up .NET
-        if: matrix.lang == 'typescript'
+        if: matrix.lang == 'typescript' || matrix.lang == 'go'
         uses: ./.github/actions/setup-dotnet
 
       - name: Set up Node.js
@@ -731,6 +740,7 @@ jobs:
         if: matrix.lang == 'go'
         working-directory: runtimes/go/bench
         run: |
+          ./generate.sh --data
           go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
           go test -run '^$' -bench . -benchmem -count 6 . | tee "$RUNNER_TEMP/bench.txt"
           "$(go env GOPATH)/bin/benchstat" -format csv "$RUNNER_TEMP/bench.txt" > "$RUNNER_TEMP/bench.csv"
