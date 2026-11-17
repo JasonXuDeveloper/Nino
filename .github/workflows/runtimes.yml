@@ -579,6 +579,18 @@ jobs:
           bench/generate.sh --data
           (cd bench && go test -count=1 ./...)
 
+      # The TypeScript benchmark on the same cases: each read and written back to .NET's bytes by the generated model,
+      # every serializer checked on it and timed for a millisecond.
+      - name: Test the TypeScript benchmark
+        if: ${{ !cancelled() }}
+        working-directory: runtimes/typescript/bench
+        env:
+          NINO_BENCH_TIME: '1'
+        run: |
+          npm ci --no-audit --no-fund
+          ./generate.sh
+          node --no-warnings node.ts out/data > /dev/null
+
       # The string kernels' assembly is what internal/asm (its own module, with avo) writes: go generate leaves the
       # committed strings_wire_amd64.s and strings_wire_arm64.s unchanged.
       - name: Check the generated assembly
@@ -738,13 +750,8 @@ jobs:
         if: matrix.lang == 'typescript'
         working-directory: runtimes/typescript/bench
         run: |
-          codegen=../../csharp/src/Nino.Codegen
-          dotnet build -c Release "$codegen" > /dev/null
-          dotnet build -c Release . > /dev/null
-          dotnet bin/Release/net10.0/Bench.dll out/data
-          dotnet "$codegen/bin/Release/net8.0/nino-gen.dll" --assembly bin/Release/net10.0/Bench.dll \
-            --lang ts --out gen --import-extension .ts
           npm ci --no-audit --no-fund
+          ./generate.sh
           NINO_BENCH_JSON="$RUNNER_TEMP/bench.json" node --no-warnings node.ts out/data
           python3 "$REPORTS/runtimes_report.py" typescript "$RUNNER_TEMP/bench.json" "$TAG" > "$RUNNER_TEMP/section.md"
 
