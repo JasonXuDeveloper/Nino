@@ -103,6 +103,60 @@ namespace Test.Runtime
         /// CoreCLR's bytes both ways: IL2CPP's Pack never moves a BCL struct field (DateTime, decimal, Guid), so such a
         /// struct is laid out apart there (#378). Logs this runtime's sizes, and each failure as it is found.
         /// </summary>
+        /// <summary>
+        /// A probe for #378 (logs only): where a field of a generic struct lies by reflection (the offsets IL2CPP computes
+        /// at run time for generic instances, which shared generic code and reflection use) and where the compiled code
+        /// puts it. IL2CPP gives a field its type's natural alignment there, without the type's own Pack.
+        /// </summary>
+        [Test, Order(-1)]
+        public void GenericOffsetsByReflectionAndCompiled()
+        {
+            var lines = new List<string>();
+            Probe<PackedIntDateTime4>(lines);
+            Probe<PackedPair1<long>>(lines);
+            Probe<PackedPair1<DateTime>>(lines);
+            Probe<PackedLeaves1>(lines);
+            Probe<PackedByteLong1>(lines);
+            var n = (PackedPair1<long>?)new PackedPair1<long> { A = 0xAB };
+            lines.Add($"PackedPair1<long>? value compiled@{FirstAt(ref Unsafe.As<PackedPair1<long>?, byte>(ref n), Unsafe.SizeOf<PackedPair1<long>?>(), 0xAB)}");
+            var d = (PackedIntDateTime4?)new PackedIntDateTime4 { Id = 0xAB };
+            lines.Add($"PackedIntDateTime4? value compiled@{FirstAt(ref Unsafe.As<PackedIntDateTime4?, byte>(ref d), Unsafe.SizeOf<PackedIntDateTime4?>(), 0xAB)}");
+            foreach (var line in lines)
+                Debug.Log("NINO_OFFSETS|" + line);
+        }
+
+        private static void Probe<T>(List<string> lines) where T : struct
+        {
+            var v = default(Around<T>);
+            ref byte start = ref Unsafe.As<Around<T>, byte>(ref v);
+            long b = (long)Unsafe.ByteOffset(ref start, ref Unsafe.As<T, byte>(ref v.B));
+            long c = (long)Unsafe.ByteOffset(ref start, ref Unsafe.As<int, byte>(ref v.C));
+            object box = v;
+            ref byte data = ref Unsafe.As<RawData>(box).Data;
+            int size = Unsafe.SizeOf<Around<T>>();
+            for (int i = 0; i < size; i++)
+                Unsafe.Add(ref data, i) = (byte)i;
+            var type = typeof(Around<T>);
+            int Reflected(string name) =>
+                Unsafe.As<RawData>(type.GetField(name).GetValue(box)).Data;
+            lines.Add($"Around<{typeof(T).Name}> size {size}: B compiled@{b} reflection@{Reflected("B")}, " +
+                      $"C compiled@{c} reflection@{Reflected("C")}");
+        }
+
+        private static int FirstAt(ref byte start, int size, byte mark)
+        {
+            for (int i = 0; i < size; i++)
+                if (Unsafe.Add(ref start, i) == mark)
+                    return i;
+            return -1;
+        }
+
+        /// <summary>A boxed value's first byte (the object's first field).</summary>
+        private sealed class RawData
+        {
+            public byte Data;
+        }
+
         [Test]
         public void StructLayoutsWriteCoreClrBytes()
         {
