@@ -6,6 +6,9 @@ using Nino.Core.Internal;
 
 namespace Nino.UnitTests;
 
+// The structs below exist for their layout only: their fields are never assigned.
+#pragma warning disable CS0649
+
 /// <summary>
 /// Which types Nino refuses to build a formatter for on IL2CPP (NinoReflection.Il2CppSplitLayoutIn): generic structs,
 /// T? included, holding a struct whose Pack moves a struct field, or a generic struct with Pack. IL2CPP places such a
