@@ -108,36 +108,46 @@ namespace Test.Runtime
         {
             var cases = new LayoutCases();
             LayoutShapes.Visit(cases);
-            Debug.Log($"Nino StructLayout sizes ({RuntimeName()}): " + string.Join(", ", cases.Sizes));
-            CollectionAssert.IsEmpty(cases.Failed);
+            Debug.Log($"Nino StructLayout sizes ({RuntimeName()}): " + string.Join(", ", cases.SizeLines));
+            // One string, never NUnit's formatting of a list: the IL2CPP player crashed formatting one (SIGSEGV in
+            // MsgUtils.FormatCollection), and lost the failures, which are also logged one per line as they happen.
+            if (cases.Failed.Count != 0)
+                Assert.Fail($"{cases.Failed.Count} StructLayout cases differ from CoreCLR:\n" + string.Join("\n", cases.Failed));
         }
 
         /// <summary>Writes each case, reads CoreCLR's bytes and writes them again: both CoreCLR's bytes.</summary>
         private sealed class LayoutCases : ILayoutCaseVisitor
         {
             public readonly List<string> Failed = new List<string>();
-            public readonly List<string> Sizes = new List<string>();
+            public readonly List<string> SizeLines = new List<string>();
+
+            public void Sizes<T>(string name) where T : struct =>
+                SizeLines.Add($"{name} {Unsafe.SizeOf<T>()} (T? {Unsafe.SizeOf<T?>()})");
 
             public void Case<T>(string name, T value)
             {
-                // A shape on its own (the first case of each) and its nullable form: this runtime's sizes.
-                if (typeof(T).IsValueType && name.IndexOfAny(new[] { '?', '[', '<' }) < 0 || name.StartsWith("PackedPair1<"))
-                    Sizes.Add($"{name} {Unsafe.SizeOf<T>()} (T? {Unsafe.SizeOf<T?>()})");
                 name = "layout " + name;
                 try
                 {
                     var expected = BclFixtures.FromHex(BclFixtures.Bytes[name]);
                     byte[] bytes = NinoSerializer.Serialize(value);
                     if (!bytes.SequenceEqual(expected))
-                        Failed.Add($"{name} writes {BitConverter.ToString(bytes)}, CoreCLR {BitConverter.ToString(expected)}");
+                        Fail($"{name} writes {BitConverter.ToString(bytes)}, CoreCLR {BitConverter.ToString(expected)}");
                     byte[] again = NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(expected));
                     if (!again.SequenceEqual(expected))
-                        Failed.Add($"{name} reads back as {BitConverter.ToString(again)}, CoreCLR {BitConverter.ToString(expected)}");
+                        Fail($"{name} reads back as {BitConverter.ToString(again)}, CoreCLR {BitConverter.ToString(expected)}");
                 }
                 catch (Exception e)
                 {
-                    Failed.Add($"{name}: {e.GetType().Name}: {e.Message}");
+                    Fail($"{name}: {e.GetType().Name}: {e.Message}");
                 }
+            }
+
+            /// <summary>Logged at once, in its own line: a write past a value can crash the player before the end.</summary>
+            private void Fail(string line)
+            {
+                Failed.Add(line);
+                Debug.Log("NINO_LAYOUT_FAIL|" + line);
             }
         }
 

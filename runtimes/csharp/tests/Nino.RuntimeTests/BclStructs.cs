@@ -158,6 +158,9 @@ public static class BclStructs
     /// <summary>Checks each StructLayout case against CoreCLR's bytes, as the others (<see cref="Fixture{T}"/>).</summary>
     private sealed class LayoutCases : ILayoutCaseVisitor
     {
+        public void Sizes<T>(string name) where T : struct =>
+            Console.WriteLine($"# layout size {name}: {Unsafe.SizeOf<T>()}, T? {Unsafe.SizeOf<T?>()}");
+
         public void Case<T>(string name, T value) => Fixture("layout " + name, value, readsByBytes: true);
     }
 

@@ -213,6 +213,9 @@ public class LayoutHolder
 /// <summary>Takes one case: its name (the key of its bytes in BclFixtures) and its value.</summary>
 public interface ILayoutCaseVisitor
 {
+    /// <summary>A shape, once before its cases: its size and its T?'s on this runtime.</summary>
+    void Sizes<T>(string name) where T : struct;
+
     void Case<T>(string name, T value);
 }
 
@@ -327,6 +330,7 @@ public static class LayoutShapes
     /// <summary>A shape on its own, as a T? and its null, in an array, a T?[], a list and inside a plain struct.</summary>
     private static void Each<T>(ILayoutCaseVisitor v, string name, T first, T second) where T : struct
     {
+        v.Sizes<T>(name);
         v.Case(name, first);
         v.Case(name + "?", (T?)second);
         v.Case(name + "? null", (T?)null);
