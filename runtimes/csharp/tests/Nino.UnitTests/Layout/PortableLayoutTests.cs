@@ -67,6 +67,42 @@ namespace Nino.UnitTests
 #pragma warning restore CS0649
         }
 
+        /// <summary>
+        /// IL2CPP ignores <c>[StructLayout(Pack)]</c>: a Pack = 4 struct of an int and a DateTime is 16 bytes there with
+        /// its DateTime at 8, 12 bytes with it at 4 on CoreCLR and Mono (unity.yml run 44063778182, #378). A member of
+        /// such a type is therefore never copied as raw memory by generated code (which copies its runtime size at
+        /// offsets of its canonical one), but goes through its formatter, which converts where memory differs. A
+        /// struct whose Pack moves nothing stays raw.
+        /// </summary>
+        [TestMethod]
+        public void StructsPackLaysOutAreNeverRawMembers()
+        {
+            const string source = @"
+using System;
+using System.Runtime.InteropServices;
+using Nino.Core;
+
+namespace PackProbe
+{
+    [StructLayout(LayoutKind.Sequential, Pack = 4)] public struct Moved { public int Id; public DateTime At; }
+    [StructLayout(LayoutKind.Sequential, Pack = 4)] public struct Unmoved { public int A; public int B; }
+    public struct HoldsMoved { public Moved Inner; }
+    [NinoType] public class Holder { public Moved M; public Unmoved U; public HoldsMoved H; }
+}";
+            var run = TestCompilation.Generate(TestCompilation.Create("PackProbe", new[] { source }));
+            string generated = string.Join("\n", run.GeneratedTrees.Select(t => t.ToString()));
+            // Raw: read and written as memory in the holder's own code. Not raw: through UnmanagedFormatter<T>.
+            Assert.IsTrue(generated.Contains("ReadChecked<global::PackProbe.Unmoved>"),
+                "a struct Pack moves nothing in stays a raw member:\n" + generated);
+            foreach (var moved in new[] { "Moved", "HoldsMoved" })
+            {
+                Assert.IsFalse(generated.Contains($"ReadChecked<global::PackProbe.{moved}>") ||
+                               generated.Contains($"SizeOf<global::PackProbe.{moved}>"),
+                    $"{moved} is copied as raw memory:\n{generated}");
+                StringAssert.Contains(generated, $"UnmanagedFormatter<global::PackProbe.{moved}>");
+            }
+        }
+
         [TestMethod]
         public void X86LayoutIsConvertedToTheCanonicalLayout()
         {
