@@ -144,10 +144,21 @@ namespace Test.Runtime
         [Test]
         public void SplitStructsNamedInCodeWriteCoreClrBytes()
         {
+            // How this runtime lays each type out in compiled code and in its arrays (the runtime's element size, which
+            // IL2CPP computes itself for a generic instance): logged before any case runs.
+            Debug.Log("NINO_SPLIT_SIZES|" + string.Join(", ", new[]
+            {
+                Sizes<Around<PackedIntDateTime4>>("Around<PackedIntDateTime4>"), Sizes<HoldsPacked?>("HoldsPacked?"),
+                Sizes<PackedLeaves1?>("PackedLeaves1?"), Sizes<PackedMix4?>("PackedMix4?"),
+                Sizes<ExplicitHoldsPacked?>("ExplicitHoldsPacked?"), Sizes<PackedPair1<long>>("PackedPair1<long>"),
+                Sizes<PackedPair1<long>?>("PackedPair1<long>?"), Sizes<Around<PackedPair1<long>>>("Around<PackedPair1<long>>"),
+            }));
             var failed = new List<string>();
             void Check(string name, Func<byte[]> write, Func<byte[], byte[]> readBack)
             {
                 name = "layout " + name;
+                // Logged first, and the heap walked after: a case that writes past a value crashes at once, here.
+                Debug.Log("NINO_SPLIT|" + name);
                 try
                 {
                     var expected = BclFixtures.FromHex(BclFixtures.Bytes[name]);
@@ -162,6 +173,8 @@ namespace Test.Runtime
                 {
                     failed.Add($"{name}: {e.GetType().Name}: {e.Message}");
                 }
+
+                GC.Collect();
             }
 
             Check("Around<PackedIntDateTime4>", () => NinoSerializer.Serialize(new Around<PackedIntDateTime4> { A = 1, B = new PackedIntDateTime4 { Id = 0x11223344, At = LayoutShapes.At1 }, C = -1 }),
@@ -198,6 +211,26 @@ namespace Test.Runtime
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<List<PackedPair1<long>>>(b)));
             if (failed.Count != 0)
                 Assert.Fail($"{failed.Count} split structs differ from CoreCLR:\n" + string.Join("\n", failed));
+        }
+
+        /// <summary>
+        /// <typeparamref name="T"/>'s size in compiled code and the distance between elements of a <c>T[]</c> as the
+        /// runtime lays the array out (UnsafeAddrOfPinnedArrayElement uses the runtime's element size).
+        /// </summary>
+        private static string Sizes<T>(string name) where T : struct
+        {
+            var array = new T[2];
+            var handle = System.Runtime.InteropServices.GCHandle.Alloc(array, System.Runtime.InteropServices.GCHandleType.Pinned);
+            try
+            {
+                long stride = (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 1) -
+                              (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 0);
+                return $"{name} {Unsafe.SizeOf<T>()} (array {stride})";
+            }
+            finally
+            {
+                handle.Free();
+            }
         }
 
         /// <summary>Writes each case, reads CoreCLR's bytes and writes them again: both CoreCLR's bytes.</summary>
