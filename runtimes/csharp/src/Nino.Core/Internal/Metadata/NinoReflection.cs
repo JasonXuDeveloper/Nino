@@ -188,6 +188,172 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
+        /// Whether this is IL2CPP: Mono's class libraries (their description is not ".NET ...") without dynamic code.
+        /// </summary>
+        internal static readonly bool IsIl2Cpp =
+            !System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription.StartsWith(".NET",
+                StringComparison.Ordinal) && !RuntimeFeature.IsDynamicCodeSupported;
+
+        /// <summary>
+        /// The generic struct, <c>T?</c> included, that <paramref name="type"/> is or holds (in its elements, type
+        /// arguments or fields) whose fields IL2CPP places in two ways, or null. IL2CPP computes a generic instance's
+        /// field offsets at run time (libil2cpp's <c>FieldLayout::LayoutFields</c>), which reflection and fully
+        /// shared generic code use, while the code compiled for the type uses the C++ compiler's struct; the two differ
+        /// where a field's struct is one whose <c>Pack</c> lowers the alignment of a struct field it holds, or a
+        /// generic struct with <c>Pack</c> (unity.yml run 44102730242: <c>Around&lt;PackedIntDateTime4&gt;</c>'s field
+        /// at 8 compiled and 4 by reflection; a <c>PackedPair1&lt;long&gt;?</c> read with its value at 8 of 10
+        /// bytes, which wrote past values). A formatter Nino builds for such a type at run time could only read and
+        /// write the wrong bytes: refused (<see cref="RefuseIl2CppSplitLayout"/>). Formatters the generator
+        /// registered are compiled for their types and are right.
+        /// </summary>
+        public static Type Il2CppSplitLayoutIn(Type type) => IsIl2Cpp ? SplitLayoutIn(type, null) : null;
+
+        /// <summary>
+        /// Throws <see cref="NotSupportedException"/> on IL2CPP for <see cref="Il2CppSplitLayoutIn"/>'s types: called
+        /// where a formatter is built at run time; out of line.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void RefuseIl2CppSplitLayout(Type type)
+        {
+            if (Il2CppSplitLayoutIn(type) is { } generic)
+                NinoThrow.Il2CppSplitLayout(type, generic);
+        }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = VectorJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = VectorJustification)]
+        internal static Type SplitLayoutIn(Type type, HashSet<Type> seen)
+        {
+            while (type.HasElementType)
+            {
+                if (type.IsPointer || type.IsByRef)
+                    return null;
+                type = type.GetElementType()!;
+            }
+
+            if (type.IsGenericParameter || type.IsPrimitive || type.IsEnum || type == typeof(string) || IsNinoType(type))
+                return null;
+            if (seen != null && !seen.Add(type))
+                return null;
+            if (type.IsValueType && type.IsGenericType && !type.ContainsGenericParameters && HoldsUnderPacked(type))
+                return type;
+            if (type.IsGenericType)
+            {
+                foreach (var argument in type.GetGenericArguments())
+                {
+                    if (SplitLayoutIn(argument, seen ??= new HashSet<Type> { type }) is { } found)
+                        return found;
+                }
+            }
+
+            if (!type.IsValueType)
+                return null;
+            foreach (var field in type.GetFields(System.Reflection.BindingFlags.Instance |
+                                                 System.Reflection.BindingFlags.Public |
+                                                 System.Reflection.BindingFlags.NonPublic))
+            {
+                if (SplitLayoutIn(field.FieldType, seen ??= new HashSet<Type> { type }) is { } found)
+                    return found;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Whether a field of the struct <paramref name="type"/>, at any depth of the structs it holds, is a struct
+        /// that <see cref="UnderPacked"/>.
+        /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = VectorJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = VectorJustification)]
+        private static bool HoldsUnderPacked(Type type, int depth = 0)
+        {
+            if (depth > 32)
+                return false;
+            foreach (var field in type.GetFields(System.Reflection.BindingFlags.Instance |
+                                                 System.Reflection.BindingFlags.Public |
+                                                 System.Reflection.BindingFlags.NonPublic))
+            {
+                var fieldType = field.FieldType;
+                if (!IsPlainStruct(field, fieldType))
+                    continue;
+                if (UnderPacked(fieldType) || HoldsUnderPacked(fieldType, depth + 1))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="type"/>'s <c>Pack</c> lowers the alignment of a struct field it holds, or it is a
+        /// generic struct with a <c>Pack</c> below its fields' alignment.
+        /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = VectorJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = VectorJustification)]
+        private static bool UnderPacked(Type type)
+        {
+            var layout = type.StructLayoutAttribute;
+            if (layout == null || layout.Value != System.Runtime.InteropServices.LayoutKind.Sequential ||
+                layout.Pack <= 0)
+                return false;
+            if (type.IsGenericType && layout.Pack < AlignOf(type, 0))
+                return true;
+            foreach (var field in type.GetFields(System.Reflection.BindingFlags.Instance |
+                                                 System.Reflection.BindingFlags.Public |
+                                                 System.Reflection.BindingFlags.NonPublic))
+            {
+                if (IsPlainStruct(field, field.FieldType) && layout.Pack < AlignOf(field.FieldType, 0))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>A struct field other than a primitive, an enum, a pointer or a fixed buffer.</summary>
+        private static bool IsPlainStruct(System.Reflection.FieldInfo field, Type type) =>
+            type.IsValueType && !type.IsPrimitive && !type.IsEnum &&
+            !field.IsDefined(typeof(FixedBufferAttribute), false);
+
+        /// <summary>The largest primitive a value of <paramref name="type"/> holds (its natural alignment, at most 8).</summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = VectorJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = VectorJustification)]
+        private static int AlignOf(Type type, int depth)
+        {
+            if (type.IsEnum)
+                type = Enum.GetUnderlyingType(type);
+            if (type.IsPointer)
+                return IntPtr.Size;
+            switch (Type.GetTypeCode(type))
+            {
+                case TypeCode.Boolean:
+                case TypeCode.Byte:
+                case TypeCode.SByte:
+                    return 1;
+                case TypeCode.Char:
+                case TypeCode.Int16:
+                case TypeCode.UInt16:
+                    return 2;
+                case TypeCode.Int32:
+                case TypeCode.UInt32:
+                case TypeCode.Single:
+                    return 4;
+                case TypeCode.Int64:
+                case TypeCode.UInt64:
+                case TypeCode.Double:
+                    return 8;
+            }
+
+            if (type.IsPrimitive)
+                return IntPtr.Size;
+            if (!type.IsValueType || depth > 32)
+                return IntPtr.Size;
+            int align = 1;
+            foreach (var field in type.GetFields(System.Reflection.BindingFlags.Instance |
+                                                 System.Reflection.BindingFlags.Public |
+                                                 System.Reflection.BindingFlags.NonPublic))
+                align = Math.Max(align, AlignOf(field.FieldType, depth + 1));
+            return align;
+        }
+
+        /// <summary>
         /// Whether values of <paramref name="type"/> are written as their raw bytes, as the generator decides it
         /// (RawRules.IsRawUnmanaged): a formatter parameter marked <see cref="NinoRawAttribute"/> binds the same types
         /// here as in generated code, so both write the same bytes (a <c>T?[]</c> of a raw <c>[NinoType]</c> struct at

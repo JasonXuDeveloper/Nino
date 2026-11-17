@@ -51,6 +51,16 @@ namespace Nino.Core.Internal
                 "Vector256<T>) and expose the Vector<T> through a [NinoIgnore] property over them (diagnostic NINO029).");
 
         [MethodImpl(Cold)]
+        public static void Il2CppSplitLayout(Type type, Type generic) =>
+            throw new NotSupportedException(
+                $"Nino: {type} cannot be serialized on IL2CPP without a formatter generated for it: it is or holds " +
+                $"{generic}, a generic struct whose fields IL2CPP places in one way for reflection and shared " +
+                "generic code and in another for the code compiled for the type, because a struct in it has a " +
+                "[StructLayout(Pack)] that moves a struct field (DateTime, decimal, Guid, ...). Remove that Pack, " +
+                "use NinoNullable<T> instead of T?, or name the type as a member of a [NinoType] so its formatter is " +
+                "generated (docs/pitfalls.md).");
+
+        [MethodImpl(Cold)]
         public static void NullElements(Type type) =>
             throw new NinoDataException($"Nino: the elements of {type.FullName} are null (it is a collection itself).");
 

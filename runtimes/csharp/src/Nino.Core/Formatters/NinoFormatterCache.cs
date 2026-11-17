@@ -101,6 +101,9 @@ namespace Nino.Core
             Justification = NinoFormatterResolver.ValueTypeConstraintJustification)]
         private static NinoFormatterBase<T> Build()
         {
+            // A formatter made here runs as shared generic code on IL2CPP, which some generic structs' fields place
+            // elsewhere than the caller's code does (NinoReflection.Il2CppSplitLayoutIn).
+            NinoReflection.RefuseIl2CppSplitLayout(typeof(T));
             var formatterType = NinoFormatterResolver.GetFormatterType(typeof(T), topLevel: true);
             if (formatterType == null)
                 NinoThrow.NoFormatter(typeof(T));

@@ -115,6 +115,7 @@ namespace Nino.Core
         private static Type Build(Type type)
         {
             NinoReflection.RefuseHostSizedVector(type);
+            NinoReflection.RefuseIl2CppSplitLayout(type);
             var building = t_building ??= new HashSet<Type>();
             bool added = building.Add(type);
             try
