@@ -158,7 +158,7 @@ public static class BclStructs
     /// <summary>Checks each StructLayout case against CoreCLR's bytes, as the others (<see cref="Fixture{T}"/>).</summary>
     private sealed class LayoutCases : ILayoutCaseVisitor
     {
-        public void Case<T>(string name, T value) => Fixture("layout " + name, value);
+        public void Case<T>(string name, T value) => Fixture("layout " + name, value, readsByBytes: true);
     }
 
 #if NET8_0_OR_GREATER
@@ -273,7 +273,7 @@ public static class BclStructs
     /// Writes <paramref name="value"/> and compares the bytes with CoreCLR x64's (<see cref="BclFixtures"/>), then reads
     /// CoreCLR's bytes and compares what it read, through the public API, with <paramref name="value"/>.
     /// </summary>
-    private static void Fixture<T>(string name, T value)
+    private static void Fixture<T>(string name, T value, bool readsByBytes = false)
     {
         string outcome;
         try
@@ -289,7 +289,11 @@ public static class BclStructs
                 var coreclr = BclFixtures.FromHex(hex);
                 var read = NinoDeserializer.Deserialize<T>(coreclr);
                 bool writes = bytes.SequenceEqual(coreclr);
-                bool reads = Contents(read) == Contents(value);
+                // Where a field may lie unaligned (Pack), what was read is written again instead: CoreCLR's reflection
+                // on Arm32 and Arm64 reads such a long with an aligned load (SIGBUS, ci.yml's Runtime internals).
+                bool reads = readsByBytes
+                    ? NinoSerializer.Serialize(read).SequenceEqual(coreclr)
+                    : Contents(read) == Contents(value);
                 outcome = writes && reads ? "ok" : (writes ? "" : "WRITES OTHER BYTES ") + (reads ? "" : "READS OTHER VALUES");
             }
         }
