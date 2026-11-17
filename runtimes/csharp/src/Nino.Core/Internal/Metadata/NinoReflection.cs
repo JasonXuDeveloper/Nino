@@ -202,7 +202,8 @@ namespace Nino.Core.Internal
         /// where a field's struct is one whose <c>Pack</c> lowers the alignment of a struct field it holds, or a
         /// generic struct with <c>Pack</c> (unity.yml run 44102730242: <c>Around&lt;PackedIntDateTime4&gt;</c>'s field
         /// at 8 compiled and 4 by reflection; a <c>PackedPair1&lt;long&gt;?</c> read with its value at 8 of 10
-        /// bytes, which wrote past values). A formatter Nino builds for such a type at run time could only read and
+        /// bytes, which wrote past values), and where the generic struct itself has a <c>Pack</c> below its fields'
+        /// alignment (Unity 6000.6 took <c>PackedPair1&lt;long&gt;</c>'s 9 bytes as 16 in arrays and lists). A formatter Nino builds for such a type at run time could only read and
         /// write the wrong bytes: refused (<see cref="RefuseIl2CppSplitLayout"/>). Formatters the generator
         /// registered are compiled for their types and are right.
         /// </summary>
@@ -234,7 +235,10 @@ namespace Nino.Core.Internal
                 return null;
             if (seen != null && !seen.Add(type))
                 return null;
-            if (type.IsValueType && type.IsGenericType && !type.ContainsGenericParameters && HoldsUnderPacked(type))
+            // A generic struct with Pack is split itself: on Unity 6000.6 shared code took PackedPair1<long> (Pack 1,
+            // 9 bytes) as 16, and wrote its arrays and lists with 16-byte elements (run 44108765619).
+            if (type.IsValueType && type.IsGenericType && !type.ContainsGenericParameters &&
+                (UnderPacked(type) || HoldsUnderPacked(type)))
                 return type;
             if (type.IsGenericType)
             {

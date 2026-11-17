@@ -110,14 +110,16 @@ namespace Test.Runtime
             LayoutShapes.Visit(cases);
             Debug.Log($"Nino StructLayout sizes ({RuntimeName()}): " + string.Join(", ", cases.SizeLines));
 #if ENABLE_IL2CPP
-            // Each of these read or wrote other bytes on IL2CPP (unity.yml run 44102730242): a generic struct, T?
-            // included, whose fields IL2CPP places in two ways. Nino refuses to build their formatters there.
+            // Each of these read or wrote other bytes on IL2CPP (unity.yml runs 44102730242, 44108765619): a generic
+            // struct, T? included, whose fields IL2CPP places in two ways. Nino refuses to build their formatters there.
             foreach (string split in new[]
                      {
                          "Around<PackedIntDateTime4>", "Around<HoldsPacked>", "Around<PackedLeaves1>",
                          "Around<PackedMix4>", "Around<ExplicitHoldsPacked>", "HoldsPacked?", "HoldsPacked?[]",
                          "PackedLeaves1?", "PackedLeaves1?[]", "PackedMix4?", "PackedMix4?[]", "ExplicitHoldsPacked?",
                          "ExplicitHoldsPacked?[]", "PackedPair1<long>?",
+                         // Unity 6000.6 wrote these with 16-byte elements of 9 (run 44108765619).
+                         "PackedPair1<long>[]", "List<PackedPair1<long>>",
                      })
             {
                 if (!cases.Refused.Contains("layout " + split))

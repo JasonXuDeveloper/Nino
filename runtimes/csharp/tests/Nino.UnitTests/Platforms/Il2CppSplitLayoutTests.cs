@@ -72,6 +72,10 @@ public class Il2CppSplitLayoutTests
         Assert.AreEqual(typeof(Pair1<long>?), SplitIn(typeof(Pair1<long>?)));
         Assert.AreEqual(typeof(Around<Pair1<long>>), SplitIn(typeof(Around<Pair1<long>>)));
         Assert.AreEqual(typeof(Around<IntDateTime4>), SplitIn(typeof(List<Around<IntDateTime4>>)));
+        // A generic struct with Pack, alone and in arrays and lists (Unity 6000.6 wrote 16-byte elements of 9).
+        Assert.AreEqual(typeof(Pair1<long>), SplitIn(typeof(Pair1<long>)));
+        Assert.AreEqual(typeof(Pair1<long>), SplitIn(typeof(Pair1<long>[])));
+        Assert.AreEqual(typeof(Pair1<long>), SplitIn(typeof(List<Pair1<long>>)));
     }
 
     [TestMethod]
@@ -83,7 +87,6 @@ public class Il2CppSplitLayoutTests
         Assert.IsNull(SplitIn(typeof(IntDateTime4[])));
         Assert.IsNull(SplitIn(typeof(List<IntDateTime4>)));
         Assert.IsNull(SplitIn(typeof(HoldsPacked)));
-        Assert.IsNull(SplitIn(typeof(Pair1<long>)));
         Assert.IsNull(SplitIn(typeof(Around<ByteLong1>)));
         Assert.IsNull(SplitIn(typeof(ByteLong1?)));
         Assert.IsNull(SplitIn(typeof(Fixed1?)));
