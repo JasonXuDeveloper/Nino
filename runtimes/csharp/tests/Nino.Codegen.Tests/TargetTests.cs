@@ -126,8 +126,41 @@ namespace Nino.Codegen.Tests
             StringAssert.Contains(rust, "pub type MaybeLong = Option<i64>;");
             StringAssert.Contains(rust, "\"System.Collections.Generic.List<System.Int32>\" => f.visit::<Ints>(),");
 
+            // The other collections Nino.Core writes as a sequence or a map are roots too; a root whose formatter
+            // nino-gen does not model (a Stack, which .NET writes from its top) is left out with a warning.
+            var (others, output) = Run("go", "nino_types.go", "--roots",
+                "Queue=System.Collections.Generic.Queue<System.Int32>;" +
+                "Sorted=System.Collections.Generic.SortedDictionary<System.Int32,System.String>;" +
+                "Stack=System.Collections.Generic.Stack<System.Int32>");
+            StringAssert.Contains(others, "func ReadQueue(r *nino.Reader) []int32 {");
+            StringAssert.Contains(others, "func ReadSorted(r *nino.Reader) []nino.Entry[int32, *string] {");
+            StringAssert.Contains(output, "root Stack (System.Collections.Generic.Stack<System.Int32>) is not written to Go");
+            Assert.IsFalse(others.Contains("ReadStack", StringComparison.Ordinal));
+
+            // A root met after the model is built gets the types its slots hold (Based<int>'s subtype).
+            var (based, _) = Run("go", "nino_types.go", "--roots", "Baseds=Shapes.Generic.Based<System.Int32>[]");
+            StringAssert.Contains(based, "func ReadBaseds(r *nino.Reader) []Based[int32] {");
+            StringAssert.Contains(based, "\tcase *BasedInt:\n");
+
             var (none, _) = Run("go", "nino_types.go");
             Assert.IsFalse(none.Contains("ReadInts", StringComparison.Ordinal));
+        }
+
+        /// <summary>A class and a generic class of one name and namespace (Twin, Twin&lt;T&gt;) get two names.</summary>
+        [TestMethod]
+        public void EveryTargetNamesAClassAndAGenericClassOfOneName()
+        {
+            foreach (var (lang, file, plain, generic) in new[]
+                     {
+                         ("go", "nino_types.go", "type ShapesGenericTwin interface {", "type ShapesGenericTwin1[T any] struct {"),
+                         ("rust", "nino_types.rs", "pub enum ShapesGenericTwinRef {", "pub struct ShapesGenericTwin1<T> {"),
+                         ("ts", "Nino.Codegen.Tests.ts", "export abstract class Shapes_Generic_Twin {", "export class Shapes_Generic_Twin1<T> {"),
+                     })
+            {
+                var (text, _) = Run(lang, file);
+                StringAssert.Contains(text, plain, lang);
+                StringAssert.Contains(text, generic, lang);
+            }
         }
 
         [TestMethod]
@@ -139,8 +172,9 @@ namespace Nino.Codegen.Tests
                 "1x=System.Int32[]",                                      // not an identifier
                 "A=System.Int32[];A=System.Int64[]",                      // a name twice
                 "A",                                                      // no type
-                "A=Shapes.ThingClass",                                    // a [NinoType]: it has its codec
                 "ThingClass=System.Int32[]",                              // a generated name
+                "A=System.Int32[];B=System.Int32[]",                      // one type twice
+                "A=Shapes.ThingClass",                                    // a [NinoType]: it has its codec
             })
                 Assert.ThrowsExactly<ArgumentException>(() => Run("rust", "nino_types.rs", "--roots", roots), roots);
         }

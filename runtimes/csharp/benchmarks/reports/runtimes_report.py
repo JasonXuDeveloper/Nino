@@ -3,7 +3,7 @@
 
 usage: runtimes_report.py [--arch arm64] typescript <node.json> <tag>   (runtimes/typescript/bench/node.ts with NINO_BENCH_JSON:
            tinybench's results)
-       runtimes_report.py go <benchstat CSV> <tag>   (runtimes/go/bench: go test -bench . -benchmem -count N, then
+       runtimes_report.py go <benchstat CSV> <tag>   (runtimes/go/bench: generate.sh --data, go test -bench . -benchmem -count N, then
            benchstat -format csv)
        runtimes_report.py rust <criterion directory> <tag> [<bench output>]
            (runtimes/rust/bench: cargo bench; target/criterion, and its output for the encoded sizes)
@@ -161,8 +161,10 @@ def go(path, tag):
     who = pivot(cells, ["Nino", "NinoTags", "Protobuf", "MessagePack", "JSON", "Gob"])
     machine = ", ".join(v for v in (env.get("cpu"), env.get("goos") and f"{env['goos']}/{env.get('goarch', '')}") if v)
     intro = ("`runtimes/go/bench` (`testing.B`, summarized by benchstat: medians ± their 95% confidence interval): "
-             "codecs in the shape nino-gen generates (`Nino`) and the struct tags (`NinoTags`) against Protocol "
-             "Buffers (google.golang.org/protobuf), MessagePack (vmihailenco/msgpack), encoding/json and gob, on "
+             "the .NET suite's cases, read from the bytes Nino.Benchmark writes and written back to them, with the "
+             "code nino-gen generates (`Nino`) and the struct tags on its structs (`NinoTags`) against Protocol "
+             "Buffers (google.golang.org/protobuf, on the messages of the suite's .proto files), MessagePack "
+             "(vmihailenco/msgpack), encoding/json and gob, each only where it reads the case back, on "
              f"{machine or 'a GitHub runner'}. Allocations are counted per operation; sizes are the encoded bytes.")
     return section("go", tag, f"The Go runtime of {tag} against Protocol Buffers, MessagePack, encoding/json and gob",
                    intro, grid(cells, who))

@@ -113,8 +113,8 @@ reports/                     what a release publishes: the results of runners as
   needs none: the v3 builds reference its package, LuminPack's without its generator, `Directory.Build.props`), and a version-tolerant
   model goes in the v3 project that tolerates versions (`V3/Versioned`: `VersionedModels.cs`, `TolerantClass.cs`; a
   collection of one that a case reads, such as `TolerantClass[]`, named in its `CollectionTypes.cs`, since v3 writes
-  overloads only for the collection types its project names). A type v3's generator cannot take stays in its v4
-  `Cases/` file, which the v3 build does not compile (CollectionsTest's `SelfTree`).
+  overloads only for the collection types its project names). A type v3's generator cannot take goes in `Fixtures/`
+  behind `#if !NINO_BENCH_V3` (CollectionsTest's `SelfTree`), so the schema project, which nino-gen reads, has it.
 - Program.cs and the Harness files the v3 build lists (`Nino.Benchmark.csproj`, `NinoBenchV3`) compile against Nino
   3.3.13 with only those files: guard what they reach outside them with `#if !NINO_BENCH_V3`, and build
   `NINO_BENCH_V3=true dotnet build -c Release` (then `--verify` on `bin/v3`) after changing them or a model. No CI job

@@ -599,7 +599,8 @@ jobs:
     needs: target
     if: needs.target.outputs.runtimes != '[]'
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
-    timeout-minutes: 40
+    # Go's run of the .NET suite's cases takes some 40 minutes, its data a few more.
+    timeout-minutes: 75
     env:
       TAG_NAME: ${{ needs.target.outputs.tag }}
       # Empty on x64: runtimes_report.py's x64 headings.
@@ -635,7 +636,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup .NET
-        if: matrix.lang == 'typescript'
+        if: matrix.lang == 'typescript' || matrix.lang == 'go'
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: |
@@ -680,9 +681,16 @@ jobs:
         working-directory: ${{ env.GO_BENCH }}
         run: |
           set -euo pipefail
+          # Since the .NET suite's cases (generate.sh, #337): their bytes from the tag's Nino.Benchmark, and 300 ms per
+          # benchmark (about 1,000 of them: some 40 minutes); before, its own eight cases at Go's 1 s.
+          time=()
+          if [[ -x generate.sh ]]; then
+            ./generate.sh --data
+            time=(-benchtime 300ms)
+          fi
           # Six runs of each benchmark, summarized by benchstat (medians and their confidence intervals).
           go install golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e
-          go test -run '^$' -bench . -benchmem -count 6 . | tee "$RUNNER_TEMP/bench.txt"
+          go test -run '^$' -bench . -benchmem -count 6 "${time[@]}" . | tee "$RUNNER_TEMP/bench.txt"
           mkdir -p "$RUNNER_TEMP/out"
           "$(go env GOPATH)/bin/benchstat" -format csv "$RUNNER_TEMP/bench.txt" > "$RUNNER_TEMP/out/$ASSET.csv"
           python3 "$REPORTS/runtimes_report.py" ${REPORT_ARCH:+--arch "$REPORT_ARCH"} go "$RUNNER_TEMP/out/$ASSET.csv" \

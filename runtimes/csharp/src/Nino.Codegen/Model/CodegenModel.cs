@@ -354,12 +354,20 @@ namespace Nino.Codegen.Model
                 type.ClosedAssignable.AddRange(ClosedTypes.Where(c => type.Clr.IsAssignableFrom(c.Clr)));
             Slots.AddRange(_slots.Values.OrderBy(v => v.RuntimeName, StringComparer.Ordinal));
             foreach (var slot in Slots)
-            {
-                slot.Assignable.AddRange(Types.Where(t => t.TypeId != 0 && t.IsConcrete && !t.IsGenericDefinition &&
-                                                          AssignableTo(t.Clr, slot.Clr))
-                    .OrderBy(t => t.RuntimeName, StringComparer.Ordinal));
-                slot.ClosedAssignable.AddRange(ClosedTypes.Where(c => AssignableTo(c.Clr, slot.Clr)));
-            }
+                FillSlot(slot);
+            _built = true;
+        }
+
+        /// <summary>Whether the types, closed types and slots are all known (RootValue may still meet new slots).</summary>
+        private bool _built;
+
+        /// <summary>The types and closed types a slot holds.</summary>
+        private void FillSlot(SlotModel slot)
+        {
+            slot.Assignable.AddRange(Types.Where(t => t.TypeId != 0 && t.IsConcrete && !t.IsGenericDefinition &&
+                                                      AssignableTo(t.Clr, slot.Clr))
+                .OrderBy(t => t.RuntimeName, StringComparer.Ordinal));
+            slot.ClosedAssignable.AddRange(ClosedTypes.Where(c => AssignableTo(c.Clr, slot.Clr)));
         }
     }
 }

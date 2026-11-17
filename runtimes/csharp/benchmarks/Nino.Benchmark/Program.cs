@@ -71,8 +71,53 @@ namespace Nino.Benchmark
                 written++;
             }
 
+#if !NINO_BENCH_V3
+            WriteCaseTypes(directory);
+#endif
             Console.WriteLine($"{written} files in {Path.GetFullPath(directory)}");
             return 0;
         }
+
+#if !NINO_BENCH_V3
+        /// <summary>
+        /// cases.json next to the bytes: each case with Nino bytes, the .NET type they hold (runtime-form name: the type
+        /// its Nino deserialize method returns), whether that is a [NinoType], its Google.Protobuf message (the
+        /// protobuf-net contract the .protobuf.bin bytes follow), whether it is in the quick subset and whether its
+        /// bytes are a previous version of the type (Old). The other runtimes' benchmarks read their cases from it.
+        /// And roots.txt: nino-gen's --roots for those cases' types that are not [NinoType]s, one name each
+        /// (<c>Case&lt;first case&gt;=&lt;type&gt;</c>), whose codecs the runtimes look up by the type's name.
+        /// </summary>
+        private static void WriteCaseTypes(string directory)
+        {
+            var lines = new System.Collections.Generic.List<string>();
+            var roots = new System.Collections.Generic.Dictionary<string, string>();
+            foreach (var type in typeof(Program).Assembly.GetTypes().OrderBy(t => t.Name, StringComparer.Ordinal))
+            foreach (var benchCase in type.GetCustomAttributes(typeof(BenchCaseAttribute), false).Cast<BenchCaseAttribute>())
+            {
+                var read = type.GetMethod("NinoDeserialize" + benchCase.Name);
+                if (read == null || !BenchmarkPayloadRegistry.Bytes.Any(p => p.Key == "NinoSerialize" + benchCase.Name))
+                    continue;
+                var value = read.ReturnType;
+                var definition = value.IsGenericType ? value.GetGenericTypeDefinition() : value;
+                bool ninoType = definition.IsDefined(typeof(Nino.Core.NinoTypeAttribute), false);
+                string name = Nino.Core.NinoTypeId.GetRuntimeName(value);
+                if (!ninoType)
+                    roots.TryAdd(name, "Case" + benchCase.Name);
+                lines.Add(System.Text.Json.JsonSerializer.Serialize(new System.Collections.Generic.Dictionary<string, object?>
+                {
+                    ["class"] = type.Name,
+                    ["case"] = benchCase.Name,
+                    ["type"] = name,
+                    ["ninoType"] = ninoType,
+                    ["proto"] = benchCase.Proto?.Replace("{Case}", benchCase.Name),
+                    ["quick"] = benchCase.Quick,
+                    ["old"] = benchCase.Old != null,
+                }));
+            }
+
+            File.WriteAllText(Path.Combine(directory, "cases.json"), "[\n" + string.Join(",\n", lines) + "\n]\n");
+            File.WriteAllText(Path.Combine(directory, "roots.txt"), string.Join(";", roots.Select(r => r.Value + "=" + r.Key)) + "\n");
+        }
+#endif
     }
 }

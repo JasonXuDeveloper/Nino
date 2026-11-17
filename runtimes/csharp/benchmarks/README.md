@@ -236,8 +236,12 @@ release, where the docs site reads it); ci.yml, which runs the quick cases' Nino
 shards for a pull request labeled `benchmark`; and the other platforms' benchmarks, which time the same cases (#331).
 
 `dotnet Nino.Benchmark.dll --write-data [DIR]` writes each of these cases' bytes, `<Case>.nino.bin` and
-`<Case>.protobuf.bin` (protobuf-net's), from the values the benchmarks time: the Go, Rust and TypeScript benchmarks
-read them as their cases' data.
+`<Case>.protobuf.bin` (protobuf-net's), from the values the benchmarks time, and `cases.json`: each case's .NET type
+(the type its Nino deserialize method returns), whether that is a `[NinoType]`, its Google.Protobuf message, whether it
+is quick and whether its bytes are a previous version, and `roots.txt`, nino-gen's `--roots` for the case types that
+are not `[NinoType]`s. The Go, Rust and TypeScript benchmarks read them as their cases and look each case's codec up
+by its .NET type in the code nino-gen writes, so a case declared here needs no edit in another language (Go:
+`runtimes/go/bench/generate.sh`).
 
 The models (`Fixtures/`, `Workloads/*Models.cs`) are C# 9: `Nino.Benchmark.Schema` (net11.0, `LangVersion` 9) builds
 the same files with the other libraries' attributes as no-op stand-ins (`CompetitorAttributes.cs`), the build nino-gen
@@ -584,13 +588,14 @@ go run golang.org/x/perf/cmd/benchstat@latest bench.txt
 go test -run='^$' -bench='/^strings' -benchmem -count=6 .   # one case: Benchmark{Serialize,Deserialize}/<case>/<serializer>
 ```
 
-The cases are the .NET benchmark's `SimpleClass`, a list of 100 of them and the two string cases; the serializers
-are codecs in the shape nino-gen generates (`Nino`), the struct tags (`NinoTags`), Protocol Buffers
-(google.golang.org/protobuf, `benchpb/bench.proto`, `MarshalAppend` into a reused buffer), MessagePack
-(vmihailenco/msgpack, one reused encoder), encoding/json and gob. `TestRoundTrip` checks each and logs the sizes.
-`benchpb/bench.pb.go` is generated: `protoc --go_out=. --go_opt=paths=source_relative benchpb/bench.proto`, or
-`npx @bufbuild/buf generate` with `protoc-gen-go` on `PATH` (see the `.proto`). The release job runs six counts and
-`benchstat -format csv`.
+The cases are this suite's, on the bytes `--write-data` writes (`./generate.sh --data` first; runtimes/go/README.md,
+"Benchmarks"): every case nino-gen can write Go for, read with the generated code and written back to the same bytes.
+The serializers, one adapter each (`adapter_*.go`): the generated code (`Nino`), the struct tags (`NinoTags`),
+Protocol Buffers (google.golang.org/protobuf on `benchpb/`, generated from `cases.proto` and `workloads.proto` by
+`generate.sh --proto`, parsed from protobuf-net's bytes; `MarshalAppend` into a reused buffer), MessagePack
+(vmihailenco/msgpack, one reused encoder), encoding/json and gob; a serializer that does not read a case back is
+skipped for it with the reason. `TestCases` checks each and logs the sizes. The release job runs six counts of 300 ms
+and `benchstat -format csv`; a pull request labeled `benchmark` the quick cases at 100 ms.
 
 ### Rust
 

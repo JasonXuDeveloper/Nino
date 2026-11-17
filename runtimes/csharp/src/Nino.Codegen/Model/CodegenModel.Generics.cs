@@ -143,6 +143,13 @@ namespace Nino.Codegen.Model
             slot = new SlotModel(clr, value);
             _slots[name] = slot;
             _newSlots.Enqueue(slot);
+            // A slot met after the model is built (a --roots value's) gets the types it holds now.
+            if (_built)
+            {
+                FillSlot(slot);
+                Slots.Add(slot);
+            }
+
             return slot;
         }
 

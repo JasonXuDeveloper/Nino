@@ -270,6 +270,15 @@ function writeBody$Bag<T>(w: NinoWriter, v: Bag<T>, c: Bag$Codecs<T>): void {
   w.endRegion(start);
 }
 
+/** `Shapes.Generic.Based<T>`. */
+export abstract class Based<T> {
+  declare value: T;
+
+  constructor() {
+    this.value = undefined as unknown as T;
+  }
+}
+
 /** `Shapes.Generic.Box<T>`. */
 export class Box<T> {
   value: T = undefined as unknown as T;
@@ -1052,6 +1061,48 @@ function writeBody$Renamed(w: NinoWriter, v: Renamed): void {
   w.endRegion(start);
 }
 
+/** `Shapes.Generic.Twin`. */
+export abstract class Shapes_Generic_Twin {
+  declare a: number;
+
+  constructor() {
+    this.a = 0;
+  }
+}
+
+/** `Shapes.Generic.Twin<T>`. */
+export class Shapes_Generic_Twin1<T> {
+  value: T = undefined as unknown as T;
+}
+
+function readShapes_Generic_Twin1<T>(r: NinoReader, c: Shapes_Generic_Twin1$Codecs<T>, v: Shapes_Generic_Twin1<T> = new Shapes_Generic_Twin1<T>()): Shapes_Generic_Twin1<T> {
+  const depth = r.depth;
+  if (depth >= 128) return r.defer(v, (r, v) => readBody$Shapes_Generic_Twin1(r, v, c));
+  r.depth = depth + 1;
+  readBody$Shapes_Generic_Twin1(r, v, c);
+  r.exitBody(depth);
+  return v;
+}
+
+function writeShapes_Generic_Twin1<T>(w: NinoWriter, v: Shapes_Generic_Twin1<T>, c: Shapes_Generic_Twin1$Codecs<T>): void {
+  const depth = w.depth;
+  if (depth >= 128) {
+    w.defer(v, (w, v) => writeBody$Shapes_Generic_Twin1(w, v, c));
+    return;
+  }
+  w.depth = depth + 1;
+  writeBody$Shapes_Generic_Twin1(w, v, c);
+  w.exitBody(depth);
+}
+
+function readBody$Shapes_Generic_Twin1<T>(r: NinoReader, v: Shapes_Generic_Twin1<T>, c: Shapes_Generic_Twin1$Codecs<T>): void {
+  v.value = (v.value == null ? c.p0.read(r) : r.into(c.p0, v.value));
+}
+
+function writeBody$Shapes_Generic_Twin1<T>(w: NinoWriter, v: Shapes_Generic_Twin1<T>, c: Shapes_Generic_Twin1$Codecs<T>): void {
+  c.p0.write(w, v.value);
+}
+
 /** `Shapes.Left.Item`. */
 export class Shapes_Left_Item {
   left: number = 0;
@@ -1281,6 +1332,35 @@ function writeBody$Uses(w: NinoWriter, v: Uses): void {
   codec$26.write(w, v.set);
   codec$27.write(w, v.intKeys);
   codec$28.write(w, v.stringKeys);
+}
+
+/** `Shapes.Generic.BasedInt`. */
+export class BasedInt extends Based<number> {
+  declare value: number;
+
+  constructor() {
+    super();
+    this.value = 0;
+  }
+}
+
+function readBasedInt(r: NinoReader, v: BasedInt = new BasedInt()): BasedInt {
+  if (r.depth >= 128) return r.defer(v, readBody$BasedInt);
+  readBody$BasedInt(r, v);
+  return v;
+}
+
+function writeBasedInt(w: NinoWriter, v: BasedInt): void {
+  if (w.depth >= 128) w.defer(v, writeBody$BasedInt);
+  else writeBody$BasedInt(w, v);
+}
+
+function readBody$BasedInt(r: NinoReader, v: BasedInt): void {
+  v.value = r.i32();
+}
+
+function writeBody$BasedInt(w: NinoWriter, v: BasedInt): void {
+  w.i32(v.value);
 }
 
 /** `Shapes.Measure`, a C# union: its case, by name, and the case's value; null is the empty union. */
@@ -1518,6 +1598,30 @@ function writeRecursive(w: NinoWriter, v: Recursive): void {
   w.exitStruct();
 }
 
+/** `Shapes.Generic.TwinA`. */
+export class TwinA extends Shapes_Generic_Twin {
+}
+
+function readTwinA(r: NinoReader, v: TwinA = new TwinA()): TwinA {
+  if (r.depth >= 128) return r.defer(v, readBody$TwinA);
+  readBody$TwinA(r, v);
+  return v;
+}
+
+function writeTwinA(w: NinoWriter, v: TwinA): void {
+  if (w.depth >= 128) w.defer(v, writeBody$TwinA);
+  else writeBody$TwinA(w, v);
+}
+
+function readBody$TwinA(r: NinoReader, v: TwinA): void {
+  v.a = r.i32();
+}
+
+function writeBody$TwinA(w: NinoWriter, v: TwinA): void {
+  w.i32(v.a);
+}
+
+types.add(-272415718, BasedInt, readBasedInt, writeBasedInt);
 types.add(334101194, Empty, readEmpty, writeEmpty);
 types.add(-324129149, FloatKeys, readFloatKeys, writeFloatKeys);
 types.add(-2101740608, Gappy, (r) => readGappy(r, r.take(8)), (w, v) => writeGappy(w, w.raw(8), v));
@@ -1543,6 +1647,7 @@ types.add(-1085750751, Strides, readStrides, writeStrides);
 types.add(900353581, ThingClass, readThingClass, writeThingClass);
 types.add(625751900, ThingStruct, (r) => readThingStruct(r, r.take(16)), (w, v) => writeThingStruct(w, w.raw(16), v));
 types.add(2034947985, TupleCell, (r) => readTupleCell(r, r.take(12)), (w, v) => writeTupleCell(w, w.raw(12), v));
+types.add(1843391317, TwinA, readTwinA, writeTwinA);
 types.add(-842652316, UnhashedKeys, readUnhashedKeys, writeUnhashedKeys);
 types.add(-822036000, Uses, readUses, writeUses);
 
@@ -1558,6 +1663,13 @@ export class OpenInt32 extends Open<number> {}
 /** `Shapes.Generic.Open<System.Int64>`. */
 export class OpenInt64 extends Open<bigint> {}
 
+export const BasedIntCodec: NinoCodec<BasedInt | null> = {
+  read: (r) => (r.present() ? readBasedInt(r) : null),
+  write: (w, v) => {
+    if (v === null || v === undefined) w.u8(0); else { w.u8(1); writeBasedInt(w, v); }
+  },
+  readInto: (r, v) => (r.present() ? (v == null ? readBasedInt(r) : readBasedInt(r, v!)) : null),
+};
 export const EmptyCodec: NinoCodec<Empty | null> = {
   read: (r) => (r.present() ? readEmpty(r) : null),
   write: (w, v) => {
@@ -1721,6 +1833,41 @@ export const RenamedCodec: NinoCodec<Renamed | null> = {
   },
   readInto: (r, v) => (r.present() ? (v == null ? readRenamed(r) : readRenamed(r, v!)) : null),
 };
+export const Shapes_Generic_TwinCodec: NinoCodec<Shapes_Generic_Twin | null> = {
+  read: (r) => {
+    const id = r.i32();
+    switch (id) {
+      case 0:
+        return null;
+      case 1843391317:
+        return readTwinA(r);
+    }
+    throw types.unreadable(id);
+  },
+  write: (w, v) => {
+    if (v === null || v === undefined) {
+      w.i32(0);
+      return;
+    }
+    switch (v.constructor) {
+      case TwinA:
+        w.i32(1843391317);
+        writeTwinA(w, v as TwinA);
+        return;
+    }
+    throw types.unwritable(v);
+  },
+  readInto: (r, cur) => {
+    const id = r.i32();
+    switch (id) {
+      case 0:
+        return null;
+      case 1843391317:
+        return readTwinA(r, cur?.constructor === TwinA ? (cur as TwinA) : undefined);
+    }
+    throw types.unreadable(id);
+  },
+};
 export const Shapes_Left_ItemCodec: NinoCodec<Shapes_Left_Item | null> = {
   read: (r) => (r.present() ? readShapes_Left_Item(r) : null),
   write: (w, v) => {
@@ -1756,6 +1903,13 @@ export const ThingStructCodec: NinoCodec<ThingStruct> = {
 export const TupleCellCodec: NinoCodec<TupleCell> = {
   read: (r) => readTupleCell(r, r.take(12)),
   write: (w, v) => writeTupleCell(w, w.raw(12), v),
+};
+export const TwinACodec: NinoCodec<TwinA | null> = {
+  read: (r) => (r.present() ? readTwinA(r) : null),
+  write: (w, v) => {
+    if (v === null || v === undefined) w.u8(0); else { w.u8(1); writeTwinA(w, v); }
+  },
+  readInto: (r, v) => (r.present() ? (v == null ? readTwinA(r) : readTwinA(r, v!)) : null),
 };
 export const UnhashedKeysCodec: NinoCodec<UnhashedKeys | null> = {
   read: (r) => (r.present() ? readUnhashedKeys(r) : null),
@@ -1935,6 +2089,28 @@ interface RawPair$Codecs<T> {
 export function RawPairCodec<T>(p0: NinoCodec<T>): NinoCodec<RawPair<T>> {
   const c = { p0 } as RawPair$Codecs<T>;
   c.self = { read: (r) => readRawPair(r, c), readInto: (r, v) => readRawPair(r, c, v), write: (w, v) => writeRawPair(w, v, c) };
+  return c.self;
+}
+
+interface Shapes_Generic_Twin1$Codecs<T> {
+  p0: NinoCodec<T>;
+  self: NinoCodec<Shapes_Generic_Twin1<T> | null>;
+}
+
+/** The codec of `Shapes.Generic.Twin<T>` with the codecs of its type arguments. */
+export function Shapes_Generic_Twin1Codec<T>(p0: NinoCodec<T>): NinoCodec<Shapes_Generic_Twin1<T> | null> {
+  const c = { p0 } as Shapes_Generic_Twin1$Codecs<T>;
+  c.self = {
+    read: (r) => (r.present() ? readShapes_Generic_Twin1(r, c) : null),
+    readInto: (r, v) => (r.present() ? readShapes_Generic_Twin1(r, c, v ?? undefined) : null),
+    write: (w, v) => {
+      if (v === null || v === undefined) w.u8(0);
+      else {
+        w.u8(1);
+        writeShapes_Generic_Twin1(w, v, c);
+      }
+    },
+  };
   return c.self;
 }
 

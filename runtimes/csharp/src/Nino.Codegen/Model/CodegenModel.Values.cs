@@ -243,10 +243,29 @@ namespace Nino.Codegen.Model
                 return null;
             switch (definition)
             {
+                // Nino.Core writes every collection of one element type as a count and its elements, and every
+                // dictionary as a count and its pairs, in the order it enumerates them (Traversal/BclCollections.cs,
+                // BclDictionaries.cs).
                 case "System.Collections.Generic.List`1":
                 case "System.Collections.Generic.HashSet`1":
+                case "System.Collections.Generic.Queue`1":
+                case "System.Collections.Generic.LinkedList`1":
+                case "System.Collections.Generic.SortedSet`1":
+                case "System.Collections.Generic.IList`1":
+                case "System.Collections.Generic.ICollection`1":
+                case "System.Collections.Generic.IEnumerable`1":
+                case "System.Collections.Generic.IReadOnlyList`1":
+                case "System.Collections.Generic.IReadOnlyCollection`1":
+                case "System.Collections.ObjectModel.Collection`1":
+                case "System.Collections.ObjectModel.ReadOnlyCollection`1":
+                case "System.Collections.Concurrent.ConcurrentQueue`1":
                     return $"seq({NullableSlot(args[0]) ?? parts[0]})";
                 case "System.Collections.Generic.Dictionary`2":
+                case "System.Collections.Generic.SortedDictionary`2":
+                case "System.Collections.Generic.SortedList`2":
+                case "System.Collections.Generic.IDictionary`2":
+                case "System.Collections.Generic.IReadOnlyDictionary`2":
+                case "System.Collections.Concurrent.ConcurrentDictionary`2":
                     return $"map({parts[0]},{parts[1]})";
                 case Nullable:
                     return $"nullable({parts[0]})";

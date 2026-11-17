@@ -98,10 +98,27 @@ internal/
                              into_test.go (DeserializeInto: objects, slices, slots, failures, deferral),
                              nesting_test.go (nested claims share the read's allocation budget);
                              shapes/: runtimes/csharp/tests/Nino.Codegen.Tests/Shapes.cs as nino-gen writes it, round-tripped
-bench/                       module of its own: the runtime against Protocol Buffers (benchpb/, buf), MessagePack,
-                             encoding/json and encoding/gob on the .NET benchmark's SimpleClass, strings, sets
-                             (sets.go) and a scattered list of 1,000,000 records (scattered.go);
-                             tiers_amd64_test.go checks tier detection against golang.org/x/sys/cpu
+bench/                       module of its own: the .NET suite's cases (runtimes/csharp/benchmarks) on the bytes
+                             Nino.Benchmark writes, the runtime against Protocol Buffers, MessagePack, encoding/json
+                             and encoding/gob, one adapter per serializer:
+  generate.sh                  data/ (Nino.Benchmark --write-data: <Case>.nino.bin, .protobuf.bin, cases.json;
+                               ignored), model/ (nino-gen on Nino.Benchmark.Schema with a --roots entry per case whose
+                               type is not a [NinoType]; ci.yml checks it is current), --proto: benchpb/
+  buf.gen.yaml                 benchpb/ from the suite's cases.proto and workloads.proto (generate.sh --proto)
+  model/                       nino_types.go: the cases' types and codecs as nino-gen writes them (do not edit)
+  benchpb/                     cases/, workloads/, protobuf-net/: the messages of protobuf-net's contracts (do not edit)
+  cases.go                     Case: a line of cases.json, its bytes and its generated codec (model.NinoCodecOf);
+                               NINO_BENCH_DATA, NINO_BENCH_QUICK (the quick subset), NINO_BENCH_CASES (a regexp)
+  adapter.go                   Adapter (Prepare: a Codec of the case's value, or why it cannot express it), Codec,
+                               the adapters in the report's column order, the read-back check by Nino bytes
+  adapter_nino.go              the generated codec; checkNino: .NET's bytes are written back unchanged
+  adapter_ninotags.go          the struct tags on the generated structs (MarshalAppend, Unmarshal)
+  adapter_protobuf.go          google.golang.org/protobuf on the case's message, parsed from protobuf-net's bytes
+  adapter_msgpack.go, adapter_json.go, adapter_gob.go   the other serializers, by reflection on the generated structs
+  bench_test.go                TestCases (every case read, written back and checked with every adapter, sizes
+                               logged), Benchmark{Serialize,Deserialize}/<case>/<adapter>; skipped without data
+  quick_test.go                NINO_BENCH_QUICK=1: 100 ms per benchmark
+  tiers_amd64_test.go          tier detection against golang.org/x/sys/cpu
 ```
 
 Generated files: `internal/generated` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`;
