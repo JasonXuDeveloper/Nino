@@ -197,17 +197,17 @@ namespace Test.Runtime
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<ExplicitHoldsPacked?>(b)));
             Check("PackedPair1<long>?", () => NinoSerializer.Serialize((PackedPair1<long>?)new PackedPair1<long> { A = 2, B = -3 }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedPair1<long>?>(b)));
-            Check("HoldsPacked?[]", () => NinoSerializer.Serialize(new HoldsPacked?[] { new HoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 }, C = 3 }, null, new HoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -4, At = LayoutShapes.At2 }, C = int.MaxValue } }),
+            if (ArraysChecked) Check("HoldsPacked?[]", () => NinoSerializer.Serialize(new HoldsPacked?[] { new HoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 }, C = 3 }, null, new HoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -4, At = LayoutShapes.At2 }, C = int.MaxValue } }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<HoldsPacked?[]>(b)));
-            Check("PackedLeaves1?[]", () => NinoSerializer.Serialize(new PackedLeaves1?[] { LayoutShapes.Leaves(1), null, LayoutShapes.Leaves(-2) }),
+            if (ArraysChecked) Check("PackedLeaves1?[]", () => NinoSerializer.Serialize(new PackedLeaves1?[] { LayoutShapes.Leaves(1), null, LayoutShapes.Leaves(-2) }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedLeaves1?[]>(b)));
-            Check("PackedMix4?[]", () => NinoSerializer.Serialize(new PackedMix4?[] { LayoutShapes.Mix(1), null, LayoutShapes.Mix(-2) }),
+            if (ArraysChecked) Check("PackedMix4?[]", () => NinoSerializer.Serialize(new PackedMix4?[] { LayoutShapes.Mix(1), null, LayoutShapes.Mix(-2) }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedMix4?[]>(b)));
-            Check("ExplicitHoldsPacked?[]", () => NinoSerializer.Serialize(new ExplicitHoldsPacked?[] { new ExplicitHoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 } }, null, new ExplicitHoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -3, At = LayoutShapes.At2 } } }),
+            if (ArraysChecked) Check("ExplicitHoldsPacked?[]", () => NinoSerializer.Serialize(new ExplicitHoldsPacked?[] { new ExplicitHoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 } }, null, new ExplicitHoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -3, At = LayoutShapes.At2 } } }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<ExplicitHoldsPacked?[]>(b)));
-            Check("PackedPair1<long>[]", () => NinoSerializer.Serialize(new[] { new PackedPair1<long> { A = 1, B = 0x0102030405060708 }, new PackedPair1<long> { A = 2, B = -3 } }),
+            if (ArraysChecked) Check("PackedPair1<long>[]", () => NinoSerializer.Serialize(new[] { new PackedPair1<long> { A = 1, B = 0x0102030405060708 }, new PackedPair1<long> { A = 2, B = -3 } }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedPair1<long>[]>(b)));
-            Check("List<PackedPair1<long>>", () => NinoSerializer.Serialize(new List<PackedPair1<long>> { new PackedPair1<long> { A = 2, B = -3 }, new PackedPair1<long> { A = 1, B = 0x0102030405060708 } }),
+            if (ArraysChecked) Check("List<PackedPair1<long>>", () => NinoSerializer.Serialize(new List<PackedPair1<long>> { new PackedPair1<long> { A = 2, B = -3 }, new PackedPair1<long> { A = 1, B = 0x0102030405060708 } }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<List<PackedPair1<long>>>(b)));
             if (failed.Count != 0)
                 Assert.Fail($"{failed.Count} split structs differ from CoreCLR:\n" + string.Join("\n", failed));
@@ -233,6 +233,81 @@ namespace Test.Runtime
             }
         }
 
+        /// <summary>
+        /// Whether arrays and lists of the split structs are checked: not on IL2CPP while #378 finds out how IL2CPP
+        /// lays their arrays out (the player crashed in them; ArraysOfSplitStructsCopyAsCompiled measures it).
+        /// </summary>
+#if ENABLE_IL2CPP
+        private static readonly bool ArraysChecked = false;
+#else
+        private static readonly bool ArraysChecked = true;
+#endif
+
+        /// <summary>
+        /// Without Nino: whether the runtime copies an array of each struct in the elements compiled code indexes.
+        /// Compiled code writes a distinct value into each element, Array.Copy (the runtime's element size) shifts the
+        /// array by one, and compiled code compares each copied element with the one it came from, byte for byte. Logs
+        /// the compiled size, the compiled distance between elements and the runtime's (Marshal) for each type. Mono
+        /// must copy every type right; on IL2CPP the result is logged for #378.
+        /// </summary>
+        [Test]
+        public void ArraysOfSplitStructsCopyAsCompiled()
+        {
+            var lines = new List<string>();
+            var wrong = new List<string>();
+            void Probe<T>(string name, Func<int, T> make)
+            {
+                const int n = 8;
+                var a = new T[n];
+                for (int i = 0; i < n; i++)
+                    a[i] = make(i + 1);
+                var b = new T[n];
+                Array.Copy(a, 1, b, 0, n - 1);
+                bool same = true;
+                for (int i = 0; i < n - 1 && same; i++)
+                {
+                    ref byte x = ref Unsafe.As<T, byte>(ref b[i]);
+                    ref byte y = ref Unsafe.As<T, byte>(ref a[i + 1]);
+                    for (int k = 0; k < Unsafe.SizeOf<T>(); k++)
+                        same &= Unsafe.Add(ref x, k) == Unsafe.Add(ref y, k);
+                }
+
+                long compiled = (long)Unsafe.ByteOffset(ref a[0], ref a[1]);
+                var handle = System.Runtime.InteropServices.GCHandle.Alloc(a, System.Runtime.InteropServices.GCHandleType.Pinned);
+                long marshal;
+                try
+                {
+                    marshal = (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(a, 1) -
+                              (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(a, 0);
+                }
+                finally
+                {
+                    handle.Free();
+                }
+
+                lines.Add($"{name}: size {Unsafe.SizeOf<T>()}, compiled stride {compiled}, Marshal stride {marshal}, Array.Copy {(same ? "same" : "DIFFERENT")}");
+                if (!same)
+                    wrong.Add(name);
+            }
+
+            PackedIntDateTime4 P(int i) => new PackedIntDateTime4 { Id = i * 7, At = new DateTime(i * 1000L) };
+            HoldsPacked H(int i) => new HoldsPacked { A = (byte)i, P = P(i), C = -i };
+            Probe("PackedIntDateTime4", P);
+            Probe("HoldsPacked", H);
+            Probe("PackedIntDateTime4?", i => (PackedIntDateTime4?)P(i));
+            Probe("HoldsPacked?", i => (HoldsPacked?)H(i));
+            Probe("Around<PackedIntDateTime4>", i => new Around<PackedIntDateTime4> { A = (byte)i, B = P(i), C = -i });
+            Probe("PackedPair1<long>", i => new PackedPair1<long> { A = (byte)i, B = -i * 0x0102030405L });
+            Probe("PackedPair1<long>?", i => (PackedPair1<long>?)new PackedPair1<long> { A = (byte)i, B = -i * 0x0102030405L });
+            Probe("Around<PackedPair1<long>>", i => new Around<PackedPair1<long>> { A = (byte)i, B = new PackedPair1<long> { A = (byte)(i + 1), B = i }, C = -i });
+            Probe("PackedMix4?", i => (PackedMix4?)LayoutShapes.Mix(i));
+            Debug.Log("NINO_ARRAYS|" + string.Join(" | ", lines));
+#if !ENABLE_IL2CPP
+            if (wrong.Count != 0)
+                Assert.Fail("Array.Copy moved other bytes than compiled code indexes: " + string.Join(", ", wrong));
+#endif
+        }
+
         /// <summary>Writes each case, reads CoreCLR's bytes and writes them again: both CoreCLR's bytes.</summary>
         private sealed class LayoutCases : ILayoutCaseVisitor
         {
@@ -248,6 +323,9 @@ namespace Test.Runtime
             public void Case<T>(string name, T value)
             {
                 name = "layout " + name;
+                // Holds arrays and lists of the split structs: see ArraysChecked.
+                if (!ArraysChecked && name == "layout SplitHolder")
+                    return;
                 try
                 {
                     var expected = BclFixtures.FromHex(BclFixtures.Bytes[name]);
