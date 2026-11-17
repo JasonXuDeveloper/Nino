@@ -448,7 +448,8 @@ func dispatch(read, write, slot, allowed, allowed_closed, iface, tracked, own, i
     end
     ret $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n" + typed_write(id, own, "\t") + "}\n"
   end
-  $o = $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n\tswitch v := v.(type) {\n\tcase nil:\n\t\t" + (tracked ? "w.I32(0)" : "w.TypeID(nino.NullTypeID)") + "\n"
+  # A slot that allows no type binds no value (Go rejects an unused one).
+  $o = $o + "func " + write + "(w *nino.Writer, v " + slot + ") {\n\tswitch " + (allowed.size + allowed_closed.size == 0 ? "" : "v := ") + "v.(type) {\n\tcase nil:\n\t\t" + (tracked ? "w.I32(0)" : "w.TypeID(nino.NullTypeID)") + "\n"
   for $t in allowed
     if $t.kind == "raw" || $t.kind == "struct"
       $o = $o + "\tcase " + $t.name + ":\n\t\tw.TypeID(" + $t.id + ")\n\t\tWrite" + $t.name + "(w, v)\n"
@@ -1083,7 +1084,7 @@ for c in types
 end
 for $r in roots
   "\tcase " + go_string($r.runtime_name) + ":\n"
-  "\t\treturn codecOf(Read" + $r.name + ", func(r *nino.Reader, p *" + gotype($r.shape) + ") { *p = Read" + $r.name + "(r) }, Write" + $r.name + "), true\n"
+  "\t\treturn codecOf(Read" + $r.name + ", func(r *nino.Reader, p *" + gotype($r.shape) + ") {\n\t\t\t*p = Read" + $r.name + "(r)\n\t\t}, Write" + $r.name + "), true\n"
 end
 ~}}
 	}

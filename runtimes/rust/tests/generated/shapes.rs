@@ -641,6 +641,44 @@ impl<T> Bag<T> {
     nino::type_consts!("Shapes.Generic.Bag<T>", "format=VersionTolerant; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Items:System.Collections.Generic.List<T>:seq(type(T));ByName:System.Collections.Generic.Dictionary<string, T>:map(string,type(T));Array:T[]:seq(type(T));Inner:Shapes.Generic.Box<T>:type(Shapes.Generic.Box<T>);Pair:Shapes.Generic.Pair<int, T>:type(Shapes.Generic.Pair<int, T>);Boxes:System.Collections.Generic.List<Shapes.Generic.Box<T>>:seq(type(Shapes.Generic.Box<T>));Tuple:System.ValueTuple<int, T>:tuple(raw(4),type(T))");
 }
 
+/// `Shapes.Generic.BasedInt`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BasedInt {
+    pub value: i32,
+}
+
+impl NinoReadBody for BasedInt {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.value)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for BasedInt {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for BasedInt {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for BasedInt {
+    nino::sealed_write!();
+}
+
+impl BasedInt {
+    nino::type_consts!(0xEFC3441Au32 as i32, "Shapes.Generic.BasedInt", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xEFC3441A; deferrable=true; members=Value:int:raw(4)");
+}
+
 /// `Shapes.Generic.Box<T>`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -2370,6 +2408,51 @@ impl Renamed {
     nino::type_consts!(0xD813B273u32 as i32, "Shapes.Renamed", "format=Keyed; header=Presence; trackReferences=false; raw=false; id=0xD813B273; deferrable=true; members=NewName:int:raw(4):key=0xAC8120CE:former=0x4B4D09F5;Other:string:string:key=0x4D897D71");
 }
 
+/// `Shapes.Generic.Twin<T>`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ShapesGenericTwin1<T> {
+    pub value: T,
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoReadBody for ShapesGenericTwin1<T> {
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_member_into(&mut self.value, nino::field!(Self, value))?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWriteBody for ShapesGenericTwin1<T> {
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.value)?;
+        Ok(())
+    }
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoRead for ShapesGenericTwin1<T> {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl<T: NinoRead + NinoWrite + Default + 'static> NinoWrite for ShapesGenericTwin1<T> {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<T as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.value.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.value.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl<T> ShapesGenericTwin1<T> {
+    nino::type_consts!("Shapes.Generic.Twin<T>", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)");
+}
+
 /// `Shapes.Left.Item`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -2642,6 +2725,44 @@ impl NinoWrite for ThingClass {
 
 impl ThingClass {
     nino::type_consts!(0x35AA4E2Du32 as i32, "Shapes.ThingClass", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x35AA4E2D; deferrable=true; members=Id:int:raw(4);Label:string:string");
+}
+
+/// `Shapes.Generic.TwinA`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TwinA {
+    pub a: i32,
+}
+
+impl NinoReadBody for TwinA {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.a)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for TwinA {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.a)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for TwinA {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for TwinA {
+    nino::sealed_write!();
+}
+
+impl TwinA {
+    nino::type_consts!(0x6DDFEB55u32 as i32, "Shapes.Generic.TwinA", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x6DDFEB55; deferrable=true; members=A:int:raw(4)");
 }
 
 /// `Shapes.Generic.Uses`: Positional, header Presence.
@@ -3063,6 +3184,82 @@ impl NinoWrite for OpenInt64Ref {
     }
 }
 
+/// A `Shapes.Generic.Twin` slot: a type id, then the body of one of these types.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ShapesGenericTwinRef {
+    TwinA(Box<TwinA>),
+}
+
+impl ShapesGenericTwinRef {
+    fn body(&mut self) -> &mut dyn core::any::Any {
+        match self {
+            Self::TwinA(v) => &mut **v,
+        }
+    }
+}
+
+impl NinoRead for ShapesGenericTwinRef {
+    const MAY_DEFER: bool = true;
+    const MIN_SIZE: usize = 4;
+
+    fn read(r: &mut nino::Reader<'_>) -> nino::Result<Self> {
+        Self::read_option(r)?.ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedNull))
+    }
+
+    fn read_option(r: &mut nino::Reader<'_>) -> nino::Result<Option<Self>> {
+        let mut slot = None;
+        Self::read_option_into(&mut slot, r)?;
+        Ok(slot)
+    }
+
+    // The object the slot holds is read into when the data holds its type (and it is not tracked), else replaced.
+    fn read_option_into(slot: &mut Option<Self>, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        let id = r.i32()?;
+        if id == 0 {
+            *slot = None;
+            return Ok(());
+        }
+        let mark = r.defer_mark();
+        let reused = match slot {
+            Some(Self::TwinA(v)) if id == TwinA::NINO_TYPE_ID => {
+                r.read_class_into(&mut **v)?;
+                true
+            }
+            _ => false,
+        };
+        if !reused {
+            *slot = Some(match id {
+                TwinA::NINO_TYPE_ID => Self::TwinA(Box::new(r.read_class()?)),
+                _ => return Err(nino::Error::new(nino::ErrorKind::UnknownTypeId, id)),
+            });
+        }
+        r.defer_trail(mark, nino::Step::Field(|p| Some(p.downcast_mut::<ShapesGenericTwinRef>()?.body())));
+        Ok(())
+    }
+}
+
+impl NinoWrite for ShapesGenericTwinRef {
+    fn write<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match self {
+            Self::TwinA(v) => {
+                w.i32(TwinA::NINO_TYPE_ID);
+                w.write_class(&**v)
+            }
+        }
+    }
+
+    fn write_option<'a>(value: Option<&'a Self>, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        match value {
+            Some(v) => v.write(w),
+            None => {
+                w.i32(0);
+                Ok(())
+            }
+        }
+    }
+}
+
 /// `Shapes.Forest`: a collection of itself. Nothing but the depth counter bounds its nesting.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -3105,8 +3302,11 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         "Shapes.Empty" => f.visit::<Option<Box<Empty>>>(),
         "Shapes.ForestHolder" => f.visit::<Option<Box<ForestHolder>>>(),
         "Shapes.Gappy" => f.visit::<Gappy>(),
+        "Shapes.Generic.BasedInt" => f.visit::<Option<Box<BasedInt>>>(),
         "Shapes.Generic.OpenHolderUse" => f.visit::<Option<Box<OpenHolderUse>>>(),
         "Shapes.Generic.OpenUse" => f.visit::<Option<Box<OpenUse>>>(),
+        "Shapes.Generic.Twin" => f.visit::<Option<ShapesGenericTwinRef>>(),
+        "Shapes.Generic.TwinA" => f.visit::<Option<Box<TwinA>>>(),
         "Shapes.Generic.Uses" => f.visit::<Option<Box<Uses>>>(),
         "Shapes.Holder" => f.visit::<Option<Box<Holder>>>(),
         "Shapes.HostHolder" => f.visit::<Option<Box<HostHolder>>>(),

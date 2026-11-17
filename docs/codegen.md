@@ -346,8 +346,11 @@ resolves each runtime-form name (`CodegenModel.ResolveType`) and its value (`Cod
 formatter for the type writes), and each target shapes it like a member. TypeScript writes `IntsCodec`
 (`deserialize(IntsCodec, data)`), Go `ReadInts` and `WriteInts` (`nino.Deserialize(data, ReadInts)`) and a
 `NinoCodecOf` case, Rust `pub type Ints = ...` (`nino::deserialize::<Ints>`) and a `with_nino_type` arm. A name that
-is not an identifier, is used twice or clashes with a generated name, an unknown type, and a `[NinoType]` (it has its
-codec already) fail the run; a type a language cannot express is a warning and is left out of that language.
+is not an identifier, is used twice or clashes with a generated name, two names of one type, an unknown type, and a
+`[NinoType]` (it has its codec already) fail the run; a type whose formatter nino-gen does not model (a `Stack<T>`, a
+multidimensional array, `Vector4[]`) or that a language cannot express is a warning and is left out of that language.
+A root's slots are filled when it is met (`CodegenModel.FillSlot`), after the model is built. The Go benchmark gives
+one root per case whose type is not a `[NinoType]` (runtimes/go/bench/generate.sh).
 
 ## Tests
 

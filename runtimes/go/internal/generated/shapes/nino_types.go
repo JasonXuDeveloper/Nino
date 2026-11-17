@@ -478,6 +478,7 @@ func writeForest(w *nino.Writer, v Forest) {
 }
 
 var (
+	basedIntClass                nino.Class[BasedInt]
 	emptyClass                   nino.Class[Empty]
 	floatKeysClass               nino.Class[FloatKeys]
 	forestHolderClass            nino.Class[ForestHolder]
@@ -501,6 +502,7 @@ var (
 	stampsClass                  nino.Class[Stamps]
 	stridesClass                 nino.Class[Strides]
 	thingClassClass              nino.Class[ThingClass]
+	twinAClass                   nino.Class[TwinA]
 	unhashedKeysClass            nino.Class[UnhashedKeys]
 	usesClass                    nino.Class[Uses]
 	codecV0                      NinoArg[*Box[[]nino.NullableSlot[TupleCell]]]
@@ -540,6 +542,7 @@ var (
 )
 
 func init() {
+	basedIntClass = nino.Class[BasedInt]{Read: readBasedIntBody, Write: writeBasedIntBody, Deferrable: true}
 	emptyClass = nino.Class[Empty]{Read: readEmptyBody, Write: writeEmptyBody, Deferrable: true}
 	floatKeysClass = nino.Class[FloatKeys]{Read: readFloatKeysBody, Write: writeFloatKeysBody, Deferrable: true}
 	forestHolderClass = nino.Class[ForestHolder]{Read: readForestHolderBody, Write: writeForestHolderBody, Deferrable: true}
@@ -563,6 +566,7 @@ func init() {
 	stampsClass = nino.Class[Stamps]{Read: readStampsBody, Write: writeStampsBody, Deferrable: true}
 	stridesClass = nino.Class[Strides]{Read: readStridesBody, Write: writeStridesBody, Deferrable: true}
 	thingClassClass = nino.Class[ThingClass]{Read: readThingClassBody, Write: writeThingClassBody, Deferrable: true}
+	twinAClass = nino.Class[TwinA]{Read: readTwinABody, Write: writeTwinABody, Deferrable: true}
 	unhashedKeysClass = nino.Class[UnhashedKeys]{Read: readUnhashedKeysBody, Write: writeUnhashedKeysBody, Deferrable: true}
 	usesClass = nino.Class[Uses]{Read: readUsesBody, Write: writeUsesBody, Deferrable: true}
 	codecV0 = BoxCodec(NinoArg[[]nino.NullableSlot[TupleCell]]{Read: readV4, Write: writeV4, MinSize: 4})
@@ -790,6 +794,107 @@ func (c *bagCodec[T]) readD5(r *nino.Reader) NinoTuple2[int32, T] {
 func (c *bagCodec[T]) writeD5(w *nino.Writer, v NinoTuple2[int32, T]) {
 	w.I32(v.Item1)
 	c.p0.Write(w, v.Item2)
+}
+
+// Based is a value of a slot declared as `Shapes.Generic.Based<T>` with type arguments.
+type Based[T any] interface {
+	nino.Typed
+	isBased(T)
+}
+
+// BasedInt is `Shapes.Generic.BasedInt`.
+type BasedInt struct {
+	Value int32 `nino:"0" json:"value" yaml:"value"`
+}
+
+func (BasedInt) NinoLayout() string {
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; id=0xEFC3441A; deferrable=true; members=Value:int:raw(4)"
+}
+
+func (BasedInt) NinoTypeName() string {
+	return "Shapes.Generic.BasedInt"
+}
+
+func (*BasedInt) NinoTypeID() int32 {
+	return -272415718
+}
+
+func (*BasedInt) isBased(int32) {
+}
+
+func ReadBasedInt(r *nino.Reader) *BasedInt {
+	if !r.Present() {
+		return nil
+	}
+	v := new(BasedInt)
+	if d, ok := r.EnterBody(); ok {
+		readBasedIntBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &basedIntClass)
+	}
+	return v
+}
+
+func WriteBasedInt(w *nino.Writer, v *BasedInt) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeBasedIntBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &basedIntClass)
+	}
+}
+
+// ReadBasedIntInto reads a value into *v, the object it points to read in place (DeserializeInto).
+func ReadBasedIntInto(r *nino.Reader, v **BasedInt) {
+	if !r.Present() {
+		*v = nil
+		return
+	}
+	if *v == nil {
+		*v = new(BasedInt)
+	}
+	if d, ok := r.EnterBody(); ok {
+		readBasedIntBody(r, *v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, *v, &basedIntClass)
+	}
+}
+
+// readBasedIntClass reads the body of a BasedInt (after its type id) into a new instance.
+func readBasedIntClass(r *nino.Reader) *BasedInt {
+	v := new(BasedInt)
+	if d, ok := r.EnterBody(); ok {
+		readBasedIntBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &basedIntClass)
+	}
+	return v
+}
+
+// writeBasedIntClass writes the body of v (not nil, after its type id).
+func writeBasedIntClass(w *nino.Writer, v *BasedInt) {
+	if d, ok := w.EnterBody(); ok {
+		writeBasedIntBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &basedIntClass)
+	}
+}
+
+func readBasedIntBody(r *nino.Reader, v *BasedInt) {
+	v.Value = r.I32()
+}
+
+func writeBasedIntBody(w *nino.Writer, v *BasedInt) {
+	w.I32(v.Value)
 }
 
 // Box is `Shapes.Generic.Box<T>`.
@@ -3584,6 +3689,108 @@ func writeRenamedBody(w *nino.Writer, v *Renamed) {
 	w.EndRegion(g)
 }
 
+// ShapesGenericTwin is a value of a slot declared as `Shapes.Generic.Twin`.
+type ShapesGenericTwin interface {
+	nino.Typed
+	isShapesGenericTwin()
+}
+
+// ReadShapesGenericTwin reads a value of a slot declared as Shapes.Generic.Twin: a type id, then the body of a
+// type it allows.
+func ReadShapesGenericTwin(r *nino.Reader) ShapesGenericTwin {
+	switch id := r.TypeID(); id {
+	case nino.NullTypeID:
+		return nil
+	case 1843391317:
+		return readTwinAClass(r)
+	default:
+		r.UnknownType(id)
+		return nil
+	}
+}
+
+func ReadShapesGenericTwinInto(r *nino.Reader, v *ShapesGenericTwin) {
+	switch id := r.TypeID(); id {
+	case nino.NullTypeID:
+		*v = nil
+	case 1843391317:
+		if p, ok := (*v).(*TwinA); ok && p != nil {
+			if d, ok := r.EnterBody(); ok {
+				readTwinABody(r, p)
+				r.ExitBody(d)
+			} else {
+				nino.ReadClassInto(r, p, &twinAClass)
+			}
+		} else {
+			*v = readTwinAClass(r)
+		}
+	default:
+		r.UnknownType(id)
+		*v = nil
+	}
+}
+
+func WriteShapesGenericTwin(w *nino.Writer, v ShapesGenericTwin) {
+	switch v := v.(type) {
+	case nil:
+		w.TypeID(nino.NullTypeID)
+	case *TwinA:
+		if v == nil {
+			w.TypeID(nino.NullTypeID)
+		} else {
+			w.TypeID(1843391317)
+			writeTwinAClass(w, v)
+		}
+	default:
+		w.Fail(nino.CodeUnknownType, "not a type the slot allows")
+	}
+}
+
+// ShapesGenericTwin1 is `Shapes.Generic.Twin<T>`.
+type ShapesGenericTwin1[T any] struct {
+	Value T `nino:"0" json:"value" yaml:"value"`
+}
+
+func (ShapesGenericTwin1[T]) NinoLayout() string {
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x00000000; deferrable=true; members=Value:T:type(T)"
+}
+
+func (ShapesGenericTwin1[T]) NinoTypeName() string {
+	return "Shapes.Generic.Twin<T>"
+}
+
+// shapesGenericTwin1Codec reads and writes ShapesGenericTwin1[T] with the codecs of its type arguments.
+type shapesGenericTwin1Codec[T any] struct {
+	class nino.Class[ShapesGenericTwin1[T]]
+	self  NinoArg[*ShapesGenericTwin1[T]]
+	p0    NinoArg[T]
+}
+
+// ShapesGenericTwin1Codec returns the codec of ShapesGenericTwin1[T] (as a member of its type is written) from the codec of each
+// type argument, in order.
+func ShapesGenericTwin1Codec[T any](p0 NinoArg[T]) NinoArg[*ShapesGenericTwin1[T]] {
+	c := &shapesGenericTwin1Codec[T]{p0: p0}
+	c.class = nino.Class[ShapesGenericTwin1[T]]{Read: c.readBody, Write: c.writeBody, Deferrable: true}
+	c.self = NinoArg[*ShapesGenericTwin1[T]]{Read: c.read, Write: c.write, MinSize: 1}
+	return c.self
+}
+
+func (c *shapesGenericTwin1Codec[T]) read(r *nino.Reader) *ShapesGenericTwin1[T] {
+	return nino.ReadSealed(r, &c.class)
+}
+
+func (c *shapesGenericTwin1Codec[T]) write(w *nino.Writer, v *ShapesGenericTwin1[T]) {
+	nino.WriteSealed(w, v, &c.class)
+}
+
+func (c *shapesGenericTwin1Codec[T]) readBody(r *nino.Reader, v *ShapesGenericTwin1[T]) {
+	v.Value = c.p0.Read(r)
+}
+
+func (c *shapesGenericTwin1Codec[T]) writeBody(w *nino.Writer, v *ShapesGenericTwin1[T]) {
+	c.p0.Write(w, v.Value)
+}
+
 // ShapesLeftItem is `Shapes.Left.Item`.
 type ShapesLeftItem struct {
 	Left int32 `nino:"0" json:"left" yaml:"left"`
@@ -4125,6 +4332,101 @@ func ReadTupleCellInto(r *nino.Reader, v *TupleCell) {
 
 func WriteTupleCell(w *nino.Writer, v TupleCell) {
 	writeTupleCell(w, v)
+}
+
+// TwinA is `Shapes.Generic.TwinA`.
+type TwinA struct {
+	A int32 `nino:"0" json:"a" yaml:"a"`
+}
+
+func (TwinA) NinoLayout() string {
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x6DDFEB55; deferrable=true; members=A:int:raw(4)"
+}
+
+func (TwinA) NinoTypeName() string {
+	return "Shapes.Generic.TwinA"
+}
+
+func (*TwinA) NinoTypeID() int32 {
+	return 1843391317
+}
+
+func (*TwinA) isShapesGenericTwin() {
+}
+
+func ReadTwinA(r *nino.Reader) *TwinA {
+	if !r.Present() {
+		return nil
+	}
+	v := new(TwinA)
+	if d, ok := r.EnterBody(); ok {
+		readTwinABody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &twinAClass)
+	}
+	return v
+}
+
+func WriteTwinA(w *nino.Writer, v *TwinA) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeTwinABody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &twinAClass)
+	}
+}
+
+// ReadTwinAInto reads a value into *v, the object it points to read in place (DeserializeInto).
+func ReadTwinAInto(r *nino.Reader, v **TwinA) {
+	if !r.Present() {
+		*v = nil
+		return
+	}
+	if *v == nil {
+		*v = new(TwinA)
+	}
+	if d, ok := r.EnterBody(); ok {
+		readTwinABody(r, *v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, *v, &twinAClass)
+	}
+}
+
+// readTwinAClass reads the body of a TwinA (after its type id) into a new instance.
+func readTwinAClass(r *nino.Reader) *TwinA {
+	v := new(TwinA)
+	if d, ok := r.EnterBody(); ok {
+		readTwinABody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &twinAClass)
+	}
+	return v
+}
+
+// writeTwinAClass writes the body of v (not nil, after its type id).
+func writeTwinAClass(w *nino.Writer, v *TwinA) {
+	if d, ok := w.EnterBody(); ok {
+		writeTwinABody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &twinAClass)
+	}
+}
+
+func readTwinABody(r *nino.Reader, v *TwinA) {
+	v.A = r.I32()
+}
+
+func writeTwinABody(w *nino.Writer, v *TwinA) {
+	w.I32(v.A)
 }
 
 // UnhashedKeys is `Shapes.Generic.UnhashedKeys`.
@@ -5781,6 +6083,8 @@ func codecOf[T any](read func(*nino.Reader) T, readInto func(*nino.Reader, *T), 
 // written (with its header).
 func NinoCodecOf(name string) (NinoCodec, bool) {
 	switch name {
+	case "Shapes.Generic.BasedInt":
+		return codecOf(ReadBasedInt, ReadBasedIntInto, WriteBasedInt), true
 	case "Shapes.Empty":
 		return codecOf(ReadEmpty, ReadEmptyInto, WriteEmpty), true
 	case "Shapes.FloatKeys":
@@ -5831,6 +6135,8 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadRecursive, ReadRecursiveInto, WriteRecursive), true
 	case "Shapes.Renamed":
 		return codecOf(ReadRenamed, ReadRenamedInto, WriteRenamed), true
+	case "Shapes.Generic.Twin":
+		return codecOf(ReadShapesGenericTwin, ReadShapesGenericTwinInto, WriteShapesGenericTwin), true
 	case "Shapes.Left.Item":
 		return codecOf(ReadShapesLeftItem, ReadShapesLeftItemInto, WriteShapesLeftItem), true
 	case "Shapes.Right.Item":
@@ -5845,6 +6151,8 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadThingStruct, ReadThingStructInto, WriteThingStruct), true
 	case "Shapes.TupleCell":
 		return codecOf(ReadTupleCell, ReadTupleCellInto, WriteTupleCell), true
+	case "Shapes.Generic.TwinA":
+		return codecOf(ReadTwinA, ReadTwinAInto, WriteTwinA), true
 	case "Shapes.Generic.UnhashedKeys":
 		return codecOf(ReadUnhashedKeys, ReadUnhashedKeysInto, WriteUnhashedKeys), true
 	case "Shapes.Generic.Uses":

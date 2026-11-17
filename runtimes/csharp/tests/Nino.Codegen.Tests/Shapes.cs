@@ -393,6 +393,36 @@ namespace Shapes.Right
 
 namespace Shapes.Generic
 {
+    /// <summary>A class and a generic class of one name in one namespace: each gets a name of its own.</summary>
+    [NinoType]
+    public abstract class Twin
+    {
+        public int A;
+    }
+
+    [NinoType]
+    public sealed class TwinA : Twin
+    {
+    }
+
+    [NinoType]
+    public sealed class Twin<T>
+    {
+        public T Value;
+    }
+
+    /// <summary>A generic base whose subtypes are not generic: a --roots value of it holds them.</summary>
+    [NinoType]
+    public abstract class Based<T>
+    {
+        public T Value;
+    }
+
+    [NinoType]
+    public sealed class BasedInt : Based<int>
+    {
+    }
+
     /// <summary>A sealed generic class of one parameter.</summary>
     [NinoType]
     public sealed class Box<T>

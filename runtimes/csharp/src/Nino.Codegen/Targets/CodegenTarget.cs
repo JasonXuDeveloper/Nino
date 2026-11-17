@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Nino.Codegen.Model;
 
@@ -43,21 +44,31 @@ namespace Nino.Codegen.Targets
 
         /// <summary>
         /// The roots requested (<see cref="RootRequests"/>) as the model sees them. Throws an
-        /// <see cref="ArgumentException"/> for a type the assembly and its references do not have, or one Nino.Core
-        /// has no formatter nino-gen knows for, since the command line asked for it by name.
+        /// <see cref="ArgumentException"/> for a type the assembly and its references do not have, a [NinoType]
+        /// or a type named twice, since the command line asked for it by name; one whose formatter nino-gen does not model (a
+        /// <c>Queue&lt;T&gt;</c>) is left out with a warning, as a type a language cannot express is.
         /// </summary>
-        private protected List<RootModel> ResolveRoots() => RootRequests.Select(r =>
+        private protected List<RootModel> ResolveRoots()
         {
-            var type = _model.ResolveType(r.Value) ?? throw new ArgumentException(
-                $"--roots: {r.Key}={r.Value}: no such type in the assembly or the assemblies it references " +
-                "(write its runtime-form name: System.Int32[], System.Collections.Generic.List<Namespace.Item>).");
-            if (_model.Types.Any(t => t.Clr == type))
-                throw new ArgumentException(
-                    $"--roots: {r.Key}={r.Value}: a [NinoType], which has its codec already.");
-            var value = _model.RootValue(type) ?? throw new ArgumentException(
-                $"--roots: {r.Key}={r.Value}: Nino has no formatter nino-gen knows for it.");
-            return new RootModel(r.Key, type, value);
-        }).ToList();
+            var roots = new List<RootModel>();
+            foreach (var r in RootRequests)
+            {
+                var type = _model.ResolveType(r.Value) ?? throw new ArgumentException(
+                    $"--roots: {r.Key}={r.Value}: no such type in the assembly or the assemblies it references " +
+                    "(write its runtime-form name: System.Int32[], System.Collections.Generic.List<Namespace.Item>).");
+                if (_model.Types.Any(t => t.Clr == type))
+                    throw new ArgumentException(
+                        $"--roots: {r.Key}={r.Value}: a [NinoType], which has its codec already.");
+                if (RootRequests.FirstOrDefault(o => _model.ResolveType(o.Value) == type).Key is { } first && first != r.Key)
+                    throw new ArgumentException($"--roots: {r.Key} and {first} name the same type, {r.Value}.");
+                if (_model.RootValue(type) is { } value)
+                    roots.Add(new RootModel(r.Key, type, value));
+                else
+                    Warnings.Add($"root {r.Key} ({r.Value}) is not written to {Language}: nino-gen does not model its formatter.");
+            }
+
+            return roots;
+        }
 
         /// <summary>
         /// Shapes each root with <paramref name="shape"/>, leaving out with a warning one the language cannot express;
@@ -234,16 +245,25 @@ namespace Nino.Codegen.Targets
         {
             var all = types.Select(Clr).Distinct().ToList();
             var simple = all.ToLookup(BaseName);
-            foreach (var type in all)
+            var used = new HashSet<string>(StringComparer.Ordinal);
+            // Non-generic types first, so a generic type of the same name (Envelope and Envelope<T> in one namespace)
+            // is the one that takes its arity (Envelope1).
+            foreach (var type in all.OrderBy(t => t.IsGenericTypeDefinition))
             {
                 string name = BaseName(type);
                 if (simple[name].Count() > 1)
                     name = Qualified(type, name);
-                if (Reserved(name))
-                    name += "Type";
-                _names[type] = name;
+                if (used.Contains(Unreserved(name)) && type.IsGenericTypeDefinition)
+                    name += type.GetGenericArguments().Length.ToString(CultureInfo.InvariantCulture);
+                name = Unreserved(name);
+                string unique = name;
+                for (int n = 2; !used.Add(unique); n++)
+                    unique = name + n.ToString(CultureInfo.InvariantCulture);
+                _names[type] = unique;
             }
         }
+
+        private string Unreserved(string name) => Reserved(name) ? name + "Type" : name;
 
         /// <summary>The generated name of a type, enum or raw struct.</summary>
         internal string Name(object type) =>
