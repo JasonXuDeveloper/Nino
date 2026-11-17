@@ -202,10 +202,52 @@ namespace Test.Runtime.Burst
                 $"|nullable={Bytes(&nullable, System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct?>())}" +
                 $"|single={BitConverter.ToString(NinoSerializer.Serialize(nullable))}" +
                 $"|array={BitConverter.ToString(arrayBytes)}" +
-                $"|back[2]={backValue.Id:X8},{backValue.CreateTime.Ticks:X16},{back[1].HasValue}");
+                $"|back[2]={backValue.Id:X8},{backValue.CreateTime.Ticks:X16},{back[1].HasValue}" +
+                $"|{Internal("NinoLayout`1", "IsCanonical", "CopiesAsIs", "WireSize", "Info")}" +
+                $"|{Internal("NinoNullables`1", "Raw", "Stride")}" +
+                $"|{Internal("NullableLayout`1", "HasValueOffset", "ValueOffset")}");
             Assert.AreEqual(value.Id, backValue.Id, "Id read back");
             Assert.AreEqual(value.CreateTime, backValue.CreateTime, "CreateTime read back");
         }
+
+        /// <summary>Nino.Core's static fields of an internal generic class closed over SimpleStruct, by reflection.</summary>
+        private static string Internal(string type, params string[] fields)
+        {
+            var open = typeof(NinoSerializer).Assembly.GetType("Nino.Core." + type) ??
+                       typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal." + type);
+            if (open == null)
+                return type + "=?";
+            Type closed;
+            try
+            {
+                closed = open.MakeGenericType(typeof(Nino.Benchmark.SimpleStruct));
+            }
+            catch (Exception e)
+            {
+                return type + "=!" + e.GetType().Name;
+            }
+
+            const System.Reflection.BindingFlags all = System.Reflection.BindingFlags.Static |
+                                                       System.Reflection.BindingFlags.Public |
+                                                       System.Reflection.BindingFlags.NonPublic;
+            return type + ":" + string.Join(",", fields.Select(f =>
+            {
+                try
+                {
+                    object v = closed.GetField(f, all)?.GetValue(null);
+                    if (v != null && f == "Info")
+                        v = string.Join(";", v.GetType().GetFields().Select(x => x.Name + "=" + Show(x.GetValue(v))));
+                    return f + "=" + Show(v);
+                }
+                catch (Exception e)
+                {
+                    return f + "=!" + e.GetType().Name;
+                }
+            }));
+        }
+
+        private static string Show(object v) =>
+            v is Array a ? "[" + string.Join(" ", a.Cast<object>()) + "]" : v?.ToString() ?? "null";
 
         private static void Time(Action action)
         {
