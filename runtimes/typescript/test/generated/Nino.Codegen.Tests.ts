@@ -2219,6 +2219,49 @@ types.add(-355893823, MoreOpenInt64, (r) => readMoreOpen(r, closed$1), (w, v) =>
 types.add(-1170110497, OpenInt32, (r) => readOpen(r, closed$2), (w, v) => writeOpen(w, v, closed$2));
 types.add(2087250468, OpenInt64, (r) => readOpen(r, closed$3), (w, v) => writeOpen(w, v, closed$3));
 
+/**
+ * The codec of the type of that .NET name (`Namespace.Outer+Inner`, or a root's runtime-form name), as a member of its
+ * type is written (with its header); `undefined` for a type this module does not write.
+ */
+export function ninoCodecOf(name: string): NinoCodec<unknown> | undefined {
+  switch (name) {
+    case "Shapes.Generic.BasedInt": return BasedIntCodec;
+    case "Shapes.Empty": return EmptyCodec;
+    case "Shapes.FloatKeys": return FloatKeysCodec;
+    case "Shapes.Gappy": return GappyCodec;
+    case "Shapes.Holder": return HolderCodec;
+    case "Shapes.HostHolder": return HostHolderCodec;
+    case "Shapes.IThing": return IThingCodec;
+    case "Shapes.Keywords": return KeywordsCodec;
+    case "Shapes.Marked": return MarkedCodec;
+    case "Shapes.Measure": return MeasureCodec;
+    case "Shapes.NinoGrid": return NinoGridCodec;
+    case "Shapes.NinoNullableArgs": return NinoNullableArgsCodec;
+    case "Shapes.NinoNullableRaw": return NinoNullableRawCodec;
+    case "Shapes.NinoNullableRawWide": return NinoNullableRawWideCodec;
+    case "Shapes.NullableSlots": return NullableSlotsCodec;
+    case "Shapes.Generic.OpenHolderUse": return OpenHolderUseCodec;
+    case "Shapes.Generic.OpenUse": return OpenUseCodec;
+    case "Shapes.Outer+Inner": return Outer_InnerCodec;
+    case "Shapes.Pick": return PickCodec;
+    case "Shapes.PickPair": return PickPairCodec;
+    case "Shapes.Picks": return PicksCodec;
+    case "Shapes.Recursive": return RecursiveCodec;
+    case "Shapes.Renamed": return RenamedCodec;
+    case "Shapes.Generic.Twin": return Shapes_Generic_TwinCodec;
+    case "Shapes.Left.Item": return Shapes_Left_ItemCodec;
+    case "Shapes.Right.Item": return Shapes_Right_ItemCodec;
+    case "Shapes.Strides": return StridesCodec;
+    case "Shapes.ThingClass": return ThingClassCodec;
+    case "Shapes.ThingStruct": return ThingStructCodec;
+    case "Shapes.TupleCell": return TupleCellCodec;
+    case "Shapes.Generic.TwinA": return TwinACodec;
+    case "Shapes.Generic.UnhashedKeys": return UnhashedKeysCodec;
+    case "Shapes.Generic.Uses": return UsesCodec;
+  }
+  return undefined;
+}
+
 function read$0<T>(r: NinoReader, c: Bag$Codecs<T>): T[] | null {
   const length = r.length();
   if (length < 0) return null;

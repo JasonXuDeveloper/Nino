@@ -350,8 +350,8 @@ is not an identifier, is used twice or clashes with a generated name, two names 
 `[NinoType]` (it has its codec already) fail the run; a type whose formatter nino-gen does not model (a `Stack<T>`, a
 multidimensional array, `Vector4[]`) or that a language cannot express is a warning and is left out of that language.
 A root's slots are filled when it is met (`CodegenModel.FillSlot`), after the model is built. The Go and Rust
-benchmarks give one root per case whose type is not a `[NinoType]` (`runtimes/{go,rust}/bench/generate.sh`) and look
-each case's type up by its .NET name; with `--serde`, Rust's `with_nino_serde_type` (a `NinoSerdeVisit`, behind the
+benchmarks give one root per case whose type is not a `[NinoType]` (`runtimes/{go,rust,typescript}/bench/generate.sh`) and look
+each case's type up by its .NET name (Go's `NinoCodecOf`, Rust's `with_nino_type`, TypeScript's `ninoCodecOf`); with `--serde`, Rust's `with_nino_serde_type` (a `NinoSerdeVisit`, behind the
 crate's `serde` feature) is `with_nino_type` with serde's traits on the type too, so one visitor hands it to Nino and
 to a serde format.
 

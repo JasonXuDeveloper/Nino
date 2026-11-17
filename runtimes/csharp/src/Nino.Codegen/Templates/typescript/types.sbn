@@ -730,6 +730,17 @@ for $r in roots
   "export const " + $r.name + "Codec: NinoCodec<" + ts($r.shape) + "> = {\n  read: (r) => " + read($r.shape) + ",\n  write: (w, v) => {\n    " + stmt(write($r.shape, "v")) + "\n  },\n" + (read_into($r.shape, "v") == read($r.shape) ? "" : "  readInto: (r, v) => " + read_into($r.shape, "v") + ",\n") + "};\n\n"
 end
 
+# The codec of a type by its .NET name, as Go's NinoCodecOf and Rust's with_nino_type find one.
+"/**\n * The codec of the type of that .NET name (`Namespace.Outer+Inner`, or a root's runtime-form name), as a member of its\n * type is written (with its header); `undefined` for a type this module does not write.\n */\n"
+"export function ninoCodecOf(name: string): NinoCodec<unknown> | undefined {\n  switch (name) {\n"
+for c in codecs
+  "    case \"" + c.model.runtime_name + "\": return " + c.name + "Codec;\n"
+end
+for $r in roots
+  "    case \"" + $r.runtime_name + "\": return " + $r.name + "Codec;\n"
+end
+"  }\n  return undefined;\n}\n\n"
+
 # The functions shared by values of one shape, in the order the code above first used them.
 $i = 0
 while $i < helper_count()

@@ -16,12 +16,14 @@ const json = (value: unknown) =>
 const cases = JSON.parse(readFileSync(process.argv[2], "utf8")) as { codec: string; hex: string }[];
 // "typed" when the code was generated with --numeric-arrays typed (int[] is an Int32Array), else "plain".
 const ints = (...values: number[]) => (process.argv[3] === "typed" ? Int32Array.from(values) : values) as never;
-const codecs = types as unknown as Record<string, NinoCodec<unknown>>;
+// A case names an exported codec (PlayerCodec) or a .NET type, found as the benchmarks find one (ninoCodecOf).
+const exported = types as unknown as Record<string, NinoCodec<unknown>>;
+const codecOf = (name: string) => exported[name] ?? types.ninoCodecOf(name)!;
 // A case that throws gives its error (bad data must throw a NinoError); a value too deep for JSON.stringify, no JSON.
 const results = cases.map(({ codec, hex: input }) => {
   let value: unknown;
   try {
-    value = deserialize(codecs[codec], Buffer.from(input, "hex"));
+    value = deserialize(codecOf(codec), Buffer.from(input, "hex"));
   } catch (e) {
     return { hex: "", json: "", error: `${(e as Error).name}: ${(e as Error).message}` };
   }
@@ -31,7 +33,7 @@ const results = cases.map(({ codec, hex: input }) => {
   } catch {
     // Too deep to print.
   }
-  return { hex: hex(serialize(codecs[codec], value)), json: text, error: "" };
+  return { hex: hex(serialize(codecOf(codec), value)), json: text, error: "" };
 });
 
 // A value made in TypeScript, for .NET to read.
