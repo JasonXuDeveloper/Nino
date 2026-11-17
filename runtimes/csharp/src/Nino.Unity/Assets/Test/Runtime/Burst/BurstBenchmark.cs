@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Runtime.InteropServices;
 using Nino.Burst;
 using Nino.Core;
@@ -12,15 +13,17 @@ using NUnit.Framework;
 using Unity.Burst;
 using Unity.PerformanceTesting;
 using UnityEngine;
-using Random = System.Random;
 
 namespace Test.Runtime.Burst
 {
     /// <summary>
-    /// The release benchmark of the Burst kernels, measured with the Unity Performance Testing package: each case is a
-    /// call a user makes (NinoSerializer.Serialize to a new array, NinoDeserializer.Deserialize into an existing array,
-    /// or to a new string, list or class), measured by <c>Measure.Method</c> (its own warm-up and probing, then 9
-    /// measurements of about 100 ms, each the mean time per call) once per sample group:
+    /// The release benchmark of the Burst kernels, measured with the Unity Performance Testing package, on the .NET
+    /// suite's cases (runtimes/csharp/benchmarks): bench/generate.sh copies its models into Cases/ and writes the case
+    /// list (BenchCases.cs, AddCases) and each case's Nino bytes (StreamingAssets/NinoBench), which the player reads
+    /// before it times anything. Each case is a call a user makes (NinoSerializer.Serialize of the value read to a new
+    /// array, NinoDeserializer.Deserialize of .NET's bytes to a new value, as the .NET suite times them), measured by
+    /// <c>Measure.Method</c> (its own warm-up and probing, then 9 measurements of about 100 ms, each the mean time per
+    /// call) once per sample group:
     /// <list type="bullet">
     /// <item>"Without Burst": NinoKernels.Register(null), Nino.Core's own paths (as without com.unity.burst);</item>
     /// <item>"SSSE3 only" (AVX2 CPUs): the kernels limited to their 16-byte paths, to compare the two tiers;</item>
@@ -30,20 +33,24 @@ namespace Test.Runtime.Burst
     /// (##performancetestruninfo2: Unity, platform, CPU, packages) into the test output, which the player's results XML
     /// keeps; runtimes/csharp/benchmarks/reports/unity_report.py turns it into the release's Unity section. The one line of its own here,
     /// NINO_UNITY_ENV, names what the package cannot know: the kernels' instruction set and the process architecture.
-    /// Nothing here asserts a speed: a test fails only when Burst or the kernels are missing or when the paths write
-    /// different bytes.
+    /// Nothing here asserts a speed: a test fails only when Burst or the kernels are missing or when the bytes are
+    /// wrong (see Check).
     /// </summary>
-    public class BurstBenchmark
+    public partial class BurstBenchmark
     {
-        private static readonly int[] Lengths = { 32, 1000, 100000 };
-
-        /// <summary>A case: the value, and the calls each test measures.</summary>
+        /// <summary>
+        /// A case: its name (the .NET suite's), and the calls each test measures, set by Prepare (the bytes read in
+        /// the case's own tests, so a case that cannot be read fails alone).
+        /// </summary>
         public sealed class Case
         {
             public string Name;
+            public bool Old;
+            public Action Prepare;
+            public byte[] Bytes;
             public Func<byte[]> Serialize;
-            public Func<byte[], Action> Deserialize;
-            public Func<byte[], byte[]> ReadBack;
+            public Action Deserialize;
+            public Func<byte[]> ReadBack;
             public override string ToString() => Name;
         }
 
@@ -54,84 +61,33 @@ namespace Test.Runtime.Burst
 
         private static List<Case> Build()
         {
-            var random = new Random(5);
             var cases = new List<Case>();
-            foreach (int n in Lengths)
-                cases.Add(Values($"(int, long)[{n}]",
-                    Enumerable.Range(0, n).Select(_ => (random.Next(), (long)random.Next() << 13)).ToArray()));
-            foreach (int n in Lengths)
-                cases.Add(Values($"(byte, int)[{n}]",
-                    Enumerable.Range(0, n).Select(_ => ((byte)random.Next(), random.Next())).ToArray()));
-            foreach (int n in Lengths)
-                cases.Add(Values($"(double, long, double, float, byte)[{n}]",
-                    Enumerable.Range(0, n)
-                        .Select(_ => (random.NextDouble(), (long)random.Next(), random.NextDouble(),
-                            (float)random.NextDouble(), (byte)random.Next()))
-                        .ToArray()));
-            foreach (int n in Lengths)
-                cases.Add(Values($"PaddedRaw[{n}] (short, long)",
-                    Enumerable.Range(0, n).Select(i => new PaddedRaw { A = (short)i, B = random.Next() }).ToArray()));
-            // Latin-1 text (printable ASCII), which Nino writes a byte a char; and CJK text, which it writes as UTF-16
-            // after the narrowing stops at the first char.
-            foreach (int n in Lengths)
-                cases.Add(One($"ASCII string ({n} chars)",
-                    new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray())));
-            foreach (int n in Lengths)
-                cases.Add(One($"UTF-16 string ({n} CJK chars)",
-                    new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(0x4E00, 0x9FA6)).ToArray())));
-            var words = Enumerable.Range(0, 1000)
-                .Select(_ => new string(Enumerable.Range(0, random.Next(8, 41)).Select(c => (char)random.Next(32, 127))
-                    .ToArray()))
-                .ToList();
-            cases.Add(One($"List of {words.Count} ASCII strings (8–40 chars)", words));
-            // Classes of the .NET benchmark's SimpleClass shape, one and an array of 100 as in its SimpleTest: what the
-            // generated formatters cost under IL2CPP. Of their members only Name (36 Latin-1 chars) takes a kernel.
-            cases.Add(One("SimpleClass", BenchClass.Create(random)));
-            cases.Add(Values("SimpleClass[100]",
-                Enumerable.Range(0, 100).Select(_ => BenchClass.Create(random)).ToArray()));
-            // A generic [NinoType] against its non-generic twin, 1,000 of each: the members of BenchBox<long> are
-            // direct calls as BenchLongs' are (they were a virtual call each through CachedFormatter<long>).
-            cases.Add(Values("BenchBox<long>[1000] (4 longs, generic)",
-                Enumerable.Range(0, 1000).Select(i => new BenchBox<long> { A = i, B = 2L * i, C = 3L * i, D = 4L * i })
-                    .ToArray()));
-            cases.Add(Values("BenchLongs[1000] (4 longs, non-generic)",
-                Enumerable.Range(0, 1000).Select(i => new BenchLongs { A = i, B = 2L * i, C = 3L * i, D = 4L * i })
-                    .ToArray()));
-            // [NinoUtf8] text: ASCII, whose UTF-8 the kernels write and read, and CJK, where the kernels stop at the first
-            // char and .NET's encoder and decoder do it all.
-            foreach (int n in Lengths)
-                cases.Add(One($"[NinoUtf8] ASCII string ({n} chars)", new Utf8Text
-                {
-                    Text = new string(Enumerable.Range(0, n).Select(_ => (char)random.Next(32, 127)).ToArray()),
-                }));
-            cases.Add(One("[NinoUtf8] UTF-8 string (1000 CJK chars)", new Utf8Text
-            {
-                Text = new string(Enumerable.Range(0, 1000).Select(_ => (char)random.Next(0x4E00, 0x9FA6)).ToArray()),
-            }));
+            AddCases(cases);
             return cases;
         }
 
-        /// <summary>An array: serialized to a new array, deserialized into an array of its length.</summary>
-        private static Case Values<T>(string name, T[] values) => new Case
+        /// <summary>
+        /// A case of type <typeparamref name="T"/>: .NET's Nino bytes, the value they hold, and the calls on it. An
+        /// <paramref name="old"/> case's bytes are an earlier version of its type (version tolerance), so they are read
+        /// but not what the value writes.
+        /// </summary>
+        private static Case Load<T>(string name, bool old)
         {
-            Name = name,
-            Serialize = () => NinoSerializer.Serialize(values),
-            Deserialize = bytes =>
+            var c = new Case { Name = name, Old = old };
+            c.Prepare = () =>
             {
-                var into = new T[values.Length];
-                return () => NinoDeserializer.Deserialize(bytes, ref into);
-            },
-            ReadBack = bytes => NinoSerializer.Serialize(NinoDeserializer.Deserialize<T[]>(bytes)),
-        };
-
-        /// <summary>A string, a list of them or a class: serialized to a new array, deserialized to a new value.</summary>
-        private static Case One<T>(string name, T value) => new Case
-        {
-            Name = name,
-            Serialize = () => NinoSerializer.Serialize(value),
-            Deserialize = bytes => () => NinoDeserializer.Deserialize<T>(bytes),
-            ReadBack = bytes => NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(bytes)),
-        };
+                if (c.Bytes != null)
+                    return;
+                byte[] bytes = File.ReadAllBytes(
+                    Path.Combine(Application.streamingAssetsPath, "NinoBench", name + ".nino.bin"));
+                T value = NinoDeserializer.Deserialize<T>(bytes);
+                c.Serialize = () => NinoSerializer.Serialize(value);
+                c.Deserialize = () => NinoDeserializer.Deserialize<T>(bytes);
+                c.ReadBack = () => NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(bytes));
+                c.Bytes = bytes;
+            };
+            return c;
+        }
 
         [OneTimeSetUp]
         public void Environment()
@@ -156,11 +112,21 @@ namespace Test.Runtime.Burst
         }
 
         [Test, Performance, TestCaseSource(nameof(Cases))]
-        public void Deserialize(Case c) => Time(c.Deserialize(Check(c)));
-
-        /// <summary>The bytes of the case: the same on every path, and read back to the same bytes.</summary>
-        private static byte[] Check(Case c)
+        public void Deserialize(Case c)
         {
+            Check(c);
+            Time(c.Deserialize);
+        }
+
+        /// <summary>
+        /// The bytes of the case: on every path the value writes the same bytes, which read back to themselves, and which
+        /// are .NET's (but for an old case, whose bytes are another version's). A collection whose order is its
+        /// implementation's (ConcurrentDictionary's buckets) may list its items in another order than CoreCLR's, so a
+        /// difference of the same length is only logged.
+        /// </summary>
+        private static void Check(Case c)
+        {
+            c.Prepare();
             byte[] expected = null;
             foreach (var (group, isa) in _groups)
             {
@@ -168,10 +134,14 @@ namespace Test.Runtime.Burst
                 byte[] bytes = c.Serialize();
                 expected ??= bytes;
                 Assert.IsTrue(bytes.SequenceEqual(expected), $"{c.Name}: different bytes ({group})");
-                Assert.IsTrue(c.ReadBack(bytes).SequenceEqual(expected), $"{c.Name}: read back differently ({group})");
+                Assert.IsTrue(c.ReadBack().SequenceEqual(expected), $"{c.Name}: read back differently ({group})");
             }
 
-            return expected;
+            NinoBurst.Register();
+            if (c.Old || expected.SequenceEqual(c.Bytes))
+                return;
+            Assert.AreEqual(c.Bytes.Length, expected.Length, $"{c.Name}: not .NET's bytes");
+            Debug.LogWarning($"{c.Name}: .NET's bytes in another order");
         }
 
         // The sample groups and the kernels each measures (-1: none), set by Environment.

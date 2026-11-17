@@ -70,3 +70,8 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+# The Unity benchmark's inputs, which bench/generate.sh writes from the .NET suite
+/[Aa]ssets/Test/Runtime/Burst/Cases/
+/[Aa]ssets/Test/Runtime/Burst/Cases.meta
+/[Aa]ssets/[Ss]treamingAssets/
+/[Aa]ssets/[Ss]treamingAssets.meta

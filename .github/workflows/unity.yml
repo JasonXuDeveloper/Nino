@@ -8,7 +8,8 @@ name: Unity
 #
 # report.yml calls it for each release with `benchmark: true`: the editor's tests are skipped, the IL2CPP player is
 # built as a release build (Test.Editor.Burst.BenchmarkPlayerBuild) and runs the correctness tests and the Burst
-# benchmark (Test.Runtime.Burst.BurstBenchmark, measured with the Unity Performance Testing package), and its results
+# benchmark (Test.Runtime.Burst.BurstBenchmark on the .NET suite's cases, which bench/generate.sh writes into the
+# project, measured with the Unity Performance Testing package), and its results
 # are uploaded per Unity version (artifacts unity-bench-<version>) for runtimes/csharp/benchmarks/reports/unity_report.py. A called run joins the same concurrency group, so
 # it waits for a running Unity job and is never cancelled while it runs. The webgl job then builds a WebGL player per
 # version and runs it in headless Chrome (Nino.WebGL's kernels; timed too in the benchmark's run).
@@ -197,6 +198,12 @@ jobs:
           restore-keys: |
             Library-Nino-${{ runner.os }}-${{ matrix.unity }}-
 
+      # The benchmark's cases: the .NET suite's models, case list and bytes, written into the project after the Library
+      # was restored (runtimes/csharp/src/Nino.Unity/bench/generate.sh; release tags before it timed cases of their own).
+      - name: Write the benchmark's cases
+        if: env.BENCHMARK == 'true' && hashFiles('runtimes/csharp/src/Nino.Unity/bench/generate.sh') != ''
+        run: runtimes/csharp/src/Nino.Unity/bench/generate.sh
+
       - name: Wait for the Unity image
         timeout-minutes: 15
         # A stuck pull is not a test result: the test step pulls the image itself.
@@ -298,13 +305,14 @@ jobs:
           success() || steps.playmode-tests.conclusion == 'failure' || steps.editmode-tests.conclusion == 'failure'
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: player-tests
-        # The benchmark's run adds a few minutes of timing to the player.
-        timeout-minutes: 35
+        # The benchmark's run times every case of the .NET suite (some 110, each both ways and in two or three sample
+        # groups of about a second) in the player.
+        timeout-minutes: ${{ inputs.benchmark && 60 || 35 }}
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-          ENGINE_LAUNCH_WRAPPER: timeout -k 60 20m
+          ENGINE_LAUNCH_WRAPPER: timeout -k 60 ${{ inputs.benchmark && '45m' || '20m' }}
         with:
           projectPath: ./runtimes/csharp/src/Nino.Unity
           testMode: standalone
