@@ -17,9 +17,9 @@ name: Runtime A/B (test branch)
 # message says "[ab: new lines only]".
 # Both commits must be on a branch of this repository (main, or this branch: push them here, merging, never
 # force-pushing).
-# The filter is a `go test -bench` regexp, a criterion filter or a bench.ts case name. Numbers are for development only.
-# After the filter, "<base env> <head env>" (NAME=VALUE or -) set a variable for one side (rust and go: the Go
-# benchmark's NINO_BENCH_QUICK=1 or NINO_BENCH_CASES=<regexp> to time some of the .NET suite's cases).
+# The filter is a `go test -bench` regexp, a criterion filter or bench.ts's case names (`Simple*|Players`). Numbers are
+# for development only. After the filter, "<base env> <head env>" (NAME=VALUE or -) set a variable for one side (go,
+# rust and typescript: NINO_BENCH_QUICK=1, or NINO_BENCH_CASES to time some of the .NET suite's cases).
 on:
   push:
     branches: [bench/ab]
@@ -199,13 +199,10 @@ jobs:
                 { echo '```'; grep -E '^[a-z].*|time:|change:|faster|slower|No change' "$out/rust-2.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
                 ;;
               typescript)
-                # bench.ts is a library: node.ts (Node) and browser.mjs (Chromium) run it, on data and generated code
-                # that .NET writes (as bench/run.sh does). Both sides run the head's bench.ts; each takes the code its
-                # own nino-gen generates (so a change to the templates is measured too) with its own src/nino.ts, and
-                # reads the data its own .NET writes (the same bytes unless the two differ in the wire format).
-                ts_bench=$(tree_path "$head" TYPESCRIPT_BENCH)
-                B="$RUNNER_TEMP/$head/$ts_bench"
-                (cd "$B" && npm ci --no-audit --no-fund > /dev/null)
+                # Since #374 the bench runs the .NET suite's cases from its own commit: each side runs its own
+                # bench (generate.sh: the data its .NET writes, the code its nino-gen generates with its own
+                # src/nino.ts, its protobuf messages), so a change to the runtime, the templates or the bench is
+                # measured. Both commits need it (185220ad or later).
                 if [[ ! -x "$(npm root -g)/playwright/cli.js" ]]; then
                   npm install -g playwright@1.56.1 > /dev/null
                   # Playwright 1.56 does not know Ubuntu 26.04: install the 24.04 dependencies, else none.
@@ -213,37 +210,30 @@ jobs:
                   PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-$arch npx -y playwright@1.56.1 install --with-deps chromium > /dev/null ||
                     PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-$arch npx -y playwright@1.56.1 install chromium > /dev/null
                 fi
-                dotnet build -c Release "$B" > /dev/null
-                dotnet "$B/bin/Release/net10.0/Bench.dll" "$out/data"
-                ts_bench=$(tree_path "$base" TYPESCRIPT_BENCH)
-                BB="$RUNNER_TEMP/$base/$ts_bench"
-                dotnet build -c Release "$BB" > /dev/null
-                dotnet "$BB/bin/Release/net10.0/Bench.dll" "$out/data-base"
                 for side in base head; do
                   ref=$base; [[ $side == head ]] && ref=$head
-                  codegen=$RUNNER_TEMP/$ref/$(tree_path "$ref" CODEGEN)
-                  ts_bench=$RUNNER_TEMP/$ref/$(tree_path "$ref" TYPESCRIPT_BENCH)
-                  ts_runtime=$RUNNER_TEMP/$ref/$(tree_path "$ref" TYPESCRIPT_RUNTIME)
-                  dotnet build -c Release "$codegen" > /dev/null
-                  rm -rf "$B/gen"
-                  dotnet "$codegen/bin/Release/net8.0/nino-gen.dll" \
-                    --assembly "$ts_bench/bin/Release/net10.0/Bench.dll" --lang ts \
-                    --out "$B/gen" --import-extension .ts > /dev/null
-                  cp "$ts_runtime/src/nino.ts" "$B/gen/nino.ts"
+                  S=$RUNNER_TEMP/$ref/$(tree_path "$ref" TYPESCRIPT_BENCH)
+                  if [[ ! -x $S/generate.sh ]]; then
+                    echo "::error::$ref has no TypeScript bench/generate.sh: both commits need the .NET suite's cases (#374)"
+                    exit 1
+                  fi
                   mkdir -p "$out/$side"
-                  (cd "$B" && npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
-                    --outfile="$out/$side/bench.js" &&
-                    npx esbuild node.ts --bundle --format=esm --platform=node --log-level=warning \
-                    --external:tinybench --outfile="$B/node-$side.mjs")
+                  (cd "$S" && npm ci --no-audit --no-fund > /dev/null && ./generate.sh > /dev/null &&
+                    npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
+                      --outfile="$out/$side/bench.js")
                 done
                 export NODE_PATH="$(npm root -g)"
                 : > "$out/ts.txt"
                 for round in 1 2 3; do
                   for side in base head; do
+                    ref=$base side_env=$base_env
+                    [[ $side == head ]] && ref=$head side_env=$head_env
+                    S=$RUNNER_TEMP/$ref/$(tree_path "$ref" TYPESCRIPT_BENCH)
                     echo "--- $side round $round" | tee -a "$out/ts.txt"
-                    data="$out/data"; [[ $side == base ]] && data="$out/data-base"
-                    (cd "$B" && node "node-$side.mjs" "$data" "${filter:-}" | sed 's/^/node /'
-                      node browser.mjs "$out/$side" "$data" "${filter:-}" | sed 's/^/chromium /') |
+                    (cd "$S" && /usr/bin/env "$side_env" node --no-warnings node.ts out/data "${filter:-}" 2> /dev/null |
+                        sed 's/^/node /'
+                      /usr/bin/env "$side_env" node browser.mjs "$out/$side" out/data "${filter:-}" 2> /dev/null |
+                        sed 's/^/chromium /') |
                       tee -a "$out/ts.txt"
                   done
                 done
