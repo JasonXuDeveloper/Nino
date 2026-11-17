@@ -86,6 +86,91 @@ public struct ExplicitIntLong
     [System.Runtime.InteropServices.FieldOffset(4)] public long B;
 }
 
+/// <summary>Auto layout: CoreCLR reorders the fields by size (the long first), Mono and IL2CPP may not.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+public struct AutoByteLongByte { public byte A; public long B; public byte C; }
+
+/// <summary>Auto layout around a DateTime, as the BCL's DateTimeOffset.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Auto)]
+public struct AutoIntDateTime { public int Id; public DateTime At; }
+
+/// <summary>Explicit offsets that overlap: an int and a float sharing their bytes, a long over both halves.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit)]
+public struct ExplicitUnion
+{
+    [System.Runtime.InteropServices.FieldOffset(0)] public long All;
+    [System.Runtime.InteropServices.FieldOffset(0)] public int Low;
+    [System.Runtime.InteropServices.FieldOffset(0)] public float LowFloat;
+    [System.Runtime.InteropServices.FieldOffset(4)] public int High;
+}
+
+/// <summary>Explicit offsets with a gap and Size past the last field.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit, Size = 24)]
+public struct ExplicitGapSized
+{
+    [System.Runtime.InteropServices.FieldOffset(1)] public byte A;
+    [System.Runtime.InteropServices.FieldOffset(8)] public int B;
+    [System.Runtime.InteropServices.FieldOffset(13)] public short C;
+}
+
+/// <summary>A Pack = 4 struct at an odd explicit offset.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit)]
+public struct ExplicitHoldsPacked
+{
+    [System.Runtime.InteropServices.FieldOffset(0)] public byte A;
+    [System.Runtime.InteropServices.FieldOffset(1)] public PackedIntDateTime4 P;
+}
+
+/// <summary>Pack and Size together: 5 bytes of fields, 12 of struct.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1, Size = 12)]
+public struct PackedSized { public byte A; public int B; }
+
+/// <summary>Size smaller than the fields, which every runtime ignores.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Size = 2)]
+public struct SizedTooSmall { public int A; public int B; }
+
+/// <summary>Pack = 16, above every field's alignment: moves nothing.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 16)]
+public struct PackedByteLong16 { public byte A; public long B; }
+
+/// <summary>Pack = 1 over every leaf type Nino knows.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1)]
+public struct PackedLeaves1
+{
+    public bool A; public char B; public short C; public float D; public byte E; public double F; public sbyte G;
+    public decimal H; public byte I; public Guid J; public byte K; public TimeSpan L; public byte M; public DateTime N;
+}
+
+/// <summary>Pack = 2 with floats.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 2)]
+public struct PackedFloats2 { public byte A; public float B; public byte C; public double D; }
+
+public enum LongEnum : long { Zero, Big = 0x0102030405060708 }
+
+/// <summary>Pack = 1 with an enum of a long.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1)]
+public struct PackedEnum1 { public byte A; public LongEnum B; public byte C; }
+
+/// <summary>Pack = 1 with a fixed buffer of ints.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1)]
+public unsafe struct PackedFixed1 { public byte A; public fixed int B[3]; public long C; }
+
+/// <summary>A generic struct with Pack = 1.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1)]
+public struct PackedPair1<T> { public byte A; public T B; }
+
+/// <summary>Pack = 4 holding a Pack = 1 struct and a DateTimeOffset (auto layout).</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 4)]
+public struct PackedMix4 { public byte A; public PackedByteLong1 B; public short C; public DateTimeOffset D; }
+
+/// <summary>A natural struct holding an Explicit one and an Auto one.</summary>
+public struct HoldsKinds { public byte A; public ExplicitIntLong E; public byte B; public AutoByteLongByte U; }
+
+/// <summary>CharSet changes only marshalling: the managed layout is the natural one.</summary>
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential,
+    CharSet = System.Runtime.InteropServices.CharSet.Ansi)]
+public struct AnsiCharInt { public char A; public bool B; public int C; }
+
 /// <summary>
 /// Every shape above as a member of a [NinoType]: the generator's raw members, or their formatters. Not sealed: a sealed
 /// class's __Top twin indexes a ReadOnlySpan, which stock Mono's class library (the net472 build) cannot compile (CS0570).
@@ -107,6 +192,22 @@ public class LayoutHolder
     public PackedIntDateTime4? None;
     public PackedIntDateTime4[] Array;
     public PackedIntDateTime4?[] Maybes;
+    public AutoByteLongByte Auto;
+    public AutoIntDateTime AutoDate;
+    public ExplicitUnion Union;
+    public ExplicitGapSized Gap;
+    public ExplicitHoldsPacked ExplicitPacked;
+    public PackedSized PackSize;
+    public SizedTooSmall Small;
+    public PackedByteLong16 P16;
+    public PackedLeaves1 Leaves;
+    public PackedFloats2 Floats;
+    public PackedEnum1 Enum;
+    public PackedFixed1 Fixed;
+    public PackedPair1<long> Pair;
+    public PackedMix4 Mix;
+    public HoldsKinds Kinds;
+    public AnsiCharInt Ansi;
 }
 
 /// <summary>Takes one case: its name (the key of its bytes in BclFixtures) and its value.</summary>
@@ -138,6 +239,28 @@ public static class LayoutShapes
         Each(v, "SizedInt16", new SizedInt16 { A = 0x01020304 }, new SizedInt16 { A = -1 });
         Each(v, "ExplicitIntLong", new ExplicitIntLong { A = 1, B = 0x0102030405060708 }, new ExplicitIntLong { A = -2, B = -3 });
 
+        Each(v, "AutoByteLongByte", new AutoByteLongByte { A = 1, B = 0x0102030405060708, C = 2 },
+            new AutoByteLongByte { A = 0xFE, B = -3, C = 0x80 });
+        Each(v, "AutoIntDateTime", new AutoIntDateTime { Id = 0x11223344, At = At1 }, new AutoIntDateTime { Id = -5, At = At2 });
+        Each(v, "ExplicitUnion", new ExplicitUnion { All = 0x0102030405060708 }, new ExplicitUnion { Low = -1, High = 7 });
+        Each(v, "ExplicitGapSized", new ExplicitGapSized { A = 1, B = 0x01020304, C = -2 },
+            new ExplicitGapSized { A = 0xFF, B = -3, C = short.MaxValue });
+        Each(v, "ExplicitHoldsPacked", new ExplicitHoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = At1 } },
+            new ExplicitHoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -3, At = At2 } });
+        Each(v, "PackedSized", new PackedSized { A = 1, B = 0x01020304 }, new PackedSized { A = 0xFE, B = -2 });
+        Each(v, "SizedTooSmall", new SizedTooSmall { A = 1, B = 2 }, new SizedTooSmall { A = -3, B = int.MaxValue });
+        Each(v, "PackedByteLong16", new PackedByteLong16 { A = 1, B = -2 }, new PackedByteLong16 { A = 0x80, B = 3 });
+        Each(v, "PackedLeaves1", Leaves(1), Leaves(-2));
+        Each(v, "PackedFloats2", new PackedFloats2 { A = 1, B = 1.5f, C = 2, D = -2.25 },
+            new PackedFloats2 { A = 0xFE, B = float.MinValue, C = 0x80, D = double.Epsilon });
+        Each(v, "PackedEnum1", new PackedEnum1 { A = 1, B = LongEnum.Big, C = 2 }, new PackedEnum1 { A = 3, B = (LongEnum)(-4), C = 5 });
+        Each(v, "PackedFixed1", Fixed(1), Fixed(-7));
+        Each(v, "PackedPair1<long>", new PackedPair1<long> { A = 1, B = 0x0102030405060708 }, new PackedPair1<long> { A = 2, B = -3 });
+        Each(v, "PackedPair1<DateTime>", new PackedPair1<DateTime> { A = 1, B = At1 }, new PackedPair1<DateTime> { A = 2, B = At2 });
+        Each(v, "PackedMix4", Mix(1), Mix(-2));
+        Each(v, "HoldsKinds", Kinds(1), Kinds(-2));
+        Each(v, "AnsiCharInt", new AnsiCharInt { A = 'x', B = true, C = 0x01020304 }, new AnsiCharInt { A = '\u4E2D', B = false, C = -5 });
+
         var p1 = new PackedIntDateTime4 { Id = 7, At = At1 };
         var p2 = new PackedIntDateTime4 { Id = -8, At = At2 };
         v.Case("LayoutHolder", new LayoutHolder
@@ -156,8 +279,50 @@ public static class LayoutShapes
             None = null,
             Array = new[] { p1, p2 },
             Maybes = new PackedIntDateTime4?[] { p1, null, p2 },
+            Auto = new AutoByteLongByte { A = 20, B = 21, C = 22 },
+            AutoDate = new AutoIntDateTime { Id = 23, At = At2 },
+            Union = new ExplicitUnion { All = 0x0102030405060708 },
+            Gap = new ExplicitGapSized { A = 24, B = 25, C = 26 },
+            ExplicitPacked = new ExplicitHoldsPacked { A = 27, P = p1 },
+            PackSize = new PackedSized { A = 28, B = 29 },
+            Small = new SizedTooSmall { A = 30, B = 31 },
+            P16 = new PackedByteLong16 { A = 32, B = 33 },
+            Leaves = Leaves(34),
+            Floats = new PackedFloats2 { A = 35, B = 36, C = 37, D = 38 },
+            Enum = new PackedEnum1 { A = 39, B = LongEnum.Big, C = 40 },
+            Fixed = Fixed(41),
+            Pair = new PackedPair1<long> { A = 42, B = 43 },
+            Mix = Mix(44),
+            Kinds = Kinds(45),
+            Ansi = new AnsiCharInt { A = 'y', B = true, C = 46 },
         });
     }
+
+    private static PackedLeaves1 Leaves(int n) => new PackedLeaves1
+    {
+        A = n > 0, B = (char)('a' + (n & 7)), C = (short)(n * 3), D = n * 1.25f, E = (byte)n, F = n * -2.5,
+        G = (sbyte)(-n), H = n * 1.1m, I = (byte)(n + 1), J = new Guid(n, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
+        K = (byte)(n + 2), L = TimeSpan.FromTicks(n * 1234567L), M = (byte)(n + 3), N = n > 0 ? At1 : At2,
+    };
+
+    private static unsafe PackedFixed1 Fixed(int n)
+    {
+        var f = new PackedFixed1 { A = (byte)n, C = n * 0x0101010101L };
+        f.B[0] = n; f.B[1] = n * 2; f.B[2] = int.MinValue + n;
+        return f;
+    }
+
+    private static PackedMix4 Mix(int n) => new PackedMix4
+    {
+        A = (byte)n, B = new PackedByteLong1 { A = (byte)(n + 1), B = n * 3L }, C = (short)(n * 5),
+        D = new DateTimeOffset(2001, 2, 3, 4, 5, 6, TimeSpan.FromHours(n % 14)),
+    };
+
+    private static HoldsKinds Kinds(int n) => new HoldsKinds
+    {
+        A = (byte)n, E = new ExplicitIntLong { A = n * 2, B = n * 3L }, B = (byte)(n + 4),
+        U = new AutoByteLongByte { A = (byte)(n + 5), B = n * 6L, C = (byte)(n + 7) },
+    };
 
     /// <summary>A shape on its own, as a T? and its null, in an array, a T?[], a list and inside a plain struct.</summary>
     private static void Each<T>(ILayoutCaseVisitor v, string name, T first, T second) where T : struct

@@ -106,13 +106,9 @@ namespace Test.Runtime
         [Test]
         public void StructLayoutsWriteCoreClrBytes()
         {
-            Debug.Log($"Nino StructLayout sizes ({RuntimeName()}): PackedIntDateTime4 {Unsafe.SizeOf<PackedIntDateTime4>()}, " +
-                      $"PackedIntDateTime4? {Unsafe.SizeOf<PackedIntDateTime4?>()}, PackedByteLong1 {Unsafe.SizeOf<PackedByteLong1>()}, " +
-                      $"PackedByteIntLong2 {Unsafe.SizeOf<PackedByteIntLong2>()}, PackedIntLong4 {Unsafe.SizeOf<PackedIntLong4>()}, " +
-                      $"HoldsPacked {Unsafe.SizeOf<HoldsPacked>()}, PacksNatural {Unsafe.SizeOf<PacksNatural>()}, " +
-                      $"SizedInt16 {Unsafe.SizeOf<SizedInt16>()}, ExplicitIntLong {Unsafe.SizeOf<ExplicitIntLong>()}");
             var cases = new LayoutCases();
             LayoutShapes.Visit(cases);
+            Debug.Log($"Nino StructLayout sizes ({RuntimeName()}): " + string.Join(", ", cases.Sizes));
             CollectionAssert.IsEmpty(cases.Failed);
         }
 
@@ -120,9 +116,13 @@ namespace Test.Runtime
         private sealed class LayoutCases : ILayoutCaseVisitor
         {
             public readonly List<string> Failed = new List<string>();
+            public readonly List<string> Sizes = new List<string>();
 
             public void Case<T>(string name, T value)
             {
+                // A shape on its own (the first case of each) and its nullable form: this runtime's sizes.
+                if (typeof(T).IsValueType && name.IndexOfAny(new[] { '?', '[', '<' }) < 0 || name.StartsWith("PackedPair1<"))
+                    Sizes.Add($"{name} {Unsafe.SizeOf<T>()} (T? {Unsafe.SizeOf<T?>()})");
                 name = "layout " + name;
                 try
                 {
