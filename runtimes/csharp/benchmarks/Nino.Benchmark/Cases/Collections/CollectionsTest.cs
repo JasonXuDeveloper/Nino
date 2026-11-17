@@ -163,19 +163,3 @@ public partial class CollectionsTest : IReadBack
     public object ReadBack(object result, Type model) => SafeNullables.ReadBack(result);
 #endif
 }
-
-#if !NINO_BENCH_V3
-/// <summary>A list that holds itself, with no [NinoType] body between its levels (CollectionsTest).</summary>
-[MemoryPackable(GenerateType.Collection)]
-public sealed partial class SelfTree : List<SelfTree>
-{
-    /// <summary>A tree <paramref name="depth"/> levels deep, every inner list holding <paramref name="width"/>.</summary>
-    public static SelfTree Create(int depth, int width)
-    {
-        var tree = new SelfTree();
-        for (int i = 0; depth > 0 && i < width; i++)
-            tree.Add(Create(depth - 1, width));
-        return tree;
-    }
-}
-#endif
