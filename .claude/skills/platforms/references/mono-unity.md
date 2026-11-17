@@ -90,6 +90,26 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   (`NinoLayout.Info.Il2CppSplit`); `docs/pitfalls.md` tells users what to do. Probe a layout question in the
   player by logging `Unsafe.ByteOffset` of a field (compiled) next to the first byte `FieldInfo.GetValue` returns from a
   box filled with each byte's offset (reflection).
+- Know why IL2CPP splits these layouts, from libil2cpp's source (HybridCLR's mirror focus-creative-games/il2cpp_plus,
+  branches `2022-main` and `6000.3.x-main`, identical here): two IL2CPP bugs, not Nino's.
+  (1) `vm/GenericClass.cpp` `GenericClass::CreateClass` never copies `packingSize` from the generic definition, while
+  `vm/Class.cpp` `LayoutFieldsLocked` passes `klass->packingSize` to `FieldLayout::LayoutInstanceFields` (packing
+  applies only when above 0, `metadata/FieldLayout.cpp:179`): every generic instance is laid out at run time as if
+  it had no `Pack`, and il2cpp.exe's C++ struct (`#pragma pack`) keeps it (`PackedPair1<long>` 9 compiled, 16 at run
+  time).
+  (2) A non-generic struct takes size and offsets from il2cpp.exe's metadata but its `minimumAlignment` is computed
+  at run time with its `Pack` (4 for `PackedIntDateTime4`), while its C++ struct keeps a `DateTime` field 8-aligned
+  (alignment 8, 16 bytes): a generic struct holding it is laid out with alignment 4 at run time and 8 in C++
+  (`Around<PackedIntDateTime4>` 24 against 32, `HoldsPacked?` 36 against 40).
+  An array takes the run-time size (`ArrayMetadata.cpp`: `element_size = Class::GetArrayElementSize`; `Array.cpp`
+  `NewSpecific` allocates `n * element_size`) and compiled code indexes it with the C++ `sizeof`, so where the C++
+  struct is larger compiled code writes past the array: the heap corruption the IL2CPP player crashed on (run
+  44123790941; Unity 2022.3.62f2 and 6000.6.9f1 log the same sizes). No serializer can make such an array right:
+  register offsets for single values only, and refuse arrays and collections of these structs on IL2CPP. Measure the
+  run-time element size with `Marshal.UnsafeAddrOfPinnedArrayElement` (it is `il2cpp_array_addr_with_size` with
+  `il2cpp_array_element_size`) next to `Unsafe.SizeOf<T>()` in code compiled for `T`; in shared generic code
+  `sizeof` is the run-time size (`il2cpp_codegen_sizeof`, `stack_slot_size`) and the two agree. Read libil2cpp in
+  il2cpp_plus before guessing how IL2CPP lays something out; #378 holds the report for Unity.
 - Expect an unaligned load to crash Arm32 IL2CPP players (Android ARMv7), as it crashed Arm32 .NET: IL2CPP compiles
   the C# as written, and an unaligned `long`, `double` or `float` access becomes `ldrd`/`vldr`, which fault (K4os.LZ4
   issue 40, Unity Addressables IN-40828). Read and write through `Unsafe.ReadUnaligned` / `WriteUnaligned` or byte
