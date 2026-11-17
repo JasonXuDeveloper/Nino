@@ -126,6 +126,8 @@ namespace Test.Runtime.Burst
         /// </summary>
         private static void Check(Case c)
         {
+            // A line per case before it runs: a case that corrupts memory and crashes the player names itself (#378).
+            Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}", "NINO_CASE|" + c.Name);
             c.Prepare();
             byte[] expected = null;
             string first = null;
@@ -199,8 +201,22 @@ namespace Test.Runtime.Burst
                 $"|nullable={Bytes(&nullable, System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct?>())}" +
                 $"|generic:SizeOf<T>={SizeOf<Nino.Benchmark.SimpleStruct>()},SizeOf<T?>={SizeOf<Nino.Benchmark.SimpleStruct?>()}" +
                 $",value={Dump(value)},nullable={Dump(nullable)}");
-            Log($"plain={BitConverter.ToString(NinoSerializer.Serialize(value))}");
-            Log($"single={BitConverter.ToString(NinoSerializer.Serialize(nullable))}");
+            var plainBytes = NinoSerializer.Serialize(value);
+            Log($"plain={BitConverter.ToString(plainBytes)}");
+            var singleBytes = NinoSerializer.Serialize(nullable);
+            Log($"single={BitConverter.ToString(singleBytes)}");
+            string Show(Nino.Benchmark.SimpleStruct v) => $"{v.Id:X8},{v.CreateTime.Ticks:X16}";
+            // Each read in each group the cases time, one line each: the read paths of single values.
+            foreach (var (group, isa) in _groups)
+            {
+                Use(isa);
+                Log($"{group}|read plain={Show(NinoDeserializer.Deserialize<Nino.Benchmark.SimpleStruct>(plainBytes))}");
+                var single = NinoDeserializer.Deserialize<Nino.Benchmark.SimpleStruct?>(singleBytes);
+                Log($"{group}|read single={single.HasValue},{Show(single.GetValueOrDefault())}");
+                Log($"{group}|write single again={BitConverter.ToString(NinoSerializer.Serialize(single))}");
+            }
+
+            NinoBurst.Register();
             var arrayBytes = NinoSerializer.Serialize(new Nino.Benchmark.SimpleStruct?[] { value, null, value });
             Log($"array={BitConverter.ToString(arrayBytes)}");
             var back = NinoDeserializer.Deserialize<Nino.Benchmark.SimpleStruct?[]>(arrayBytes);
