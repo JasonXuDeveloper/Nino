@@ -98,6 +98,49 @@ namespace Test.Runtime
             CollectionAssert.IsEmpty(failed);
         }
 
+        /// <summary>
+        /// Structs under every StructLayout form (Pack, Size, Explicit; BclFixtureTypes.cs, LayoutShapes) against
+        /// CoreCLR's bytes both ways: IL2CPP ignores Pack, so a struct Pack moves is laid out apart there (#378). Each
+        /// logs this runtime's size of it first, so a write past a value that crashes the player leaves the line.
+        /// </summary>
+        [Test]
+        public void StructLayoutsWriteCoreClrBytes()
+        {
+            Debug.Log($"Nino StructLayout sizes ({RuntimeName()}): PackedIntDateTime4 {Unsafe.SizeOf<PackedIntDateTime4>()}, " +
+                      $"PackedIntDateTime4? {Unsafe.SizeOf<PackedIntDateTime4?>()}, PackedByteLong1 {Unsafe.SizeOf<PackedByteLong1>()}, " +
+                      $"PackedByteIntLong2 {Unsafe.SizeOf<PackedByteIntLong2>()}, PackedIntLong4 {Unsafe.SizeOf<PackedIntLong4>()}, " +
+                      $"HoldsPacked {Unsafe.SizeOf<HoldsPacked>()}, PacksNatural {Unsafe.SizeOf<PacksNatural>()}, " +
+                      $"SizedInt16 {Unsafe.SizeOf<SizedInt16>()}, ExplicitIntLong {Unsafe.SizeOf<ExplicitIntLong>()}");
+            var cases = new LayoutCases();
+            LayoutShapes.Visit(cases);
+            CollectionAssert.IsEmpty(cases.Failed);
+        }
+
+        /// <summary>Writes each case, reads CoreCLR's bytes and writes them again: both CoreCLR's bytes.</summary>
+        private sealed class LayoutCases : ILayoutCaseVisitor
+        {
+            public readonly List<string> Failed = new List<string>();
+
+            public void Case<T>(string name, T value)
+            {
+                name = "layout " + name;
+                try
+                {
+                    var expected = BclFixtures.FromHex(BclFixtures.Bytes[name]);
+                    byte[] bytes = NinoSerializer.Serialize(value);
+                    if (!bytes.SequenceEqual(expected))
+                        Failed.Add($"{name} writes {BitConverter.ToString(bytes)}, CoreCLR {BitConverter.ToString(expected)}");
+                    byte[] again = NinoSerializer.Serialize(NinoDeserializer.Deserialize<T>(expected));
+                    if (!again.SequenceEqual(expected))
+                        Failed.Add($"{name} reads back as {BitConverter.ToString(again)}, CoreCLR {BitConverter.ToString(expected)}");
+                }
+                catch (Exception e)
+                {
+                    Failed.Add($"{name}: {e.GetType().Name}: {e.Message}");
+                }
+            }
+        }
+
         [Test]
         public void UserRawFormatterIsBoundByItsMarks()
         {

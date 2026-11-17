@@ -24,7 +24,9 @@ Nino.RuntimeTests/           one program (net10.0; net472, Mono's, with the nets
                              SortedSetNodes, ObjectTypes, HashTrees, SortedTrees); BclStructs.cs: every BCL struct
                              inside a raw struct, and tuples and pairs, against CoreCLR x64's bytes both ways
                              (BclFixtures.cs and BclFixtureTypes.cs, linked from Unity's Assets/Test/Runtime, which
-                             shares them; `--write-fixtures` rewrites BclFixtures.cs), and each runtime's layout of them
+                             shares them; `--write-fixtures` rewrites BclFixtures.cs), structs under every StructLayout
+                             form (Pack, Size, Explicit: LayoutShapes, alone, nullable, in collections and as members of a
+                             [NinoType]; IL2CPP ignores Pack), and each runtime's layout of them
                              (`# layout` lines; layouts.py turns CI's into docs/layouts.md's tables); FunctionPointers.cs:
                              function pointers in raw structs, 8 bytes zero-extended from the generated registry: a
                              field reported as an IntPtr (as Mono and IL2CPP report one; every build) and declared

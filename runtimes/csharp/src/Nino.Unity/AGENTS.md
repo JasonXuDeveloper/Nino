@@ -53,7 +53,8 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              no interceptors), RuntimePathsInEditMode
   Runtime/                   RuntimePathsTests (CollectionViews, ObjectTypes.Retype, SortedSetNodes, ReadLinked,
                              ConcurrentTables against the public API), BclLayoutTests (BCL structs in raw structs, and
-                             tuples and pairs, and the fixed lanes that replace a refused Vector<T>, against
+                             tuples and pairs, the fixed lanes that replace a refused Vector<T>, and structs under
+                             every StructLayout form (LayoutShapes: Pack, which IL2CPP ignores, Size, Explicit), against
                              CoreCLR's bytes in BclFixtures.cs, of the types in BclFixtureTypes.cs (both shared with
                              runtimes/csharp/tests/Nino.RuntimeTests, which links them and rewrites BclFixtures.cs: --write-fixtures);
                              a [NinoRaw] formatter of the user's bound at run time by the marks its registry

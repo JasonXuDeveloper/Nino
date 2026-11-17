@@ -147,8 +147,18 @@ public static class BclStructs
         Top("(int,long)", (1, -2L));
         Top("KVP<byte,DateTime>", new KeyValuePair<byte, DateTime>(1, dt1));
 
+        // Structs under every StructLayout form (Pack, Size, Explicit), alone, nullable, in collections and as members of
+        // a [NinoType] (BclFixtureTypes.cs, LayoutShapes).
+        LayoutShapes.Visit(new LayoutCases());
+
         if (writeFixtures)
             WriteFixtures();
+    }
+
+    /// <summary>Checks each StructLayout case against CoreCLR's bytes, as the others (<see cref="Fixture{T}"/>).</summary>
+    private sealed class LayoutCases : ILayoutCaseVisitor
+    {
+        public void Case<T>(string name, T value) => Fixture("layout " + name, value);
     }
 
 #if NET8_0_OR_GREATER
