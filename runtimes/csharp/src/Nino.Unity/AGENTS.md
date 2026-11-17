@@ -55,7 +55,9 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              ConcurrentTables against the public API), BclLayoutTests (BCL structs in raw structs, and
                              tuples and pairs, the fixed lanes that replace a refused Vector<T>, and structs under
                              every StructLayout form (LayoutShapes: Pack, which IL2CPP ignores, Size, Explicit), against
-                             CoreCLR's bytes in BclFixtures.cs, of the types in BclFixtureTypes.cs (both shared with
+                             CoreCLR's bytes in BclFixtures.cs; the generic structs IL2CPP lays out in two ways named in
+                             top-level calls and as SplitHolder's members, which the generator registers, while generic
+                             code is refused), of the types in BclFixtureTypes.cs (both shared with
                              runtimes/csharp/tests/Nino.RuntimeTests, which links them and rewrites BclFixtures.cs: --write-fixtures);
                              a [NinoRaw] formatter of the user's bound at run time by the marks its registry
                              registers; logs this runtime's layouts), FunctionPointerTests (C# 9 delegate* fields in a

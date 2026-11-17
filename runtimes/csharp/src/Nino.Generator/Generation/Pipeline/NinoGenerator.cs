@@ -196,14 +196,22 @@ public sealed partial class NinoGenerator : IIncrementalGenerator
                 : EquatableArray<string>.Empty)
             .WithTrackingName("LayoutTypes");
 
+        // The compiled offsets of the generic structs IL2CPP lays out in two ways (SplitLayouts), registered by the
+        // registry's static constructor.
+        var splits = usages.Combine(CollectAll(models, static m => m.Registrations.SplitLayouts))
+            .Select(static (x, _) => LayoutTypes.ToArray(x.Left.SelectMany(static u => u.SplitLayouts)
+                .Concat(x.Right.SelectMany(static a => a))))
+            .WithTrackingName("SplitLayouts");
+
         context.RegisterImplementationSourceOutput(
-            registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled).Combine(fileScoped),
+            registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(splits).Combine(enabled)
+                .Combine(fileScoped),
             static (spc, x) =>
             {
-                var (((((formatters, creators), closed), kept), on), scoped) = x;
+                var ((((((formatters, creators), closed), kept), split), on), scoped) = x;
                 if (on)
                     spc.AddSource("NinoGen.Usages.g.cs",
-                        RegistryEmitter.EmitUsages(formatters, creators, closed, kept, scoped));
+                        RegistryEmitter.EmitUsages(formatters, creators, closed, kept, split, scoped));
             });
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Nino.Core;
 
 // The types whose bytes BclFixtures.cs holds, compiled by Unity's Runtime.Tests (BclLayoutTests) and linked into
@@ -214,6 +215,30 @@ public class LayoutHolder
     public AnsiCharInt Ansi;
 }
 
+/// <summary>
+/// The generic structs IL2CPP lays out in two ways (LayoutShapes' cases it refuses through generic code) as members of a
+/// [NinoType]: the generator registers their compiled offsets, so the IL2CPP player writes CoreCLR's bytes. Not sealed,
+/// as <see cref="LayoutHolder"/>.
+/// </summary>
+[NinoType]
+public class SplitHolder
+{
+    public Around<PackedIntDateTime4> AroundPacked;
+    public Around<HoldsPacked> AroundHolds;
+    public Around<PackedLeaves1> AroundLeaves;
+    public Around<PackedMix4> AroundMix;
+    public Around<ExplicitHoldsPacked> AroundExplicit;
+    public Around<PackedPair1<long>> AroundPair;
+    public HoldsPacked? Holds;
+    public HoldsPacked? NoHolds;
+    public PackedLeaves1?[] Leaves;
+    public List<PackedMix4?> Mixes;
+    public ExplicitHoldsPacked? Explicit;
+    public PackedPair1<long>? Pair;
+    public PackedPair1<long>[] Pairs;
+    public List<PackedPair1<long>> PairList;
+}
+
 /// <summary>Takes one case: its name (the key of its bytes in BclFixtures) and its value.</summary>
 public interface ILayoutCaseVisitor
 {
@@ -226,8 +251,8 @@ public interface ILayoutCaseVisitor
 /// <summary>The StructLayout cases, listed once for every runtime that checks them.</summary>
 public static class LayoutShapes
 {
-    private static readonly DateTime At1 = new DateTime(0x0123456789ABCDEF & 0x0FFFFFFFFFFFFFFF, DateTimeKind.Utc);
-    private static readonly DateTime At2 = new DateTime(2000, 1, 2, 3, 4, 5, DateTimeKind.Local);
+    internal static readonly DateTime At1 = new DateTime(0x0123456789ABCDEF & 0x0FFFFFFFFFFFFFFF, DateTimeKind.Utc);
+    internal static readonly DateTime At2 = new DateTime(2000, 1, 2, 3, 4, 5, DateTimeKind.Local);
 
     public static void Visit(ILayoutCaseVisitor v)
     {
@@ -270,6 +295,24 @@ public static class LayoutShapes
 
         var p1 = new PackedIntDateTime4 { Id = 7, At = At1 };
         var p2 = new PackedIntDateTime4 { Id = -8, At = At2 };
+        var holds = new HoldsPacked { A = 1, P = p1, C = 2 };
+        v.Case("SplitHolder", new SplitHolder
+        {
+            AroundPacked = new Around<PackedIntDateTime4> { A = 3, B = p2, C = -4 },
+            AroundHolds = new Around<HoldsPacked> { A = 5, B = holds, C = -6 },
+            AroundLeaves = new Around<PackedLeaves1> { A = 7, B = Leaves(3), C = -8 },
+            AroundMix = new Around<PackedMix4> { A = 9, B = Mix(4), C = -10 },
+            AroundExplicit = new Around<ExplicitHoldsPacked> { A = 11, B = new ExplicitHoldsPacked { A = 12, P = p1 }, C = -13 },
+            AroundPair = new Around<PackedPair1<long>> { A = 14, B = new PackedPair1<long> { A = 15, B = -16 }, C = 17 },
+            Holds = holds,
+            NoHolds = null,
+            Leaves = new PackedLeaves1?[] { Leaves(5), null, Leaves(-6) },
+            Mixes = new List<PackedMix4?> { null, Mix(7) },
+            Explicit = new ExplicitHoldsPacked { A = 18, P = p2 },
+            Pair = new PackedPair1<long> { A = 19, B = 0x0102030405060708 },
+            Pairs = new[] { new PackedPair1<long> { A = 20, B = -21 }, new PackedPair1<long> { A = 22, B = 23 } },
+            PairList = new List<PackedPair1<long>> { new PackedPair1<long> { A = 24, B = 25 } },
+        });
         v.Case("LayoutHolder", new LayoutHolder
         {
             P1 = new PackedByteLong1 { A = 1, B = -2 },
@@ -305,7 +348,7 @@ public static class LayoutShapes
         });
     }
 
-    private static PackedLeaves1 Leaves(int n) => new PackedLeaves1
+    internal static PackedLeaves1 Leaves(int n) => new PackedLeaves1
     {
         A = n > 0, B = (char)('a' + (n & 7)), C = (short)(n * 3), D = n * 1.25f, E = (byte)n, F = n * -2.5,
         G = (sbyte)(-n), H = n * 1.1m, I = (byte)(n + 1), J = new Guid(n, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
@@ -319,7 +362,7 @@ public static class LayoutShapes
         return f;
     }
 
-    private static PackedMix4 Mix(int n) => new PackedMix4
+    internal static PackedMix4 Mix(int n) => new PackedMix4
     {
         A = (byte)n, B = new PackedByteLong1 { A = (byte)(n + 1), B = n * 3L }, C = (short)(n * 5),
         D = new DateTimeOffset(2001, 2, 3, 4, 5, 6, TimeSpan.FromHours(n % 14)),

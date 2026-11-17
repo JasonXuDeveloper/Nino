@@ -314,6 +314,13 @@ internal static class RawLayout
         return kind;
     }
 
+    /// <summary>The <c>Pack</c> of a struct's <c>[StructLayout]</c>, from source or metadata alike; 0 for none.</summary>
+    public static int PackOf(ITypeSymbol type)
+    {
+        ReadLayout(type, out _, out int pack, out _);
+        return pack;
+    }
+
     /// <summary>
     /// Reads a struct's <c>[StructLayout]</c>: from the type table when the type comes from metadata (whose reader is
     /// returned, for the field offsets), else from its attributes.

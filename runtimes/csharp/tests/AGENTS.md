@@ -106,7 +106,8 @@ Corner/                      corner cases grouped into Api/, Layout/, Modeling/,
                              generates, compiles and round-trips type hierarchies
 Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/; UnityPackageDllTests: the
                              Unity package's committed DLLs have the public API of their sources), HybridCLR hot-update
-                             assemblies, the NinoKernels hook, ET framework collection shapes
+                             assemblies, IL2CPP's split generic struct layouts (Il2CppSplitLayoutTests: the refusal
+                             rule, the generator's SplitLayouts, NinoLayoutOffsets against reflection), the NinoKernels hook, ET framework collection shapes
 Infrastructure/              shared helpers: Rt (round trips, FromHex/ToHex, OnSmallStack), GuardedMemory (bytes placed
                              against an inaccessible page, so a read past them crashes), SharedTypes,
                              TestCompilation, TestReferences (the analyzer tests' references, created once),

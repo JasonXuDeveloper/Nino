@@ -94,6 +94,9 @@ Registration/                what a generated registry calls at startup:
   NinoFunctionPointerFields.cs the delegate* fields of structs, by assembly and runtime name, as generated registries
                              register them (Register, merged across registries): the one source layouts take function
                              pointers from
+  NinoLayoutOffsets.cs       NinoLayoutOffsets: the compiled offsets of the generic structs IL2CPP lays out in two ways,
+                             as generated registries register them (the generator's SplitLayouts); NinoLayout measures
+                             those structs from them
 ```
 
 ## Formatters/

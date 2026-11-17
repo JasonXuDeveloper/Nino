@@ -135,6 +135,71 @@ namespace Test.Runtime
                 Assert.Fail($"{cases.Failed.Count} StructLayout cases differ from CoreCLR:\n" + string.Join("\n", cases.Failed));
         }
 
+        /// <summary>
+        /// LayoutShapes' cases that IL2CPP refuses through generic code (StructLayoutsWriteCoreClrBytes), each named in a
+        /// top-level call here: the generator registers their formatters and the compiled offsets of their generic
+        /// structs, so every runtime, IL2CPP included, writes and reads CoreCLR's bytes. SplitHolder, a case of
+        /// LayoutShapes, holds them as members.
+        /// </summary>
+        [Test]
+        public void SplitStructsNamedInCodeWriteCoreClrBytes()
+        {
+            var failed = new List<string>();
+            void Check(string name, Func<byte[]> write, Func<byte[], byte[]> readBack)
+            {
+                name = "layout " + name;
+                try
+                {
+                    var expected = BclFixtures.FromHex(BclFixtures.Bytes[name]);
+                    byte[] bytes = write();
+                    if (!bytes.SequenceEqual(expected))
+                        failed.Add($"{name} writes {BitConverter.ToString(bytes)}, CoreCLR {BitConverter.ToString(expected)}");
+                    byte[] again = readBack(expected);
+                    if (!again.SequenceEqual(expected))
+                        failed.Add($"{name} reads back as {BitConverter.ToString(again)}, CoreCLR {BitConverter.ToString(expected)}");
+                }
+                catch (Exception e)
+                {
+                    failed.Add($"{name}: {e.GetType().Name}: {e.Message}");
+                }
+            }
+
+            Check("Around<PackedIntDateTime4>", () => NinoSerializer.Serialize(new Around<PackedIntDateTime4> { A = 1, B = new PackedIntDateTime4 { Id = 0x11223344, At = LayoutShapes.At1 }, C = -1 }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<Around<PackedIntDateTime4>>(b)));
+            Check("Around<HoldsPacked>", () => NinoSerializer.Serialize(new Around<HoldsPacked> { A = 1, B = new HoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 }, C = 3 }, C = -1 }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<Around<HoldsPacked>>(b)));
+            Check("Around<PackedLeaves1>", () => NinoSerializer.Serialize(new Around<PackedLeaves1> { A = 1, B = LayoutShapes.Leaves(1), C = -1 }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<Around<PackedLeaves1>>(b)));
+            Check("Around<PackedMix4>", () => NinoSerializer.Serialize(new Around<PackedMix4> { A = 1, B = LayoutShapes.Mix(1), C = -1 }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<Around<PackedMix4>>(b)));
+            Check("Around<ExplicitHoldsPacked>", () => NinoSerializer.Serialize(new Around<ExplicitHoldsPacked> { A = 1, B = new ExplicitHoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 } }, C = -1 }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<Around<ExplicitHoldsPacked>>(b)));
+            Check("HoldsPacked?", () => NinoSerializer.Serialize((HoldsPacked?)new HoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -4, At = LayoutShapes.At2 }, C = int.MaxValue }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<HoldsPacked?>(b)));
+            Check("PackedLeaves1?", () => NinoSerializer.Serialize((PackedLeaves1?)LayoutShapes.Leaves(-2)),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedLeaves1?>(b)));
+            Check("PackedMix4?", () => NinoSerializer.Serialize((PackedMix4?)LayoutShapes.Mix(-2)),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedMix4?>(b)));
+            Check("ExplicitHoldsPacked?", () => NinoSerializer.Serialize((ExplicitHoldsPacked?)new ExplicitHoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -3, At = LayoutShapes.At2 } }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<ExplicitHoldsPacked?>(b)));
+            Check("PackedPair1<long>?", () => NinoSerializer.Serialize((PackedPair1<long>?)new PackedPair1<long> { A = 2, B = -3 }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedPair1<long>?>(b)));
+            Check("HoldsPacked?[]", () => NinoSerializer.Serialize(new HoldsPacked?[] { new HoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 }, C = 3 }, null, new HoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -4, At = LayoutShapes.At2 }, C = int.MaxValue } }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<HoldsPacked?[]>(b)));
+            Check("PackedLeaves1?[]", () => NinoSerializer.Serialize(new PackedLeaves1?[] { LayoutShapes.Leaves(1), null, LayoutShapes.Leaves(-2) }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedLeaves1?[]>(b)));
+            Check("PackedMix4?[]", () => NinoSerializer.Serialize(new PackedMix4?[] { LayoutShapes.Mix(1), null, LayoutShapes.Mix(-2) }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedMix4?[]>(b)));
+            Check("ExplicitHoldsPacked?[]", () => NinoSerializer.Serialize(new ExplicitHoldsPacked?[] { new ExplicitHoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 } }, null, new ExplicitHoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -3, At = LayoutShapes.At2 } } }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<ExplicitHoldsPacked?[]>(b)));
+            Check("PackedPair1<long>[]", () => NinoSerializer.Serialize(new[] { new PackedPair1<long> { A = 1, B = 0x0102030405060708 }, new PackedPair1<long> { A = 2, B = -3 } }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedPair1<long>[]>(b)));
+            Check("List<PackedPair1<long>>", () => NinoSerializer.Serialize(new List<PackedPair1<long>> { new PackedPair1<long> { A = 2, B = -3 }, new PackedPair1<long> { A = 1, B = 0x0102030405060708 } }),
+                b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<List<PackedPair1<long>>>(b)));
+            if (failed.Count != 0)
+                Assert.Fail($"{failed.Count} split structs differ from CoreCLR:\n" + string.Join("\n", failed));
+        }
+
         /// <summary>Writes each case, reads CoreCLR's bytes and writes them again: both CoreCLR's bytes.</summary>
         private sealed class LayoutCases : ILayoutCaseVisitor
         {

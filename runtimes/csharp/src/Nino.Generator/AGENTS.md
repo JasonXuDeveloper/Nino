@@ -113,6 +113,8 @@ TypeNames.cs                 type names as generated code and the runtime spell 
 ```
 LayoutTypes.cs               unmanaged structs whose layout the runtime measures ([DynamicDependency] for NativeAOT)
 RawLayout.cs                 whether a struct's memory is the same on every runtime (the canonical layout)
+SplitLayouts.cs              generic structs IL2CPP lays out in two ways (Pack; Nino.Core's IsSplitGeneric over symbols):
+                             the registry registers their compiled offsets, top-level calls their raw formatters
 RawRules.cs                  which values are written as raw bytes, memoized per compilation
 WireEncoding.cs              a member's encoding as the published layout shows it ([NinoTypeLayout])
 ```

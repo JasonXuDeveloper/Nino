@@ -267,6 +267,13 @@ namespace Nino.Core.Internal
             /// canonical and of no size, and <see cref="NinoLayout{T}"/> refuses to write or read it.
             /// </summary>
             public bool HostSizedVector;
+
+            /// <summary>
+            /// On IL2CPP, the generic struct the type is or holds whose fields IL2CPP places in two ways and whose
+            /// compiled offsets no generated registry registered (<see cref="UnregisteredSplit"/>): not canonical, and
+            /// <see cref="NinoLayout{T}"/> refuses to write or read it. Null otherwise.
+            /// </summary>
+            public Type Il2CppSplit;
         }
 
         /// <summary>Layout info for <paramref name="type"/>; <paramref name="runtimeSize"/> validates the model.</summary>
@@ -285,7 +292,9 @@ namespace Nino.Core.Internal
                 return new Info { Canonical = false, HostSizedVector = true };
             try
             {
-                return Compute(type, runtimeSize, Runtime, !KeepsDeclarationOrder);
+                if (UnregisteredSplit(type) is { } split)
+                    return new Info { Canonical = false, Il2CppSplit = split };
+                return Compute(type, runtimeSize, Runtime, !KeepsDeclarationOrder || HoldsTabled(type));
             }
             catch
             {
@@ -581,6 +590,13 @@ namespace Nino.Core.Internal
         private static readonly bool HoldsHostSizedVector = Info.HostSizedVector;
 
         /// <summary>
+        /// Whether <typeparamref name="T"/> holds a generic struct IL2CPP lays out in two ways whose offsets were not
+        /// registered (<see cref="NinoLayout.Info.Il2CppSplit"/>): its converted paths throw, as
+        /// <see cref="HoldsHostSizedVector"/>'s.
+        /// </summary>
+        private static readonly bool HoldsIl2CppSplit = Info.Il2CppSplit != null;
+
+        /// <summary>
         /// In <see cref="NinoSettings.Untrusted"/> mode, the fields of <typeparamref name="T"/> with invalid values
         /// (<see cref="NinoLayout.ValueChecks"/>: offset and kind pairs in the wire layout); null otherwise, and for a
         /// type without such fields. Declared before <see cref="CopiesAsIs"/>, which reads it.
@@ -745,6 +761,8 @@ namespace Nino.Core.Internal
         {
             if (HoldsHostSizedVector)
                 NinoReflection.RefuseHostSizedVector(typeof(T));
+            if (HoldsIl2CppSplit)
+                NinoThrow.Il2CppSplitLayout(typeof(T), Info.Il2CppSplit);
             NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), ref destination, true);
         }
 
@@ -771,6 +789,8 @@ namespace Nino.Core.Internal
         {
             if (HoldsHostSizedVector)
                 NinoReflection.RefuseHostSizedVector(typeof(T));
+            if (HoldsIl2CppSplit)
+                NinoThrow.Il2CppSplitLayout(typeof(T), Info.Il2CppSplit);
             T value = default;
             if (Info.Canonical)
                 value = NinoUnsafe.Read<T>(ref source);

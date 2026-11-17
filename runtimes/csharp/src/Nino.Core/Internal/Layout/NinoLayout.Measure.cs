@@ -24,6 +24,13 @@ namespace Nino.Core.Internal
         [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "A struct's default instance needs no constructor.")]
         private static List<KeyValuePair<Type, int>> MeasureMemory(Type type, int size)
         {
+            // A generic struct whose compiled offsets the generator registered: those, never reflection's.
+            if (NinoLayoutOffsets.Find(type) is { } table && table.Size == size)
+            {
+                var tabled = new List<Measured> { new(type, 0) };
+                return AddTabled(type, table, 0, tabled) ? Resolve(tabled, size) : null;
+            }
+
             // A T? is created as null (boxed as nothing): its values are its flag and its T's (VisitNullable).
             if (Nullable.GetUnderlyingType(type) is { } underlying)
             {
@@ -61,6 +68,12 @@ namespace Nino.Core.Internal
                 values = pass;
             } while ((size - 1) >> ++bit != 0);
 
+            return Resolve(values, size);
+        }
+
+        /// <summary>The offsets of <paramref name="values"/> from the start of a value of <paramref name="size"/> bytes.</summary>
+        private static List<KeyValuePair<Type, int>> Resolve(List<Measured> values, int size)
+        {
             var offsets = new List<KeyValuePair<Type, int>>(values.Count);
             foreach (var value in values)
             {
@@ -99,7 +112,8 @@ namespace Nino.Core.Internal
             if (leaf == NinoLeaf.Unsupported || value == null)
                 return false;
             values.Add(new Measured(type, (ObjectFields.At<byte>(value, 0) & 1) << bit));
-            if (leaf != NinoLeaf.None || AddPacked(type, values.Count - 1, values))
+            if (leaf != NinoLeaf.None || TryAddTabled(type, values.Count - 1, values) ||
+                AddPacked(type, values.Count - 1, values))
                 return true;
             foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
@@ -168,9 +182,115 @@ namespace Nino.Core.Internal
             return true;
         }
 
+        /// <summary>
+        /// The values below <paramref name="type"/> (value <paramref name="index"/>) from its registered table
+        /// (<see cref="NinoLayoutOffsets"/>); false, with nothing added, without one or where it cannot be followed.
+        /// </summary>
+        private static bool TryAddTabled(Type type, int index, List<Measured> values)
+        {
+            if (NinoLayoutOffsets.Find(type) is not { } table)
+                return false;
+            int start = values.Count;
+            if (AddTabled(type, table, index, values))
+                return true;
+            values.RemoveRange(start, values.Count - start);
+            return false;
+        }
+
+        /// <summary>
+        /// The fields of <paramref name="type"/> (value <paramref name="index"/>) at the offsets of
+        /// <paramref name="table"/>, and the values below each: from its own table, as leaves, or measured on their own
+        /// (a struct that is not generic is laid out one way on every runtime). A <c>Nullable</c>'s fields are its flag
+        /// and its value.
+        /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
+        private static bool AddTabled(Type type, NinoLayoutOffsets.Table table, int index, List<Measured> values)
+        {
+            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (fields.Length != table.Offsets.Length ||
+                Nullable.GetUnderlyingType(type) != null && fields[0].FieldType != typeof(bool))
+                return false;
+            for (int i = 0; i < fields.Length; i++)
+            {
+                var fieldType = NinoReflection.LayoutFieldType(fields[i]);
+                if (fieldType.IsPointer)
+                    return false;
+                int at = values.Count;
+                values.Add(new Measured(fieldType, 0, index, table.Offsets[i]));
+                var leaf = default(RuntimeView).Leaf(fieldType);
+                if (leaf == NinoLeaf.Unsupported)
+                    return false;
+                if (leaf != NinoLeaf.None)
+                    continue;
+                if (NinoLayoutOffsets.Find(fieldType) is { } inner)
+                {
+                    if (!AddTabled(fieldType, inner, at, values))
+                        return false;
+                    continue;
+                }
+
+                var below = MeasureMemory(fieldType, RuntimeSizeOf(fieldType));
+                if (below == null)
+                    return false;
+                for (int j = 1; j < below.Count; j++)
+                    values.Add(new Measured(below[j].Key, 0, at, below[j].Value));
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Whether a registered table (<see cref="NinoLayoutOffsets"/>) lays out <paramref name="type"/> or a struct it
+        /// holds: its offsets are then measured (<see cref="MeasureMemory"/>), never modeled.
+        /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = FieldsJustification)]
+        private static bool HoldsTabled(Type type, int depth = 0)
+        {
+            if (NinoLayoutOffsets.IsEmpty || depth > 32 || !type.IsValueType || type.IsPrimitive || type.IsEnum)
+                return false;
+            if (NinoLayoutOffsets.Find(type) != null)
+                return true;
+            foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (HoldsTabled(field.FieldType, depth + 1))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// On IL2CPP, the struct <paramref name="type"/> is or holds whose fields IL2CPP places in two ways
+        /// (<see cref="NinoReflection.IsSplitGeneric"/>) and that no generated registry registered offsets for: its
+        /// layout cannot be known, and <see cref="NinoLayout{T}"/> refuses it. Null elsewhere and for every other type.
+        /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = FieldsJustification)]
+        private static Type UnregisteredSplit(Type type, int depth = 0)
+        {
+            if (!NinoReflection.IsIl2Cpp || depth > 32 || !type.IsValueType || type.IsPrimitive || type.IsEnum)
+                return null;
+            if (NinoReflection.IsSplitGeneric(type) && NinoLayoutOffsets.Find(type) == null)
+                return type;
+            foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (UnregisteredSplit(field.FieldType, depth + 1) is { } found)
+                    return found;
+            }
+
+            return null;
+        }
+
         /// <summary>A <c>Nullable</c> field whose flag (its first byte) is <paramref name="set"/> in this pass.</summary>
         private static bool VisitNullable(bool set, Type nullable, Type underlying, int bit, List<Measured> values)
         {
+            if (NinoLayoutOffsets.Find(nullable) is { } table)
+            {
+                values.Add(new Measured(nullable, set ? 1 << bit : 0));
+                return AddTabled(nullable, table, values.Count - 1, values);
+            }
+
             var inner = NullableValue(underlying, out int valueOffset);
             if (inner == null)
                 return false;

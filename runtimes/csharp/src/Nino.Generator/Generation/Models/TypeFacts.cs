@@ -100,19 +100,24 @@ internal sealed class TypeFacts
         ClosedGenerics.Collect(type, this, generics);
         var layouts = new List<string>();
         LayoutTypes.Collect(type, this, layouts);
+        var splits = new List<string>();
+        SplitLayouts.Collect(type, this, splits);
         var formatter = Resolver.Resolve(type, false);
-        bool registered = formatter is { Registered: true } && !Raw.IsRawUnmanaged(type) && Visibility.CanName(type);
+        // A raw value is registered where IL2CPP lays out a generic struct in it in two ways: the formatter made at
+        // run time would be shared generic code, which takes the other layout (SplitLayouts).
+        bool registered = formatter is { Registered: true } && (!Raw.IsRawUnmanaged(type) || splits.Count != 0) &&
+                          Visibility.CanName(type);
         // The nesting formatters named by the registration, closed generics or interceptor.
         var nesting = formatter is { } named
             ? Resolver.NestingFormattersNamedIn(generics.Select(static g => g.Formatter).Append(named.Code.ToString()))
             : EquatableArray<NestingModel>.Empty;
-        if (!registered && generics.Count == 0 && layouts.Count == 0 && nesting.Length == 0)
+        if (!registered && generics.Count == 0 && layouts.Count == 0 && nesting.Length == 0 && splits.Count == 0)
             return null;
         return new UsageRegistration(
             registered ? new FormatterRegistration(TypeNames.Global(type), formatter!.Value.Code, TypeId(type)) : null,
             registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
             new EquatableArray<TypeRegistration>(generics.Distinct()),
-            LayoutTypes.ToArray(layouts), nesting);
+            LayoutTypes.ToArray(layouts), nesting, LayoutTypes.ToArray(splits));
     }
 
     /// <summary>

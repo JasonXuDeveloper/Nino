@@ -205,7 +205,8 @@ namespace Nino.Core.Internal
         /// bytes, which wrote past values), and where the generic struct itself has a <c>Pack</c> below its fields'
         /// alignment (Unity 6000.6 took <c>PackedPair1&lt;long&gt;</c>'s 9 bytes as 16 in arrays and lists). A formatter Nino builds for such a type at run time could only read and
         /// write the wrong bytes: refused (<see cref="RefuseIl2CppSplitLayout"/>). Formatters the generator
-        /// registered are compiled for their types and are right.
+        /// registered are compiled for their types, and lay them out from the offsets it registered
+        /// (<see cref="CompilerServices.NinoLayoutOffsets"/>): those are right.
         /// </summary>
         public static Type Il2CppSplitLayoutIn(Type type) => IsIl2Cpp ? SplitLayoutIn(type, null) : null;
 
@@ -237,8 +238,7 @@ namespace Nino.Core.Internal
                 return null;
             // A generic struct with Pack is split itself: on Unity 6000.6 shared code took PackedPair1<long> (Pack 1,
             // 9 bytes) as 16, and wrote its arrays and lists with 16-byte elements (run 44108765619).
-            if (type.IsValueType && type.IsGenericType && !type.ContainsGenericParameters &&
-                (UnderPacked(type) || HoldsUnderPacked(type)))
+            if (IsSplitGeneric(type))
                 return type;
             if (type.IsGenericType)
             {
@@ -261,6 +261,16 @@ namespace Nino.Core.Internal
 
             return null;
         }
+
+        /// <summary>
+        /// Whether <paramref name="type"/> is a closed generic struct (<c>T?</c> included) whose fields IL2CPP places in
+        /// two ways (<see cref="Il2CppSplitLayoutIn"/>): its <c>Pack</c> is below its fields' alignment, or it holds a
+        /// struct whose <c>Pack</c> moves a struct field. The generator names the same structs (SplitLayouts) and
+        /// registers their compiled offsets (<see cref="CompilerServices.NinoLayoutOffsets"/>).
+        /// </summary>
+        internal static bool IsSplitGeneric(Type type) =>
+            type.IsValueType && type.IsGenericType && !type.ContainsGenericParameters &&
+            (UnderPacked(type) || HoldsUnderPacked(type));
 
         /// <summary>
         /// Whether a field of the struct <paramref name="type"/>, at any depth of the structs it holds, is a struct
