@@ -180,6 +180,33 @@ namespace Test.Runtime.Burst
                 Assert.IsTrue(NinoBurst.Register(isa), "the kernels did not register");
         }
 
+        /// <summary>
+        /// The memory of a <c>SimpleStruct</c> (int + DateTime, Pack = 4) and of a <c>SimpleStruct?</c> on this player,
+        /// against the bytes Nino writes for them, logged for #378: only IL2CPP read those values back as other bytes,
+        /// and its layouts cannot be seen from CoreCLR or Mono.
+        /// </summary>
+        [Test]
+        public unsafe void LayoutOfNullableStruct()
+        {
+            var value = new Nino.Benchmark.SimpleStruct { Id = 0x11223344, CreateTime = new DateTime(0x0123456789ABCDEFL) };
+            Nino.Benchmark.SimpleStruct? nullable = value;
+            string Bytes(void* p, int n) => BitConverter.ToString(new ReadOnlySpan<byte>(p, n).ToArray());
+            var arrayBytes = NinoSerializer.Serialize(new Nino.Benchmark.SimpleStruct?[] { value, null, value });
+            var back = NinoDeserializer.Deserialize<Nino.Benchmark.SimpleStruct?[]>(arrayBytes);
+            var backValue = back[2].GetValueOrDefault();
+            Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}",
+                $"NINO_LAYOUT|SizeOf<SimpleStruct>={System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct>()}" +
+                $"|SizeOf<SimpleStruct?>={System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct?>()}" +
+                $"|Marshal.OffsetOf(CreateTime)={Marshal.OffsetOf<Nino.Benchmark.SimpleStruct>(nameof(Nino.Benchmark.SimpleStruct.CreateTime))}" +
+                $"|value={Bytes(&value, System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct>())}" +
+                $"|nullable={Bytes(&nullable, System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct?>())}" +
+                $"|single={BitConverter.ToString(NinoSerializer.Serialize(nullable))}" +
+                $"|array={BitConverter.ToString(arrayBytes)}" +
+                $"|back[2]={backValue.Id:X8},{backValue.CreateTime.Ticks:X16},{back[1].HasValue}");
+            Assert.AreEqual(value.Id, backValue.Id, "Id read back");
+            Assert.AreEqual(value.CreateTime, backValue.CreateTime, "CreateTime read back");
+        }
+
         private static void Time(Action action)
         {
             foreach (var (group, isa) in _groups)
