@@ -1,5 +1,5 @@
 // The other libraries' attributes on the benchmark models, as attributes that do nothing: the models build in C# 9
-// without MemoryPack, MessagePack, protobuf-net or LuminPack (Nino.Benchmark.Schema.csproj).
+// without MemoryPack, MessagePack, protobuf-net or LuminPack (Nino.Benchmark.Schema.csproj), and in netstandard2.1 without System.Text.Json.
 #pragma warning disable CS1591
 using System;
 
@@ -71,3 +71,31 @@ namespace MemoryPack
         public T? ToNullable() => _value;
     }
 }
+
+#if !NETCOREAPP
+// What netstandard2.1, which stands for Unity's API (the Unity benchmark compiles these models, #340), lacks: System.Text.Json's
+// attributes, and the Random methods the models' factories call (Unity reads the cases' values from .NET's bytes and never
+// calls the factories, so these only compile).
+namespace System
+{
+    public static class RandomShims
+    {
+        public static long NextInt64(this Random random) => ((long)random.Next() << 31) | (uint)random.Next();
+        public static long NextInt64(this Random random, long maxValue) => random.NextInt64(0, maxValue);
+        public static long NextInt64(this Random random, long minValue, long maxValue) =>
+            minValue + (long)(random.NextDouble() * (maxValue - minValue));
+        public static float NextSingle(this Random random) => (float)random.NextDouble();
+    }
+}
+
+namespace System.Text.Json.Serialization
+{
+    public sealed class JsonPolymorphicAttribute : Attribute { }
+    [AttributeUsage(AttributeTargets.All, AllowMultiple = true)]
+    public sealed class JsonDerivedTypeAttribute : Attribute
+    {
+        public JsonDerivedTypeAttribute(Type derivedType, int typeDiscriminator) { }
+        public JsonDerivedTypeAttribute(Type derivedType, string typeDiscriminator) { }
+    }
+}
+#endif

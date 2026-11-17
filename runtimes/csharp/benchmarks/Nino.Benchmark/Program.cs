@@ -85,12 +85,15 @@ namespace Nino.Benchmark
         /// protobuf-net contract the .protobuf.bin bytes follow), whether it is in the quick subset and whether its
         /// bytes are a previous version of the type (Old). The other runtimes' benchmarks read their cases from it.
         /// And roots.txt: nino-gen's --roots for those cases' types that are not [NinoType]s, one name each
-        /// (<c>Case&lt;first case&gt;=&lt;type&gt;</c>), whose codecs the runtimes look up by the type's name.
+        /// (<c>Case&lt;first case&gt;=&lt;type&gt;</c>), whose codecs the runtimes look up by the type's name; and
+        /// generics.txt: the closed generic [NinoType]s the cases' values hold, one runtime name a line, which a .NET
+        /// reader that never writes them (the Unity benchmark) registers first (NinoPolymorphic.TryRegister).
         /// </summary>
         private static void WriteCaseTypes(string directory)
         {
             var lines = new System.Collections.Generic.List<string>();
             var roots = new System.Collections.Generic.Dictionary<string, string>();
+            var generics = new System.Collections.Generic.SortedSet<string>(StringComparer.Ordinal);
             foreach (var type in typeof(Program).Assembly.GetTypes().OrderBy(t => t.Name, StringComparer.Ordinal))
             foreach (var benchCase in type.GetCustomAttributes(typeof(BenchCaseAttribute), false).Cast<BenchCaseAttribute>())
             {
@@ -103,6 +106,9 @@ namespace Nino.Benchmark
                 string name = Nino.Core.NinoTypeId.GetRuntimeName(value);
                 if (!ninoType)
                     roots.TryAdd(name, "Case" + benchCase.Name);
+                if (value != typeof(object))
+                    ClosedGenerics(Nino.Core.NinoDeserializer.DeserializeBoxed(
+                        BenchmarkPayloadRegistry.Bytes.First(p => p.Key == "NinoSerialize" + benchCase.Name).Value, value), generics);
                 lines.Add(System.Text.Json.JsonSerializer.Serialize(new System.Collections.Generic.Dictionary<string, object?>
                 {
                     ["class"] = type.Name,
@@ -117,6 +123,39 @@ namespace Nino.Benchmark
 
             File.WriteAllText(Path.Combine(directory, "cases.json"), "[\n" + string.Join(",\n", lines) + "\n]\n");
             File.WriteAllText(Path.Combine(directory, "roots.txt"), string.Join(";", roots.Select(r => r.Value + "=" + r.Key)) + "\n");
+            File.WriteAllText(Path.Combine(directory, "generics.txt"), string.Concat(generics.Select(g => g + "\n")));
+        }
+
+        /// <summary>The runtime names of the closed generic [NinoType]s in <paramref name="root"/>'s object graph.</summary>
+        private static void ClosedGenerics(object? root, System.Collections.Generic.ISet<string> into)
+        {
+            const System.Reflection.BindingFlags Fields = System.Reflection.BindingFlags.Instance |
+                                                          System.Reflection.BindingFlags.Public |
+                                                          System.Reflection.BindingFlags.NonPublic;
+            var seen = new System.Collections.Generic.HashSet<object>(System.Collections.Generic.ReferenceEqualityComparer.Instance);
+            var pending = new System.Collections.Generic.Stack<object>();
+            if (root != null) pending.Push(root);
+            while (pending.Count > 0)
+            {
+                object node = pending.Pop();
+                var type = node.GetType();
+                if (type.IsPrimitive || type.IsEnum || node is string || (!type.IsValueType && !seen.Add(node)))
+                    continue;
+                if (type.IsGenericType && type.GetGenericTypeDefinition().IsDefined(typeof(Nino.Core.NinoTypeAttribute), false))
+                    into.Add(Nino.Core.NinoTypeId.GetRuntimeName(type));
+                // A collection's items (an array of primitives has none to follow); any other value's fields.
+                if (node is System.Collections.IEnumerable items)
+                {
+                    if (node is not Array { } array || !array.GetType().GetElementType()!.IsPrimitive)
+                        foreach (object? item in items)
+                            if (item != null) pending.Push(item);
+                    continue;
+                }
+
+                foreach (var field in type.GetFields(Fields))
+                    if (!field.FieldType.IsPrimitive && field.GetValue(node) is { } child)
+                        pending.Push(child);
+            }
         }
 #endif
     }

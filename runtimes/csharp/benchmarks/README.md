@@ -84,8 +84,12 @@ left out without touching the rest. The same three run on an Arm64 runner too (`
 The Unity section (`unity-x64.md`), **🎮 Unity benchmark (Burst, IL2CPP)**, times Nino in a Unity IL2CPP player without and with the
 Burst kernels (`Nino.Burst`), for each Unity version `unity.yml` tests: `report.yml` calls `unity.yml` with
 `benchmark: true` for the tag, which builds the test player without the Development flag
-(`Test.Editor.Burst.BenchmarkPlayerBuild`, from `-ninoBenchmark`) with `Test.Runtime.Burst.BurstBenchmark` in it. The
-benchmark measures each case with the Unity Performance Testing package (`Measure.Method`, one sample group without
+(`Test.Editor.Burst.BenchmarkPlayerBuild`, from `-ninoBenchmark`) with `Test.Runtime.Burst.BurstBenchmark` in it. Its
+cases are this suite's: before the build, `runtimes/csharp/src/Nino.Unity/bench/generate.sh` copies the models
+(`Nino.Benchmark.Schema`'s files, which also build for netstandard2.1, Unity's API) into the project and writes the case
+list and each case's Nino bytes (`--write-data`), which the player reads, writes back as .NET wrote them and times
+(`NinoSerializer.Serialize` to a new array, `NinoDeserializer.Deserialize` to a new value), so a new case needs no
+Unity edit; cases held as `object` (the BCL types) are left out. The benchmark measures each case with the Unity Performance Testing package (`Measure.Method`, one sample group without
 the kernels and one with them, plus "SSSE3 only" on AVX2 CPUs), whose results and run metadata (Unity version, backend,
 CPU, packages) land in the player's NUnit results; the player adds a `NINO_UNITY_ENV` line (the kernels' instruction
 set) and the editor a `NINO_UNITY_BUILD` line (IL2CPP's settings and Burst's x64 targets, which the package does not
@@ -239,11 +243,13 @@ shards for a pull request labeled `benchmark`; and the other platforms' benchmar
 `<Case>.protobuf.bin` (protobuf-net's), from the values the benchmarks time, and `cases.json`: each case's .NET type
 (the type its Nino deserialize method returns), whether that is a `[NinoType]`, its Google.Protobuf message, whether it
 is quick and whether its bytes are a previous version, and `roots.txt`, nino-gen's `--roots` for the case types that
-are not `[NinoType]`s. The Go, Rust and TypeScript benchmarks read them as their cases and look each case's codec up
-by its .NET type in the code nino-gen writes, so a case declared here needs no edit in another language
-(`runtimes/go/bench/generate.sh`, `runtimes/rust/bench/generate.sh`).
+are not `[NinoType]`s, and `generics.txt`, the closed generic `[NinoType]`s the cases' values hold (a reader that
+never writes them registers them first). The Go, Rust and TypeScript benchmarks read them as their cases and look
+each case's codec up by its .NET type in the code nino-gen writes, and the Unity benchmark compiles the case list from
+them, so a case declared here needs no edit on another platform (`runtimes/go/bench/generate.sh`,
+`runtimes/rust/bench/generate.sh`, `runtimes/csharp/src/Nino.Unity/bench/generate.sh`).
 
-The models (`Fixtures/`, `Workloads/*Models.cs`) are C# 9: `Nino.Benchmark.Schema` (net11.0, `LangVersion` 9) builds
+The models (`Fixtures/`, `Workloads/*Models.cs`) are C# 9: `Nino.Benchmark.Schema` (net11.0 and netstandard2.1, `LangVersion` 9) builds
 the same files with the other libraries' attributes as no-op stand-ins (`CompetitorAttributes.cs`), the build nino-gen
 and Unity read for the other platforms' benchmarks, and ci.yml checks that nino-gen writes the same code for its types
 as for `Nino.Benchmark`'s. A model the schema should have goes in `Fixtures/`, never in a `Cases/` file.
