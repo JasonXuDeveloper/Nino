@@ -81,6 +81,25 @@ host's memory:
   loaded by then (the entry assembly always is).
 - `Vector<T>` is not serializable (next section).
 
+### IL2CPP places a generic struct's fields in two ways when it holds a packed struct
+
+IL2CPP keeps `[StructLayout(Pack)]` for primitive fields but never lowers the alignment of a BCL struct field
+(`DateTime`, `decimal`, `Guid`, `TimeSpan`, `DateTimeOffset`): a `Pack = 4` struct of an `int` and a `DateTime` is 12
+bytes on CoreCLR and Mono and 16 on IL2CPP (Unity 2022.3 and 6000.6). Nino converts such a struct field by field, so
+it is written and read right alone, in arrays and lists and as a member of a `[NinoType]`.
+
+A generic struct that holds one is another matter. libil2cpp computes a generic instance's field offsets at run time
+(`FieldLayout::LayoutFields`); reflection and fully shared generic code use those, while the code compiled for the
+type uses the C++ compiler's struct, and the two differ: `Around<T> { byte A; T B; int C; }` over that struct has `B` at
+8 in compiled code and at 4 by reflection, and a `T?` of a generic `Pack = 1` struct holds its value at 1 in compiled
+code where shared code writes it at 8, past the value. A formatter Nino builds at run time is shared generic code, so
+on IL2CPP it read and wrote such values wrong and could overwrite the heap (#378). Nino now refuses there, with a
+`NotSupportedException` naming the type, to build a formatter for a generic struct (`T?` included) that holds a struct
+whose `Pack` lowers a struct field's alignment, or a generic struct with `Pack`. A formatter the generator made is
+compiled for its type and is right: name the type as a member of a `[NinoType]`, use `NinoNullable<T>` instead of `T?`,
+or remove the `Pack`. IL2CPP on Unity 6000.6 also refuses to load an `Explicit` struct with a struct field at offset 1.
+`LayoutShapes` (Unity's `Assets/Test/Runtime/BclFixtureTypes.cs`) checks every layout form on every runtime.
+
 ### `Vector<T>` is not serializable
 
 `Vector<T>` is 16, 32 or 64 bytes, chosen by the CPU (the spec's §3 lists which host has which; `DOTNET_MaxVectorTBitWidth`
