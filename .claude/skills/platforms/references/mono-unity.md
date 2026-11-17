@@ -104,8 +104,12 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   An array takes the run-time size (`ArrayMetadata.cpp`: `element_size = Class::GetArrayElementSize`; `Array.cpp`
   `NewSpecific` allocates `n * element_size`) and compiled code indexes it with the C++ `sizeof`, so where the C++
   struct is larger compiled code writes past the array: the heap corruption the IL2CPP player crashed on (run
-  44123790941; Unity 2022.3.62f2 and 6000.6.9f1 log the same sizes). No serializer can make such an array right:
-  register offsets for single values only, and refuse arrays and collections of these structs on IL2CPP. Measure the
+  44123790941; Unity 2022.3.62f2 and 6000.6.9f1 log the same sizes; Array.Copy moves other bytes, run 44129906923).
+  Never refuse these arrays (the owner's rule: a struct with StructLayout must stay usable): allocate every array
+  Nino creates of such a type with enough memory for compiled code and set its length back
+  (`NinoElementLayouts<T>`, `NinoUnsafe.NewArray`, `ListAccess.Create`; `Il2CppArray::max_length` is the word after
+  the header's `bounds`), and read users' arrays as compiled code laid them out. Never build such an array in a test
+  on IL2CPP where its compiled elements are larger (`LayoutShapes.ElementsFit`): the test itself writes past it. Measure the
   run-time element size with `Marshal.UnsafeAddrOfPinnedArrayElement` (it is `il2cpp_array_addr_with_size` with
   `il2cpp_array_element_size`) next to `Unsafe.SizeOf<T>()` in code compiled for `T`; in shared generic code
   `sizeof` is the run-time size (`il2cpp_codegen_sizeof`, `stack_slot_size`) and the two agree. Read libil2cpp in
