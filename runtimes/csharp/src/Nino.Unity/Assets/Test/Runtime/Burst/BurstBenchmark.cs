@@ -185,9 +185,10 @@ namespace Test.Runtime.Burst
         /// against the bytes Nino writes for them, logged for #378: only IL2CPP read those values back as other bytes,
         /// and its layouts cannot be seen from CoreCLR or Mono.
         /// </summary>
-        [Test]
+        [Test, Order(0)] // first: the cases after it read and write these values
         public unsafe void LayoutOfNullableStruct()
         {
+            Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}", "NINO_LAYOUT|start");
             var value = new Nino.Benchmark.SimpleStruct { Id = 0x11223344, CreateTime = new DateTime(0x0123456789ABCDEFL) };
             Nino.Benchmark.SimpleStruct? nullable = value;
             string Bytes(void* p, int n) => BitConverter.ToString(new ReadOnlySpan<byte>(p, n).ToArray());
@@ -197,57 +198,27 @@ namespace Test.Runtime.Burst
             Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}",
                 $"NINO_LAYOUT|SizeOf<SimpleStruct>={System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct>()}" +
                 $"|SizeOf<SimpleStruct?>={System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct?>()}" +
-                $"|Marshal.OffsetOf(CreateTime)={Marshal.OffsetOf<Nino.Benchmark.SimpleStruct>(nameof(Nino.Benchmark.SimpleStruct.CreateTime))}" +
                 $"|value={Bytes(&value, System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct>())}" +
                 $"|nullable={Bytes(&nullable, System.Runtime.CompilerServices.Unsafe.SizeOf<Nino.Benchmark.SimpleStruct?>())}" +
                 $"|single={BitConverter.ToString(NinoSerializer.Serialize(nullable))}" +
                 $"|array={BitConverter.ToString(arrayBytes)}" +
                 $"|back[2]={backValue.Id:X8},{backValue.CreateTime.Ticks:X16},{back[1].HasValue}" +
-                $"|{Internal("NinoLayout`1", "IsCanonical", "CopiesAsIs", "WireSize", "Info")}" +
-                $"|{Internal("NinoNullables`1", "Raw", "Stride")}" +
-                $"|{Internal("NullableLayout`1", "HasValueOffset", "ValueOffset")}");
+                $"|generic:SizeOf<T>={SizeOf<Nino.Benchmark.SimpleStruct>()},SizeOf<T?>={SizeOf<Nino.Benchmark.SimpleStruct?>()}" +
+                $",value={Dump(value)},nullable={Dump(nullable)}" +
+                $"|plain={BitConverter.ToString(NinoSerializer.Serialize(value))}");
             Assert.AreEqual(value.Id, backValue.Id, "Id read back");
             Assert.AreEqual(value.CreateTime, backValue.CreateTime, "CreateTime read back");
         }
 
-        /// <summary>Nino.Core's static fields of an internal generic class closed over SimpleStruct, by reflection.</summary>
-        private static string Internal(string type, params string[] fields)
+        // The same, from shared generic code: IL2CPP may lay a type out otherwise there than in code made for it.
+        private static int SizeOf<T>() => System.Runtime.CompilerServices.Unsafe.SizeOf<T>();
+
+        private static string Dump<T>(T value)
         {
-            var open = typeof(NinoSerializer).Assembly.GetType("Nino.Core." + type) ??
-                       typeof(NinoSerializer).Assembly.GetType("Nino.Core.Internal." + type);
-            if (open == null)
-                return type + "=?";
-            Type closed;
-            try
-            {
-                closed = open.MakeGenericType(typeof(Nino.Benchmark.SimpleStruct));
-            }
-            catch (Exception e)
-            {
-                return type + "=!" + e.GetType().Name;
-            }
-
-            const System.Reflection.BindingFlags all = System.Reflection.BindingFlags.Static |
-                                                       System.Reflection.BindingFlags.Public |
-                                                       System.Reflection.BindingFlags.NonPublic;
-            return type + ":" + string.Join(",", fields.Select(f =>
-            {
-                try
-                {
-                    object v = closed.GetField(f, all)?.GetValue(null);
-                    if (v != null && f == "Info")
-                        v = string.Join(";", v.GetType().GetFields().Select(x => x.Name + "=" + Show(x.GetValue(v))));
-                    return f + "=" + Show(v);
-                }
-                catch (Exception e)
-                {
-                    return f + "=!" + e.GetType().Name;
-                }
-            }));
+            var bytes = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<T>()];
+            System.Runtime.CompilerServices.Unsafe.WriteUnaligned(ref bytes[0], value);
+            return BitConverter.ToString(bytes);
         }
-
-        private static string Show(object v) =>
-            v is Array a ? "[" + string.Join(" ", a.Cast<object>()) + "]" : v?.ToString() ?? "null";
 
         private static void Time(Action action)
         {
