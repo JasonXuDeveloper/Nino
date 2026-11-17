@@ -43,9 +43,13 @@ src/
   serde_impls.rs             serde for Nino's value types (feature serde)
 nino-derive/                 nino-serialization-derive: #[derive(NinoRead, NinoWrite)], the same code as the templates;
                              what the wire format cannot express is a compile error naming the field
-bench/                       nino-bench: benches/compare.rs (against prost, rmp-serde, bincode, postcard, serde_json),
-                             benches/common/point.rs (the Point codecs compare.rs and blocks.rs share),
-                             benches/text.rs (string transcoding, for back-to-back runs; not published),
+bench/                       nino-bench: the .NET suite's cases (runtimes/csharp/benchmarks) in Rust.
+                             generate.sh writes data/ (their bytes and cases.json, ignored) and src/model.rs (nino-gen
+                             --serde with a root per case type; do not edit, ci.yml checks it); build.rs compiles the
+                             suite's .proto files into src/proto.rs's prost messages (protox: no protoc);
+                             benches/compare.rs times every case found by its .NET type (with_nino_serde_type) against
+                             prost, rmp-serde, bincode, postcard and serde_json, each checked by the Nino bytes of what
+                             it reads back; benches/text.rs (string transcoding, for back-to-back runs; not published),
                              benches/blocks.rs (lists of fixed-size elements, likewise)
 tests/
   conformance.rs             the corpus over tests/conformance/types.rs: valid, malicious, truncations, mutational fuzzing

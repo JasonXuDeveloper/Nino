@@ -201,8 +201,10 @@ def rust(directory, tag, log=None):
         for w, n in sizes.get(group, {}).items():
             cells.setdefault((group, "size"), {})[w] = size(n)
     who = pivot(cells, ["nino", "prost", "rmp-serde", "bincode", "postcard", "serde_json"])
-    intro = ("`runtimes/rust/bench` (criterion): codecs in the shape nino-gen generates against Protocol Buffers "
-             "(prost), MessagePack (rmp-serde), bincode, postcard and serde_json. Times are criterion's mean "
+    intro = ("`runtimes/rust/bench` (criterion): the .NET suite's cases, read from the bytes Nino.Benchmark writes "
+             "and written back to them, with the code nino-gen generates (`nino`) against Protocol Buffers (prost, on "
+             "the messages of the suite's .proto files), MessagePack (rmp-serde), bincode, postcard and serde_json "
+             "on the same generated types, each only where it reads the case back. Times are criterion's mean "
              "estimates ± half their 95% confidence interval; sizes are the encoded bytes of each case.")
     return section("rust", tag, f"The Rust runtime of {tag} against Protocol Buffers, MessagePack, bincode, postcard "
                    "and serde_json", intro, grid(cells, who))

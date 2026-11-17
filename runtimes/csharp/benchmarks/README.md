@@ -240,8 +240,8 @@ shards for a pull request labeled `benchmark`; and the other platforms' benchmar
 (the type its Nino deserialize method returns), whether that is a `[NinoType]`, its Google.Protobuf message, whether it
 is quick and whether its bytes are a previous version, and `roots.txt`, nino-gen's `--roots` for the case types that
 are not `[NinoType]`s. The Go, Rust and TypeScript benchmarks read them as their cases and look each case's codec up
-by its .NET type in the code nino-gen writes, so a case declared here needs no edit in another language (Go:
-`runtimes/go/bench/generate.sh`).
+by its .NET type in the code nino-gen writes, so a case declared here needs no edit in another language
+(`runtimes/go/bench/generate.sh`, `runtimes/rust/bench/generate.sh`).
 
 The models (`Fixtures/`, `Workloads/*Models.cs`) are C# 9: `Nino.Benchmark.Schema` (net11.0, `LangVersion` 9) builds
 the same files with the other libraries' attributes as no-op stand-ins (`CompetitorAttributes.cs`), the build nino-gen
@@ -599,15 +599,21 @@ and `benchstat -format csv`; a pull request labeled `benchmark` the quick cases 
 
 ### Rust
 
-`runtimes/rust/bench` uses criterion: a group per case, with the number of values as its throughput, `black_box` on
-every input and output, against Protocol Buffers (prost, messages derived in `compare.rs`: no protoc), MessagePack
-(rmp-serde), bincode, postcard and serde_json:
+`runtimes/rust/bench` uses criterion: a group per case, `serialize/<serializer>` and `deserialize/<serializer>` in
+it, `black_box` on every input and output:
 
 ```sh
 cd runtimes/rust
-cargo bench -p nino-bench                          # every group
-cargo bench -p nino-bench -- strings-mixed-1000    # one group
+bench/generate.sh --data
+cargo bench -p nino-bench --bench compare                                  # every case
+NINO_BENCH_CASES='Simple*|Players' cargo bench -p nino-bench --bench compare  # some cases (names, * for any run)
 ```
 
-It prints each case's encoded sizes; the release job keeps that output and criterion's estimates
-(`target/criterion/**/new/estimates.json`) for the section.
+The cases are this suite's, on the bytes `--write-data` writes (runtimes/rust/README.md, "Benchmarks"): every case
+nino-gen can write Rust for (`bench/src/model.rs`, `--serde`), read with the generated code and written back to the
+same bytes, then timed with the generated code (`nino`), Protocol Buffers (prost on the messages `build.rs` compiles
+from `cases.proto` and `workloads.proto` with protox, parsed from protobuf-net's bytes), MessagePack (rmp-serde),
+bincode, postcard and serde_json on the generated types; a serializer whose read-back writes other Nino bytes is
+left out of the case with the reason. It prints each case's encoded sizes; the release job (300 ms warm-up, 1 s
+measured) keeps that output and criterion's estimates (`target/criterion/**/new/estimates.json`) for the section,
+and runtimes.yml runs each benchmark once (`cargo test --bench compare`).

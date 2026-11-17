@@ -18,8 +18,42 @@ pub struct Point {
     pub y: i32,
 }
 
-#[path = "common/point.rs"]
-mod point;
+/// The codecs of `Point` as nino-gen's Rust templates generate them: one block of 8 bytes.
+mod point {
+    use nino::{NinoRead, NinoWrite};
+
+    use super::Point;
+
+    impl nino::Raw for Point {
+        const SIZE: usize = 8;
+        const ALIGN: usize = 4;
+
+        fn decode_raw(b: &[u8]) -> nino::Result<Self> {
+            let b = b.get(..8).ok_or_else(|| nino::Error::of(nino::ErrorKind::UnexpectedEnd))?;
+            Ok(Self {
+                x: <i32 as nino::Raw>::decode_raw(b.get(0..).unwrap_or_default())?,
+                y: <i32 as nino::Raw>::decode_raw(b.get(4..).unwrap_or_default())?,
+            })
+        }
+
+        fn encode_raw(&self, out: &mut [u8]) {
+            if let Some(o) = out.get_mut(0..) {
+                nino::Raw::encode_raw(&self.x, o);
+            }
+            if let Some(o) = out.get_mut(4..) {
+                nino::Raw::encode_raw(&self.y, o);
+            }
+        }
+    }
+
+    impl NinoRead for Point {
+        nino::raw_read!();
+    }
+
+    impl NinoWrite for Point {
+        nino::raw_write!();
+    }
+}
 
 /// A plain (not raw) struct whose members are all fixed-size, derived: its wire bytes are its memory.
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
