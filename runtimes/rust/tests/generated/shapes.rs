@@ -3337,3 +3337,52 @@ pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
         _ => return None,
     })
 }
+
+/// [`NinoVisit`] for types that are serde's too (`--serde`, with the `serde` feature): [`with_nino_serde_type`].
+#[cfg(feature = "serde")]
+pub trait NinoSerdeVisit<R> {
+    fn visit<T: NinoRead + NinoWrite + serde::Serialize + serde::de::DeserializeOwned + 'static>(self) -> R;
+}
+
+/// [`with_nino_type`] with the serde traits on the type too, for code that also hands it to a serde format.
+#[cfg(feature = "serde")]
+pub fn with_nino_serde_type<R>(name: &str, f: impl NinoSerdeVisit<R>) -> Option<R> {
+    Some(match name {
+        "Shapes.Empty" => f.visit::<Option<Box<Empty>>>(),
+        "Shapes.ForestHolder" => f.visit::<Option<Box<ForestHolder>>>(),
+        "Shapes.Gappy" => f.visit::<Gappy>(),
+        "Shapes.Generic.BasedInt" => f.visit::<Option<Box<BasedInt>>>(),
+        "Shapes.Generic.OpenHolderUse" => f.visit::<Option<Box<OpenHolderUse>>>(),
+        "Shapes.Generic.OpenUse" => f.visit::<Option<Box<OpenUse>>>(),
+        "Shapes.Generic.Twin" => f.visit::<Option<ShapesGenericTwinRef>>(),
+        "Shapes.Generic.TwinA" => f.visit::<Option<Box<TwinA>>>(),
+        "Shapes.Generic.Uses" => f.visit::<Option<Box<Uses>>>(),
+        "Shapes.Holder" => f.visit::<Option<Box<Holder>>>(),
+        "Shapes.HostHolder" => f.visit::<Option<Box<HostHolder>>>(),
+        "Shapes.IThing" => f.visit::<Option<IThingRef>>(),
+        "Shapes.Keywords" => f.visit::<Option<Box<Keywords>>>(),
+        "Shapes.Left.Item" => f.visit::<Option<Box<ShapesLeftItem>>>(),
+        "Shapes.Marked" => f.visit::<Marked>(),
+        "Shapes.Measure" => f.visit::<Measure>(),
+        "Shapes.NinoGrid" => f.visit::<Option<Box<NinoGrid>>>(),
+        "Shapes.NinoNullableArgs" => f.visit::<Option<Box<NinoNullableArgs>>>(),
+        "Shapes.NinoNullableRaw" => f.visit::<Option<Box<NinoNullableRaw>>>(),
+        "Shapes.NinoNullableRawWide" => f.visit::<Option<Box<NinoNullableRawWide>>>(),
+        "Shapes.NullableGrids" => f.visit::<Option<Box<NullableGrids>>>(),
+        "Shapes.NullableSlots" => f.visit::<Option<Box<NullableSlots>>>(),
+        "Shapes.OffsetHolder" => f.visit::<Option<Box<OffsetHolder>>>(),
+        "Shapes.Outer+Inner" => f.visit::<Option<Box<OuterInner>>>(),
+        "Shapes.Pick" => f.visit::<Pick>(),
+        "Shapes.PickPair" => f.visit::<PickPair>(),
+        "Shapes.Picks" => f.visit::<Option<Box<Picks>>>(),
+        "Shapes.Recursive" => f.visit::<Recursive>(),
+        "Shapes.Renamed" => f.visit::<Option<Box<Renamed>>>(),
+        "Shapes.Right.Item" => f.visit::<Option<Box<ShapesRightItem>>>(),
+        "Shapes.Stamps" => f.visit::<Option<Box<Stamps>>>(),
+        "Shapes.Strides" => f.visit::<Option<Box<Strides>>>(),
+        "Shapes.ThingClass" => f.visit::<Option<Box<ThingClass>>>(),
+        "Shapes.ThingStruct" => f.visit::<ThingStruct>(),
+        "Shapes.TupleCell" => f.visit::<TupleCell>(),
+        _ => return None,
+    })
+}

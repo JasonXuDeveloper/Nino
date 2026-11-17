@@ -704,6 +704,9 @@ jobs:
         run: |
           set -euo pipefail
           rustup toolchain install stable --profile minimal
+          # Since the .NET suite's cases (bench/generate.sh, #338): their bytes from the tag's Nino.Benchmark (about
+          # 1,000 benchmarks at 300 ms warm-up and 1 s measured: some 25 minutes).
+          if [[ -x bench/generate.sh ]]; then bench/generate.sh --data; fi
           # The output too: compare.rs prints each case's encoded sizes.
           cargo bench -p nino-bench --bench compare --locked 2>&1 | tee "$RUNNER_TEMP/bench.log"
           mkdir -p "$RUNNER_TEMP/out"

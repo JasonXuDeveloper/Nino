@@ -1,506 +1,302 @@
-//! Nino against Protocol Buffers (prost), MessagePack (rmp-serde), bincode (2, standard configuration), postcard and
-//! serde_json on the same values. The protobuf messages mirror the values field for field (`proto` below), derived
-//! with prost: no protoc.
+//! The cases of the .NET suite (runtimes/csharp/benchmarks) on the bytes it wrote (generate.sh): for each, the code
+//! nino-gen generates (src/model.rs) reads .NET's Nino bytes and must write them back, then every adapter that can
+//! express the case is timed. Each case is a criterion group named after it, with the functions
+//! `serialize/<adapter>` and `deserialize/<adapter>`; its encoded sizes go to stderr as `<case>: N bytes nino, M
+//! prost, ...` (runtimes_report.py rust reads both). An adapter that cannot express a case (it fails, panics, or
+//! reads back a value that writes other Nino bytes) is left out of it with the reason on stderr. A new C# case needs
+//! no edit here: the model and the data carry it.
 //!
-//! `cargo bench -p nino-bench` (add a filter: `cargo bench -p nino-bench -- record`). Numbers are local and rough:
-//! compare them on one machine, back to back.
+//! NINO_BENCH_DATA moves data/, NINO_BENCH_QUICK=1 runs the quick subset with short timings, NINO_BENCH_CASES (a
+//! regular expression) picks cases by name.
 
 use std::hint::black_box;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use nino::{NinoRead, NinoReadBody, NinoWrite, NinoWriteBody, Reader, Result, Writer};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use nino::{NinoRead, NinoWrite};
+use nino_bench::model::{with_nino_serde_type, NinoSerdeVisit};
+use nino_bench::proto::{with_message, ProtoVisit};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-// ---------------------------------------------------------------------------------------------- the values
+// ---------------------------------------------------------------------------------------------- cases
 
-/// `[NinoType] sealed class Record { int Id; string Name; long Score; double Ratio; bool Active; List<int> Tags;
-/// Point Origin; }` with `[NinoType] struct Point { int X; int Y; }` (raw).
-#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Record {
-    pub id: i32,
-    pub name: Option<String>,
-    pub score: i64,
-    pub ratio: f64,
-    pub active: bool,
-    pub tags: Option<Vec<i32>>,
-    pub origin: Point,
+/// A case of the .NET suite, as Nino.Benchmark --write-data lists it in cases.json.
+#[derive(Deserialize)]
+struct Case {
+    #[serde(rename = "case")]
+    name: String,
+    /// The .NET type's runtime-form name, which the model looks its type up by.
+    #[serde(rename = "type")]
+    type_name: String,
+    /// The Protocol Buffers message protobuf-net's bytes follow (cases.proto, workloads.proto).
+    proto: Option<String>,
+    quick: bool,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Point {
-    pub x: i32,
-    pub y: i32,
+fn data_dir() -> PathBuf {
+    std::env::var_os("NINO_BENCH_DATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("data"))
 }
 
-// The Nino codecs below are what nino-gen's Rust templates generate for these two types
-// (runtimes/csharp/src/Nino.Codegen/Templates/rust/types.sbn): a raw struct read and written as one block, a class's members one by
-// one, and a class held as `Option<Box<_>>` wherever it is a member, an element or the value written.
-#[path = "common/point.rs"]
-mod point;
-
-impl NinoReadBody for Record {
-    fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        self.id = r.read()?;
-        self.name = r.read()?;
-        self.score = r.read()?;
-        self.ratio = r.read()?;
-        self.active = r.read()?;
-        self.tags = r.read()?;
-        self.origin = r.read()?;
-        Ok(())
-    }
+/// The bytes a library wrote for a case in .NET (nino, protobuf), or `None`.
+fn bytes(case: &Case, library: &str) -> Option<Vec<u8>> {
+    std::fs::read(data_dir().join(format!("{}.{library}.bin", case.name))).ok()
 }
 
-impl NinoWriteBody for Record {
-    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        w.write(&self.id)?;
-        w.write(&self.name)?;
-        w.write(&self.score)?;
-        w.write(&self.ratio)?;
-        w.write(&self.active)?;
-        w.write(&self.tags)?;
-        w.write(&self.origin)?;
-        Ok(())
-    }
+/// cases.json's cases, filtered by NINO_BENCH_QUICK and NINO_BENCH_CASES; none (with a note) without the data.
+fn cases() -> Vec<Case> {
+    let path = data_dir().join("cases.json");
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        eprintln!("no benchmark data at {} (run generate.sh --data, or set NINO_BENCH_DATA)", path.display());
+        return Vec::new();
+    };
+    let all: Vec<Case> = serde_json::from_str(&text).expect("cases.json");
+    let only = std::env::var("NINO_BENCH_CASES").ok().map(|p| regex_lite(&p));
+    let quick = quick();
+    all.into_iter().filter(|c| (!quick || c.quick) && only.as_ref().is_none_or(|m| m(&c.name))).collect()
 }
 
-impl NinoRead for Record {
-    const MAY_DEFER: bool = true;
-    nino::sealed_read!();
+/// NINO_BENCH_CASES: names separated by `|`, each matched as a whole, or with a `*` for any run of characters.
+fn regex_lite(pattern: &str) -> impl Fn(&str) -> bool {
+    let alternatives: Vec<String> = pattern.split('|').map(str::to_owned).collect();
+    move |name| alternatives.iter().any(|a| glob(a, name))
 }
 
-impl NinoWrite for Record {
-    const PREFETCH_BYTES: usize = 0usize
-        .saturating_add(<Option<String> as NinoWrite>::PREFETCH_BYTES)
-        .saturating_add(<Option<Vec<i32>> as NinoWrite>::PREFETCH_BYTES);
-
-    fn prefetch(&self) {
-        self.name.prefetch();
-        self.tags.prefetch();
-    }
-
-    fn prefetch_members(&self) {
-        self.name.prefetch_members();
-        self.tags.prefetch_members();
-    }
-
-    nino::sealed_write!();
-}
-
-fn record(i: i32) -> Record {
-    Record {
-        id: i,
-        name: Some(format!("record number {i}")),
-        score: i64::from(i) * 1_000_003,
-        ratio: f64::from(i) / 7.0,
-        active: i % 2 == 0,
-        tags: Some((0..8).map(|k| k * i).collect()),
-        origin: Point { x: i, y: -i },
-    }
-}
-
-/// 1,000,000 records made in order and listed in a shuffled order (a fixed seed): each record, its name and its tags
-/// are then somewhere else in memory than the one before, as in a long-lived heap, so writing the list waits on cache
-/// misses (what Nino's prefetching takes on). The Go benchmark's `scattered-1m` lists the same.
-fn scattered_records() -> Vec<Option<Box<Record>>> {
-    let mut values: Vec<Option<Box<Record>>> = (0..1_000_000).map(|i| Some(Box::new(record(i)))).collect();
-    // Fisher-Yates with xorshift64.
-    let mut state = 0x9E37_79B9_7F4A_7C15u64;
-    for i in (1..values.len()).rev() {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        values.swap(i, (state % (i as u64 + 1)) as usize);
-    }
-    values
-}
-
-// ---------------------------------------------------------------------------------------------- protobuf
-
-/// The values as Protocol Buffers messages, field for field (as a `.proto` would declare them):
-/// `message Point { int32 x = 1; int32 y = 2; }`,
-/// `message Record { int32 id = 1; string name = 2; int64 score = 3; double ratio = 4; bool active = 5;
-/// repeated int32 tags = 6; Point origin = 7; }`, and a message of one repeated field for each list.
-mod proto {
-    #[derive(Clone, PartialEq, prost::Message)]
-    pub struct Point {
-        #[prost(int32, tag = "1")]
-        pub x: i32,
-        #[prost(int32, tag = "2")]
-        pub y: i32,
-    }
-
-    #[derive(Clone, PartialEq, prost::Message)]
-    pub struct Record {
-        #[prost(int32, tag = "1")]
-        pub id: i32,
-        #[prost(string, tag = "2")]
-        pub name: String,
-        #[prost(int64, tag = "3")]
-        pub score: i64,
-        #[prost(double, tag = "4")]
-        pub ratio: f64,
-        #[prost(bool, tag = "5")]
-        pub active: bool,
-        #[prost(int32, repeated, tag = "6")]
-        pub tags: Vec<i32>,
-        #[prost(message, optional, tag = "7")]
-        pub origin: Option<Point>,
-    }
-
-    #[derive(Clone, PartialEq, prost::Message)]
-    pub struct Records {
-        #[prost(message, repeated, tag = "1")]
-        pub values: Vec<Record>,
-    }
-
-    #[derive(Clone, PartialEq, prost::Message)]
-    pub struct I32s {
-        #[prost(int32, repeated, tag = "1")]
-        pub values: Vec<i32>,
-    }
-
-    #[derive(Clone, PartialEq, prost::Message)]
-    pub struct F64s {
-        #[prost(double, repeated, tag = "1")]
-        pub values: Vec<f64>,
-    }
-
-    #[derive(Clone, PartialEq, prost::Message)]
-    pub struct Strings {
-        #[prost(string, repeated, tag = "1")]
-        pub values: Vec<String>,
-    }
-
-    pub fn record(r: &super::Record) -> Record {
-        Record {
-            id: r.id,
-            name: r.name.clone().unwrap_or_default(),
-            score: r.score,
-            ratio: r.ratio,
-            active: r.active,
-            tags: r.tags.clone().unwrap_or_default(),
-            origin: Some(Point { x: r.origin.x, y: r.origin.y }),
+fn glob(pattern: &str, name: &str) -> bool {
+    match pattern.split_once('*') {
+        None => pattern == name,
+        Some((head, tail)) => {
+            name.len() >= head.len()
+                && name.starts_with(head)
+                && (0..=name.len() - head.len()).any(|i| glob(tail, &name[head.len() + i..]))
         }
     }
 }
 
-/// 1,000 distinct non-negative integers in no order (xorshift64 from a fixed seed): a `HashSet<int>` as nino-gen
-/// writes it (an `IndexSet`, in the order of the data). The Go and TypeScript benchmarks' set cases have the same
-/// shape.
-fn set_ints() -> indexmap::IndexSet<i32> {
-    let mut set = indexmap::IndexSet::with_capacity(1000);
-    let mut state = 0x2545_F491_4F6C_DD1Du64;
-    while set.len() < 1000 {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        set.insert((state >> 33) as i32);
-    }
-    set
+fn quick() -> bool {
+    std::env::var("NINO_BENCH_QUICK").as_deref() == Ok("1")
 }
 
-/// "member 0" to "member 999" in no order: a `HashSet<string>` as nino-gen writes it.
-fn set_strings() -> indexmap::IndexSet<String> {
-    let mut v: Vec<u32> = (0..1000).collect();
-    let mut state = 0x9E37_79B9_7F4A_7C15u64;
-    for i in (1..v.len()).rev() {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        v.swap(i, (state % (i as u64 + 1)) as usize);
-    }
-    v.into_iter().map(|k| format!("member {k}")).collect()
+// ---------------------------------------------------------------------------------------------- adapters
+
+/// An adapter's two timed operations on one value: `encode` writes its bytes into the buffer (cleared first, its
+/// room reused where the library can), `decode` reads them into a new value, which it drops.
+struct Codec {
+    name: &'static str,
+    bytes: Vec<u8>,
+    encode: Encode,
+    decode: Decode,
 }
 
-/// 1,000 strings of three kinds in turn: ASCII, Latin-1 (one byte a char in Nino) and other text (UTF-16 in Nino:
-/// Cyrillic, CJK and a char outside the BMP). The Go and TypeScript benchmarks use the same strings.
-fn mixed_strings() -> Vec<String> {
-    (0..1000)
-        .map(|i| match i % 3 {
-            0 => format!("string {i}"),
-            1 => format!("crème brûlée {i}"),
-            _ => format!("строка 字符串 🎉 {i}"),
-        })
-        .collect()
-}
+type Encode = Box<dyn FnMut(&mut Vec<u8>)>;
+type Decode = Box<dyn FnMut(&[u8])>;
 
-/// `[NinoType(trackReferences: true)] class Node { int Value; Node Next; Node Other; }`: no other serializer here
-/// has shared references, so the case is Nino's alone.
-#[derive(Default)]
-pub struct Node {
-    pub value: i32,
-    pub next: Option<nino::Shared<Node>>,
-    pub other: Option<nino::Shared<Node>>,
-}
+/// A case's codecs, in the order of the report's columns (runtimes_report.py rust), and the adapters that cannot
+/// express it with the reason.
+type Codecs = (Vec<Codec>, Vec<(&'static str, String)>);
 
-impl NinoReadBody for Node {
-    fn read_body(&mut self, r: &mut Reader<'_>) -> Result<()> {
-        r.read_into(&mut self.value)?;
-        r.read_member_into(&mut self.next, nino::field!(Self, next))?;
-        r.read_member_into(&mut self.other, nino::field!(Self, other))
-    }
-}
-
-impl NinoWriteBody for Node {
-    fn write_body<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-        w.write(&self.value)?;
-        w.write(&self.next)?;
-        w.write(&self.other)
-    }
-}
-
-/// 1,000 tracked nodes in a list, each the next of the one before it and the other of every tenth: the bytes of a
-/// ring of `n` nodes (each node's next the one after, the last one's the first), written from a chain built by hand
-/// (no cycle) whose last next is then a back reference to the first.
-fn tracked_nodes(n: i32) -> Vec<u8> {
-    const LAST: i32 = 0x5A5A_5A5A;
-    let mut nodes: Vec<nino::Shared<Node>> = Vec::new();
-    let mut next = None;
-    for i in (0..n).rev() {
-        let value = if i == n - 1 { LAST } else { i };
-        let other = nodes.get(((n - 1 - i) as usize / 10) * 10).cloned();
-        let node = nino::Shared::new(Node { value, next, other });
-        nodes.push(node.clone());
-        next = Some(node);
-    }
-    nodes.reverse();
-    let list: Vec<Option<nino::Shared<Node>>> = nodes.into_iter().map(Some).collect();
-    let mut bytes = nino::serialize(&list).unwrap();
-    let at = bytes.windows(4).position(|w| w == LAST.to_le_bytes()).unwrap();
-    bytes[at..at + 4].copy_from_slice(&(n - 1).to_le_bytes());
-    assert_eq!(bytes[at + 4..at + 8], 0i32.to_le_bytes());
-    bytes[at + 4..at + 8].copy_from_slice(&1i32.to_le_bytes());
-    bytes
-}
-
-/// The tracked graph: read (and dropped, which frees it) and written.
-fn tracked(c: &mut Criterion) {
-    type Graph = Vec<Option<nino::Shared<Node>>>;
-    let bytes = tracked_nodes(1000);
-    let value: Graph = nino::deserialize(&bytes).unwrap();
-    assert_eq!(nino::serialize(&value).unwrap(), bytes);
-    eprintln!("tracked-1000: {} bytes nino", bytes.len());
-    let mut g = c.benchmark_group("tracked-1000");
-    g.throughput(Throughput::Elements(1000));
-    let mut out = Vec::with_capacity(bytes.len());
-    g.bench_function(BenchmarkId::new("serialize", "nino"), |b| {
-        b.iter(|| {
-            out.clear();
-            nino::serialize_into(black_box(&value), &mut out).unwrap();
-            black_box(out.len())
-        })
-    });
-    g.bench_function(BenchmarkId::new("deserialize", "nino"), |b| {
-        b.iter(|| black_box(nino::deserialize::<Graph>(black_box(&bytes)).unwrap()))
-    });
-    g.finish();
-}
-
-// ---------------------------------------------------------------------------------------------- the harness
-
-/// Nino alone on `$value`: for a case whose bytes differ only in Nino from one `formats!` already measures (the
-/// other serializers write the same bytes for both), so the report shows it as its own row.
-macro_rules! nino_only {
-    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty) => {{
-        let value: $t = $value;
-        let mut g = $c.benchmark_group($group);
-        let nino_bytes = nino::serialize(&value).unwrap();
-        g.throughput(Throughput::Elements($elements));
-        let mut out = Vec::with_capacity(nino_bytes.len());
-        g.bench_function(BenchmarkId::new("serialize", "nino"), |b| {
-            b.iter(|| {
-                out.clear();
-                nino::serialize_into(black_box(&value), &mut out).unwrap();
-                black_box(out.len())
-            })
-        });
-        assert_eq!(nino::deserialize::<$t>(&nino_bytes).unwrap(), value);
-        eprintln!("{}: {} bytes nino", $group, nino_bytes.len());
-        g.bench_function(BenchmarkId::new("deserialize", "nino"), |b| {
-            b.iter(|| black_box(nino::deserialize::<$t>(black_box(&nino_bytes)).unwrap()))
-        });
-        g.finish();
-    }};
-}
-
-/// bincode 2's standard configuration (little-endian, variable-length integers).
 const BINCODE: bincode::config::Configuration = bincode::config::standard();
 
-/// One group per case: serialize and deserialize with each serializer, Nino first. `$elements` is the number of
-/// values in the case (criterion's throughput); `$proto` is the case as a protobuf message of type `$p`, and
-/// `$from_proto` (the message itself when left out) what the deserialize timing makes of a decoded message: the
-/// case's type where protobuf has no such type (a set).
-macro_rules! formats {
-    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty) => {
-        formats!($c, $group, $elements, $value, $t, $proto, $p, |m: $p| m)
-    };
-    ($c:expr, $group:literal, $elements:expr, $value:expr, $t:ty, $proto:expr, $p:ty, $from_proto:expr) => {{
-        let value: $t = $value;
-        let message: $p = $proto(&value);
-        let mut g = $c.benchmark_group($group);
-        if $elements >= 100_000 {
+/// A serde format: its encoder (into a buffer) and decoder.
+struct Format<T> {
+    name: &'static str,
+    encode: fn(&T, &mut Vec<u8>) -> Result<(), String>,
+    decode: fn(&[u8]) -> Result<T, String>,
+}
+
+fn formats<T: Serialize + DeserializeOwned>() -> [Format<T>; 4] {
+    fn s<E: ToString>(e: E) -> String {
+        e.to_string()
+    }
+    [
+        Format {
+            name: "rmp-serde",
+            encode: |v, out| rmp_serde::encode::write(out, v).map_err(s),
+            decode: |b| rmp_serde::from_slice(b).map_err(s),
+        },
+        Format {
+            name: "bincode",
+            encode: |v, out| bincode::serde::encode_into_std_write(v, out, BINCODE).map(drop).map_err(s),
+            decode: |b| bincode::serde::decode_from_slice(b, BINCODE).map(|(v, _)| v).map_err(s),
+        },
+        Format {
+            name: "postcard",
+            encode: |v, out| postcard::to_io(v, out).map(drop).map_err(s),
+            decode: |b| postcard::from_bytes(b).map_err(s),
+        },
+        Format {
+            name: "serde_json",
+            encode: |v, out| serde_json::to_writer(out, v).map_err(s),
+            decode: |b| serde_json::from_slice(b).map_err(s),
+        },
+    ]
+}
+
+/// Runs `f`, and turns a panic into the reason the case cannot be expressed.
+fn guarded<R>(f: impl FnOnce() -> Result<R, String>) -> Result<R, String> {
+    catch_unwind(AssertUnwindSafe(f)).unwrap_or_else(|p| {
+        let what = p.downcast_ref::<String>().cloned().or_else(|| p.downcast_ref::<&str>().map(|s| s.to_string()));
+        Err(format!("panics: {}", what.unwrap_or_default()))
+    })
+}
+
+/// Reads the case's value with the generated code from .NET's Nino bytes (which it must write back), and builds
+/// the codecs of every serde adapter that reads it back to a value writing the same Nino bytes.
+struct SerdeCodecs<'a>(&'a Case, &'a [u8]);
+
+impl NinoSerdeVisit<Result<Codecs, String>> for SerdeCodecs<'_> {
+    fn visit<T: NinoRead + NinoWrite + Serialize + DeserializeOwned + 'static>(self) -> Result<Codecs, String> {
+        let SerdeCodecs(case, data) = self;
+        let value: T = match nino::deserialize_exact(data) {
+            Ok(v) => v,
+            // An object holding a .NET type Rust has no form of (BclTypesTest's BigInteger, Uri...).
+            Err(e) if case.type_name == "System.Object" => {
+                return Err(format!("an object holding a .NET type with no Rust form: {e}"))
+            }
+            Err(e) => panic!("{}: reading .NET's bytes: {e}", case.name),
+        };
+        let want = nino::serialize(&value).expect("writing the value back");
+        assert!(want == data, "{}: the generated code writes other bytes than .NET's", case.name);
+        let value = Rc::new(value);
+        let (mut codecs, mut skipped) = (Vec::new(), Vec::new());
+        let v = Rc::clone(&value);
+        codecs.push(Codec {
+            name: "nino",
+            bytes: want.clone(),
+            encode: Box::new(move |out| nino::serialize_into(black_box(&*v), out).unwrap()),
+            decode: Box::new(|b| drop(black_box(nino::deserialize::<T>(b).unwrap()))),
+        });
+        if let Some(proto) = &case.proto {
+            match protobuf(case, proto) {
+                Ok(codec) => codecs.push(codec),
+                Err(why) => skipped.push(("prost", why)),
+            }
+        }
+        for f in formats::<T>() {
+            let checked = guarded(|| {
+                let mut bytes = Vec::new();
+                (f.encode)(&value, &mut bytes).map_err(|e| format!("encode: {e}"))?;
+                let back = (f.decode)(&bytes).map_err(|e| format!("decode: {e}"))?;
+                let got = nino::serialize(&back).map_err(|e| format!("the value it read back: {e}"))?;
+                if got != want {
+                    return Err(format!(
+                        "reads back another value ({} Nino bytes, {} expected)",
+                        got.len(),
+                        want.len()
+                    ));
+                }
+                Ok(bytes)
+            });
+            match checked {
+                Ok(bytes) => {
+                    let v = Rc::clone(&value);
+                    let (encode, decode) = (f.encode, f.decode);
+                    codecs.push(Codec {
+                        name: f.name,
+                        bytes,
+                        encode: Box::new(move |out| encode(black_box(&*v), out).unwrap()),
+                        decode: Box::new(move |b| drop(black_box(decode(b).unwrap()))),
+                    });
+                }
+                Err(why) => skipped.push((f.name, why)),
+            }
+        }
+        Ok((codecs, skipped))
+    }
+}
+
+/// prost on the message of the case's protobuf-net contract, parsed from protobuf-net's bytes once, as an
+/// application that keeps its data in generated prost structs would.
+fn protobuf(case: &Case, proto: &str) -> Result<Codec, String> {
+    struct Prost(Vec<u8>);
+    impl ProtoVisit<Result<Codec, String>> for Prost {
+        fn visit<M: prost::Message + Default + PartialEq + 'static>(self) -> Result<Codec, String> {
+            let message = M::decode(&self.0[..]).map_err(|e| format!("protobuf-net's bytes: {e}"))?;
+            let bytes = message.encode_to_vec();
+            if M::decode(&bytes[..]).ok().as_ref() != Some(&message) {
+                return Err("reads back another message".into());
+            }
+            Ok(Codec {
+                name: "prost",
+                bytes,
+                encode: Box::new(move |out| black_box(&message).encode(out).unwrap()),
+                decode: Box::new(|b| drop(black_box(M::decode(b).unwrap()))),
+            })
+        }
+    }
+    let data = bytes(case, "protobuf").ok_or("no protobuf-net bytes")?;
+    with_message(proto, Prost(data)).unwrap_or_else(|| Err(format!("no message {proto} in the .proto files")))
+}
+
+// ---------------------------------------------------------------------------------------------- timing
+
+fn compare(c: &mut Criterion) {
+    for case in cases() {
+        let data = bytes(&case, "nino").unwrap_or_else(|| panic!("{}: no Nino bytes", case.name));
+        let Some(result) = with_nino_serde_type(&case.type_name, SerdeCodecs(&case, &data)) else {
+            eprintln!(
+                "{}: skipped: nino-gen writes no Rust type for {} (generate.sh's warnings say why)",
+                case.name, case.type_name
+            );
+            continue;
+        };
+        let (mut codecs, skipped) = match result {
+            Ok(r) => r,
+            Err(why) => {
+                eprintln!("{}: skipped: {why}", case.name);
+                continue;
+            }
+        };
+        for (name, why) in skipped {
+            eprintln!("{}/{name}: skipped: {why}", case.name);
+        }
+        let sizes: Vec<String> = codecs.iter().map(|c| format!("{} {}", c.bytes.len(), c.name)).collect();
+        eprintln!("{}: {}", case.name, sizes.join(", ").replacen(' ', " bytes ", 1));
+
+        let mut g = c.benchmark_group(&case.name);
+        if codecs[0].bytes.len() >= 1 << 20 {
             // A run of a large case takes milliseconds: ten samples, not a hundred.
             g.sample_size(10);
         }
-        let nino_bytes = nino::serialize(&value).unwrap();
-        g.throughput(Throughput::Elements($elements));
-
-        let mut out = Vec::with_capacity(nino_bytes.len());
-        g.bench_function(BenchmarkId::new("serialize", "nino"), |b| {
-            b.iter(|| {
-                out.clear();
-                nino::serialize_into(black_box(&value), &mut out).unwrap();
-                black_box(out.len())
-            })
-        });
-        g.bench_function(BenchmarkId::new("serialize", "prost"), |b| {
-            b.iter(|| {
-                out.clear();
-                prost::Message::encode(black_box(&message), &mut out).unwrap();
-                black_box(out.len())
-            })
-        });
-        g.bench_function(BenchmarkId::new("serialize", "bincode"), |b| {
-            b.iter(|| {
-                out.clear();
-                bincode::serde::encode_into_std_write(black_box(&value), &mut out, BINCODE).unwrap();
-                black_box(out.len())
-            })
-        });
-        g.bench_function(BenchmarkId::new("serialize", "postcard"), |b| {
-            b.iter(|| black_box(postcard::to_allocvec(black_box(&value)).unwrap()))
-        });
-        g.bench_function(BenchmarkId::new("serialize", "rmp-serde"), |b| {
-            b.iter(|| {
-                out.clear();
-                rmp_serde::encode::write(&mut out, black_box(&value)).unwrap();
-                black_box(out.len())
-            })
-        });
-        g.bench_function(BenchmarkId::new("serialize", "serde_json"), |b| {
-            b.iter(|| {
-                out.clear();
-                serde_json::to_writer(&mut out, black_box(&value)).unwrap();
-                black_box(out.len())
-            })
-        });
-
-        let bincode_bytes = bincode::serde::encode_to_vec(&value, BINCODE).unwrap();
-        let postcard_bytes = postcard::to_allocvec(&value).unwrap();
-        let rmp_bytes = rmp_serde::to_vec(&value).unwrap();
-        let json_bytes = serde_json::to_vec(&value).unwrap();
-        let prost_bytes = prost::Message::encode_to_vec(&message);
-        assert_eq!(<$p as prost::Message>::decode(&prost_bytes[..]).unwrap(), message);
-        assert_eq!(nino::deserialize::<$t>(&nino_bytes).unwrap(), value);
-        eprintln!(
-            "{}: {} bytes nino, {} prost, {} bincode, {} postcard, {} rmp-serde, {} serde_json",
-            $group,
-            nino_bytes.len(),
-            prost_bytes.len(),
-            bincode_bytes.len(),
-            postcard_bytes.len(),
-            rmp_bytes.len(),
-            json_bytes.len()
-        );
-        g.bench_function(BenchmarkId::new("deserialize", "nino"), |b| {
-            b.iter(|| black_box(nino::deserialize::<$t>(black_box(&nino_bytes)).unwrap()))
-        });
-        g.bench_function(BenchmarkId::new("deserialize", "prost"), |b| {
-            b.iter(|| black_box($from_proto(<$p as prost::Message>::decode(black_box(&prost_bytes[..])).unwrap())))
-        });
-        g.bench_function(BenchmarkId::new("deserialize", "bincode"), |b| {
-            b.iter(|| {
-                black_box(bincode::serde::decode_from_slice::<$t, _>(black_box(&bincode_bytes), BINCODE).unwrap().0)
-            })
-        });
-        g.bench_function(BenchmarkId::new("deserialize", "postcard"), |b| {
-            b.iter(|| black_box(postcard::from_bytes::<$t>(black_box(&postcard_bytes)).unwrap()))
-        });
-        g.bench_function(BenchmarkId::new("deserialize", "rmp-serde"), |b| {
-            b.iter(|| black_box(rmp_serde::from_slice::<$t>(black_box(&rmp_bytes)).unwrap()))
-        });
-        g.bench_function(BenchmarkId::new("deserialize", "serde_json"), |b| {
-            b.iter(|| black_box(serde_json::from_slice::<$t>(black_box(&json_bytes)).unwrap()))
-        });
+        let mut out = Vec::new();
+        for codec in &mut codecs {
+            g.bench_function(BenchmarkId::new("serialize", codec.name), |b| {
+                b.iter(|| {
+                    out.clear();
+                    (codec.encode)(&mut out);
+                    black_box(out.len())
+                })
+            });
+        }
+        for codec in &mut codecs {
+            let bytes = std::mem::take(&mut codec.bytes);
+            g.bench_function(BenchmarkId::new("deserialize", codec.name), |b| {
+                b.iter(|| (codec.decode)(black_box(&bytes)))
+            });
+        }
         g.finish();
-    }};
+    }
 }
 
-fn benches(c: &mut Criterion) {
-    let one = |v: &Option<Box<Record>>| proto::record(v.as_ref().unwrap());
-    let many = |v: &Vec<Option<Box<Record>>>| proto::Records {
-        values: v.iter().flatten().map(|r| proto::record(r)).collect(),
-    };
-    formats!(c, "record", 1, Some(Box::new(record(42))), Option<Box<Record>>, one, proto::Record);
-    formats!(
-        c,
-        "records-1000",
-        1000,
-        (0..1000).map(|i| Some(Box::new(record(i)))).collect(),
-        Vec<Option<Box<Record>>>,
-        many,
-        proto::Records
-    );
-    formats!(c, "scattered-1m", 1_000_000, scattered_records(), Vec<Option<Box<Record>>>, many, proto::Records);
-    let i32s = |v: &Vec<i32>| proto::I32s { values: v.clone() };
-    formats!(c, "i32-10000", 10_000, (0..10_000).map(|i| i * 7919).collect(), Vec<i32>, i32s, proto::I32s);
-    let f64s = |v: &Vec<f64>| proto::F64s { values: v.clone() };
-    formats!(c, "f64-10000", 10_000, (0..10_000).map(|i| f64::from(i) * 0.5).collect(), Vec<f64>, f64s, proto::F64s);
-    let strings = |v: &Vec<String>| proto::Strings { values: v.clone() };
-    formats!(
-        c,
-        "strings-1000",
-        1000,
-        (0..1000).map(|i| format!("string {i}")).collect(),
-        Vec<String>,
-        strings,
-        proto::Strings
-    );
-    formats!(c, "strings-mixed-1000", 1000, mixed_strings(), Vec<String>, strings, proto::Strings);
-    // Sets: protobuf has none, so its message is a repeated field of the elements, made into the set when read (as
-    // the others read theirs), without checking for a repeated element as Nino does.
-    let set_i32s = |v: &indexmap::IndexSet<i32>| proto::I32s { values: v.iter().copied().collect() };
-    let i32_set = |m: proto::I32s| m.values.into_iter().collect::<indexmap::IndexSet<i32>>();
-    formats!(c, "int-set-1000", 1000, set_ints(), indexmap::IndexSet<i32>, set_i32s, proto::I32s, i32_set);
-    let set_texts = |v: &indexmap::IndexSet<String>| proto::Strings { values: v.iter().cloned().collect() };
-    let text_set = |m: proto::Strings| m.values.into_iter().collect::<indexmap::IndexSet<String>>();
-    formats!(
-        c,
-        "string-set-1000",
-        1000,
-        set_strings(),
-        indexmap::IndexSet<String>,
-        set_texts,
-        proto::Strings,
-        text_set
-    );
-    // The same strings as a `[NinoUtf8] string[]`: each as UTF-8 (wire format 4.2), read with the same checks
-    // (strict UTF-8, the char count) as a `[NinoUtf8]` member, as the other serializers check theirs.
-    nino_only!(
-        c,
-        "strings-mixed-utf8-1000",
-        1000,
-        mixed_strings().into_iter().map(nino::Utf8).collect(),
-        Vec<nino::Utf8>
-    );
-    tracked(c);
-}
-
-/// The release's timing (500 ms warm-up, 2 s measured), or quick mode's (NINO_BENCH_QUICK=1, the trend check a pull
-/// request labeled `benchmark` runs, as the .NET suite's quick job): 100 ms and 300 ms, 10 samples.
+/// The release's timing (300 ms warm-up, 1 s measured: about 1,000 benchmarks in some 25 minutes, as the Go
+/// benchmark's 300 ms each), or quick mode's (NINO_BENCH_QUICK=1, the trend check a pull request runs: 100 ms, 300
+/// ms, ten samples).
 fn config() -> Criterion {
     let ms = std::time::Duration::from_millis;
-    if std::env::var("NINO_BENCH_QUICK").as_deref() == Ok("1") {
+    if quick() {
         Criterion::default().warm_up_time(ms(100)).measurement_time(ms(300)).sample_size(10)
     } else {
-        Criterion::default().warm_up_time(ms(500)).measurement_time(ms(2000))
+        Criterion::default().warm_up_time(ms(300)).measurement_time(ms(1000))
     }
 }
 
 criterion_group! {
-    name = compare;
+    name = benches;
     config = config();
-    targets = benches
+    targets = compare
 }
-criterion_main!(compare);
+criterion_main!(benches);

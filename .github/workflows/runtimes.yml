@@ -291,6 +291,19 @@ jobs:
           MSRV: ${{ steps.msrv.outputs.version }}
         run: cargo +"$MSRV" check --workspace --all-features --all-targets --locked
 
+      # The benchmark reads the .NET suite's cases: each written by Nino.Benchmark (bench/generate.sh --data), read and
+      # written back to the same bytes by the generated model, checked with every adapter and run once (criterion's
+      # test mode).
+      - name: Set up .NET (the benchmark's data)
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/setup-dotnet
+
+      - name: Test the benchmark
+        if: ${{ !cancelled() }}
+        run: |
+          bench/generate.sh --data
+          cargo test -p nino-bench --bench compare --locked
+
   rust-no-features:
     name: Rust (without features)
     needs: changes
@@ -703,10 +716,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # The TypeScript benchmark's data and types come from .NET (Bench.csproj and nino-gen), the Go benchmark's data
-      # too (Nino.Benchmark --write-data, bench/generate.sh).
+      # The TypeScript benchmark's data and types come from .NET (Bench.csproj and nino-gen), the Go and Rust
+      # benchmarks' data too (Nino.Benchmark --write-data, bench/generate.sh).
       - name: Set up .NET
-        if: matrix.lang == 'typescript' || matrix.lang == 'go'
         uses: ./.github/actions/setup-dotnet
 
       - name: Set up Node.js
@@ -753,6 +765,7 @@ jobs:
           CARGO_TARGET_DIR: ${{ runner.temp }}/target
         run: |
           rustup toolchain install stable --profile minimal
+          bench/generate.sh --data
           cargo bench -p nino-bench --bench compare --locked 2>&1 | tee "$RUNNER_TEMP/bench.log"
           python3 "$REPORTS/runtimes_report.py" rust "$CARGO_TARGET_DIR/criterion" "$TAG" "$RUNNER_TEMP/bench.log" \
             > "$RUNNER_TEMP/section.md"

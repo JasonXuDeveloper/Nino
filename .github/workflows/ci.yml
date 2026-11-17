@@ -488,6 +488,16 @@ jobs:
             exit 1
           fi
 
+      # The Rust benchmark's model (runtimes/rust/bench/src/model.rs), likewise.
+      - name: Check the Rust benchmark's model
+        if: ${{ !cancelled() }}
+        run: |
+          runtimes/rust/bench/generate.sh
+          if ! git diff --exit-code --stat -- runtimes/rust/bench/src; then
+            echo "::error::runtimes/rust/bench/src/model.rs is out of date: run runtimes/rust/bench/generate.sh and commit it"
+            exit 1
+          fi
+
       # Every benchmark case reads back what the others read and writes its payload's bytes (Verify.cs), on every
       # push: report.yml runs it first on each shard, where a failure showed only at a release. The Arm64 runtime
       # internals job runs it on Arm64.

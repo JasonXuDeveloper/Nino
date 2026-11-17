@@ -343,24 +343,22 @@ cargo test --workspace --all-features
 ## Benchmarks
 
 ```sh
-cargo bench -p nino-bench                # every group
-cargo bench -p nino-bench -- record      # one group
+bench/generate.sh --data                                 # the .NET suite's cases (the .NET SDK)
+cargo bench -p nino-bench --bench compare                # every case
+NINO_BENCH_CASES='Simple*|Players' cargo bench -p nino-bench --bench compare
 ```
 
-`bench/benches/compare.rs` compares Nino with Protocol Buffers (prost, messages derived in the bench: no protoc),
-MessagePack (rmp-serde), bincode (2, its standard configuration: variable-length integers), postcard and serde_json on
-the same values, with criterion. Each group covers serialize and deserialize, and prints every format's encoded size:
+`bench/benches/compare.rs` runs the cases of the .NET suite (`runtimes/csharp/benchmarks`) on the bytes it writes:
+`generate.sh` writes each case's Nino and protobuf-net bytes and its .NET type, and the code nino-gen generates for
+the suite's types (`bench/src/model.rs`, `--serde`) reads .NET's bytes and must write them back. The case's value is
+then timed with Nino against Protocol Buffers (prost, on the messages of the suite's `.proto` files, which
+`build.rs` compiles without protoc), MessagePack (rmp-serde), bincode (2, its standard configuration: variable-length
+integers), postcard and serde_json on the same generated types, with criterion. A library runs a case only where
+what it reads back writes the same Nino bytes (serde_json loses a NaN, the serde formats a shared reference), and
+each case prints every format's encoded size. A new C# case needs no edit here. `NINO_BENCH_QUICK=1` runs the
+quick subset with short timings, `NINO_BENCH_DATA` moves the data.
 
-- a record;
-- 1,000 records;
-- 10,000 `i32`;
-- 10,000 `f64`;
-- 1,000 ASCII strings;
-- 1,000 strings of ASCII, Latin-1 and other text in turn (the same as the Go and TypeScript benchmarks').
-
-The Nino codecs there are what the templates generate for those types: a class's members read and written one by
-one, a raw struct as one block, and a class held as `Option<Box<_>>` (every serializer gets the same values). Compare
-changes back to back on one machine; local numbers are not published. Each release publishes one run of this
+Compare changes back to back on one machine; local numbers are not published. Each release publishes one run of this
 benchmark on GitHub's x64 and Arm64 runners (`report.yml`, `runtimes/csharp/benchmarks/reports/runtimes_report.py`): attached as
 `runtime-rust-x64.md` and `runtime-rust-arm64.md`, charted in the release notes and shown on the site's
 [Benchmarks in Other Languages](https://nino.xgamedev.net/en/docs/v4/benchmarks-runtimes).
