@@ -92,12 +92,19 @@ A generic struct that holds one is another matter. libil2cpp computes a generic 
 (`FieldLayout::LayoutFields`); reflection and fully shared generic code use those, while the code compiled for the
 type uses the C++ compiler's struct, and the two differ: `Around<T> { byte A; T B; int C; }` over that struct has `B` at
 8 in compiled code and at 4 by reflection, and a `T?` of a generic `Pack = 1` struct holds its value at 1 in compiled
-code where shared code writes it at 8, past the value. A formatter Nino builds at run time is shared generic code, so
-on IL2CPP it read and wrote such values wrong and could overwrite the heap (#378). Nino now refuses there, with a
-`NotSupportedException` naming the type, to build a formatter for a generic struct (`T?` included) that holds a struct
-whose `Pack` lowers a struct field's alignment, or a generic struct with `Pack`. A formatter the generator made is
-compiled for its type and is right: name the type as a member of a `[NinoType]`, use `NinoNullable<T>` instead of `T?`,
-or remove the `Pack`. IL2CPP on Unity 6000.6 also refuses to load an `Explicit` struct with a struct field at offset 1.
+code where shared code writes it at 8, past the value. A formatter Nino builds at run time is shared generic code, and
+Nino measured layouts by reflection, so on IL2CPP such values were read and written wrong and could overwrite the heap
+(#378). The affected generic structs (`T?` included) are those that hold a struct whose `Pack` lowers a struct field's
+alignment, and those with a `Pack` below their own fields' alignment.
+
+The generator fixes what it sees, as v3 handled these types: for every such struct a `[NinoType]` member or a top-level
+`NinoSerializer` / `NinoDeserializer` call names (with its elements, type arguments and `T?`), the registry registers
+the offsets the compiled code uses (`NinoLayoutOffsets`, measured in the registry's own compiled code), and a top-level
+call of a raw value holding one registers its formatter, which is then compiled code too. Nino.Core lays such a struct
+out from those offsets on every runtime. What the generator cannot see is still refused on IL2CPP with a
+`NotSupportedException` naming the type: a formatter reached only through generic code (`Save<T>(T value)` calling
+`NinoSerializer.Serialize(value)`), or a struct with a field generated code cannot name (private, an auto-property's).
+Name the type in code, use `NinoNullable<T>` instead of `T?`, or remove the `Pack`. IL2CPP on Unity 6000.6 also refuses to load an `Explicit` struct with a struct field at offset 1.
 `LayoutShapes` (Unity's `Assets/Test/Runtime/BclFixtureTypes.cs`) checks every layout form on every runtime.
 
 ### `Vector<T>` is not serializable
