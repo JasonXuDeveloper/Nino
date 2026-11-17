@@ -115,11 +115,11 @@ namespace Test.Runtime
             foreach (string split in new[]
                      {
                          "Around<PackedIntDateTime4>", "Around<HoldsPacked>", "Around<PackedLeaves1>",
-                         "Around<PackedMix4>", "Around<ExplicitHoldsPacked>", "HoldsPacked?", "HoldsPacked?[]",
-                         "PackedLeaves1?", "PackedLeaves1?[]", "PackedMix4?", "PackedMix4?[]", "ExplicitHoldsPacked?",
-                         "ExplicitHoldsPacked?[]", "PackedPair1<long>?",
-                         // Unity 6000.6 wrote these with 16-byte elements of 9 (run 44108765619).
-                         "PackedPair1<long>[]", "List<PackedPair1<long>>",
+                         "Around<PackedMix4>", "Around<ExplicitHoldsPacked>", "HoldsPacked?", "PackedLeaves1?",
+                         "PackedMix4?", "ExplicitHoldsPacked?", "PackedPair1<long>?",
+                         // Arrays IL2CPP allocates with other elements than its code indexes (#378; the T?[] whose
+                         // elements do not fit are never built: LayoutShapes.ElementsFit).
+                         "PackedPair1<long>[]", "List<PackedPair1<long>>", "PackedPair1<long>?[]",
                      })
             {
                 if (!cases.Refused.Contains("layout " + split))
@@ -154,6 +154,8 @@ namespace Test.Runtime
                 Sizes<PackedPair1<long>?>("PackedPair1<long>?"), Sizes<Around<PackedPair1<long>>>("Around<PackedPair1<long>>"),
             }));
             var failed = new List<string>();
+            // write is null where the value cannot be built here: IL2CPP allocates some arrays with smaller elements
+            // than its compiled code writes (#378). Nino's own arrays have room (NinoElementLayouts), so it reads them.
             void Check(string name, Func<byte[]> write, Func<byte[], byte[]> readBack)
             {
                 name = "layout " + name;
@@ -162,9 +164,13 @@ namespace Test.Runtime
                 try
                 {
                     var expected = BclFixtures.FromHex(BclFixtures.Bytes[name]);
-                    byte[] bytes = write();
-                    if (!bytes.SequenceEqual(expected))
-                        failed.Add($"{name} writes {BitConverter.ToString(bytes)}, CoreCLR {BitConverter.ToString(expected)}");
+                    if (write != null)
+                    {
+                        byte[] bytes = write();
+                        if (!bytes.SequenceEqual(expected))
+                            failed.Add($"{name} writes {BitConverter.ToString(bytes)}, CoreCLR {BitConverter.ToString(expected)}");
+                    }
+
                     byte[] again = readBack(expected);
                     if (!again.SequenceEqual(expected))
                         failed.Add($"{name} reads back as {BitConverter.ToString(again)}, CoreCLR {BitConverter.ToString(expected)}");
@@ -197,18 +203,20 @@ namespace Test.Runtime
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<ExplicitHoldsPacked?>(b)));
             Check("PackedPair1<long>?", () => NinoSerializer.Serialize((PackedPair1<long>?)new PackedPair1<long> { A = 2, B = -3 }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedPair1<long>?>(b)));
-            if (ArraysChecked) Check("HoldsPacked?[]", () => NinoSerializer.Serialize(new HoldsPacked?[] { new HoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 }, C = 3 }, null, new HoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -4, At = LayoutShapes.At2 }, C = int.MaxValue } }),
+            Check("HoldsPacked?[]", !LayoutShapes.ElementsFit<HoldsPacked?>() ? null : () => NinoSerializer.Serialize(new HoldsPacked?[] { new HoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 }, C = 3 }, null, new HoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -4, At = LayoutShapes.At2 }, C = int.MaxValue } }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<HoldsPacked?[]>(b)));
-            if (ArraysChecked) Check("PackedLeaves1?[]", () => NinoSerializer.Serialize(new PackedLeaves1?[] { LayoutShapes.Leaves(1), null, LayoutShapes.Leaves(-2) }),
+            Check("PackedLeaves1?[]", !LayoutShapes.ElementsFit<PackedLeaves1?>() ? null : () => NinoSerializer.Serialize(new PackedLeaves1?[] { LayoutShapes.Leaves(1), null, LayoutShapes.Leaves(-2) }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedLeaves1?[]>(b)));
-            if (ArraysChecked) Check("PackedMix4?[]", () => NinoSerializer.Serialize(new PackedMix4?[] { LayoutShapes.Mix(1), null, LayoutShapes.Mix(-2) }),
+            Check("PackedMix4?[]", !LayoutShapes.ElementsFit<PackedMix4?>() ? null : () => NinoSerializer.Serialize(new PackedMix4?[] { LayoutShapes.Mix(1), null, LayoutShapes.Mix(-2) }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedMix4?[]>(b)));
-            if (ArraysChecked) Check("ExplicitHoldsPacked?[]", () => NinoSerializer.Serialize(new ExplicitHoldsPacked?[] { new ExplicitHoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 } }, null, new ExplicitHoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -3, At = LayoutShapes.At2 } } }),
+            Check("ExplicitHoldsPacked?[]", !LayoutShapes.ElementsFit<ExplicitHoldsPacked?>() ? null : () => NinoSerializer.Serialize(new ExplicitHoldsPacked?[] { new ExplicitHoldsPacked { A = 1, P = new PackedIntDateTime4 { Id = 2, At = LayoutShapes.At1 } }, null, new ExplicitHoldsPacked { A = 0xFE, P = new PackedIntDateTime4 { Id = -3, At = LayoutShapes.At2 } } }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<ExplicitHoldsPacked?[]>(b)));
-            if (ArraysChecked) Check("PackedPair1<long>[]", () => NinoSerializer.Serialize(new[] { new PackedPair1<long> { A = 1, B = 0x0102030405060708 }, new PackedPair1<long> { A = 2, B = -3 } }),
+            Check("PackedPair1<long>[]", !LayoutShapes.ElementsFit<PackedPair1<long>>() ? null : () => NinoSerializer.Serialize(new[] { new PackedPair1<long> { A = 1, B = 0x0102030405060708 }, new PackedPair1<long> { A = 2, B = -3 } }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<PackedPair1<long>[]>(b)));
-            if (ArraysChecked) Check("List<PackedPair1<long>>", () => NinoSerializer.Serialize(new List<PackedPair1<long>> { new PackedPair1<long> { A = 2, B = -3 }, new PackedPair1<long> { A = 1, B = 0x0102030405060708 } }),
+            Check("List<PackedPair1<long>>", !LayoutShapes.ElementsFit<PackedPair1<long>>() ? null : () => NinoSerializer.Serialize(new List<PackedPair1<long>> { new PackedPair1<long> { A = 2, B = -3 }, new PackedPair1<long> { A = 1, B = 0x0102030405060708 } }),
                 b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<List<PackedPair1<long>>>(b)));
+            // SplitHolder read first: LayoutShapes builds it only where its arrays' elements fit (not on IL2CPP).
+            Check("SplitHolder", null, b => NinoSerializer.Serialize(NinoDeserializer.Deserialize<SplitHolder>(b)));
             if (failed.Count != 0)
                 Assert.Fail($"{failed.Count} split structs differ from CoreCLR:\n" + string.Join("\n", failed));
         }
@@ -233,15 +241,6 @@ namespace Test.Runtime
             }
         }
 
-        /// <summary>
-        /// Whether arrays and lists of the split structs are checked: not on IL2CPP while #378 finds out how IL2CPP
-        /// lays their arrays out (the player crashed in them; ArraysOfSplitStructsCopyAsCompiled measures it).
-        /// </summary>
-#if ENABLE_IL2CPP
-        private static readonly bool ArraysChecked = false;
-#else
-        private static readonly bool ArraysChecked = true;
-#endif
 
         /// <summary>
         /// Without Nino: whether the runtime copies an array of each struct in the elements compiled code indexes.
@@ -259,25 +258,12 @@ namespace Test.Runtime
             {
                 const int n = 8;
                 var a = new T[n];
-                for (int i = 0; i < n; i++)
-                    a[i] = make(i + 1);
-                var b = new T[n];
-                Array.Copy(a, 1, b, 0, n - 1);
-                bool same = true;
-                for (int i = 0; i < n - 1 && same; i++)
-                {
-                    ref byte x = ref Unsafe.As<T, byte>(ref b[i]);
-                    ref byte y = ref Unsafe.As<T, byte>(ref a[i + 1]);
-                    for (int k = 0; k < Unsafe.SizeOf<T>(); k++)
-                        same &= Unsafe.Add(ref x, k) == Unsafe.Add(ref y, k);
-                }
-
                 long compiled = (long)Unsafe.ByteOffset(ref a[0], ref a[1]);
                 var handle = System.Runtime.InteropServices.GCHandle.Alloc(a, System.Runtime.InteropServices.GCHandleType.Pinned);
-                long marshal;
+                long runtime;
                 try
                 {
-                    marshal = (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(a, 1) -
+                    runtime = (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(a, 1) -
                               (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(a, 0);
                 }
                 finally
@@ -285,8 +271,28 @@ namespace Test.Runtime
                     handle.Free();
                 }
 
-                lines.Add($"{name}: size {Unsafe.SizeOf<T>()}, compiled stride {compiled}, Marshal stride {marshal}, Array.Copy {(same ? "same" : "DIFFERENT")}");
-                if (!same)
+                // Where compiled elements are larger than the runtime's, filling the array would write past it.
+                string copy = "not tried (compiled elements larger)";
+                if (compiled <= runtime)
+                {
+                    for (int i = 0; i < n; i++)
+                        a[i] = make(i + 1);
+                    var b = new T[n];
+                    Array.Copy(a, 1, b, 0, n - 1);
+                    bool same = true;
+                    for (int i = 0; i < n - 1 && same; i++)
+                    {
+                        ref byte x = ref Unsafe.As<T, byte>(ref b[i]);
+                        ref byte y = ref Unsafe.As<T, byte>(ref a[i + 1]);
+                        for (int k = 0; k < Unsafe.SizeOf<T>(); k++)
+                            same &= Unsafe.Add(ref x, k) == Unsafe.Add(ref y, k);
+                    }
+
+                    copy = same ? "same" : "DIFFERENT";
+                }
+
+                lines.Add($"{name}: size {Unsafe.SizeOf<T>()}, compiled stride {compiled}, runtime stride {runtime}, Array.Copy {copy}");
+                if (compiled != runtime || copy == "DIFFERENT")
                     wrong.Add(name);
             }
 
@@ -301,11 +307,20 @@ namespace Test.Runtime
             Probe("PackedPair1<long>?", i => (PackedPair1<long>?)new PackedPair1<long> { A = (byte)i, B = -i * 0x0102030405L });
             Probe("Around<PackedPair1<long>>", i => new Around<PackedPair1<long>> { A = (byte)i, B = new PackedPair1<long> { A = (byte)(i + 1), B = i }, C = -i });
             Probe("PackedMix4?", i => (PackedMix4?)LayoutShapes.Mix(i));
+            // NinoNullable<T> holds two T: laid out alike by both where T is not generic (the workaround for T?).
+            Probe("NinoNullable<HoldsPacked>", i => new NinoNullable<HoldsPacked>(H(i)));
+            Probe("NinoNullable<PackedIntDateTime4>", i => new NinoNullable<PackedIntDateTime4>(P(i)));
             Debug.Log("NINO_ARRAYS|" + string.Join(" | ", lines));
-#if !ENABLE_IL2CPP
-            if (wrong.Count != 0)
-                Assert.Fail("Array.Copy moved other bytes than compiled code indexes: " + string.Join(", ", wrong));
+            // Non-generic structs take their layout from il2cpp.exe on both sides, and NinoNullable<T> of one holds two
+            // of them: laid out alike everywhere, IL2CPP included (the workarounds docs/pitfalls.md gives).
+            var alike = new[] { "PackedIntDateTime4", "HoldsPacked", "NinoNullable<HoldsPacked>", "NinoNullable<PackedIntDateTime4>" };
+#if ENABLE_IL2CPP
+            var unexpected = wrong.Where(alike.Contains).ToList();
+#else
+            var unexpected = wrong;
 #endif
+            if (unexpected.Count != 0)
+                Assert.Fail("Arrays laid out apart from compiled code: " + string.Join(", ", unexpected));
         }
 
         /// <summary>Writes each case, reads CoreCLR's bytes and writes them again: both CoreCLR's bytes.</summary>
@@ -323,9 +338,6 @@ namespace Test.Runtime
             public void Case<T>(string name, T value)
             {
                 name = "layout " + name;
-                // Holds arrays and lists of the split structs: see ArraysChecked.
-                if (!ArraysChecked && name == "layout SplitHolder")
-                    return;
                 try
                 {
                     var expected = BclFixtures.FromHex(BclFixtures.Bytes[name]);

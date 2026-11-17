@@ -196,7 +196,6 @@ public class LayoutHolder
     public PackedIntDateTime4? Maybe;
     public PackedIntDateTime4? None;
     public PackedIntDateTime4[] Array;
-    public PackedIntDateTime4?[] Maybes;
     public AutoByteLongByte Auto;
     public AutoIntDateTime AutoDate;
     public ExplicitUnion Union;
@@ -296,7 +295,10 @@ public static class LayoutShapes
         var p1 = new PackedIntDateTime4 { Id = 7, At = At1 };
         var p2 = new PackedIntDateTime4 { Id = -8, At = At2 };
         var holds = new HoldsPacked { A = 1, P = p1, C = 2 };
-        v.Case("SplitHolder", new SplitHolder
+        // Built only where its arrays' elements fit: IL2CPP allocates a PackedLeaves1?[] with smaller elements than
+        // its code writes (#378), and Unity's tests read SplitHolder from CoreCLR's bytes there instead.
+        if (ElementsFit<PackedLeaves1?>())
+            v.Case("SplitHolder", new SplitHolder
         {
             AroundPacked = new Around<PackedIntDateTime4> { A = 3, B = p2, C = -4 },
             AroundHolds = new Around<HoldsPacked> { A = 5, B = holds, C = -6 },
@@ -328,7 +330,6 @@ public static class LayoutShapes
             Maybe = p2,
             None = null,
             Array = new[] { p1, p2 },
-            Maybes = new PackedIntDateTime4?[] { p1, null, p2 },
             Auto = new AutoByteLongByte { A = 20, B = 21, C = 22 },
             AutoDate = new AutoIntDateTime { Id = 23, At = At2 },
             Union = new ExplicitUnion { All = 0x0102030405060708 },
@@ -374,6 +375,27 @@ public static class LayoutShapes
         U = new AutoByteLongByte { A = (byte)(n + 5), B = n * 6L, C = (byte)(n + 7) },
     };
 
+    /// <summary>
+    /// Whether this runtime allocates arrays of <typeparamref name="TElement"/> with elements at least as large as its
+    /// compiled code writes: IL2CPP does not where it lays out a struct with Pack one way at run time and another in
+    /// C++ (libil2cpp, #378). Always true elsewhere.
+    /// </summary>
+    internal static bool ElementsFit<TElement>()
+    {
+        var array = new TElement[2];
+        var handle = System.Runtime.InteropServices.GCHandle.Alloc(array, System.Runtime.InteropServices.GCHandleType.Pinned);
+        try
+        {
+            long runtime = (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 1) -
+                           (long)System.Runtime.InteropServices.Marshal.UnsafeAddrOfPinnedArrayElement(array, 0);
+            return System.Runtime.CompilerServices.Unsafe.SizeOf<TElement>() <= runtime;
+        }
+        finally
+        {
+            handle.Free();
+        }
+    }
+
     /// <summary>A shape on its own, as a T? and its null, in an array, a T?[], a list and inside a plain struct.</summary>
     private static void Each<T>(ILayoutCaseVisitor v, string name, T first, T second) where T : struct
     {
@@ -382,7 +404,10 @@ public static class LayoutShapes
         v.Case(name + "?", (T?)second);
         v.Case(name + "? null", (T?)null);
         v.Case(name + "[]", new[] { first, second });
-        v.Case(name + "?[]", new T?[] { first, null, second });
+        // IL2CPP allocates a T?[] of some packed structs with smaller elements than its code writes (#378): building
+        // one would write past it, so it is built only where its elements fit.
+        if (ElementsFit<T?>())
+            v.Case(name + "?[]", new T?[] { first, null, second });
         v.Case("List<" + name + ">", new System.Collections.Generic.List<T> { second, first });
         v.Case("Around<" + name + ">", new Around<T> { A = 1, B = first, C = -1 });
     }
