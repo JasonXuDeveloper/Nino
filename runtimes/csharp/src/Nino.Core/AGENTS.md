@@ -69,8 +69,9 @@ NinoFieldBlock.cs            generated raw bodies of classes: whether the fields
 NinoDirect.cs                the top-level calls with the formatter the generator resolved (what interceptors call;
                              ...Prefetched for arrays and lists of prefetching classes (PrefetchBytes); the sequence and
                              Stream forms, the latter through NinoStreams)
-NinoDictionaryEntry.cs       NinoDictionaryEntry: a Dictionary entry as the runtime lays it out; NinoDictionaryEntries.InUse:
-                             a dictionary's entries in place of its enumerator (generated pair loops, NinoDictionary)
+NinoRun.cs                   NinoRun: the run cursor over any contiguous storage (first value, count, stride, the key's
+                             offset and write, the in-use test of free entries) and the pieces of a loop over it
+                             (Next, Skips, WriteKey, Value; WriteEach, the deep path); what INinoFormatter.WriteRun takes
 NinoBlockMap.cs              NinoBlockMap: where a block's bytes lie in a value's memory, built item by item (Item)
 NinoBlocks.cs                NinoBlocks: the items of composites (ItemSize, WriteItem, ReadItem: raw, or a block through
                              constrained calls), and the offsets NinoBlockMap is built from
@@ -101,9 +102,8 @@ Registration/                what a generated registry calls at startup:
 
 ```
 NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capability members with defaults: FixedSize,
-                             WriteFixed, BlockMap, ReadBlock, WriteElements, internal slots) and the non-generic
-                             INinoFormatter it extends (BodyTraits; the element and pair loops of polymorphic bases:
-                             HasElementLoop, HasPairLoop, WritePairs32/64, WriteStringPairs; the prefetch of long
+                             WriteFixed, BlockMap, ReadBlock, internal slots) and the non-generic INinoFormatter it
+                             extends (BodyTraits; the run loop of polymorphic bases: HasRunLoop, WriteRun; the prefetch of long
                              collections of classes: PrefetchBytes, HasMemberPrefetch, PrefetchMembers; internal
                              HasSizedWrite, HasExternalWrite); NinoFormatterBase<T> and its struct wrappers
                              (StructFormatter, FixedStructFormatter, TopStructFormatter, NestingFormatter),
@@ -203,10 +203,12 @@ NinoRecycler.cs              NinoRecycler<T> / NinoRecycler: where reuse deseria
 ### Internal/Collections/Storage/
 
 ```
-CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, LinkedNode; a dictionary's
-                             entries as NinoDictionaryEntry)
+CollectionFields.cs          those fields at the offsets CollectionViews found (SetEntry, MapEntry, LinkedNode); the runs
+                             of a set's and a dictionary's entries (Run); EntryBlock, the one block formatter of their
+                             entries, with the items it moves (SetValue, SetValueBytes, MapPair)
 CollectionViews.cs           field layouts of List, Stack, Queue, LinkedList, HashSet, Dictionary, SortedList, SortedSet,
-                             SortedDictionary per runtime (offsets, the first candidate that passes), as static fields
+                             SortedDictionary per runtime (offsets, the first candidate that passes), as static fields;
+                             how a set and a dictionary mark free entries (SetFree, MapFree)
 CollectionViews.Mirrors.cs   the candidates: mirror classes per runtime, the fields by name (UnsafeAccessor, net10.0)
 CollectionViews.Checks.cs    the startup checks of each candidate against an instance with known contents
 ConcurrentStackNodes.cs      read-only CoreLib ConcurrentStack node snapshots for raw writes, startup-checked
@@ -231,17 +233,21 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 ```
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
 NinoKind.cs                  the one element-kind decision every collection reads: NinoKind<TFormatter> (what a formatter
-                             says of every value, read once: Traits, IsString, the element and pair loops, prefetch,
+                             says of every value, read once: Traits, IsString, the run loop, prefetch,
                              the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
                              slot, block or per value, with Stride, MinWire, CopiedWhole, ReadOverwrites, Heavy,
                              HeavyHashed), NinoKind.Of / Stride (read behind the no-references guard)
-NinoElements.cs              shared element loops of array-like formatters, one path per kind; capacity budgets and the
-                             read policies' accessors (MinWireSize, CopiedWhole, ReadOverwrites, from NinoKind)
+NinoRuns.cs                  the write loops over a run (NinoRun), one per element kind: values in a row (arrays, lists,
+                             spans, ring halves), a set's entries, a dictionary's entries (the pair: blocks gathered,
+                             a polymorphic value's WriteRun, string pairs, value by value)
+NinoElements.cs              shared element reads of array-like formatters, one path per kind, the one-block write and
+                             one-value write and read; capacity budgets and the read policies' accessors (MinWireSize,
+                             CopiedWhole, ReadOverwrites, from NinoKind)
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
                              out-of-line helper per run; Threshold and ReverseReadIsLocal of a formatter's PrefetchBytes
-NinoDictionary.cs            shared dictionary read, write and reuse loops
+NinoDictionary.cs            shared dictionary reads and reuse; its write builds the entries' run (NinoRuns)
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views; linked-list ring
 BclDictionaries.cs           runtime-owned concurrent and sorted dictionaries

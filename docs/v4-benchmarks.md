@@ -461,12 +461,12 @@ the result objects.
   generic over the key and value types only (the dictionary type itself would be a reference-type parameter,
   making the whole loop shared generic code); exact `Dictionary<,>` members get a formatter without the
   dictionary type parameter, which also shortens generated code. Raw `HashSet<T>` and `Dictionary<TKey, TValue>` are written from their
-  entries array when none has been removed (the layouts of .NET 64-bit and 32-bit and of .NET Framework and Mono are
-  checked at startup), without the enumerator's version check and field reloads on every element: as blocks of a
-  struct whose memory is the entry (`SetEntryBlock`, `MapEntryBlock`), so the vector permutes that pack padded
-  structs move several entries at a time, each key and value taken out of its entry (the netstandard builds: the
-  registered kernels, else one at a time); with removed
-  entries, or no layout recognized, through the enumerator, out of line. A new one that a read creates (default
+  entries array (the layouts of .NET 64-bit and 32-bit and of .NET Framework and Mono, and how each marks a removed
+  entry, are checked at startup), without the enumerator's version check and field reloads on every element: as
+  blocks of the entry (`EntryBlock`, the items of its element at their offsets in it), so the vector permutes that pack
+  padded structs move several entries at a time, each key and value taken out of its entry (the netstandard builds:
+  the registered kernels, else one at a time); with removed entries, value by value over the entries, skipping the
+  free ones; with no layout recognized, through the enumerator, out of line. A new one that a read creates (default
   comparer) is filled the other way round: entries and buckets written as `Add` would, after the constructor or
   `EnsureCapacity` sized it, without `Add`'s comparer, free-list, resize and version checks per element; the bucket
   is .NET's fast modulo where the table keeps its multiplier, else the remainder, and the hashing (31-bit mask, bucket
