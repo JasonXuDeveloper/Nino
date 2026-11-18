@@ -65,8 +65,8 @@ namespace Nino.Core
         private static Writer WriteEach(PriorityQueue<TElement, TPriority> value, Writer writer)
         {
             int count = value.Count;
-            if (count >= 8 && RawFormatter.Is<TElement, TElementFormatter>() &&
-                RawFormatter.Is<TPriority, TPriorityFormatter>())
+            if (count >= 8 && NinoKind.Of<TElement, TElementFormatter>() == NinoElementKind.Raw &&
+                NinoKind.Of<TPriority, TPriorityFormatter>() == NinoElementKind.Raw)
                 WriteRawPairs(value, count, ref writer);
             else
                 WriteEach(value, ref writer);
@@ -112,7 +112,8 @@ namespace Nino.Core
 
 #if NET10_0_OR_GREATER
             if (length >= 16 && typeof(TElement) == typeof(int) && typeof(TPriority) == typeof(int) &&
-                RawFormatter.Is<TElement, TElementFormatter>() && RawFormatter.Is<TPriority, TPriorityFormatter>() &&
+                NinoKind.Of<TElement, TElementFormatter>() == NinoElementKind.Raw &&
+                NinoKind.Of<TPriority, TPriorityFormatter>() == NinoElementKind.Raw &&
                 PriorityQueueHeap.TryAdopt(Unsafe.As<PriorityQueue<int, int>>(queue), length, ref reader))
                 return;
 #endif

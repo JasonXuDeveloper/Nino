@@ -41,7 +41,7 @@ namespace Nino.Core
             }
 
             if (value is ICollection<TElement> collection &&
-                (NinoElements.BlockStride<TElement, TElementFormatter>() > 0 ||
+                (NinoKind.Stride<TElement, TElementFormatter>() > 0 ||
                  collection.Count >= NinoCollections.CopiedFrom))
             {
                 writer = WriteCollection(value.Key, collection, writer);
@@ -103,7 +103,7 @@ namespace Nino.Core
             default(TKeyFormatter).Deserialize(ref reader, ref key);
             TElement[] elements;
             if (Unsafe.SizeOf<TElement>() <= NinoElements.Amplification ||
-                !NinoElements.HeavyElements<TElement, TElementFormatter>.Value)
+                !NinoKind<TElement, TElementFormatter>.Heavy)
             {
                 elements = NinoUnsafe.NewArray<TElement>(count,
                     NinoElements.CopiedWhole<TElement, TElementFormatter>());

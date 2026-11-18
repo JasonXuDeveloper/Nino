@@ -76,6 +76,12 @@ internal static class FormatterEmitter
             else
                 EmitDispatchingEntryPoints(w, m, names, ownId: false);
             w.Line();
+            if (m.DispatchesSubtypes)
+            {
+                EmitBodyTraits(w, m);
+                w.Line();
+            }
+
             if (m.Inheritance.EmitMembers)
             {
                 body.EmitMembersMethods();
@@ -380,13 +386,21 @@ internal static class FormatterEmitter
         w.Line($"public int TypeId => {m.TypeId.ToString(CultureInfo.InvariantCulture)};");
     }
 
+    /// <summary>
+    /// <c>BodyTraits</c>: NinoBodyTraits.Nests, Deferrable and Dispatches (a formatter that dispatches its subtypes,
+    /// which Nino.Core reads once per formatter, NinoKind).
+    /// </summary>
+    private static void EmitBodyTraits(CodeWriter w, TypeModel m)
+    {
+        int traits = (m.Depth.Nests ? 1 : 0) | (m.Depth.Deferrable ? 2 : 0) | (m.DispatchesSubtypes ? 4 : 0);
+        w.Line($"public int BodyTraits => {traits};");
+    }
+
     /// <summary>Whether a body nested too deep can be read later, and the empty instance it is read into.</summary>
     private static void EmitDeferral(CodeWriter w, TypeModel m, FormatterNames names, bool forwardCreate = false)
     {
         string t = m.TypeName;
-        // NinoBodyTraits.Nests and NinoBodyTraits.Deferrable.
-        int traits = (m.Depth.Nests ? 1 : 0) | (m.Depth.Deferrable ? 2 : 0);
-        w.Line($"public int BodyTraits => {traits};");
+        EmitBodyTraits(w, m);
         if (!m.Depth.Deferrable)
         {
             w.Line($"public {t} Create() => default;");

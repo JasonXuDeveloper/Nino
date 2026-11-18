@@ -23,7 +23,7 @@ namespace Nino.Core.CompilerServices
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T, TFormatter>(in T value) where TFormatter : struct, INinoFormatter<T> =>
-            NinoTopWrites<TFormatter>.Sized && NinoSized.Serialize<T, TFormatter>(value) is { } sized
+            NinoKind<TFormatter>.SizedWrite && NinoSized.Serialize<T, TFormatter>(value) is { } sized
                 ? sized
                 : NinoScratch.ToArray(value, default(DirectWriter<T, TFormatter>));
 

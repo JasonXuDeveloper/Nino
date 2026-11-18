@@ -29,7 +29,7 @@ namespace Nino.Core
                 // Elements far larger in memory than on the wire: out of line, the array grown as they are read
                 // where the data could not fill as many, from the one the collection has (created with a clamped
                 // capacity), cleared as above.
-                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy)
                 {
                     if (!NinoElements.ReadOverwrites<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
                         Array.Clear(items, 0, items.Length);

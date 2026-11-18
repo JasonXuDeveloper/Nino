@@ -78,7 +78,7 @@ namespace Nino.CodeGen
             sb.Append("            var array = value;\n");
             sb.Append($"            if (!MultiDim.SameShape(array, {rank}, in shape))\n");
             sb.Append("            {\n");
-            sb.Append("                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&\n");
+            sb.Append("                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy &&\n");
             sb.Append("                    shape.Total != 0)\n");
             sb.Append("                {\n");
             sb.Append("                    ReadHeavy(ref value, in shape, ref reader);\n");

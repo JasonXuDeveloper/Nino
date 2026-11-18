@@ -43,7 +43,7 @@ namespace Nino.Core
                 int count = CollectionFields.Size<T>(value);
                 int head = CollectionFields.Head<T>(value);
                 int first = Math.Min(count, ring.Length - head);
-                int block = NinoElements.BlockStride<T, TFormatter>();
+                int block = NinoKind.Stride<T, TFormatter>();
                 if (block > 0)
                 {
                     // The prefix and both parts of a wrapped ring fit in the same reservation.
@@ -89,7 +89,7 @@ namespace Nino.Core
 
             var queue = value ??= typeof(TQueue) == typeof(Queue<T>)
                 ? (TQueue)new Queue<T>(Unsafe.SizeOf<T>() > NinoElements.Amplification &&
-                    NinoElements.HeavyElements<T, TFormatter>.Value
+                    NinoKind<T, TFormatter>.Heavy
                     ? NinoElements.Capacity(length, Unsafe.SizeOf<T>(), reader.Remaining)
                     : length)
                 : NinoActivator<TQueue>.Create();
@@ -110,7 +110,7 @@ namespace Nino.Core
             }
 
             // Slots (raw T?): read as one run, as an array of them is, then added.
-            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
             {
                 NinoCollections.AddSlots<TQueue, T, TFormatter, Adder>(queue, length, ref reader);
                 return;

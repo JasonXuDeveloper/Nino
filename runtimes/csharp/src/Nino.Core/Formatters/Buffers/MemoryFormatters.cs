@@ -46,7 +46,7 @@ namespace Nino.Core
             if (value.Length != length)
             {
                 // Out of line where the elements take far more memory than the data (see ArrayFormatter).
-                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy)
                 {
                     T[] grown = null;
                     reader = NinoElements.ReadGrowing<T, TFormatter>(ref grown, length, reader);

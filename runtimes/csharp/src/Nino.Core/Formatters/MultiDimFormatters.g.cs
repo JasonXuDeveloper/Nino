@@ -44,7 +44,7 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, 2, in shape))
             {
-                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy &&
                     shape.Total != 0)
                 {
                     ReadHeavy(ref value, in shape, ref reader);
@@ -112,7 +112,7 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, 3, in shape))
             {
-                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy &&
                     shape.Total != 0)
                 {
                     ReadHeavy(ref value, in shape, ref reader);
@@ -180,7 +180,7 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, 4, in shape))
             {
-                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value &&
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoKind<T, TFormatter>.Heavy &&
                     shape.Total != 0)
                 {
                     ReadHeavy(ref value, in shape, ref reader);

@@ -330,17 +330,18 @@ public class NullableSlotTests
         One<bool?, UnmanagedNullableFormatter<bool>>(new bool?[] { true, null, false }, 2);
         One<SlotPoint?, UnmanagedNullableFormatter<SlotPoint>>(new SlotPoint?[] { new SlotPoint { X = 1, Y = 2 }, null }, 12);
         // Others go through their formatter.
-        Assert.AreEqual(-1, NinoElements.SlotStride<int, UnmanagedFormatter<int>>());
-        Assert.AreEqual(-1, NinoElements.SlotStride<NinoNullable<int>, UnmanagedFormatter<NinoNullable<int>>>());
-        Assert.AreEqual(-1, NinoElements.SlotStride<string, StringFormatter>());
-        Assert.AreEqual(-1, NinoElements.SlotStride<DateTimeOffset?,
-            NullableFormatter<DateTimeOffset, DateTimeOffsetFormatter>>());
+        Assert.AreEqual(NinoElementKind.Raw, NinoKind.Of<int, UnmanagedFormatter<int>>());
+        Assert.AreEqual(NinoElementKind.Raw,
+            NinoKind.Of<NinoNullable<int>, UnmanagedFormatter<NinoNullable<int>>>());
+        Assert.AreEqual(NinoElementKind.PerValue, NinoKind.Of<string, StringFormatter>());
+        Assert.AreEqual(NinoElementKind.PerValue,
+            NinoKind.Of<DateTimeOffset?, NullableFormatter<DateTimeOffset, DateTimeOffsetFormatter>>());
     }
 
     private static void One<T, TFormatter>(T[] items, int stride) where TFormatter : struct, INinoFormatter<T>
     {
-        Assert.AreEqual(stride, NinoElements.SlotStride<T, TFormatter>());
-        Assert.AreEqual(stride, NinoElements.BlockStride<T, TFormatter>());
+        Assert.AreEqual(NinoElementKind.Slot, NinoKind.Of<T, TFormatter>());
+        Assert.AreEqual(stride, NinoKind.Stride<T, TFormatter>());
         Assert.AreEqual(stride, NinoElements.MinWireSize<T, TFormatter>());
         Assert.AreEqual(1, NinoElements.MinSingleSize<T, TFormatter>());
 

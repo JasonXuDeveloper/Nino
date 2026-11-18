@@ -6,7 +6,7 @@ namespace Nino.Core.CompilerServices
     /// <summary>
     /// Formatter for the body of a <c>[NinoType]</c>: the members, without the null/type header.
     /// Implemented by generated formatters and used for polymorphic dispatch. Each implements
-    /// <see cref="INinoFormatter{T}.BodyTraits"/> too, which the dispatch asks per value.
+    /// <see cref="INinoFormatter.BodyTraits"/> too, which the dispatch asks per value.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public interface INinoBodyFormatter<T> : INinoFormatter<T>
@@ -27,7 +27,7 @@ namespace Nino.Core.CompilerServices
         T Create();
     }
 
-    /// <summary>The flags of <see cref="INinoFormatter{T}.BodyTraits"/>.</summary>
+    /// <summary>The flags of <see cref="INinoFormatter.BodyTraits"/>.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoBodyTraits
     {
@@ -43,6 +43,12 @@ namespace Nino.Core.CompilerServices
         /// compared by value.
         /// </summary>
         public const int Deferrable = 2;
+
+        /// <summary>
+        /// The formatter dispatches its values' subtypes (a polymorphic base's generated formatter): a collection of
+        /// them takes the dispatch per value inline in its loop.
+        /// </summary>
+        public const int Dispatches = 4;
     }
 
     /// <summary>

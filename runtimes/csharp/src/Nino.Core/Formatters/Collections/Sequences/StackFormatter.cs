@@ -83,7 +83,7 @@ namespace Nino.Core
 
             var stack = value ??= typeof(TStack) == typeof(Stack<T>)
                 ? (TStack)new Stack<T>(Unsafe.SizeOf<T>() > NinoElements.Amplification &&
-                    NinoElements.HeavyElements<T, TFormatter>.Value
+                    NinoKind<T, TFormatter>.Heavy
                     ? NinoElements.Capacity(length, Unsafe.SizeOf<T>(), reader.Remaining)
                     : length)
                 : NinoActivator<TStack>.Create();
@@ -100,7 +100,7 @@ namespace Nino.Core
             }
 
             // Slots (raw T?): read as one run, as an array of them is, then added.
-            if (NinoElements.SlotStride<T, TFormatter>() > 0)
+            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
             {
                 NinoCollections.AddSlots<TStack, T, TFormatter, Adder>(stack, length, ref reader);
                 return;

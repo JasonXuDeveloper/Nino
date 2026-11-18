@@ -242,17 +242,17 @@ public class ElementFormatterTests
     public void PlainFormatterHasNoCapabilities()
     {
         Assert.AreEqual(-1, NinoBlockPlan<Label, LabelFormatter>.Size);
-        Assert.AreEqual(-1, NinoSlots<Label, LabelFormatter>.Stride);
+        Assert.AreEqual(NinoElementKind.PerValue, NinoKind.Of<Label, LabelFormatter>());
         Assert.AreEqual(-1, NinoBlockPlan<Cell, CellPlainFormatter>.Size);
-        Assert.AreEqual(-1, NinoSlots<Cell, CellPlainFormatter>.FixedStride);
+        Assert.AreEqual(-1, NinoKind.Stride<Cell, CellPlainFormatter>());
         Assert.AreEqual(6, NinoBlockPlan<Cell, CellBlockFormatter>.Size);
-        Assert.AreEqual(6, NinoSlots<Cell, CellBlockFormatter>.FixedStride);
-        Assert.IsFalse(NinoTopWrites<LabelFormatter>.Sized);
-        Assert.IsFalse(NinoTopWrites<LabelFormatter>.External);
-        Assert.IsTrue(NinoTopWrites<ArrayFormatter<Label, LabelFormatter>>.Sized);
-        Assert.IsTrue(NinoTopWrites<UnmanagedListFormatter<List<int>, int>>.External);
-        Assert.AreEqual(int.MaxValue, NinoPrefetch.Of<LabelFormatter>.Threshold);
-        Assert.IsFalse(NinoPrefetch.Of<LabelFormatter>.Members);
+        Assert.AreEqual(6, NinoKind.Stride<Cell, CellBlockFormatter>());
+        Assert.IsFalse(NinoKind<LabelFormatter>.SizedWrite);
+        Assert.IsFalse(NinoKind<LabelFormatter>.ExternalWrite);
+        Assert.IsTrue(NinoKind<ArrayFormatter<Label, LabelFormatter>>.SizedWrite);
+        Assert.IsTrue(NinoKind<UnmanagedListFormatter<List<int>, int>>.ExternalWrite);
+        Assert.AreEqual(int.MaxValue, NinoKind<LabelFormatter>.PrefetchThreshold);
+        Assert.IsFalse(NinoKind<LabelFormatter>.PrefetchMembers);
     }
 
     [TestMethod]
@@ -331,10 +331,10 @@ public class ElementFormatterTests
     [TestMethod]
     public void LoopFormatterAsElementOfEveryCollection()
     {
-        Assert.IsFalse(NinoLoops<NotePlainFormatter>.Elements);
-        Assert.IsFalse(NinoLoops<NotePlainFormatter>.Pairs);
-        Assert.IsTrue(NinoLoops<NoteLoopFormatter>.Elements);
-        Assert.IsTrue(NinoLoops<NoteLoopFormatter>.Pairs);
+        Assert.IsFalse(NinoKind<NotePlainFormatter>.Elements);
+        Assert.IsFalse(NinoKind<NotePlainFormatter>.Pairs);
+        Assert.IsTrue(NinoKind<NoteLoopFormatter>.Elements);
+        Assert.IsTrue(NinoKind<NoteLoopFormatter>.Pairs);
         Assert.IsFalse(NinoElements.WritesOnLocal<Note, NotePlainFormatter>());
         Assert.IsTrue(NinoElements.WritesOnLocal<Note, NoteLoopFormatter>());
 
@@ -392,10 +392,10 @@ public class ElementFormatterTests
     [TestMethod]
     public void PrefetchFormatterAsElementOfLongArraysAndLists()
     {
-        Assert.IsTrue(NinoPrefetch.Of<NotePrefetchFormatter>.Members);
-        Assert.IsFalse(NinoPrefetch.Of<NoteObjectPrefetchFormatter>.Members);
-        Assert.AreEqual(NinoPrefetch.Supported, NinoPrefetch.Of<NotePrefetchFormatter>.Threshold != int.MaxValue);
-        Assert.AreEqual(NinoPrefetch.Supported, NinoPrefetch.Of<NoteObjectPrefetchFormatter>.Threshold != int.MaxValue);
+        Assert.IsTrue(NinoKind<NotePrefetchFormatter>.PrefetchMembers);
+        Assert.IsFalse(NinoKind<NoteObjectPrefetchFormatter>.PrefetchMembers);
+        Assert.AreEqual(NinoPrefetch.Supported, NinoKind<NotePrefetchFormatter>.PrefetchThreshold != int.MaxValue);
+        Assert.AreEqual(NinoPrefetch.Supported, NinoKind<NoteObjectPrefetchFormatter>.PrefetchThreshold != int.MaxValue);
 
         // Longer than any threshold of NotePrefetchFormatter's, shuffled so the objects are not in allocation order.
         var notes = Enumerable.Range(0, 3000).Select(i => new Note { Code = i, Text = "n" + i }).ToArray();

@@ -20,6 +20,17 @@ namespace Nino.Core
     public interface INinoFormatter
     {
         /// <summary>
+        /// What a value's body does, as <see cref="NinoBodyTraits"/> flags (a constant):
+        /// <see cref="NinoBodyTraits.Nests"/> (the default: a formatter that says nothing may open class bodies),
+        /// <see cref="NinoBodyTraits.Deferrable"/> and <see cref="NinoBodyTraits.Dispatches"/>. Every
+        /// <see cref="CompilerServices.INinoBodyFormatter{T}"/> implements it, and is asked it per value; of other
+        /// formatters it is asked once per type (a sealed class whose body opens no class body is written through a
+        /// local writer in collection loops). On the non-generic interface, so it is read into a field keyed on the
+        /// formatter alone.
+        /// </summary>
+        int BodyTraits => NinoBodyTraits.Nests;
+
+        /// <summary>
         /// Whether <see cref="INinoFormatter{T}.WriteElements"/> writes an array's or a list's elements in one loop
         /// (false, the default): generated formatters of polymorphic bases, whose loop has the subtype dispatch inline
         /// and the writer in a local. Called once.
@@ -107,7 +118,7 @@ namespace Nino.Core
     /// <see cref="Serialize"/> and <see cref="Deserialize"/> are all a formatter has to implement. The other members
     /// are capabilities with defaults that report none: values of a fixed size (<see cref="FixedSize"/>,
     /// <see cref="WriteFixed"/>), blocks a collection moves as one run (<see cref="BlockMap"/>,
-    /// <see cref="ReadBlock"/>), what a class body does (<see cref="BodyTraits"/>), the element and pair loops of
+    /// <see cref="ReadBlock"/>), what a class body does (<see cref="INinoFormatter.BodyTraits"/>), the element and pair loops of
     /// polymorphic bases (<see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>) and the
     /// prefetch of long collections of classes (<see cref="INinoFormatter.PrefetchBytes"/>), implemented by generated
     /// formatters and Nino.Core's own where they apply; Nino.Core's collection formatters also have internal ones (slots,
@@ -116,7 +127,7 @@ namespace Nino.Core
     /// <para>
     /// The rule that keeps the defaults free: a call to a default a struct does not override boxes the struct
     /// (CoreCLR, Mono, IL2CPP). So only the queries (<see cref="FixedSize"/>, <see cref="BlockMap"/>,
-    /// <see cref="BodyTraits"/>, <see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>,
+    /// <see cref="INinoFormatter.BodyTraits"/>, <see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>,
     /// <see cref="INinoFormatter.PrefetchBytes"/>, <see cref="INinoFormatter.HasMemberPrefetch"/> and the internal
     /// ones) are ever called on a formatter that may lack a capability, once per type into a
     /// <c>static readonly</c> field the JIT folds; the hot members are called only where that field says the
@@ -173,16 +184,6 @@ namespace Nino.Core
         void ReadBlock(ref T value, ref byte source) => NinoThrow.MissingCapability(GetType(), nameof(ReadBlock));
 
         /// <summary>
-        /// What a class body does, as <see cref="NinoBodyTraits"/> flags (a constant):
-        /// <see cref="NinoBodyTraits.Nests"/> (the default: a formatter that says nothing may open class bodies) and
-        /// <see cref="NinoBodyTraits.Deferrable"/>. Every <see cref="INinoBodyFormatter{T}"/> implements it, and is
-        /// asked it per value; of other formatters it is asked once per type (a sealed class whose body opens no class
-        /// body is written through a local writer in collection loops).
-        /// </summary>
-        [EditorBrowsable(EditorBrowsableState.Never)]
-        int BodyTraits => NinoBodyTraits.Nests;
-
-        /// <summary>
         /// Writes every element of <paramref name="values"/> (not empty) as <see cref="Serialize"/> writes one.
         /// Called only where <see cref="INinoFormatter.HasElementLoop"/> is true.
         /// </summary>
@@ -194,7 +195,7 @@ namespace Nino.Core
         /// The bytes of a slot, or -1 (the default): values whose element in a collection is a slot of a fixed size,
         /// where a single value (a member, a tuple's item, a dictionary's key or value) is written another way (a raw
         /// <c>T?</c>: <see cref="UnmanagedNullableFormatter{T}"/>). Every sequence moves them as one block
-        /// (<see cref="NinoElements.BlockStride{T,TFormatter}"/>), and writes or reads one that it holds apart through
+        /// (<see cref="NinoElementKind.Slot"/>), and writes or reads one that it holds apart through
         /// <see cref="NinoElements.WriteOne{T,TFormatter}"/> and <see cref="NinoElements.ReadOne{T,TFormatter}"/>,
         /// never through <see cref="Serialize"/>. Nino.Core's alone.
         /// </summary>
@@ -257,27 +258,13 @@ namespace Nino.Core
         }
     }
 
-    /// <summary>
-    /// The top-level write capabilities of <typeparamref name="TFormatter"/>, read once per formatter (as
-    /// <see cref="NinoLoops{TFormatter}"/>): a formatter without them answers through its interface's default, boxed,
-    /// so the top-level calls read these fields and call the members only where it has them.
-    /// </summary>
-    internal static class NinoTopWrites<TFormatter> where TFormatter : struct, INinoFormatter
-    {
-        /// <summary><see cref="INinoFormatter.HasSizedWrite"/>.</summary>
-        public static readonly bool Sized = default(TFormatter).HasSizedWrite;
-
-        /// <summary><see cref="INinoFormatter.HasExternalWrite"/>.</summary>
-        public static readonly bool External = default(TFormatter).HasExternalWrite;
-    }
-
     /// <summary>Top-level serialization of a value whose size its formatter knows (<see cref="INinoFormatter{T}.Size"/>).</summary>
     internal static class NinoSized
     {
         /// <summary>
         /// <paramref name="value"/> as a new array of exactly its bytes, written straight into it; null when its size is
         /// not known up front. The same bytes as a writer writes. Only where
-        /// <see cref="NinoTopWrites{TFormatter}.Sized"/>.
+        /// <see cref="NinoKind{TFormatter}.SizedWrite"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
@@ -464,14 +451,14 @@ namespace Nino.Core
         internal override INinoRawArrayFormatter RawArray =>
             default(TFormatter) is INinoRawArrayFormatter raw && raw.ElementSize != 0 ? raw : null;
 
-        internal override bool Sized => NinoTopWrites<TFormatter>.Sized;
+        internal override bool Sized => NinoKind<TFormatter>.SizedWrite;
 
         internal override byte[] SerializeSized(T value) => NinoSized.Serialize<T, TFormatter>(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal override void WriteExternal(T value, IBufferWriter<byte> buffer)
         {
-            if (NinoTopWrites<TFormatter>.External && default(TFormatter).TryWriteExternal(value, buffer))
+            if (NinoKind<TFormatter>.ExternalWrite && default(TFormatter).TryWriteExternal(value, buffer))
                 return;
             base.WriteExternal(value, buffer);
         }
