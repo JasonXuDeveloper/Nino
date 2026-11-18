@@ -178,6 +178,14 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   the same list, bytes identical, the chain took 4.93 us in a fixed order and 4.84 shuffled, the virtual calls 5.15
   and 6.95 (LuminPack 4.40): the indirect call mispredicts once the order is mixed and the writer leaves registers
   across it (local x64, 13b9a7b3). LuminPack's lead is not its dispatch.
+- Keep each non-flat subtype of a generated read switch a direct call (`__ReadExactN`, `NoInlining`, the reader by
+  reference); never send them, with the slot-holds-another-type and too-deep cases, through one out-of-line complete
+  read that takes the reader by value (`ReadSubtypeOutOfLine` through a constrained `INinoSubtypeDispatch` call).
+  Why: the by-value copy, the constrained call and a second switch on the id cost more than keeping the loop's reader
+  in registers saves, and the loop it was for did not get faster. Evidence (#305, 31ecdf6a's dispatch, run
+  44255510084 against main c2c6920b, 3 rounds, EPYC 7763 and Neoverse-N2): GenericSealedClassTupleBase read
+  0.68–0.81x, GenericOpenClassTupleBase 0.73–0.80x, WorkloadTest CardBattleLog 0.74–0.79x, PolymorphicFooArray and
+  PolymorphicClass on par (0.96–1.06x); not landed.
 
 - Write an array or a list of a polymorphic base through the base's generated element loop
   (`INinoElementsFormatter.WriteElements`, `DispatchEmitter.EmitWriteElements`): the chain of type checks inline in
