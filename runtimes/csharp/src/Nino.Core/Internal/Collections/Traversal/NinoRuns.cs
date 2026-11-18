@@ -584,17 +584,20 @@ namespace Nino.Core.Internal
         {
             if (ScattersSet<T, TFormatter>())
             {
-                ReadSetBlocks<T, TFormatter>(run, ref TakeSet<T, TFormatter>(ref reader, run.Count));
+                ScatterSet<T, TFormatter>(run, ref TakeSet<T, TFormatter>(ref reader, run.Count));
                 return;
             }
 
             reader = ReadSetEach<T, TFormatter>(run, reader);
         }
 
-        /// <summary>The values a set takes as one block, scattered into its entries (the gather of
-        /// <see cref="WriteSet{T,TFormatter}"/> the other way).</summary>
+        /// <summary>
+        /// The values a set takes as one block (<see cref="TakeSet{T,TFormatter}"/>'s, at <paramref name="source"/>),
+        /// scattered into its entries: the gather of <see cref="WriteSet{T,TFormatter}"/> the other way. A caller that
+        /// takes the block itself (to keep its reader out of a call) passes it here.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadSetBlocks<T, TFormatter>(NinoRun run, ref byte source)
+        public static void ScatterSet<T, TFormatter>(NinoRun run, ref byte source)
             where TFormatter : struct, INinoFormatter<T>
         {
             ref var entries = ref CollectionFields.SetEntryOf<T>(ref run.First);
@@ -638,7 +641,7 @@ namespace Nino.Core.Internal
         {
             if (ScattersItems<TKey, TKeyFormatter>() && ScattersItems<TValue, TValueFormatter>())
             {
-                ReadPairBlocks<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
+                ScatterPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(run,
                     ref TakePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(ref reader, run.Count));
                 return;
             }
@@ -646,10 +649,13 @@ namespace Nino.Core.Internal
             reader = ReadPairsEach<TKey, TValue, TKeyFormatter, TValueFormatter>(run, reader);
         }
 
-        /// <summary>The pairs scattered into a dictionary's entries (the gather of <see cref="WritePairBlocks"/> the
-        /// other way).</summary>
+        /// <summary>
+        /// The pairs of <see cref="TakePairs"/>' block at <paramref name="source"/> scattered into a dictionary's
+        /// entries: the gather of <see cref="WritePairBlocks"/> the other way. A caller that takes the block itself
+        /// passes it here, as with <see cref="ScatterSet{T,TFormatter}"/>.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadPairBlocks<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run,
+        public static void ScatterPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(NinoRun run,
             ref byte source)
             where TKeyFormatter : struct, INinoFormatter<TKey>
             where TValueFormatter : struct, INinoFormatter<TValue> =>

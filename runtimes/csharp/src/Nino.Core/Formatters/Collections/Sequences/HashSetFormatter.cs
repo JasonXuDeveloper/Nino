@@ -85,9 +85,17 @@ namespace Nino.Core
                 return;
             }
 
-            // Values the set takes as one block, and elements whose buckets the set does not guard itself, out of line:
-            // its entries filled through their run and linked, or each added with its bucket walked (HashTables.Plan).
-            if (NinoRuns.ScattersSet<T, TFormatter>() || HashTables.Plan<T>.Inserts || HashTables.Plan<T>.Walks)
+            // Values the set takes as one block: the block taken here (its checks made), the values filled or added out
+            // of line, so the reader's address never leaves the caller.
+            if (NinoRuns.ScattersSet<T, TFormatter>())
+            {
+                AddBlock(set, ref NinoRuns.TakeSet<T, TFormatter>(ref reader, length), length);
+                return;
+            }
+
+            // Elements whose buckets the set does not guard itself, out of line: its entries filled through their run
+            // and linked, or each added with its bucket walked (HashTables.Plan).
+            if (HashTables.Plan<T>.Inserts || HashTables.Plan<T>.Walks)
             {
                 reader = ReadGuarded(set, length, reader);
                 return;
@@ -105,8 +113,8 @@ namespace Nino.Core
         /// <summary>
         /// Reads and adds <paramref name="length"/> elements, out of line with the reader by value: where the set is as
         /// expected (empty, default comparer, sized for them, <see cref="HashTables.CanInsert{T}"/>), its entries are
-        /// filled through their run and linked (<see cref="Fill"/>: values it takes as one block always, others from
-        /// <see cref="HashTables.FillFrom"/> on), or each is inserted with its bucket walked as it is; else each is
+        /// filled through their run and linked (<see cref="Fill"/>, from <see cref="HashTables.FillFrom"/> on), or each is
+        /// inserted with its bucket walked as it is; else each is
         /// added by the set and its bucket walked after (hash flooding, <see cref="HashTables"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -114,20 +122,10 @@ namespace Nino.Core
         {
             // The plan read once, into locals (HashTables.Plan).
             bool insert = HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length);
-            if (insert && (NinoRuns.ScattersSet<T, TFormatter>() || length >= HashTables.FillFrom))
+            if (insert && length >= HashTables.FillFrom)
                 return FillGuarded(set, length, reader);
 
             bool walk = HashTables.Plan<T>.Walks;
-            if (NinoRuns.ScattersSet<T, TFormatter>())
-            {
-                // Not filled (insert is false here): each value read from the block and added.
-                ref byte src = ref NinoRuns.TakeSet<T, TFormatter>(ref reader, length);
-                int size = NinoKind.Stride<T, TFormatter>();
-                for (int i = 0; i < length; i++, src = ref Unsafe.Add(ref src, size))
-                    Add(set, NinoRuns.ReadItem<T, TFormatter>(ref src), insert: false, walk);
-                return reader;
-            }
-
             // One loop (the formatter inlined once), the choice made per element.
             for (int i = 0; i < length; i++)
             {
@@ -137,6 +135,47 @@ namespace Nino.Core
             }
 
             return reader;
+        }
+
+        /// <summary>
+        /// The <paramref name="length"/> values of the block at <paramref name="src"/>
+        /// (<see cref="NinoRuns.TakeSet{T,TFormatter}"/>): scattered into the entries of a set
+        /// <see cref="HashTables.CanInsert{T}"/> accepts and linked, else each read from the block and added, its bucket
+        /// walked after (HashTables.Plan).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void AddBlock(TSet set, ref byte src, int length)
+        {
+            if (HashTables.Plan<T>.Inserts && HashTables.CanInsert(set, length))
+            {
+                FillGuarded(set, ref src, length);
+                return;
+            }
+
+            bool walk = HashTables.Plan<T>.Walks;
+            int size = NinoKind.Stride<T, TFormatter>();
+            for (int i = 0; i < length; i++, src = ref Unsafe.Add(ref src, size))
+                Add(set, NinoRuns.ReadItem<T, TFormatter>(ref src), insert: false, walk);
+        }
+
+        /// <summary>
+        /// <see cref="AddBlock"/>'s fill: the block scattered into the entries
+        /// (<see cref="NinoRuns.ScatterSet{T,TFormatter}"/>), then linked, the set left empty if the data is rejected part
+        /// way (<see cref="HashTables.Unlink{T}"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void FillGuarded(TSet set, ref byte src, int length)
+        {
+            try
+            {
+                NinoRuns.ScatterSet<T, TFormatter>(CollectionFields.Run(HashTables.Entries<T>(set), length), ref src);
+                HashTables.Link<T>(set, length);
+            }
+            catch
+            {
+                HashTables.Unlink(set);
+                throw;
+            }
         }
 
         /// <summary>
