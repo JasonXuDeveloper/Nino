@@ -47,3 +47,19 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   deserialize 8-24 % faster. Go kept its slots' and sealed classes' plain reads (with 414a0a28's direct body calls)
   and read lists through the into loop: on par (40976827882, geomean within 0.8 %); Rust's `read = Default +
   read_into` was on par too (40925188020).
+
+## Unions
+
+- Judge a C# union's generated code against each language's closest form of the same data, case by case, on both
+  architectures: Rust's serde enums (rmp-serde, bincode, postcard, serde_json), TypeScript's MessagePack and JSON of
+  the same plain values; Go has no competitor, since none of its libraries reads a Go interface union back (struct
+  tags, msgpack, JSON and gob each fail; the harness says why). Why: nino-gen writes a union three ways (#327), a
+  plain TypeScript union when values tell the cases apart and a tagged `{ case, value }` one otherwise, a Go class case
+  as the type itself and every other case as a wrapper struct, a Rust enum, and each costs differently. The first
+  runner numbers (runtime-ab runs 44220042959 and 44235292415, d9a715b9, PolymorphicTest's UnionArray and
+  TaggedUnionArray, 1,000 values each): Rust nino serializes 2.3-2.6x faster than postcard but deserializes 1.11-1.23x
+  slower than postcard and bincode (Xeon 6975P-C, Neoverse-N2); TypeScript (Node) leads MessagePack and JSON in every
+  row but the plain union's serialize on Neoverse-N2 (43.9 µs against JSON's 38.5; on AMD EPYC 9V45 23.1 against 27.6),
+  and the tagged union is the faster form (12.1 µs serialize, 7.5 deserialize against 23.1 and 13.0 on EPYC 9V45, with
+  fewer and smaller values); Go deserializes in about three times its serialize time (35.7 against 11.9 µs, EPYC
+  9V74) with an allocation per non-int case (808 for UnionArray). The gaps are #387.
