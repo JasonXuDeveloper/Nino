@@ -68,6 +68,17 @@ What works everywhere so far:
   monitor, two words), found at startup; call `GetType()` on a retyped object out of line (`NoInlining`), or the JIT
   folds it to the type it allocated (Arm32 did).
 - **Hash tables filled this way still count collisions** (`audit-security`: `HashTables`, `ConcurrentTables`).
+- **Fill a new hash table's entries through their run, then link them** (#355 step 4): a read of a new `HashSet` or
+  `Dictionary` that `HashTables.CanInsert` accepts reads its values into the entries with `NinoRuns.ReadSet` /
+  `ReadPairs` (raw values and blocks scattered by the block kernels through `CollectionFields.EntryBlock`'s read,
+  others value by value) and `HashTables.Link` hashes and links them in one pass, with `Unlink` on any exception;
+  the startup checks (`CheckSet`, `CheckMap`) fill and link the same way, so the hashing they find is the one the
+  reads use. Never add a fill of its own for one element kind. Why: the raw-only `TryFill`/`TryRefill` and
+  `NinoDictionary.ReadEntries` were three fills of one table with the same checks; one fill keeps one place for the
+  collision count, the duplicate rejection and the cleanup. Evidence: `HashTableFillTests` (sets of tuples with
+  strings, blocks, `DateTimeOffset`; dictionaries of blocks; a bad bool in a scattered block leaves the set or
+  dictionary read into empty), `Nino.RuntimeTests` `HashSet<Small>`, `HashSet<(int,str)>` and
+  `Dictionary<(int,short),Waypoint>` on .NET and Mono (bytes equal).
 
 ## Proof
 

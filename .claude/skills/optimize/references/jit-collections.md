@@ -34,8 +34,10 @@ Rules in short:
   for nothing measurable. Evidence: the Arm64 listings kept their sizes, only the x64 set listing shrank (6 bytes), and
   the local A/B showed no repeatable throughput gain or allocation change.
 - Ask whether a hash set is filled directly in one helper that every read with the elements' bytes in hand calls
-  (`HashSetFormatter.TryFill`: a new plain set through `HashTables.TryFill`, a cleared plain one through `TryRefill`),
-  never as a condition written again at each path. Why: the raw path gained the refill in 6adc0647 while the slot path
+  (now `HashSetFormatter.ReadGuarded`'s one test, `HashTables.CanInsert`, before `FillGuarded`: the entries filled
+  through their run by `NinoRuns.ReadSet`, then `HashTables.Link`, for new and cleared sets and every element kind;
+  before #355 step 4 a raw-only `HashTables.TryFill`/`TryRefill`), never as a condition written again at each path.
+  Why: the raw path gained the refill in 6adc0647 while the slot path
   (raw `T?` whose slots are memory) kept its own copy that knew only new sets, so a `HashSet<int?>` read into was added
   one element at a time with its buckets walked. Evidence: with the one helper, 1,000 `int?` read into an existing
   set took 2.22-2.29 us against 4.35-4.58 (local Xeon, AVX-512, processes alternated, three rounds); `ReadSlots` grew
@@ -181,9 +183,10 @@ Rules in short:
 ## New dictionaries of objects
 
 - Read the pairs of a new dictionary Nino may fill (`HashTables.CanInsert`: default comparer, empty, sized) straight
-  into its entries with only the formatters in the loop (`NinoDictionary.ReadEntries`), then build the buckets in one
-  pass (`HashTables.Link`, which keeps every check `Insert` made: null key, repeated key, `MaxHashCollisions`), and
-  clear entries and buckets on any exception (`HashTables.Unlink`) in a method of its own (`ReadEntriesGuarded`);
+  into its entries with only the formatters in the loop (`NinoRuns.ReadPairs`' per-value loop; pairs of raw items or
+  blocks scattered as one block, #355 step 4), then build the buckets in one pass (`HashTables.Link`, which keeps every
+  check `Insert` made: null key, repeated key, `MaxHashCollisions`), and clear entries and buckets on any exception
+  (`HashTables.Unlink`) in a method of its own (`NinoDictionary.FillGuarded`; sets: `HashSetFormatter.FillGuarded`);
   below four pairs keep the one-at-a-time insert loop. Why: `HashTables.Insert` per pair is a call that loads the
   table's fields again each time, and LuminPack's entries fill read `Dictionary<int, IFoo>` faster; the fill adds two
   calls, which one pair does not repay, and a try/catch left in the method that holds the small loop slowed that loop

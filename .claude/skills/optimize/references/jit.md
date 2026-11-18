@@ -128,7 +128,7 @@ where that is so, and its x64 sizes are listings, not throughput.
   of its own with that work inline and the writer or reader in a local, instead of a call per element with the cursor
   in memory. Why: the call and the cursor's round trip through memory cost more than the work they wrap. Evidence:
   arrays and lists of a polymorphic base, 5.0 to 3.7-3.9 us for 1,000 values (`dispatch.md`, e178937c). Check every
-  collection loop the generator's types reach this way (`NinoRuns`' loops over a run, `NinoElements.Read`, sets).
+  collection loop the generator's types reach this way (`NinoRuns`' loops over a run, both directions, sets).
 - Read a gap between a type written whole and the sum of its members written alone as the members' code and data
   mixed, not as waste in the outer body, until a sequence of the members' own top-level calls says otherwise. Why:
   LuminPack's `CharacterSaveData` took 3.3 µs against 2.5 µs summed, but the thirteen holder calls back to back took

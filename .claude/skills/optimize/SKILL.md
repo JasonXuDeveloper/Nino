@@ -111,7 +111,11 @@ says which CPUs and cases moved.
   2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`). The
   view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, a dictionary key's offset and write, the
   in-use test of free entries, whose rule each runtime proves at startup), and the loops are `NinoRuns`, one per kind:
-  every contiguous collection builds a run and calls them, never a loop of its own. A polymorphic base's values go
+  every contiguous collection builds a run and calls them, never a loop of its own. Reads take the same view (#355
+  step 4): `NinoRuns.Read` fills a run of values in a row (arrays, a list's backing array before its count is
+  published, spans, `Memory`, rings from 0, multi-dimensional arrays, lookups), `ReadSet`/`ReadPairs` fill the new
+  entries of a set or a dictionary (raw values and blocks scattered by `ReadAll` through the entries' one
+  `EntryBlock`, the gather of the writes the other way; others value by value), and `HashTables.Link` links them. A polymorphic base's values go
   through its generated `WriteRun`, whose body is Nino.Core's pieces with the base's compare chain inside (a step
   carried into a Core loop lost: dispatch.md). A composite carries `NinoBodyTraits.Dispatches` where an item's
   formatter does (`NinoBlocks.Dispatches`: pairs, tuples, generated generic structs).
