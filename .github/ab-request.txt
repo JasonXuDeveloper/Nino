@@ -1229,22 +1229,22 @@ rust d9a715b9 d9a715b9 UnionArray # 328 rust unions, with each side's data
 typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node
 
 # Fixed-size Rust set writes and TypeScript source modularization, each with its runner noise floor.
-rust:blocks 43ad7b11 641cd278 blocks/write/(hash-set-i32|tree-set-i32|hash-set-guid)$ # 354
-rust:blocks 43ad7b11 43ad7b11 blocks/write/(hash-set-i32|tree-set-i32|hash-set-guid)$ # 354 floor
-typescript 3b998c73 2cb7dd0f MixedStrings # 247
-typescript 3b998c73 3b998c73 MixedStrings # 247 floor
+# done (run 44329792122): rust:blocks 43ad7b11 641cd278 blocks/write/(hash-set-i32|tree-set-i32|hash-set-guid)$ # 354
+# done (run 44329792122): rust:blocks 43ad7b11 43ad7b11 blocks/write/(hash-set-i32|tree-set-i32|hash-set-guid)$ # 354 floor
+# done (run 44329792122): typescript 3b998c73 2cb7dd0f MixedStrings # 247
+# done (run 44329792122): typescript 3b998c73 3b998c73 MixedStrings # 247 floor
 
 # Rust and TypeScript union cases, plus the DateOnly path affected by the Rust module split.
-rust 44d49866 7a799cef ^(UnionArray|TaggedUnionArray)/(serialize|deserialize)/nino$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust
-rust 44d49866 44d49866 ^(UnionArray|TaggedUnionArray)/(serialize|deserialize)/nino$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust floor
-typescript 44d49866 9624d47b UnionArray|TaggedUnionArray # 387 TypeScript
-typescript 44d49866 44d49866 UnionArray|TaggedUnionArray # 387 TypeScript floor
-rust:blocks cf4b7e77 c8c56c74 ^blocks/read/dateonly$ # 248
-rust:blocks cf4b7e77 cf4b7e77 ^blocks/read/dateonly$ # 248 floor
+# done (run 44333395182): rust 44d49866 7a799cef ^(UnionArray|TaggedUnionArray)/(serialize|deserialize)/nino$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust
+# done (run 44333395182): rust 44d49866 44d49866 ^(UnionArray|TaggedUnionArray)/(serialize|deserialize)/nino$ NINO_BENCH_CASES=UnionArray|TaggedUnionArray NINO_BENCH_CASES=UnionArray|TaggedUnionArray # 387 Rust floor
+# done (run 44333395182): typescript 44d49866 9624d47b UnionArray|TaggedUnionArray # 387 TypeScript
+# done (run 44333395182): typescript 44d49866 44d49866 UnionArray|TaggedUnionArray # 387 TypeScript floor
+# done (run 44333395182): rust:blocks cf4b7e77 c8c56c74 ^blocks/read/dateonly$ # 248
+# done (run 44333395182): rust:blocks cf4b7e77 cf4b7e77 ^blocks/read/dateonly$ # 248 floor
 
 # Go fixed-width collections, including padded pairs and duplicate-check controls.
-go:internal/generated/shapes#12 81592edf 05588650 ^BenchmarkFixedCollections353$ # 353
-go:internal/generated/shapes#12 81592edf 81592edf ^BenchmarkFixedCollections353$ # 353 floor
+# failed before measurement (unreachable baseline, run 44333395182): go:internal/generated/shapes#12 81592edf 05588650 ^BenchmarkFixedCollections353$ # 353
+# failed before measurement (unreachable baseline, run 44333395182): go:internal/generated/shapes#12 81592edf 81592edf ^BenchmarkFixedCollections353$ # 353 floor
 
 # Block-copy probes with same-revision controls and the legacy glibc lower threshold.
 go:.#6 28073fbf 28073fbf ^BenchmarkBlockCopyProbe$/^(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ GOFLAGS=-tags=ninocopyprobe GOFLAGS=-tags=ninocopyprobe # 263 Go
@@ -1252,3 +1252,7 @@ rust:copy 28073fbf 28073fbf block-copy/.*/(2048-offset4|2113-offset4|4096-offset
 rust:copy 28073fbf 28073fbf block-copy/.*/(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ # 263 Rust floor
 typescript 28073fbf 28073fbf BlockCopy - GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 TypeScript legacy threshold
 typescript 28073fbf 28073fbf BlockCopy # 263 TypeScript floor
+
+# Retry the Go fixed-collection comparison with both independent commits in this branch ancestry.
+go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 055886501892cf14c87fcd87b9e3be48dfeff553 ^BenchmarkFixedCollections353$ # 353 reachable refs
+go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$ # 353 reachable refs floor
