@@ -104,11 +104,16 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   (raw, slot, block or per value, with the stride and read policies; it absorbed `NinoSlots`, `NinoElements.Traits`
   and the `Heavy*` classes). Every collection formatter, `NinoElements`, `NinoDictionary`, `NinoCollections`,
   `BclCollections`, `BclDictionaries`, `PriorityQueueFormatter`, `MultiDim` and `ReadOnlySequenceFormatter` read them
-  instead of testing `RawFormatter.Is`, a slot stride or `typeof(StringFormatter)` themselves. Left deciding for
-  themselves, each for its step: the tuple and `KeyValuePairFormatter` formatters' `RawFormatter.Is` per item and
-  `DateTimeOffset`'s own block kernel (composition, #348), `WordKey` and the .NET 8+ `WritePairs32` / `WritePairs64` /
+  instead of testing `RawFormatter.Is`, a slot stride or `typeof(StringFormatter)` themselves. The composites decide
+  nothing of their own since #355 PR 2 (#348): the tuple and `KeyValuePairFormatter` formatters and generated generic
+  structs read each item through `NinoBlocks.ItemSize` / `WriteItem` / `ReadItem` (raw by `RawFormatter`, a block by
+  its constrained `WriteFixed` / `ReadBlock`) and build their maps with `NinoBlockMap.Item`, and `DateTimeOffset` is a
+  block formatter (its `typeof` tests in `NinoKind` and `NinoElements` are gone). Left deciding for themselves, each
+  for its step: `WordKey` and the .NET 8+ `WritePairs32` / `WritePairs64` /
   `WriteStringPairs` entry points and `WriteElements` (the one loop over the view drops them), the dedicated raw and
-  nullable array and list formatters chosen by binding, `CollectionFields`' entry block formatters and
+  nullable array and list formatters chosen by binding, `CollectionFields`' entry block formatters (a set's and a
+  dictionary's, each built from `NinoBlockMap.Item`, and `SetEntryBytes` for slots: one `EntryBlock` needs the
+  view's entry layouts) and
   `PriorityQueueHeap`'s int pair (the storage view), and Nino.Immutable's `Slots<T>.Possible` and `ImmutableArray`'s
   reference loop (it sees only the public API, and its loops join the layer). What stays is not a
   formatter type parameter: `INinoRawArrayFormatter` (below) and the marker `INinoRawFormatter`, tested as a type. (4) The
