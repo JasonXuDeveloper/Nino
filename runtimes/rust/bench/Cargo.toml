@@ -44,3 +44,8 @@ harness = false
 [[bench]]
 name = "blocks"
 harness = false
+
+# Byte-copy research (#263), without changing the library's copy paths.
+[[bench]]
+name = "copy"
+harness = false

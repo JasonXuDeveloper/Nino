@@ -50,7 +50,8 @@ bench/                       nino-bench: the .NET suite's cases (runtimes/csharp
                              benches/compare.rs times every case found by its .NET type (with_nino_serde_type) against
                              prost, rmp-serde, bincode, postcard and serde_json, each checked by the Nino bytes of what
                              it reads back; benches/text.rs (string transcoding, for back-to-back runs; not published),
-                             benches/blocks.rs (lists of fixed-size elements, likewise)
+                             benches/blocks.rs (lists of fixed-size elements, likewise);
+                             benches/copy.rs and copy/kernels.rs (development-only byte-copy probe, #263)
 tests/
   conformance.rs             the corpus over tests/conformance/types.rs: valid, malicious, truncations, mutational fuzzing
                              (NINO_FUZZ_ITERATIONS)
