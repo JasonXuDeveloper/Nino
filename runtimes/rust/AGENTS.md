@@ -26,7 +26,14 @@ src/
   writer.rs                  Writer: appends to a Vec<u8>
   error.rs                   the one error type (Error, ErrorKind)
   traits.rs                  the traits generated code implements and calls (NinoRead, NinoWrite, bodies)
-  impls.rs                   NinoRead / NinoWrite for primitives, strings, Option, Box, tuples, std collections
+  impls.rs                   trait implementation modules, ordered keys and deferred steps
+  impls/numbers.rs           primitive numbers and booleans, including their fixed-size blocks
+  impls/strings.rs           String and str
+  impls/wrappers.rs          Option and Box
+  impls/sequences.rs         Vec, slices and VecDeque, including block and prefetch helpers
+  impls/sets.rs              HashSet, BTreeSet and shared set helpers
+  impls/maps.rs              HashMap, BTreeMap and the map! reader shared with IndexMap
+  impls/tuples.rs            tuples and pairs
   types.rs                   the .NET value types as plain Rust types keeping their exact bits
   types/time.rs              DateTime, TimeSpan, DateOnly, TimeOnly, DateTimeOffset: ticks and .NET's ranges
   strings.rs                 string headers and the default encoding's writer
