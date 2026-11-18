@@ -135,7 +135,7 @@ namespace Nino.Core.Internal
         public static void MissingCapability(Type formatter, string member) =>
             throw new InvalidOperationException(
                 $"Nino: {formatter.FullName} does not implement {member}, which its other members said it has " +
-                "(FixedSize, BlockMap): implement it, or report none.");
+                "(FixedSize, BlockMap, HasElementLoop, HasPairLoop): implement it, or report none.");
 
         [MethodImpl(Cold)]
         public static void NoGeneratedFormatter(Type type) =>

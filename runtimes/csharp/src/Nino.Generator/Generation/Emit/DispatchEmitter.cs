@@ -62,21 +62,7 @@ internal static class DispatchEmitter
             if (e.TypeParameterList.Length == 0)
             {
                 var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
-                if (own is { Count: > 0 and <= MaxWriteChain })
-                {
-                    // The pair loops only where Nino.Core calls them (its .NET 8+ builds): IL2CPP compiles every
-                    // method of a type, called or not.
-                    w.Line($"partial struct {e.Self} : {CoreCompilerServices}INinoElementsFormatter<{e.TypeName}>");
-                    w.Line(PairsBuild);
-                    w.Line($"    , {CoreCompilerServices}INinoPairsFormatter");
-                    w.Line("#endif");
-                    w.Open();
-                }
-                else
-                {
-                    w.Open($"partial struct {e.Self}");
-                }
-
+                w.Open($"partial struct {e.Self}");
                 EmitBase(w, e.TypeName, own, services, closedForm: false);
                 w.Close();
                 w.Line();
@@ -304,18 +290,22 @@ internal static class DispatchEmitter
         : $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); {{exit}} }""";
 
     /// <summary>
-    /// <c>WriteElements</c> (<c>INinoElementsFormatter</c>): the elements of an array or a list of the base in one
+    /// <c>WriteElements</c> (<c>HasElementLoop</c>): the elements of an array or a list of the base in one
     /// loop with the chain of type checks inline and the writer in a local, which the JIT keeps in registers. Written
     /// one at a time through <c>Serialize</c>, each element took a call into the dispatch (too large to inline into the
     /// collection loop) with the writer in memory: LuminPack's List&lt;IFoo&gt; of 1,000 values of 20 subtypes took
     /// 5.0 us that way and 3.85 in this form (LuminPack 4.4; local x64, #305). The depth is checked once: no element
-    /// changes it. <c>WritePairs</c> (<c>INinoPairsFormatter</c>) is the same loop over a dictionary's pairs, each key
+    /// changes it. <c>WritePairs32</c> and its kin (<c>HasPairLoop</c>) are the same loop over a dictionary's pairs, each key
     /// written by its formatter before the value (#308).
     /// </summary>
     private static void EmitWriteElements(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
     {
+        string formatter = $"{Core}INinoFormatter<{t}>";
+        string loops = $"{Core}INinoFormatter";
         w.Line();
-        w.Open($"public void WriteElements(global::System.ReadOnlySpan<{t}> values, ref {Core}Writer target)");
+        w.Line($"bool {loops}.HasElementLoop => true;");
+        w.Line();
+        w.Open($"void {formatter}.WriteElements(global::System.ReadOnlySpan<{t}> values, ref {Core}Writer target)");
         w.Line($"if ({services}NinoObject.IsDeep(ref target))");
         w.Open();
         EmitSlowLoop(w, "foreach (var value in values)", pairs: false);
@@ -326,10 +316,13 @@ internal static class DispatchEmitter
         w.Close();
 
         w.Line();
+        // The pair loops only where they pay (.NET 8+): IL2CPP compiles every method of a type, called or not, and
+        // each is instantiated per kind of key.
         w.Line(PairsBuild);
-        EmitWritePairs(w, t, services, "WritePairs32", "int", $"{Core}UnmanagedFormatter<int>");
-        EmitWritePairs(w, t, services, "WritePairs64", "long", $"{Core}UnmanagedFormatter<long>");
-        EmitWritePairs(w, t, services, "WriteStringPairs", "string", $"{Core}StringFormatter");
+        w.Line($"bool {loops}.HasPairLoop => true;");
+        EmitWritePairs(w, t, services, loops, "WritePairs32", "int", $"{Core}UnmanagedFormatter<int>");
+        EmitWritePairs(w, t, services, loops, "WritePairs64", "long", $"{Core}UnmanagedFormatter<long>");
+        EmitWritePairs(w, t, services, loops, "WriteStringPairs", "string", $"{Core}StringFormatter");
         string pairsSignature = $"<__TKey, __TKeyFormatter>(global::System.Collections.Generic.Dictionary<__TKey, {t}> pairs, ref {Core}Writer target)";
         string keyConstraint = $"    where __TKeyFormatter : struct, {Core}INinoFormatter<__TKey>";
         w.Line();
@@ -362,17 +355,17 @@ internal static class DispatchEmitter
         w.Line("#endif");
     }
 
-    /// <summary>The condition of the pair loops (<c>INinoPairsFormatter</c>): the builds of Nino.Core that call them.</summary>
+    /// <summary>The condition of the pair loops (<c>HasPairLoop</c>): the builds that have them.</summary>
     private const string PairsBuild = "#if NET8_0_OR_GREATER";
 
     /// <summary>
-    /// A method of <c>INinoPairsFormatter</c>: the pair loop for keys read as <paramref name="key"/>. Each is a line
-    /// over one generic loop; the interface's methods are not generic, which a call from shared code could not
-    /// devirtualize.
+    /// A pair loop of <c>INinoFormatter</c> (<c>WritePairs32</c> and its kin) for keys read as
+    /// <paramref name="key"/>. Each is a line over one generic loop; the interface's methods are not generic, which a
+    /// call from shared code could not devirtualize.
     /// </summary>
-    private static void EmitWritePairs(CodeWriter w, string t, string services, string name, string key,
-        string keyFormatter) =>
-        w.Line($"public void {name}(object dictionary, ref {Core}Writer writer) => __WritePairs<{key}, {keyFormatter}>({services}NinoObject.SameType<global::System.Collections.Generic.Dictionary<{key}, {t}>>(dictionary), ref writer);");
+    private static void EmitWritePairs(CodeWriter w, string t, string services, string formatter, string name,
+        string key, string keyFormatter) =>
+        w.Line($"void {formatter}.{name}(object dictionary, ref {Core}Writer writer) => __WritePairs<{key}, {keyFormatter}>({services}NinoObject.SameType<global::System.Collections.Generic.Dictionary<{key}, {t}>>(dictionary), ref writer);");
 
     /// <summary>
     /// A loop headed by <paramref name="loop"/> that writes each value as <c>Serialize</c> does, through the dispatch

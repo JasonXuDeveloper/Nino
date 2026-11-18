@@ -5,7 +5,8 @@ namespace Nino.Core.CompilerServices
 {
     /// <summary>
     /// Formatter for the body of a <c>[NinoType]</c>: the members, without the null/type header.
-    /// Implemented by generated formatters and used for polymorphic dispatch.
+    /// Implemented by generated formatters and used for polymorphic dispatch. Each implements
+    /// <see cref="INinoFormatter{T}.BodyTraits"/> too, which the dispatch asks per value.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public interface INinoBodyFormatter<T> : INinoFormatter<T>
@@ -22,52 +23,11 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         void ReadBody(ref Reader reader, ref T value);
 
-        /// <summary>
-        /// What the body does, as <see cref="NinoBodyTraits"/> flags (a constant):
-        /// <see cref="NinoBodyTraits.Nests"/> and <see cref="NinoBodyTraits.Deferrable"/>. One member for both:
-        /// generated formatters implement it for every type.
-        /// </summary>
-        int Traits { get; }
-
         /// <summary>Creates the empty instance a deferred body is read into later.</summary>
         T Create();
     }
 
-    /// <summary>
-    /// Generated formatters of polymorphic bases: the elements of an array or a list of the base written in one loop
-    /// (the dispatch inline, the writer in a local), the bytes of <see cref="INinoFormatter{T}.Serialize"/> for each.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface INinoElementsFormatter<T>
-    {
-        /// <summary>Writes every element of <paramref name="values"/> (not empty) as Serialize writes one.</summary>
-        void WriteElements(ReadOnlySpan<T> values, ref Writer writer);
-    }
-
-    /// <summary>
-    /// Generated formatters of polymorphic bases: the pairs of a <c>Dictionary&lt;TKey, T&gt;</c> (T the base, the
-    /// dictionary not empty, its count already written) in one loop (the dispatch inline, the writer in a local), each
-    /// value as <see cref="INinoFormatter{T}.Serialize"/> writes it. Neither the interface nor its methods are generic:
-    /// a test for it folds where the dictionary's loop is shared code over a class T, and a call through it on the
-    /// formatter is direct, where a generic method is looked up per call (the JIT does not devirtualize those).
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface INinoPairsFormatter
-    {
-        /// <summary>
-        /// Pairs whose keys are 4 bytes written as they lie in memory (a <c>Dictionary&lt;int, T&gt;</c>, or one whose
-        /// keys are another primitive or enum of that size, read as an <c>int</c>).
-        /// </summary>
-        void WritePairs32(object dictionary, ref Writer writer);
-
-        /// <summary>As <see cref="WritePairs32"/>, for keys of 8 bytes (read as a <c>long</c>).</summary>
-        void WritePairs64(object dictionary, ref Writer writer);
-
-        /// <summary>Pairs whose keys are strings (<c>Dictionary&lt;string, T&gt;</c>), in the default encoding.</summary>
-        void WriteStringPairs(object dictionary, ref Writer writer);
-    }
-
-    /// <summary>The flags of <see cref="INinoBodyFormatter{T}.Traits"/>.</summary>
+    /// <summary>The flags of <see cref="INinoFormatter{T}.BodyTraits"/>.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoBodyTraits
     {
