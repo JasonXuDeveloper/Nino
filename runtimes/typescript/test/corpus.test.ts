@@ -2,7 +2,7 @@
 // (test/generated/Nino.Conformance.ts, and Nino.Conformance.TypedArrays.ts with --numeric-arrays typed; Nino.Codegen.Tests
 // checks they are what nino-gen writes today): every valid case
 // read and written back byte for byte, every malicious case and every strict prefix of a valid case rejected with a
-// NinoError. Types TypeScript has no form for (Half, BigInteger, grids...) are left out by the generator with a
+// NinoError. Types TypeScript has no form for (Half, BigInteger...) are left out by the generator with a
 // warning; the cases of those types are skipped, and the list of them is checked so none is skipped by mistake.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
@@ -21,10 +21,8 @@ if (!present && process.env.NINO_CORPUS_REQUIRED === "1")
 const notGenerated = new Set([
   "Conformance.Floats", "Conformance.Scalars", "Conformance.Dates", "Conformance.BigValues",
   "Conformance.Collections", "Conformance.TreeHolder", "Conformance.EmptyStruct", "Conformance.Empties",
-  "Conformance.Targets.Grid", "Conformance.Targets.BigSlot", "Conformance.Targets.VersionSlot",
+  "Conformance.Targets.BigSlot", "Conformance.Targets.VersionSlot",
   "Conformance.BclRawOffset",
-  // int?[,]: the slots of raw nullables in a set and a nested set are read in test/shapes.test.ts (NullableSlots).
-  "Conformance.NullableSequences", "Conformance.Targets.MaybeIntGrid",
 ]);
 
 /** The optional features of the corpus the generated code supports. */

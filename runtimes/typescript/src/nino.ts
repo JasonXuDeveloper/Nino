@@ -19,6 +19,16 @@ export interface NinoCodec<T> {
   readInto?(reader: NinoReader, value: T): T;
 }
 
+/** A rectangular array's dimensions and its flat data, with the last index varying fastest. */
+export interface NinoGrid<T extends ArrayLike<unknown>> {
+  readonly lengths: readonly number[];
+  data: T;
+}
+
+// .NET's Array.MaxLength and the maximum product of the dimensions (wire-format spec §9.13).
+const maxGridLength = 0x7fff_ffc7;
+const maxGridElements = 0xffff_ffff;
+
 let shared: NinoWriter | null = null;
 /** The smallest buffer `serialize` writes its results into (see `NinoWriter.next`). */
 const slabSize = 64 * 1024;
@@ -945,6 +955,25 @@ export class NinoReader {
     return length;
   }
 
+  /** Reads a rectangular array's dimensions and checked element count. A first dimension of -1 is null. */
+  gridShape(rank: number, minSize: number): { lengths: number[]; count: number } | null {
+    const first = this.i32();
+    if (first === -1) return null;
+    if (first < 0 || first > maxGridLength) throw new NinoError(`invalid length ${first}.`);
+    const lengths = [first];
+    let count = first;
+    for (let i = 1; i < rank; i++) {
+      const length = this.i32();
+      if (length < 0 || length > maxGridLength) throw new NinoError(`invalid length ${length}.`);
+      lengths.push(length);
+      count *= length;
+      if (count > maxGridElements) throw new NinoError("invalid grid dimensions.");
+    }
+    // A later zero can make the grid empty. Check the remaining bytes once all dimensions are known.
+    if (count * Math.max(minSize, 1) > this.end - this.pos) throw new NinoError("invalid grid dimensions.");
+    return { lengths, count };
+  }
+
   /**
    * A string header (wire-format spec §2.3.1): its first byte gives its size, as MessagePack's string markers do:
    * the value itself below 0x80, else 0x80 and a uint16 or 0x81 and a uint32 (little-endian), minimal. One byte
@@ -1857,11 +1886,30 @@ export class NinoWriter {
   /** An array or list of a fixed-size number type (`int[]`, `List<double>`...): length, then its bytes as one block. */
   numbers(values: NinoNumbers | null): void {
     if (values === null || values === undefined) { this.i32(-1); return; }
-    const length = values.length, bytes = values.byteLength;
-    this.i32(length);
+    this.i32(values.length);
+    this.numberBlock(values);
+  }
+
+  /** Writes a block of fixed-size numbers without a collection length. */
+  numberBlock(values: NinoNumbers): void {
+    const bytes = values.byteLength;
     const at = this.reserve(bytes);
     this.buffer.set(new Uint8Array(values.buffer, values.byteOffset, bytes), at);
     if (!littleEndian) swapBytes(this.buffer, at, at + bytes, values.BYTES_PER_ELEMENT);
+  }
+
+  /** Writes exactly `rank` dimensions whose product equals the size of the rectangular array's flat data. */
+  gridShape(rank: number, lengths: readonly number[], count: number): void {
+    if (lengths.length !== rank) throw new NinoError("invalid grid rank.");
+    let total = 1;
+    for (const length of lengths) {
+      if (!Number.isInteger(length) || length < 0 || length > maxGridLength)
+        throw new NinoError(`invalid length ${length}.`);
+      total *= length;
+      if (total > maxGridElements) throw new NinoError("invalid grid dimensions.");
+    }
+    if (total !== count) throw new NinoError("grid dimensions do not match the data length.");
+    for (const length of lengths) this.i32(length);
   }
 
 

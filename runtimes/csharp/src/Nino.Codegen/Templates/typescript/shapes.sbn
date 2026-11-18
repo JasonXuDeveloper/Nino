@@ -76,6 +76,10 @@ func map_ts(s)
   ret "Map<" + ts(s.key) + ", " + ts(s.value) + ">"
 end
 
+func grid_ts(s)
+  ret grid_type(seq_ts(s))
+end
+
 func ts(s)
   case s.kind
   when "prim"
@@ -109,6 +113,8 @@ func ts(s)
     ret seq_ts(s) + " | null"
   when "map"
     ret map_ts(s) + " | null"
+  when "grid"
+    ret grid_ts(s) + " | null"
   when "type"
     if s.header == "typeid" || s.header == "ref" || s.header == "union"
       ret name(s.type) + " | null"
@@ -226,7 +232,7 @@ func read(s)
     ret read(s.inner) + " as " + name(s.enum)
   when "rawstruct"
     ret "read" + name(s.struct) + "(r, r.take(" + s.size + "))"
-  when "rawnullable", "fixedtuple", "seq", "map"
+  when "rawnullable", "fixedtuple", "seq", "map", "grid"
     ret helper(s, "read") + "(r" + s.codecs_argument + ")"
   when "tuple"
     $parts = []
@@ -263,6 +269,11 @@ end
 # none): the objects, arrays, maps and sets it holds are reused where they can be (`deserializeInto`), else a new value.
 func read_into(s, cur)
   case s.kind
+  when "grid"
+    if s.array_type
+      ret read(s)
+    end
+    ret helper(s, "read") + "(r" + s.codecs_argument + ", " + cur + ")"
   when "seq", "map"
     if s.array_type
       ret read(s)
@@ -305,7 +316,7 @@ func write(s, v)
     ret write(s.inner, v)
   when "rawstruct"
     ret "write" + name(s.struct) + "(w, " + reserve(s.size, s.zeroed) + ", " + v + ")"
-  when "rawnullable", "fixedtuple", "seq", "map"
+  when "rawnullable", "fixedtuple", "seq", "map", "grid"
     ret helper(s, "write") + "(w, " + v + s.codecs_argument + ")"
   when "tuple"
     $parts = []

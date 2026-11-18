@@ -65,7 +65,9 @@ The generated API of each language is on the site; these are the decisions behin
   `runtimes/typescript/src/nino.ts`) written next to it unless `--runtime` names a module. The bodies of types without
   members (`readBody$Empty`, `writeBody$Empty` and the version-tolerant ones) name their parameters `_r`, `_w` and
   `_v`, so the code compiles under `noUnusedParameters`. With `--numeric-arrays typed`,
-  `TypeScriptTarget.NumberArrays` chooses the typed array of each fixed-size number.
+  `TypeScriptTarget.NumberArrays` chooses the typed array of each fixed-size number. Rectangular arrays of rank
+  2 to 4 have a `NinoGrid<TData>` shape with `lengths` and flat row-major `data`. Numeric grids use typed storage
+  in either mode, and grids of raw nullable elements use `NullableSlot<T>[]`.
 - **Go** (`GoTarget`): read and write functions in the shape of the hand-written codecs in
   `runtimes/go/internal/sample`: one `Take`/`Extend` per run of fixed-size members, no reflection, and a direct call
   for each class body and each element of a collection (no function values; `optimize-runtimes`).
