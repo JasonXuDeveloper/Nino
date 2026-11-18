@@ -61,9 +61,8 @@ directory, deleting what the list names but this run no longer writes.
 
 The generated API of each language is on the site; these are the decisions behind it.
 
-- **TypeScript** (`TypeScriptTarget`): the module of an assembly, with `nino.ts` (embedded in the tool from
-  `runtimes/typescript/src/nino.ts`) written next to it unless `--runtime` names a module. The bodies of types without
-  members (`readBody$Empty`, `writeBody$Empty` and the version-tolerant ones) name their parameters `_r`, `_w` and
+- **TypeScript** (`TypeScriptTarget`): the module of an assembly, with the embedded runtime bundle (`runtimes/typescript/src/nino.ts`)
+  written next to it unless `--runtime` names a module. The bodies of types without members (`readBody$Empty`, `writeBody$Empty` and the version-tolerant ones) name their parameters `_r`, `_w` and
   `_v`, so the code compiles under `noUnusedParameters`. With `--numeric-arrays typed`,
   `TypeScriptTarget.NumberArrays` chooses the typed array of each fixed-size number. Rectangular arrays of rank
   2 to 4 have a `NinoGrid<TData>` shape with `lengths` and flat row-major `data`. Numeric grids use typed storage

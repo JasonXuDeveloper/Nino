@@ -27,6 +27,8 @@ runtimes/rust/tests/conformance/types.rs linguist-generated
 runtimes/go/internal/generated/**/nino_types.go linguist-generated
 runtimes/rust/tests/generated/*.rs linguist-generated
 runtimes/typescript/test/generated/*.ts linguist-generated
+# npm run build:bundle
+runtimes/typescript/src/nino.ts linguist-generated
 # Protocol Buffers code the runtimes' benchmarks compare against.
 *.pb.go linguist-generated
 *_pb.ts linguist-generated

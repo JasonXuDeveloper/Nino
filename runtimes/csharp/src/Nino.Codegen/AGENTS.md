@@ -9,7 +9,8 @@ dotnet tool `Nino.Codegen.Tool`. `audit-runtimes` audits it, `audit-generated-co
 
 ```
 Nino.Codegen.csproj          the exe (nino-gen.dll, no apphost) and the package: tools/ holds it and its assemblies,
-                             build/ the targets; embeds Templates/**/*.sbn and runtimes/typescript/src/nino.ts
+                             build/ the targets; embeds Templates/**/*.sbn and the single-file TypeScript bundle
+                             runtimes/typescript/src/nino.ts (see runtimes/typescript/AGENTS.md)
 Program.cs                   the command line: --assembly <dll> --lang ts|go|rust --out <dir> [options]; writes a file
                              only when its text changes, and deletes what its manifest (.nino-gen) lists but this run
                              no longer writes
