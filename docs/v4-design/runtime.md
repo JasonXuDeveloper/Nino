@@ -47,8 +47,22 @@ public interface INinoFormatter<T>
 {
     void Serialize(T value, ref Writer writer);
     void Deserialize(ref Reader reader, ref T value);
+
+    // Capabilities, with defaults that report none (hidden from IntelliSense):
+    int FixedSize => -1;                                      // every value takes this many bytes
+    void WriteFixed(in T value, ref byte destination) => ...; // throws: called only when FixedSize is not -1
+    NinoBlockMap BlockMap() => null;                          // collections move values as blocks
+    void ReadBlock(ref T value, ref byte source) => ...;      // throws: called only when BlockMap is not null
+    // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter)
 }
 ```
+
+A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
+too (generated formatters of fixed-size and block structs, the tuple and pair formatters). Calling a default on a
+struct boxes it (CoreCLR, Mono, IL2CPP), so Nino.Core calls only the queries (`FixedSize`, `BlockMap`, the slot
+stride) on a formatter that may lack the capability, once per type into a `static readonly` field
+(`NinoBlockPlan<T, TFormatter>.Size`, `NinoSlots<T, TFormatter>.Stride`), and the other members only where that field
+says the formatter has them: a constrained call to the struct's own method on every runtime.
 
 `Deserialize` takes the reader first, as every read API does, and the current value by `ref`. Passing `default` creates a new instance, and passing an
 existing instance populates it in place when possible. One code path serves both `Deserialize` and ref
