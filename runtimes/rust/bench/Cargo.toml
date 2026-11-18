@@ -44,3 +44,8 @@ harness = false
 [[bench]]
 name = "blocks"
 harness = false
+
+# End-to-end byte copy research (#263), separate from the published suite.
+[[bench]]
+name = "bytes"
+harness = false
