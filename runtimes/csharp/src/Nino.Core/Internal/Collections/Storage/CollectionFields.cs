@@ -41,9 +41,12 @@ namespace Nino.Core.Internal
         /// <summary>
         /// What <see cref="EntryBlock{TEntry, TItems}"/> moves of an entry: the items of its element (a set's value, a
         /// dictionary's key and value) at their offsets in the entry, so that a run of entries is written by
-        /// <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>: several entries at a time, the items packed out of
-        /// the strided entries by vector permutes (or the registered kernels in the netstandard2.1 build), one entry at a
-        /// time where there are none or an item has padding. Writes only.
+        /// <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/> and new entries are read by
+        /// <see cref="NinoBlockCollections.ReadAll{T, TFormatter}"/>: several entries at a time, the items packed out of
+        /// the strided entries, or scattered into them, by vector permutes (or the registered kernels in the
+        /// netstandard2.1 build), one entry at a time where there are none or an item has padding. A read writes every
+        /// byte of an entry, its hash code and link as 0, which the read's caller then sets
+        /// (<see cref="HashTables"/>).
         /// </summary>
         internal interface IEntryItems<TEntry>
         {
@@ -56,6 +59,10 @@ namespace Nino.Core.Internal
             /// <summary>Writes the items of <paramref name="entry"/> into the <see cref="Size"/> bytes at
             /// <paramref name="destination"/>.</summary>
             void Write(in TEntry entry, ref byte destination);
+
+            /// <summary>Reads the items of <paramref name="entry"/> from the <see cref="Size"/> bytes at
+            /// <paramref name="source"/>, with the checks a read of each makes.</summary>
+            void Read(ref TEntry entry, ref byte source);
         }
 
         /// <summary>
@@ -73,6 +80,9 @@ namespace Nino.Core.Internal
             public void WriteFixed(in TEntry value, ref byte destination) =>
                 default(TItems).Write(in value, ref destination);
 
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void ReadBlock(ref TEntry value, ref byte source) => default(TItems).Read(ref value, ref source);
+
             public void Serialize(TEntry value, ref Writer writer) => throw new NotSupportedException();
             public void Deserialize(ref Reader reader, ref TEntry value) => throw new NotSupportedException();
         }
@@ -89,6 +99,10 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Write(in SetEntry<T> entry, ref byte destination) =>
                 NinoBlocks.WriteItem<T, TFormatter>(entry.Value, ref destination);
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Read(ref SetEntry<T> entry, ref byte source) =>
+                NinoBlocks.ReadItem<T, TFormatter>(ref entry.Value, ref source);
         }
 
         /// <summary>
@@ -105,6 +119,10 @@ namespace Nino.Core.Internal
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void Write(in SetEntry<T> entry, ref byte destination) =>
                 NinoUnsafe.Write(ref destination, entry.Value);
+
+            // The bytes checked by the caller first (INinoFormatter<T>.CheckSlots).
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Read(ref SetEntry<T> entry, ref byte source) => entry.Value = NinoUnsafe.Read<T>(ref source);
         }
 
         /// <summary>A dictionary entry's key and value (its element, the pair), each raw or a block.</summary>
@@ -131,6 +149,14 @@ namespace Nino.Core.Internal
                 NinoBlocks.WriteItem<TKey, TKeyFormatter>(entry.Key, ref destination);
                 NinoBlocks.WriteItem<TValue, TValueFormatter>(entry.Value,
                     ref Unsafe.Add(ref destination, NinoBlocks.ItemSize<TKey, TKeyFormatter>()));
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Read(ref MapEntry<TKey, TValue> entry, ref byte source)
+            {
+                NinoBlocks.ReadItem<TKey, TKeyFormatter>(ref entry.Key, ref source);
+                NinoBlocks.ReadItem<TValue, TValueFormatter>(ref entry.Value,
+                    ref Unsafe.Add(ref source, NinoBlocks.ItemSize<TKey, TKeyFormatter>()));
             }
         }
 
@@ -214,6 +240,22 @@ namespace Nino.Core.Internal
                 bound == count ? NinoRun.AllInUse : MapLayout<TKey, TValue>.InUse);
             return true;
         }
+
+        /// <summary>
+        /// The run of the first <paramref name="count"/> (not 0) of a new set's <paramref name="entries"/>, which a read
+        /// fills (<see cref="NinoRuns.ReadSet{T,TFormatter}"/>), every one in use.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static NinoRun Run<T>(SetEntry<T>[] entries, int count) =>
+            new(ref Unsafe.As<T, byte>(ref entries[0].Value), count, Unsafe.SizeOf<SetEntry<T>>(), NinoRun.NoKey,
+                NinoRun.AllInUse);
+
+        /// <summary>As <see cref="Run{T}(SetEntry{T}[], int)"/>, for a new dictionary's entries
+        /// (<see cref="NinoRuns.ReadPairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static NinoRun Run<TKey, TValue>(MapEntry<TKey, TValue>[] entries, int count) =>
+            new(ref Unsafe.As<TValue, byte>(ref entries[0].Value), count, Unsafe.SizeOf<MapEntry<TKey, TValue>>(),
+                NinoRun.NoKey, NinoRun.AllInUse);
 
         /// <summary>The entry whose value <paramref name="value"/> is (a run's <see cref="NinoRun.First"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

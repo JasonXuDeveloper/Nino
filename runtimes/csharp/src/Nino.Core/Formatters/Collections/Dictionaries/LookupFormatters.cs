@@ -107,7 +107,7 @@ namespace Nino.Core
             {
                 elements = NinoUnsafe.NewArray<TElement>(count,
                     NinoElements.CopiedWhole<TElement, TElementFormatter>());
-                NinoElements.Read<TElement, TElementFormatter>(elements, ref reader);
+                NinoRuns.Read<TElement, TElementFormatter>(elements, ref reader);
             }
             else
             {

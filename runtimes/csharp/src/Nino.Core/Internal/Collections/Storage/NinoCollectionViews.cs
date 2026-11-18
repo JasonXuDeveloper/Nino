@@ -43,7 +43,7 @@ namespace Nino.Core
             var span = MemoryMarshal.CreateSpan(ref NinoUnsafe.GetArrayDataReference(items), length);
             if (!NinoElements.ReadOverwrites<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 span.Clear();
-            NinoElements.Read<T, TFormatter>(span, ref reader, prechecked: true);
+            NinoRuns.Read<T, TFormatter>(span, ref reader, prechecked: true);
             return items;
         }
     }

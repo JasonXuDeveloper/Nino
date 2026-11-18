@@ -22,27 +22,20 @@ namespace Nino.Core.Internal
             return values;
         }
 
-        private static byte[] Bytes(long[] values, int pairSize)
-        {
-            var bytes = new byte[values.Length * pairSize];
-            for (int i = 0; i < values.Length; i++)
-            {
-                NinoUnsafe.Write(ref bytes[i * pairSize], values[i]);
-                if (pairSize > 8)
-                    NinoUnsafe.Write(ref bytes[i * pairSize + 8], i);
-            }
-
-            return bytes;
-        }
-
         private static bool CheckSet(int mask, int bias)
         {
 #if NETSTANDARD2_1 || NET8_0_OR_GREATER
             var values = CheckValues();
             var set = new HashSet<long>();
             set.EnsureCapacity(values.Length);
-            if (ObjectFields.At<object>(set, SetBuckets) is not int[] ||
-                !Fill(set, ref Bytes(values, 8)[0], values.Length, 8, mask, bias) || set.Count != values.Length)
+            // Filled as a read fills it (its entries, then Link), with this hashing.
+            if (ObjectFields.At<object>(set, SetBuckets) is not int[] || !Empty(set, values.Length))
+                return false;
+            var entries = Entries(set);
+            for (int i = 0; i < values.Length; i++)
+                entries[i].Value = values[i];
+            Link(set, values.Length, mask, bias);
+            if (set.Count != values.Length)
                 return false;
             int index = 0;
             foreach (long value in set)
@@ -66,9 +59,18 @@ namespace Nino.Core.Internal
         {
             var keys = CheckValues();
             var dictionary = new Dictionary<long, int>(keys.Length);
-            if (ObjectFields.At<object>(dictionary, MapBuckets) is not int[] ||
-                !Fill(dictionary, ref Bytes(keys, 12)[0], keys.Length, 8, 12, mask, bias) ||
-                dictionary.Count != keys.Length)
+            // As CheckSet.
+            if (ObjectFields.At<object>(dictionary, MapBuckets) is not int[] || !Empty(dictionary, keys.Length))
+                return false;
+            var entries = Entries(dictionary);
+            for (int i = 0; i < keys.Length; i++)
+            {
+                entries[i].Key = keys[i];
+                entries[i].Value = i;
+            }
+
+            Link(dictionary, keys.Length, mask, bias);
+            if (dictionary.Count != keys.Length)
                 return false;
             int index = 0;
             foreach (var pair in dictionary)

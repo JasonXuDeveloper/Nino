@@ -56,7 +56,7 @@ namespace Nino.Core
             }
 
             if (shape.Total != 0)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0], shape.Total, ref reader, prechecked: true);
+                NinoRuns.Read<T, TFormatter>(ref array[0, 0], shape.Total, ref reader, prechecked: true);
         }
 
         // Publish the new array only after the entire payload has been read.
@@ -73,7 +73,7 @@ namespace Nino.Core
             ref T first = ref array[0, 0];
 #endif
             if (items == null)
-                NinoElements.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
+                NinoRuns.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
             else
                 MultiDim.Fill(items, ref first);
             NinoRecycler.Replace(ref value, array);
@@ -124,7 +124,7 @@ namespace Nino.Core
             }
 
             if (shape.Total != 0)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0], shape.Total, ref reader, prechecked: true);
+                NinoRuns.Read<T, TFormatter>(ref array[0, 0, 0], shape.Total, ref reader, prechecked: true);
         }
 
         // Publish the new array only after the entire payload has been read.
@@ -141,7 +141,7 @@ namespace Nino.Core
             ref T first = ref array[0, 0, 0];
 #endif
             if (items == null)
-                NinoElements.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
+                NinoRuns.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
             else
                 MultiDim.Fill(items, ref first);
             NinoRecycler.Replace(ref value, array);
@@ -192,7 +192,7 @@ namespace Nino.Core
             }
 
             if (shape.Total != 0)
-                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0, 0], shape.Total, ref reader, prechecked: true);
+                NinoRuns.Read<T, TFormatter>(ref array[0, 0, 0, 0], shape.Total, ref reader, prechecked: true);
         }
 
         // Publish the new array only after the entire payload has been read.
@@ -209,7 +209,7 @@ namespace Nino.Core
             ref T first = ref array[0, 0, 0, 0];
 #endif
             if (items == null)
-                NinoElements.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
+                NinoRuns.Read<T, TFormatter>(ref first, shape.Total, ref reader, prechecked: true);
             else
                 MultiDim.Fill(items, ref first);
             NinoRecycler.Replace(ref value, array);
