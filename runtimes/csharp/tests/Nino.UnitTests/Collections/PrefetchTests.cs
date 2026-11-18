@@ -391,6 +391,7 @@ public class PrefetchTests
         string item = Output("Item");
         // 16 (header) + 4 + 8 + two references of 8 + 64: 172 bytes.
         StringAssert.Contains(item, "public int PrefetchBytes => 172;");
+        StringAssert.Contains(item, "public bool HasMemberPrefetch => true;");
         StringAssert.Contains(item,
             "return global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Name) + global::Nino.Core.CompilerServices.NinoPrefetched.At(v.Values);");
         // One member: the element's prefetch in one expression (Nino.Core's loop calls it per element).
@@ -405,8 +406,10 @@ public class PrefetchTests
         Assert.IsFalse(virtualPrefetch.Contains(".Name"), "a getter that can dispatch to an override");
 
         string scalar = Output("Scalar");
-        StringAssert.Contains(scalar, "INinoObjectPrefetchFormatter");
+        // No member to prefetch: the objects alone (INinoFormatter.HasMemberPrefetch keeps its default).
+        StringAssert.Contains(scalar, "public int PrefetchBytes =>");
         Assert.IsFalse(scalar.Contains("PrefetchMembers"));
+        Assert.IsFalse(scalar.Contains("HasMemberPrefetch"));
 
         foreach (string type in new[] { "Fixed", "Value", "Box_1" })
             Assert.IsFalse(Output(type).Contains("PrefetchBytes"), type);

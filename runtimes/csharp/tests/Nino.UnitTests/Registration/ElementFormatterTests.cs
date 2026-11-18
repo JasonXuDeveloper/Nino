@@ -190,9 +190,45 @@ public struct NoteLoopFormatter : INinoFormatter<Note>
 }
 
 /// <summary>
+/// The bytes of <see cref="NotePlainFormatter"/>, with the prefetch a generated formatter of a class has in a project
+/// built with <c>NinoPrefetchLargeCollections</c>: an element's bytes (large, so the smallest long collection
+/// prefetches) and the objects its members point to (counting the calls).
+/// </summary>
+public struct NotePrefetchFormatter : INinoFormatter<Note>
+{
+    [ThreadStatic] public static int MemberPrefetches;
+
+    public void Serialize(Note value, ref Writer writer) => default(NotePlainFormatter).Serialize(value, ref writer);
+
+    public void Deserialize(ref Reader reader, ref Note value) =>
+        default(NotePlainFormatter).Deserialize(ref reader, ref value);
+
+    public int PrefetchBytes => 1 << 30;
+
+    public bool HasMemberPrefetch => true;
+
+    public int PrefetchMembers(object value)
+    {
+        MemberPrefetches++;
+        return NinoPrefetched.At(Unsafe.As<Note>(value).Text);
+    }
+}
+
+/// <summary>As <see cref="NotePrefetchFormatter"/>, prefetching the elements' own objects only.</summary>
+public struct NoteObjectPrefetchFormatter : INinoFormatter<Note>
+{
+    public void Serialize(Note value, ref Writer writer) => default(NotePlainFormatter).Serialize(value, ref writer);
+
+    public void Deserialize(ref Reader reader, ref Note value) =>
+        default(NotePlainFormatter).Deserialize(ref reader, ref value);
+
+    public int PrefetchBytes => 24;
+}
+
+/// <summary>
 /// Users' formatters as the elements of collections: one with only Serialize and Deserialize (every capability of
-/// <see cref="INinoFormatter{T}"/> its default), one with the block members and one with the loops of a polymorphic
-/// base, each writing the bytes of the type it stands in for.
+/// <see cref="INinoFormatter{T}"/> its default), one with the block members, one with the loops of a polymorphic
+/// base and two with the prefetch of long collections, each writing the bytes of the type it stands in for.
 /// </summary>
 [TestClass]
 public class ElementFormatterTests
@@ -211,6 +247,12 @@ public class ElementFormatterTests
         Assert.AreEqual(-1, NinoSlots<Cell, CellPlainFormatter>.FixedStride);
         Assert.AreEqual(6, NinoBlockPlan<Cell, CellBlockFormatter>.Size);
         Assert.AreEqual(6, NinoSlots<Cell, CellBlockFormatter>.FixedStride);
+        Assert.IsFalse(NinoTopWrites<LabelFormatter>.Sized);
+        Assert.IsFalse(NinoTopWrites<LabelFormatter>.External);
+        Assert.IsTrue(NinoTopWrites<ArrayFormatter<Label, LabelFormatter>>.Sized);
+        Assert.IsTrue(NinoTopWrites<UnmanagedListFormatter<List<int>, int>>.External);
+        Assert.AreEqual(int.MaxValue, NinoPrefetch.Of<LabelFormatter>.Threshold);
+        Assert.IsFalse(NinoPrefetch.Of<LabelFormatter>.Members);
     }
 
     [TestMethod]
@@ -345,6 +387,40 @@ public class ElementFormatterTests
             CollectionAssert.AreEqual(bytes, NinoDirect.Serialize<T, TLoop>(value), typeof(T).Name);
             Assert.IsTrue(Same(items(value), items(NinoDirect.Deserialize<T, TLoop>(bytes))), typeof(T).Name);
         }
+    }
+
+    [TestMethod]
+    public void PrefetchFormatterAsElementOfLongArraysAndLists()
+    {
+        Assert.IsTrue(NinoPrefetch.Of<NotePrefetchFormatter>.Members);
+        Assert.IsFalse(NinoPrefetch.Of<NoteObjectPrefetchFormatter>.Members);
+        Assert.AreEqual(NinoPrefetch.Supported, NinoPrefetch.Of<NotePrefetchFormatter>.Threshold != int.MaxValue);
+        Assert.AreEqual(NinoPrefetch.Supported, NinoPrefetch.Of<NoteObjectPrefetchFormatter>.Threshold != int.MaxValue);
+
+        // Longer than any threshold of NotePrefetchFormatter's, shuffled so the objects are not in allocation order.
+        var notes = Enumerable.Range(0, 3000).Select(i => new Note { Code = i, Text = "n" + i }).ToArray();
+        var random = new Random(346);
+        for (int i = notes.Length - 1; i > 0; i--)
+        {
+            int j = random.Next(i + 1);
+            (notes[i], notes[j]) = (notes[j], notes[i]);
+        }
+
+        byte[] bytes = NinoDirect.Serialize<Note[], ArrayFormatter<Note, NotePlainFormatter>>(notes);
+        int prefetches = NotePrefetchFormatter.MemberPrefetches;
+        CollectionAssert.AreEqual(bytes, NinoDirect.SerializePrefetched<Note, NotePrefetchFormatter>(notes));
+        CollectionAssert.AreEqual(bytes, NinoDirect.SerializePrefetched<Note, NotePrefetchFormatter>(notes.ToList()));
+        CollectionAssert.AreEqual(bytes, NinoDirect.SerializePrefetched<Note, NoteObjectPrefetchFormatter>(notes));
+        Assert.AreEqual(NinoPrefetch.Supported, NotePrefetchFormatter.MemberPrefetches > prefetches,
+            "the members of the elements ahead are prefetched where the runtime prefetches");
+
+        // Read into the existing objects, as the interceptors of a top-level Deserialize(data, ref value) do.
+        var existing = notes.Select(x => new Note { Code = -1 }).ToArray();
+        var objects = existing.ToArray();
+        NinoDirect.DeserializePrefetched<Note, NotePrefetchFormatter>(bytes, ref existing);
+        CollectionAssert.AreEqual(objects, existing, "the objects are kept");
+        CollectionAssert.AreEqual(notes.Select(x => (x.Code, x.Text)).ToList(),
+            existing.Select(x => (x.Code, x.Text)).ToList());
     }
 
     /// <summary>
