@@ -100,14 +100,13 @@ Registration/                what a generated registry calls at startup:
 
 ```
 NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capability members with defaults: FixedSize,
-                             WriteFixed, BlockMap, ReadBlock, BodyTraits, WriteElements, internal slots) and the
-                             non-generic INinoFormatter it extends (the element and pair loops of polymorphic bases:
+                             WriteFixed, BlockMap, ReadBlock, WriteElements, internal slots) and the non-generic
+                             INinoFormatter it extends (BodyTraits; the element and pair loops of polymorphic bases:
                              HasElementLoop, HasPairLoop, WritePairs32/64, WriteStringPairs; the prefetch of long
                              collections of classes: PrefetchBytes, HasMemberPrefetch, PrefetchMembers; internal
                              HasSizedWrite, HasExternalWrite); NinoFormatterBase<T> and its struct wrappers
                              (StructFormatter, FixedStructFormatter, TopStructFormatter, NestingFormatter),
-                             RawFormatter, NinoTopWrites (the sized and external write queries read once per formatter),
-                             NinoSized, INinoRawArrayFormatter, CachedFormatter<T>
+                             RawFormatter, NinoSized, INinoRawArrayFormatter, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
                              NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;
                              NinoMissingFormatter<T> (the never-null stand-in of a type without one)
@@ -229,14 +228,17 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 
 ```
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
-NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed);
-                             the block kinds every collection moves as one run (raw values, DateTimeOffset, block
-                             formatters, slots: raw T?); NinoSlots, the slot stride read once; NinoLoops, the element
-                             and pair loop queries read once per formatter
+NinoKind.cs                  the one element-kind decision every collection reads: NinoKind<TFormatter> (what a formatter
+                             says of every value, read once: Traits, IsString, the element and pair loops, prefetch,
+                             the sized and external top-level writes), NinoKind<T, TFormatter> (NinoElementKind: raw,
+                             slot, block or per value, with Stride, MinWire, CopiedWhole, ReadOverwrites, Heavy,
+                             HeavyHashed), NinoKind.Of / Stride (read behind the no-references guard)
+NinoElements.cs              shared element loops of array-like formatters, one path per kind; capacity budgets and the
+                             read policies' accessors (MinWireSize, CopiedWhole, ReadOverwrites, from NinoKind)
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
-                             out-of-line helper per run; Of, the formatter's prefetch queries read once
+                             out-of-line helper per run; Threshold and ReverseReadIsLocal of a formatter's PrefetchBytes
 NinoDictionary.cs            shared dictionary read, write and reuse loops
 NinoNullables.cs             fixed-stride nullable encoding and the host layout probe
 BclCollections.cs            runtime-owned collections using their checked views; linked-list ring

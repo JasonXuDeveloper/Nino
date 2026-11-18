@@ -53,7 +53,6 @@ public interface INinoFormatter<T> : INinoFormatter
     void WriteFixed(in T value, ref byte destination) => ...; // throws: called only when FixedSize is not -1
     NinoBlockMap BlockMap() => null;                          // collections move values as blocks
     void ReadBlock(ref T value, ref byte source) => ...;      // throws: called only when BlockMap is not null
-    int BodyTraits => NinoBodyTraits.Nests;                   // a class body: opens class bodies? deferrable?
     void WriteElements(ReadOnlySpan<T> values, ref Writer writer) => ...; // throws: only when HasElementLoop
     // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter); Size, WriteSized and
     // TryWriteExternal of collection formatters (top-level calls write into an array of the exact size, or straight
@@ -62,6 +61,7 @@ public interface INinoFormatter<T> : INinoFormatter
 
 public interface INinoFormatter                               // what does not depend on T (hidden)
 {
+    int BodyTraits => NinoBodyTraits.Nests;                   // a body: opens class bodies? deferrable? dispatches?
     bool HasElementLoop => false;                             // arrays and lists of a polymorphic base in one loop
     bool HasPairLoop => false;                                // Dictionary<TKey, base> in one loop (.NET 8+)
     void WritePairs32(object dictionary, ref Writer writer) => ...;  // throws; WritePairs64, WriteStringPairs
@@ -77,10 +77,10 @@ too (generated formatters of fixed-size and block structs, of class bodies and o
 pair formatters). Calling a default on a struct boxes it (CoreCLR, Mono, IL2CPP), so Nino.Core calls only the queries
 (`FixedSize`, `BlockMap`, `BodyTraits`, `HasElementLoop`, `HasPairLoop`, `PrefetchBytes`, `HasMemberPrefetch`, the
 slot stride, `HasSizedWrite`, `HasExternalWrite`) on a formatter that may lack the capability, once per type into a
-`static readonly` field (`NinoBlockPlan<T, TFormatter>.Size`, `NinoSlots<T, TFormatter>.Stride`, `NinoLoops<TFormatter>`,
-`NinoPrefetch.Of<TFormatter>`, `NinoTopWrites<TFormatter>`), and the other members only where that field says the
+`static readonly` field (`NinoBlockPlan<T, TFormatter>.Size`, `NinoKind<T, TFormatter>`, `NinoKind<TFormatter>`),
+and the other members only where that field says the
 formatter has them: a constrained call to the struct's own method on every runtime, never an `is` test, a cast or a
-boxed interface field. The loop, prefetch and top-level write queries sit on the non-generic `INinoFormatter` so that
+boxed interface field. The body traits and the loop, prefetch and top-level write queries sit on the non-generic `INinoFormatter` so that
 their fields are generic over the formatter alone: a loop over a class `T` is shared generic code, where a field of a class generic over `T` is a
 lookup per collection, while the formatter is still its exact struct and its field folds. `BodyTraits` is the one
 query also called per value, on an `INinoBodyFormatter<T>`, which always implements it. Two interfaces stay apart:
@@ -89,6 +89,22 @@ type parameter the JIT folds while importing, without boxing), and the internal 
 `NinoRawArray<T>` holds for the top-level calls of an array of raw elements, which are generic over the array type
 alone (no formatter type parameter to call through), so its field is the boxed formatter itself, whose exact type Tier1
 code knows.
+
+**One element kind per type, decided once.** How a collection moves its elements is decided in one place,
+`NinoKind` (`Internal/Collections/Traversal/NinoKind.cs`), never again in a collection formatter, by two classes keyed by
+what decides. `NinoKind<TFormatter>`, keyed on the formatter alone, holds what the formatter says of every value:
+`Traits` (`BodyTraits`, now a member of the non-generic `INinoFormatter`, with the `NinoBodyTraits.Dispatches` bit the
+generator sets on a polymorphic base's formatter), `IsString` (a `typeof` of `StringFormatter`), the element and pair
+loops, the prefetch and the top-level write queries; its fields fold in code shared over a class element, where a field
+of a class generic over the element is a lookup per collection. `NinoKind<T, TFormatter>` holds the kind of a value
+type without references, in this order: raw (an `INinoRawFormatter` whose `NinoLayout` is canonical on this runtime,
+`RawFormatter`'s check read as it is: being unmanaged is not enough), slot (a raw `T?`), block (a `BlockMap`, and
+`DateTimeOffset` until it is one, #348), else per value; with the stride of the block kinds and the read policies that
+follow (`MinWire`, `CopiedWhole`, `ReadOverwrites`, `Heavy`, `HeavyHashed`). Its code is never shared, so it is read
+behind `IsReferenceOrContainsReferences<T>()` (`NinoKind.Of`, `NinoKind.Stride`). Every trait is a query of the
+formatter or a `typeof`, never an `is` test or a cast, and no member is generic (Unity 2022.3's IL2CPP fails on generic
+default members, #405). The loops themselves are still per collection; one loop per kind over a storage view is a later
+step of #355.
 
 `Deserialize` takes the reader first, as every read API does, and the current value by `ref`. Passing `default` creates a new instance, and passing an
 existing instance populates it in place when possible. One code path serves both `Deserialize` and ref
