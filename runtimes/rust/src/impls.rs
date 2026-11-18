@@ -21,6 +21,8 @@ pub(crate) use sequences::{
     write_prefetched,
 };
 #[cfg(feature = "indexmap")]
+pub(crate) use sets::write_set;
+#[cfg(feature = "indexmap")]
 pub(crate) use sets::{fill_set, FillSet};
 
 /// Reads a value that is hashed or ordered (a dictionary key, a set element): a body deferred inside it could not
