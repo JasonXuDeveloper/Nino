@@ -624,14 +624,24 @@ namespace Nino.Core
             source = reader;
         }
 
+        /// <summary>
+        /// The fewest pairs <see cref="ReadEntries"/> reads: below it the two calls it adds (the read loop and
+        /// <see cref="HashTables.Link{TKey,TValue}"/>) cost more than the inserts they save. Runners (#320, run
+        /// 44243147222): one int-keyed pair 4 to 9 % slower than one insert on Xeon 6975P-C and Neoverse-N2, four on
+        /// par, 12 and more up to 13 % faster.
+        /// </summary>
+        private const int EntriesFrom = 4;
+
         /// <summary><see cref="ReadPairs"/>, each key inserted or its bucket walked (hash flooding).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadGuarded(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
         {
             // Where the dictionary is as expected (new, sized for the pairs), the pairs are read into its entries and
-            // its buckets built after them (HashTables.Link: hash flooding, repeated keys); else each is added by the
-            // dictionary and its bucket walked after it.
-            if (HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length))
+            // its buckets built after them (HashTables.Link: hash flooding, repeated keys), or, for a few pairs, each
+            // key added here with its bucket walked as it is; else added by the dictionary, and its bucket walked after
+            // (HashTables: hash flooding). The plan read once, into locals (HashTables.Plan).
+            bool insert = HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length);
+            if (insert && length >= EntriesFrom)
             {
                 try
                 {
@@ -649,6 +659,8 @@ namespace Nino.Core
 
             // A local reader, so its fields stay in registers inside the loop.
             Reader reader = source;
+            // One loop (the formatters inlined once), the choice made per pair: predicted, and cheaper than a second
+            // copy of the loop, which kept more of its state on the stack.
             bool walk = HashTables.Plan<TKey, TValue>.Walks;
             for (int i = 0; i < length; i++)
             {
@@ -656,16 +668,23 @@ namespace Nino.Core
                 TValue item = default;
                 default(TKeyFormatter).Deserialize(ref reader, ref key);
                 default(TValueFormatter).Deserialize(ref reader, ref item);
-                NinoCollections.AddUnique(dictionary, key, item);
-                if (walk)
-                    HashTables.Walk(dictionary, key);
+                if (insert)
+                {
+                    HashTables.Insert(dictionary, key, item);
+                }
+                else
+                {
+                    NinoCollections.AddUnique(dictionary, key, item);
+                    if (walk)
+                        HashTables.Walk(dictionary, key);
+                }
             }
 
             source = reader;
         }
 
         /// <summary>
-        /// Reads <paramref name="length"/> pairs straight into the entries of a dictionary
+        /// Reads <paramref name="length"/> (at least <see cref="EntriesFrom"/>) pairs straight into the entries of a dictionary
         /// <see cref="HashTables.CanInsert{TKey,TValue}"/> accepted, each key and value in its place with nothing but
         /// the formatters in the loop, then builds the buckets in one pass (<see cref="HashTables.Link{TKey,TValue}"/>).
         /// A key added one at a time (HashTables.Insert, a call per pair that loaded the table's fields again each time)

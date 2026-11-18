@@ -96,4 +96,52 @@ public class HashTableFillTests
         public bool Equals(int x, int y) => x % 10 == y % 10;
         public int GetHashCode(int value) => value % 10;
     }
+
+    /// <summary>
+    /// Pairs of a key or value that is not raw are read into a new dictionary's entries and linked after the read from
+    /// four pairs on (NinoDictionary.ReadEntries, HashTables.Link), one at a time below: the same contents either way,
+    /// a repeated or null key rejected, and a read that fails part way leaves the dictionary it filled empty.
+    /// </summary>
+    [TestMethod]
+    public void EntriesFillOfDictionariesWithObjects()
+    {
+        for (int n = 1; n <= 9; n++)
+        {
+            var ints = Enumerable.Range(0, n).ToDictionary(i => i * 7 - 20, i => Enumerable.Range(0, i).ToList());
+            var intsBack = NinoDeserializer.Deserialize<Dictionary<int, List<int>>>(NinoSerializer.Serialize(ints));
+            CollectionAssert.AreEqual(ints.Keys.ToArray(), intsBack.Keys.ToArray(), $"n = {n}");
+            foreach (var pair in ints)
+                CollectionAssert.AreEqual(pair.Value, intsBack[pair.Key]);
+            Assert.IsFalse(intsBack.ContainsKey(1000));
+            intsBack[1000] = null;
+            Assert.IsTrue(intsBack.Remove(-20));
+            Assert.AreEqual(n, intsBack.Count);
+
+            var strings = Enumerable.Range(0, n).ToDictionary(i => "k" + i, i => new[] { i, -i });
+            var stringsBack = NinoDeserializer.Deserialize<Dictionary<string, int[]>>(NinoSerializer.Serialize(strings));
+            CollectionAssert.AreEqual(strings.Keys.ToArray(), stringsBack.Keys.ToArray(), $"n = {n}");
+            Assert.AreEqual(n - 1, stringsBack["k" + (n - 1)][0]);
+
+            var repeated = ints.Concat(new[] { ints.Last() }).ToList();
+            StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>
+                NinoDeserializer.Deserialize<Dictionary<int, List<int>>>(NinoSerializer.Serialize(repeated))).Message,
+                "twice");
+            var nullKey = strings.Select(p => new KeyValuePair<string, int[]>(p.Key, p.Value))
+                .Append(new KeyValuePair<string, int[]>(null, new int[0])).ToList();
+            StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>
+                NinoDeserializer.Deserialize<Dictionary<string, int[]>>(NinoSerializer.Serialize(nullKey))).Message,
+                "null key");
+        }
+
+        // Cut inside its last value: the existing empty dictionary read into is empty again afterwards.
+        var bytes = NinoSerializer.Serialize(Enumerable.Range(0, 8).ToDictionary(i => i, i => new List<int> { i, i }));
+        var target = new Dictionary<int, List<int>>();
+        Assert.ThrowsExactly<NinoDataException>(() =>
+            NinoDeserializer.Deserialize(bytes.AsSpan(0, bytes.Length - 2).ToArray(), ref target));
+        Assert.AreEqual(0, target.Count);
+        Assert.IsFalse(target.ContainsKey(0));
+        NinoDeserializer.Deserialize(bytes, ref target);
+        Assert.AreEqual(8, target.Count);
+        CollectionAssert.AreEqual(new List<int> { 7, 7 }, target[7]);
+    }
 }
