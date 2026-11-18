@@ -5239,7 +5239,8 @@ func writeV14(w *nino.Writer, v []nino.Entry[nino.Guid, Marked]) {
 	if b == nil {
 		return
 	}
-	for _, e := range v {
+	for i := range v {
+		e := &v[i]
 		_ = b[23]
 		copy(b, e.Key[:])
 		encodeMarked(b[16:24], e.Value)
@@ -5553,7 +5554,8 @@ func writeV27(w *nino.Writer, v []nino.Entry[int32, nino.NinoNullable[float64]])
 	if b == nil {
 		return
 	}
-	for _, e := range v {
+	for i := range v {
+		e := &v[i]
 		_ = b[19]
 		le.PutUint32(b, uint32(e.Key))
 		encodeV44(b[4:20], e.Value)

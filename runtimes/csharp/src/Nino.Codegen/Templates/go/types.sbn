@@ -407,7 +407,12 @@ func write_fixed_block(values, size, first, a, second, b)
   $zero = first.needs_zero || (second && second.needs_zero) ? "true" : "false"
   $o = $o + "\tb := w.ExtendFixed(len(" + values + "), " + size + ", " + $zero + ")\n\tif b == nil {\n\t\treturn\n\t}\n"
   if $code.size != 0
-    $o = $o + "\tfor _, e := range " + values + " {\n\t\t_ = b[" + (size - 1) + "]\n" + lines($code, "\t\t") + "\t\tb = b[" + size + ":]\n\t}\n"
+    if second
+      $o = $o + "\tfor i := range " + values + " {\n\t\te := &" + values + "[i]\n"
+    else
+      $o = $o + "\tfor _, e := range " + values + " {\n"
+    end
+    $o = $o + "\t\t_ = b[" + (size - 1) + "]\n" + lines($code, "\t\t") + "\t\tb = b[" + size + ":]\n\t}\n"
   end
   ret $o
 end
