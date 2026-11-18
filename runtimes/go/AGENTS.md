@@ -29,9 +29,9 @@ nullable.go                  NullableSlot[T] (a T? as the element of a sequence)
                              where Go's layout is the wire's)
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
-unique.go                    duplicate keys of sets and maps read in data order: numbers, strings and NullableSlots of
-                             numbers (a set of T?) compared as .NET does, pairwise or in a seeded open-addressing table
-                             (the reader's scratch), no map
+unique.go                    duplicate keys of sets and maps read in data order: numbers, strings, NullableSlots of
+                             numbers (a set of T?) and keys whose equality is their bytes, pairwise or in a seeded
+                             open-addressing table (the reader's scratch); key metadata cached by Go type
 collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes (the func-value
                              helpers unexported, for the runtime's rare paths); counts checked against the bytes left
 depth.go                     class bodies (Class, ReadClass, WriteClass), deferral past 128, the 512 limit

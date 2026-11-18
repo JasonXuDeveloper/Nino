@@ -383,7 +383,7 @@ func CheckUniqueStrings(r *Reader, v []*string) []*string {
 	if v == nil || r.err != nil {
 		return nil
 	}
-	if repeatedStrings(unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(v[0])), true, &r.keys) {
+	if repeatedStrings(unsafe.Pointer(unsafe.SliceData(v)), len(v), int(unsafe.Sizeof(v[0])), true, 0, &r.keys) {
 		r.Fail(CodeDuplicateKey, "")
 		return nil
 	}
