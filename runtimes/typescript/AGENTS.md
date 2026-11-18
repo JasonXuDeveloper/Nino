@@ -41,7 +41,8 @@ bench/                       the .NET suite's cases (runtimes/csharp/benchmarks)
                              (browser.mjs); bench.ts finds each case's codec by its .NET type (ninoCodecOf);
                              generate.sh writes out/data (the cases' bytes), gen/model.ts (nino-gen on the schema) and
                              gen/pb (the suite's .proto files, buf.gen.yaml), all ignored; run.sh runs it all; own
-                             package.json
+                             package.json; copy.ts compares TypedArray.set with wasm memory.copy (development-only
+                             BlockCopy filter, #263)
 ```
 
 Generated files: `test/generated/*` is rewritten by `NINO_UPDATE_GENERATED=1 dotnet test runtimes/csharp/tests/Nino.Codegen.Tests`;

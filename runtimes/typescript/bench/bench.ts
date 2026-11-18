@@ -16,6 +16,7 @@
 import { equals, fromBinary, toBinary, type DescMessage, type Message } from "@bufbuild/protobuf";
 import { Packr } from "msgpackr";
 import { Bench } from "tinybench";
+import { blockCopyProbe } from "./copy.ts";
 import * as nino from "./gen/nino.ts";
 import { deserialize, NinoWriter, serialize, type NinoCodec } from "./gen/nino.ts";
 import { ninoCodecOf } from "./gen/model.ts";
@@ -315,6 +316,7 @@ function matcher(pattern: string): (name: string) => boolean {
  * file of the data directory, or null when there is none.
  */
 export async function run(read: (name: string) => Promise<Uint8Array | null>, options: Options = {}): Promise<Row[]> {
+  if (options.only === "BlockCopy") return blockCopyProbe(options);
   const log = options.log ?? (() => {});
   const list = await read("cases.json");
   if (!list) throw new Error("no cases.json: run generate.sh");
