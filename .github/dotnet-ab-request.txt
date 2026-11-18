@@ -429,4 +429,8 @@
 # #346 step 1 (claude/constrained-capabilities 8bd85d4d): block and slot members on INinoFormatter<T>, constrained
 # calls in place of casts and boxed fields. RyuJIT already devirtualized most of them, so this checks for no loss on
 # the block and slot cases. Base main c8dc678c.
-c8dc678c 8bd85d4d 3 *NullableTest.Nino* *CollectionsTest.Nino* *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.NinoDeserializeSimpleStructs *CommonTypesTest.Nino*
+# done (run 44280156044, #393 merged): geomean 1.006 N2, 0.997 Xeon 8573C (decimal?[] write 0.87x: same code, placement): c8dc678c 8bd85d4d 3 *NullableTest.Nino* *CollectionsTest.Nino* *SimpleTest.NinoSerializeSimpleStructs *SimpleTest.NinoDeserializeSimpleStructs *CommonTypesTest.Nino*
+# #346 step 2 (claude/constrained-elements 0a2275ca): element loops, pair loops and body traits through constrained
+# calls; queries per formatter in NinoLoops<TFormatter>. Checks polymorphic arrays and lists, dictionaries and
+# string arrays for no loss. Base main 44d49866.
+44d49866 0a2275ca 3 *PolymorphicTest.Nino* *GenericPolymorphicTest.Nino* *SimpleTest.Nino* *CollectionsTest.Nino*Dictionary* *CommonTypesTest.Nino* *StringsTest.Nino* *AppDataTest.Nino*
