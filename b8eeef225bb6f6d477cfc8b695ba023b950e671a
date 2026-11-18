@@ -1,0 +1,1 @@
+Performance: writing an `ImmutableStack<T>` walks its nodes once instead of twice: 1.50–1.53x on EPYC 9V45 and 1.40–1.44x on Neoverse-N2 (ImmutableStack<int> of 1,000, GitHub runners).
