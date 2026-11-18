@@ -132,8 +132,8 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * Calls in generic code (`T` a type parameter) are left alone: the interceptor would be shared code too.
 * **Fixed-size types.** A generated struct, or sealed class, whose members are all unmanaged portable values or
   such structs (not raw itself, not version tolerant, keyed, tracked or a collection, no custom formatters) is
-  written in the same number of bytes for every value. Its formatter also implements `INinoFixedSizeFormatter<T>`
-  (`FixedSize`, and `WriteFixed(in value, ref byte destination)`, which stores each member at a constant offset), and
+  written in the same number of bytes for every value. Its formatter also implements `INinoFormatter<T>`'s
+  `FixedSize` and `WriteFixed(in value, ref byte destination)` (which stores each member at a constant offset), and
   `NinoSerializer.Serialize(T)` returning `byte[]` is intercepted to `NinoDirect.SerializeFixed<T, TFormatter>`:
   it allocates the array at its final size and writes into it, with no writer, scratch buffer, growth checks or
   final copy. A null sealed class is its presence byte, `new byte[1]`. The regular call does the same through the
@@ -147,7 +147,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * **Block formatters.** A fixed-size generated struct (above) whose bytes can all be found in its memory (every
   instance field a member, or an auto-property's backing field, each directly assignable, no `[NinoConstructor]`, and
   each member raw and portable, a value tuple or `KeyValuePair` of such items, or another such struct) also implements
-  `INinoBlockFormatter<T>`, which extends `INinoFixedSizeFormatter<T>` with `BlockMap()` and `ReadBlock` (the model's
+  `BlockMap()` and `ReadBlock` (the model's
   `TypeModel.Block`, `TypeFacts.IsBlock`), as the tuple and pair formatters of Nino.Core do (their `FixedSize` is -1
   when an item is not raw). One write serves both: a block is the bytes of `WriteFixed`. Arrays, lists and spans of it then take the
   paths of `NinoBlockPlan<T, TFormatter>`: one bounds check for the collection, and where the block map gives every wire
@@ -258,7 +258,7 @@ Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in fo
 `NinoFormatterCache`, `NinoActivator`, `NinoRecycler` and `NinoUnsafe`. The types that exist only for generated code
 (and Nino's own packages: Nino.Immutable, Nino.UnityTypes) live in the namespace `Nino.Core.CompilerServices`, folder
 `CompilerServices/`: `NinoObject`, `NinoDirect`, `NinoUnsafe`, `INinoBodyFormatter<T>`, `INinoTopFormatter<T>`,
-`INinoRawBodyFormatter<T>`, `INinoFixedSizeFormatter<T>`, `INinoBlockFormatter<T>` with `NinoBlockMap` and `NinoBlocks`,
+`INinoRawBodyFormatter<T>`, `NinoBlockMap` and `NinoBlocks` (the block members of `INinoFormatter<T>`),
 `INinoRawFormatter`, `NinoBodyTraits`, `NinoTypes` (the registry's one call per concrete type), `NinoSubtypes<TBase>`
 and the `NinoSubtypeHandler` it returns, `[NinoGenerated]`, `INinoRegistry` and `NinoEffectiveSettings`. The name
 says who calls them: user code never needs a `using` for it, generated code names them with `global::`, and a

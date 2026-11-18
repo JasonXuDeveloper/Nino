@@ -580,15 +580,15 @@ internal sealed partial class BodyEmitter
     }
 
     /// <summary>
-    /// The <c>INinoBlockFormatter</c> of a struct of fixed size (<see cref="TypeModel.Block"/>): its blocks are the
-    /// bytes of <c>WriteFixed</c> (<see cref="EmitFixed"/>); <c>ReadBlock</c> reads them as <c>ReadBody</c> does, with
+    /// The block members of a struct of fixed size (<see cref="TypeModel.Block"/>): its blocks are the bytes of
+    /// <c>WriteFixed</c> (<see cref="EmitFixed"/>); <c>ReadBlock</c> reads them as <c>ReadBody</c> does, with
     /// the same checks; and <c>BlockMap</c> says where each member lies in the struct's memory (a field by its
     /// reference, an auto-property where a marked value stored through it lands), which lets collections of it move
     /// several values at a time by vector shuffles.
     /// </summary>
     private void EmitBlock(string[] offsets)
     {
-        string iface = $"{CoreCompilerServices}INinoBlockFormatter<{T}>";
+        string iface = $"{Core}INinoFormatter<{T}>";
         _w.Open($"{CoreCompilerServices}NinoBlockMap {iface}.BlockMap()");
         _w.Line($"var __v = default({T});");
         _w.Line($"return new {CoreCompilerServices}NinoBlockMap()");

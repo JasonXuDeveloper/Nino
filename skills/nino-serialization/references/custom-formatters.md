@@ -5,7 +5,9 @@ know) or NINO007, NINO008 or NINO020 appears. Full page: https://nino.xgamedev.n
 
 A formatter is a **struct** implementing `INinoFormatter<T>` (`Serialize(T, ref Writer)`, `Deserialize(ref Reader,
 ref T)`), called as `default(F)`: no instance state. Read exactly what you wrote, in order, and bound every loop by
-the input (the data may be hostile).
+the input (the data may be hostile). Those two members are all a formatter needs: the interface's other members
+(`FixedSize`, `WriteFixed`, `BlockMap`, `ReadBlock`) are optional capabilities with defaults; implement them only for
+a struct of a fixed size that collections should move as blocks, all four, writing the same bytes as `Serialize`.
 
 - One member: `[NinoMemberFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).
 - A type Nino does not know: `[assembly: NinoFormatter(typeof(F<,>))]`, generic formatters as open definitions; a

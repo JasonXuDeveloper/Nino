@@ -172,6 +172,9 @@ public class StreamTests
 
 #if NET
     [TestMethod]
+    // ArrayPool<byte>.Shared trims its buffers on a gen 2 collection, which tests running beside it cause: one array
+    // re-rented in the measured loop (3,680 bytes in a CI run) fails the count.
+    [DoNotParallelize]
     public unsafe void SteadyStateCallsAllocateNothing()
     {
         // The owner's question: are the stream calls zero GC? Into a reused instance, after a warm-up, yes, for every

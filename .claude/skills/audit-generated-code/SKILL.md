@@ -77,10 +77,10 @@ what you learn"), and its one-line rule here.
   loop must be written for that: `optimize`, `references/jit.md`, "Locals"). A switch whose cases end the
   same way ends it once after the switch (`default: continue;` for the keys it skips; the keyed fallback loop).
   One act is one member, taking a struct by reference: a block struct's collections and its top-level and member
-  writes all call `WriteFixed(in T value, ref byte destination)` (`INinoBlockFormatter` extends
-  `INinoFixedSizeFormatter`; round 101 merged `BlockSize`/`WriteBlock` into it). A by-value `WriteFixed` that the
-  block write forwarded to made the block loops load every field before storing any (`NinoBlockCollections.WriteValue`,
-  `WriteEach` of Waypoints changed); by reference, the listings are the old by-reference `WriteBlock`'s.
+  writes all call `WriteFixed(in T value, ref byte destination)` (the block members of `INinoFormatter<T>` reuse
+  `FixedSize`/`WriteFixed`; round 101 merged `BlockSize`/`WriteBlock` into them). A by-value `WriteFixed` that the
+  block write forwarded to made the block loops load every field before storing any (`NinoBlockCollections.WriteValue`
+  then, `WriteEach` of Waypoints changed); by reference, the listings are the old by-reference `WriteBlock`'s.
 - **nino-gen's Rust: per-type boilerplate is a crate macro**: what the template, the derive, `gen.py` and the benches'
   `Point` write the same for every type of a kind is a `macro_rules!` in `runtimes/rust/src/lib.rs` they all call
   (`sealed_read!`/`sealed_write!`, `raw_read!`/`raw_write!`), and doc comments on per-type items live in the macro

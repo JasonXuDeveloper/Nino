@@ -13,34 +13,26 @@ using Nino.Core.CompilerServices;
 namespace Nino.Core.Internal
 {
     /// <summary>
-    /// How values of <typeparamref name="T"/> map to their blocks (<see cref="INinoBlockFormatter{T}.BlockMap"/>),
+    /// How values of <typeparamref name="T"/> map to their blocks (<see cref="INinoFormatter{T}.BlockMap"/>),
     /// worked out once. The flags are JIT-time constants.
     /// </summary>
     internal static partial class NinoBlockPlan<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
     {
-#if !NET8_0_OR_GREATER
         /// <summary>
-        /// The formatter boxed once, for the calls of one value at a time: IL2CPP (its C++ shows it) and runtimes
-        /// without RyuJIT's box removal box <c>default(TFormatter)</c> at every cast to an interface, a GC allocation
-        /// per value, where RyuJIT calls the struct directly. One interface call per value remains; the vector and
-        /// kernel paths take runs of values without it.
+        /// Where the bytes of a block lie in a value's memory, as the formatter describes it (an empty or failed map:
+        /// not known), or null when its values are not blocks. Both queries are read once here (a formatter without
+        /// blocks answers them through its interface's defaults, boxed): every other member and method reads the
+        /// fields.
         /// </summary>
-        public static readonly INinoBlockFormatter<T> Formatter = default(TFormatter) as INinoBlockFormatter<T>;
+        private static readonly NinoBlockMap Description = default(TFormatter).FixedSize > 0
+            ? default(TFormatter).BlockMap()
+            : null;
 
-#endif
         /// <summary>
-        /// <see cref="NinoBlockCollections.FixedSize{T, TFormatter}"/>, read from a field: one load where the type test
+        /// <see cref="NinoBlockCollections.FixedSize{T, TFormatter}"/>, read from a field: one load where the query
         /// and the size were each an inlined call, which the JIT counts against what else it inlines into the method.
         /// </summary>
-        public static readonly int Size = default(TFormatter) is INinoBlockFormatter<T> formatter
-            ? formatter.FixedSize
-            : -1;
-
-        /// <summary>Where the bytes of a block lie in a value's memory, as the formatter describes it (null: not
-        /// known).</summary>
-        private static readonly NinoBlockMap Description = NinoBlockCollections.FixedSize<T, TFormatter>() > 0
-            ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockMap()
-            : null;
+        public static readonly int Size = Description != null ? default(TFormatter).FixedSize : -1;
 
         /// <summary>
         /// <see cref="NinoBlockCollections.ReadSize{T, TFormatter}"/>: -1 in <see cref="NinoSettings.Untrusted"/> mode
@@ -104,7 +96,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The block offsets of the <c>bool</c>s of a block that reads move without
-        /// <see cref="INinoBlockFormatter{T}.ReadBlock"/> (as one copy where <see cref="IsMemory"/>, or by the vector
+        /// <see cref="INinoFormatter{T}.ReadBlock"/> (as one copy where <see cref="IsMemory"/>, or by the vector
         /// paths), and so check first (<see cref="NinoBlockCollections"/>.ReadAll); null for none.
         /// </summary>
 #if NET8_0_OR_GREATER

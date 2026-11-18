@@ -25,12 +25,12 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The raw value of a <see cref="SetEntry{T}"/> as a block (<see cref="INinoBlockFormatter{T}"/>), so that a
+        /// The raw value of a <see cref="SetEntry{T}"/> as a block (<see cref="INinoFormatter{T}.BlockMap"/>), so that a
         /// set's entries are written by <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>: several entries at
         /// a time, their values packed out of the strided entries by vector permutes (or the registered kernels in the
         /// netstandard2.1 build), one at a time where there are none or the value has padding. Writes only.
         /// </summary>
-        internal struct SetEntryBlock<T> : INinoFormatter<SetEntry<T>>, INinoBlockFormatter<SetEntry<T>>
+        internal struct SetEntryBlock<T> : INinoFormatter<SetEntry<T>>
         {
             public int FixedSize => Unsafe.SizeOf<T>();
 
@@ -47,17 +47,16 @@ namespace Nino.Core.Internal
                 NinoLayout<T>.ClearPadding(ref destination);
             }
 
-            public void ReadBlock(ref SetEntry<T> value, ref byte source) => throw new NotSupportedException();
             public void Serialize(SetEntry<T> value, ref Writer writer) => throw new NotSupportedException();
             public void Deserialize(ref Reader reader, ref SetEntry<T> value) => throw new NotSupportedException();
         }
 
         /// <summary>
         /// The value of a <see cref="SetEntry{T}"/> moved as its bytes, whatever they hold: for values the caller
-        /// makes the wire's bytes after the move (slots: <see cref="INinoSlotFormatter{T}.SlotsAreMemory"/>), where
+        /// makes the wire's bytes after the move (slots: <see cref="INinoFormatter{T}.SlotsAreMemory"/>), where
         /// <see cref="SetEntryBlock{T}"/> takes only values that are the wire's bytes already. Writes only.
         /// </summary>
-        internal struct SetEntryBytes<T> : INinoFormatter<SetEntry<T>>, INinoBlockFormatter<SetEntry<T>>
+        internal struct SetEntryBytes<T> : INinoFormatter<SetEntry<T>>
         {
             public int FixedSize => Unsafe.SizeOf<T>();
 
@@ -71,7 +70,6 @@ namespace Nino.Core.Internal
             public void WriteFixed(in SetEntry<T> value, ref byte destination) =>
                 NinoUnsafe.Write(ref destination, value.Value);
 
-            public void ReadBlock(ref SetEntry<T> value, ref byte source) => throw new NotSupportedException();
             public void Serialize(SetEntry<T> value, ref Writer writer) => throw new NotSupportedException();
             public void Deserialize(ref Reader reader, ref SetEntry<T> value) => throw new NotSupportedException();
         }
@@ -80,8 +78,7 @@ namespace Nino.Core.Internal
         /// The raw key and value of a <see cref="NinoDictionaryEntry{TKey,TValue}"/> as one block, as
         /// <see cref="SetEntryBlock{T}"/> for a set's entries.
         /// </summary>
-        internal struct MapEntryBlock<TKey, TValue> : INinoFormatter<NinoDictionaryEntry<TKey, TValue>>,
-            INinoBlockFormatter<NinoDictionaryEntry<TKey, TValue>>
+        internal struct MapEntryBlock<TKey, TValue> : INinoFormatter<NinoDictionaryEntry<TKey, TValue>>
         {
             public int FixedSize => Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>();
 
@@ -100,9 +97,6 @@ namespace Nino.Core.Internal
                 NinoLayout<TKey>.ClearPadding(ref destination);
                 NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref destination, Unsafe.SizeOf<TKey>()));
             }
-
-            public void ReadBlock(ref NinoDictionaryEntry<TKey, TValue> value, ref byte source) =>
-                throw new NotSupportedException();
 
             public void Serialize(NinoDictionaryEntry<TKey, TValue> value, ref Writer writer) => throw new NotSupportedException();
 

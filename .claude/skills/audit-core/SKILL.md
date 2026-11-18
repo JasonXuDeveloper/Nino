@@ -32,9 +32,11 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
 - **Not uniform**: features whose APIs have different shapes for the same act (a `TryX` here, a nullable there; a
   span overload for one direction and not the other), or internals that solve one problem two ways.
 - **One contract per fact, kept apart where the JIT needs it** (round 101, owner-approved): "the size is known
-  before writing" is `INinoFixedSizeFormatter` (`FixedSize`, a JIT-time constant, -1 for a block formatter whose
-  values vary; `WriteFixed(in T value, ref byte destination)`), which `INinoBlockFormatter` extends with `BlockMap`
-  and `ReadBlock(ref T value, ref byte source)`: a block struct is a fixed-size type, one write for both. Two stay
+  before writing" is `INinoFormatter<T>.FixedSize` (a JIT-time constant, -1 for a formatter whose values vary;
+  `WriteFixed(in T value, ref byte destination)`), and blocks add `BlockMap` and `ReadBlock(ref T value, ref byte
+  source)`: a block struct is a fixed-size type, one write for both. These are capability members of
+  `INinoFormatter<T>` with defaults reporting none (#346): only the queries are called on a formatter that may lack
+  them, once per type into a `static readonly` field, since calling a default boxes the struct. Two stay
   apart on purpose: `INinoRawBodyFormatter` (`BodySize`, `WriteRawBody(T value, ref byte, int offset)`) writes a
   non-sealed class's body without its type id, into a reservation the caller shares with that id (not
   `Serialize`'s bytes, so not `FixedSize`), with a constant offset folded into every store; and the internal

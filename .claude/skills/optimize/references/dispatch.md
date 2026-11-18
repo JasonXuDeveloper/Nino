@@ -86,9 +86,10 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   to 0.58 (EPYC 9V74), the JIT included. (2) Shared generic code where a formatter's type argument holds a class
   (`NinoElements.ReadEach` over `Box<(class, int)>`): the element's `Deserialize` is found in the generic dictionary,
   a fat-pointer call per element on NativeAOT, `call rax` at Tier1, `il2cpp_rgctx_method` on IL2CPP: no direct form.
-  (3) The netstandard builds' block loops (`NinoBlockCollections.WriteValue`/`ReadValue` through
-  `NinoBlockPlan.Formatter`): one interface call per element where no Burst kernel runs (IL2CPP, Mono, .NET
-  Framework); the direct form puts the loop in the formatter, which the owner declined. (4) The user-extensible points
+  (3) Gone (#346): the netstandard builds' block loops called each value through `NinoBlockPlan.Formatter` (a boxed
+  `INinoBlockFormatter`), and slots through `NinoSlots.Formatter`; the block and slot members are now members of
+  `INinoFormatter<T>` with defaults reporting none, read as queries once per type, so each value is a constrained call
+  on the struct on every target. (4) The user-extensible points
   above. Per top-level call, not per value: calls the interceptors leave alone (generic methods, another assembly's
   types, Unity's Roslyn 4.3, raw values and arrays of raw elements) read `NinoTopFormatter<T>`, `NinoRaw<T>` and
   `NinoRawArray<T>` as loads, so an array of raw elements is one `INinoRawArrayFormatter` interface call per call

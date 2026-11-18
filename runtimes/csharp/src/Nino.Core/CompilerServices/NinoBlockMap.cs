@@ -6,7 +6,7 @@ using Nino.Core.Internal;
 namespace Nino.Core.CompilerServices
 {
     /// <summary>
-    /// Where the bytes of a block (<see cref="INinoBlockFormatter{T}"/>) lie in a value's memory, built item by item:
+    /// Where the bytes of a block (<see cref="INinoFormatter{T}.BlockMap"/>) lie in a value's memory, built item by item:
     /// <see cref="Raw{TItem}"/> for a value copied as its bytes, <see cref="Block{TItem, TFormatter}"/> for one written
     /// as a block of its own (a value tuple, a pair, a generated struct of fixed size). Each takes the item's offset in
     /// the value's memory (<see cref="NinoBlocks.Offset{T, TField}"/>, or <see cref="NinoBlocks.Find{T}"/>) and in
@@ -52,15 +52,14 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// An item of <typeparamref name="TItem"/> at <paramref name="memory"/> in the value and <paramref name="wire"/>
-        /// in the block, written by <typeparamref name="TFormatter"/> as a block (<see cref="INinoBlockFormatter{T}"/>)
+        /// in the block, written by <typeparamref name="TFormatter"/> as a block (<see cref="INinoFormatter{T}.BlockMap"/>)
         /// whose own map is merged in.
         /// </summary>
         public NinoBlockMap Block<TItem, TFormatter>(int memory, int wire)
             where TFormatter : struct, INinoFormatter<TItem>
         {
             if (_failed || memory < 0 || NinoUnsafe.IsReferenceOrContainsReferences<TItem>() ||
-                default(TFormatter) is not INinoBlockFormatter<TItem> block || block.FixedSize <= 0 ||
-                !(block.BlockMap() is { _failed: false } inner))
+                default(TFormatter).FixedSize <= 0 || !(default(TFormatter).BlockMap() is { _failed: false } inner))
                 return Fail();
             for (int i = 0; i < inner._runs.Count; i += 3)
                 Add(memory + inner._runs[i], wire + inner._runs[i + 1], inner._runs[i + 2]);

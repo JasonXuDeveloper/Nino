@@ -65,7 +65,7 @@ namespace Nino.Core
 
         /// <summary>
         /// The count and the slots, out of line. Where a run of slots can be written over itself
-        /// (<see cref="INinoSlotFormatter{T}.SlotsWriteInPlace"/>) and the set has no free entry, the values are
+        /// (<see cref="INinoFormatter{T}.SlotsWriteInPlace"/>) and the set has no free entry, the values are
         /// packed out of the entries as raw elements are (<see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>),
         /// then written over themselves as slots, which clears their padding and absent values (1,000 <c>int?</c>:
         /// 227 ns against 1,140 from a rented copy, local); else from a rented copy (CopyTo: enumeration order).
@@ -73,9 +73,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void WriteSlots(TSet value, ref Writer writer)
         {
-            var slots = NinoSlots<T, TFormatter>.Formatter;
             int count = value.Count;
-            var entries = slots.SlotsWriteInPlace && CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
+            var entries = default(TFormatter).SlotsWriteInPlace && CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
             if (entries == null || count > entries.Length)
             {
                 NinoCollections.WriteCopied<T, TFormatter>(value, null, ref writer);
@@ -86,7 +85,7 @@ namespace Nino.Core
             ref byte elements = ref writer.ReserveCounted(count, size);
             NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBytes<T>>(ref elements,
                 ref entries[0], count, size);
-            slots.WriteSlots(ref elements,
+            default(TFormatter).WriteSlots(ref elements,
                 MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, T>(ref elements), count));
         }
 
@@ -251,8 +250,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadSlots(TSet set, int length, bool created, ref Reader reader)
         {
-            var slots = NinoSlots<T, TFormatter>.Formatter;
-            if (!slots.SlotsAreMemory)
+            if (!default(TFormatter).SlotsAreMemory)
             {
                 AddSlots(set, length, ref reader);
                 return;
@@ -260,7 +258,7 @@ namespace Nino.Core
 
             int size = Unsafe.SizeOf<T>();
             ref byte src = ref reader.ReadElements(length, size);
-            slots.CheckSlots(ref src, length);
+            default(TFormatter).CheckSlots(ref src, length);
             if (TryFill(set, ref src, length, created))
                 return;
             AddFrom(set, ref src, length);

@@ -14,7 +14,7 @@ namespace Nino.Core.Internal
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         internal static bool TryWrite<TElement, TPriority, TFormatter>(PriorityQueue<TElement, TPriority> queue,
-            int count, ref Writer writer) where TFormatter : struct, INinoBlockFormatter<(TElement, TPriority)>
+            int count, ref Writer writer) where TFormatter : struct, INinoFormatter<(TElement, TPriority)>
         {
             if (!Usable)
                 return false;

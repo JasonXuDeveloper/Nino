@@ -6,7 +6,7 @@ namespace Nino.Core.Internal
     /// <summary>
     /// The bytes of a value and of its block matched one to one, from a block map
     /// (<see cref="CompilerServices.NinoBlockMap"/>, from
-    /// <see cref="CompilerServices.INinoBlockFormatter{T}.BlockMap"/>: memory offset, block offset, size triples).
+    /// <see cref="INinoFormatter{T}.BlockMap"/>: memory offset, block offset, size triples).
     /// Built once per type, off the hot paths: every shuffle mask, permute index and lane plan of
     /// <see cref="NinoBlockPlan{T, TFormatter}"/> and <see cref="NinoLanes"/> is read from it.
     /// </summary>

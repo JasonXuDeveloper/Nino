@@ -298,8 +298,8 @@ internal sealed class TypeFacts
 
     /// <summary>
     /// Whether every value of <paramref name="type"/> (every non-null one, for a sealed class) is written in the same
-    /// number of bytes, so its formatter implements <c>INinoFixedSizeFormatter</c>: a non-generic struct that is not
-    /// raw, or a sealed class, generated in this assembly, positional (not version tolerant or keyed), not tracked and
+    /// number of bytes, so its formatter implements <c>FixedSize</c> and <c>WriteFixed</c>: a non-generic struct that
+    /// is not raw, or a sealed class, generated in this assembly, positional (not version tolerant or keyed), not tracked and
     /// not a collection, without serialization callbacks (<see cref="TypeShape.HasCallbacks"/>), whose members are all
     /// raw values, such structs or value tuples and pairs of raw values (<see cref="IsBlockItem"/>), without custom
     /// formatters. Computed from symbols only, so a type that holds it as a
@@ -346,7 +346,7 @@ internal sealed class TypeFacts
     /// <summary>
     /// Whether <paramref name="type"/> is a value tuple (up to seven items) or a <c>KeyValuePair</c> whose items are
     /// all raw values of the same layout on every runtime (<see cref="RawLayout.IsPortable"/>), written by Nino.Core's
-    /// formatter: its <c>INinoBlockFormatter</c> writes it as a block of the items' bytes (<c>NinoBlocks</c>), the
+    /// formatter: its block members write it as a block of the items' bytes (<c>NinoBlocks</c>), the
     /// same bytes as its <c>Serialize</c>, of the same size on every runtime.
     /// </summary>
     public bool IsBlockItem(ITypeSymbol type)
@@ -372,9 +372,9 @@ internal sealed class TypeFacts
     }
 
     /// <summary>
-    /// Whether the formatter of the <c>[NinoType]</c> struct <paramref name="type"/> implements
-    /// <c>INinoBlockFormatter</c>, so collections of it are read and written as blocks (several values at a time by
-    /// vector shuffles where its <c>BlockMap</c> allows it): a struct of fixed size (<see cref="IsFixedSize"/>; raw
+    /// Whether the formatter of the <c>[NinoType]</c> struct <paramref name="type"/> implements the block members
+    /// (<c>BlockMap</c>, <c>ReadBlock</c>), so collections of it are read and written as blocks (several values at a
+    /// time by vector shuffles where its <c>BlockMap</c> allows it): a struct of fixed size (<see cref="IsFixedSize"/>; raw
     /// structs are copied whole already) whose bytes in memory are its members' (every instance field is a member, or
     /// an auto-property's backing field) and whose members generated code reads and assigns directly, after it is
     /// created (no <c>[NinoConstructor]</c>, no read-only or init-only member), each a raw value, a value tuple or pair

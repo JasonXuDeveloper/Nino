@@ -15,6 +15,19 @@ namespace Nino.Core
     /// <c>where TFormatter : struct, INinoFormatter&lt;T&gt;</c> calls it as <c>default(TFormatter).Serialize(...)</c>,
     /// which the JIT/AOT compiler specializes and inlines.
     /// </para>
+    /// <para>
+    /// <see cref="Serialize"/> and <see cref="Deserialize"/> are all a formatter has to implement. The other members
+    /// are capabilities with defaults that report none: values of a fixed size (<see cref="FixedSize"/>,
+    /// <see cref="WriteFixed"/>) and blocks a collection moves as one run (<see cref="BlockMap"/>,
+    /// <see cref="ReadBlock"/>), implemented by generated formatters and Nino.Core's own where they apply.
+    /// </para>
+    /// <para>
+    /// The rule that keeps the defaults free: a call to a default a struct does not override boxes the struct
+    /// (CoreCLR, Mono, IL2CPP). So only the queries (<see cref="FixedSize"/>, <see cref="BlockMap"/> and the slot
+    /// stride) are ever called on a formatter that may lack a capability, once per type into a
+    /// <c>static readonly</c> field the JIT folds; the hot members are called only where that field says the
+    /// formatter has them, and a formatter that has them implements them, so each is a direct, constrained call.
+    /// </para>
     /// </summary>
     public interface INinoFormatter<T>
     {
@@ -27,6 +40,81 @@ namespace Nino.Core
         /// (each dropped instance is recycled exactly once).
         /// </summary>
         void Deserialize(ref Reader reader, ref T value);
+
+        /// <summary>
+        /// The bytes <see cref="Serialize"/> writes for any value (any non-null one: a null sealed class is its
+        /// presence byte), or -1 when values vary in size (the default). Generated formatters of structs and sealed
+        /// classes whose members are all unmanaged values or such structs: there
+        /// <see cref="NinoSerializer.Serialize{T}(in T)"/> allocates the result at that size and writes the value
+        /// straight into it (<see cref="WriteFixed"/>). A JIT-time constant.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        int FixedSize => -1;
+
+        /// <summary>
+        /// Writes <paramref name="value"/> (not null) into the <see cref="FixedSize"/> bytes at
+        /// <paramref name="destination"/>: the same bytes as <see cref="Serialize"/>. Called only where
+        /// <see cref="FixedSize"/> is not -1.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        void WriteFixed(in T value, ref byte destination) => NinoThrow.MissingCapability(GetType(), nameof(WriteFixed));
+
+        /// <summary>
+        /// Values a collection moves as blocks of <see cref="FixedSize"/> bytes, or null (the default): value tuples
+        /// and pairs of raw items, generated <c>[NinoType]</c> structs of a fixed size that are not raw. A collection
+        /// of them reserves or bounds-checks its whole block once and writes (<see cref="WriteFixed"/>) or reads
+        /// (<see cref="ReadBlock"/>) each value at its position with no check of its own; where the map says where each
+        /// byte of a block lies in a value's memory, several values at a time by vector shuffles and permutes. A map
+        /// that does not (empty, or failed: padding inside an item) moves values one at a time. Called once.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        NinoBlockMap BlockMap() => null;
+
+        /// <summary>
+        /// Reads into <paramref name="value"/> the value in the <see cref="FixedSize"/> bytes at
+        /// <paramref name="source"/>, with the checks a read of it does otherwise (a <c>bool</c> other than 0 or 1 is
+        /// invalid data). Called only where <see cref="BlockMap"/> is not null.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        void ReadBlock(ref T value, ref byte source) => NinoThrow.MissingCapability(GetType(), nameof(ReadBlock));
+
+        /// <summary>
+        /// The bytes of a slot, or -1 (the default): values whose element in a collection is a slot of a fixed size,
+        /// where a single value (a member, a tuple's item, a dictionary's key or value) is written another way (a raw
+        /// <c>T?</c>: <see cref="UnmanagedNullableFormatter{T}"/>). Every sequence moves them as one block
+        /// (<see cref="NinoElements.BlockStride{T,TFormatter}"/>), and writes or reads one that it holds apart through
+        /// <see cref="NinoElements.WriteOne{T,TFormatter}"/> and <see cref="NinoElements.ReadOne{T,TFormatter}"/>,
+        /// never through <see cref="Serialize"/>. Nino.Core's alone.
+        /// </summary>
+        internal int SlotStride => -1;
+
+        /// <summary>Writes <paramref name="values"/> (not empty) into the slots at <paramref name="destination"/>.</summary>
+        internal void WriteSlots(ref byte destination, ReadOnlySpan<T> values) =>
+            NinoThrow.MissingCapability(GetType(), nameof(WriteSlots));
+
+        /// <summary>
+        /// Reads <paramref name="values"/> from their slots, which the caller checked are there, and moves the reader
+        /// past them. Overwrites every value; rejects a presence byte other than 0 or 1.
+        /// </summary>
+        internal void ReadSlots(Span<T> values, ref Reader reader) =>
+            NinoThrow.MissingCapability(GetType(), nameof(ReadSlots));
+
+        /// <summary>
+        /// Whether a slot is its value as it lies in memory on this runtime (then also <see cref="SlotStride"/> is the
+        /// value's size): a collection that keeps its elements in storage of its own (a set's entries) then moves
+        /// them as raw elements are moved, checked by <see cref="CheckSlots"/> on the way in.
+        /// </summary>
+        internal bool SlotsAreMemory => false;
+
+        /// <summary>
+        /// Whether <see cref="WriteSlots"/> may write a run over itself (values moved to the wire as they lie, then
+        /// made the wire's bytes in place): <see cref="SlotsAreMemory"/>, and every step of its kernels reads only
+        /// the bytes it writes.
+        /// </summary>
+        internal bool SlotsWriteInPlace => false;
+
+        /// <summary>Rejects a presence byte other than 0 or 1 in <paramref name="count"/> slots (not zero).</summary>
+        internal void CheckSlots(ref byte slots, int count) => NinoThrow.MissingCapability(GetType(), nameof(CheckSlots));
     }
 
     /// <summary>
@@ -158,7 +246,7 @@ namespace Nino.Core
         internal virtual INinoRawArrayFormatter RawArray => null;
 
         /// <summary>
-        /// The size of every (non-null) value when it is fixed (<see cref="INinoFixedSizeFormatter{T}"/>), else -1.
+        /// The size of every (non-null) value when it is fixed (<see cref="INinoFormatter{T}.FixedSize"/>), else -1.
         /// Read through <see cref="NinoTopFormatter{T}.Formatter"/>, whose exact class Tier1 code knows, so a constant.
         /// </summary>
         internal virtual int FixedSize => -1;
@@ -336,7 +424,7 @@ namespace Nino.Core
     /// array of exactly that size too.
     /// </summary>
     internal sealed class FixedStructFormatter<T, TFormatter> : StructFormatterBase<T, TFormatter>
-        where TFormatter : struct, INinoFixedSizeFormatter<T>
+        where TFormatter : struct, INinoFormatter<T>
     {
         internal override int FixedSize => default(TFormatter).FixedSize;
 
