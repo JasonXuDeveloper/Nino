@@ -167,7 +167,7 @@ namespace Shapes
         public List<(int, int?)> Tuples;
     }
 
-    /// <summary>Raw nullables as the elements of arrays of two and three dimensions: slots too (TypeScript has no grids).</summary>
+    /// <summary>Raw nullables as the elements of arrays of two and three dimensions: slots too.</summary>
     [NinoType]
     public sealed class NullableGrids
     {

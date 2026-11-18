@@ -197,6 +197,21 @@ namespace Nino.Codegen.Targets
                     var (key, mapValue) = (Shape(value.Key!), Shape(value.Value!));
                     return InContext(value, Holding(new TsShape("map") { Key = key, Value = mapValue }, key, mapValue));
                 }
+                case ValueKind.Grid:
+                {
+                    if (value.Rank is < 2 or > 4)
+                        throw new UnsupportedException($"{value.ClrName} has unsupported array rank {value.Rank}");
+                    var element = Shape(value.Element!);
+                    element.SlotElement = element is { Kind: "rawnullable", Clean: false };
+                    string? array = null;
+                    if (element.Kind == "prim")
+                        NumberArrays.TryGetValue(element.Primitive!, out array);
+                    return InContext(value, Holding(new TsShape("grid")
+                    {
+                        Element = element, Rank = value.Rank, ArrayType = array,
+                        InlineLength = array == null ? 0 : 64 / element.Size,
+                    }, element));
+                }
                 case ValueKind.Tuple:
                 {
                     // The items one after another: at fixed offsets when they all have a fixed size.
@@ -215,7 +230,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Unsupported:
                     throw new UnsupportedException(Problem(value));
                 default:
-                    // grid, bigint, version, datetimeoffset.
+                    // bigint, version, datetimeoffset.
                     throw new UnsupportedException($"{value.ClrName} ({KindName(value)}) has no TypeScript form");
             }
         }

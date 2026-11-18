@@ -88,6 +88,13 @@ element. The reader copies from an aligned view of the data when the data is ali
 bytes. What it returns never refers to the data: typed arrays of 65 bytes to 8 KB are views of a shared 64 KB buffer
 (as Node's small `Buffer`s share a pool, since an `ArrayBuffer` for each costs more than the copy).
 
+## Rectangular arrays
+
+A .NET rectangular array of rank 2 to 4 is a `NinoGrid<TData> | null`. Its `lengths` hold the dimensions in order,
+and its `data` is flat, with the last index varying fastest. An `int[,]` uses `NinoGrid<Int32Array>`, and an
+`int?[,]` uses `NinoGrid<NullableSlot<number>[]>`. Numeric grid elements use typed storage in either numeric-array
+mode. The writer checks that the product of the dimensions equals the length of `data`.
+
 ## Guarantees
 
 The reader takes untrusted input: what every runtime guarantees (bounds, depth, type ids, strict bytes, trailing bytes)
