@@ -1,0 +1,1 @@
+Performance: Generated Go codecs read and write fixed-width maps, sets, grids, padded primitive pairs and DateTimeOffset sequences as one block; GUID map writes took 82–85 % less time on the sampled x64 runners and 81 % less on Neoverse-N2 (runtime A/B 44347813411).
