@@ -118,7 +118,16 @@ says which CPUs and cases moved.
   path where a direct form exists (the owner's rule); call a formatter known only at run time through a `static
   readonly` field read directly, never through `??`, and keep it never null; the inventory of the indirect calls that
   stay (another assembly's `[NinoType]`, shared generic code, the netstandard block loops, user-extensible points, one
-  per top-level call in shared code) and why.
+  per top-level call in shared code) and why. Prefer one generic or structural path the compiler specializes over a
+  hand-enumerated list of types, sizes or key kinds, and reach a formatter's capability by a constrained call on its
+  struct type parameter (`default(TFormatter).M<...>()`, through a constraint the caller already has: a member of
+  `INinoFormatter<T>` with a default, behind its non-generic query read once), never by a cast to an interface, which
+  boxes and, for a generic method, goes through `CORINFO_HELP_VIRTUAL_FUNC_PTR` per call. A type list is for
+  wire-format leaves and hardware kernels only. Evidence: #325's per-key-kind `WritePairs32` / `WritePairs64` /
+  `WriteStringPairs` left struct, `short`, `Guid` and custom-formatter keys on the slow loop and were .NET 8+ only;
+  the constrained `INinoFormatter<T>.WritePairs<TKey, TKeyFormatter>` serves every key at the same speed on every
+  build (dispatch.md, #345). Go, Rust and TypeScript: `optimize-runtimes`, the same rule with traits, consts and the
+  codegen's fixed-size rule.
 - **Bounds checks and vector loops** ([references/vectors.md](references/vectors.md), the index of the vector files):
   index through a ref to the first element and `Unsafe.Add` behind the one length check, and reuse a length proof
   instead of checking twice; dispatch 512/256/128/scalar from `NinoSimd`; bump `ref` cursors and count down (with the

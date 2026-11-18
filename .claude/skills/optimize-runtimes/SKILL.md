@@ -36,7 +36,9 @@ topic you touch before changing code there: several of these looked like wins lo
 - **Dispatch and reuse** ([references/dispatch.md](references/dispatch.md)): call the element's code directly in every
   collection loop, never through a func value, interface method or closure (the owner's rule; Go writes its loops,
   class bodies open in place, Rust sealed forwarders `#[inline]`); keep the reuse branches of read-into paths off the
-  fresh read path: share the body, not the dispatch.
+  fresh read path: share the body, not the dispatch. One generic or structural path the compiler specializes (Rust
+  traits with consts, the codegen's fixed-size rule) over a hand-enumerated list of types, sizes or key kinds; a type
+  list only for wire-format leaves and hardware kernels (the rule in full: `optimize`, Dispatch).
 - **Sets and dictionary keys** ([references/sets-and-keys.md](references/sets-and-keys.md)): check repeats in an
   open-addressing table of the reader's own with a probe bound, never a sort or a Go map first; TypeScript's
   `NinoKeyGuard` counts the final table only, and a fresh set keeps its `add` loop.

@@ -22,7 +22,9 @@ owns the search; measuring is `benchmark`, the code-level techniques are `optimi
    is `optimize` (.NET, Unity: compare the listings first) or `optimize-runtimes`; this skill collects them for the
    round's list.
 3. **Work that is not needed**: a length checked twice, a copy where a span would do, a per-element call where a block
-   copy or a vector loop would do, a check that could be a `static readonly` field, a generic lookup on a hot path.
+   copy or a vector loop would do, a check that could be a `static readonly` field, a generic lookup on a hot path,
+   a fast path that names some types, sizes or key kinds where one generic path reached by a constrained call would
+   serve them all (`optimize`, Dispatch).
 4. **SIMD beyond strings**: blocks of primitives, bools (validation), fixed-size structs, transcoding, hash table
    fills; every SIMD path has its Arm64 and no-SIMD forms (`platforms`).
 5. **The generator**: code it could emit faster for a shape users write (`audit-generated-code`), and its own speed
