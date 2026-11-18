@@ -78,7 +78,8 @@ says which CPUs and cases moved.
   `Dictionary` fills its entries and links the buckets in one pass after (#390, LuminPack's form), keeping the
   collision count and the repeated- and null-key checks; `SortedSet` builds its tree in one pass; look for the same
   in every other collection a read creates. Why: one loop per element kind is one place to make fast and to keep safe,
-  instead of the same decision copied into each collection (the audit behind #345-#355 found dozens).
+  instead of the same decision copied into each collection (the audit behind #345-#355 found dozens). Unify first,
+  then optimize the shared path, so most types gain at once (`audit-perf`, Method).
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks

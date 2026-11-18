@@ -30,6 +30,10 @@ owns the search; measuring is `benchmark`, the code-level techniques are `optimi
 
 ## Method
 
+0. **Unify first, then optimize the one path** (the owner's rule). A gap in one type is closed in the shared path
+   that type should take (`optimize`, "One storage layer for every collection"), so every type on that path gains;
+   never a fast path of its own for the one case measured. When the shared path does not exist yet, build it first
+   (#355 before the rest of #305): a special case written now is one more copy the unification removes later.
 1. **Read first.** What does the code do now, what would change, which benchmark shows it, what did earlier attempts
    find (commit messages of reverted tries)? Look up the technique in `optimize` or
    `optimize-runtimes` before inventing one.
