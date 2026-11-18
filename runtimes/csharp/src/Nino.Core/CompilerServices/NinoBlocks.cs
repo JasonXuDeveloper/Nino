@@ -1,33 +1,61 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core.CompilerServices
 {
     /// <summary>
-    /// What generated code calls on block formatters (<see cref="INinoFormatter{T}.BlockMap"/>): the members of an
-    /// explicit implementation through a constrained call (no boxing on any runtime), and the helpers of a
-    /// <see cref="NinoBlockMap"/>.
+    /// The items of composites (value tuples, pairs, generated structs) whose values are blocks
+    /// (<see cref="INinoFormatter{T}.BlockMap"/>) when their items are: each item's size, write and read, raw or a
+    /// block, the block's members reached through a constrained call (no boxing on any runtime, explicit
+    /// implementations included), and the offsets a <see cref="NinoBlockMap"/> is built from.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoBlocks
     {
-        /// <summary><see cref="INinoFormatter{T}.FixedSize"/> of <typeparamref name="TFormatter"/>: a JIT-time constant.</summary>
+        /// <summary>
+        /// The wire bytes of an item of a composite (a value tuple's, a pair's, a generated struct's member typed by a
+        /// type parameter): its layout's for a raw item (<see cref="RawFormatter.Is{T, TFormatter}"/>), its block's for
+        /// a block (<see cref="INinoFormatter{T}.BlockMap"/>), else -1 (slots, values that vary in size, values with
+        /// references), which leaves the composite with no fixed size. A JIT-time constant; read once into a
+        /// <c>static readonly</c> field by the composites.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int FixedSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            default(TFormatter).FixedSize;
+        public static int ItemSize<TItem, TFormatter>() where TFormatter : struct, INinoFormatter<TItem> =>
+            RawFormatter.Is<TItem, TFormatter>()
+                ? NinoLayout<TItem>.WireSize
+                : NinoBlockCollections.FixedSize<TItem, TFormatter>();
 
-        /// <summary><see cref="INinoFormatter{T}.WriteFixed"/> of <typeparamref name="TFormatter"/>.</summary>
+        /// <summary>
+        /// Writes an item of a composite (<see cref="ItemSize{TItem, TFormatter}"/> not -1) into its bytes at
+        /// <paramref name="destination"/>: a raw one through its layout (converted where this runtime lays it out
+        /// otherwise), a block through <see cref="INinoFormatter{T}.WriteFixed"/>.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteFixed<T, TFormatter>(in T value, ref byte destination)
-            where TFormatter : struct, INinoFormatter<T> =>
-            default(TFormatter).WriteFixed(in value, ref destination);
+        public static void WriteItem<TItem, TFormatter>(in TItem value, ref byte destination)
+            where TFormatter : struct, INinoFormatter<TItem>
+        {
+            if (RawFormatter.Is<TItem, TFormatter>())
+                NinoLayout<TItem>.Write(ref destination, in value);
+            else
+                default(TFormatter).WriteFixed(in value, ref destination);
+        }
 
-        /// <summary><see cref="INinoFormatter{T}.ReadBlock"/> of <typeparamref name="TFormatter"/>.</summary>
+        /// <summary>
+        /// Reads an item of a composite (<see cref="ItemSize{TItem, TFormatter}"/> not -1) from its bytes at
+        /// <paramref name="source"/>, with the checks a read of it makes otherwise: a raw one through its layout, a
+        /// block through <see cref="INinoFormatter{T}.ReadBlock"/>.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadBlock<T, TFormatter>(ref T value, ref byte source)
-            where TFormatter : struct, INinoFormatter<T> =>
-            default(TFormatter).ReadBlock(ref value, ref source);
+        public static void ReadItem<TItem, TFormatter>(ref TItem value, ref byte source)
+            where TFormatter : struct, INinoFormatter<TItem>
+        {
+            if (RawFormatter.Is<TItem, TFormatter>())
+                value = NinoLayout<TItem>.Read(ref source);
+            else
+                default(TFormatter).ReadBlock(ref value, ref source);
+        }
 
         /// <summary>The byte offset of <paramref name="field"/> inside <paramref name="value"/>.</summary>
         public static int Offset<T, TField>(ref T value, ref TField field) =>

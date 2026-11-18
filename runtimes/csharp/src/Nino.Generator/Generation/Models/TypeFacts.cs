@@ -298,16 +298,19 @@ internal sealed class TypeFacts
 
     /// <summary>
     /// Whether every value of <paramref name="type"/> (every non-null one, for a sealed class) is written in the same
-    /// number of bytes, so its formatter implements <c>FixedSize</c> and <c>WriteFixed</c>: a non-generic struct that
-    /// is not raw, or a sealed class, generated in this assembly, positional (not version tolerant or keyed), not tracked and
-    /// not a collection, without serialization callbacks (<see cref="TypeShape.HasCallbacks"/>), whose members are all
-    /// raw values, such structs or value tuples and pairs of raw values (<see cref="IsBlockItem"/>), without custom
-    /// formatters. Computed from symbols only, so a type that holds it as a
-    /// member, the type itself and the interceptors agree.
+    /// number of bytes, so its formatter implements <c>FixedSize</c> and <c>WriteFixed</c>: a struct that is not raw, or
+    /// a non-generic sealed class, generated in this assembly, positional (not version tolerant or keyed), not tracked
+    /// and not a collection, without serialization callbacks (<see cref="TypeShape.HasCallbacks"/>), whose members are
+    /// all raw values, such structs (non-generic: a closed generic struct's size is known only at run time) or value
+    /// tuples and pairs of raw values (<see cref="IsBlockItem"/>), without custom formatters. A generic struct's members
+    /// typed by its type parameters (<see cref="IsComposedItem"/>) are items whose size its formatter learns at run time
+    /// (<c>NinoBlocks.ItemSize</c>): its <c>FixedSize</c> is -1 where one has none. Computed from symbols only, so a
+    /// type that holds it as a member, the type itself and the interceptors agree.
     /// </summary>
     public bool IsFixedSize(INamedTypeSymbol type)
     {
-        if (type.IsGenericType || !(type.TypeKind == TypeKind.Struct || type.TypeKind == TypeKind.Class && type.IsSealed))
+        if (type.TypeKind == TypeKind.Struct ? type.IsGenericType && !type.IsDefinition
+            : type.TypeKind != TypeKind.Class || !type.IsSealed || type.IsGenericType)
             return false;
         return _fixedSize.GetOrAdd(type, _computeFixedSize);
     }
@@ -331,17 +334,30 @@ internal sealed class TypeFacts
         {
             if (Symbols.HasCustomFormatter(member) || MemberCollector.MemberType(member) is not { } memberType)
                 return false;
-            if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType) || IsBlockItem(memberType))
+            if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType) || IsBlockItem(memberType) ||
+                type.IsGenericType && IsComposedItem(memberType))
                 continue;
-            // A struct of fixed size, written by its generated formatter.
-            if (memberType is not INamedTypeSymbol { TypeKind: TypeKind.Struct } nested || !IsFixedSize(nested) ||
-                Resolver.Resolve(nested, false) is not { Traits: var traits } ||
+            // A non-generic struct of fixed size, written by its generated formatter.
+            if (memberType is not INamedTypeSymbol { TypeKind: TypeKind.Struct, IsGenericType: false } nested ||
+                !IsFixedSize(nested) || Resolver.Resolve(nested, false) is not { Traits: var traits } ||
                 (traits & FormatterTraits.Generated) == 0)
                 return false;
         }
 
         return true;
     }
+
+    /// <summary>
+    /// Whether a member of a generic struct of <paramref name="type"/> is an item its formatter composes at run time
+    /// (<c>NinoBlocks.ItemSize</c>, <c>WriteItem</c>, <c>ReadItem</c>, <c>NinoBlockMap.Item</c>): a type parameter
+    /// that may be a value type, or a value type built from type parameters (<c>(T, int)</c>, <c>Box&lt;T&gt;</c>).
+    /// Raw where <c>RawFormatter</c>'s layout check says so on that runtime, a block where its formatter has one, else
+    /// of no fixed size; no layout is assumed here, and raw members known here stay those
+    /// <see cref="RawLayout.IsPortable"/> allows.
+    /// </summary>
+    private static bool IsComposedItem(ITypeSymbol type) =>
+        type is ITypeParameterSymbol { HasReferenceTypeConstraint: false } ||
+        type.IsValueType && TypeNames.ContainsTypeParameter(type);
 
     /// <summary>
     /// Whether <paramref name="type"/> is a value tuple (up to seven items) or a <c>KeyValuePair</c> whose items are
@@ -378,8 +394,9 @@ internal sealed class TypeFacts
     /// structs are copied whole already) whose bytes in memory are its members' (every instance field is a member, or
     /// an auto-property's backing field) and whose members generated code reads and assigns directly, after it is
     /// created (no <c>[NinoConstructor]</c>, no read-only or init-only member), each a raw value, a value tuple or pair
-    /// of raw values (<see cref="IsBlockItem"/>), or another such struct. Computed from symbols only, so a struct that
-    /// holds it and the struct itself agree.
+    /// of raw values (<see cref="IsBlockItem"/>), another such struct, or in a generic struct an item composed at run
+    /// time (<see cref="IsComposedItem"/>, a block there only where every item is). Computed from symbols only, so a
+    /// struct that holds it and the struct itself agree.
     /// </summary>
     public bool IsBlock(INamedTypeSymbol type)
     {
@@ -420,7 +437,8 @@ internal sealed class TypeFacts
                     SymbolEqualityComparer.Default.Equals(f.AssociatedMember(), implementation)))
                 return false;
             var memberType = MemberCollector.MemberType(member)!;
-            if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType) || IsBlockItem(memberType))
+            if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType) || IsBlockItem(memberType) ||
+                type.IsGenericType && IsComposedItem(memberType))
                 continue;
             if (memberType is not INamedTypeSymbol nested || !IsBlock(nested))
                 return false;

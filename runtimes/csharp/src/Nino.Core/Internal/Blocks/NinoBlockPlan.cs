@@ -22,9 +22,10 @@ namespace Nino.Core.Internal
         /// Where the bytes of a block lie in a value's memory, as the formatter describes it (an empty or failed map:
         /// not known), or null when its values are not blocks. Both queries are read once here (a formatter without
         /// blocks answers them through its interface's defaults, boxed): every other member and method reads the
-        /// fields.
+        /// fields, and a composite holding these values merges it into its own
+        /// (<see cref="NinoBlockMap.Item{TItem, TFormatter}"/>).
         /// </summary>
-        private static readonly NinoBlockMap Description = default(TFormatter).FixedSize > 0
+        internal static readonly NinoBlockMap Description = default(TFormatter).FixedSize > 0
             ? default(TFormatter).BlockMap()
             : null;
 
@@ -49,6 +50,9 @@ namespace Nino.Core.Internal
         /// <see cref="NinoBlockMap"/>), or null: values are then moved one at a time.
         /// </summary>
         private static readonly int[] Map = Description?.Runs(NinoBlockCollections.FixedSize<T, TFormatter>(), Unsafe.SizeOf<T>());
+
+        /// <summary>Whether the map covers every byte of a block (<see cref="Map"/> is not null).</summary>
+        internal static readonly bool Mapped = Map != null;
 
         /// <summary>
         /// Whether a read of values can reject the data after it has started writing them: a block with a

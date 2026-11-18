@@ -25,27 +25,26 @@ namespace Nino.Core.Internal
         }
 
         /// <summary>
-        /// The raw value of a <see cref="SetEntry{T}"/> as a block (<see cref="INinoFormatter{T}.BlockMap"/>), so that a
-        /// set's entries are written by <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>: several entries at
-        /// a time, their values packed out of the strided entries by vector permutes (or the registered kernels in the
-        /// netstandard2.1 build), one at a time where there are none or the value has padding. Writes only.
+        /// The raw value of a <see cref="SetEntry{T}"/> as a block (<see cref="INinoFormatter{T}.BlockMap"/>, its one
+        /// item placed by <see cref="NinoBlockMap.Item{TItem, TFormatter}"/>), so that a set's entries are written by
+        /// <see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>: several entries at a time, their values packed
+        /// out of the strided entries by vector permutes (or the registered kernels in the netstandard2.1 build), one
+        /// at a time where there are none or the value has padding. Writes only.
         /// </summary>
-        internal struct SetEntryBlock<T> : INinoFormatter<SetEntry<T>>
+        internal struct SetEntryBlock<T, TFormatter> : INinoFormatter<SetEntry<T>>
+            where TFormatter : struct, INinoFormatter<T>
         {
-            public int FixedSize => Unsafe.SizeOf<T>();
+            public int FixedSize => NinoBlocks.ItemSize<T, TFormatter>();
 
             public NinoBlockMap BlockMap()
             {
                 var entry = default(SetEntry<T>);
-                return new NinoBlockMap().Raw<T>(NinoBlocks.Offset(ref entry, ref entry.Value), 0);
+                return new NinoBlockMap().Item<T, TFormatter>(NinoBlocks.Offset(ref entry, ref entry.Value));
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void WriteFixed(in SetEntry<T> value, ref byte destination)
-            {
-                NinoUnsafe.Write(ref destination, value.Value);
-                NinoLayout<T>.ClearPadding(ref destination);
-            }
+            public void WriteFixed(in SetEntry<T> value, ref byte destination) =>
+                NinoBlocks.WriteItem<T, TFormatter>(value.Value, ref destination);
 
             public void Serialize(SetEntry<T> value, ref Writer writer) => throw new NotSupportedException();
             public void Deserialize(ref Reader reader, ref SetEntry<T> value) => throw new NotSupportedException();
@@ -54,7 +53,7 @@ namespace Nino.Core.Internal
         /// <summary>
         /// The value of a <see cref="SetEntry{T}"/> moved as its bytes, whatever they hold: for values the caller
         /// makes the wire's bytes after the move (slots: <see cref="INinoFormatter{T}.SlotsAreMemory"/>), where
-        /// <see cref="SetEntryBlock{T}"/> takes only values that are the wire's bytes already. Writes only.
+        /// <see cref="SetEntryBlock{T, TFormatter}"/> takes only values that are the wire's bytes already. Writes only.
         /// </summary>
         internal struct SetEntryBytes<T> : INinoFormatter<SetEntry<T>>
         {
@@ -76,26 +75,29 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// The raw key and value of a <see cref="NinoDictionaryEntry{TKey,TValue}"/> as one block, as
-        /// <see cref="SetEntryBlock{T}"/> for a set's entries.
+        /// <see cref="SetEntryBlock{T, TFormatter}"/> for a set's entries.
         /// </summary>
-        internal struct MapEntryBlock<TKey, TValue> : INinoFormatter<NinoDictionaryEntry<TKey, TValue>>
+        internal struct MapEntryBlock<TKey, TValue, TKeyFormatter, TValueFormatter>
+            : INinoFormatter<NinoDictionaryEntry<TKey, TValue>>
+            where TKeyFormatter : struct, INinoFormatter<TKey>
+            where TValueFormatter : struct, INinoFormatter<TValue>
         {
-            public int FixedSize => Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>();
+            public int FixedSize =>
+                NinoBlocks.ItemSize<TKey, TKeyFormatter>() + NinoBlocks.ItemSize<TValue, TValueFormatter>();
 
             public NinoBlockMap BlockMap()
             {
                 var entry = default(NinoDictionaryEntry<TKey, TValue>);
-                return new NinoBlockMap().Raw<TKey>(NinoBlocks.Offset(ref entry, ref entry.Key), 0)
-                    .Raw<TValue>(NinoBlocks.Offset(ref entry, ref entry.Value), Unsafe.SizeOf<TKey>());
+                return new NinoBlockMap().Item<TKey, TKeyFormatter>(NinoBlocks.Offset(ref entry, ref entry.Key))
+                    .Item<TValue, TValueFormatter>(NinoBlocks.Offset(ref entry, ref entry.Value));
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public void WriteFixed(in NinoDictionaryEntry<TKey, TValue> value, ref byte destination)
             {
-                NinoUnsafe.Write(ref destination, 0, value.Key);
-                NinoUnsafe.Write(ref destination, Unsafe.SizeOf<TKey>(), value.Value);
-                NinoLayout<TKey>.ClearPadding(ref destination);
-                NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref destination, Unsafe.SizeOf<TKey>()));
+                NinoBlocks.WriteItem<TKey, TKeyFormatter>(value.Key, ref destination);
+                NinoBlocks.WriteItem<TValue, TValueFormatter>(value.Value,
+                    ref Unsafe.Add(ref destination, NinoBlocks.ItemSize<TKey, TKeyFormatter>()));
             }
 
             public void Serialize(NinoDictionaryEntry<TKey, TValue> value, ref Writer writer) => throw new NotSupportedException();

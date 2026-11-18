@@ -16,10 +16,10 @@ namespace Nino.Core.Internal
         /// checks) take a zeroed array: stored in its slot before the read, an uninitialized one left an existing
         /// object holding stale heap memory when the data was rejected. Nothing of this is in the formatters, which
         /// recurse through nested collections: a test and a call there grew their Debug frames past a 1 MB stack.
-        /// Elements read value by value (DateTimeOffsets, values Untrusted mode checks a field at a time) keep a zeroed
-        /// array too: the clearing brings its lines into the cache, where such stores into fresh lines first read each
-        /// one (workstation GC, AVX-512 Xeon: 1,000 DateTimeOffsets in 3.7 to 3.8 µs zeroed against 5.0 to 5.6). A
-        /// JIT-time constant.
+        /// Elements read value by value (blocks without a map, such as DateTimeOffsets, and values Untrusted mode checks
+        /// a field at a time) keep a zeroed array too: the clearing brings its lines into the cache, where such stores
+        /// into fresh lines first read each one (workstation GC, AVX-512 Xeon: 1,000 DateTimeOffsets in 3.7 to 3.8 µs
+        /// zeroed against 5.0 to 5.6). A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool CopiedWhole<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
@@ -48,7 +48,7 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Whether <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> overwrites every element
-        /// whatever it held (raw elements, DateTimeOffsets and blocks are each read in full), so the slots need not
+        /// whatever it held (raw elements and blocks are each read in full), so the slots need not
         /// be cleared or zeroed first. A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -319,10 +319,6 @@ namespace Nino.Core.Internal
             if (kind == NinoElementKind.Raw)
                 NinoLayout<T>.CopyToWire(ref destination,
                     ref Unsafe.As<T, byte>(ref first), count);
-            // DateTimeOffset's own block kernel until it is a block formatter (#348).
-            else if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
-                DateTimeOffsetFormatter.WriteAll(ref destination,
-                    ref Unsafe.As<T, DateTimeOffset>(ref first), count);
             else if (kind == NinoElementKind.Slot)
                 default(TFormatter).WriteSlots(ref destination,
                     MemoryMarshal.CreateReadOnlySpan(ref first, count));
@@ -386,15 +382,6 @@ namespace Nino.Core.Internal
                 else
 #endif
                     NinoUnsafe.CopyToNew(ref destination, ref source, bytes);
-                return;
-            }
-
-            // DateTimeOffset's own block kernel until it is a block formatter (#348).
-            if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
-            {
-                DateTimeOffsetFormatter.ReadAll(
-                    ref TakeElements(ref reader, values.Length, NinoWire.DateTimeOffsetSize, prechecked),
-                    ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
                 return;
             }
 

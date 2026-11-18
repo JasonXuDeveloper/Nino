@@ -190,8 +190,9 @@ namespace Nino.Core
             }
 
             // Several entries at a time where the CPU permutes vectors, each key and value packed out of its entry.
-            NinoBlockCollections.WriteAll<NinoDictionaryEntry<TKey, TValue>, CollectionFields.MapEntryBlock<TKey, TValue>>(
-                ref pairs, ref entries[0], count, pairSize);
+            NinoBlockCollections.WriteAll<NinoDictionaryEntry<TKey, TValue>,
+                CollectionFields.MapEntryBlock<TKey, TValue, TKeyFormatter, TValueFormatter>>(ref pairs, ref entries[0],
+                count, pairSize);
         }
 
         /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration

@@ -26,7 +26,6 @@ namespace Nino.CodeGen
             sb.Append("using System;\n");
             sb.Append("using System.Runtime.CompilerServices;\n");
             sb.Append("using Nino.Core.CompilerServices;\n");
-            sb.Append("using Nino.Core.Internal;\n");
             sb.Append("\n");
             sb.Append("namespace Nino.Core\n");
             sb.Append("{\n");
@@ -34,167 +33,197 @@ namespace Nino.CodeGen
             {
                 if (arity > 1)
                     sb.Append("\n");
-                AppendValueTuple(sb, arity);
+                AppendValueTuple(sb, new Shape(arity, rest: false));
                 sb.Append("\n");
-                AppendTuple(sb, arity);
+                AppendTuple(sb, new Shape(arity, rest: false));
             }
 
             sb.Append("\n");
-            AppendLongValueTuple(sb);
+            AppendValueTuple(sb, new Shape(MaxArity + 1, rest: true));
             sb.Append("}\n");
             return sb.ToString();
         }
 
-        private static IEnumerable<int> Items(int arity) => Enumerable.Range(1, arity);
-
-        private static string List(int arity, string format) =>
-            string.Join(", ", Items(arity).Select(i => string.Format(format, i)));
-
-        /// <summary><c>T1, T2, TF1, TF2</c>: the item types, then their formatters.</summary>
-        private static string TypeParameters(int arity) => List(arity, "T{0}") + ", " + List(arity, "TF{0}");
-
-        /// <summary><c>RawFormatter.Is&lt;T1, TF1&gt;() &amp;&amp; ...</c>: whether every item is written as its raw memory.</summary>
-        private static string AllRaw(int arity) => string.Join(" && ", Items(arity).Select(i => $"RawFormatter.Is<T{i}, TF{i}>()"));
-
-        /// <summary>The wire size of the first <paramref name="count"/> items (the tuple's, for all of them).</summary>
-        private static string Sum(int count) =>
-            string.Join(" + ", Items(count).Select(i => $"NinoLayout<T{i}>.Size"));
-
-        /// <summary>The position of item <paramref name="item"/> inside a block of raw items starting at <paramref name="block"/>.</summary>
-        private static string At(string block, int item) =>
-            item == 1 ? block : $"Unsafe.Add(ref {block}, {Sum(item - 1)})";
-
-        private static void AppendConstraints(StringBuilder sb, int arity)
+        /// <summary>
+        /// The items of a tuple: <c>T1</c>.. with their formatters <c>TF1</c>.., the last one <c>TRest</c> in a value
+        /// tuple of eight items or more (itself a value tuple, the rest's items).
+        /// </summary>
+        private readonly struct Shape
         {
-            foreach (int i in Items(arity))
-                sb.Append($"        where TF{i} : struct, INinoFormatter<T{i}>\n");
+            public Shape(int arity, bool rest)
+            {
+                Arity = arity;
+                Rest = rest;
+            }
+
+            public int Arity { get; }
+
+            /// <summary>Whether the last item is the rest of a long value tuple.</summary>
+            public bool Rest { get; }
+
+            public IEnumerable<int> Items => Enumerable.Range(1, Arity);
+
+            public string Type(int i) => Rest && i == Arity ? "TRest" : $"T{i}";
+
+            public string Name(int i) => Rest && i == Arity ? "Rest" : $"Item{i}";
+
+            public string Types => string.Join(", ", Items.Select(Type));
+
+            /// <summary><c>T1, T2, TF1, TF2</c>: the item types, then their formatters.</summary>
+            public string TypeParameters => Types + ", " + string.Join(", ", Items.Select(i => $"TF{i}"));
+
+            /// <summary><c>NinoBlocks.ItemSize&lt;T1, TF1&gt;()</c>: the method of item <paramref name="i"/> called with its types.</summary>
+            public string Call(string method, int i) => $"NinoBlocks.{method}<{Type(i)}, TF{i}>";
+
+            /// <summary>Where item <paramref name="i"/> starts inside a block at <paramref name="block"/>.</summary>
+            public string At(string block, int i) => i == 1 ? block : $"Unsafe.Add(ref {block}, At{i})";
         }
 
-        private static void AppendValueTuple(StringBuilder sb, int arity)
+        private static void AppendConstraints(StringBuilder sb, Shape s)
         {
-            string type = $"ValueTuple<{List(arity, "T{0}")}>";
-            sb.Append($"    /// <summary><c>ValueTuple&lt;{List(arity, "T{0}")}&gt;</c>: the items in order.</summary>\n");
-            sb.Append($"    public struct ValueTupleFormatter<{TypeParameters(arity)}> : INinoFormatter<{type}>\n");
-            AppendConstraints(sb, arity);
+            if (s.Rest)
+                sb.Append("        where TRest : struct\n");
+            foreach (int i in s.Items)
+                sb.Append($"        where TF{i} : struct, INinoFormatter<{s.Type(i)}>\n");
+        }
+
+        /// <summary>
+        /// The sizes every tuple formatter reads: each item's wire bytes (<c>NinoBlocks.ItemSize</c>: -1 for an item
+        /// of no fixed size), where each starts in a block, the block's size (-1 unless every item has one), and
+        /// <c>Fixed</c>, the JIT-time test of the fixed path behind <paramref name="noReferences"/> (where an item
+        /// holds references the code is shared over a class, and each read of a field would be a lookup).
+        /// </summary>
+        private static void AppendSizes(StringBuilder sb, Shape s, string noReferences)
+        {
+            sb.Append("        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.\n");
+            foreach (int i in s.Items)
+                sb.Append($"        private static readonly int Size{i} = {s.Call("ItemSize", i)}();\n");
+            for (int i = 2; i <= s.Arity; i++)
+                sb.Append($"        private static readonly int At{i} = {(i == 2 ? "Size1" : $"At{i - 1} + Size{i - 1}")};\n");
+            string anyVaries = string.Join(" || ", s.Items.Select(i => $"Size{i} < 0"));
+            string total = s.Arity == 1 ? "Size1" : $"At{s.Arity} + Size{s.Arity}";
+            sb.Append($"        private static readonly int Size = {anyVaries} ? -1 : {total};\n");
+            sb.Append("\n");
+            sb.Append("        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>\n");
+            sb.Append("        private static bool Fixed\n");
+            sb.Append("        {\n");
+            sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"            get => {noReferences} && Size > 0;\n");
+            sb.Append("        }\n");
+            sb.Append("\n");
+        }
+
+        /// <summary>The items of <paramref name="value"/> at their offsets in the block at <paramref name="block"/>.</summary>
+        private static void AppendItemWrites(StringBuilder sb, Shape s, string indent, string value, string block)
+        {
+            foreach (int i in s.Items)
+                sb.Append($"{indent}{s.Call("WriteItem", i)}({value}.{s.Name(i)}, ref {s.At(block, i)});\n");
+        }
+
+        private static void AppendValueTuple(StringBuilder sb, Shape s)
+        {
+            string type = $"ValueTuple<{s.Types}>";
+            string doc = $"ValueTuple&lt;{s.Types}&gt;";
+            sb.Append("    /// <summary>\n");
+            sb.Append(s.Rest
+                ? $"    /// <c>{doc}</c>: the items in order, then the rest's (itself a value tuple), so every item in order as the\n    /// shorter tuples write theirs. A block where every item is raw or a block (the rest one when its items are).\n"
+                : $"    /// <c>{doc}</c>: the items in order. A block where every item is raw or a block\n    /// (<see cref=\"NinoBlocks.ItemSize{{TItem, TFormatter}}\"/>), its map built from theirs.\n");
+            sb.Append("    /// </summary>\n");
+            sb.Append($"    public struct ValueTupleFormatter<{s.TypeParameters}> : INinoFormatter<{type}>\n");
+            AppendConstraints(sb, s);
             sb.Append("    {\n");
+            AppendSizes(sb, s, $"!NinoUnsafe.IsReferenceOrContainsReferences<{type}>()");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
             sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
             sb.Append("        {\n");
-            if (arity > 1)
-            {
-                sb.Append("            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.\n");
-                sb.Append($"            if ({AllRaw(arity)})\n");
-                sb.Append("            {\n");
-                sb.Append($"                ref byte dst = ref writer.Reserve({Sum(arity)});\n");
-                foreach (int i in Items(arity))
-                    sb.Append($"                NinoLayout<T{i}>.Write(ref {At("dst", i)}, in value.Item{i});\n");
-                sb.Append("                return;\n");
-                sb.Append("            }\n");
-                sb.Append("\n");
-            }
-
-            foreach (int i in Items(arity))
-                sb.Append($"            default(TF{i}).Serialize(value.Item{i}, ref writer);\n");
+            sb.Append("            // A block (a constant check): one capacity check for the tuple.\n");
+            sb.Append("            if (Fixed)\n");
+            sb.Append("            {\n");
+            sb.Append("                WriteItems(in value, ref writer.Reserve(Size));\n");
+            sb.Append("                return;\n");
+            sb.Append("            }\n");
+            sb.Append("\n");
+            foreach (int i in s.Items)
+                sb.Append($"            default(TF{i}).Serialize(value.{s.Name(i)}, ref writer);\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
             sb.Append($"        public void Deserialize(ref Reader reader, ref {type} value)\n");
             sb.Append("        {\n");
-            if (arity > 1)
-            {
-                sb.Append($"            if ({AllRaw(arity)})\n");
-                sb.Append("            {\n");
-                sb.Append($"                ref byte src = ref reader.ReadBlock({Sum(arity)});\n");
-                foreach (int i in Items(arity))
-                    sb.Append($"                value.Item{i} = NinoLayout<T{i}>.Read(ref {At("src", i)});\n");
-                sb.Append("                return;\n");
-                sb.Append("            }\n");
-                sb.Append("\n");
-            }
-
-            foreach (int i in Items(arity))
-                sb.Append($"            default(TF{i}).Deserialize(ref reader, ref value.Item{i});\n");
+            sb.Append("            if (Fixed)\n");
+            sb.Append("            {\n");
+            sb.Append("                ReadItems(ref value, ref reader.ReadBlock(Size));\n");
+            sb.Append("                return;\n");
+            sb.Append("            }\n");
+            sb.Append("\n");
+            foreach (int i in s.Items)
+                sb.Append($"            default(TF{i}).Deserialize(ref reader, ref value.{s.Name(i)});\n");
             sb.Append("        }\n");
             sb.Append("\n");
-            string allRaw = AllRaw(arity), notAllRaw = arity > 1 ? $"!({allRaw})" : "!" + allRaw;
             sb.Append($"        int INinoFormatter<{type}>.FixedSize\n");
             sb.Append("        {\n");
             sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"            get => {allRaw} ? {Sum(arity)} : -1;\n");
+            sb.Append("            get => Fixed ? Size : -1;\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append($"        NinoBlockMap INinoFormatter<{type}>.BlockMap()\n");
             sb.Append("        {\n");
-            sb.Append($"            if ({notAllRaw})\n");
+            sb.Append("            if (!Fixed)\n");
             sb.Append("                return null;\n");
             sb.Append($"            var value = default({type});\n");
             sb.Append("            return new NinoBlockMap()");
-            foreach (int i in Items(arity))
-                sb.Append($"\n                .Raw<T{i}>(NinoBlocks.Offset(ref value, ref value.Item{i}), {(i == 1 ? "0" : Sum(i - 1))})");
+            foreach (int i in s.Items)
+                sb.Append($"\n                .Item<{s.Type(i)}, TF{i}>(NinoBlocks.Offset(ref value, ref value.{s.Name(i)}))");
             sb.Append(";\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        void INinoFormatter<{type}>.WriteFixed(in {type} value, ref byte destination)\n");
+            sb.Append($"        void INinoFormatter<{type}>.WriteFixed(in {type} value, ref byte destination) =>\n");
+            sb.Append("            WriteItems(in value, ref destination);\n");
+            sb.Append("\n");
+            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"        void INinoFormatter<{type}>.ReadBlock(ref {type} value, ref byte source) =>\n");
+            sb.Append("            ReadItems(ref value, ref source);\n");
+            sb.Append("\n");
+            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"        private static void WriteItems(in {type} value, ref byte destination)\n");
             sb.Append("        {\n");
-            foreach (int i in Items(arity))
-                sb.Append($"            NinoLayout<T{i}>.Write(ref {At("destination", i)}, in value.Item{i});\n");
+            AppendItemWrites(sb, s, "            ", "value", "destination");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        void INinoFormatter<{type}>.ReadBlock(ref {type} value, ref byte source)\n");
+            sb.Append($"        private static void ReadItems(ref {type} value, ref byte source)\n");
             sb.Append("        {\n");
-            foreach (int i in Items(arity))
-                sb.Append($"            value.Item{i} = NinoLayout<T{i}>.Read(ref {At("source", i)});\n");
+            foreach (int i in s.Items)
+                sb.Append($"            {s.Call("ReadItem", i)}(ref value.{s.Name(i)}, ref {s.At("source", i)});\n");
             sb.Append("        }\n");
             sb.Append("    }\n");
         }
 
-        /// <summary>
-        /// <c>ValueTuple&lt;T1, ..., T7, TRest&gt;</c>, a tuple of eight items or more: the seven items, then the rest's
-        /// (itself a value tuple), so every item in order as the shorter tuples write theirs. No block formatter: a
-        /// block holds tuples of up to seven raw items.
-        /// </summary>
-        private static void AppendLongValueTuple(StringBuilder sb)
+        private static void AppendTuple(StringBuilder sb, Shape s)
         {
-            const int arity = MaxArity + 1;
-            string items = List(MaxArity, "T{0}") + ", TRest";
-            string type = $"ValueTuple<{items}>";
-            sb.Append($"    /// <summary><c>ValueTuple&lt;{items}&gt;</c>: the items in order, then the rest's.</summary>\n");
-            sb.Append($"    public struct ValueTupleFormatter<{items}, {List(arity, "TF{0}")}> : INinoFormatter<{type}>\n");
-            sb.Append("        where TRest : struct\n");
-            foreach (int i in Items(arity))
-                sb.Append($"        where TF{i} : struct, INinoFormatter<{(i == arity ? "TRest" : $"T{i}")}>\n");
+            string type = $"Tuple<{s.Types}>";
+            string noReferences = string.Join(" && ",
+                s.Items.Select(i => $"!NinoUnsafe.IsReferenceOrContainsReferences<{s.Type(i)}>()"));
+            sb.Append($"    /// <summary><c>Tuple&lt;{s.Types}&gt;</c>: a presence byte, then the items in order (one block where every item\n");
+            sb.Append("    /// is raw or a block).</summary>\n");
+            sb.Append($"    public struct TupleFormatter<{s.TypeParameters}> : INinoFormatter<{type}>\n");
+            AppendConstraints(sb, s);
             sb.Append("    {\n");
-            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
-            sb.Append("        {\n");
-            foreach (int i in Items(arity))
-                sb.Append($"            default(TF{i}).Serialize(value.{(i == arity ? "Rest" : $"Item{i}")}, ref writer);\n");
-            sb.Append("        }\n");
-            sb.Append("\n");
-            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        public void Deserialize(ref Reader reader, ref {type} value)\n");
-            sb.Append("        {\n");
-            foreach (int i in Items(arity))
-                sb.Append($"            default(TF{i}).Deserialize(ref reader, ref value.{(i == arity ? "Rest" : $"Item{i}")});\n");
-            sb.Append("        }\n");
-            sb.Append("    }\n");
-        }
-
-        private static void AppendTuple(StringBuilder sb, int arity)
-        {
-            string type = $"Tuple<{List(arity, "T{0}")}>";
-            sb.Append($"    /// <summary><c>Tuple&lt;{List(arity, "T{0}")}&gt;</c>: a presence byte, then the items in order.</summary>\n");
-            sb.Append($"    public struct TupleFormatter<{TypeParameters(arity)}> : INinoFormatter<{type}>\n");
-            AppendConstraints(sb, arity);
-            sb.Append("    {\n");
+            AppendSizes(sb, s, noReferences);
             sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
             sb.Append("        {\n");
             sb.Append("            if (!writer.WritePresence(value))\n");
             sb.Append("                return;\n");
             sb.Append("\n");
-            foreach (int i in Items(arity))
+            sb.Append("            if (Fixed)\n");
+            sb.Append("            {\n");
+            sb.Append("                ref byte destination = ref writer.Reserve(Size);\n");
+            AppendItemWrites(sb, s, "                ", "value", "destination");
+            sb.Append("                return;\n");
+            sb.Append("            }\n");
+            sb.Append("\n");
+            foreach (int i in s.Items)
                 sb.Append($"            default(TF{i}).Serialize(value.Item{i}, ref writer);\n");
             sb.Append("        }\n");
             sb.Append("\n");
@@ -204,13 +233,21 @@ namespace Nino.CodeGen
             sb.Append("                return;\n");
             sb.Append("\n");
             sb.Append("            // Tuples are immutable: the items are read into locals and the tuple is replaced.\n");
-            foreach (int i in Items(arity))
-            {
+            foreach (int i in s.Items)
                 sb.Append($"            T{i} item{i} = default;\n");
-                sb.Append($"            default(TF{i}).Deserialize(ref reader, ref item{i});\n");
-            }
-
-            sb.Append($"            NinoRecycler.Replace(ref value, new {type}({List(arity, "item{0}")}));\n");
+            sb.Append("            if (Fixed)\n");
+            sb.Append("            {\n");
+            sb.Append("                ref byte source = ref reader.ReadBlock(Size);\n");
+            foreach (int i in s.Items)
+                sb.Append($"                {s.Call("ReadItem", i)}(ref item{i}, ref {s.At("source", i)});\n");
+            sb.Append("            }\n");
+            sb.Append("            else\n");
+            sb.Append("            {\n");
+            foreach (int i in s.Items)
+                sb.Append($"                default(TF{i}).Deserialize(ref reader, ref item{i});\n");
+            sb.Append("            }\n");
+            sb.Append("\n");
+            sb.Append($"            NinoRecycler.Replace(ref value, new {type}({string.Join(", ", s.Items.Select(i => $"item{i}"))}));\n");
             sb.Append("        }\n");
             sb.Append("    }\n");
         }

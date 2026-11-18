@@ -53,7 +53,11 @@ namespace Nino.Core
     /// <c>DateTimeOffset</c>: UTC ticks (int64) and offset minutes (int16). Its raw memory has padding and a
     /// different size on x86, so it is never copied raw. Its two fields are read and written directly where their
     /// positions are known (<see cref="ValueViews.DateTimeOffsetTicks"/>): the public API converts the offset to and
-    /// from a <c>TimeSpan</c>, and the constructor validates through several calls.
+    /// from a <c>TimeSpan</c>, and the constructor validates through several calls. A block of 10 bytes, so collections
+    /// of it, and value tuples, pairs and generated structs holding it, move it as one
+    /// (<see cref="INinoFormatter{T}.BlockMap"/>); its map is empty, since a read checks the range of both fields and
+    /// widens the minutes, which no byte copy does, so each value is moved by <see cref="WriteFixed"/> and
+    /// <see cref="ReadBlock"/>.
     /// </summary>
     public struct DateTimeOffsetFormatter : INinoFormatter<DateTimeOffset>
     {
@@ -65,31 +69,17 @@ namespace Nino.Core
         public void Deserialize(ref Reader reader, ref DateTimeOffset value) =>
             Read(ref reader.ReadBlock(NinoWire.DateTimeOffsetSize), ref value);
 
-        /// <summary>Writes <paramref name="count"/> values into one reserved block.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void WriteAll(ref byte dst, ref DateTimeOffset first, int count)
-        {
-            ref byte src = ref Unsafe.As<DateTimeOffset, byte>(ref first);
-            for (int i = 0; i < count; i++)
-            {
-                Write(ref dst, ref Unsafe.As<byte, DateTimeOffset>(ref src));
-                src = ref Unsafe.Add(ref src, Unsafe.SizeOf<DateTimeOffset>());
-                dst = ref Unsafe.Add(ref dst, NinoWire.DateTimeOffsetSize);
-            }
-        }
+        int INinoFormatter<DateTimeOffset>.FixedSize => NinoWire.DateTimeOffsetSize;
 
-        /// <summary>Reads <paramref name="count"/> values from one block (into slots that need not be zeroed).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void ReadAll(ref byte src, ref DateTimeOffset first, int count)
-        {
-            ref byte dst = ref Unsafe.As<DateTimeOffset, byte>(ref first);
-            for (int i = 0; i < count; i++)
-            {
-                Read(ref src, ref Unsafe.As<byte, DateTimeOffset>(ref dst));
-                src = ref Unsafe.Add(ref src, NinoWire.DateTimeOffsetSize);
-                dst = ref Unsafe.Add(ref dst, Unsafe.SizeOf<DateTimeOffset>());
-            }
-        }
+        void INinoFormatter<DateTimeOffset>.WriteFixed(in DateTimeOffset value, ref byte destination) =>
+            Write(ref destination, ref Unsafe.AsRef(in value));
+
+        NinoBlockMap INinoFormatter<DateTimeOffset>.BlockMap() => new();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<DateTimeOffset>.ReadBlock(ref DateTimeOffset value, ref byte source) =>
+            Read(ref source, ref value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Write(ref byte dst, ref DateTimeOffset value)

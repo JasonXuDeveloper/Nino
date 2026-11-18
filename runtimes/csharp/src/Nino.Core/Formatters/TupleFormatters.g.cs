@@ -6,62 +6,115 @@
 using System;
 using System.Runtime.CompilerServices;
 using Nino.Core.CompilerServices;
-using Nino.Core.Internal;
 
 namespace Nino.Core
 {
-    /// <summary><c>ValueTuple&lt;T1&gt;</c>: the items in order.</summary>
+    /// <summary>
+    /// <c>ValueTuple&lt;T1&gt;</c>: the items in order. A block where every item is raw or a block
+    /// (<see cref="NinoBlocks.ItemSize{TItem, TFormatter}"/>), its map built from theirs.
+    /// </summary>
     public struct ValueTupleFormatter<T1, TF1> : INinoFormatter<ValueTuple<T1>>
         where TF1 : struct, INinoFormatter<T1>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size = Size1 < 0 ? -1 : Size1;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1>>() && Size > 0;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1> value, ref Writer writer)
         {
+            // A block (a constant check): one capacity check for the tuple.
+            if (Fixed)
+            {
+                WriteItems(in value, ref writer.Reserve(Size));
+                return;
+            }
+
             default(TF1).Serialize(value.Item1, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref ValueTuple<T1> value)
         {
+            if (Fixed)
+            {
+                ReadItems(ref value, ref reader.ReadBlock(Size));
+                return;
+            }
+
             default(TF1).Deserialize(ref reader, ref value.Item1);
         }
 
         int INinoFormatter<ValueTuple<T1>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => RawFormatter.Is<T1, TF1>() ? NinoLayout<T1>.Size : -1;
+            get => Fixed ? Size : -1;
         }
 
         NinoBlockMap INinoFormatter<ValueTuple<T1>>.BlockMap()
         {
-            if (!RawFormatter.Is<T1, TF1>())
+            if (!Fixed)
                 return null;
             var value = default(ValueTuple<T1>);
             return new NinoBlockMap()
-                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0);
+                .Item<T1, TF1>(NinoBlocks.Offset(ref value, ref value.Item1));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1>>.WriteFixed(in ValueTuple<T1> value, ref byte destination)
+        void INinoFormatter<ValueTuple<T1>>.WriteFixed(in ValueTuple<T1> value, ref byte destination) =>
+            WriteItems(in value, ref destination);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1>>.ReadBlock(ref ValueTuple<T1> value, ref byte source) =>
+            ReadItems(ref value, ref source);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteItems(in ValueTuple<T1> value, ref byte destination)
         {
-            NinoLayout<T1>.Write(ref destination, in value.Item1);
+            NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1>>.ReadBlock(ref ValueTuple<T1> value, ref byte source)
+        private static void ReadItems(ref ValueTuple<T1> value, ref byte source)
         {
-            value.Item1 = NinoLayout<T1>.Read(ref source);
+            NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
         }
     }
 
-    /// <summary><c>Tuple&lt;T1&gt;</c>: a presence byte, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1&gt;</c>: a presence byte, then the items in order (one block where every item
+    /// is raw or a block).</summary>
     public struct TupleFormatter<T1, TF1> : INinoFormatter<Tuple<T1>>
         where TF1 : struct, INinoFormatter<T1>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size = Size1 < 0 ? -1 : Size1;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && Size > 0;
+        }
+
         public void Serialize(Tuple<T1> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
                 return;
+
+            if (Fixed)
+            {
+                ref byte destination = ref writer.Reserve(Size);
+                NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+                return;
+            }
 
             default(TF1).Serialize(value.Item1, ref writer);
         }
@@ -73,25 +126,48 @@ namespace Nino.Core
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref reader, ref item1);
+            if (Fixed)
+            {
+                ref byte source = ref reader.ReadBlock(Size);
+                NinoBlocks.ReadItem<T1, TF1>(ref item1, ref source);
+            }
+            else
+            {
+                default(TF1).Deserialize(ref reader, ref item1);
+            }
+
             NinoRecycler.Replace(ref value, new Tuple<T1>(item1));
         }
     }
 
-    /// <summary><c>ValueTuple&lt;T1, T2&gt;</c>: the items in order.</summary>
+    /// <summary>
+    /// <c>ValueTuple&lt;T1, T2&gt;</c>: the items in order. A block where every item is raw or a block
+    /// (<see cref="NinoBlocks.ItemSize{TItem, TFormatter}"/>), its map built from theirs.
+    /// </summary>
     public struct ValueTupleFormatter<T1, T2, TF1, TF2> : INinoFormatter<ValueTuple<T1, T2>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int At2 = Size1;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 ? -1 : At2 + Size2;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2>>() && Size > 0;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2> value, ref Writer writer)
         {
-            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>())
+            // A block (a constant check): one capacity check for the tuple.
+            if (Fixed)
             {
-                ref byte dst = ref writer.Reserve(NinoLayout<T1>.Size + NinoLayout<T2>.Size);
-                NinoLayout<T1>.Write(ref dst, in value.Item1);
-                NinoLayout<T2>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size), in value.Item2);
+                WriteItems(in value, ref writer.Reserve(Size));
                 return;
             }
 
@@ -102,11 +178,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2> value)
         {
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>())
+            if (Fixed)
             {
-                ref byte src = ref reader.ReadBlock(NinoLayout<T1>.Size + NinoLayout<T2>.Size);
-                value.Item1 = NinoLayout<T1>.Read(ref src);
-                value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size));
+                ReadItems(ref value, ref reader.ReadBlock(Size));
                 return;
             }
 
@@ -117,43 +191,73 @@ namespace Nino.Core
         int INinoFormatter<ValueTuple<T1, T2>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size : -1;
+            get => Fixed ? Size : -1;
         }
 
         NinoBlockMap INinoFormatter<ValueTuple<T1, T2>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>()))
+            if (!Fixed)
                 return null;
             var value = default(ValueTuple<T1, T2>);
             return new NinoBlockMap()
-                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
-                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size);
+                .Item<T1, TF1>(NinoBlocks.Offset(ref value, ref value.Item1))
+                .Item<T2, TF2>(NinoBlocks.Offset(ref value, ref value.Item2));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2>>.WriteFixed(in ValueTuple<T1, T2> value, ref byte destination)
+        void INinoFormatter<ValueTuple<T1, T2>>.WriteFixed(in ValueTuple<T1, T2> value, ref byte destination) =>
+            WriteItems(in value, ref destination);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1, T2>>.ReadBlock(ref ValueTuple<T1, T2> value, ref byte source) =>
+            ReadItems(ref value, ref source);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteItems(in ValueTuple<T1, T2> value, ref byte destination)
         {
-            NinoLayout<T1>.Write(ref destination, in value.Item1);
-            NinoLayout<T2>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size), in value.Item2);
+            NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+            NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2>>.ReadBlock(ref ValueTuple<T1, T2> value, ref byte source)
+        private static void ReadItems(ref ValueTuple<T1, T2> value, ref byte source)
         {
-            value.Item1 = NinoLayout<T1>.Read(ref source);
-            value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size));
+            NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
+            NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2&gt;</c>: a presence byte, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2&gt;</c>: a presence byte, then the items in order (one block where every item
+    /// is raw or a block).</summary>
     public struct TupleFormatter<T1, T2, TF1, TF2> : INinoFormatter<Tuple<T1, T2>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int At2 = Size1;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 ? -1 : At2 + Size2;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && Size > 0;
+        }
+
         public void Serialize(Tuple<T1, T2> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
                 return;
+
+            if (Fixed)
+            {
+                ref byte destination = ref writer.Reserve(Size);
+                NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+                NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+                return;
+            }
 
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
@@ -166,29 +270,54 @@ namespace Nino.Core
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref reader, ref item2);
+            if (Fixed)
+            {
+                ref byte source = ref reader.ReadBlock(Size);
+                NinoBlocks.ReadItem<T1, TF1>(ref item1, ref source);
+                NinoBlocks.ReadItem<T2, TF2>(ref item2, ref Unsafe.Add(ref source, At2));
+            }
+            else
+            {
+                default(TF1).Deserialize(ref reader, ref item1);
+                default(TF2).Deserialize(ref reader, ref item2);
+            }
+
             NinoRecycler.Replace(ref value, new Tuple<T1, T2>(item1, item2));
         }
     }
 
-    /// <summary><c>ValueTuple&lt;T1, T2, T3&gt;</c>: the items in order.</summary>
+    /// <summary>
+    /// <c>ValueTuple&lt;T1, T2, T3&gt;</c>: the items in order. A block where every item is raw or a block
+    /// (<see cref="NinoBlocks.ItemSize{TItem, TFormatter}"/>), its map built from theirs.
+    /// </summary>
     public struct ValueTupleFormatter<T1, T2, T3, TF1, TF2, TF3> : INinoFormatter<ValueTuple<T1, T2, T3>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
         where TF3 : struct, INinoFormatter<T3>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 ? -1 : At3 + Size3;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3>>() && Size > 0;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3> value, ref Writer writer)
         {
-            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>())
+            // A block (a constant check): one capacity check for the tuple.
+            if (Fixed)
             {
-                ref byte dst = ref writer.Reserve(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size);
-                NinoLayout<T1>.Write(ref dst, in value.Item1);
-                NinoLayout<T2>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size), in value.Item2);
-                NinoLayout<T3>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
+                WriteItems(in value, ref writer.Reserve(Size));
                 return;
             }
 
@@ -200,12 +329,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3> value)
         {
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>())
+            if (Fixed)
             {
-                ref byte src = ref reader.ReadBlock(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size);
-                value.Item1 = NinoLayout<T1>.Read(ref src);
-                value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size));
-                value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
+                ReadItems(ref value, ref reader.ReadBlock(Size));
                 return;
             }
 
@@ -217,47 +343,80 @@ namespace Nino.Core
         int INinoFormatter<ValueTuple<T1, T2, T3>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size : -1;
+            get => Fixed ? Size : -1;
         }
 
         NinoBlockMap INinoFormatter<ValueTuple<T1, T2, T3>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>()))
+            if (!Fixed)
                 return null;
             var value = default(ValueTuple<T1, T2, T3>);
             return new NinoBlockMap()
-                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
-                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
-                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size);
+                .Item<T1, TF1>(NinoBlocks.Offset(ref value, ref value.Item1))
+                .Item<T2, TF2>(NinoBlocks.Offset(ref value, ref value.Item2))
+                .Item<T3, TF3>(NinoBlocks.Offset(ref value, ref value.Item3));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3>>.WriteFixed(in ValueTuple<T1, T2, T3> value, ref byte destination)
+        void INinoFormatter<ValueTuple<T1, T2, T3>>.WriteFixed(in ValueTuple<T1, T2, T3> value, ref byte destination) =>
+            WriteItems(in value, ref destination);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1, T2, T3>>.ReadBlock(ref ValueTuple<T1, T2, T3> value, ref byte source) =>
+            ReadItems(ref value, ref source);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteItems(in ValueTuple<T1, T2, T3> value, ref byte destination)
         {
-            NinoLayout<T1>.Write(ref destination, in value.Item1);
-            NinoLayout<T2>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size), in value.Item2);
-            NinoLayout<T3>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
+            NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+            NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+            NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3>>.ReadBlock(ref ValueTuple<T1, T2, T3> value, ref byte source)
+        private static void ReadItems(ref ValueTuple<T1, T2, T3> value, ref byte source)
         {
-            value.Item1 = NinoLayout<T1>.Read(ref source);
-            value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size));
-            value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
+            NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
+            NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
+            NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3&gt;</c>: a presence byte, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3&gt;</c>: a presence byte, then the items in order (one block where every item
+    /// is raw or a block).</summary>
     public struct TupleFormatter<T1, T2, T3, TF1, TF2, TF3> : INinoFormatter<Tuple<T1, T2, T3>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
         where TF3 : struct, INinoFormatter<T3>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 ? -1 : At3 + Size3;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && Size > 0;
+        }
+
         public void Serialize(Tuple<T1, T2, T3> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
                 return;
+
+            if (Fixed)
+            {
+                ref byte destination = ref writer.Reserve(Size);
+                NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+                NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+                NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+                return;
+            }
 
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
@@ -271,33 +430,60 @@ namespace Nino.Core
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref reader, ref item3);
+            if (Fixed)
+            {
+                ref byte source = ref reader.ReadBlock(Size);
+                NinoBlocks.ReadItem<T1, TF1>(ref item1, ref source);
+                NinoBlocks.ReadItem<T2, TF2>(ref item2, ref Unsafe.Add(ref source, At2));
+                NinoBlocks.ReadItem<T3, TF3>(ref item3, ref Unsafe.Add(ref source, At3));
+            }
+            else
+            {
+                default(TF1).Deserialize(ref reader, ref item1);
+                default(TF2).Deserialize(ref reader, ref item2);
+                default(TF3).Deserialize(ref reader, ref item3);
+            }
+
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3>(item1, item2, item3));
         }
     }
 
-    /// <summary><c>ValueTuple&lt;T1, T2, T3, T4&gt;</c>: the items in order.</summary>
+    /// <summary>
+    /// <c>ValueTuple&lt;T1, T2, T3, T4&gt;</c>: the items in order. A block where every item is raw or a block
+    /// (<see cref="NinoBlocks.ItemSize{TItem, TFormatter}"/>), its map built from theirs.
+    /// </summary>
     public struct ValueTupleFormatter<T1, T2, T3, T4, TF1, TF2, TF3, TF4> : INinoFormatter<ValueTuple<T1, T2, T3, T4>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
         where TF3 : struct, INinoFormatter<T3>
         where TF4 : struct, INinoFormatter<T4>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 ? -1 : At4 + Size4;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4>>() && Size > 0;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4> value, ref Writer writer)
         {
-            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>())
+            // A block (a constant check): one capacity check for the tuple.
+            if (Fixed)
             {
-                ref byte dst = ref writer.Reserve(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size);
-                NinoLayout<T1>.Write(ref dst, in value.Item1);
-                NinoLayout<T2>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size), in value.Item2);
-                NinoLayout<T3>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
-                NinoLayout<T4>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size), in value.Item4);
+                WriteItems(in value, ref writer.Reserve(Size));
                 return;
             }
 
@@ -310,13 +496,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4> value)
         {
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>())
+            if (Fixed)
             {
-                ref byte src = ref reader.ReadBlock(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size);
-                value.Item1 = NinoLayout<T1>.Read(ref src);
-                value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size));
-                value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
-                value.Item4 = NinoLayout<T4>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size));
+                ReadItems(ref value, ref reader.ReadBlock(Size));
                 return;
             }
 
@@ -329,51 +511,87 @@ namespace Nino.Core
         int INinoFormatter<ValueTuple<T1, T2, T3, T4>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size : -1;
+            get => Fixed ? Size : -1;
         }
 
         NinoBlockMap INinoFormatter<ValueTuple<T1, T2, T3, T4>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>()))
+            if (!Fixed)
                 return null;
             var value = default(ValueTuple<T1, T2, T3, T4>);
             return new NinoBlockMap()
-                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
-                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
-                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size)
-                .Raw<T4>(NinoBlocks.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size);
+                .Item<T1, TF1>(NinoBlocks.Offset(ref value, ref value.Item1))
+                .Item<T2, TF2>(NinoBlocks.Offset(ref value, ref value.Item2))
+                .Item<T3, TF3>(NinoBlocks.Offset(ref value, ref value.Item3))
+                .Item<T4, TF4>(NinoBlocks.Offset(ref value, ref value.Item4));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3, T4>>.WriteFixed(in ValueTuple<T1, T2, T3, T4> value, ref byte destination)
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4>>.WriteFixed(in ValueTuple<T1, T2, T3, T4> value, ref byte destination) =>
+            WriteItems(in value, ref destination);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4> value, ref byte source) =>
+            ReadItems(ref value, ref source);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteItems(in ValueTuple<T1, T2, T3, T4> value, ref byte destination)
         {
-            NinoLayout<T1>.Write(ref destination, in value.Item1);
-            NinoLayout<T2>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size), in value.Item2);
-            NinoLayout<T3>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
-            NinoLayout<T4>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size), in value.Item4);
+            NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+            NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+            NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+            NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3, T4>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4> value, ref byte source)
+        private static void ReadItems(ref ValueTuple<T1, T2, T3, T4> value, ref byte source)
         {
-            value.Item1 = NinoLayout<T1>.Read(ref source);
-            value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size));
-            value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
-            value.Item4 = NinoLayout<T4>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size));
+            NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
+            NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
+            NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
+            NinoBlocks.ReadItem<T4, TF4>(ref value.Item4, ref Unsafe.Add(ref source, At4));
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3, T4&gt;</c>: a presence byte, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3, T4&gt;</c>: a presence byte, then the items in order (one block where every item
+    /// is raw or a block).</summary>
     public struct TupleFormatter<T1, T2, T3, T4, TF1, TF2, TF3, TF4> : INinoFormatter<Tuple<T1, T2, T3, T4>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
         where TF3 : struct, INinoFormatter<T3>
         where TF4 : struct, INinoFormatter<T4>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 ? -1 : At4 + Size4;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && Size > 0;
+        }
+
         public void Serialize(Tuple<T1, T2, T3, T4> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
                 return;
+
+            if (Fixed)
+            {
+                ref byte destination = ref writer.Reserve(Size);
+                NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+                NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+                NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+                NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
+                return;
+            }
 
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
@@ -388,18 +606,33 @@ namespace Nino.Core
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref reader, ref item3);
             T4 item4 = default;
-            default(TF4).Deserialize(ref reader, ref item4);
+            if (Fixed)
+            {
+                ref byte source = ref reader.ReadBlock(Size);
+                NinoBlocks.ReadItem<T1, TF1>(ref item1, ref source);
+                NinoBlocks.ReadItem<T2, TF2>(ref item2, ref Unsafe.Add(ref source, At2));
+                NinoBlocks.ReadItem<T3, TF3>(ref item3, ref Unsafe.Add(ref source, At3));
+                NinoBlocks.ReadItem<T4, TF4>(ref item4, ref Unsafe.Add(ref source, At4));
+            }
+            else
+            {
+                default(TF1).Deserialize(ref reader, ref item1);
+                default(TF2).Deserialize(ref reader, ref item2);
+                default(TF3).Deserialize(ref reader, ref item3);
+                default(TF4).Deserialize(ref reader, ref item4);
+            }
+
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4>(item1, item2, item3, item4));
         }
     }
 
-    /// <summary><c>ValueTuple&lt;T1, T2, T3, T4, T5&gt;</c>: the items in order.</summary>
+    /// <summary>
+    /// <c>ValueTuple&lt;T1, T2, T3, T4, T5&gt;</c>: the items in order. A block where every item is raw or a block
+    /// (<see cref="NinoBlocks.ItemSize{TItem, TFormatter}"/>), its map built from theirs.
+    /// </summary>
     public struct ValueTupleFormatter<T1, T2, T3, T4, T5, TF1, TF2, TF3, TF4, TF5> : INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -407,18 +640,32 @@ namespace Nino.Core
         where TF4 : struct, INinoFormatter<T4>
         where TF5 : struct, INinoFormatter<T5>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int Size5 = NinoBlocks.ItemSize<T5, TF5>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int At5 = At4 + Size4;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 || Size5 < 0 ? -1 : At5 + Size5;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5>>() && Size > 0;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4, T5> value, ref Writer writer)
         {
-            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>())
+            // A block (a constant check): one capacity check for the tuple.
+            if (Fixed)
             {
-                ref byte dst = ref writer.Reserve(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size);
-                NinoLayout<T1>.Write(ref dst, in value.Item1);
-                NinoLayout<T2>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size), in value.Item2);
-                NinoLayout<T3>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
-                NinoLayout<T4>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size), in value.Item4);
-                NinoLayout<T5>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size), in value.Item5);
+                WriteItems(in value, ref writer.Reserve(Size));
                 return;
             }
 
@@ -432,14 +679,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4, T5> value)
         {
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>())
+            if (Fixed)
             {
-                ref byte src = ref reader.ReadBlock(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size);
-                value.Item1 = NinoLayout<T1>.Read(ref src);
-                value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size));
-                value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
-                value.Item4 = NinoLayout<T4>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size));
-                value.Item5 = NinoLayout<T5>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size));
+                ReadItems(ref value, ref reader.ReadBlock(Size));
                 return;
             }
 
@@ -453,44 +695,53 @@ namespace Nino.Core
         int INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size : -1;
+            get => Fixed ? Size : -1;
         }
 
         NinoBlockMap INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>()))
+            if (!Fixed)
                 return null;
             var value = default(ValueTuple<T1, T2, T3, T4, T5>);
             return new NinoBlockMap()
-                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
-                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
-                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size)
-                .Raw<T4>(NinoBlocks.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size)
-                .Raw<T5>(NinoBlocks.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size);
+                .Item<T1, TF1>(NinoBlocks.Offset(ref value, ref value.Item1))
+                .Item<T2, TF2>(NinoBlocks.Offset(ref value, ref value.Item2))
+                .Item<T3, TF3>(NinoBlocks.Offset(ref value, ref value.Item3))
+                .Item<T4, TF4>(NinoBlocks.Offset(ref value, ref value.Item4))
+                .Item<T5, TF5>(NinoBlocks.Offset(ref value, ref value.Item5));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>.WriteFixed(in ValueTuple<T1, T2, T3, T4, T5> value, ref byte destination)
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>.WriteFixed(in ValueTuple<T1, T2, T3, T4, T5> value, ref byte destination) =>
+            WriteItems(in value, ref destination);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4, T5> value, ref byte source) =>
+            ReadItems(ref value, ref source);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteItems(in ValueTuple<T1, T2, T3, T4, T5> value, ref byte destination)
         {
-            NinoLayout<T1>.Write(ref destination, in value.Item1);
-            NinoLayout<T2>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size), in value.Item2);
-            NinoLayout<T3>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
-            NinoLayout<T4>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size), in value.Item4);
-            NinoLayout<T5>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size), in value.Item5);
+            NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+            NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+            NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+            NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
+            NinoBlocks.WriteItem<T5, TF5>(value.Item5, ref Unsafe.Add(ref destination, At5));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4, T5> value, ref byte source)
+        private static void ReadItems(ref ValueTuple<T1, T2, T3, T4, T5> value, ref byte source)
         {
-            value.Item1 = NinoLayout<T1>.Read(ref source);
-            value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size));
-            value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
-            value.Item4 = NinoLayout<T4>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size));
-            value.Item5 = NinoLayout<T5>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size));
+            NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
+            NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
+            NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
+            NinoBlocks.ReadItem<T4, TF4>(ref value.Item4, ref Unsafe.Add(ref source, At4));
+            NinoBlocks.ReadItem<T5, TF5>(ref value.Item5, ref Unsafe.Add(ref source, At5));
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5&gt;</c>: a presence byte, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5&gt;</c>: a presence byte, then the items in order (one block where every item
+    /// is raw or a block).</summary>
     public struct TupleFormatter<T1, T2, T3, T4, T5, TF1, TF2, TF3, TF4, TF5> : INinoFormatter<Tuple<T1, T2, T3, T4, T5>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -498,10 +749,40 @@ namespace Nino.Core
         where TF4 : struct, INinoFormatter<T4>
         where TF5 : struct, INinoFormatter<T5>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int Size5 = NinoBlocks.ItemSize<T5, TF5>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int At5 = At4 + Size4;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 || Size5 < 0 ? -1 : At5 + Size5;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && Size > 0;
+        }
+
         public void Serialize(Tuple<T1, T2, T3, T4, T5> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
                 return;
+
+            if (Fixed)
+            {
+                ref byte destination = ref writer.Reserve(Size);
+                NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+                NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+                NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+                NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
+                NinoBlocks.WriteItem<T5, TF5>(value.Item5, ref Unsafe.Add(ref destination, At5));
+                return;
+            }
 
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
@@ -517,20 +798,36 @@ namespace Nino.Core
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref reader, ref item3);
             T4 item4 = default;
-            default(TF4).Deserialize(ref reader, ref item4);
             T5 item5 = default;
-            default(TF5).Deserialize(ref reader, ref item5);
+            if (Fixed)
+            {
+                ref byte source = ref reader.ReadBlock(Size);
+                NinoBlocks.ReadItem<T1, TF1>(ref item1, ref source);
+                NinoBlocks.ReadItem<T2, TF2>(ref item2, ref Unsafe.Add(ref source, At2));
+                NinoBlocks.ReadItem<T3, TF3>(ref item3, ref Unsafe.Add(ref source, At3));
+                NinoBlocks.ReadItem<T4, TF4>(ref item4, ref Unsafe.Add(ref source, At4));
+                NinoBlocks.ReadItem<T5, TF5>(ref item5, ref Unsafe.Add(ref source, At5));
+            }
+            else
+            {
+                default(TF1).Deserialize(ref reader, ref item1);
+                default(TF2).Deserialize(ref reader, ref item2);
+                default(TF3).Deserialize(ref reader, ref item3);
+                default(TF4).Deserialize(ref reader, ref item4);
+                default(TF5).Deserialize(ref reader, ref item5);
+            }
+
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5>(item1, item2, item3, item4, item5));
         }
     }
 
-    /// <summary><c>ValueTuple&lt;T1, T2, T3, T4, T5, T6&gt;</c>: the items in order.</summary>
+    /// <summary>
+    /// <c>ValueTuple&lt;T1, T2, T3, T4, T5, T6&gt;</c>: the items in order. A block where every item is raw or a block
+    /// (<see cref="NinoBlocks.ItemSize{TItem, TFormatter}"/>), its map built from theirs.
+    /// </summary>
     public struct ValueTupleFormatter<T1, T2, T3, T4, T5, T6, TF1, TF2, TF3, TF4, TF5, TF6> : INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -539,19 +836,34 @@ namespace Nino.Core
         where TF5 : struct, INinoFormatter<T5>
         where TF6 : struct, INinoFormatter<T6>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int Size5 = NinoBlocks.ItemSize<T5, TF5>();
+        private static readonly int Size6 = NinoBlocks.ItemSize<T6, TF6>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int At5 = At4 + Size4;
+        private static readonly int At6 = At5 + Size5;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 || Size5 < 0 || Size6 < 0 ? -1 : At6 + Size6;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6>>() && Size > 0;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4, T5, T6> value, ref Writer writer)
         {
-            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>())
+            // A block (a constant check): one capacity check for the tuple.
+            if (Fixed)
             {
-                ref byte dst = ref writer.Reserve(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size);
-                NinoLayout<T1>.Write(ref dst, in value.Item1);
-                NinoLayout<T2>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size), in value.Item2);
-                NinoLayout<T3>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
-                NinoLayout<T4>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size), in value.Item4);
-                NinoLayout<T5>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size), in value.Item5);
-                NinoLayout<T6>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size), in value.Item6);
+                WriteItems(in value, ref writer.Reserve(Size));
                 return;
             }
 
@@ -566,15 +878,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4, T5, T6> value)
         {
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>())
+            if (Fixed)
             {
-                ref byte src = ref reader.ReadBlock(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size);
-                value.Item1 = NinoLayout<T1>.Read(ref src);
-                value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size));
-                value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
-                value.Item4 = NinoLayout<T4>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size));
-                value.Item5 = NinoLayout<T5>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size));
-                value.Item6 = NinoLayout<T6>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size));
+                ReadItems(ref value, ref reader.ReadBlock(Size));
                 return;
             }
 
@@ -589,47 +895,56 @@ namespace Nino.Core
         int INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size : -1;
+            get => Fixed ? Size : -1;
         }
 
         NinoBlockMap INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>()))
+            if (!Fixed)
                 return null;
             var value = default(ValueTuple<T1, T2, T3, T4, T5, T6>);
             return new NinoBlockMap()
-                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
-                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
-                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size)
-                .Raw<T4>(NinoBlocks.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size)
-                .Raw<T5>(NinoBlocks.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size)
-                .Raw<T6>(NinoBlocks.Offset(ref value, ref value.Item6), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size);
+                .Item<T1, TF1>(NinoBlocks.Offset(ref value, ref value.Item1))
+                .Item<T2, TF2>(NinoBlocks.Offset(ref value, ref value.Item2))
+                .Item<T3, TF3>(NinoBlocks.Offset(ref value, ref value.Item3))
+                .Item<T4, TF4>(NinoBlocks.Offset(ref value, ref value.Item4))
+                .Item<T5, TF5>(NinoBlocks.Offset(ref value, ref value.Item5))
+                .Item<T6, TF6>(NinoBlocks.Offset(ref value, ref value.Item6));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.WriteFixed(in ValueTuple<T1, T2, T3, T4, T5, T6> value, ref byte destination)
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.WriteFixed(in ValueTuple<T1, T2, T3, T4, T5, T6> value, ref byte destination) =>
+            WriteItems(in value, ref destination);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4, T5, T6> value, ref byte source) =>
+            ReadItems(ref value, ref source);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteItems(in ValueTuple<T1, T2, T3, T4, T5, T6> value, ref byte destination)
         {
-            NinoLayout<T1>.Write(ref destination, in value.Item1);
-            NinoLayout<T2>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size), in value.Item2);
-            NinoLayout<T3>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
-            NinoLayout<T4>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size), in value.Item4);
-            NinoLayout<T5>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size), in value.Item5);
-            NinoLayout<T6>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size), in value.Item6);
+            NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+            NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+            NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+            NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
+            NinoBlocks.WriteItem<T5, TF5>(value.Item5, ref Unsafe.Add(ref destination, At5));
+            NinoBlocks.WriteItem<T6, TF6>(value.Item6, ref Unsafe.Add(ref destination, At6));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4, T5, T6> value, ref byte source)
+        private static void ReadItems(ref ValueTuple<T1, T2, T3, T4, T5, T6> value, ref byte source)
         {
-            value.Item1 = NinoLayout<T1>.Read(ref source);
-            value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size));
-            value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
-            value.Item4 = NinoLayout<T4>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size));
-            value.Item5 = NinoLayout<T5>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size));
-            value.Item6 = NinoLayout<T6>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size));
+            NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
+            NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
+            NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
+            NinoBlocks.ReadItem<T4, TF4>(ref value.Item4, ref Unsafe.Add(ref source, At4));
+            NinoBlocks.ReadItem<T5, TF5>(ref value.Item5, ref Unsafe.Add(ref source, At5));
+            NinoBlocks.ReadItem<T6, TF6>(ref value.Item6, ref Unsafe.Add(ref source, At6));
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6&gt;</c>: a presence byte, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6&gt;</c>: a presence byte, then the items in order (one block where every item
+    /// is raw or a block).</summary>
     public struct TupleFormatter<T1, T2, T3, T4, T5, T6, TF1, TF2, TF3, TF4, TF5, TF6> : INinoFormatter<Tuple<T1, T2, T3, T4, T5, T6>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -638,10 +953,43 @@ namespace Nino.Core
         where TF5 : struct, INinoFormatter<T5>
         where TF6 : struct, INinoFormatter<T6>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int Size5 = NinoBlocks.ItemSize<T5, TF5>();
+        private static readonly int Size6 = NinoBlocks.ItemSize<T6, TF6>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int At5 = At4 + Size4;
+        private static readonly int At6 = At5 + Size5;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 || Size5 < 0 || Size6 < 0 ? -1 : At6 + Size6;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && !NinoUnsafe.IsReferenceOrContainsReferences<T6>() && Size > 0;
+        }
+
         public void Serialize(Tuple<T1, T2, T3, T4, T5, T6> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
                 return;
+
+            if (Fixed)
+            {
+                ref byte destination = ref writer.Reserve(Size);
+                NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+                NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+                NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+                NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
+                NinoBlocks.WriteItem<T5, TF5>(value.Item5, ref Unsafe.Add(ref destination, At5));
+                NinoBlocks.WriteItem<T6, TF6>(value.Item6, ref Unsafe.Add(ref destination, At6));
+                return;
+            }
 
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
@@ -658,22 +1006,39 @@ namespace Nino.Core
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref reader, ref item3);
             T4 item4 = default;
-            default(TF4).Deserialize(ref reader, ref item4);
             T5 item5 = default;
-            default(TF5).Deserialize(ref reader, ref item5);
             T6 item6 = default;
-            default(TF6).Deserialize(ref reader, ref item6);
+            if (Fixed)
+            {
+                ref byte source = ref reader.ReadBlock(Size);
+                NinoBlocks.ReadItem<T1, TF1>(ref item1, ref source);
+                NinoBlocks.ReadItem<T2, TF2>(ref item2, ref Unsafe.Add(ref source, At2));
+                NinoBlocks.ReadItem<T3, TF3>(ref item3, ref Unsafe.Add(ref source, At3));
+                NinoBlocks.ReadItem<T4, TF4>(ref item4, ref Unsafe.Add(ref source, At4));
+                NinoBlocks.ReadItem<T5, TF5>(ref item5, ref Unsafe.Add(ref source, At5));
+                NinoBlocks.ReadItem<T6, TF6>(ref item6, ref Unsafe.Add(ref source, At6));
+            }
+            else
+            {
+                default(TF1).Deserialize(ref reader, ref item1);
+                default(TF2).Deserialize(ref reader, ref item2);
+                default(TF3).Deserialize(ref reader, ref item3);
+                default(TF4).Deserialize(ref reader, ref item4);
+                default(TF5).Deserialize(ref reader, ref item5);
+                default(TF6).Deserialize(ref reader, ref item6);
+            }
+
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5, T6>(item1, item2, item3, item4, item5, item6));
         }
     }
 
-    /// <summary><c>ValueTuple&lt;T1, T2, T3, T4, T5, T6, T7&gt;</c>: the items in order.</summary>
+    /// <summary>
+    /// <c>ValueTuple&lt;T1, T2, T3, T4, T5, T6, T7&gt;</c>: the items in order. A block where every item is raw or a block
+    /// (<see cref="NinoBlocks.ItemSize{TItem, TFormatter}"/>), its map built from theirs.
+    /// </summary>
     public struct ValueTupleFormatter<T1, T2, T3, T4, T5, T6, T7, TF1, TF2, TF3, TF4, TF5, TF6, TF7> : INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -683,20 +1048,36 @@ namespace Nino.Core
         where TF6 : struct, INinoFormatter<T6>
         where TF7 : struct, INinoFormatter<T7>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int Size5 = NinoBlocks.ItemSize<T5, TF5>();
+        private static readonly int Size6 = NinoBlocks.ItemSize<T6, TF6>();
+        private static readonly int Size7 = NinoBlocks.ItemSize<T7, TF7>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int At5 = At4 + Size4;
+        private static readonly int At6 = At5 + Size5;
+        private static readonly int At7 = At6 + Size6;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 || Size5 < 0 || Size6 < 0 || Size7 < 0 ? -1 : At7 + Size7;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>() && Size > 0;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref Writer writer)
         {
-            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() && RawFormatter.Is<T7, TF7>())
+            // A block (a constant check): one capacity check for the tuple.
+            if (Fixed)
             {
-                ref byte dst = ref writer.Reserve(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size + NinoLayout<T7>.Size);
-                NinoLayout<T1>.Write(ref dst, in value.Item1);
-                NinoLayout<T2>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size), in value.Item2);
-                NinoLayout<T3>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
-                NinoLayout<T4>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size), in value.Item4);
-                NinoLayout<T5>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size), in value.Item5);
-                NinoLayout<T6>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size), in value.Item6);
-                NinoLayout<T7>.Write(ref Unsafe.Add(ref dst, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size), in value.Item7);
+                WriteItems(in value, ref writer.Reserve(Size));
                 return;
             }
 
@@ -712,16 +1093,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4, T5, T6, T7> value)
         {
-            if (RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() && RawFormatter.Is<T7, TF7>())
+            if (Fixed)
             {
-                ref byte src = ref reader.ReadBlock(NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size + NinoLayout<T7>.Size);
-                value.Item1 = NinoLayout<T1>.Read(ref src);
-                value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size));
-                value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
-                value.Item4 = NinoLayout<T4>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size));
-                value.Item5 = NinoLayout<T5>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size));
-                value.Item6 = NinoLayout<T6>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size));
-                value.Item7 = NinoLayout<T7>.Read(ref Unsafe.Add(ref src, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size));
+                ReadItems(ref value, ref reader.ReadBlock(Size));
                 return;
             }
 
@@ -737,50 +1111,59 @@ namespace Nino.Core
         int INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() && RawFormatter.Is<T7, TF7>() ? NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size + NinoLayout<T7>.Size : -1;
+            get => Fixed ? Size : -1;
         }
 
         NinoBlockMap INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.BlockMap()
         {
-            if (!(RawFormatter.Is<T1, TF1>() && RawFormatter.Is<T2, TF2>() && RawFormatter.Is<T3, TF3>() && RawFormatter.Is<T4, TF4>() && RawFormatter.Is<T5, TF5>() && RawFormatter.Is<T6, TF6>() && RawFormatter.Is<T7, TF7>()))
+            if (!Fixed)
                 return null;
             var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7>);
             return new NinoBlockMap()
-                .Raw<T1>(NinoBlocks.Offset(ref value, ref value.Item1), 0)
-                .Raw<T2>(NinoBlocks.Offset(ref value, ref value.Item2), NinoLayout<T1>.Size)
-                .Raw<T3>(NinoBlocks.Offset(ref value, ref value.Item3), NinoLayout<T1>.Size + NinoLayout<T2>.Size)
-                .Raw<T4>(NinoBlocks.Offset(ref value, ref value.Item4), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size)
-                .Raw<T5>(NinoBlocks.Offset(ref value, ref value.Item5), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size)
-                .Raw<T6>(NinoBlocks.Offset(ref value, ref value.Item6), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size)
-                .Raw<T7>(NinoBlocks.Offset(ref value, ref value.Item7), NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size);
+                .Item<T1, TF1>(NinoBlocks.Offset(ref value, ref value.Item1))
+                .Item<T2, TF2>(NinoBlocks.Offset(ref value, ref value.Item2))
+                .Item<T3, TF3>(NinoBlocks.Offset(ref value, ref value.Item3))
+                .Item<T4, TF4>(NinoBlocks.Offset(ref value, ref value.Item4))
+                .Item<T5, TF5>(NinoBlocks.Offset(ref value, ref value.Item5))
+                .Item<T6, TF6>(NinoBlocks.Offset(ref value, ref value.Item6))
+                .Item<T7, TF7>(NinoBlocks.Offset(ref value, ref value.Item7));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.WriteFixed(in ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref byte destination)
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.WriteFixed(in ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref byte destination) =>
+            WriteItems(in value, ref destination);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref byte source) =>
+            ReadItems(ref value, ref source);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteItems(in ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref byte destination)
         {
-            NinoLayout<T1>.Write(ref destination, in value.Item1);
-            NinoLayout<T2>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size), in value.Item2);
-            NinoLayout<T3>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size), in value.Item3);
-            NinoLayout<T4>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size), in value.Item4);
-            NinoLayout<T5>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size), in value.Item5);
-            NinoLayout<T6>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size), in value.Item6);
-            NinoLayout<T7>.Write(ref Unsafe.Add(ref destination, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size), in value.Item7);
+            NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+            NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+            NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+            NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
+            NinoBlocks.WriteItem<T5, TF5>(value.Item5, ref Unsafe.Add(ref destination, At5));
+            NinoBlocks.WriteItem<T6, TF6>(value.Item6, ref Unsafe.Add(ref destination, At6));
+            NinoBlocks.WriteItem<T7, TF7>(value.Item7, ref Unsafe.Add(ref destination, At7));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref byte source)
+        private static void ReadItems(ref ValueTuple<T1, T2, T3, T4, T5, T6, T7> value, ref byte source)
         {
-            value.Item1 = NinoLayout<T1>.Read(ref source);
-            value.Item2 = NinoLayout<T2>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size));
-            value.Item3 = NinoLayout<T3>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size));
-            value.Item4 = NinoLayout<T4>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size));
-            value.Item5 = NinoLayout<T5>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size));
-            value.Item6 = NinoLayout<T6>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size));
-            value.Item7 = NinoLayout<T7>.Read(ref Unsafe.Add(ref source, NinoLayout<T1>.Size + NinoLayout<T2>.Size + NinoLayout<T3>.Size + NinoLayout<T4>.Size + NinoLayout<T5>.Size + NinoLayout<T6>.Size));
+            NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
+            NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
+            NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
+            NinoBlocks.ReadItem<T4, TF4>(ref value.Item4, ref Unsafe.Add(ref source, At4));
+            NinoBlocks.ReadItem<T5, TF5>(ref value.Item5, ref Unsafe.Add(ref source, At5));
+            NinoBlocks.ReadItem<T6, TF6>(ref value.Item6, ref Unsafe.Add(ref source, At6));
+            NinoBlocks.ReadItem<T7, TF7>(ref value.Item7, ref Unsafe.Add(ref source, At7));
         }
     }
 
-    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6, T7&gt;</c>: a presence byte, then the items in order.</summary>
+    /// <summary><c>Tuple&lt;T1, T2, T3, T4, T5, T6, T7&gt;</c>: a presence byte, then the items in order (one block where every item
+    /// is raw or a block).</summary>
     public struct TupleFormatter<T1, T2, T3, T4, T5, T6, T7, TF1, TF2, TF3, TF4, TF5, TF6, TF7> : INinoFormatter<Tuple<T1, T2, T3, T4, T5, T6, T7>>
         where TF1 : struct, INinoFormatter<T1>
         where TF2 : struct, INinoFormatter<T2>
@@ -790,10 +1173,46 @@ namespace Nino.Core
         where TF6 : struct, INinoFormatter<T6>
         where TF7 : struct, INinoFormatter<T7>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int Size5 = NinoBlocks.ItemSize<T5, TF5>();
+        private static readonly int Size6 = NinoBlocks.ItemSize<T6, TF6>();
+        private static readonly int Size7 = NinoBlocks.ItemSize<T7, TF7>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int At5 = At4 + Size4;
+        private static readonly int At6 = At5 + Size5;
+        private static readonly int At7 = At6 + Size6;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 || Size5 < 0 || Size6 < 0 || Size7 < 0 ? -1 : At7 + Size7;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<T1>() && !NinoUnsafe.IsReferenceOrContainsReferences<T2>() && !NinoUnsafe.IsReferenceOrContainsReferences<T3>() && !NinoUnsafe.IsReferenceOrContainsReferences<T4>() && !NinoUnsafe.IsReferenceOrContainsReferences<T5>() && !NinoUnsafe.IsReferenceOrContainsReferences<T6>() && !NinoUnsafe.IsReferenceOrContainsReferences<T7>() && Size > 0;
+        }
+
         public void Serialize(Tuple<T1, T2, T3, T4, T5, T6, T7> value, ref Writer writer)
         {
             if (!writer.WritePresence(value))
                 return;
+
+            if (Fixed)
+            {
+                ref byte destination = ref writer.Reserve(Size);
+                NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+                NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+                NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+                NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
+                NinoBlocks.WriteItem<T5, TF5>(value.Item5, ref Unsafe.Add(ref destination, At5));
+                NinoBlocks.WriteItem<T6, TF6>(value.Item6, ref Unsafe.Add(ref destination, At6));
+                NinoBlocks.WriteItem<T7, TF7>(value.Item7, ref Unsafe.Add(ref destination, At7));
+                return;
+            }
 
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
@@ -811,24 +1230,42 @@ namespace Nino.Core
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
-            default(TF1).Deserialize(ref reader, ref item1);
             T2 item2 = default;
-            default(TF2).Deserialize(ref reader, ref item2);
             T3 item3 = default;
-            default(TF3).Deserialize(ref reader, ref item3);
             T4 item4 = default;
-            default(TF4).Deserialize(ref reader, ref item4);
             T5 item5 = default;
-            default(TF5).Deserialize(ref reader, ref item5);
             T6 item6 = default;
-            default(TF6).Deserialize(ref reader, ref item6);
             T7 item7 = default;
-            default(TF7).Deserialize(ref reader, ref item7);
+            if (Fixed)
+            {
+                ref byte source = ref reader.ReadBlock(Size);
+                NinoBlocks.ReadItem<T1, TF1>(ref item1, ref source);
+                NinoBlocks.ReadItem<T2, TF2>(ref item2, ref Unsafe.Add(ref source, At2));
+                NinoBlocks.ReadItem<T3, TF3>(ref item3, ref Unsafe.Add(ref source, At3));
+                NinoBlocks.ReadItem<T4, TF4>(ref item4, ref Unsafe.Add(ref source, At4));
+                NinoBlocks.ReadItem<T5, TF5>(ref item5, ref Unsafe.Add(ref source, At5));
+                NinoBlocks.ReadItem<T6, TF6>(ref item6, ref Unsafe.Add(ref source, At6));
+                NinoBlocks.ReadItem<T7, TF7>(ref item7, ref Unsafe.Add(ref source, At7));
+            }
+            else
+            {
+                default(TF1).Deserialize(ref reader, ref item1);
+                default(TF2).Deserialize(ref reader, ref item2);
+                default(TF3).Deserialize(ref reader, ref item3);
+                default(TF4).Deserialize(ref reader, ref item4);
+                default(TF5).Deserialize(ref reader, ref item5);
+                default(TF6).Deserialize(ref reader, ref item6);
+                default(TF7).Deserialize(ref reader, ref item7);
+            }
+
             NinoRecycler.Replace(ref value, new Tuple<T1, T2, T3, T4, T5, T6, T7>(item1, item2, item3, item4, item5, item6, item7));
         }
     }
 
-    /// <summary><c>ValueTuple&lt;T1, T2, T3, T4, T5, T6, T7, TRest&gt;</c>: the items in order, then the rest's.</summary>
+    /// <summary>
+    /// <c>ValueTuple&lt;T1, T2, T3, T4, T5, T6, T7, TRest&gt;</c>: the items in order, then the rest's (itself a value tuple), so every item in order as the
+    /// shorter tuples write theirs. A block where every item is raw or a block (the rest one when its items are).
+    /// </summary>
     public struct ValueTupleFormatter<T1, T2, T3, T4, T5, T6, T7, TRest, TF1, TF2, TF3, TF4, TF5, TF6, TF7, TF8> : INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>
         where TRest : struct
         where TF1 : struct, INinoFormatter<T1>
@@ -840,9 +1277,41 @@ namespace Nino.Core
         where TF7 : struct, INinoFormatter<T7>
         where TF8 : struct, INinoFormatter<TRest>
     {
+        // Each item's wire bytes (-1: of no fixed size), where it starts in a block, and the block's: their sum or -1.
+        private static readonly int Size1 = NinoBlocks.ItemSize<T1, TF1>();
+        private static readonly int Size2 = NinoBlocks.ItemSize<T2, TF2>();
+        private static readonly int Size3 = NinoBlocks.ItemSize<T3, TF3>();
+        private static readonly int Size4 = NinoBlocks.ItemSize<T4, TF4>();
+        private static readonly int Size5 = NinoBlocks.ItemSize<T5, TF5>();
+        private static readonly int Size6 = NinoBlocks.ItemSize<T6, TF6>();
+        private static readonly int Size7 = NinoBlocks.ItemSize<T7, TF7>();
+        private static readonly int Size8 = NinoBlocks.ItemSize<TRest, TF8>();
+        private static readonly int At2 = Size1;
+        private static readonly int At3 = At2 + Size2;
+        private static readonly int At4 = At3 + Size3;
+        private static readonly int At5 = At4 + Size4;
+        private static readonly int At6 = At5 + Size5;
+        private static readonly int At7 = At6 + Size6;
+        private static readonly int At8 = At7 + Size7;
+        private static readonly int Size = Size1 < 0 || Size2 < 0 || Size3 < 0 || Size4 < 0 || Size5 < 0 || Size6 < 0 || Size7 < 0 || Size8 < 0 ? -1 : At8 + Size8;
+
+        /// <summary>Whether every item is raw or a block: the items are written and read at their offsets in one block.</summary>
+        private static bool Fixed
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => !NinoUnsafe.IsReferenceOrContainsReferences<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>() && Size > 0;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref Writer writer)
         {
+            // A block (a constant check): one capacity check for the tuple.
+            if (Fixed)
+            {
+                WriteItems(in value, ref writer.Reserve(Size));
+                return;
+            }
+
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -856,6 +1325,12 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value)
         {
+            if (Fixed)
+            {
+                ReadItems(ref value, ref reader.ReadBlock(Size));
+                return;
+            }
+
             default(TF1).Deserialize(ref reader, ref value.Item1);
             default(TF2).Deserialize(ref reader, ref value.Item2);
             default(TF3).Deserialize(ref reader, ref value.Item3);
@@ -864,6 +1339,62 @@ namespace Nino.Core
             default(TF6).Deserialize(ref reader, ref value.Item6);
             default(TF7).Deserialize(ref reader, ref value.Item7);
             default(TF8).Deserialize(ref reader, ref value.Rest);
+        }
+
+        int INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>.FixedSize
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => Fixed ? Size : -1;
+        }
+
+        NinoBlockMap INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>.BlockMap()
+        {
+            if (!Fixed)
+                return null;
+            var value = default(ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>);
+            return new NinoBlockMap()
+                .Item<T1, TF1>(NinoBlocks.Offset(ref value, ref value.Item1))
+                .Item<T2, TF2>(NinoBlocks.Offset(ref value, ref value.Item2))
+                .Item<T3, TF3>(NinoBlocks.Offset(ref value, ref value.Item3))
+                .Item<T4, TF4>(NinoBlocks.Offset(ref value, ref value.Item4))
+                .Item<T5, TF5>(NinoBlocks.Offset(ref value, ref value.Item5))
+                .Item<T6, TF6>(NinoBlocks.Offset(ref value, ref value.Item6))
+                .Item<T7, TF7>(NinoBlocks.Offset(ref value, ref value.Item7))
+                .Item<TRest, TF8>(NinoBlocks.Offset(ref value, ref value.Rest));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>.WriteFixed(in ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref byte destination) =>
+            WriteItems(in value, ref destination);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoFormatter<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>.ReadBlock(ref ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref byte source) =>
+            ReadItems(ref value, ref source);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteItems(in ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref byte destination)
+        {
+            NinoBlocks.WriteItem<T1, TF1>(value.Item1, ref destination);
+            NinoBlocks.WriteItem<T2, TF2>(value.Item2, ref Unsafe.Add(ref destination, At2));
+            NinoBlocks.WriteItem<T3, TF3>(value.Item3, ref Unsafe.Add(ref destination, At3));
+            NinoBlocks.WriteItem<T4, TF4>(value.Item4, ref Unsafe.Add(ref destination, At4));
+            NinoBlocks.WriteItem<T5, TF5>(value.Item5, ref Unsafe.Add(ref destination, At5));
+            NinoBlocks.WriteItem<T6, TF6>(value.Item6, ref Unsafe.Add(ref destination, At6));
+            NinoBlocks.WriteItem<T7, TF7>(value.Item7, ref Unsafe.Add(ref destination, At7));
+            NinoBlocks.WriteItem<TRest, TF8>(value.Rest, ref Unsafe.Add(ref destination, At8));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadItems(ref ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> value, ref byte source)
+        {
+            NinoBlocks.ReadItem<T1, TF1>(ref value.Item1, ref source);
+            NinoBlocks.ReadItem<T2, TF2>(ref value.Item2, ref Unsafe.Add(ref source, At2));
+            NinoBlocks.ReadItem<T3, TF3>(ref value.Item3, ref Unsafe.Add(ref source, At3));
+            NinoBlocks.ReadItem<T4, TF4>(ref value.Item4, ref Unsafe.Add(ref source, At4));
+            NinoBlocks.ReadItem<T5, TF5>(ref value.Item5, ref Unsafe.Add(ref source, At5));
+            NinoBlocks.ReadItem<T6, TF6>(ref value.Item6, ref Unsafe.Add(ref source, At6));
+            NinoBlocks.ReadItem<T7, TF7>(ref value.Item7, ref Unsafe.Add(ref source, At7));
+            NinoBlocks.ReadItem<TRest, TF8>(ref value.Rest, ref Unsafe.Add(ref source, At8));
         }
     }
 }
