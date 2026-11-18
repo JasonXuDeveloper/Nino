@@ -87,6 +87,10 @@ public class HashFloodingTests
         Rejected(keys.ToImmutableHashSet());
         Rejected(keys.ToImmutableDictionary(k => k, k => 1));
         Rejected<IDictionary<long, int>>(keys.ToDictionary(k => k, k => 0));
+        // Pairs read into a new dictionary's entries, the buckets built after them (HashTables.Link).
+        Rejected(keys.ToDictionary(k => k, k => (DispatchRoot)new DispatchSibling { A = (int)k }));
+        Assert.AreEqual(Max + 1, RoundTrip(keys.Take(Max + 1).ToDictionary(k => k,
+            k => (DispatchRoot)new DispatchMid { B = k.ToString() })).Count);
         Rejected<ISet<long>>(keys.ToHashSet());
     }
 
