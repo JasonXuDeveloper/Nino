@@ -151,8 +151,9 @@ jobs:
           echo "## $RUNNER line $LINE slot $SLOT ($model): ${base:0:7} -> ${head:0:7}, $rounds rounds: $filters" | tee -a "$GITHUB_STEP_SUMMARY"
           for round in $(seq "$rounds"); do
             for side in base head; do
-              # The newest framework the project builds (net11.0 since #328, net10.0 before).
-              dll=$(cd "${project[$side]}" && ls bin/Release/net*/Nino.Benchmark.dll | sort -V | tail -1)
+              # The newest framework the project builds (net11.0 since #328, net10.0 before); globbing on again for
+              # this one pattern (set -f above keeps the filters from expanding).
+              dll=$(set +f; cd "${project[$side]}" && ls bin/Release/net*/Nino.Benchmark.dll | sort -V | tail -1)
               (cd "${project[$side]}" && NINO_BENCH_QUICK=1 dotnet "$dll" \
                 --filter "${F[@]}" --artifacts "$out/$side-$round" < /dev/null) > "$out/$side-$round.log" 2>&1 ||
                 { tail -50 "$out/$side-$round.log"; exit 1; }

@@ -414,4 +414,5 @@
 # #320 (claude/dict-entries d76a2c4b): a new dictionary's pairs read into its entries, buckets linked after. Probe
 # f1bab197 = d76a2c4b + #389's .NET 11 job + PolyDictProbe (polymorphic dictionaries, 1 to 100 pairs, int and string
 # keys, Nino and LuminPack); base main 24981cf1 with the probe's benchmark project.
+# Run 44241848002 failed before timing: set -f kept net* from expanding (fixed in this push).
 24981cf1 f1bab197 3 *PolyDictProbe.NinoDeserialize* *PolyDictProbe.LuminPackDeserialize* *PolyDictProbe.NinoSerializeIntMap100 *PolymorphicTest.NinoDeserializePolymorphicClass
