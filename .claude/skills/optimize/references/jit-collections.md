@@ -182,6 +182,14 @@ Rules in short:
 
 ## New dictionaries of objects
 
+- Take the block of a set's or dictionary's fixed values (raw, blocks, memory slots) in the inlined read
+  (`NinoRuns.TakeSet`/`TakePairs`) and pass only the source to the out-of-line fill or add (`AddBlock`, then
+  `NinoRuns.ScatterSet`/`ScatterPairs` and `HashTables.Link`), never the reader. Why: with the fill behind a reader
+  copied into an out-of-line call, every read of a type holding a `Dictionary<int, int>` kept its reader in memory.
+  Evidence: #355 step 4's first shape, `asm.py compare` against feat/storage-layer: `NinoDeserializeIntDictionary`
+  260 -> 332 bytes and 3 -> 17 stack accesses, `SimpleClass.__ReadTop` 13 -> 69, `TolerantClass.__ReadBodyFreshInline`
+  13 -> 101; with the block taken inline none of them is listed.
+
 - Read the pairs of a new dictionary Nino may fill (`HashTables.CanInsert`: default comparer, empty, sized) straight
   into its entries with only the formatters in the loop (`NinoRuns.ReadPairs`' per-value loop; pairs of raw items or
   blocks scattered as one block, #355 step 4), then build the buckets in one pass (`HashTables.Link`, which keeps every
