@@ -1222,6 +1222,8 @@ go fc539fec fc539fec ^BenchmarkDeserialize$/./^Nino$ # 332 layout.py floor: each
 go fa55bcaa fa55bcaa . NINO_BENCH_QUICK=1 NINO_BENCH_QUICK=1 # 337 go: the .NET cases (quick), floor
 # 328: the C# union cases on runners (UnionArray: TypeScript's plain union, Go's class case; TaggedUnionArray:
 # TypeScript's tagged union, Go wrappers only), each serializer on one commit (base = head).
-go d9a715b9 d9a715b9 ./UnionArray # 328 go unions
-rust d9a715b9 d9a715b9 UnionArray # 328 rust unions
-typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions
+# done (run 44220042959): go d9a715b9 d9a715b9 ./UnionArray # 328 go unions
+# failed (run 44220042959: no data, fixed): rust d9a715b9 d9a715b9 UnionArray # 328 rust unions
+rust d9a715b9 d9a715b9 UnionArray # 328 rust unions, with each side's data
+# failed (run 44220042959: Playwright install hung, now Node only): typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions
+typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node

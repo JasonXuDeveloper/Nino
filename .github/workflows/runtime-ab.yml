@@ -188,6 +188,15 @@ jobs:
                 rust_head=$(tree_path "$head" RUST_RUNTIME)
                 export CRITERION_HOME="$RUNNER_TEMP/criterion"
                 rm -rf "$CRITERION_HOME"
+                # Since #338 the Rust benchmark runs the .NET suite's cases: each side's data from its own
+                # Nino.Benchmark (bench/generate.sh --data), written once per commit, as for Go.
+                for side in base head; do
+                  ref=$base rust_dir=$rust_base; [[ $side == head ]] && ref=$head rust_dir=$rust_head
+                  gen="$RUNNER_TEMP/$ref/$rust_dir/bench/generate.sh"
+                  if [[ -x $gen && ! -d "$RUNNER_TEMP/$ref/$rust_dir/bench/data" ]]; then
+                    (cd "$RUNNER_TEMP/$ref/$rust_dir" && bench/generate.sh --data > /dev/null)
+                  fi
+                done
                 for round in 1 2; do
                   (cd "$RUNNER_TEMP/$base/$rust_base" && export "$base_env" CARGO_TARGET_DIR="$RUNNER_TEMP/target-$base" &&
                     export RUSTFLAGS="${NINO_AB_RUSTFLAGS-$align}" &&
@@ -203,13 +212,8 @@ jobs:
                 # bench (generate.sh: the data its .NET writes, the code its nino-gen generates with its own
                 # src/nino.ts, its protobuf messages), so a change to the runtime, the templates or the bench is
                 # measured. Both commits need it (185220ad or later).
-                if [[ ! -x "$(npm root -g)/playwright/cli.js" ]]; then
-                  npm install -g playwright@1.56.1 > /dev/null
-                  # Playwright 1.56 does not know Ubuntu 26.04: install the 24.04 dependencies, else none.
-                  arch=x64; [[ $(uname -m) == aarch64 ]] && arch=arm64
-                  PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-$arch npx -y playwright@1.56.1 install --with-deps chromium > /dev/null ||
-                    PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-$arch npx -y playwright@1.56.1 install chromium > /dev/null
-                fi
+                # Node only, as report.yml's TypeScript section: installing Playwright 1.56's Chromium dependencies hung
+                # on Ubuntu 26.04 until the job's 120 minutes ran out (run 44220042959, every job).
                 for side in base head; do
                   ref=$base; [[ $side == head ]] && ref=$head
                   S=$RUNNER_TEMP/$ref/$(tree_path "$ref" TYPESCRIPT_BENCH)
@@ -218,9 +222,7 @@ jobs:
                     exit 1
                   fi
                   mkdir -p "$out/$side"
-                  (cd "$S" && npm ci --no-audit --no-fund > /dev/null && ./generate.sh > /dev/null &&
-                    npx esbuild bench.ts --bundle --format=esm --platform=browser --log-level=warning \
-                      --outfile="$out/$side/bench.js")
+                  (cd "$S" && npm ci --no-audit --no-fund > /dev/null && ./generate.sh > /dev/null)
                 done
                 export NODE_PATH="$(npm root -g)"
                 : > "$out/ts.txt"
@@ -231,9 +233,7 @@ jobs:
                     S=$RUNNER_TEMP/$ref/$(tree_path "$ref" TYPESCRIPT_BENCH)
                     echo "--- $side round $round" | tee -a "$out/ts.txt"
                     (cd "$S" && /usr/bin/env "$side_env" node --no-warnings node.ts out/data "${filter:-}" 2> /dev/null |
-                        sed 's/^/node /'
-                      /usr/bin/env "$side_env" node browser.mjs "$out/$side" out/data "${filter:-}" 2> /dev/null |
-                        sed 's/^/chromium /') |
+                        sed 's/^/node /') |
                       tee -a "$out/ts.txt"
                   done
                 done
