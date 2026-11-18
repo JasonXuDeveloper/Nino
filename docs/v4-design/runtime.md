@@ -43,7 +43,7 @@ remaining bytes before anything is allocated, so malformed or hostile input cann
 ## Formatters
 
 ```csharp
-public interface INinoFormatter<T>
+public interface INinoFormatter<T> : INinoFormatter
 {
     void Serialize(T value, ref Writer writer);
     void Deserialize(ref Reader reader, ref T value);
@@ -53,16 +53,30 @@ public interface INinoFormatter<T>
     void WriteFixed(in T value, ref byte destination) => ...; // throws: called only when FixedSize is not -1
     NinoBlockMap BlockMap() => null;                          // collections move values as blocks
     void ReadBlock(ref T value, ref byte source) => ...;      // throws: called only when BlockMap is not null
+    int BodyTraits => NinoBodyTraits.Nests;                   // a class body: opens class bodies? deferrable?
+    void WriteElements(ReadOnlySpan<T> values, ref Writer writer) => ...; // throws: only when HasElementLoop
     // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter)
+}
+
+public interface INinoFormatter                               // what does not depend on T (hidden)
+{
+    bool HasElementLoop => false;                             // arrays and lists of a polymorphic base in one loop
+    bool HasPairLoop => false;                                // Dictionary<TKey, base> in one loop (.NET 8+)
+    void WritePairs32(object dictionary, ref Writer writer) => ...;  // throws; WritePairs64, WriteStringPairs
 }
 ```
 
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
-too (generated formatters of fixed-size and block structs, the tuple and pair formatters). Calling a default on a
-struct boxes it (CoreCLR, Mono, IL2CPP), so Nino.Core calls only the queries (`FixedSize`, `BlockMap`, the slot
-stride) on a formatter that may lack the capability, once per type into a `static readonly` field
-(`NinoBlockPlan<T, TFormatter>.Size`, `NinoSlots<T, TFormatter>.Stride`), and the other members only where that field
-says the formatter has them: a constrained call to the struct's own method on every runtime.
+too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and
+pair formatters). Calling a default on a struct boxes it (CoreCLR, Mono, IL2CPP), so Nino.Core calls only the queries
+(`FixedSize`, `BlockMap`, `BodyTraits`, `HasElementLoop`, `HasPairLoop`, the slot stride) on a formatter that may lack
+the capability, once per type into a `static readonly` field (`NinoBlockPlan<T, TFormatter>.Size`,
+`NinoSlots<T, TFormatter>.Stride`, `NinoLoops<TFormatter>`), and the other members only where that field says the
+formatter has them: a constrained call to the struct's own method on every runtime, never an `is` test, a cast or a
+boxed interface field. The loop queries sit on the non-generic `INinoFormatter` so that their fields are generic over
+the formatter alone: a loop over a class `T` is shared generic code, where a field of a class generic over `T` is a
+lookup per collection, while the formatter is still its exact struct and its field folds. `BodyTraits` is the one
+query also called per value, on an `INinoBodyFormatter<T>`, which always implements it.
 
 `Deserialize` takes the reader first, as every read API does, and the current value by `ref`. Passing `default` creates a new instance, and passing an
 existing instance populates it in place when possible. One code path serves both `Deserialize` and ref
