@@ -1220,3 +1220,8 @@ typescript fbefd816 dad5bb0a # 245 ts per-read presize budget
 typescript fbefd816 fbefd816 # 245 ts floor
 go fc539fec fc539fec ^BenchmarkDeserialize$/./^Nino$ # 332 layout.py floor: each side from its own tree
 go fa55bcaa fa55bcaa . NINO_BENCH_QUICK=1 NINO_BENCH_QUICK=1 # 337 go: the .NET cases (quick), floor
+# 328: the C# union cases on runners (UnionArray: TypeScript's plain union, Go's class case; TaggedUnionArray:
+# TypeScript's tagged union, Go wrappers only), each serializer on one commit (base = head).
+go d9a715b9 d9a715b9 ./UnionArray # 328 go unions
+rust d9a715b9 d9a715b9 UnionArray # 328 rust unions
+typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions
