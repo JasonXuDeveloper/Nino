@@ -127,6 +127,34 @@ func TestUniqueIntegerKeys(t *testing.T) {
 		(*Writer).String, (*Reader).String, 1)
 }
 
+func TestUniqueBytewiseKeys(t *testing.T) {
+	type padded struct {
+		A byte
+		B uint64
+	}
+	type nested struct {
+		Id Guid
+		Hi [2]uint64
+	}
+	if kindOf[Guid]().bytes != 16 || kindOf[nested]().bytes != 32 {
+		t.Fatal("packed pointer-free keys did not use the bytewise check")
+	}
+	if kindOf[padded]().bytes != 0 || kindOf[Decimal]().bytes != 0 ||
+		kindOf[struct{ F float64 }]().bytes != 0 || kindOf[struct{ P *int }]().bytes != 0 ||
+		kindOf[DateTimeOffset]().bytes != 0 {
+		t.Fatal("noncanonical or pointer-bearing key used the bytewise check")
+	}
+	for _, n := range []int{2, 16, 17, 1024} {
+		keys := make([]Guid, n)
+		for i := range keys {
+			keys[i][0], keys[i][15] = byte(i), byte(i>>8)
+		}
+		checkUnique(t, keys, (*Writer).Guid, (*Reader).Guid, 16)
+		keys[n-1] = keys[0]
+		checkUnique(t, keys, (*Writer).Guid, (*Reader).Guid, 16)
+	}
+}
+
 // TestUniqueLargeSets covers larger sets: distinct keys, one repeated pair at both ends and in
 // the middle, keys that differ only in their highest byte, and random keys.
 func TestUniqueLargeSets(t *testing.T) {
@@ -352,7 +380,7 @@ func TestUniqueStrings(t *testing.T) {
 				t.Fatalf("%d strings (repeated %v): %v", len(v), want, r.Err())
 			}
 			p := unsafe.Pointer(unsafe.SliceData(v))
-			if repeatedStringsMap(p, len(v), int(unsafe.Sizeof(v[0])), true) != want {
+			if repeatedStringsMap(p, len(v), int(unsafe.Sizeof(v[0])), true, 0) != want {
 				t.Fatalf("%d strings through the map: want %v", len(v), want)
 			}
 		}

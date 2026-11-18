@@ -5,6 +5,7 @@ import (
 	"math/bits"
 	"reflect"
 	"slices"
+	"sync"
 	"unsafe"
 )
 
@@ -17,7 +18,8 @@ import (
 // hash seeded per process: integers multiplied by a random odd number, strings through hash/maphash. Data cannot choose
 // keys that share a slot without knowing the seed, and a key that still probes past maxProbes slots sends the whole
 // check to a path whose cost the data cannot raise: a sort for numbers (pdqsort falls back to heapsort), a Go map
-// (seeded too) for strings. Other comparable keys go through a Go map.
+// (seeded too) for strings and pointer-free keys whose equality is their bytes. Other comparable keys go through a
+// Go map.
 
 // maxProbes bounds the slots one key may probe in a table before the check falls back (see above). With the table at
 // most half full and a seeded hash, honest data almost never comes near it.
@@ -31,17 +33,29 @@ var (
 
 // keyKind is how a key type is compared: size is its size in bytes for an integer or floating-point type (0
 // otherwise), float says it is floating-point, text that it is a string. slot is the offset of Value in a
-// NullableSlot of such a number (0 for any other type): the key is then null, or that number.
+// NullableSlot of such a number (0 for any other type): the key is then null, or that number. bytes is the size
+// of a pointer-free key whose equality is its bytes, or 0.
 type keyKind struct {
 	size  int
 	float bool
 	text  bool
 	slot  uintptr
+	bytes int
 }
 
-// kindOf returns how keys of type K are compared.
+var keyKinds sync.Map // reflect.Type -> keyKind; immutable after discovery
+
+// kindOf returns the cached way keys of type K are compared.
 func kindOf[K comparable]() keyKind {
 	t := reflect.TypeFor[K]()
+	if k, ok := keyKinds.Load(t); ok {
+		return k.(keyKind)
+	}
+	k, _ := keyKinds.LoadOrStore(t, classifyKey(t))
+	return k.(keyKind)
+}
+
+func classifyKey(t reflect.Type) keyKind {
 	if t.Kind() == reflect.Struct && isNullableSlotType(t) {
 		// A T? of a number, compared as .NET's Nullable<T> is: null equals null, a value as T's values are. A slot
 		// of any other T takes the default below (HasValue and Value as Go compares them: what the reader
@@ -53,12 +67,44 @@ func kindOf[K comparable]() keyKind {
 		}
 		return keyKind{}
 	}
-	return kindOfType(t)
+	k := kindOfType(t)
+	if k == (keyKind{}) && bytewiseKey(t) {
+		k.bytes = int(t.Size())
+	}
+	return k
+}
+
+// bytewiseKey proves that equality is a comparison of every byte, including all fields of a nested value.
+// Floats, blank fields, padding and pointers rule it out. DateTime, DateTimeOffset, Half and Decimal carry
+// more than one representation of some values in .NET.
+func bytewiseKey(t reflect.Type) bool {
+	switch t {
+	case reflect.TypeFor[DateTime](), reflect.TypeFor[DateTimeOffset](), reflect.TypeFor[Half](), reflect.TypeFor[Decimal]():
+		return false
+	}
+	switch t.Kind() {
+	case reflect.Bool, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int,
+		reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint:
+		return true
+	case reflect.Array:
+		return bytewiseKey(t.Elem())
+	case reflect.Struct:
+		var end uintptr
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if f.Name == "_" || f.Offset != end || !bytewiseKey(f.Type) {
+				return false
+			}
+			end += f.Type.Size()
+		}
+		return end == t.Size()
+	}
+	return false
 }
 
 func kindOfType(t reflect.Type) keyKind {
 	switch t.Kind() {
-	case reflect.Int8, reflect.Uint8:
+	case reflect.Bool, reflect.Int8, reflect.Uint8:
 		return keyKind{size: 1}
 	case reflect.Int16, reflect.Uint16:
 		return keyKind{size: 2}
@@ -87,8 +133,8 @@ func repeated[K comparable](p unsafe.Pointer, n, stride int, scratch *[]uint64) 
 		return repeatedSlots(p, n, stride, k, scratch)
 	case k.size != 0:
 		return repeatedBits(p, n, stride, k.size, k.float, scratch)
-	case k.text:
-		return repeatedStrings(p, n, stride, false, scratch)
+	case k.text || k.bytes != 0:
+		return repeatedStrings(p, n, stride, false, k.bytes, scratch)
 	}
 	return repeatedValues[K](p, n, stride)
 }
@@ -315,8 +361,11 @@ func repeatedSorted(p unsafe.Pointer, n, stride, size int, float bool) bool {
 	return false
 }
 
-// stringAt returns the string at p (through a pointer when ptrs) and whether it is not null.
-func stringAt(p unsafe.Pointer, ptrs bool) (string, bool) {
+// stringAt returns the string at p (through a pointer when ptrs), or a short-lived view of a bytewise key.
+func stringAt(p unsafe.Pointer, ptrs bool, byteSize int) (string, bool) {
+	if byteSize != 0 {
+		return unsafe.String((*byte)(p), byteSize), true
+	}
 	if !ptrs {
 		return *(*string)(p), true
 	}
@@ -327,17 +376,17 @@ func stringAt(p unsafe.Pointer, ptrs bool) (string, bool) {
 	return *s, true
 }
 
-// repeatedStrings is repeated for strings, the first at p and each stride bytes after the one before (each through a
-// pointer when ptrs, where two nulls are equal too).
-func repeatedStrings(p unsafe.Pointer, n, stride int, ptrs bool, scratch *[]uint64) bool {
-	if int64(n) >= 1<<31 {
-		return repeatedStringsMap(p, n, stride, ptrs)
+// repeatedStrings is repeated for strings or bytewise keys, the first at p and each stride bytes after the one before.
+// The hash depends on their contents, never an address. A view of a bytewise key stays within this check.
+func repeatedStrings(p unsafe.Pointer, n, stride int, ptrs bool, byteSize int, scratch *[]uint64) bool {
+	if int64(n) >= 1<<31 || n > 1<<(bits.UintSize-6) {
+		return repeatedStringsMap(p, n, stride, ptrs, byteSize)
 	}
 	if n <= 16 {
 		for i := 1; i < n; i++ {
-			s, ok := stringAt(unsafe.Add(p, i*stride), ptrs)
+			s, ok := stringAt(unsafe.Add(p, i*stride), ptrs, byteSize)
 			for j := 0; j < i; j++ {
-				if t, ok2 := stringAt(unsafe.Add(p, j*stride), ptrs); ok == ok2 && t == s {
+				if t, ok2 := stringAt(unsafe.Add(p, j*stride), ptrs, byteSize); ok == ok2 && t == s {
 					return true
 				}
 			}
@@ -349,7 +398,7 @@ func repeatedStrings(p unsafe.Pointer, n, stride int, ptrs bool, scratch *[]uint
 	mask := uint64(len(table) - 1)
 	null := false
 	for i := 0; i < n; i++ {
-		s, ok := stringAt(unsafe.Add(p, i*stride), ptrs)
+		s, ok := stringAt(unsafe.Add(p, i*stride), ptrs, byteSize)
 		if !ok {
 			if null {
 				return true
@@ -367,12 +416,12 @@ func repeatedStrings(p unsafe.Pointer, n, stride int, ptrs bool, scratch *[]uint
 				break
 			}
 			if slot&^0xFFFFFFFF == tag {
-				if t, _ := stringAt(unsafe.Add(p, int(uint32(slot)-1)*stride), ptrs); t == s {
+				if t, _ := stringAt(unsafe.Add(p, int(uint32(slot)-1)*stride), ptrs, byteSize); t == s {
 					return true
 				}
 			}
 			if probes == maxProbes {
-				return repeatedStringsMap(p, n, stride, ptrs)
+				return repeatedStringsMap(p, n, stride, ptrs, byteSize)
 			}
 			at++
 		}
@@ -383,11 +432,11 @@ func repeatedStrings(p unsafe.Pointer, n, stride int, ptrs bool, scratch *[]uint
 // repeatedStringsMap is repeatedStrings through a Go map.
 //
 //go:noinline
-func repeatedStringsMap(p unsafe.Pointer, n, stride int, ptrs bool) bool {
+func repeatedStringsMap(p unsafe.Pointer, n, stride int, ptrs bool, byteSize int) bool {
 	seen := make(map[string]struct{}, n)
 	null := false
 	for i := 0; i < n; i++ {
-		s, ok := stringAt(unsafe.Add(p, i*stride), ptrs)
+		s, ok := stringAt(unsafe.Add(p, i*stride), ptrs, byteSize)
 		if !ok {
 			if null {
 				return true
