@@ -88,15 +88,15 @@ namespace Nino.Codegen.Targets
                     bool set = value.Collection is CollectionKind.HashSet or CollectionKind.SortedSet ||
                                CodegenModel.Implements(value.Clr, "System.Collections.Generic.ISet`1") != null;
                     string mode =
-                        element.Kind == "prim" && element.Primitive == "U8" ? "bytes"
-                        : set && Comparable(element) ? "unique"
+                        set && Comparable(element) ? "unique"
+                        : element.Kind == "prim" && element.Primitive == "U8" ? "bytes"
                         : set && element.Kind is "string" or "utf8" ? "stringset"
                         : element.Kind == "prim" && element.Primitive == "Bool" ? "bools"
                         : element.Block ? "block"
-                        : element.Kind == "prim" && BlockValues.Contains(element.Primitive!) ? "values"
+                        : element.BlockValue ? "values"
                         : element is { Kind: "rawnullable", Clean: true, Inner.Block: true } ? "ninonullables"
                         : element is { Kind: "rawnullable", SlotElement: true, Inner.Block: true } ? "nullableslots"
-                        : element.Kind is "rawstruct" or "rawnullable" or "rawtuple" ? "fixed"
+                        : element.Size > 0 && element.Kind != "emptystruct" ? "fixed"
                         : "slice";
                     return Open(value, new GoShape("seq")
                     {
@@ -106,11 +106,13 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Map:
                 {
                     var (k, v) = (Shape(value.Key!, true), Shape(value.Value!, false));
+                    bool unique = Comparable(k) || k.Kind is "keystring" or "keyutf8";
                     return Open(value, new GoShape("map")
                     {
-                        Key = k, Value = v,
+                        Key = k, Value = v, UniqueKeys = unique,
                         Mode = k.Block && v.Block ? "block"
-                            : Comparable(k) || k.Kind is "keystring" or "keyutf8" ? "unique" : "entries",
+                            : k.Size > 0 && v.Size > 0 ? "fixed"
+                            : unique ? "unique" : "entries",
                         MinSize = 4,
                     }, false);
                 }
@@ -133,7 +135,7 @@ namespace Nino.Codegen.Targets
                 case ValueKind.Version:
                     return new GoShape("version") { MinSize = 4 };
                 case ValueKind.DateTimeOffset:
-                    return new GoShape("datetimeoffset") { MinSize = 10 };
+                    return new GoShape("datetimeoffset") { MinSize = 10, Size = 10, CheckedWrite = true };
                 case ValueKind.Unsupported:
                     throw new UnsupportedException(value.Problem!.Replace("{lang}", "Go"));
                 default:
@@ -363,6 +365,7 @@ namespace Nino.Codegen.Targets
                         return new GoShape("prim")
                         {
                             Primitive = p.Name, Size = value.Size, MinSize = value.Size, Block = p.Block,
+                            BlockValue = BlockValues.Contains(p.Name), CheckedWrite = p.Validated && p.Name != "Bool",
                             // Read in a run of fixed-size members: any bit pattern is valid.
                             Runnable = !p.Validated,
                         };

@@ -127,6 +127,34 @@ func TestUniqueIntegerKeys(t *testing.T) {
 		(*Writer).String, (*Reader).String, 1)
 }
 
+func TestUniqueBytewiseKeys(t *testing.T) {
+	type padded struct {
+		A byte
+		B uint64
+	}
+	type nested struct {
+		Id Guid
+		Hi [2]uint64
+	}
+	if bytewiseKeySize[Guid]() != 16 || bytewiseKeySize[nested]() != 32 {
+		t.Fatal("packed pointer-free keys did not use the bytewise check")
+	}
+	if bytewiseKeySize[padded]() != 0 || bytewiseKeySize[Decimal]() != 0 ||
+		bytewiseKeySize[struct{ F float64 }]() != 0 || bytewiseKeySize[struct{ P *int }]() != 0 ||
+		bytewiseKeySize[DateTimeOffset]() != 0 {
+		t.Fatal("noncanonical or pointer-bearing key used the bytewise check")
+	}
+	for _, n := range []int{2, 16, 17, 1024} {
+		keys := make([]Guid, n)
+		for i := range keys {
+			keys[i][0], keys[i][15] = byte(i), byte(i>>8)
+		}
+		checkUnique(t, keys, (*Writer).Guid, (*Reader).Guid, 16)
+		keys[n-1] = keys[0]
+		checkUnique(t, keys, (*Writer).Guid, (*Reader).Guid, 16)
+	}
+}
+
 // TestUniqueLargeSets covers larger sets: distinct keys, one repeated pair at both ends and in
 // the middle, keys that differ only in their highest byte, and random keys.
 func TestUniqueLargeSets(t *testing.T) {

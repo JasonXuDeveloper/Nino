@@ -79,6 +79,9 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
    - **Reach the commits** with `git merge -s ours --no-edit <ref>` (history only: the test branch keeps main's code,
      so its CI runs main's code; merging an experiment's code ran CI on it, and a Go test that overflowed `int` on 386
      and a Windows stack test mailed the owner a failure per push).
+     Check `git merge-base --is-ancestor <sha> HEAD` for both refs after the history merges. The #353 benchmark
+     baseline and candidate were built on independent branches, so merging only the candidate left the baseline
+     missing from every runner checkout (44333395182).
    - **Time the Nino.Core build you mean.** BenchmarkDotNet's runner project (`Nino.Benchmark-<job>`) gets Nino.Core
      only through Nino.Benchmark's references, so a referenced package built for fewer frameworks than Nino.Core brings
      an older build into it: until f01a8d3c Nino.Immutable (net8.0 only) made every runner process load Nino.Core's

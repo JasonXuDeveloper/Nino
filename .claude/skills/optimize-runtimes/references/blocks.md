@@ -47,6 +47,17 @@ value check in a runtime or a template.
 
 ## Checking blocks in Go
 
+- Reserve one checked block for fixed-width Go containers. Use constant wire offsets for padded primitive pairs
+  and copy compatible primitive grids as blocks. In runtime A/B
+  [44339615693](https://github.com/JasonXuDeveloper/Nino/actions/runs/44339615693), padded-pair read times fell
+  66–75 % on the measured x64 CPUs and 72 % on Neoverse-N2. Byte-grid writes fell 92–96 % on both architectures.
+  Fixed DateTimeOffset sequence writes fell 52–59 % on x64 and 47 % on Neoverse-N2.
+- Encode fixed map entries through their addresses. In the original fixed-stride loop the x64 GUID entry value
+  crossed two stack temporaries. The address loop reduced ten `MOVUPS` per entry to two, with the stride guard
+  intact. In [44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411) the revised GUID map
+  write took 82–85 % less time on x64 and 81 % less on Neoverse-N2. The revised map read took 52–54 % less on
+  x64 and 45 % less on Neoverse-N2.
+
 - Check a block of range-limited 8- or 16-byte values four a step with one compare each (`w[0].Valid() && ... &&
   w[3].Valid()`, then the failing step value by value), each `Valid` a single compare (a signed range from 0 as
   unsigned; a Decimal's flags without the sign, rotated by 16 bits, `<= 28`). Writing 1000 values (runtime A/B runs

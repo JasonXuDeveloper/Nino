@@ -99,6 +99,73 @@ func TestBlockShapesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestFixedCollections(t *testing.T) {
+	ids := []nino.Guid{{1}, {2}, {3}}
+	want := &FixedCollections{
+		Ids: []nino.Entry[nino.Guid, Marked]{
+			{Key: ids[0], Value: Marked{Id: 1, On: true, Kind: 2, Code: -3}},
+			{Key: ids[1], Value: Marked{Id: -4, Kind: 5, Code: 6}},
+		},
+		UniqueIds: ids,
+		Grid:      &NinoGrid[uint8]{Lengths: []int{1, 2}, Items: []uint8{0x80, 0xFF}},
+		Pairs:     []nino.Entry[int32, int64]{{Key: 7, Value: -9}},
+		Offsets:   []nino.DateTimeOffset{{UtcTicks: 638712864000000000, OffsetMinutes: -60}, {}},
+	}
+	got, err := nino.Serialize(want, WriteFixedCollections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scalar, err := nino.Serialize(want, func(w *nino.Writer, v *FixedCollections) {
+		w.Present(true)
+		w.Length(len(v.Ids))
+		for _, e := range v.Ids {
+			w.Guid(e.Key)
+			w.I32(e.Value.Id)
+			w.Bool(e.Value.On)
+			w.U8(e.Value.Kind)
+			w.I16(e.Value.Code)
+		}
+		writeEach(w, v.UniqueIds, (*nino.Writer).Guid)
+		w.WriteShape(v.Grid.Lengths...)
+		for _, e := range v.Grid.Items {
+			w.U8(e)
+		}
+		w.Length(len(v.Pairs))
+		for _, e := range v.Pairs {
+			w.I32(e.Key)
+			w.I64(e.Value)
+		}
+		writeEach(w, v.Offsets, (*nino.Writer).DateTimeOffset)
+	})
+	if err != nil || !reflect.DeepEqual(got, scalar) {
+		t.Fatalf("fixed bytes %x, scalar bytes %x (%v)", got, scalar, err)
+	}
+	if v, err := nino.DeserializeExact(got, ReadFixedCollections); err != nil || !reflect.DeepEqual(v, want) {
+		t.Fatalf("read back %+v (%v)", v, err)
+	}
+	const mapStart, pair = 5, 16 + 8
+	bad := append([]byte(nil), got...)
+	copy(bad[mapStart+pair:mapStart+pair+16], bad[mapStart:mapStart+16])
+	if _, err := nino.DeserializeExact(bad, ReadFixedCollections); !errors.Is(err, nino.ErrDuplicateKey) {
+		t.Fatalf("read duplicate Guid key: %v", err)
+	}
+	copy(bad, got)
+	bad[mapStart+16+4] = 2
+	if _, err := nino.DeserializeExact(bad, ReadFixedCollections); !errors.Is(err, nino.ErrInvalidData) {
+		t.Fatalf("read invalid bool in raw map value: %v", err)
+	}
+	// The second DateTimeOffset has its UTC ticks at zero, so an offset of -1 minute is invalid.
+	copy(bad, got)
+	bad[len(bad)-2], bad[len(bad)-1] = 0xFF, 0xFF
+	if _, err := nino.DeserializeExact(bad, ReadFixedCollections); !errors.Is(err, nino.ErrInvalidData) {
+		t.Fatalf("read invalid DateTimeOffset: %v", err)
+	}
+	want.Offsets[1].OffsetMinutes = -1
+	if _, err := nino.Serialize(want, WriteFixedCollections); !errors.Is(err, nino.ErrInvalidValue) {
+		t.Fatalf("wrote invalid DateTimeOffset: %v", err)
+	}
+}
+
 // Generic types: closed uses read and written with the codecs built from those of their arguments.
 func TestGenericShapesRoundTrip(t *testing.T) {
 	s := func(v string) *string { return &v }

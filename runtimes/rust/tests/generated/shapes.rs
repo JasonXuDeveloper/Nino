@@ -764,6 +764,70 @@ impl Empty {
     );
 }
 
+/// `Shapes.FixedCollections`: Positional, header Presence.
+#[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FixedCollections {
+    pub ids: Option<indexmap::IndexMap<nino::Guid, Marked>>,
+    pub unique_ids: Option<indexmap::IndexSet<nino::Guid>>,
+    pub grid: Option<nino::Grid<u8, 2>>,
+    pub pairs: Option<indexmap::IndexMap<i32, i64>>,
+    pub offsets: Option<Vec<nino::DateTimeOffset>>,
+}
+
+impl NinoReadBody for FixedCollections {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn read_body(&mut self, r: &mut nino::Reader<'_>) -> nino::Result<()> {
+        r.read_into(&mut self.ids)?;
+        r.read_into(&mut self.unique_ids)?;
+        r.read_into(&mut self.grid)?;
+        r.read_into(&mut self.pairs)?;
+        r.read_into(&mut self.offsets)?;
+        Ok(())
+    }
+}
+
+impl NinoWriteBody for FixedCollections {
+    const TYPE_ID: i32 = Self::NINO_TYPE_ID;
+
+    fn write_body<'a>(&'a self, w: &mut nino::Writer<'a>) -> nino::Result<()> {
+        w.write(&self.ids)?;
+        w.write(&self.unique_ids)?;
+        w.write(&self.grid)?;
+        w.write(&self.pairs)?;
+        w.write(&self.offsets)?;
+        Ok(())
+    }
+}
+
+impl NinoRead for FixedCollections {
+    const MAY_DEFER: bool = true;
+    nino::sealed_read!();
+}
+
+impl NinoWrite for FixedCollections {
+    const PREFETCH_BYTES: usize = 0usize
+        .saturating_add(<Option<indexmap::IndexSet<nino::Guid>> as NinoWrite>::PREFETCH_BYTES)
+        .saturating_add(<Option<Vec<nino::DateTimeOffset>> as NinoWrite>::PREFETCH_BYTES);
+
+    fn prefetch(&self) {
+        self.unique_ids.prefetch();
+        self.offsets.prefetch();
+    }
+
+    fn prefetch_members(&self) {
+        self.unique_ids.prefetch_members();
+        self.offsets.prefetch_members();
+    }
+
+    nino::sealed_write!();
+}
+
+impl FixedCollections {
+    nino::type_consts!(0x9B5DCD24u32 as i32, "Shapes.FixedCollections", "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x9B5DCD24; deferrable=true; members=Ids:System.Collections.Generic.Dictionary<System.Guid, Shapes.Marked>:map(raw(16),raw(8){Id:int@0:raw(4),On:bool@4:raw(1),Kind:byte@5:raw(1),Code:short@6:raw(2)});UniqueIds:System.Collections.Generic.HashSet<System.Guid>:seq(raw(16));Grid:byte[,]:grid(2,raw(1));Pairs:System.Collections.Generic.Dictionary<int, long>:map(raw(4),raw(8));Offsets:System.DateTimeOffset[]:seq(datetimeoffset)");
+}
+
 /// `Shapes.ForestHolder`: Positional, header Presence.
 #[derive(Debug, Default, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -3290,6 +3354,7 @@ pub trait NinoVisit<R> {
 pub fn with_nino_type<R>(name: &str, f: impl NinoVisit<R>) -> Option<R> {
     Some(match name {
         "Shapes.Empty" => f.visit::<Option<Box<Empty>>>(),
+        "Shapes.FixedCollections" => f.visit::<Option<Box<FixedCollections>>>(),
         "Shapes.ForestHolder" => f.visit::<Option<Box<ForestHolder>>>(),
         "Shapes.Gappy" => f.visit::<Gappy>(),
         "Shapes.Generic.BasedInt" => f.visit::<Option<Box<BasedInt>>>(),
@@ -3339,6 +3404,7 @@ pub trait NinoSerdeVisit<R> {
 pub fn with_nino_serde_type<R>(name: &str, f: impl NinoSerdeVisit<R>) -> Option<R> {
     Some(match name {
         "Shapes.Empty" => f.visit::<Option<Box<Empty>>>(),
+        "Shapes.FixedCollections" => f.visit::<Option<Box<FixedCollections>>>(),
         "Shapes.ForestHolder" => f.visit::<Option<Box<ForestHolder>>>(),
         "Shapes.Gappy" => f.visit::<Gappy>(),
         "Shapes.Generic.BasedInt" => f.visit::<Option<Box<BasedInt>>>(),

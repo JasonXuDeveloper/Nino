@@ -29,9 +29,9 @@ nullable.go                  NullableSlot[T] (a T? as the element of a sequence)
                              where Go's layout is the wire's)
 endian_little.go             littleEndian = true on little-endian architectures (blocks copied as memory)
 endian_other.go              littleEndian = false elsewhere (blocks converted element by element)
-unique.go                    duplicate keys of sets and maps read in data order: numbers, strings and NullableSlots of
-                             numbers (a set of T?) compared as .NET does, pairwise or in a seeded open-addressing table
-                             (the reader's scratch), no map
+unique.go                    duplicate keys of sets and maps read in data order: numbers, strings, NullableSlots of
+                             numbers (a set of T?) and keys whose equality is their bytes, pairwise or in a seeded
+                             open-addressing table (the reader's scratch); key metadata cached by Go type
 collections.go               slices, maps, sets, entries, fixed-size runs, multidimensional shapes (the func-value
                              helpers unexported, for the runtime's rare paths); counts checked against the bytes left
 depth.go                     class bodies (Class, ReadClass, WriteClass), deferral past 128, the 512 limit
@@ -142,8 +142,10 @@ requirements:
   of allocations (`bench`, `-benchmem`). A collection of fixed-size elements takes a block helper
   (`ReadPrimitives`, `ReadPrimitiveEntries`, `ReadPrimitiveMap`), never the generic helpers that take element
   functions: those are an indirect call per element (`(*Reader).I32` is never inlined through a func value) and a
-  bounds check per value. Any other collection loop in generated code is written out with the element's call made directly
-  (nino-gen's `read_loop` / `write_loop`), never a helper taking a func value (the runtime keeps `readSlice` and the like unexported, for its own rare paths) (`optimize-runtimes`, references/dispatch.md).
+  bounds check per value. Generated fixed-width maps, sequences, sets and grids without a matching bulk copy
+  share a cursor loop at constant offsets. Raw sequences still attempt the memory copy through `TryReadRaw` /
+  `TryWriteRaw`, then take the same cursor on other hosts. Other generated collection loops also call the
+  element's codec directly (nino-gen's `read_loop` / `write_loop`; `optimize-runtimes`, references/dispatch.md).
   `ReadPrimitiveMap` read a 10-pair `map[int32]int32` 31 % faster than `ReadMap` (now unexported), and
   SimpleClass 4-7 % faster on runners (7ac8b46). Walk a block with a cursor (`for len(b) >= wire { ...; b =
   b[wire:] }`): indexing `b[i*wire:]` kept a bounds check per pair. A runner A/B can move code you did not touch by
