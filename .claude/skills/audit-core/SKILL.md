@@ -37,14 +37,18 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   source)`: a block struct is a fixed-size type, one write for both. These are capability members of
   `INinoFormatter<T>` with defaults reporting none (#346): only the queries are called on a formatter that may lack
   them, once per type into a `static readonly` field, since calling a default boxes the struct; so are `BodyTraits`
-  and the element and pair loops of polymorphic bases (`HasElementLoop`, `HasPairLoop`). A capability reached by an
-  `is` test, a cast or a boxed interface field on a formatter is a finding (the sized, external, raw-array and
-  prefetch interfaces are #346's next step). Two stay
-  apart on purpose: `INinoRawBodyFormatter` (`BodySize`, `WriteRawBody(T value, ref byte, int offset)`) writes a
-  non-sealed class's body without its type id, into a reservation the caller shares with that id (not
-  `Serialize`'s bytes, so not `FixedSize`), with a constant offset folded into every store; and the internal
-  `INinoSizedFormatter` (`Size(value)`, arrays and lists of blocks) is a size per value, not a constant, and
-  internal, so generated code never implements it. Members put the value first, then the memory
+  and the element and pair loops of polymorphic bases (`HasElementLoop`, `HasPairLoop`), the prefetch of long
+  collections of classes (`PrefetchBytes`, `HasMemberPrefetch`, `PrefetchMembers`) and the internal top-level writes
+  of collection formatters (`HasSizedWrite` with `Size(value)`, a size per value rather than a constant;
+  `HasExternalWrite` with `TryWriteExternal`). A capability reached by an `is` test, a cast or a boxed interface field
+  on a formatter is a finding. Stay apart on purpose: `INinoRawBodyFormatter` (`BodySize`, `WriteRawBody(T value,
+  ref byte, int offset)`) writes a non-sealed class's body without its type id, into a reservation the caller shares
+  with that id (not `Serialize`'s bytes, so not `FixedSize`), with a constant offset folded into every store;
+  `INinoBodyFormatter` and `INinoTopFormatter` are only struct constraints (direct calls); `INinoRawFormatter` is a
+  marker with no members, tested as a type (reflection, and a JIT-time `is` in `NullableFormatter` that folds on
+  import); and `INinoRawArrayFormatter` is the boxed formatter `NinoRawArray<T>` holds for top-level calls generic
+  over the array type alone, with no formatter type parameter to call through (#346 step 3). Members put the value
+  first, then the memory
   (`Serialize(value, ref writer)`, `WriteFixed(in value, ref destination)`, `ReadBlock(ref value, ref source)`).
 - **Coupling**: Nino.Core depending on an optional package's concerns; formatters reaching into each other's
   internals instead of a shared helper; `#if` blocks that grew into separate implementations.
