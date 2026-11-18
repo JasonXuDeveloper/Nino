@@ -97,8 +97,21 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   collections (`PrefetchBytes`, `HasMemberPrefetch`, `PrefetchMembers` on `INinoFormatter`, read by
   `NinoPrefetch.Of<TFormatter>`; `Ahead` had cast `default(TFormatter)` to `INinoPrefetchFormatter` per run) and the
   sized and external top-level writes (`NinoTopWrites<TFormatter>`; the netstandard builds had called a boxed
-  `INinoSizedFormatter<T>` / `INinoExternalFormatter<T>` field per top-level call). What stays is not a formatter type
-  parameter: `INinoRawArrayFormatter` (below) and the marker `INinoRawFormatter`, tested as a type. (4) The
+  `INinoSizedFormatter<T>` / `INinoExternalFormatter<T>` field per top-level call). Those queries, and every
+  element-kind decision, are read from one place since #355 PR 1: `NinoKind<TFormatter>` (keyed on the formatter:
+  `Traits` from `BodyTraits`, which moved to the non-generic `INinoFormatter`, `IsString`, the loops, prefetch, the
+  top-level writes; it absorbed `NinoLoops`, `NinoTopWrites` and `NinoPrefetch.Of`) and `NinoKind<T, TFormatter>`
+  (raw, slot, block or per value, with the stride and read policies; it absorbed `NinoSlots`, `NinoElements.Traits`
+  and the `Heavy*` classes). Every collection formatter, `NinoElements`, `NinoDictionary`, `NinoCollections`,
+  `BclCollections`, `BclDictionaries`, `PriorityQueueFormatter`, `MultiDim` and `ReadOnlySequenceFormatter` read them
+  instead of testing `RawFormatter.Is`, a slot stride or `typeof(StringFormatter)` themselves. Left deciding for
+  themselves, each for its step: the tuple and `KeyValuePairFormatter` formatters' `RawFormatter.Is` per item and
+  `DateTimeOffset`'s own block kernel (composition, #348), `WordKey` and the .NET 8+ `WritePairs32` / `WritePairs64` /
+  `WriteStringPairs` entry points and `WriteElements` (the one loop over the view drops them), the dedicated raw and
+  nullable array and list formatters chosen by binding, `CollectionFields`' entry block formatters and
+  `PriorityQueueHeap`'s int pair (the storage view), and Nino.Immutable's `Slots<T>.Possible` and `ImmutableArray`'s
+  reference loop (it sees only the public API, and its loops join the layer). What stays is not a
+  formatter type parameter: `INinoRawArrayFormatter` (below) and the marker `INinoRawFormatter`, tested as a type. (4) The
   user-extensible points
   above. Per top-level call, not per value: calls the interceptors leave alone (generic methods, another assembly's
   types, Unity's Roslyn 4.3, raw values and arrays of raw elements) read `NinoTopFormatter<T>`, `NinoRaw<T>` and
@@ -145,8 +158,9 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   is the one to remove (round 103: kept after review; no form without an indirect call exists).
 
 - Read a capability query a loop over a class element asks into a `static readonly` field of a class generic over the
-  formatter alone (`NinoLoops<TFormatter>`, whose queries sit on the non-generic `INinoFormatter` for it), never over
-  `<T, TFormatter>`, and ask it before any path of the method that returns earlier. Why: with `T` a class the loop is
+  formatter alone (`NinoKind<TFormatter>`, whose queries sit on the non-generic `INinoFormatter` for it), never over
+  `<T, TFormatter>`, and ask it before any path of the method that returns earlier. `NinoKind<TFormatter>` is that class;
+  `NinoKind<T, TFormatter>` is read only behind `IsReferenceOrContainsReferences<T>()`. Why: with `T` a class the loop is
   shared generic code, where a class generic over `T` is a dictionary lookup and a static base helper per collection,
   while the formatter is still its exact struct; and a field the JIT has not seen initialized when Tier1 compiles the
   caller stays a helper call, with the default the formatter lacks (boxed, a call) left in the code beside it.
@@ -212,7 +226,7 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   PolymorphicClass on par (0.96–1.06x); not landed.
 
 - Write an array or a list of a polymorphic base through the base's generated element loop
-  (`INinoFormatter<T>.WriteElements` where `HasElementLoop`, read once into `NinoLoops<TFormatter>.Elements`;
+  (`INinoFormatter<T>.WriteElements` where `HasElementLoop`, read once into `NinoKind<TFormatter>.Elements`;
   `DispatchEmitter.EmitWriteElements`): the chain of type checks inline in
   the loop, the writer in a local, the depth checked once before it. Why: written one element at a time through
   `Serialize`, each element called the dispatch (too large to inline into the collection loop) with the writer in
@@ -232,7 +246,7 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   inlined into one loop, ran out of registers; the other generic bases moved within noise. The closed dispatch stays
   marked to inline into the collection loop, as before.
 - Write a `Dictionary<TKey, Base>` of a polymorphic base through the base's generated pair loop
-  (`INinoFormatter.HasPairLoop`, read once into `NinoLoops<TFormatter>.Pairs`; `DispatchEmitter.EmitWriteElements`,
+  (`INinoFormatter.HasPairLoop`, read once into `NinoKind<TFormatter>.Pairs`; `DispatchEmitter.EmitWriteElements`,
   generated for .NET 8+ only): one
   generic loop `__WritePairs<TKey, TKeyFormatter>` in the generated struct, reached through non-generic members of
   the interface per kind of key (`WritePairs32`, `WritePairs64`, `WriteStringPairs`; 4- and 8-byte primitive and enum keys

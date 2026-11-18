@@ -52,7 +52,7 @@ value, a kernel hook or a kernel threshold. How to build and run Unity is `platf
   members are members of `INinoFormatter<T>` itself (defaults reporting none), so `WriteValue`/`ReadValue` and the
   boxed `NinoBlockPlan.Formatter` and `NinoSlots.Formatter` fields are gone and every block or slot call is a
   constrained call on the struct, on every target; step 3 did the same for `NinoSized.Of` and `StructFormatter`'s
-  boxed external-write field (`NinoTopWrites<TFormatter>` reads the queries once, `Size`, `WriteSized` and
+  boxed external-write field (`NinoKind<TFormatter>` reads the queries once, `Size`, `WriteSized` and
   `TryWriteExternal` are constrained calls). The test `default(TFormatter) is IFoo`
   boxes too, and it runs for every formatter that reaches it, not only the ones that implement `IFoo`: e178937c
   added `default(TFormatter) is INinoElementsFormatter<T>` and the cast to `NinoElements.Write` in every build, so
