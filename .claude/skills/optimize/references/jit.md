@@ -128,7 +128,7 @@ where that is so, and its x64 sizes are listings, not throughput.
   of its own with that work inline and the writer or reader in a local, instead of a call per element with the cursor
   in memory. Why: the call and the cursor's round trip through memory cost more than the work they wrap. Evidence:
   arrays and lists of a polymorphic base, 5.0 to 3.7-3.9 us for 1,000 values (`dispatch.md`, e178937c). Check every
-  collection loop the generator's types reach this way (`NinoElements.Write`/`Read`, dictionary pair loops, sets).
+  collection loop the generator's types reach this way (`NinoRuns`' loops over a run, `NinoElements.Read`, sets).
 - Read a gap between a type written whole and the sum of its members written alone as the members' code and data
   mixed, not as waste in the outer body, until a sequence of the members' own top-level calls says otherwise. Why:
   LuminPack's `CharacterSaveData` took 3.3 µs against 2.5 µs summed, but the thirteen holder calls back to back took
@@ -139,7 +139,9 @@ where that is so, and its x64 sizes are listings, not throughput.
   and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
   with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
   twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
-  `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
+  `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too). A constructor counts: `NinoRun`'s five-field
+  constructor stayed a call in 11 methods of the benchmark suite (`SimpleTest`, ProfileV2's members) until marked
+  (#355 PR 3, `asm.py compare`).
 
 - Read a collection whose shape repeats into its existing instance with a loop of its own over the data, as the fresh
   read does: `Reader.RefillStringPairs` (raw keys and strings into an existing `Dictionary`, the position and the end in

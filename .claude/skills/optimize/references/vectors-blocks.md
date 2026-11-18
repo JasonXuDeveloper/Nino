@@ -36,7 +36,8 @@ reads](#scalar-block-reads), [Block writes](#block-writes).
 ## Permutes and lane groups
 
 - Write a runtime's strided entries (a `HashSet<T>`'s or `Dictionary<K, V>`'s entry array) through the block path
-  (`SetEntryBlock`, `MapEntryBlock`: a block map of the key and value at their offsets in the entry), never one
+  (`EntryBlock`, the one block formatter of entries, with the items it moves: `SetValue`, `SetValueBytes`, `MapPair`, a
+  block map of the key and value at their offsets in the entry; `NinoRuns.WriteSet`, `WritePairs`), never one
   `Write` per entry: the permutes pack them like any padded struct. Evidence (GitHub runners, runs 40842440261 and
   40865180098, n=12-48 a CPU, floors 0.99-1.01): 1,000-entry `HashSet<int>` serialize 0.34-0.49 times the time,
   `Dictionary<int, int>` 0.29-0.56, the polymorphic class array holding both 0.69-0.84.

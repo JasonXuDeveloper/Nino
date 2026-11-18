@@ -23,6 +23,14 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   (36 to 40 with `Unsafe.ReadUnaligned` loads, see `optimize`). Test a new operation on Mono with
   `MONO_VERBOSE_METHOD=<method> mono app.exe` (prints the IR, "SIMD intrinsic ..." per accelerated call, and the
   machine code through objdump) before gating it on.
+- Offset a `ref byte` by a value that can be negative only with `Unsafe.AddByteOffset(ref x, (nint)offset)`, never
+  `Unsafe.Add(ref x, intOffset)`. Why: classic Mono's JIT, once the helper inlined across assemblies into generated
+  code, mishandled the negative `int` offset and dereferenced a wild address; the interpreter and
+  `--optimize=-all` were right and no single `-O` flag fixed it, so the bug hides from every quick check. Evidence:
+  #355 PR 3's run cursor (`NinoRun.Skips`/`WriteKey`, `NinoRuns`' key reads): on Mono 6.8 x64 a dictionary entry puts
+  the key at 8 and the value at 16, so the key's offset from the value is -8, and every `Dictionary<K, Shape>` case of
+  `Nino.RuntimeTests` died with SIGSEGV in the generated `WriteRun` (lists and sets, with positive offsets, passed);
+  with `(nint)` byte offsets Mono's output matched .NET's, also under `MONO_GC_DEBUG=verify-before-collections`.
 
 ## Unity and IL2CPP
 
