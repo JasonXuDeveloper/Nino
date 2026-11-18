@@ -88,6 +88,9 @@ element. The reader copies from an aligned view of the data when the data is ali
 bytes. What it returns never refers to the data: typed arrays of 65 bytes to 8 KB are views of a shared 64 KB buffer
 (as Node's small `Buffer`s share a pool, since an `ArrayBuffer` for each costs more than the copy).
 
+JavaScript engines may canonicalize a NaN held in a `number`, so a floating-point NaN can round-trip with a
+different sign or payload when read into a plain array.
+
 ## Rectangular arrays
 
 A .NET rectangular array of rank 2 to 4 is a `NinoGrid<TData> | null`. Its `lengths` hold the dimensions in order,
