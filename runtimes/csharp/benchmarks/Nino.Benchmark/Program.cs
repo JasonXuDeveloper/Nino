@@ -83,12 +83,19 @@ namespace Nino.Benchmark
         /// cases.json next to the bytes: each case with Nino bytes, the .NET type they hold (runtime-form name: the type
         /// its Nino deserialize method returns), whether that is a [NinoType], its Google.Protobuf message (the
         /// protobuf-net contract the .protobuf.bin bytes follow), whether it is in the quick subset and whether its
-        /// bytes are a previous version of the type (Old). The other runtimes' benchmarks read their cases from it.
+        /// bytes are a previous version of the type (Old), and whether its type holds a C# union (C# 15, .NET 11 only: the
+        /// Unity benchmark, built in C# 9, leaves such a case out). The other runtimes' benchmarks read their cases from it.
         /// And roots.txt: nino-gen's --roots for those cases' types that are not [NinoType]s, one name each
         /// (<c>Case&lt;first case&gt;=&lt;type&gt;</c>), whose codecs the runtimes look up by the type's name; and
         /// generics.txt: the closed generic [NinoType]s the cases' values hold, one runtime name a line, which a .NET
         /// reader that never writes them (the Unity benchmark) registers first (NinoPolymorphic.TryRegister).
         /// </summary>
+        /// <summary>Whether <paramref name="type"/>, its element or a type argument is a C# union.</summary>
+        private static bool HoldsUnion(Type type) =>
+            type.CustomAttributes.Any(a => a.AttributeType.FullName == "System.Runtime.CompilerServices.UnionAttribute") ||
+            (type.HasElementType && HoldsUnion(type.GetElementType()!)) ||
+            (type.IsGenericType && type.GetGenericArguments().Any(HoldsUnion));
+
         private static void WriteCaseTypes(string directory)
         {
             var lines = new System.Collections.Generic.List<string>();
@@ -118,6 +125,7 @@ namespace Nino.Benchmark
                     ["proto"] = benchCase.Proto?.Replace("{Case}", benchCase.Name),
                     ["quick"] = benchCase.Quick,
                     ["old"] = benchCase.Old != null,
+                    ["union"] = HoldsUnion(value),
                 }));
             }
 

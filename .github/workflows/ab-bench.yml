@@ -240,13 +240,16 @@ jobs:
           for SIDE in $SIDES; do
             [[ -f $SIDE/.bench-project ]] || continue
             PROJECT=$(cat "$SIDE/.bench-project")
-            [[ -f $PROJECT/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue  # a bisect commit that did not build
+            # The newest framework the side built for: net11.0, or net10.0 before the benchmarks moved to .NET 11.
+            DLL=$(ls "$PROJECT"/bin/Release/net*/Nino.Benchmark.dll 2>/dev/null | sort -V | tail -1 || true)
+            [[ -n $DLL ]] || continue  # a bisect commit that did not build
+            DLL=${DLL#"$PROJECT"/}
             echo "== $SIDE $(git -C "$SIDE" rev-parse --short HEAD)"
             # BenchmarkDotNet builds the project again for its runs: a side built with NinoBenchLegacy (above) gets it
             # through the environment, which MSBuild reads as properties.
             LEGACY=""
             [[ -f $SIDE/.bench-legacy ]] && LEGACY=true
-            (cd "$PROJECT" && NinoBenchLegacy=$LEGACY dotnet bin/Release/net10.0/Nino.Benchmark.dll \
+            (cd "$PROJECT" && NinoBenchLegacy=$LEGACY dotnet "$DLL" \
               --filter "${FILTERS[@]}" --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
           done
 

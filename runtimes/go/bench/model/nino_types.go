@@ -549,6 +549,49 @@ func writeTile(w *nino.Writer, v Tile) {
 	}
 }
 
+// UnionPoint is `Nino.Benchmark.UnionPoint`, copied as raw memory (12 bytes).
+type UnionPoint struct {
+	X int32   `nino:"0" json:"x"`
+	Y int32   `nino:"1" json:"y"`
+	Z float32 `nino:"2" json:"z"`
+}
+
+func decodeUnionPoint(r *nino.Reader, b []byte) UnionPoint {
+	_ = b[11]
+	var v UnionPoint
+	v.X = int32(le.Uint32(b))
+	v.Y = int32(le.Uint32(b[4:]))
+	v.Z = math.Float32frombits(le.Uint32(b[8:]))
+	return v
+}
+
+func encodeUnionPoint(b []byte, v UnionPoint) {
+	_ = b[11]
+	le.PutUint32(b, uint32(v.X))
+	le.PutUint32(b[4:], uint32(v.Y))
+	le.PutUint32(b[8:], math.Float32bits(v.Z))
+}
+
+// asIsUnionPoint: whether UnionPoint's memory is its bytes (on a little-endian host), for arrays copied as one block.
+const asIsUnionPoint = unsafe.Sizeof(UnionPoint{}) == 12 &&
+	unsafe.Offsetof(UnionPoint{}.X) == 0 &&
+	unsafe.Offsetof(UnionPoint{}.Y) == 4 &&
+	unsafe.Offsetof(UnionPoint{}.Z) == 8
+
+func readUnionPoint(r *nino.Reader) UnionPoint {
+	var v UnionPoint
+	if b := r.Take(12); len(b) == 12 {
+		v = decodeUnionPoint(r, b)
+	}
+	return v
+}
+
+func writeUnionPoint(w *nino.Writer, v UnionPoint) {
+	if b := w.ExtendZero(12); len(b) == 12 {
+		encodeUnionPoint(b, v)
+	}
+}
+
 // Vec3 is `Nino.Benchmark.Workloads.Vec3`, copied as raw memory (12 bytes).
 type Vec3 struct {
 	X float32 `nino:"0" json:"x"`
@@ -796,6 +839,7 @@ var (
 	tolerantClassClass      nino.Class[TolerantClass]
 	transformComponentClass nino.Class[TransformComponent]
 	treeNodeClass           nino.Class[TreeNode]
+	unionItemClass          nino.Class[UnionItem]
 	useItemCommandClass     nino.Class[UseItemCommand]
 	utf8StringsClass        nino.Class[Utf8Strings]
 	utf8TextClass           nino.Class[Utf8Text]
@@ -972,6 +1016,7 @@ func init() {
 	tolerantClassClass = nino.Class[TolerantClass]{Read: readTolerantClassBody, Write: writeTolerantClassBody, Deferrable: true}
 	transformComponentClass = nino.Class[TransformComponent]{Read: readTransformComponentBody, Write: writeTransformComponentBody, Deferrable: true}
 	treeNodeClass = nino.Class[TreeNode]{Read: readTreeNodeBody, Write: writeTreeNodeBody, Deferrable: true}
+	unionItemClass = nino.Class[UnionItem]{Read: readUnionItemBody, Write: writeUnionItemBody, Deferrable: true}
 	useItemCommandClass = nino.Class[UseItemCommand]{Read: readUseItemCommandBody, Write: writeUseItemCommandBody, Deferrable: true}
 	utf8StringsClass = nino.Class[Utf8Strings]{Read: readUtf8StringsBody, Write: writeUtf8StringsBody, Deferrable: true}
 	utf8TextClass = nino.Class[Utf8Text]{Read: readUtf8TextBody, Write: writeUtf8TextBody, Deferrable: true}
@@ -1157,6 +1202,9 @@ func init() {
 		nino.ClassType(-464276791, &tolerantClassClass),
 		nino.ClassType(1056708405, &transformComponentClass),
 		nino.ClassType(-543778262, &treeNodeClass),
+		nino.ClassType(635318394, &unionItemClass),
+		nino.StructType(791437675, func(r *nino.Reader, v *UnionPoint) { *v = ReadUnionPoint(r) }, func(w *nino.Writer, v *UnionPoint) { WriteUnionPoint(w, *v) }),
+		nino.StructType(-1091390308, func(r *nino.Reader, v *UnionValueObject) { v.Value = ReadUnionValue(r) }, func(w *nino.Writer, v *UnionValueObject) { WriteUnionValue(w, v.Value) }),
 		nino.ClassType(1148720935, &useItemCommandClass),
 		nino.ClassType(-11401419, &utf8StringsClass),
 		nino.ClassType(-1749724994, &utf8TextClass),
@@ -23690,6 +23738,298 @@ func writeTreeNodeBody(w *nino.Writer, v *TreeNode) {
 	writeV49(w, v.Children)
 }
 
+// UnionItem is `Nino.Benchmark.UnionItem`.
+type UnionItem struct {
+	Id    int32   `nino:"0" json:"id"`
+	Name  *string `nino:"1" json:"name"`
+	Score float64 `nino:"2" json:"score"`
+}
+
+func (UnionItem) NinoLayout() string {
+	return "format=Positional; header=Presence; trackReferences=false; raw=false; id=0x25DE307A; deferrable=true; members=Id:int:raw(4);Name:string:string;Score:double:raw(8)"
+}
+
+func (UnionItem) NinoTypeName() string {
+	return "Nino.Benchmark.UnionItem"
+}
+
+func (*UnionItem) NinoTypeID() int32 {
+	return 635318394
+}
+
+func ReadUnionItem(r *nino.Reader) *UnionItem {
+	if !r.Present() {
+		return nil
+	}
+	v := new(UnionItem)
+	if d, ok := r.EnterBody(); ok {
+		readUnionItemBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &unionItemClass)
+	}
+	return v
+}
+
+func WriteUnionItem(w *nino.Writer, v *UnionItem) {
+	if v == nil {
+		w.U8(0)
+		return
+	}
+	w.U8(1)
+	if d, ok := w.EnterBody(); ok {
+		writeUnionItemBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &unionItemClass)
+	}
+}
+
+// ReadUnionItemInto reads a value into *v, the object it points to read in place (DeserializeInto).
+func ReadUnionItemInto(r *nino.Reader, v **UnionItem) {
+	if !r.Present() {
+		*v = nil
+		return
+	}
+	if *v == nil {
+		*v = new(UnionItem)
+	}
+	if d, ok := r.EnterBody(); ok {
+		readUnionItemBody(r, *v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, *v, &unionItemClass)
+	}
+}
+
+// readUnionItemClass reads the body of a UnionItem (after its type id) into a new instance.
+func readUnionItemClass(r *nino.Reader) *UnionItem {
+	v := new(UnionItem)
+	if d, ok := r.EnterBody(); ok {
+		readUnionItemBody(r, v)
+		r.ExitBody(d)
+	} else {
+		nino.ReadClassInto(r, v, &unionItemClass)
+	}
+	return v
+}
+
+// writeUnionItemClass writes the body of v (not nil, after its type id).
+func writeUnionItemClass(w *nino.Writer, v *UnionItem) {
+	if d, ok := w.EnterBody(); ok {
+		writeUnionItemBody(w, v)
+		w.ExitBody(d)
+	} else {
+		nino.WriteClass(w, v, &unionItemClass)
+	}
+}
+
+func readUnionItemBody(r *nino.Reader, v *UnionItem) {
+	v.Id = r.I32()
+	v.Name = r.StringPtr()
+	v.Score = r.F64()
+}
+
+func writeUnionItemBody(w *nino.Writer, v *UnionItem) {
+	w.I32(v.Id)
+	w.StringPtr(v.Name)
+	w.F64(v.Score)
+}
+
+func (UnionPoint) NinoLayout() string {
+	return "format=Positional; header=None; trackReferences=false; raw=true; id=0x2F2C616B; deferrable=false; members=raw(12){X:int@0:raw(4),Y:int@4:raw(4),Z:float@8:raw(4)}"
+}
+
+func (UnionPoint) NinoTypeName() string {
+	return "Nino.Benchmark.UnionPoint"
+}
+
+func (UnionPoint) NinoTypeID() int32 {
+	return 791437675
+}
+
+func ReadUnionPoint(r *nino.Reader) UnionPoint {
+	return readUnionPoint(r)
+}
+
+// ReadUnionPointInto reads a value into *v (DeserializeInto): a raw value is read whole.
+func ReadUnionPointInto(r *nino.Reader, v *UnionPoint) {
+	*v = ReadUnionPoint(r)
+}
+
+func WriteUnionPoint(w *nino.Writer, v UnionPoint) {
+	writeUnionPoint(w, v)
+}
+
+// UnionValue is the C# union `Nino.Benchmark.UnionValue`: UnionValueInt32, UnionValueInt64, UnionValueString, UnionValueUnionPoint, *UnionItem, or nil for the empty union.
+type UnionValue interface {
+	isUnionValue()
+}
+
+// UnionValueInt32 is the case `System.Int32` of UnionValue.
+type UnionValueInt32 struct {
+	Value int32 `json:"value"`
+}
+
+func (UnionValueInt32) isUnionValue() {
+}
+
+// NinoUnionCase returns the .NET name of the case's type.
+func (UnionValueInt32) NinoUnionCase() string {
+	return "System.Int32"
+}
+
+// UnionValueInt64 is the case `System.Int64` of UnionValue.
+type UnionValueInt64 struct {
+	Value int64 `json:"value"`
+}
+
+func (UnionValueInt64) isUnionValue() {
+}
+
+// NinoUnionCase returns the .NET name of the case's type.
+func (UnionValueInt64) NinoUnionCase() string {
+	return "System.Int64"
+}
+
+// UnionValueString is the case `System.String` of UnionValue.
+type UnionValueString struct {
+	Value *string `json:"value"`
+}
+
+func (UnionValueString) isUnionValue() {
+}
+
+// NinoUnionCase returns the .NET name of the case's type.
+func (UnionValueString) NinoUnionCase() string {
+	return "System.String"
+}
+
+// UnionValueUnionPoint is the case `Nino.Benchmark.UnionPoint` of UnionValue.
+type UnionValueUnionPoint struct {
+	Value UnionPoint `json:"value"`
+}
+
+func (UnionValueUnionPoint) isUnionValue() {
+}
+
+// NinoUnionCase returns the .NET name of the case's type.
+func (UnionValueUnionPoint) NinoUnionCase() string {
+	return "Nino.Benchmark.UnionPoint"
+}
+
+func (*UnionItem) isUnionValue() {
+}
+
+// UnionValueObject is a UnionValue held as `object`: written behind the union's type id.
+type UnionValueObject struct {
+	Value UnionValue
+}
+
+func (UnionValueObject) NinoTypeID() int32 {
+	return -1091390308
+}
+
+func (UnionValueObject) NinoTypeName() string {
+	return "Nino.Benchmark.UnionValue"
+}
+
+// ReadUnionValue reads a UnionValue: the type id of its case (0 for the empty union), then the case's value.
+func ReadUnionValue(r *nino.Reader) UnionValue {
+	id := r.TypeID()
+	if id == nino.NullTypeID {
+		return nil
+	}
+	if !r.EnterStruct() {
+		return nil
+	}
+	var v UnionValue
+	switch id {
+	case 546808484:
+		v = UnionValueInt32{Value: r.I32()}
+	case 337757159:
+		v = UnionValueInt64{Value: r.I64()}
+	case -65934901:
+		if value := r.StringPtr(); value != nil {
+			v = UnionValueString{Value: value}
+		} else {
+			r.Fail(nino.CodeInvalidData, "a union case without a value")
+		}
+	case 791437675:
+		v = UnionValueUnionPoint{Value: readUnionPoint(r)}
+	case 635318394:
+		if value := ReadUnionItem(r); value != nil {
+			v = value
+		} else {
+			r.Fail(nino.CodeInvalidData, "a union case without a value")
+		}
+	default:
+		r.UnknownType(id)
+	}
+	r.ExitStruct()
+	if r.Failed() {
+		return nil
+	}
+	return v
+}
+
+// ReadUnionValueInto reads a value into *v (DeserializeInto): a union is read whole.
+func ReadUnionValueInto(r *nino.Reader, v *UnionValue) {
+	*v = ReadUnionValue(r)
+}
+
+func WriteUnionValue(w *nino.Writer, v UnionValue) {
+	switch v := v.(type) {
+	case UnionValueInt32:
+		w.TypeID(546808484)
+		if !w.EnterStruct() {
+			return
+		}
+		w.I32(v.Value)
+		w.ExitStruct()
+		return
+	case UnionValueInt64:
+		w.TypeID(337757159)
+		if !w.EnterStruct() {
+			return
+		}
+		w.I64(v.Value)
+		w.ExitStruct()
+		return
+	case UnionValueString:
+		if v.Value == nil {
+			break
+		}
+		w.TypeID(-65934901)
+		if !w.EnterStruct() {
+			return
+		}
+		w.StringPtr(v.Value)
+		w.ExitStruct()
+		return
+	case UnionValueUnionPoint:
+		w.TypeID(791437675)
+		if !w.EnterStruct() {
+			return
+		}
+		writeUnionPoint(w, v.Value)
+		w.ExitStruct()
+		return
+	case *UnionItem:
+		if v == nil {
+			break
+		}
+		w.TypeID(635318394)
+		if !w.EnterStruct() {
+			return
+		}
+		WriteUnionItem(w, v)
+		w.ExitStruct()
+		return
+	}
+	w.TypeID(nino.NullTypeID)
+}
+
 // UseItemCommand is `Nino.Benchmark.Workloads.UseItemCommand`.
 type UseItemCommand struct {
 	ItemId int32 `nino:"0" json:"itemId"`
@@ -25907,6 +26247,16 @@ func WriteCasePolymorphicClassArray(w *nino.Writer, v []PolymorphicClassBase) {
 	writeV89(w, v)
 }
 
+// ReadCaseUnionArray reads `Nino.Benchmark.UnionValue[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseUnionArray).
+func ReadCaseUnionArray(r *nino.Reader) []UnionValue {
+	return readV90(r)
+}
+
+// WriteCaseUnionArray writes `Nino.Benchmark.UnionValue[]` as a whole payload: nino.Serialize(v, WriteCaseUnionArray).
+func WriteCaseUnionArray(w *nino.Writer, v []UnionValue) {
+	writeV90(w, v)
+}
+
 // ReadCaseIntLongPairs32 reads `System.ValueTuple<System.Int32,System.Int64>[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseIntLongPairs32).
 func ReadCaseIntLongPairs32(r *nino.Reader) []NinoTuple2[int32, int64] {
 	return readV68(r)
@@ -25919,32 +26269,32 @@ func WriteCaseIntLongPairs32(w *nino.Writer, v []NinoTuple2[int32, int64]) {
 
 // ReadCaseByteIntPairs32 reads `System.ValueTuple<System.Byte,System.Int32>[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseByteIntPairs32).
 func ReadCaseByteIntPairs32(r *nino.Reader) []NinoTuple2[uint8, int32] {
-	return readV90(r)
+	return readV91(r)
 }
 
 // WriteCaseByteIntPairs32 writes `System.ValueTuple<System.Byte,System.Int32>[]` as a whole payload: nino.Serialize(v, WriteCaseByteIntPairs32).
 func WriteCaseByteIntPairs32(w *nino.Writer, v []NinoTuple2[uint8, int32]) {
-	writeV90(w, v)
+	writeV91(w, v)
 }
 
 // ReadCaseFiveTuples32 reads `System.ValueTuple<System.Double,System.Int64,System.Double,System.Single,System.Byte>[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseFiveTuples32).
 func ReadCaseFiveTuples32(r *nino.Reader) []NinoTuple5[float64, int64, float64, float32, uint8] {
-	return readV91(r)
+	return readV92(r)
 }
 
 // WriteCaseFiveTuples32 writes `System.ValueTuple<System.Double,System.Int64,System.Double,System.Single,System.Byte>[]` as a whole payload: nino.Serialize(v, WriteCaseFiveTuples32).
 func WriteCaseFiveTuples32(w *nino.Writer, v []NinoTuple5[float64, int64, float64, float32, uint8]) {
-	writeV91(w, v)
+	writeV92(w, v)
 }
 
 // ReadCasePaddedRaws32 reads `Nino.Benchmark.PaddedRaw[]` as a whole payload (--roots): nino.Deserialize(data, ReadCasePaddedRaws32).
 func ReadCasePaddedRaws32(r *nino.Reader) []PaddedRaw {
-	return readV92(r)
+	return readV93(r)
 }
 
 // WriteCasePaddedRaws32 writes `Nino.Benchmark.PaddedRaw[]` as a whole payload: nino.Serialize(v, WriteCasePaddedRaws32).
 func WriteCasePaddedRaws32(w *nino.Writer, v []PaddedRaw) {
-	writeV92(w, v)
+	writeV93(w, v)
 }
 
 // ReadCaseDoubles10000 reads `System.Double[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseDoubles10000).
@@ -25969,32 +26319,32 @@ func WriteCaseInts10000(w *nino.Writer, v []int32) {
 
 // ReadCaseGenericBoxes reads `Nino.Benchmark.Box<System.Int64>[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseGenericBoxes).
 func ReadCaseGenericBoxes(r *nino.Reader) []*Box[int64] {
-	return readV93(r)
+	return readV94(r)
 }
 
 // WriteCaseGenericBoxes writes `Nino.Benchmark.Box<System.Int64>[]` as a whole payload: nino.Serialize(v, WriteCaseGenericBoxes).
 func WriteCaseGenericBoxes(w *nino.Writer, v []*Box[int64]) {
-	writeV93(w, v)
+	writeV94(w, v)
 }
 
 // ReadCaseLongBoxes reads `Nino.Benchmark.LongBox[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseLongBoxes).
 func ReadCaseLongBoxes(r *nino.Reader) []*LongBox {
-	return readV94(r)
+	return readV95(r)
 }
 
 // WriteCaseLongBoxes writes `Nino.Benchmark.LongBox[]` as a whole payload: nino.Serialize(v, WriteCaseLongBoxes).
 func WriteCaseLongBoxes(w *nino.Writer, v []*LongBox) {
-	writeV94(w, v)
+	writeV95(w, v)
 }
 
 // ReadCaseSimpleStructs reads `Nino.Benchmark.SimpleStruct[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseSimpleStructs).
 func ReadCaseSimpleStructs(r *nino.Reader) []SimpleStruct {
-	return readV95(r)
+	return readV96(r)
 }
 
 // WriteCaseSimpleStructs writes `Nino.Benchmark.SimpleStruct[]` as a whole payload: nino.Serialize(v, WriteCaseSimpleStructs).
 func WriteCaseSimpleStructs(w *nino.Writer, v []SimpleStruct) {
-	writeV95(w, v)
+	writeV96(w, v)
 }
 
 // ReadCaseAsciiString32 reads `System.String` as a whole payload (--roots): nino.Deserialize(data, ReadCaseAsciiString32).
@@ -26019,12 +26369,12 @@ func WriteCaseAsciiWords(w *nino.Writer, v []*string) {
 
 // ReadCaseTolerantClasses reads `Nino.Benchmark.TolerantClass[]` as a whole payload (--roots): nino.Deserialize(data, ReadCaseTolerantClasses).
 func ReadCaseTolerantClasses(r *nino.Reader) []*TolerantClass {
-	return readV96(r)
+	return readV97(r)
 }
 
 // WriteCaseTolerantClasses writes `Nino.Benchmark.TolerantClass[]` as a whole payload: nino.Serialize(v, WriteCaseTolerantClasses).
 func WriteCaseTolerantClasses(w *nino.Writer, v []*TolerantClass) {
-	writeV96(w, v)
+	writeV97(w, v)
 }
 
 func decodeV0(r *nino.Reader, b []byte) *int64 {
@@ -26810,7 +27160,7 @@ func readV33(r *nino.Reader) *NullablePriority {
 	if !r.Present() {
 		return nil
 	}
-	x := readV97(r)
+	x := readV98(r)
 	return &x
 }
 
@@ -26852,7 +27202,7 @@ func writeV32(w *nino.Writer, v *nino.Decimal) {
 func writeV33(w *nino.Writer, v *NullablePriority) {
 	w.Present(v != nil)
 	if v != nil {
-		writeV97(w, *v)
+		writeV98(w, *v)
 	}
 }
 
@@ -27644,7 +27994,7 @@ func readV66(r *nino.Reader) []nino.NullableSlot[nino.Decimal] {
 	var e nino.NullableSlot[nino.Decimal]
 	v := make([]nino.NullableSlot[nino.Decimal], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 24 {
-		e = decodeV98(r, b[:24:24])
+		e = decodeV99(r, b[:24:24])
 		if r.Failed() {
 			return nil
 		}
@@ -27665,7 +28015,7 @@ func writeV66(w *nino.Writer, v []nino.NullableSlot[nino.Decimal]) {
 		return
 	}
 	for _, e := range v {
-		encodeV98(b[:24:24], e)
+		encodeV99(b[:24:24], e)
 		b = b[24:]
 	}
 }
@@ -27682,7 +28032,7 @@ func readV67(r *nino.Reader) []nino.NullableSlot[Vec3] {
 	var e nino.NullableSlot[Vec3]
 	v := make([]nino.NullableSlot[Vec3], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 16 {
-		e = decodeV99(r, b[:16:16])
+		e = decodeV100(r, b[:16:16])
 		if r.Failed() {
 			return nil
 		}
@@ -27703,7 +28053,7 @@ func writeV67(w *nino.Writer, v []nino.NullableSlot[Vec3]) {
 		return
 	}
 	for _, e := range v {
-		encodeV99(b[:16:16], e)
+		encodeV100(b[:16:16], e)
 		b = b[16:]
 	}
 }
@@ -27736,7 +28086,7 @@ func writeV69(w *nino.Writer, v []nino.Entry[int32, int32]) {
 	}
 	w.Length(len(v))
 	for _, e := range v {
-		writeV100(w, e)
+		writeV101(w, e)
 	}
 }
 
@@ -27944,7 +28294,7 @@ func readV83(r *nino.Reader) []nino.NullableSlot[SimpleStruct] {
 	var e nino.NullableSlot[SimpleStruct]
 	v := make([]nino.NullableSlot[SimpleStruct], 0, r.SliceCap(n, int(unsafe.Sizeof(e))))
 	for len(b) >= 16 {
-		e = decodeV101(r, b[:16:16])
+		e = decodeV102(r, b[:16:16])
 		if r.Failed() {
 			return nil
 		}
@@ -27965,7 +28315,7 @@ func writeV83(w *nino.Writer, v []nino.NullableSlot[SimpleStruct]) {
 		return
 	}
 	for _, e := range v {
-		encodeV101(b[:16:16], e)
+		encodeV102(b[:16:16], e)
 		b = b[16:]
 	}
 }
@@ -28097,28 +28447,28 @@ func writeV89(w *nino.Writer, v []PolymorphicClassBase) {
 	}
 }
 
-func readV90(r *nino.Reader) (v []NinoTuple2[uint8, int32]) {
+func readV90(r *nino.Reader) (v []UnionValue) {
 	readintoV90(r, &v)
 	return v
 }
 
-func writeV90(w *nino.Writer, v []NinoTuple2[uint8, int32]) {
+func writeV90(w *nino.Writer, v []UnionValue) {
 	if v == nil {
 		w.NullLength()
 		return
 	}
 	w.Length(len(v))
 	for _, e := range v {
-		writeV102(w, e)
+		WriteUnionValue(w, e)
 	}
 }
 
-func readV91(r *nino.Reader) (v []NinoTuple5[float64, int64, float64, float32, uint8]) {
+func readV91(r *nino.Reader) (v []NinoTuple2[uint8, int32]) {
 	readintoV91(r, &v)
 	return v
 }
 
-func writeV91(w *nino.Writer, v []NinoTuple5[float64, int64, float64, float32, uint8]) {
+func writeV91(w *nino.Writer, v []NinoTuple2[uint8, int32]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -28129,20 +28479,36 @@ func writeV91(w *nino.Writer, v []NinoTuple5[float64, int64, float64, float32, u
 	}
 }
 
-func readV92(r *nino.Reader) []PaddedRaw {
-	return nino.ReadRaw(r, 16, asIsPaddedRaw, nil, decodePaddedRaw)
-}
-
-func writeV92(w *nino.Writer, v []PaddedRaw) {
-	nino.WriteRaw(w, v, 16, asIsPaddedRaw, nil, []int{2, 3, 4, 5, 6, 7}, encodePaddedRaw)
-}
-
-func readV93(r *nino.Reader) (v []*Box[int64]) {
-	readintoV93(r, &v)
+func readV92(r *nino.Reader) (v []NinoTuple5[float64, int64, float64, float32, uint8]) {
+	readintoV92(r, &v)
 	return v
 }
 
-func writeV93(w *nino.Writer, v []*Box[int64]) {
+func writeV92(w *nino.Writer, v []NinoTuple5[float64, int64, float64, float32, uint8]) {
+	if v == nil {
+		w.NullLength()
+		return
+	}
+	w.Length(len(v))
+	for _, e := range v {
+		writeV104(w, e)
+	}
+}
+
+func readV93(r *nino.Reader) []PaddedRaw {
+	return nino.ReadRaw(r, 16, asIsPaddedRaw, nil, decodePaddedRaw)
+}
+
+func writeV93(w *nino.Writer, v []PaddedRaw) {
+	nino.WriteRaw(w, v, 16, asIsPaddedRaw, nil, []int{2, 3, 4, 5, 6, 7}, encodePaddedRaw)
+}
+
+func readV94(r *nino.Reader) (v []*Box[int64]) {
+	readintoV94(r, &v)
+	return v
+}
+
+func writeV94(w *nino.Writer, v []*Box[int64]) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -28153,12 +28519,12 @@ func writeV93(w *nino.Writer, v []*Box[int64]) {
 	}
 }
 
-func readV94(r *nino.Reader) (v []*LongBox) {
-	readintoV94(r, &v)
+func readV95(r *nino.Reader) (v []*LongBox) {
+	readintoV95(r, &v)
 	return v
 }
 
-func writeV94(w *nino.Writer, v []*LongBox) {
+func writeV95(w *nino.Writer, v []*LongBox) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -28169,7 +28535,7 @@ func writeV94(w *nino.Writer, v []*LongBox) {
 	}
 }
 
-func readV95(r *nino.Reader) []SimpleStruct {
+func readV96(r *nino.Reader) []SimpleStruct {
 	n := r.Length(12)
 	if n < 0 {
 		return nil
@@ -28191,7 +28557,7 @@ func readV95(r *nino.Reader) []SimpleStruct {
 	return v
 }
 
-func writeV95(w *nino.Writer, v []SimpleStruct) {
+func writeV96(w *nino.Writer, v []SimpleStruct) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -28207,12 +28573,12 @@ func writeV95(w *nino.Writer, v []SimpleStruct) {
 	}
 }
 
-func readV96(r *nino.Reader) (v []*TolerantClass) {
-	readintoV96(r, &v)
+func readV97(r *nino.Reader) (v []*TolerantClass) {
+	readintoV97(r, &v)
 	return v
 }
 
-func writeV96(w *nino.Writer, v []*TolerantClass) {
+func writeV97(w *nino.Writer, v []*TolerantClass) {
 	if v == nil {
 		w.NullLength()
 		return
@@ -28250,11 +28616,11 @@ func readintoV2(r *nino.Reader, p *[]*Item) {
 	*p = v
 }
 
-func readV97(r *nino.Reader) NullablePriority {
+func readV98(r *nino.Reader) NullablePriority {
 	return NullablePriority(r.I32())
 }
 
-func writeV97(w *nino.Writer, v NullablePriority) {
+func writeV98(w *nino.Writer, v NullablePriority) {
 	w.I32(int32(v))
 }
 
@@ -28474,7 +28840,7 @@ func readintoV65(r *nino.Reader, p *[]*Event) {
 	*p = v
 }
 
-func decodeV98(r *nino.Reader, b []byte) nino.NullableSlot[nino.Decimal] {
+func decodeV99(r *nino.Reader, b []byte) nino.NullableSlot[nino.Decimal] {
 	_ = b[23]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[nino.Decimal]{}
@@ -28482,7 +28848,7 @@ func decodeV98(r *nino.Reader, b []byte) nino.NullableSlot[nino.Decimal] {
 	return nino.NullableSlot[nino.Decimal]{HasValue: true, Value: decimalAt(r, b[8:])}
 }
 
-func encodeV98(b []byte, v nino.NullableSlot[nino.Decimal]) {
+func encodeV99(b []byte, v nino.NullableSlot[nino.Decimal]) {
 	_ = b[23]
 	if v.HasValue {
 		b[0] = 1
@@ -28491,7 +28857,7 @@ func encodeV98(b []byte, v nino.NullableSlot[nino.Decimal]) {
 	}
 }
 
-func decodeV99(r *nino.Reader, b []byte) nino.NullableSlot[Vec3] {
+func decodeV100(r *nino.Reader, b []byte) nino.NullableSlot[Vec3] {
 	_ = b[15]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[Vec3]{}
@@ -28499,7 +28865,7 @@ func decodeV99(r *nino.Reader, b []byte) nino.NullableSlot[Vec3] {
 	return nino.NullableSlot[Vec3]{HasValue: true, Value: decodeVec3(r, b[4:16])}
 }
 
-func encodeV99(b []byte, v nino.NullableSlot[Vec3]) {
+func encodeV100(b []byte, v nino.NullableSlot[Vec3]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1
@@ -28546,7 +28912,7 @@ func readintoV69(r *nino.Reader, p *[]nino.Entry[int32, int32]) {
 	}
 	var e nino.Entry[int32, int32]
 	for range n {
-		e = readV100(r)
+		e = readV101(r)
 		if r.Failed() {
 			*p = nil
 			return
@@ -28556,7 +28922,7 @@ func readintoV69(r *nino.Reader, p *[]nino.Entry[int32, int32]) {
 	*p = v
 }
 
-func writeV100(w *nino.Writer, v nino.Entry[int32, int32]) {
+func writeV101(w *nino.Writer, v nino.Entry[int32, int32]) {
 	w.I32(v.Key)
 	w.I32(v.Value)
 }
@@ -28789,7 +29155,7 @@ func readintoV81(r *nino.Reader, p *[]*NullableFields) {
 	*p = v
 }
 
-func decodeV101(r *nino.Reader, b []byte) nino.NullableSlot[SimpleStruct] {
+func decodeV102(r *nino.Reader, b []byte) nino.NullableSlot[SimpleStruct] {
 	_ = b[15]
 	if !r.BoolAt(b[0]) {
 		return nino.NullableSlot[SimpleStruct]{}
@@ -28797,7 +29163,7 @@ func decodeV101(r *nino.Reader, b []byte) nino.NullableSlot[SimpleStruct] {
 	return nino.NullableSlot[SimpleStruct]{HasValue: true, Value: decodeSimpleStruct(r, b[4:16])}
 }
 
-func encodeV101(b []byte, v nino.NullableSlot[SimpleStruct]) {
+func encodeV102(b []byte, v nino.NullableSlot[SimpleStruct]) {
 	_ = b[15]
 	if v.HasValue {
 		b[0] = 1
@@ -28911,7 +29277,34 @@ func readintoV89(r *nino.Reader, p *[]PolymorphicClassBase) {
 	*p = v
 }
 
-func readintoV90(r *nino.Reader, p *[]NinoTuple2[uint8, int32]) {
+func readintoV90(r *nino.Reader, p *[]UnionValue) {
+	n := r.Length(4)
+	if n < 0 {
+		*p = nil
+		return
+	}
+	old := *p
+	v := old[:0]
+	if old == nil || cap(old) < n {
+		var z UnionValue
+		v = make([]UnionValue, 0, r.SliceCap(n, int(unsafe.Sizeof(z))))
+	}
+	for i := range n {
+		var e UnionValue
+		if i < len(old) {
+			e = old[i]
+		}
+		ReadUnionValueInto(r, &e)
+		if r.Failed() {
+			*p = nil
+			return
+		}
+		v = append(v, e)
+	}
+	*p = v
+}
+
+func readintoV91(r *nino.Reader, p *[]NinoTuple2[uint8, int32]) {
 	n := r.Length(5)
 	if n < 0 {
 		*p = nil
@@ -28925,7 +29318,7 @@ func readintoV90(r *nino.Reader, p *[]NinoTuple2[uint8, int32]) {
 	}
 	var e NinoTuple2[uint8, int32]
 	for range n {
-		e = readV102(r)
+		e = readV103(r)
 		if r.Failed() {
 			*p = nil
 			return
@@ -28935,12 +29328,12 @@ func readintoV90(r *nino.Reader, p *[]NinoTuple2[uint8, int32]) {
 	*p = v
 }
 
-func writeV102(w *nino.Writer, v NinoTuple2[uint8, int32]) {
+func writeV103(w *nino.Writer, v NinoTuple2[uint8, int32]) {
 	w.U8(v.Item1)
 	w.I32(v.Item2)
 }
 
-func readintoV91(r *nino.Reader, p *[]NinoTuple5[float64, int64, float64, float32, uint8]) {
+func readintoV92(r *nino.Reader, p *[]NinoTuple5[float64, int64, float64, float32, uint8]) {
 	n := r.Length(29)
 	if n < 0 {
 		*p = nil
@@ -28954,7 +29347,7 @@ func readintoV91(r *nino.Reader, p *[]NinoTuple5[float64, int64, float64, float3
 	}
 	var e NinoTuple5[float64, int64, float64, float32, uint8]
 	for range n {
-		e = readV103(r)
+		e = readV104(r)
 		if r.Failed() {
 			*p = nil
 			return
@@ -28964,7 +29357,7 @@ func readintoV91(r *nino.Reader, p *[]NinoTuple5[float64, int64, float64, float3
 	*p = v
 }
 
-func writeV103(w *nino.Writer, v NinoTuple5[float64, int64, float64, float32, uint8]) {
+func writeV104(w *nino.Writer, v NinoTuple5[float64, int64, float64, float32, uint8]) {
 	w.F64(v.Item1)
 	w.I64(v.Item2)
 	w.F64(v.Item3)
@@ -28972,7 +29365,7 @@ func writeV103(w *nino.Writer, v NinoTuple5[float64, int64, float64, float32, ui
 	w.U8(v.Item5)
 }
 
-func readintoV93(r *nino.Reader, p *[]*Box[int64]) {
+func readintoV94(r *nino.Reader, p *[]*Box[int64]) {
 	n := r.Length(1)
 	if n < 0 {
 		*p = nil
@@ -28996,7 +29389,7 @@ func readintoV93(r *nino.Reader, p *[]*Box[int64]) {
 	*p = v
 }
 
-func readintoV94(r *nino.Reader, p *[]*LongBox) {
+func readintoV95(r *nino.Reader, p *[]*LongBox) {
 	n := r.Length(1)
 	if n < 0 {
 		*p = nil
@@ -29023,7 +29416,7 @@ func readintoV94(r *nino.Reader, p *[]*LongBox) {
 	*p = v
 }
 
-func readintoV96(r *nino.Reader, p *[]*TolerantClass) {
+func readintoV97(r *nino.Reader, p *[]*TolerantClass) {
 	n := r.Length(1)
 	if n < 0 {
 		*p = nil
@@ -29050,21 +29443,21 @@ func readintoV96(r *nino.Reader, p *[]*TolerantClass) {
 	*p = v
 }
 
-func readV100(r *nino.Reader) nino.Entry[int32, int32] {
+func readV101(r *nino.Reader) nino.Entry[int32, int32] {
 	var v nino.Entry[int32, int32]
 	v.Key = r.I32()
 	v.Value = r.I32()
 	return v
 }
 
-func readV102(r *nino.Reader) NinoTuple2[uint8, int32] {
+func readV103(r *nino.Reader) NinoTuple2[uint8, int32] {
 	var v NinoTuple2[uint8, int32]
 	v.Item1 = r.U8()
 	v.Item2 = r.I32()
 	return v
 }
 
-func readV103(r *nino.Reader) NinoTuple5[float64, int64, float64, float32, uint8] {
+func readV104(r *nino.Reader) NinoTuple5[float64, int64, float64, float32, uint8] {
 	var v NinoTuple5[float64, int64, float64, float32, uint8]
 	v.Item1 = r.F64()
 	v.Item2 = r.I64()
@@ -29560,6 +29953,12 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadTransformComponent, ReadTransformComponentInto, WriteTransformComponent), true
 	case "Nino.Benchmark.TreeNode":
 		return codecOf(ReadTreeNode, ReadTreeNodeInto, WriteTreeNode), true
+	case "Nino.Benchmark.UnionItem":
+		return codecOf(ReadUnionItem, ReadUnionItemInto, WriteUnionItem), true
+	case "Nino.Benchmark.UnionPoint":
+		return codecOf(ReadUnionPoint, ReadUnionPointInto, WriteUnionPoint), true
+	case "Nino.Benchmark.UnionValue":
+		return codecOf(ReadUnionValue, ReadUnionValueInto, WriteUnionValue), true
 	case "Nino.Benchmark.Workloads.UseItemCommand":
 		return codecOf(ReadUseItemCommand, ReadUseItemCommandInto, WriteUseItemCommand), true
 	case "Nino.Benchmark.Utf8Strings":
@@ -29782,6 +30181,10 @@ func NinoCodecOf(name string) (NinoCodec, bool) {
 		return codecOf(ReadCasePolymorphicClassArray, func(r *nino.Reader, p *[]PolymorphicClassBase) {
 			*p = ReadCasePolymorphicClassArray(r)
 		}, WriteCasePolymorphicClassArray), true
+	case "Nino.Benchmark.UnionValue[]":
+		return codecOf(ReadCaseUnionArray, func(r *nino.Reader, p *[]UnionValue) {
+			*p = ReadCaseUnionArray(r)
+		}, WriteCaseUnionArray), true
 	case "System.ValueTuple<System.Int32,System.Int64>[]":
 		return codecOf(ReadCaseIntLongPairs32, func(r *nino.Reader, p *[]NinoTuple2[int32, int64]) {
 			*p = ReadCaseIntLongPairs32(r)

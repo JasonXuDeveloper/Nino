@@ -12,8 +12,8 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/benchmarks/results}
 # One project for both runs: NINO_BENCH_V3=true builds it against Nino 3.3.13 into bin/v3 (see Nino.Benchmark.csproj).
 BENCH=$ROOT/benchmarks/Nino.Benchmark
-V3_DLL=bin/v3/Release/net10.0/Nino.Benchmark.dll
-V4_DLL=bin/Release/net10.0/Nino.Benchmark.dll
+V3_DLL=bin/v3/Release/net11.0/Nino.Benchmark.dll
+V4_DLL=bin/Release/net11.0/Nino.Benchmark.dll
 FILTER=${FILTER:-*}
 read -r -a FILTERS <<< "$FILTER"
 # The counts of each mode are in runtimes/csharp/benchmarks/Nino.Benchmark/Harness/NinoJobAttribute.cs.

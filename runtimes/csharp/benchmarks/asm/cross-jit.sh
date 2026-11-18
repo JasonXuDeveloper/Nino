@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs the JIT that compiles for the OTHER 64-bit architecture (arm64 on an x64 machine, x64 on an arm64 one)
-# into the .NET 10 runtime the benchmarks run on, and prints its file name. With
+# into the .NET 11 runtime the benchmarks run on, and prints its file name. With
 #   DOTNET_AltJit='*' DOTNET_AltJitName=<that name> DOTNET_JitDisasm='<methods>'
 # every method is compiled twice: by it (printed, never run) and by the real JIT (printed and run), so a run on one
 # machine shows the code of both architectures. Leave DOTNET_JitStdOutFile unset: both JITs would write the same file.
@@ -10,8 +10,8 @@
 set -euo pipefail
 dotnet=$(command -v dotnet)
 root=$(dirname "$(readlink -f "$dotnet")")
-version=$(dotnet --list-runtimes | awk '/^Microsoft.NETCore.App 10\./ { v = $2 } END { print v }')
-[ -n "$version" ] || { echo "no .NET 10 runtime" >&2; exit 1; }
+version=$(dotnet --list-runtimes | awk '/^Microsoft.NETCore.App 11\./ { v = $2 } END { print v }')
+[ -n "$version" ] || { echo "no .NET 11 runtime" >&2; exit 1; }
 runtime="$root/shared/Microsoft.NETCore.App/$version"
 case "$(uname -m)" in
   x86_64|amd64) host=x64; target=arm64 ;;

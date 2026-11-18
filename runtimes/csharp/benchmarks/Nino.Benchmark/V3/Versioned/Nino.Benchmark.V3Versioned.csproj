@@ -8,7 +8,7 @@
          format. Nino.Benchmark references it in its v3 build only (NINO_BENCH_V3=true), and calls the serializers
          v3 generates here (Nino.Benchmark.V3Versioned.NinoGen). Common.cs comes along for the workloads' data. -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <Optimize>true</Optimize>

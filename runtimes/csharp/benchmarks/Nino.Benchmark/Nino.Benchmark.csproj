@@ -2,7 +2,9 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>net11.0</TargetFramework>
+        <!-- C# 15 for the union case (Fixtures/UnionBenchmarkData.cs). -->
+        <LangVersion>preview</LangVersion>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <Optimize>true</Optimize>
@@ -51,7 +53,9 @@
         <Compile Remove="Adapters/**"/>
         <!-- The Nino.Core build the benchmarks must load (Harness/NinoCoreBuild.cs): BenchmarkDotNet's runner project
              takes Nino.Core through this one only, and once took the net8.0 build Nino.Immutable referenced. -->
-        <AssemblyMetadata Include="NinoCoreTfm" Value="$(NinoCoreTfm)"/>
+        <!-- Without -p:NinoCoreTfm, the newest build Nino.Core has (its TargetFrameworks): on .NET 11 its net10.0 build. -->
+        <AssemblyMetadata Include="NinoCoreTfm" Value="$(NinoCoreTfm)" Condition="'$(NinoCoreTfm)' != ''"/>
+        <AssemblyMetadata Include="NinoCoreTfm" Value="net10.0" Condition="'$(NinoCoreTfm)' == ''"/>
         <Protobuf Include="Workloads/workloads.proto" GrpcServices="None"/>
         <!-- SimpleTest's and PolymorphicTest's messages import protobuf-net's bcl.proto (DateTime, Guid) from Fixtures/. -->
         <Protobuf Include="Fixtures/cases.proto;Fixtures/protobuf-net/bcl.proto" ProtoRoot="Fixtures" GrpcServices="None"/>
