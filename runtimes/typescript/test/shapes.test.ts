@@ -137,7 +137,9 @@ describe("Shapes", () => {
     assert.equal(hex(data), expected);
     assert.deepEqual(deserializeExact(NullableGridsCodec, data), value);
     const grid = value.grid;
-    assert.equal(deserializeInto(NullableGridsCodec, data, value).grid, grid);
+    const restored = deserializeInto(NullableGridsCodec, data, value);
+    assert.ok(restored);
+    assert.equal(restored.grid, grid);
     for (const at of [9, 53]) {
       const bad = data.slice();
       bad[at] = 0xff;
