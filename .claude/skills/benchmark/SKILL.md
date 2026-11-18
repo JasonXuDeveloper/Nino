@@ -135,7 +135,8 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
      runtime before requesting the line: Go, `go test -c` the bench at both commits and diff `go tool objdump` with
      paths and addresses stripped; in TypeScript, diff each revision's benchmark harness, `src/nino.ts`, and the
      codecs and data its `bench/generate.sh` writes. Since #374 the runtime A/B workflow runs each revision's own
-     harness and generates its fixtures from the .NET benchmark schema. In Rust, `objdump -d` the bench binary each side builds with the line's
+     harness and generates its fixtures from the .NET benchmark schema. In Rust, run `objdump -d` on each benchmark
+     binary built with the line's
      `RUSTFLAGS=-Cllvm-args=-align-all-functions=6`, addresses stripped (after items moved between modules, also
      the `::h<hash>` suffixes, the moved paths mapped and the `# <symbol>` comments; criterion's code and a bench's
      own setup can land in other codegen units of the bench crate, so compare every `nino::` function and timed
