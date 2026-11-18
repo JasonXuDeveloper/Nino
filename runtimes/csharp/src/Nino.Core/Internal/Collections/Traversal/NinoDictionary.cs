@@ -19,9 +19,9 @@ namespace Nino.Core
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
         /// <summary>Writes the count and the pairs of a dictionary (not null).</summary>
-        // Inlined, with the loops out of line: the writer's address never reaches a call that is not inlined (raw
-        // pairs are written into one reservation taken here; other pairs go through a copy of the writer), so the
-        // caller keeps the writer's fields in registers.
+        // Inlined, with the loops out of line: the writer's address reaches no call that is not inlined (raw pairs are
+        // written into one reservation taken here; other pairs go through a copy of the writer), so the caller keeps
+        // the writer's fields in registers. The one exception is the polymorphic pair loop below.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write(Dictionary<TKey, TValue> value, ref Writer writer)
         {
@@ -35,26 +35,17 @@ namespace Nino.Core
                 return;
             }
 
-            // A polymorphic value: the base's generated pair loop, the dispatch inline (INinoFormatter.WritePairs32
-            // and its kin, constrained calls), for keys of a word written as it lies in memory, or strings. Asked
-            // before the string pairs below return, so NinoLoops is initialized when Tier1 compiles this.
-            if ((typeof(TKeyFormatter) == typeof(StringFormatter) ||
-                 RawFormatter.Is<TKey, TKeyFormatter>() && WordKey<TKey>.Size != 0) &&
-                !typeof(TValue).IsValueType && NinoLoops<TValueFormatter>.Pairs)
+            // A polymorphic value: the base's generated pair loop, the dispatch inline, for any key and key formatter
+            // (INinoFormatter<T>.WritePairs, one generic member the JIT specializes per key). A constrained call on the
+            // formatter's struct type, never a cast to the interface, which boxes and looks the generic method up per
+            // call: from code shared over a class key it costs one lookup of the instantiation per dictionary, never
+            // per pair. Asked before the string pairs below return, so NinoLoops is initialized when Tier1 compiles
+            // this. The writer goes as it is: the loop copies it into a local of its own and writes the count there,
+            // where a copy here too, in and out, was most of the call's fixed cost (one int pair 17.3 ns against 11.4,
+            // local x64); a member's body holds the writer by reference already, and a top-level call writes nothing else.
+            if (!typeof(TValue).IsValueType && NinoLoops<TValueFormatter>.Pairs)
             {
-                int count = value.Count;
-                writer.WriteLength(count);
-                if (count == 0)
-                    return;
-                Writer pairs = default;
-                writer.CopyTo(ref pairs);
-                if (typeof(TKeyFormatter) == typeof(StringFormatter))
-                    default(TValueFormatter).WriteStringPairs(value, ref pairs);
-                else if (WordKey<TKey>.Size == sizeof(int))
-                    default(TValueFormatter).WritePairs32(value, ref pairs);
-                else
-                    default(TValueFormatter).WritePairs64(value, ref pairs);
-                pairs.CopyTo(ref writer);
+                default(TValueFormatter).WritePairs<TKey, TKeyFormatter>(value, ref writer);
                 return;
             }
 
@@ -718,23 +709,5 @@ namespace Nino.Core
             HashTables.Link(dictionary, length);
             return reader;
         }
-    }
-
-    /// <summary>
-    /// The size of <typeparamref name="T"/> as a dictionary key the generated pair loops write as an <c>int</c> or a
-    /// <c>long</c> (<see cref="INinoFormatter.HasPairLoop"/>), or 0: a primitive or an enum of 4 or 8 bytes whose
-    /// memory is its wire form. Only these: a dictionary's entries of such a key lie as those of an <c>int</c> or a <c>long</c> key,
-    /// which those of a struct of the same size need not. A field of a class generic over the key alone, so the test
-    /// folds where the pair loop is shared code over a class value.
-    /// </summary>
-    internal static class WordKey<T>
-    {
-        public static readonly int Size =
-            BitConverter.IsLittleEndian && (typeof(T).IsPrimitive || typeof(T).IsEnum) &&
-            NinoLayout<T>.IsCanonical && !NinoLayout<T>.HasPadding &&
-            NinoLayout<T>.WireSize == Unsafe.SizeOf<T>() &&
-            (Unsafe.SizeOf<T>() == sizeof(int) || Unsafe.SizeOf<T>() == sizeof(long))
-                ? Unsafe.SizeOf<T>()
-                : 0;
     }
 }

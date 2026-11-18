@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -27,31 +28,11 @@ namespace Nino.Core
         bool HasElementLoop => false;
 
         /// <summary>
-        /// Whether <see cref="WritePairs32"/>, <see cref="WritePairs64"/> and <see cref="WriteStringPairs"/> write the
-        /// pairs of a <c>Dictionary&lt;TKey, T&gt;</c> (T the formatter's) in one loop (false, the default): generated
-        /// formatters of polymorphic bases in .NET 8+ builds, the dispatch inline and the writer in a local. Each is
-        /// called with the dictionary not empty and its count already written, and writes each value as
-        /// <see cref="INinoFormatter{T}.Serialize"/> does. They are not generic: a generic method is looked up on every
-        /// call (the JIT does not devirtualize those), where these are direct calls on the formatter even from shared
-        /// code. Called once.
+        /// Whether <see cref="INinoFormatter{T}.WritePairs{TKey,TKeyFormatter}"/> writes the pairs of a
+        /// <c>Dictionary&lt;TKey, T&gt;</c> (T the formatter's) in one loop (false, the default): generated formatters
+        /// of polymorphic bases, whose loop has the subtype dispatch inline and the writer in a local. Called once.
         /// </summary>
         bool HasPairLoop => false;
-
-        /// <summary>
-        /// Pairs whose keys are 4 bytes written as they lie in memory (a <c>Dictionary&lt;int, T&gt;</c>, or one whose
-        /// keys are another primitive or enum of that size, read as an <c>int</c>). Called only where
-        /// <see cref="HasPairLoop"/> is true.
-        /// </summary>
-        void WritePairs32(object dictionary, ref Writer writer) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WritePairs32));
-
-        /// <summary>As <see cref="WritePairs32"/>, for keys of 8 bytes (read as a <c>long</c>).</summary>
-        void WritePairs64(object dictionary, ref Writer writer) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WritePairs64));
-
-        /// <summary>As <see cref="WritePairs32"/>, for string keys in the default encoding.</summary>
-        void WriteStringPairs(object dictionary, ref Writer writer) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WriteStringPairs));
 
         /// <summary>
         /// The bytes an element of a long array or list brings into the cache (a constant: its object, and a line of
@@ -108,10 +89,10 @@ namespace Nino.Core
     /// are capabilities with defaults that report none: values of a fixed size (<see cref="FixedSize"/>,
     /// <see cref="WriteFixed"/>), blocks a collection moves as one run (<see cref="BlockMap"/>,
     /// <see cref="ReadBlock"/>), what a class body does (<see cref="BodyTraits"/>), the element and pair loops of
-    /// polymorphic bases (<see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>) and the
-    /// prefetch of long collections of classes (<see cref="INinoFormatter.PrefetchBytes"/>), implemented by generated
-    /// formatters and Nino.Core's own where they apply; Nino.Core's collection formatters also have internal ones (slots,
-    /// sized and external top-level writes).
+    /// polymorphic bases (<see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>,
+    /// <see cref="WritePairs{TKey,TKeyFormatter}"/>) and the prefetch of long collections of classes
+    /// (<see cref="INinoFormatter.PrefetchBytes"/>), implemented by generated formatters and Nino.Core's own where they
+    /// apply; Nino.Core's collection formatters also have internal ones (slots, sized and external top-level writes).
     /// </para>
     /// <para>
     /// The rule that keeps the defaults free: a call to a default a struct does not override boxes the struct
@@ -189,6 +170,19 @@ namespace Nino.Core
         [EditorBrowsable(EditorBrowsableState.Never)]
         void WriteElements(ReadOnlySpan<T> values, ref Writer writer) =>
             NinoThrow.MissingCapability(GetType(), nameof(WriteElements));
+
+        /// <summary>
+        /// Writes the count and the pairs of <paramref name="pairs"/>, each key as <typeparamref name="TKeyFormatter"/>
+        /// and each value as <see cref="Serialize"/> writes them, for any key and key formatter. Called only where
+        /// <see cref="INinoFormatter.HasPairLoop"/> is true, as a constrained call on the formatter's struct type
+        /// (<c>default(TFormatter).WritePairs&lt;TKey, TKeyFormatter&gt;(...)</c>), which the compiler resolves to the
+        /// formatter's own method: never through a cast to this interface, which boxes the formatter and looks the
+        /// generic method up per call.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        void WritePairs<TKey, TKeyFormatter>(Dictionary<TKey, T> pairs, ref Writer writer)
+            where TKeyFormatter : struct, INinoFormatter<TKey> =>
+            NinoThrow.MissingCapability(GetType(), nameof(WritePairs));
 
         /// <summary>
         /// The bytes of a slot, or -1 (the default): values whose element in a collection is a slot of a fixed size,

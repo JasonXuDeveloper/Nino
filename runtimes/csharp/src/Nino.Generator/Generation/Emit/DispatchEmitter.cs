@@ -295,8 +295,8 @@ internal static class DispatchEmitter
     /// one at a time through <c>Serialize</c>, each element took a call into the dispatch (too large to inline into the
     /// collection loop) with the writer in memory: LuminPack's List&lt;IFoo&gt; of 1,000 values of 20 subtypes took
     /// 5.0 us that way and 3.85 in this form (LuminPack 4.4; local x64, #305). The depth is checked once: no element
-    /// changes it. <c>WritePairs32</c> and its kin (<c>HasPairLoop</c>) are the same loop over a dictionary's pairs, each key
-    /// written by its formatter before the value (#308).
+    /// changes it. <c>WritePairs</c> (<c>HasPairLoop</c>) is the same loop over a dictionary's pairs, each key written
+    /// by its formatter before the value (#308), one generic method for every key (#345).
     /// </summary>
     private static void EmitWriteElements(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
     {
@@ -316,19 +316,12 @@ internal static class DispatchEmitter
         w.Close();
 
         w.Line();
-        // The pair loops only where they pay (.NET 8+): IL2CPP compiles every method of a type, called or not, and
-        // each is instantiated per kind of key.
-        w.Line(PairsBuild);
         w.Line($"bool {loops}.HasPairLoop => true;");
-        EmitWritePairs(w, t, services, loops, "WritePairs32", "int", $"{Core}UnmanagedFormatter<int>");
-        EmitWritePairs(w, t, services, loops, "WritePairs64", "long", $"{Core}UnmanagedFormatter<long>");
-        EmitWritePairs(w, t, services, loops, "WriteStringPairs", "string", $"{Core}StringFormatter");
-        string pairsSignature = $"<__TKey, __TKeyFormatter>(global::System.Collections.Generic.Dictionary<__TKey, {t}> pairs, ref {Core}Writer target)";
-        string keyConstraint = $"    where __TKeyFormatter : struct, {Core}INinoFormatter<__TKey>";
         w.Line();
-        w.Line($"private static void __WritePairs{pairsSignature}");
-        w.Line(keyConstraint);
-        w.Open();
+        // One generic loop for every key and key formatter, which Nino.Core reaches by a constrained call on this
+        // struct (the compiler specializes it per key; #345). Explicit, so its constraints are the interface's.
+        string pairsSignature = $"<__TKey, __TKeyFormatter>(global::System.Collections.Generic.Dictionary<__TKey, {t}> pairs, ref {Core}Writer target)";
+        w.Open($"void {formatter}.WritePairs{pairsSignature}");
         // The entries in place of the enumerator, whose MoveNext stayed a call per pair. A dictionary with removed
         // entries, or bodies too deep, go through the enumerator and the dispatch, out of line: in this method their
         // enumerator and calls took stack and registers from the loop.
@@ -340,32 +333,22 @@ internal static class DispatchEmitter
         w.Line("return;");
         w.Close();
         w.Line();
-        w.Line("ref var pair = ref global::System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
+        w.Line($"ref var pair = ref {services}NinoUnsafe.GetArrayDataReference(entries);");
+        // The count on the loop's own copy of the writer: the caller passes its writer as it is, so this is the one
+        // copy the call makes.
         EmitDispatchLoop(w, t, subtypes, services,
-            "for (; left > 0; left--, pair = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref pair, 1))",
-            pairs: true);
+            $"for (; left > 0; left--, pair = ref {services}NinoDictionaryEntries.Next(ref pair))",
+            pairs: true, first: "writer.WriteLength(left);");
         w.Close();
         w.Line();
         w.Line(GeneratedCode.NoInline);
         w.Line($"private static void __WritePairsThroughDispatch{pairsSignature}");
-        w.Line(keyConstraint);
+        w.Line($"    where __TKeyFormatter : struct, {Core}INinoFormatter<__TKey>");
         w.Open();
+        w.Line("target.WriteLength(pairs.Count);");
         EmitSlowLoop(w, "foreach (var pair in pairs)", pairs: true);
         w.Close();
-        w.Line("#endif");
     }
-
-    /// <summary>The condition of the pair loops (<c>HasPairLoop</c>): the builds that have them.</summary>
-    private const string PairsBuild = "#if NET8_0_OR_GREATER";
-
-    /// <summary>
-    /// A pair loop of <c>INinoFormatter</c> (<c>WritePairs32</c> and its kin) for keys read as
-    /// <paramref name="key"/>. Each is a line over one generic loop; the interface's methods are not generic, which a
-    /// call from shared code could not devirtualize.
-    /// </summary>
-    private static void EmitWritePairs(CodeWriter w, string t, string services, string formatter, string name,
-        string key, string keyFormatter) =>
-        w.Line($"void {formatter}.{name}(object dictionary, ref {Core}Writer writer) => __WritePairs<{key}, {keyFormatter}>({services}NinoObject.SameType<global::System.Collections.Generic.Dictionary<{key}, {t}>>(dictionary), ref writer);");
 
     /// <summary>
     /// A loop headed by <paramref name="loop"/> that writes each value as <c>Serialize</c> does, through the dispatch
@@ -388,10 +371,12 @@ internal static class DispatchEmitter
     /// and the writer in a local. A pair's key is written first, by its formatter.
     /// </summary>
     private static void EmitDispatchLoop(CodeWriter w, string t, List<DispatchEntry> subtypes, string services,
-        string loop, bool pairs)
+        string loop, bool pairs, string? first = null)
     {
         w.Line($"{Core}Writer writer = default;");
         w.Line("target.CopyTo(ref writer);");
+        if (first != null)
+            w.Line(first);
         w.Line(loop);
         w.Open();
         EmitPairKey(w, pairs, "writer");
