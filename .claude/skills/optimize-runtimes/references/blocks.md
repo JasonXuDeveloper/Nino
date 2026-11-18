@@ -82,6 +82,11 @@ value check in a runtime or a template.
   and the unaligned NEON copies cost 15–25 % more through 64 KiB. The lower threshold reproduces the AMD
   `rep movsb` transition. The current loader still has its own upper stop threshold, so the 1 MiB row does
   not reproduce every historical glibc configuration.
+  In real Rust codecs ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411)),
+  the scoped AVX2 candidate lowered reused writes by 14–33 % at 2,113 and 4,096 bytes on EPYC with the
+  forced threshold. The 2,113-byte writes also fell 9–10 % under the default loader on EPYC 7763 and 9V74.
+  Ordinary read measurements shifted by about 25–30 % even with the same revision on both sides. Keep the
+  current Rust copy until a write-only path and its production dispatch have their own measurements.
 - Keep `TypedArray.set` for ordinary TypeScript buffers. In 44339615693, copying through Wasm memory with both
   staging copies took 82–339 % more time than `TypedArray.set` across the default and historical threshold
   runs. For views already backed by Wasm memory, `memory.copy` varied from 8 % lower to 17 % higher by size and
