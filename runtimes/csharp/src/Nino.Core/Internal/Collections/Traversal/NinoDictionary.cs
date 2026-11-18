@@ -643,17 +643,7 @@ namespace Nino.Core
             bool insert = HashTables.Plan<TKey, TValue>.Inserts && HashTables.CanInsert(dictionary, length);
             if (insert && length >= EntriesFrom)
             {
-                try
-                {
-                    source = ReadEntries(dictionary, length, source);
-                }
-                catch
-                {
-                    // Data rejected part way: the dictionary is left empty, holding no reference the read stored.
-                    HashTables.Unlink(dictionary);
-                    throw;
-                }
-
+                source = ReadEntriesGuarded(dictionary, length, source);
                 return;
             }
 
@@ -681,6 +671,27 @@ namespace Nino.Core
             }
 
             source = reader;
+        }
+
+        /// <summary>
+        /// <see cref="ReadEntries"/>, with the dictionary left empty if the data is rejected part way, holding no
+        /// reference the read stored (<see cref="HashTables.Unlink{TKey,TValue}"/>). A method of its own: an exception
+        /// region in <see cref="ReadGuarded"/> slowed its loop for a few pairs too (one int-keyed pair 5 to 7 % slower
+        /// on Neoverse-N2, #320, run 44246428900), and one in <see cref="ReadEntries"/> would keep the reader out of
+        /// registers in its loop.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadEntriesGuarded(Dictionary<TKey, TValue> dictionary, int length, Reader reader)
+        {
+            try
+            {
+                return ReadEntries(dictionary, length, reader);
+            }
+            catch
+            {
+                HashTables.Unlink(dictionary);
+                throw;
+            }
         }
 
         /// <summary>
