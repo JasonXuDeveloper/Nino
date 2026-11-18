@@ -6,7 +6,6 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
 using Nino.Core;
 using Nino.Core.CompilerServices;
@@ -27,7 +26,7 @@ public class ProbeConfig : ManualConfig
 {
     public ProbeConfig()
     {
-        var job = Job.Default.WithRuntime(CoreRuntime.Core10_0).WithLaunchCount(1)
+        var job = NinoJobAttribute.OnNet11(Job.Default).WithLaunchCount(1)
             .WithIterationTime(TimeInterval.FromMilliseconds(250)).WithWarmupCount(3)
             .WithMinIterationCount(6).WithMaxIterationCount(10).WithMaxRelativeError(0.02);
         AddJob(job.WithId("Avx512"));
@@ -188,7 +187,7 @@ public unsafe class CopyGapProbe
 public class SingleProbeConfig : ManualConfig
 {
     public SingleProbeConfig() =>
-        AddJob(Job.Default.WithRuntime(CoreRuntime.Core10_0).WithLaunchCount(1)
+        AddJob(NinoJobAttribute.OnNet11(Job.Default).WithLaunchCount(1)
             .WithIterationTime(TimeInterval.FromMilliseconds(250)).WithWarmupCount(3)
             .WithMinIterationCount(6).WithMaxIterationCount(10).WithMaxRelativeError(0.02).WithId("Probe"));
 }
