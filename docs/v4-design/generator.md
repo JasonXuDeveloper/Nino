@@ -241,7 +241,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * A version-tolerant body whose first members are raw values (written by the body itself, not by a base's
   `WriteMembers`) reserves the region's length and those members together (`Writer.BeginRegion(size, out
   lengthPosition)`): one capacity check instead of two.
-* Body formatters report whether they open class bodies and can be read later in one `Traits` property
+* Body formatters report whether they open class bodies and can be read later in one `BodyTraits` property
   (`NinoBodyTraits.Nests | NinoBodyTraits.Deferrable`, constants the JIT folds), not two, and the registration of
   each concrete type is one call emitted straight into the assembly's registry
   (`NinoTypes.Register`/`RegisterFixed`/`RegisterTop`/`RegisterTracked<T, TFormatter>(id)`, which publishes the

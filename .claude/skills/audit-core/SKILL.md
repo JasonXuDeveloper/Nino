@@ -36,7 +36,10 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   `WriteFixed(in T value, ref byte destination)`), and blocks add `BlockMap` and `ReadBlock(ref T value, ref byte
   source)`: a block struct is a fixed-size type, one write for both. These are capability members of
   `INinoFormatter<T>` with defaults reporting none (#346): only the queries are called on a formatter that may lack
-  them, once per type into a `static readonly` field, since calling a default boxes the struct. Two stay
+  them, once per type into a `static readonly` field, since calling a default boxes the struct; so are `BodyTraits`
+  and the element and pair loops of polymorphic bases (`HasElementLoop`, `HasPairLoop`). A capability reached by an
+  `is` test, a cast or a boxed interface field on a formatter is a finding (the sized, external, raw-array and
+  prefetch interfaces are #346's next step). Two stay
   apart on purpose: `INinoRawBodyFormatter` (`BodySize`, `WriteRawBody(T value, ref byte, int offset)`) writes a
   non-sealed class's body without its type id, into a reservation the caller shares with that id (not
   `Serialize`'s bytes, so not `FixedSize`), with a constant offset folded into every store; and the internal

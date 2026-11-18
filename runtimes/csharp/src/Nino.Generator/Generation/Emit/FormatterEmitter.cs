@@ -63,7 +63,7 @@ internal static class FormatterEmitter
         }
         var body = new BodyEmitter(m, w, names);
 
-        // TypeId, Traits and Create are a few bytes of IL, which every runtime inlines without being told to. The
+        // TypeId, BodyTraits and Create are a few bytes of IL, which every runtime inlines without being told to. The
         // entry points and body forwarders are marked AggressiveInlining all the same: the JIT counts what it inlines
         // on its own judgement, and everything that inlines into that in turn, against the caller's inlining budget
         // (only a chain of AggressiveInlining methods from the caller raises the budget), and a caller that spent it
@@ -392,7 +392,7 @@ internal static class FormatterEmitter
         string t = m.TypeName;
         // NinoBodyTraits.Nests and NinoBodyTraits.Deferrable.
         int traits = (m.Depth.Nests ? 1 : 0) | (m.Depth.Deferrable ? 2 : 0);
-        w.Line($"public int Traits => {traits};");
+        w.Line($"public int BodyTraits => {traits};");
         if (!m.Depth.Deferrable)
         {
             w.Line($"public {t} Create() => default;");

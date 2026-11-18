@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -113,10 +114,85 @@ public struct CellPlainFormatter : INinoFormatter<Cell>
     }
 }
 
+/// <summary>A sealed class Nino has no formatter for, as the value of collections and dictionaries.</summary>
+public sealed class Note
+{
+    public int Code;
+    public string Text;
+}
+
+/// <summary>Writes a <see cref="Note"/> (not null) as a <c>(int, string)</c>. No capability members.</summary>
+public struct NotePlainFormatter : INinoFormatter<Note>
+{
+    public void Serialize(Note value, ref Writer writer)
+    {
+        writer.Write(value.Code);
+        writer.Write(value.Text);
+    }
+
+    public void Deserialize(ref Reader reader, ref Note value)
+    {
+        value ??= new Note();
+        reader.Read(out value.Code);
+        reader.Read(out value.Text);
+    }
+}
+
+/// <summary>
+/// The bytes of <see cref="NotePlainFormatter"/>, with the members a generated formatter of a polymorphic base has:
+/// an element loop, pair loops (each counting its calls), and a body that opens no class body.
+/// </summary>
+public struct NoteLoopFormatter : INinoFormatter<Note>
+{
+    [ThreadStatic] public static int ElementLoops;
+    [ThreadStatic] public static int PairLoops;
+
+    public void Serialize(Note value, ref Writer writer) => default(NotePlainFormatter).Serialize(value, ref writer);
+
+    public void Deserialize(ref Reader reader, ref Note value) =>
+        default(NotePlainFormatter).Deserialize(ref reader, ref value);
+
+    public int BodyTraits => 0;
+
+    public bool HasElementLoop => true;
+
+    public void WriteElements(ReadOnlySpan<Note> values, ref Writer writer)
+    {
+        ElementLoops++;
+        foreach (var value in values)
+            Serialize(value, ref writer);
+    }
+
+    public bool HasPairLoop => true;
+
+    public void WritePairs32(object dictionary, ref Writer writer) => WritePairs<int>(dictionary, ref writer);
+
+    public void WritePairs64(object dictionary, ref Writer writer) => WritePairs<long>(dictionary, ref writer);
+
+    public void WriteStringPairs(object dictionary, ref Writer writer) => WritePairs<string>(dictionary, ref writer);
+
+    // A dictionary whose keys are another word (uint, an enum) comes as one of int or long keys, as Nino.Core reads it.
+    private void WritePairs<TKey>(object dictionary, ref Writer writer)
+    {
+        PairLoops++;
+        foreach (var pair in Unsafe.As<Dictionary<TKey, Note>>(dictionary))
+        {
+            switch (pair.Key)
+            {
+                case string text: writer.Write(text); break;
+                case int word: writer.Write(word); break;
+                case long word: writer.Write(word); break;
+            }
+
+            Serialize(pair.Value, ref writer);
+        }
+    }
+}
+
 /// <summary>
 /// Users' formatters as the elements of collections: one with only Serialize and Deserialize (every capability of
-/// <see cref="INinoFormatter{T}"/> its default) and one with the block members, each writing the bytes of the type it
-/// stands in for.
+/// <see cref="INinoFormatter{T}"/> its default), one with the block members and one with the loops of a polymorphic
+/// base, each writing the bytes of the type it stands in for.
 /// </summary>
 [TestClass]
 public class ElementFormatterTests
@@ -208,6 +284,67 @@ public class ElementFormatterTests
             new Queue<Cell>(Cells), NinoSerializer.Serialize(new Queue<(int, short)>(pairs)), x => x);
         RoundTrip<Stack<Cell>, StackFormatter<Cell, CellBlockFormatter>, StackFormatter<Cell, CellPlainFormatter>>(
             new Stack<Cell>(Cells), NinoSerializer.Serialize(new Stack<(int, short)>(pairs)), x => x);
+    }
+
+    [TestMethod]
+    public void LoopFormatterAsElementOfEveryCollection()
+    {
+        Assert.IsFalse(NinoLoops<NotePlainFormatter>.Elements);
+        Assert.IsFalse(NinoLoops<NotePlainFormatter>.Pairs);
+        Assert.IsTrue(NinoLoops<NoteLoopFormatter>.Elements);
+        Assert.IsTrue(NinoLoops<NoteLoopFormatter>.Pairs);
+        Assert.IsFalse(NinoElements.WritesOnLocal<Note, NotePlainFormatter>());
+        Assert.IsTrue(NinoElements.WritesOnLocal<Note, NoteLoopFormatter>());
+
+        var notes = Enumerable.Range(0, 9).Select(i => new Note { Code = i * 7 - 20, Text = "n" + i }).ToArray();
+        static bool Same(IEnumerable<Note> a, IEnumerable<Note> b) =>
+            a.Select(x => (x.Code, x.Text)).SequenceEqual(b.Select(x => (x.Code, x.Text)));
+        int elements = NoteLoopFormatter.ElementLoops, pairs = NoteLoopFormatter.PairLoops;
+
+        Check<List<Note>, ListFormatter<List<Note>, Note, NoteLoopFormatter>,
+            ListFormatter<List<Note>, Note, NotePlainFormatter>>(notes.ToList(), x => x);
+        Check<Note[], ArrayFormatter<Note, NoteLoopFormatter>, ArrayFormatter<Note, NotePlainFormatter>>(notes, x => x);
+        Check<Queue<Note>, QueueFormatter<Note, NoteLoopFormatter>, QueueFormatter<Note, NotePlainFormatter>>(
+            new Queue<Note>(notes), x => x);
+        Check<Stack<Note>, StackFormatter<Note, NoteLoopFormatter>, StackFormatter<Note, NotePlainFormatter>>(
+            new Stack<Note>(notes), x => x);
+        Check<LinkedList<Note>, CollectionFormatter<LinkedList<Note>, Note, NoteLoopFormatter>,
+            CollectionFormatter<LinkedList<Note>, Note, NotePlainFormatter>>(new LinkedList<Note>(notes), x => x);
+        Assert.IsTrue(NoteLoopFormatter.ElementLoops >= elements + 2, "arrays and lists write through the loop");
+
+        // Every kind of key the pair loops take, one they do not (short), and a dictionary with a removed entry (the
+        // formatter's loop decides how to walk it).
+        Check<Dictionary<int, Note>, DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NoteLoopFormatter>,
+            DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NotePlainFormatter>>(
+            notes.ToDictionary(x => x.Code), x => x.Values);
+        Check<Dictionary<uint, Note>, DictionaryFormatter<uint, Note, UnmanagedFormatter<uint>, NoteLoopFormatter>,
+            DictionaryFormatter<uint, Note, UnmanagedFormatter<uint>, NotePlainFormatter>>(
+            notes.ToDictionary(x => (uint)x.Code), x => x.Values);
+        Check<Dictionary<long, Note>, DictionaryFormatter<long, Note, UnmanagedFormatter<long>, NoteLoopFormatter>,
+            DictionaryFormatter<long, Note, UnmanagedFormatter<long>, NotePlainFormatter>>(
+            notes.ToDictionary(x => (long)x.Code << 40), x => x.Values);
+        Check<Dictionary<string, Note>, DictionaryFormatter<string, Note, StringFormatter, NoteLoopFormatter>,
+            DictionaryFormatter<string, Note, StringFormatter, NotePlainFormatter>>(
+            notes.ToDictionary(x => x.Text), x => x.Values);
+        Assert.AreEqual(pairs + 4, NoteLoopFormatter.PairLoops, "int, uint, long and string keys");
+        Check<Dictionary<short, Note>, DictionaryFormatter<short, Note, UnmanagedFormatter<short>, NoteLoopFormatter>,
+            DictionaryFormatter<short, Note, UnmanagedFormatter<short>, NotePlainFormatter>>(
+            notes.ToDictionary(x => (short)x.Code), x => x.Values);
+        var removed = notes.ToDictionary(x => x.Code);
+        removed.Remove(notes[3].Code);
+        Check<Dictionary<int, Note>, DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NoteLoopFormatter>,
+            DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NotePlainFormatter>>(removed, x => x.Values);
+        Assert.AreEqual(pairs + 5, NoteLoopFormatter.PairLoops, "short keys take the shared loop");
+
+        // The same bytes and values through both formatters, and read back.
+        void Check<T, TLoop, TPlain>(T value, Func<T, IEnumerable<Note>> items)
+            where TLoop : struct, INinoFormatter<T>
+            where TPlain : struct, INinoFormatter<T>
+        {
+            byte[] bytes = NinoDirect.Serialize<T, TPlain>(value);
+            CollectionAssert.AreEqual(bytes, NinoDirect.Serialize<T, TLoop>(value), typeof(T).Name);
+            Assert.IsTrue(Same(items(value), items(NinoDirect.Deserialize<T, TLoop>(bytes))), typeof(T).Name);
+        }
     }
 
     /// <summary>

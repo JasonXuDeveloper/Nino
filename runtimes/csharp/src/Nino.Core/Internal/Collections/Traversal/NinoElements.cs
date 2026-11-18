@@ -6,6 +6,20 @@ using Nino.Core.CompilerServices;
 namespace Nino.Core.Internal
 {
     /// <summary>
+    /// The element and pair loops of <typeparamref name="TFormatter"/> (<see cref="INinoFormatter.HasElementLoop"/>,
+    /// <see cref="INinoFormatter.HasPairLoop"/>), read once: a formatter without them answers through its interface's
+    /// default, boxed. Generic over the formatter alone, so a test of a field folds where the loop is shared code over a
+    /// class element (whose formatter is still its exact struct). Each loop asks before any path that returns earlier,
+    /// so the class is initialized when Tier1 compiles it.
+    /// </summary>
+    internal static class NinoLoops<TFormatter> where TFormatter : struct, INinoFormatter
+    {
+        public static readonly bool Elements = default(TFormatter).HasElementLoop;
+
+        public static readonly bool Pairs = default(TFormatter).HasPairLoop;
+    }
+
+    /// <summary>
     /// The slots of <typeparamref name="TFormatter"/> (<see cref="INinoFormatter{T}.SlotStride"/>), read once: a
     /// formatter without them answers through its interface's default, boxed, so the hot paths read these fields and
     /// call the slot members only where it has them.
@@ -244,12 +258,7 @@ namespace Nino.Core.Internal
             public static readonly int MinWireSize = Math.Max(BlockStride<T, TFormatter>(), 1);
 
             public static readonly bool FlatClass = typeof(T).IsSealed && !typeof(T).IsValueType &&
-                                                    default(TFormatter) is INinoBodyFormatter<T> body &&
-                                                    (body.Traits & NinoBodyTraits.Nests) == 0;
-
-#if !NET8_0_OR_GREATER
-            public static readonly INinoElementsFormatter<T> Elements = default(TFormatter) as INinoElementsFormatter<T>;
-#endif
+                                                    (default(TFormatter).BodyTraits & NinoBodyTraits.Nests) == 0;
         }
 
         /// <summary>
@@ -293,24 +302,14 @@ namespace Nino.Core.Internal
             // The loop stays in this method: a helper of its own was not inlined where the element's formatter
             // writes a collection of its own type (a tree), which added a call per level (SelfTree serialize 0.86x on
             // EPYC 9V74, runner A/B of the rc.10 review head against main 51a7bd18).
-            // A polymorphic base: its generated loop, with the dispatch inline (INinoElementsFormatter). The
-            // netstandard2.1 build reads the formatter boxed once: IL2CPP and Mono box default(TFormatter) at each
-            // test and cast, a GC allocation per collection of any element type that reaches here.
-#if NET8_0_OR_GREATER
-            if (default(TFormatter) is INinoElementsFormatter<T>)
+            // A polymorphic base: its generated loop, with the dispatch inline (INinoFormatter.WriteElements), a
+            // constrained call on the formatter on every target. Only classes have one.
+            if (!typeof(T).IsValueType && NinoLoops<TFormatter>.Elements)
             {
                 if (!values.IsEmpty)
-                    ((INinoElementsFormatter<T>)default(TFormatter)).WriteElements(values, ref writer);
+                    default(TFormatter).WriteElements(values, ref writer);
                 return;
             }
-#else
-            if (Traits<T, TFormatter>.Elements is { } elements)
-            {
-                if (!values.IsEmpty)
-                    elements.WriteElements(values, ref writer);
-                return;
-            }
-#endif
 
             if (WritesOnLocal<T, TFormatter>())
             {

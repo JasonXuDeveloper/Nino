@@ -60,9 +60,8 @@ NinoLayoutsAttribute.cs      [assembly: NinoLayouts(@"...")]: an assembly's layo
 
 ```
 FormatterInterfaces.cs       INinoBodyFormatter<T> (+ NinoBodyTraits), INinoRawBodyFormatter<T>, INinoTopFormatter<T>
-                             (__Top twins), INinoRawFormatter, INinoElementsFormatter and INinoPairsFormatter (the
-                             element and pair loops of polymorphic bases), INinoPrefetchFormatter (classes whose long collections prefetch, in a project
-                             built with NinoPrefetchLargeCollections)
+                             (__Top twins), INinoRawFormatter, INinoPrefetchFormatter (classes whose long collections
+                             prefetch, in a project built with NinoPrefetchLargeCollections)
 NinoPrefetched.cs            NinoPrefetched.At: the prefetch generated INinoPrefetchFormatter.PrefetchMembers calls
 NinoObject.cs                header handling of generated class formatters: presence byte / type id / reference header,
                              then the body; the ...Raw forms write header and raw body into one reservation
@@ -102,8 +101,11 @@ Registration/                what a generated registry calls at startup:
 
 ```
 NinoFormatter.cs             INinoFormatter<T> (Serialize, Deserialize; capability members with defaults: FixedSize,
-                             WriteFixed, BlockMap, ReadBlock, internal slots); NinoFormatterBase<T> and its struct wrappers (StructFormatter,
-                             FixedStructFormatter, TopStructFormatter, NestingFormatter), RawFormatter,
+                             WriteFixed, BlockMap, ReadBlock, BodyTraits, WriteElements, internal slots) and the
+                             non-generic INinoFormatter it extends (the element and pair loops of polymorphic bases:
+                             HasElementLoop, HasPairLoop, WritePairs32/64, WriteStringPairs); NinoFormatterBase<T> and
+                             its struct wrappers (StructFormatter, FixedStructFormatter, TopStructFormatter,
+                             NestingFormatter), RawFormatter,
                              INinoSizedFormatter / NinoSized, CachedFormatter<T>
 NinoFormatterCache.cs        NinoFormatterCache<T>: the formatter of T (registered by generated code, else resolved);
                              NinoRaw<T>, NinoTopFormatter<T>, NinoRawArray<T> as static readonly fields;
@@ -228,7 +230,8 @@ HashTables.Checks.cs         its startup checks (the hashing of each implementat
 NinoCollections.cs           shared collection helpers (rented reads, pair loops, enumerable writes)
 NinoElements.cs              shared element loops of array-like formatters, capacity budgets (HeavyElements, HeavyHashed);
                              the block kinds every collection moves as one run (raw values, DateTimeOffset, block
-                             formatters, slots: raw T?); NinoSlots, the slot stride read once
+                             formatters, slots: raw T?); NinoSlots, the slot stride read once; NinoLoops, the element
+                             and pair loop queries read once per formatter
 NinoNesting.cs               which types can hold themselves through collections (they count depth per level)
 NinoPrefetch.cs              software prefetch for long top-level collections of scattered objects: the gate (formatter,
                              length against the last-level cache, allocation order sampled), the loops in runs, the
