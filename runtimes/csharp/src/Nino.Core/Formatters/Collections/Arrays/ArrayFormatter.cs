@@ -8,15 +8,17 @@ using Nino.Core.Internal;
 namespace Nino.Core
 {
     /// <summary><c>T[]</c>: length (-1 = null), then the elements. Reuses an existing array of the same length.</summary>
-    public struct ArrayFormatter<T, TFormatter> : INinoFormatter<T[]>, INinoSizedFormatter<T[]>
+    public struct ArrayFormatter<T, TFormatter> : INinoFormatter<T[]>
         where TFormatter : struct, INinoFormatter<T>
     {
+        bool INinoFormatter.HasSizedWrite => true;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        int INinoSizedFormatter<T[]>.Size(T[] value) =>
+        int INinoFormatter<T[]>.Size(T[] value) =>
             NinoElements.SizedBytes<T, TFormatter>(value == null ? -1 : value.Length);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoSizedFormatter<T[]>.WriteSized(T[] value, ref byte destination) =>
+        void INinoFormatter<T[]>.WriteSized(T[] value, ref byte destination) =>
             NinoElements.WriteSized<T, TFormatter>(ref destination, value, value == null);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

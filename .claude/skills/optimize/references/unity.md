@@ -51,7 +51,9 @@ value, a kernel hook or a kernel threshold. How to build and run Unity is `platf
   call. The .NET 8+ FullOpts listings stayed identical (1,048 methods). #346 removed that call: the block and slot
   members are members of `INinoFormatter<T>` itself (defaults reporting none), so `WriteValue`/`ReadValue` and the
   boxed `NinoBlockPlan.Formatter` and `NinoSlots.Formatter` fields are gone and every block or slot call is a
-  constrained call on the struct, on every target. The test `default(TFormatter) is IFoo`
+  constrained call on the struct, on every target; step 3 did the same for `NinoSized.Of` and `StructFormatter`'s
+  boxed external-write field (`NinoTopWrites<TFormatter>` reads the queries once, `Size`, `WriteSized` and
+  `TryWriteExternal` are constrained calls). The test `default(TFormatter) is IFoo`
   boxes too, and it runs for every formatter that reaches it, not only the ones that implement `IFoo`: e178937c
   added `default(TFormatter) is INinoElementsFormatter<T>` and the cast to `NinoElements.Write` in every build, so
   the netstandard2.1 build boxed once or twice per array or list of any non-block element; round 130 read

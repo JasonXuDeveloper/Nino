@@ -23,7 +23,7 @@ namespace Nino.Core.CompilerServices
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T, TFormatter>(in T value) where TFormatter : struct, INinoFormatter<T> =>
-            NinoSized.Is<T, TFormatter>() && NinoSized.Serialize<T, TFormatter>(value) is { } sized
+            NinoTopWrites<TFormatter>.Sized && NinoSized.Serialize<T, TFormatter>(value) is { } sized
                 ? sized
                 : NinoScratch.ToArray(value, default(DirectWriter<T, TFormatter>));
 
@@ -136,7 +136,7 @@ namespace Nino.Core.CompilerServices
 
         /// <summary>
         /// <see cref="Serialize{T,TFormatter}(in T)"/> of an array of a class whose formatter prefetches
-        /// (<see cref="INinoPrefetchFormatter"/>), called by the interceptors of a
+        /// (<see cref="INinoFormatter.PrefetchBytes"/>), called by the interceptors of a
         /// project built with <c>NinoPrefetchLargeCollections</c>: a long one of scattered objects is written with
         /// the objects ahead prefetched (<see cref="NinoPrefetch"/>), any other as by the plain call. The bytes are the
         /// same.

@@ -10,9 +10,10 @@ namespace Nino.Core
 {
     /// <summary>
     /// The capabilities of every <see cref="INinoFormatter{T}"/> that do not depend on <c>T</c>: the element and pair
-    /// loops of generated formatters of polymorphic bases. Never implemented alone. Their queries are read once per
-    /// formatter type, into fields of a class generic over the formatter alone, which fold even where the loop asking
-    /// them is shared generic code over a class <c>T</c> (a field of a class generic over <c>T</c> too would be a
+    /// loops of generated formatters of polymorphic bases, the prefetch of long collections of classes, and the queries
+    /// of the top-level writes of Nino.Core's own collection formatters. Never implemented alone. Their queries are read
+    /// once per formatter type, into fields of a class generic over the formatter alone, which fold even where the code
+    /// asking them is shared generic code over a class <c>T</c> (a field of a class generic over <c>T</c> too would be a
     /// lookup per collection there).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -51,6 +52,48 @@ namespace Nino.Core
         /// <summary>As <see cref="WritePairs32"/>, for string keys in the default encoding.</summary>
         void WriteStringPairs(object dictionary, ref Writer writer) =>
             NinoThrow.MissingCapability(GetType(), nameof(WriteStringPairs));
+
+        /// <summary>
+        /// The bytes an element of a long array or list brings into the cache (a constant: its object, and a line of
+        /// each object its reference members point to), or 0 (the default): generated formatters of non-generic
+        /// classes whose collections prefetch, in a project built with <c>NinoPrefetchLargeCollections</c>. An array or
+        /// a list of their objects larger than a quarter of the last-level cache, whose first objects are not in
+        /// allocation order, written by a top-level call or read into its existing objects by one
+        /// (<c>NinoDirect.SerializePrefetched</c>, <c>DeserializePrefetched</c>), is walked in runs of 16 elements, each
+        /// run prefetching the objects of the runs ahead (x64 and Arm64 on .NET 8 and later). Called once.
+        /// </summary>
+        int PrefetchBytes => 0;
+
+        /// <summary>
+        /// Whether <see cref="PrefetchMembers"/> prefetches the objects an element's members point to (false, the
+        /// default: only the elements' own objects are prefetched). Called once.
+        /// </summary>
+        bool HasMemberPrefetch => false;
+
+        /// <summary>
+        /// Prefetches the objects the reference members of <paramref name="value"/> (an element, never null) point to,
+        /// through <see cref="NinoPrefetched.At"/>, and returns the sum of what that returned. Called once the
+        /// element's own object was prefetched, by Nino.Core's loop over a run of elements, only where
+        /// <see cref="HasMemberPrefetch"/> is true.
+        /// </summary>
+        int PrefetchMembers(object value)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(PrefetchMembers));
+            return 0;
+        }
+
+        /// <summary>
+        /// Whether <see cref="INinoFormatter{T}.Size"/> and <see cref="INinoFormatter{T}.WriteSized"/> may know a
+        /// value's bytes before writing it (false, the default): collections whose elements are written as one block.
+        /// Nino.Core's alone. Called once.
+        /// </summary>
+        internal bool HasSizedWrite => false;
+
+        /// <summary>
+        /// Whether <see cref="INinoFormatter{T}.TryWriteExternal"/> may write a whole payload straight into a
+        /// caller's buffer (false, the default). Nino.Core's alone. Called once.
+        /// </summary>
+        internal bool HasExternalWrite => false;
     }
 
     /// <summary>
@@ -64,15 +107,18 @@ namespace Nino.Core
     /// <see cref="Serialize"/> and <see cref="Deserialize"/> are all a formatter has to implement. The other members
     /// are capabilities with defaults that report none: values of a fixed size (<see cref="FixedSize"/>,
     /// <see cref="WriteFixed"/>), blocks a collection moves as one run (<see cref="BlockMap"/>,
-    /// <see cref="ReadBlock"/>), what a class body does (<see cref="BodyTraits"/>) and the element and pair loops of
-    /// polymorphic bases (<see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>),
-    /// implemented by generated formatters and Nino.Core's own where they apply.
+    /// <see cref="ReadBlock"/>), what a class body does (<see cref="BodyTraits"/>), the element and pair loops of
+    /// polymorphic bases (<see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>) and the
+    /// prefetch of long collections of classes (<see cref="INinoFormatter.PrefetchBytes"/>), implemented by generated
+    /// formatters and Nino.Core's own where they apply; Nino.Core's collection formatters also have internal ones (slots,
+    /// sized and external top-level writes).
     /// </para>
     /// <para>
     /// The rule that keeps the defaults free: a call to a default a struct does not override boxes the struct
     /// (CoreCLR, Mono, IL2CPP). So only the queries (<see cref="FixedSize"/>, <see cref="BlockMap"/>,
-    /// <see cref="BodyTraits"/>, <see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>
-    /// and the slot stride) are ever called on a formatter that may lack a capability, once per type into a
+    /// <see cref="BodyTraits"/>, <see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>,
+    /// <see cref="INinoFormatter.PrefetchBytes"/>, <see cref="INinoFormatter.HasMemberPrefetch"/> and the internal
+    /// ones) are ever called on a formatter that may lack a capability, once per type into a
     /// <c>static readonly</c> field the JIT folds; the hot members are called only where that field says the
     /// formatter has them, and a formatter that has them implements them, so each is a direct, constrained call.
     /// </para>
@@ -181,65 +227,62 @@ namespace Nino.Core
 
         /// <summary>Rejects a presence byte other than 0 or 1 in <paramref name="count"/> slots (not zero).</summary>
         internal void CheckSlots(ref byte slots, int count) => NinoThrow.MissingCapability(GetType(), nameof(CheckSlots));
+
+        /// <summary>
+        /// The bytes <paramref name="value"/> is written as, or -1 when they are not known up front (for a given element
+        /// type, a JIT-time constant decides which): collections whose elements are written as one block (a count
+        /// times a fixed size). The top-level calls then allocate the result at that size and write the value straight
+        /// into it, without the scratch buffer and the copy out of it (<see cref="NinoSized"/>). Called only where
+        /// <see cref="INinoFormatter.HasSizedWrite"/> is true.
+        /// </summary>
+        internal int Size(T value)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(Size));
+            return -1;
+        }
+
+        /// <summary>Writes <paramref name="value"/> into the <see cref="Size"/> bytes at <paramref name="destination"/>.</summary>
+        internal void WriteSized(T value, ref byte destination) =>
+            NinoThrow.MissingCapability(GetType(), nameof(WriteSized));
+
+        /// <summary>
+        /// Writes <paramref name="value"/> as a whole payload straight into <paramref name="buffer"/> and returns true,
+        /// or returns false (nothing written) where it cannot, and the caller writes it through a scratch copy. Called
+        /// only where <see cref="INinoFormatter.HasExternalWrite"/> is true.
+        /// </summary>
+        internal bool TryWriteExternal(T value, IBufferWriter<byte> buffer)
+        {
+            NinoThrow.MissingCapability(GetType(), nameof(TryWriteExternal));
+            return false;
+        }
     }
 
     /// <summary>
-    /// Formatters that can tell how many bytes a value takes before writing it, cheaply: collections whose elements
-    /// are written as one block (a count times a fixed size). The top-level calls then allocate the result at that size
-    /// and write the value straight into it, without the scratch buffer and the copy out of it (<see cref="NinoSized"/>).
+    /// The top-level write capabilities of <typeparamref name="TFormatter"/>, read once per formatter (as
+    /// <see cref="NinoLoops{TFormatter}"/>): a formatter without them answers through its interface's default, boxed,
+    /// so the top-level calls read these fields and call the members only where it has them.
     /// </summary>
-    internal interface INinoSizedFormatter<T>
+    internal static class NinoTopWrites<TFormatter> where TFormatter : struct, INinoFormatter
     {
-        /// <summary>
-        /// The bytes <paramref name="value"/> is written as, or -1 when they are not known up front (for a given element
-        /// type, a JIT-time constant decides which).
-        /// </summary>
-        int Size(T value);
+        /// <summary><see cref="INinoFormatter.HasSizedWrite"/>.</summary>
+        public static readonly bool Sized = default(TFormatter).HasSizedWrite;
 
-        /// <summary>Writes <paramref name="value"/> into the <see cref="Size"/> bytes at <paramref name="destination"/>.</summary>
-        void WriteSized(T value, ref byte destination);
+        /// <summary><see cref="INinoFormatter.HasExternalWrite"/>.</summary>
+        public static readonly bool External = default(TFormatter).HasExternalWrite;
     }
 
-    /// <summary>A formatter that can fill a caller-provided buffer without a scratch copy.</summary>
-    internal interface INinoExternalFormatter<T>
-    {
-        bool TryWriteExternal(T value, IBufferWriter<byte> buffer);
-    }
-
-    /// <summary>Top-level serialization of a value whose size its formatter knows (<see cref="INinoSizedFormatter{T}"/>).</summary>
+    /// <summary>Top-level serialization of a value whose size its formatter knows (<see cref="INinoFormatter{T}.Size"/>).</summary>
     internal static class NinoSized
     {
-        /// <summary>Whether <typeparamref name="TFormatter"/> may know sizes: a JIT-time constant.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool Is<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-#if NET8_0_OR_GREATER
-            default(TFormatter) is INinoSizedFormatter<T>;
-#else
-            Of<T, TFormatter>.Formatter != null;
-
-        /// <summary>
-        /// The formatter boxed once: IL2CPP (its C++ shows it) and runtimes without RyuJIT's box removal box
-        /// <c>default(TFormatter)</c> at every cast to an interface, a GC allocation per top-level call, where RyuJIT
-        /// calls the struct directly.
-        /// </summary>
-        private static class Of<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
-        {
-            public static readonly INinoSizedFormatter<T> Formatter = default(TFormatter) as INinoSizedFormatter<T>;
-        }
-#endif
-
         /// <summary>
         /// <paramref name="value"/> as a new array of exactly its bytes, written straight into it; null when its size is
-        /// not known up front. The same bytes as a writer writes.
+        /// not known up front. The same bytes as a writer writes. Only where
+        /// <see cref="NinoTopWrites{TFormatter}.Sized"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
         {
-#if NET8_0_OR_GREATER
-            int size = ((INinoSizedFormatter<T>)default(TFormatter)).Size(value);
-#else
-            int size = Of<T, TFormatter>.Formatter.Size(value);
-#endif
+            int size = default(TFormatter).Size(value);
             if (size < 0)
                 return null;
             // Bytes are written little-endian, as Writer does (which rejects other hosts).
@@ -248,11 +291,7 @@ namespace Nino.Core
             // Zeroed, not uninitialized: the clearing brings the lines into the cache (as a fast string store), where
             // vector stores into fresh lines first read each one; 1,000 (int, long) took 1.3 times as long.
             var bytes = new byte[size];
-#if NET8_0_OR_GREATER
-            ((INinoSizedFormatter<T>)default(TFormatter)).WriteSized(value, ref NinoUnsafe.GetArrayDataReference(bytes));
-#else
-            Of<T, TFormatter>.Formatter.WriteSized(value, ref NinoUnsafe.GetArrayDataReference(bytes));
-#endif
+            default(TFormatter).WriteSized(value, ref NinoUnsafe.GetArrayDataReference(bytes));
             return bytes;
         }
     }
@@ -321,7 +360,7 @@ namespace Nino.Core
         internal virtual byte[] SerializeFixed(T value) => null;
 
         /// <summary>
-        /// Whether <see cref="SerializeSized"/> may apply (<see cref="INinoSizedFormatter{T}"/>). Read through
+        /// Whether <see cref="SerializeSized"/> may apply (<see cref="INinoFormatter.HasSizedWrite"/>). Read through
         /// <see cref="NinoTopFormatter{T}.Formatter"/>, as <see cref="FixedSize"/>, so a constant.
         /// </summary>
         internal virtual bool Sized => false;
@@ -425,29 +464,17 @@ namespace Nino.Core
         internal override INinoRawArrayFormatter RawArray =>
             default(TFormatter) is INinoRawArrayFormatter raw && raw.ElementSize != 0 ? raw : null;
 
-        internal override bool Sized => NinoSized.Is<T, TFormatter>();
+        internal override bool Sized => NinoTopWrites<TFormatter>.Sized;
 
         internal override byte[] SerializeSized(T value) => NinoSized.Serialize<T, TFormatter>(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal override void WriteExternal(T value, IBufferWriter<byte> buffer)
         {
-#if NET8_0_OR_GREATER
-            if (default(TFormatter) is INinoExternalFormatter<T> external && external.TryWriteExternal(value, buffer))
-#else
-            if (External.Formatter is { } external && external.TryWriteExternal(value, buffer))
-#endif
+            if (NinoTopWrites<TFormatter>.External && default(TFormatter).TryWriteExternal(value, buffer))
                 return;
             base.WriteExternal(value, buffer);
         }
-
-#if !NET8_0_OR_GREATER
-        private static class External
-        {
-            // Keep the compatibility runtimes from boxing on each write.
-            internal static readonly INinoExternalFormatter<T> Formatter = default(TFormatter) as INinoExternalFormatter<T>;
-        }
-#endif
     }
 
     /// <summary>

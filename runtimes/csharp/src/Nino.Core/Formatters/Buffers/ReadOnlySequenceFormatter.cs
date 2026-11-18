@@ -21,11 +21,12 @@ namespace Nino.Core
     /// after another. Read back as one segment.
     /// </summary>
     public struct ReadOnlySequenceFormatter<T, TFormatter> : INinoFormatter<ReadOnlySequence<T>>
-        , INinoExternalFormatter<ReadOnlySequence<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
+        bool INinoFormatter.HasExternalWrite => true;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        bool INinoExternalFormatter<ReadOnlySequence<T>>.TryWriteExternal(ReadOnlySequence<T> value, IBufferWriter<byte> buffer) =>
+        bool INinoFormatter<ReadOnlySequence<T>>.TryWriteExternal(ReadOnlySequence<T> value, IBufferWriter<byte> buffer) =>
             value.IsSingleSegment && NinoCollections.TryWriteRawExternal<T, TFormatter>(value.First, buffer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

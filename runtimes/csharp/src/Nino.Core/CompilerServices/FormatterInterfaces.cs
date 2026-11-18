@@ -92,42 +92,11 @@ namespace Nino.Core.CompilerServices
     }
 
     /// <summary>
-    /// Generated formatters of non-generic classes whose collections prefetch: an array or a list of their objects
-    /// larger than a quarter of the last-level cache (<see cref="PrefetchBytes"/> each), whose first objects are not
-    /// in allocation order, written by a top-level call or read into its existing objects by one
-    /// (<c>NinoDirect.SerializePrefetched</c>, <c>DeserializePrefetched</c>; generated only for a project built with
-    /// <c>NinoPrefetchLargeCollections</c>), is walked in runs of 16 elements, each run calling an out-of-line
-    /// helper that prefetches the objects of the runs ahead and the objects their members point to (x64 and Arm64 on
-    /// .NET 8 and later).
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface INinoPrefetchFormatter
-    {
-        /// <summary>
-        /// The bytes an element brings into the cache (a constant): its object, and a line of each object its reference
-        /// members point to.
-        /// </summary>
-        int PrefetchBytes { get; }
-
-        /// <summary>
-        /// Prefetches the objects the reference members of <paramref name="value"/> (an element, never null) point to,
-        /// through <see cref="NinoPrefetched.At"/>, and returns the sum of what that returned. Called once the
-        /// element's own object was prefetched, by Nino.Core's loop over a run of elements.
-        /// </summary>
-        int PrefetchMembers(object value);
-    }
-
-    /// <summary>Prefetches the collection's objects without walking their members.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public interface INinoObjectPrefetchFormatter
-    {
-        /// <summary>The bytes of one element's object.</summary>
-        int PrefetchBytes { get; }
-    }
-
-    /// <summary>
     /// Marker for struct formatters whose output is exactly the in-memory bytes of the value
-    /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly.
+    /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly. A marker with no members,
+    /// so nothing is ever called through it: it is tested as a type, by reflection once per type
+    /// (<c>RawFormatter&lt;T, TFormatter&gt;.Is</c>, the resolver) and on .NET 8+ by a test of the formatter's struct
+    /// type parameter that the JIT folds while importing the call, without boxing (<c>NullableFormatter</c>).
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
     public interface INinoRawFormatter

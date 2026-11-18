@@ -93,7 +93,13 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   (#346 step 2): `WriteElements` and `BodyTraits` are members of `INinoFormatter<T>`, `HasElementLoop`, `HasPairLoop`
   and the pair writes of the non-generic `INinoFormatter` it extends, where the netstandard builds called a boxed
   `INinoElementsFormatter<T>` field per collection and the .NET 8+ builds tested `is INinoElementsFormatter<T>` and
-  `is INinoPairsFormatter`. (4) The user-extensible points
+  `is INinoPairsFormatter`. Step 3 moved the rest a formatter's struct type parameter reaches: the prefetch of long
+  collections (`PrefetchBytes`, `HasMemberPrefetch`, `PrefetchMembers` on `INinoFormatter`, read by
+  `NinoPrefetch.Of<TFormatter>`; `Ahead` had cast `default(TFormatter)` to `INinoPrefetchFormatter` per run) and the
+  sized and external top-level writes (`NinoTopWrites<TFormatter>`; the netstandard builds had called a boxed
+  `INinoSizedFormatter<T>` / `INinoExternalFormatter<T>` field per top-level call). What stays is not a formatter type
+  parameter: `INinoRawArrayFormatter` (below) and the marker `INinoRawFormatter`, tested as a type. (4) The
+  user-extensible points
   above. Per top-level call, not per value: calls the interceptors leave alone (generic methods, another assembly's
   types, Unity's Roslyn 4.3, raw values and arrays of raw elements) read `NinoTopFormatter<T>`, `NinoRaw<T>` and
   `NinoRawArray<T>` as loads, so an array of raw elements is one `INinoRawArrayFormatter` interface call per call

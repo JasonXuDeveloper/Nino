@@ -273,7 +273,7 @@ internal sealed record TypeModel(
     // for any other type, whose layout is its members.
     string RawLayout,
     // The bytes an element of an array or list of this class brings into the cache (PrefetchRules), for the loop that
-    // prefetches long ones (the formatter implements INinoPrefetchFormatter); 0 for none.
+    // prefetches long ones (the formatter reports it as INinoFormatter.PrefetchBytes); 0 for none.
     int PrefetchBytes,
     // The members (C# names, read as value.Member) whose objects those loops prefetch too, once the element's object is
     // in the cache (PrefetchRules.Members).
@@ -281,7 +281,6 @@ internal sealed record TypeModel(
     // The serialization callbacks its bodies call (Callbacks.Build), or null for none: then nothing in its formatter
     // differs from a type without the feature.
     CallbackModel? Callbacks = null,
-    bool ObjectOnlyPrefetch = false,
     EquatableArray<UnionCase> Cases = default)
 {
     public bool IsGeneric => TypeParameters.Length != 0;

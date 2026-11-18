@@ -8,7 +8,7 @@ using Nino.Generator.Common;
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// Which classes' collections prefetch their objects (INinoPrefetchFormatter in Nino.Core; the interceptors of
+/// Which classes' collections prefetch their objects (INinoFormatter.PrefetchBytes in Nino.Core; the interceptors of
 /// top-level calls with an array or a list of them call NinoDirect's ...Prefetched methods), and the bytes one element
 /// brings into the cache: its object, and a line of each object its reference members point to. Nino.Core prefetches
 /// a collection whose elements take more than a quarter of the machine's last-level cache (NinoPrefetch.CacheBytes):

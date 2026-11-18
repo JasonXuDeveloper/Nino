@@ -49,7 +49,6 @@ internal static class FormatterEmitter
             iface += $", {CoreCompilerServices}INinoRawFormatter";
         if (m.RawBody)
             iface += $", {CoreCompilerServices}INinoRawBodyFormatter<{t}>";
-        iface += Prefetch(m);
 
         w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.FormatterConstraints}");
         if (m.Kind == FormatterKind.Union)
@@ -175,16 +174,12 @@ internal static class FormatterEmitter
         w.Close();
     }
 
-    /// <summary>The interface of a formatter whose collections prefetch (see <see cref="TypeModel.PrefetchBytes"/>).</summary>
-    private static string Prefetch(TypeModel m) =>
-        m.PrefetchBytes == 0 ? "" : m.ObjectOnlyPrefetch
-            ? $", {CoreCompilerServices}INinoObjectPrefetchFormatter"
-            : $", {CoreCompilerServices}INinoPrefetchFormatter";
-
     /// <summary>
-    /// INinoPrefetchFormatter of a formatter: the bytes an element brings into the cache, and the prefetch of the
-    /// objects one element's members point to, which Nino.Core's helper for long collections calls for each element of
-    /// a run (inlined there). A twin (<paramref name="twin"/>) calls its formatter's.
+    /// The prefetch members of a formatter whose collections prefetch (see <see cref="TypeModel.PrefetchBytes"/>;
+    /// INinoFormatter.PrefetchBytes in Nino.Core): the bytes an element brings into the cache, and where its members
+    /// point to objects worth prefetching, the prefetch of those (HasMemberPrefetch, PrefetchMembers), which Nino.Core's
+    /// helper for long collections calls for each element of a run (inlined there). A twin
+    /// (<paramref name="twin"/>) calls its formatter's.
     /// </summary>
     private static void EmitPrefetch(CodeWriter w, TypeModel m, FormatterNames names, bool twin = false)
     {
@@ -193,12 +188,11 @@ internal static class FormatterEmitter
         const string signature = "public int PrefetchMembers(object value)";
         w.Line();
         w.Line($"public int PrefetchBytes => {m.PrefetchBytes};");
-        if (m.ObjectOnlyPrefetch)
-            return;
-        w.Line(names.Inline);
         if (m.PrefetchMembers.Length == 0)
-            w.Line($"{signature} => 0;");
-        else if (twin)
+            return;
+        w.Line("public bool HasMemberPrefetch => true;");
+        w.Line(names.Inline);
+        if (twin)
             w.Line($"{signature} => default({m.Self}).PrefetchMembers(value);");
         else
         {
@@ -252,7 +246,7 @@ internal static class FormatterEmitter
             w.Line();
         }
 
-        OpenTwin(w, m, names, top, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>{Prefetch(m)}");
+        OpenTwin(w, m, names, top, $"{CoreCompilerServices}INinoBodyFormatter<{t}>, {CoreCompilerServices}INinoTopFormatter<{t}>");
         w.Line(names.Inline);
         w.Line(serializeTop
             ? $"{Signature.Serialize(t)} => __SerializeTop(value, ref writer);"
@@ -347,7 +341,7 @@ internal static class FormatterEmitter
         string t = m.TypeName;
         // The twin by its own name: the code naming it is in the formatter, where its nested types are in scope.
         string twin = ShallowTwinName;
-        OpenTwin(w, m, names, twin, $"{CoreCompilerServices}INinoBodyFormatter<{t}>{Prefetch(m)}");
+        OpenTwin(w, m, names, twin, $"{CoreCompilerServices}INinoBodyFormatter<{t}>");
         w.Line(names.Inline);
         w.Line(m.Kind == FormatterKind.Struct
             ? $"{Signature.Serialize(t)} => WriteBody(value, ref writer);"

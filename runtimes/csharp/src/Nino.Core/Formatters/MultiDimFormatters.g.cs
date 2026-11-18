@@ -14,13 +14,12 @@ namespace Nino.Core
 {
     /// <summary><c>T[,]</c>: both lengths (first is -1 for null), then the elements in row-major order.</summary>
     public struct Array2DFormatter<T, TFormatter> : INinoFormatter<T[,]>
-#if NET8_0_OR_GREATER
-        , INinoExternalFormatter<T[,]>
-#endif
         where TFormatter : struct, INinoFormatter<T>
     {
 #if NET8_0_OR_GREATER
-        bool INinoExternalFormatter<T[,]>.TryWriteExternal(T[,] value, IBufferWriter<byte> buffer) =>
+        bool INinoFormatter.HasExternalWrite => true;
+
+        bool INinoFormatter<T[,]>.TryWriteExternal(T[,] value, IBufferWriter<byte> buffer) =>
             MultiDim.TryWriteRawExternal<T, TFormatter>(value, 2, buffer);
 
 #endif
@@ -83,13 +82,12 @@ namespace Nino.Core
 
     /// <summary><c>T[,,]</c>: the three lengths (first is -1 for null), then the elements in row-major order.</summary>
     public struct Array3DFormatter<T, TFormatter> : INinoFormatter<T[,,]>
-#if NET8_0_OR_GREATER
-        , INinoExternalFormatter<T[,,]>
-#endif
         where TFormatter : struct, INinoFormatter<T>
     {
 #if NET8_0_OR_GREATER
-        bool INinoExternalFormatter<T[,,]>.TryWriteExternal(T[,,] value, IBufferWriter<byte> buffer) =>
+        bool INinoFormatter.HasExternalWrite => true;
+
+        bool INinoFormatter<T[,,]>.TryWriteExternal(T[,,] value, IBufferWriter<byte> buffer) =>
             MultiDim.TryWriteRawExternal<T, TFormatter>(value, 3, buffer);
 
 #endif
@@ -152,13 +150,12 @@ namespace Nino.Core
 
     /// <summary><c>T[,,,]</c>: the four lengths (first is -1 for null), then the elements in row-major order.</summary>
     public struct Array4DFormatter<T, TFormatter> : INinoFormatter<T[,,,]>
-#if NET8_0_OR_GREATER
-        , INinoExternalFormatter<T[,,,]>
-#endif
         where TFormatter : struct, INinoFormatter<T>
     {
 #if NET8_0_OR_GREATER
-        bool INinoExternalFormatter<T[,,,]>.TryWriteExternal(T[,,,] value, IBufferWriter<byte> buffer) =>
+        bool INinoFormatter.HasExternalWrite => true;
+
+        bool INinoFormatter<T[,,,]>.TryWriteExternal(T[,,,] value, IBufferWriter<byte> buffer) =>
             MultiDim.TryWriteRawExternal<T, TFormatter>(value, 4, buffer);
 
 #endif

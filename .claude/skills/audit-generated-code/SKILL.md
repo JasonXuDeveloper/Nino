@@ -72,7 +72,7 @@ what you learn"), and its one-line rule here.
   written up to three times per type (538 copies, 4.7% of the unit tests' output) until round 128, and with the
   forwarders `NinoPrefetch.Ahead`'s FullOpts listings stayed byte for byte the same. A loop every formatter would
   write the same way is Nino.Core's, and the interface takes what one value does: round 129 moved the last copy of
-  that loop (285 copies) into `NinoPrefetch.Members`, `INinoPrefetchFormatter.PrefetchMembers(object value)` per
+  that loop (285 copies) into `NinoPrefetch.Members`, `INinoFormatter.PrefetchMembers(object value)` (then `INinoPrefetchFormatter`'s) per
   element, 2.6% of the unit tests' output (3,814,657 to 3,714,852 bytes) with `Ahead`'s listings unchanged (how the
   loop must be written for that: `optimize`, `references/jit.md`, "Locals"). A switch whose cases end the
   same way ends it once after the switch (`default: continue;` for the keys it skips; the keyed fallback loop).
