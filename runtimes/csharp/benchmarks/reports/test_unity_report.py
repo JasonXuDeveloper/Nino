@@ -69,6 +69,18 @@ class UnityReportTests(unittest.TestCase):
         self.assertNotIn("Other.Test", text)
         self.assertNotIn("| Speed |", text)
 
+    def test_dotnet_case_names(self):
+        # Since #340 the player times the .NET suite's cases, under their names (the 6000.6 fixture: the 2022.3 one's
+        # results renamed), and the method says so.
+        text, _ = report("unity-bench-6000.6.9f1")
+        lines = text.splitlines()
+        self.assertIn("### Unity 6000.6.9f1", lines)
+        self.assertIn("| ByteIntPairs1000 | Serialize |", text)
+        self.assertIn("| AsciiString1000 | Deserialize |", text)
+        self.assertIn("on the cases of the .NET benchmark", text)
+        rows = [line.split(" | ")[0] for line in lines if line.startswith("| ") and "Case" not in line]
+        self.assertEqual(rows, ["| ByteIntPairs1000"] * 2 + ["| AsciiString1000"] * 2)
+
     def test_units_are_converted(self):
         self.assertEqual(unity_report.median_ns({"Unit": 2, "Median": 1.5}), 1.5e6)
         self.assertEqual(unity_report.median_ns({"Unit": 1, "Median": 2.0}), 2e3)

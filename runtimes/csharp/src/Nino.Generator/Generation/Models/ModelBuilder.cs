@@ -356,16 +356,19 @@ internal static partial class ModelBuilder
         // measures (LayoutTypes).
         List<TypeRegistration>? genericTypes = null;
         List<string>? layoutTypes = null;
+        List<string>? splitLayouts = null;
         if (namesTypes)
         {
             genericTypes = new List<TypeRegistration>();
             layoutTypes = new List<string>();
+            splitLayouts = new List<string>();
             foreach (var symbol in members.Symbols)
             {
                 if (MemberCollector.MemberType(symbol) is { } memberType)
                 {
                     ClosedGenerics.Collect(memberType, facts, genericTypes);
                     LayoutTypes.Collect(memberType, facts, layoutTypes);
+                    SplitLayouts.Collect(memberType, facts, splitLayouts);
                 }
             }
 
@@ -376,6 +379,7 @@ internal static partial class ModelBuilder
                 {
                     ClosedGenerics.Collect(item, facts, genericTypes);
                     LayoutTypes.Collect(item, facts, layoutTypes);
+                    SplitLayouts.Collect(item, facts, splitLayouts);
                     if (!generic && facts.Visibility.CanName(item) &&
                         facts.Resolver.Resolve(item, false) is { Registered: true } formatter &&
                         !facts.Raw.IsRawUnmanaged(item))
@@ -388,7 +392,10 @@ internal static partial class ModelBuilder
             }
             // The type itself (a raw struct has no member models) and what its base types name (List<Point>).
             for (ITypeSymbol? t = type; t != null; t = t.BaseType)
+            {
                 LayoutTypes.Collect(t, facts, layoutTypes);
+                SplitLayouts.Collect(t, facts, splitLayouts);
+            }
         }
 
         return new RegistrationModel(
@@ -406,7 +413,8 @@ internal static partial class ModelBuilder
             LayoutTypes: layoutTypes == null ? EquatableArray<string>.Empty : LayoutTypes.ToArray(layoutTypes),
             Nesting: genericTypes != null && facts.Resolver.HasNestingFormatters
                 ? facts.Resolver.NestingFormattersNamedIn(NestingSources(members.Models, genericTypes, collection, cases))
-                : EquatableArray<NestingModel>.Empty);
+                : EquatableArray<NestingModel>.Empty,
+            SplitLayouts: splitLayouts == null ? EquatableArray<string>.Empty : LayoutTypes.ToArray(splitLayouts));
     }
 
     private static IEnumerable<string> NestingSources(List<MemberModel> members, List<TypeRegistration> genericTypes,

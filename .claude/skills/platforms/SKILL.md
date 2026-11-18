@@ -1,6 +1,6 @@
 ---
 name: platforms
-description: "Every platform Nino runs on and how to test each locally - x64 with AVX-512/AVX2/SSSE3 only, Arm64 and Arm32 under qemu (with the flags that keep qemu from crashing), 32-bit and big-endian, no SIMD, WebAssembly, Mono and the net472 build, Unity IL2CPP and Burst, the netstandard2.1 build and interceptors off. Use when a change adds a platform-specific path, when something fails on one platform only, or before landing a change to a read or write path. Triggers: qemu, Arm32, linux-arm, x86, crossgen2, unaligned, Vector<T>, s390x, big-endian, Mono, net472, IL2CPP, Unity, Burst, DOTNET_EnableHWIntrinsic, netstandard2.1, netstandard2.0, .NET Framework, MissingMethodException, NinoRegularCalls, 平台, 跨平台, 32位, 大端."
+description: "Every platform Nino runs on and how to test each locally - x64 with AVX-512/AVX2/SSSE3 only, Arm64 and Arm32 under qemu (with the flags that keep qemu from crashing), 32-bit and big-endian, no SIMD, WebAssembly, Mono and the net472 build, Unity IL2CPP and Burst, the netstandard2.1 build and interceptors off. Use when a change adds a platform-specific path, when something fails on one platform only, or before landing a change to a read or write path. Triggers: qemu, Arm32, linux-arm, x86, crossgen2, unaligned, SIGBUS, StructLayout, Pack, FieldOffset, LayoutShapes, Vector<T>, s390x, big-endian, Mono, net472, IL2CPP, Unity, Burst, DOTNET_EnableHWIntrinsic, netstandard2.1, netstandard2.0, .NET Framework, MissingMethodException, NinoRegularCalls, 平台, 跨平台, 32位, 大端, 对齐, 布局."
 metadata:
   internal: true
 ---
@@ -79,11 +79,13 @@ about to run or change: most of these cost a session before they were written do
 - **Struct layouts and vectors** ([references/layouts.md](references/layouts.md)): take a BCL struct's layout from
   docs/layouts.md, never from memory or reference assemblies; check every CI runtime against CoreCLR x64's bytes
   (`BclFixtures.cs`) and `NinoLayout` against random shapes; never measure a vector by its declared fields, and test
-  every `Vector<T>` width on one machine; never read a pointer field by reflection; take what the generator sees
+  every `Vector<T>` width on one machine; never read a pointer field, or one `Pack` or `[FieldOffset]` may leave unaligned, by reflection
+  (SIGBUS on Arm); take what the generator sees
   (`delegate*` fields) from generated code, not from reflection, and read field types through
   `NinoReflection.LayoutFieldType`; run 32-bit Mono from extracted debs.
 - **Mono, Unity, IL2CPP and WebGL** ([references/mono-unity.md](references/mono-unity.md)): gate every netstandard
   `Vector<T>` operation on what Mono accelerates, not on `IsHardwareAccelerated`; no module initializers on HybridCLR;
   no run-time decisions from attributes on generic parameters (IL2CPP keeps none); never throw from a generic cache's
-  static initializer; no runtime code generation under IL2CPP; WebGL has no Burst (C kernels, SIMD only under
+  static initializer; no runtime code generation under IL2CPP; IL2CPP's `Pack` never moves a BCL struct field (measure layouts
+  on the running runtime; Burst gets `Pack` wrong too; a new layout form gets a `LayoutShapes` case) and an IL2CPP-only failure is debugged in the benchmark player, logging before any Nino call; WebGL has no Burst (C kernels, SIMD only under
   `__wasm_simd128__`, vector extensions instead of `wasm_simd128.h`); the Burst kernels write Nino.Core's bytes.

@@ -101,7 +101,8 @@ says which CPUs and cases moved.
   [multidimensional arrays](references/vectors-multidim.md).
 - **Unity, Burst and IL2CPP** ([references/unity.md](references/unity.md)): a generic formatter takes its type
   parameters' formatters as type parameters; never cast `default(TFormatter)` to an interface per value; native
-  kernels as function pointers in static fields, each `calli` in its own `NoInlining` helper; thresholds from a sweep;
+  kernels as function pointers in static fields, each `calli` in its own `NoInlining` helper, called only within their
+  contract (`Permute`'s ranges never overlap), checked in Core; thresholds from a sweep;
   build only the mask a call needs; where the WebGL kernels pay; what an IL2CPP class read costs.
 - **Prefetch, every runtime** ([references/prefetch.md](references/prefetch.md)): decided at generation time for
   references in contiguous containers, how each platform prefetches, and every attempt in .NET, Go and Rust with why it

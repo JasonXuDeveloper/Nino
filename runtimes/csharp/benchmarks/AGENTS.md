@@ -48,8 +48,10 @@ Nino.GeneratorBenchmark/     the source generator on a synthetic workload: gener
                              --no-analyzers, --json (medians, sizes, machine: report.yml's build section); its restore
                              downloads v3 3.3.13's generator and runtime (PackageDownload) for --generator/--core
 Nino.Benchmark.Schema/       the models (Fixtures/, Workloads/*Models.cs) built in C# 9 with the other libraries'
-                             attributes as no-op stand-ins (CompetitorAttributes.cs): what nino-gen and Unity read
-                             for the other platforms' benchmarks; ci.yml checks its types against Nino.Benchmark's
+                             attributes as no-op stand-ins (CompetitorAttributes.cs), for net11.0 and netstandard2.1
+                             (Unity's API: the stand-ins add System.Text.Json's attributes and Random's NextInt64 /
+                             NextSingle there): what nino-gen and Unity read for the other platforms' benchmarks;
+                             ci.yml checks its types against Nino.Benchmark's
 bench-cases.json             the case manifest BenchGen writes: every case, its libraries per build, the libraries
                              that break on it (Broken) and the quick subset (ci.yml's labeled pull-request run);
                              report.yml attaches it to a release, the reports draw broken cases as error
@@ -95,7 +97,8 @@ reports/                     what a release publishes: the results of runners as
   test_unity_report.py       tests of unity_report.py on fixtures/
   test_release_body.py       a dry run of report.yml's publish jobs (no network, no Chrome), the old sections, the
                              PNG crop (agents.yml runs every test_*.py)
-  fixtures/                  unity-bench-<version>/ results.xml + build.txt, and unity-bench-empty/, for those tests;
+  fixtures/                  unity-bench-<version>/ results.xml + build.txt (6000.6.9f1: the .NET suite's case names),
+                             and unity-bench-empty/, for those tests;
                              generator/ v3-<roots>.json and v4-<roots>.json (the old local run's numbers)
 .gitignore                   results/
 ```
@@ -107,8 +110,9 @@ reports/                     what a release publishes: the results of runners as
   `scripts/sync-benchmarks.ts`), which parses the old sections' headings in the bodies of releases up to
   v4.0.0-rc.9 too: change one only together with its parser there.
 - The models (`Fixtures/*.cs` but `CaseFormats.cs` and `ProtobufModel.cs`, and `Workloads/*Models.cs` and
-  `Common.cs`) are C# 9 (block-scoped namespaces, no collection expressions or primary constructors): the schema
-  project builds them so (`Nino.Benchmark.Schema`). They (but `TolerantClass.cs`) compile in the v3 build too: a
+  `Common.cs`) are C# 9 (block-scoped namespaces, no collection expressions or primary constructors) on
+  netstandard2.1's API (Unity compiles them): the schema project builds them so (`Nino.Benchmark.Schema`), and an API
+  netstandard2.1 lacks gets a stand-in in its `CompetitorAttributes.cs` behind `#if !NETCOREAPP`. They (but `TolerantClass.cs`) compile in the v3 build too: a
   class's models go in `Fixtures/`, never in its `Cases/` file, an attribute or member 3.3.13 lacks goes behind `#if NINO_BENCH_V3` (the v3 form first; another library's attribute
   needs none: the v3 builds reference its package, LuminPack's without its generator, `Directory.Build.props`), and a version-tolerant
   model goes in the v3 project that tolerates versions (`V3/Versioned`: `VersionedModels.cs`, `TolerantClass.cs`; a

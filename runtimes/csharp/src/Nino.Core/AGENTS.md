@@ -94,6 +94,9 @@ Registration/                what a generated registry calls at startup:
   NinoFunctionPointerFields.cs the delegate* fields of structs, by assembly and runtime name, as generated registries
                              register them (Register, merged across registries): the one source layouts take function
                              pointers from
+  NinoLayoutOffsets.cs       NinoLayoutOffsets: the compiled offsets of the generic structs IL2CPP lays out in two ways,
+                             as generated registries register them (the generator's SplitLayouts); NinoLayout measures
+                             those structs from them
 ```
 
 ## Formatters/
@@ -290,6 +293,9 @@ NinoLimits.cs                the settings read paths check, frozen as static rea
 NinoSeededHash.cs            SipHash-1-3 comparers for the tables Nino creates in Untrusted mode
 NinoThrow.cs                 throw helpers, out of line (NinoDataException for the data, InvalidOperationException else)
 NinoUntrusted.cs             the top-level reads in NinoSettings.Untrusted mode (trailing bytes, value checks)
+NinoElementLayouts.cs        NinoElementLayouts<T>: on IL2CPP, arrays Nino creates of a struct whose run-time element is
+                             smaller than its compiled sizeof (Pack in generic structs, #378, measured) get spare
+                             elements and their length set back, so compiled code never writes past them
 NinoValueChecks.cs           the fields of a raw type Untrusted mode checks (bool, DateTime, decimal, DateOnly, TimeOnly,
                              DateTimeOffset, a NinoNullable<T>'s presence and absent value), checked a field at a time
                              over a run of values, as vectors with periodic masks on .NET 8+

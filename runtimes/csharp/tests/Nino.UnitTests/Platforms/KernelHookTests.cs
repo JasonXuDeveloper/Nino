@@ -62,6 +62,9 @@ public unsafe class KernelHookTests
             byte* table, int count)
         {
             Check(count >= MinBlocks && sourceStride is > 0 and <= 64 && destinationStride is > 0 and <= 64);
+            // The two ranges never overlap (NinoKernels.Permute): Burst's 16-byte path stores whole vectors past a
+            // value's own bytes, so in place it overwrote the values after it before reading them (#378).
+            Check(source + (long)sourceStride * count <= destination || destination + (long)destinationStride * count <= source);
             Permutes++;
             NinoKernels.PermuteScalar(source, sourceStride, destination, destinationStride, table, count);
         }
@@ -366,6 +369,19 @@ public unsafe class KernelHookTests
         byte[] scalar = Write(false);
         CollectionAssert.AreEqual(scalar, Write(true));
         Assert.AreEqual(0, ScalarKernels.BoolSlots);
+    }
+
+    [TestMethod]
+    public void NullableSetsWrittenInPlaceNeverCallTheHookOverTheirOwnBytes()
+    {
+        // HashSet<int?> writes its entries' values into the output, then clears their slots there (SlotsWriteInPlace):
+        // a copy over its own bytes, which the kernels must not be given (the check in ScalarKernels.Permute). Burst's
+        // SSSE3 path wrote zeros from the second value on (#378).
+        foreach (int count in Lengths)
+        {
+            var set = new HashSet<int?>(Enumerable.Range(0, count).Select(i => i % 5 == 0 ? (int?)null : 7 * i));
+            Same(set, (a, b) => a.SetEquals(b));
+        }
     }
 
     [TestMethod]

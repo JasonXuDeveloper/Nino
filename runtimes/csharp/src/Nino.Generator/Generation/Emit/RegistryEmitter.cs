@@ -61,6 +61,8 @@ internal static class RegistryEmitter
         // runtime (reflection reports them as IntPtr on Mono and IL2CPP).
         foreach (var fields in pointerFields)
             w.Line($"{CoreCompilerServices}NinoFunctionPointerFields.Register({fields});");
+        // Before Add too: the compiled offsets of generic structs IL2CPP lays out in two ways (SplitLayouts).
+        w.Line($"{UsagesClass}.RegisterLayouts();");
         w.Line($"{Core}NinoRegistry.Add(new {name}());");
         // Libraries declaring formatters this assembly may resolve at runtime (see FormatterRules.RegisteringReferences).
         foreach (var formatter in options.RegisteringReferences)
@@ -110,7 +112,8 @@ internal static class RegistryEmitter
     }
 
     public static string EmitUsages(EquatableArray<FormatterRegistration> usages, EquatableArray<FactoryRegistration> factories,
-        EquatableArray<TypeRegistration> generics, EquatableArray<string> layoutTypes, bool fileScoped)
+        EquatableArray<TypeRegistration> generics, EquatableArray<string> layoutTypes,
+        EquatableArray<string> splitLayouts, bool fileScoped)
     {
         var w = new CodeWriter();
         var aliases = new List<string>();
@@ -143,6 +146,12 @@ internal static class RegistryEmitter
         foreach (var type in layoutTypes)
             w.Line($"[__NinoDynamicDependency(__Fields, typeof({type}))]");
         EmitIdDispatch(w, "internal static", "", cases, mask);
+        w.Line();
+        w.Line("/// <summary>Registers the compiled offsets of the generic structs IL2CPP lays out in two ways.</summary>");
+        w.Open("internal static void RegisterLayouts()");
+        foreach (var statement in splitLayouts)
+            w.Line(statement);
+        w.Close();
         w.Close();
         var body = GeneratedCode.WithAliases(w, null, aliases);
         return GeneratedCode.File("", aliases, body, fileScoped);

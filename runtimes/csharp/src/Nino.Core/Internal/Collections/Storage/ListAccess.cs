@@ -34,8 +34,23 @@ namespace Nino.Core.Internal
         /// <see cref="List{T}"/> gets <paramref name="capacity"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static TList Create<TList, T>(int capacity) where TList : List<T> =>
-            typeof(TList) == typeof(List<T>) ? (TList)new List<T>(capacity) : NinoActivator<TList>.Create();
+        public static TList Create<TList, T>(int capacity) where TList : List<T>
+        {
+#if !NET8_0_OR_GREATER
+            // IL2CPP runs this build only (NinoElementLayouts).
+            if (typeof(TList) == typeof(List<T>) && !NinoUnsafe.IsReferenceOrContainsReferences<T>() &&
+                !RuntimeFeature.IsDynamicCodeSupported && NinoReflection.IsIl2Cpp && NinoElementLayouts<T>.Oversized &&
+                CollectionViews.List && capacity > 0)
+            {
+                // A List<T>'s own array would be too small for compiled code on IL2CPP (NinoElementLayouts).
+                var list = new List<T>();
+                CollectionFields.Items(list) = NinoUnsafe.NewArray<T>(capacity, false);
+                return (TList)list;
+            }
+#endif
+
+            return typeof(TList) == typeof(List<T>) ? (TList)new List<T>(capacity) : NinoActivator<TList>.Create();
+        }
 
         /// <summary>
         /// A new <typeparamref name="TList"/> that the caller fills with <paramref name="count"/> elements (not

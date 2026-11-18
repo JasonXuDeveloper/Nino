@@ -4,7 +4,7 @@
          nino-gen (the Go, Rust and TypeScript benchmarks' codecs) and Unity's benchmark read, so every platform times the
          same types. ci.yml builds it and checks that its types' layouts are Nino.Benchmark's (#335). -->
     <PropertyGroup>
-        <TargetFramework>net11.0</TargetFramework>
+        <TargetFrameworks>net11.0;netstandard2.1</TargetFrameworks>
         <LangVersion>9</LangVersion>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>

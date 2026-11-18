@@ -57,7 +57,8 @@ internal static partial class ModelBuilder
             bool utf8 = known.WritesUtf8(symbol);
             var resolved = facts.Resolver.Resolve(memberType, utf8);
             formatter = resolved?.Code;
-            registered = resolved?.Registered == true;
+            // A [NinoUtf8] member's formatter writes another encoding than its type's own: never the global one.
+            registered = resolved?.Registered == true && !utf8;
             traits = resolved?.Traits ?? FormatterTraits.None;
             if (resolved is { } r)
             {

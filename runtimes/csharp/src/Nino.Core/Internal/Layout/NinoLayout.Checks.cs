@@ -25,7 +25,7 @@ namespace Nino.Core.Internal
             try
             {
                 var checks = new List<int>();
-                if (KeepsDeclarationOrder && AddChecks(type, 0, checks))
+                if (KeepsDeclarationOrder && !HoldsTabled(type) && AddChecks(type, 0, checks))
                     return checks.Count != 0 ? new NinoValueChecks(checks.ToArray()) : null;
                 // Offsets read from an instance, as Compute reads them where the model does not describe the type
                 // (.NET Framework, auto-layout structs inside).

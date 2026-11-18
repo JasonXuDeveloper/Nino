@@ -10,6 +10,9 @@ Nino.Core, the Roslyn 4.3 generator, the code fixes and Nino.UnityTypes. Only th
 ```
 .gitignore                   Unity's own ignores (Library/, Temp/, Logs/, ...); the root .gitignore does not cover them
 .vsconfig                    Visual Studio's Unity workload
+bench/generate.sh            the Unity benchmark's inputs from the .NET suite (runtimes/csharp/benchmarks): its models,
+                             the case list (BenchCases.cs, with the closed generic [NinoType]s to register) and each
+                             case's Nino bytes, written into Assets/ and ignored; unity.yml runs it for the benchmark
 ProjectSettings/             the project's settings and Unity version; BurstAotSettings_StandaloneLinux64.json (the
                              Burst targets of the Linux player CI builds)
 Packages/
@@ -50,8 +53,11 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
                              no interceptors), RuntimePathsInEditMode
   Runtime/                   RuntimePathsTests (CollectionViews, ObjectTypes.Retype, SortedSetNodes, ReadLinked,
                              ConcurrentTables against the public API), BclLayoutTests (BCL structs in raw structs, and
-                             tuples and pairs, and the fixed lanes that replace a refused Vector<T>, against
-                             CoreCLR's bytes in BclFixtures.cs, of the types in BclFixtureTypes.cs (both shared with
+                             tuples and pairs, the fixed lanes that replace a refused Vector<T>, and structs under
+                             every StructLayout form (LayoutShapes: Pack, which IL2CPP ignores, Size, Explicit), against
+                             CoreCLR's bytes in BclFixtures.cs; the generic structs IL2CPP lays out in two ways named in
+                             top-level calls and as SplitHolder's members, which the generator registers, while generic
+                             code is refused), of the types in BclFixtureTypes.cs (both shared with
                              runtimes/csharp/tests/Nino.RuntimeTests, which links them and rewrites BclFixtures.cs: --write-fixtures);
                              a [NinoRaw] formatter of the user's bound at run time by the marks its registry
                              registers; logs this runtime's layouts), FunctionPointerTests (C# 9 delegate* fields in a
@@ -62,8 +68,8 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
   Runtime/Burst/             BurstKernelTests (the kernels against the scalar paths, byte for byte; asserts the pointer
                              calls, that every kernel passed the self-test, and that the self-test leaves out a wrong
                              kernel, and in the editor a throwing one), BurstBenchmark (only in the release
-                             benchmark's player: NINO_UNITY_BENCH) and its BenchClasses (SimpleClass, as in the .NET
-                             suite)
+                             benchmark's player: NINO_UNITY_BENCH) on the .NET suite's cases, which
+                             bench/generate.sh writes into Cases/ (ignored) and StreamingAssets/NinoBench/
   WebGL/                     WebGLBench (the WebGL player's checks of Nino.WebGL, timed with NINO_WEBGL_TIMING; a
                              coroutine, as the WebGL player collects garbage between frames); Editor/WebGLBenchBuild
                              builds that player (-ninoTiming for the timed build)
@@ -89,7 +95,8 @@ Assets/Test/                 the tests (asmdefs: Test, Model, CrossRef, Editor.T
   2.0's compiler stored there, which the Library cache brings back from an earlier container and which can be a
   thread of the editor itself (`audit-ci`, "Bound every Unity launch").
   report.yml calls it with `benchmark: true` for a release: editor tests skipped, the player built as a release
-  build with BurstBenchmark, its results uploaded as `unity-bench-<version>` for `runtimes/csharp/benchmarks/reports/unity_report.py`.
+  build with BurstBenchmark on the .NET suite's cases (`bench/generate.sh` first), its results uploaded as
+  `unity-bench-<version>` for `runtimes/csharp/benchmarks/reports/unity_report.py`.
 - Then per version a WebGL player with SIMD (`webgl` job, after the tests, also `max-parallel: 1`), run in headless
   Chrome by `.github/scripts/webgl_run.mjs`: WebGLBench must report the kernels registered and no failure; the
   benchmark's run also times each case (artifact `webgl-<version>`).

@@ -213,7 +213,9 @@ internal sealed record RegistrationModel(
     // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
     EquatableArray<string> LayoutTypes,
     // The nesting formatters its formatters name (FormatterResolver.NestingFormattersNamedIn), declared once per assembly.
-    EquatableArray<NestingModel> Nesting);
+    EquatableArray<NestingModel> Nesting,
+    // Statements registering the compiled offsets of the generic structs IL2CPP lays out in two ways (SplitLayouts).
+    EquatableArray<string> SplitLayouts);
 
 // A null id depends on the closed formatter's type arguments. Leaf: a case that cannot hold the union again (raw
 // unmanaged, a string, a nullable of a raw value), so a union of leaves needs no depth count of its own.
@@ -496,7 +498,7 @@ internal sealed record TypeRegistration(string TypeName, string Formatter, int I
 // (null when the type is a [NinoType]), and the closed generic [NinoType]s its type names.
 internal sealed record UsageRegistration(FormatterRegistration? Formatter, EquatableArray<FactoryRegistration> Factories,
     EquatableArray<TypeRegistration> GenericTypes, EquatableArray<string> LayoutTypes,
-    EquatableArray<NestingModel> Nesting);
+    EquatableArray<NestingModel> Nesting, EquatableArray<string> SplitLayouts);
 
 // The formatter of a type that holds itself through collections (FormatterResolver.GeneratedNestingFormatter): the struct
 // Name (in NinoGen) counts a level of TypeName and calls Body, which names Name again for the elements.

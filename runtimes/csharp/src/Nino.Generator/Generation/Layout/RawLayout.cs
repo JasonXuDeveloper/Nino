@@ -33,10 +33,17 @@ internal static class RawLayout
 
         var wide = new List<NinoLayoutCore.Leaf>();
         var narrow = new List<NinoLayoutCore.Leaf>();
+        var unpacked = new List<NinoLayoutCore.Leaf>();
         var view = new SymbolView(type, canonical: false);
+        // IL2CPP ignores [StructLayout(Pack)] (a Pack = 4 struct of an int and a DateTime is 16 bytes there, 12 on
+        // CoreCLR and Mono: unity.yml run 44063778182, #378): a struct Pack changes is laid out apart on it.
         return NinoLayoutCore.Measure(view, type, new NinoLayoutModel(8, 8, 8), 0, wide, out int wideSize, out _) &&
                NinoLayoutCore.Measure(view, type, new NinoLayoutModel(4, 4, 4), 0, narrow, out int narrowSize, out _) &&
-               wideSize == narrowSize && wide.Select(l => l.Offset).SequenceEqual(narrow.Select(l => l.Offset));
+               NinoLayoutCore.Measure(new SymbolView(type, canonical: false, ignorePack: true), type,
+                   new NinoLayoutModel(8, 8, 8), 0, unpacked, out int unpackedSize, out _) &&
+               wideSize == narrowSize && wideSize == unpackedSize &&
+               wide.Select(l => l.Offset).SequenceEqual(narrow.Select(l => l.Offset)) &&
+               wide.Select(l => l.Offset).SequenceEqual(unpacked.Select(l => l.Offset));
     }
 
     /// <summary>
@@ -307,6 +314,13 @@ internal static class RawLayout
         return kind;
     }
 
+    /// <summary>The <c>Pack</c> of a struct's <c>[StructLayout]</c>, from source or metadata alike; 0 for none.</summary>
+    public static int PackOf(ITypeSymbol type)
+    {
+        ReadLayout(type, out _, out int pack, out _);
+        return pack;
+    }
+
     /// <summary>
     /// Reads a struct's <c>[StructLayout]</c>: from the type table when the type comes from metadata (whose reader is
     /// returned, for the field offsets), else from its attributes.
@@ -359,9 +373,10 @@ internal static class RawLayout
     /// <c>Int128</c> in it (<see cref="IsInt128"/>; one on its own, <paramref name="top"/>, is). For the canonical
     /// layout (<paramref name="canonical"/>, <see cref="Describe"/>): <c>nint</c>, <c>nuint</c> and pointers
     /// (<c>delegate*</c> too) are 8 bytes, <c>Int128</c> and <c>UInt128</c> 16 aligned to 16, as on 64-bit .NET 8 and
-    /// later (spec §5.2).
+    /// later (spec §5.2). With <paramref name="ignorePack"/>, every <c>Pack</c> is left out, as IL2CPP leaves it out.
     /// </summary>
-    private readonly struct SymbolView(ITypeSymbol top, bool canonical) : INinoLayoutView<ITypeSymbol>
+    private readonly struct SymbolView(ITypeSymbol top, bool canonical, bool ignorePack = false)
+        : INinoLayoutView<ITypeSymbol>
     {
         public NinoLeaf Leaf(ITypeSymbol type)
         {
@@ -408,6 +423,8 @@ internal static class RawLayout
                 pack = minSize = 0;
             }
 
+            if (ignorePack)
+                pack = 0;
             if ((IsInt128(type) && !SymbolEqualityComparer.Default.Equals(type, top)) || Fields(type) is not { } own)
                 return false;
             foreach (var field in own)

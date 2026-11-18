@@ -531,6 +531,22 @@ public class Hidden
     }
 
     [TestMethod]
+    public void Utf8MembersDoNotRegisterTheirFormatterForTheType()
+    {
+        // A [NinoUtf8] member's formatter writes UTF-8: registered for string[] (or string), it became the formatter of
+        // every top-level string[] in the process, which then wrote and read another encoding than every other
+        // runtime's (an assembly naming string[] nowhere else, as the Unity benchmark's models).
+        var compilation = Create(("Types.cs", Usings + """
+            [NinoType] public class Texts { [NinoUtf8] public string[] Values; [NinoUtf8] public string Name; }
+            }
+            """));
+        var result = RunTracked(compilation);
+        var usages = result.GeneratedSources.SingleOrDefault(source => source.HintName == "NinoGen.Usages.g.cs");
+        Assert.IsFalse(usages.SourceText?.ToString().Contains("Utf8StringFormatter") ?? false,
+            usages.SourceText?.ToString());
+    }
+
+    [TestMethod]
     public void TopLevelCallsOnTypesNestedInOpenGenericsCompile()
     {
         // Outer<T>.Items names T through its containing type only: the registry and the interceptors cannot name it.

@@ -354,6 +354,13 @@ namespace Nino.Core.CompilerServices
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static T[] NewArray<T>(int length, bool uninitialized)
         {
+#if !NET8_0_OR_GREATER
+            // IL2CPP (which runs this build only) lays some packed structs out apart from their compiled code: their
+            // arrays get spare elements (NinoElementLayouts). The reference test and IsDynamicCodeSupported first.
+            if (!IsReferenceOrContainsReferences<T>() && !RuntimeFeature.IsDynamicCodeSupported &&
+                NinoReflection.IsIl2Cpp && NinoElementLayouts<T>.Oversized && length > 0)
+                return NinoElementLayouts<T>.New(length);
+#endif
             if ((uint)(length - 1) < (uint)MaxZeroedLength<T>(uninitialized))
                 return new T[length];
             if (length == 0)

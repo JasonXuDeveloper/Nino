@@ -196,8 +196,8 @@ def method(tag, runs):
     return (f"{tag}, measured in the IL2CPP test player that `.github/workflows/unity.yml` builds and runs on a "
             "GitHub-hosted runner (`Test.Runtime.Burst.BurstBenchmark`) with "
             f"{tool} (`Measure.Method`: its warm-up, then 9 measurements of about 100 ms, each the mean time per "
-            "call): `NinoSerializer.Serialize` to a new array, `NinoDeserializer.Deserialize` into an array of the "
-            "same length (arrays) or to a new value (strings, the list, a class), without the Burst kernels "
+            "call), on the cases of the .NET benchmark, read from the bytes .NET writes: `NinoSerializer.Serialize` "
+            "to a new array and `NinoDeserializer.Deserialize` to a new value, without the Burst kernels "
             "(`NinoKernels.Register(null)`: Nino.Core's own paths, as without `com.unity.burst`) and with them. "
             "Compare within a table: the runners vary between releases.")
 

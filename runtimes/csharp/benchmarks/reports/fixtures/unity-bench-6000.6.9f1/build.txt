@@ -1,0 +1,2 @@
+NINO_UNITY_BUILD|il2cpp_config=Release|il2cpp_codegen=OptimizeSpeed|stripping=Minimal|burst_x64_targets=default
+NINO_UNITY_CI|nino_core=Release|runner=ubuntu26 (20261023.163.3)

@@ -24,7 +24,9 @@ Nino.RuntimeTests/           one program (net10.0; net472, Mono's, with the nets
                              SortedSetNodes, ObjectTypes, HashTrees, SortedTrees); BclStructs.cs: every BCL struct
                              inside a raw struct, and tuples and pairs, against CoreCLR x64's bytes both ways
                              (BclFixtures.cs and BclFixtureTypes.cs, linked from Unity's Assets/Test/Runtime, which
-                             shares them; `--write-fixtures` rewrites BclFixtures.cs), and each runtime's layout of them
+                             shares them; `--write-fixtures` rewrites BclFixtures.cs), structs under every StructLayout
+                             form (Pack, Size, Explicit: LayoutShapes, alone, nullable, in collections and as members of a
+                             [NinoType]; IL2CPP's Pack never moves a BCL struct field), and each runtime's layout of them
                              (`# layout` lines; layouts.py turns CI's into docs/layouts.md's tables); FunctionPointers.cs:
                              function pointers in raw structs, 8 bytes zero-extended from the generated registry: a
                              field reported as an IntPtr (as Mono and IL2CPP report one; every build) and declared
@@ -104,7 +106,8 @@ Corner/                      corner cases grouped into Api/, Layout/, Modeling/,
                              generates, compiles and round-trips type hierarchies
 Platforms/                   Unity (UnityTypesTests against the UnityEngine stub, UnityMock/; UnityPackageDllTests: the
                              Unity package's committed DLLs have the public API of their sources), HybridCLR hot-update
-                             assemblies, the NinoKernels hook, ET framework collection shapes
+                             assemblies, IL2CPP's split generic struct layouts (Il2CppSplitLayoutTests: the refusal
+                             rule, the generator's SplitLayouts, NinoLayoutOffsets against reflection), the NinoKernels hook, ET framework collection shapes
 Infrastructure/              shared helpers: Rt (round trips, FromHex/ToHex, OnSmallStack), GuardedMemory (bytes placed
                              against an inaccessible page, so a read past them crashes), SharedTypes,
                              TestCompilation, TestReferences (the analyzer tests' references, created once),
@@ -115,6 +118,9 @@ Nino.UnitTests.csproj        targets, references (Nino.Core, Immutable, UnityTyp
 
 ## Rules for these files
 
+- A test never reads a field `Pack` or `[FieldOffset]` may leave unaligned through reflection (`FieldInfo.GetValue`):
+  CoreCLR on Arm64 and Arm32 dies with SIGBUS there. It writes what it read again and compares the bytes
+  (`platforms`, references/layouts.md).
 - A hostile-input check asserts the exact exception type (`Assert.ThrowsExactly<NinoDataException>`); the caller's
   mistakes and the write side throw `InvalidOperationException`.
 - A new way to declare a type adds a dimension to `Corner/Modeling/ShapeMatrixTests.cs`; a new path through a runtime's

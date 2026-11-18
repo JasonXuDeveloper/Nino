@@ -1046,13 +1046,27 @@ namespace Nino.Core.Internal
                 NinoLayout.ClearAbsent(_absent, ref Unsafe.Add(ref destination, e * _mask.Length));
         }
 
+#if !NET8_0_OR_GREATER
+        /// <summary>Whether the <paramref name="total"/> bytes from each of the two do not overlap.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool Apart(ref byte source, ref byte destination, int total)
+        {
+            long distance = (long)Unsafe.ByteOffset(ref source, ref destination);
+            return distance >= total || distance <= -total;
+        }
+
+#endif
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void CopyMasked(ref byte destination, ref byte source, int count)
         {
             int total = checked(count * _mask.Length);
 #if !NET8_0_OR_GREATER
-            // The netstandard2.1 build (Unity, Mono): the registered kernels, for runs long enough.
+            // The netstandard2.1 build (Unity, Mono): the registered kernels, for runs long enough whose two ranges are
+            // apart, as NinoKernels.Permute requires. A copy over its own bytes (a set's slots cleared where they were
+            // written, SlotsWriteInPlace) takes the word loop below, which loads each word before storing it: Burst's
+            // 16-byte path stores whole vectors past a value and wrote zeros over the values after it (#378).
             if (count >= NinoKernelHook.MinCopies && _kernelTable != IntPtr.Zero &&
+                Apart(ref source, ref destination, total) &&
                 NinoKernelHook.TryPermute(ref source, _mask.Length, ref destination, _mask.Length, _kernelTable, count))
                 return;
 #endif

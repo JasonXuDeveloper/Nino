@@ -45,6 +45,85 @@ tests: `runtimes/csharp/src/Nino.Unity/AGENTS.md`; the kernels' techniques: `opt
   `UnmanagedFormatter<T>`, `Writer.Write<T>`), on the layout's converted paths behind a `static readonly bool`
   (`NinoLayout<T>.HoldsHostSizedVector`): a JIT constant, folded away on canonical types (`asm.py compare`: no method
   changed), where the layout of no size threw `NullReferenceException` before.
+- Never assume a struct's memory follows `[StructLayout(Pack = n)]` under IL2CPP: `Pack` there lowers the alignment
+  of primitive fields (`long`, `double`, `float`, enums) and of a struct that has its own `Pack`, but never of a BCL
+  struct field (`DateTime`, `decimal`, `Guid`, `TimeSpan`, `DateTimeOffset`), which keeps its natural 8, in code made
+  for the type and in generic structs alike. `Size`, `Explicit`, `Auto`, `fixed` buffers and `CharSet` lay out as on
+  Mono (the `LayoutShapes` sizes, unity.yml run 44097003122, the same on 2022.3 and 6000.6: Pack 1 over every leaf 70
+  bytes on Mono and 96 on IL2CPP, `PackedPair1<DateTime>` 9 and 16, `PackedPair1<long>` 9 on both). IL2CPP on 6000.6
+  also refuses to load an `Explicit` struct whose struct field lies at offset 1 (`TypeLoadException` "Invalid field
+  offset"; 2022.3 loads it), so such a type cannot be used there at all. Measure the layout on the running runtime
+  (`NinoLayout`, which converts where memory and the canonical layout differ), never from the declaration. The
+  benchmark's `SimpleStruct` (`int` + `DateTime`, `Pack = 4`) is 12 bytes with its `DateTime` at 4 on CoreCLR and Mono,
+  and 16 bytes with it at 8 on IL2CPP (Unity 2022.3 and 6000.6 players, unity.yml run 44063778182); its `T?` is 24 bytes there. Nino.Core writes the
+  canonical 12 bytes from it, and the reads that lost 4 bytes and wrote past a value are #378. The generator's
+  `RawLayout.IsPortable` measures both of its models with `Pack` applied, so it calls such a struct portable and
+  generated code copied it as raw memory where it is a member (#378, fixed in fe7aff6f). Never let NUnit format a
+  list of failures in the IL2CPP player (`CollectionAssert.IsEmpty`): it crashed there (SIGSEGV in
+  `MsgUtils.FormatCollection`) and lost them; log each failure in its own line as it is found and fail with one
+  string. A new layout form gets a
+  case in `LayoutShapes` (BclFixtureTypes.cs), which Nino.RuntimeTests (.NET, Mono) and Unity's
+  `StructLayoutsWriteCoreClrBytes` (editor and IL2CPP player) check against CoreCLR x64's bytes, each shape alone,
+  nullable, in collections, inside a struct and as a member of a `[NinoType]`; the Unity test logs every shape's
+  `SizeOf<T>` and `SizeOf<T?>` on the runtime that runs it. No Unity document states the rule: libil2cpp's own
+  `FieldLayout::LayoutFields` applies `Pack` (`min(alignment, packing)`), but it places only generic instances; a
+  non-generic type's offsets are those of the C++ struct il2cpp.exe writes, which the C++ compiler lays out, so check
+  a generic struct with `Pack` (`PackedPair1<T>`) apart from a plain one. Burst gets `Pack` wrong as well: it reports
+  another size than C# and Mono for a struct whose `Pack` under-aligns a field (Unity issue 21013, UUM-143671; Burst
+  1.8.13 and 1.8.29, fixed in 7000.0.0a17, open for 6000.6 and 6000.7 in Nov 2026). Nino's kernels take bytes and
+  offset tables, never such a struct, so pass Burst only bytes, never a user's packed struct type.
+- Never build a formatter at run time for a generic struct (`T?` included) that holds a packed struct on IL2CPP:
+  libil2cpp computes a generic instance's field offsets itself (`FieldLayout::LayoutFields`), which reflection and
+  fully shared generic code use, and they differ from the C++ struct compiled code uses (unity.yml run 44102730242,
+  both Unity versions: `Around<PackedIntDateTime4>`'s `B` at 8 compiled and 4 by reflection, `Around<PackedPair1<long>>`
+  at 1 and 8; a `PackedPair1<long>?` built in shared code got its value at 8 of 10 bytes and the player's heap broke).
+  `NinoReflection.Il2CppSplitLayoutIn` finds such types and the resolver and `NinoFormatterCache.Build` refuse them
+  with `NotSupportedException` (Il2CppSplitLayoutTests pins the rule; Unity's `StructLayoutsWriteCoreClrBytes`
+  requires every shape that read wrong bytes to be refused through generic code, and nothing refused on Mono). Never
+  measure such a struct by reflection for a generated formatter either: compiled code copies the C++ layout, so the
+  generator's `SplitLayouts` (the same rule over symbols; keep the two in step) registers, in the registry's static
+  constructor, the offsets compiled code takes (`NinoLayoutOffsets.Register`, `Unsafe.ByteOffset` of each field;
+  `RegisterNullable` for `T?`), `NinoLayout` measures from them, and a top-level call of a raw value holding one
+  registers its formatter so it is compiled code too (the owner's rule: what v3 supported must not throw; Unity's
+  `SplitStructsNamedInCodeWriteCoreClrBytes` and `SplitHolder` check it; Il2CppSplitLayoutTests checks that the
+  tables lay out as reflection does on CoreCLR). A struct the generator cannot name every field of stays refused
+  (`NinoLayout.Info.Il2CppSplit`); `docs/pitfalls.md` tells users what to do. Probe a layout question in the
+  player by logging `Unsafe.ByteOffset` of a field (compiled) next to the first byte `FieldInfo.GetValue` returns from a
+  box filled with each byte's offset (reflection).
+- Know why IL2CPP splits these layouts, from libil2cpp's source (HybridCLR's mirror focus-creative-games/il2cpp_plus,
+  branches `2022-main` and `6000.3.x-main`, identical here): two IL2CPP bugs, not Nino's.
+  (1) `vm/GenericClass.cpp` `GenericClass::CreateClass` never copies `packingSize` from the generic definition, while
+  `vm/Class.cpp` `LayoutFieldsLocked` passes `klass->packingSize` to `FieldLayout::LayoutInstanceFields` (packing
+  applies only when above 0, `metadata/FieldLayout.cpp:179`): every generic instance is laid out at run time as if
+  it had no `Pack`, and il2cpp.exe's C++ struct (`#pragma pack`) keeps it (`PackedPair1<long>` 9 compiled, 16 at run
+  time).
+  (2) A non-generic struct takes size and offsets from il2cpp.exe's metadata but its `minimumAlignment` is computed
+  at run time with its `Pack` (4 for `PackedIntDateTime4`), while its C++ struct keeps a `DateTime` field 8-aligned
+  (alignment 8, 16 bytes): a generic struct holding it is laid out with alignment 4 at run time and 8 in C++
+  (`Around<PackedIntDateTime4>` 24 against 32, `HoldsPacked?` 36 against 40).
+  An array takes the run-time size (`ArrayMetadata.cpp`: `element_size = Class::GetArrayElementSize`; `Array.cpp`
+  `NewSpecific` allocates `n * element_size`) and compiled code indexes it with the C++ `sizeof`, so where the C++
+  struct is larger compiled code writes past the array: the heap corruption the IL2CPP player crashed on (run
+  44123790941; Unity 2022.3.62f2 and 6000.6.9f1 log the same sizes; Array.Copy moves other bytes, run 44129906923).
+  Never refuse these arrays (the owner's rule: a struct with StructLayout must stay usable): allocate every array
+  Nino creates of such a type with enough memory for compiled code and set its length back
+  (`NinoElementLayouts<T>`, `NinoUnsafe.NewArray`, `ListAccess.Create`; `Il2CppArray::max_length` is the word after
+  the header's `bounds`), and read users' arrays as compiled code laid them out. Never build such an array in a test
+  on IL2CPP where its compiled elements are larger (`LayoutShapes.ElementsFit`): the test itself writes past it. Measure the
+  run-time element size with `Marshal.UnsafeAddrOfPinnedArrayElement` (it is `il2cpp_array_addr_with_size` with
+  `il2cpp_array_element_size`) next to `Unsafe.SizeOf<T>()` in code compiled for `T`; in shared generic code
+  `sizeof` is the run-time size (`il2cpp_codegen_sizeof`, `stack_slot_size`) and the two agree. Read libil2cpp in
+  il2cpp_plus before guessing how IL2CPP lays something out; #378 holds the report for Unity.
+- Expect an unaligned load to crash Arm32 IL2CPP players (Android ARMv7), as it crashed Arm32 .NET: IL2CPP compiles
+  the C# as written, and an unaligned `long`, `double` or `float` access becomes `ldrd`/`vldr`, which fault (K4os.LZ4
+  issue 40, Unity Addressables IN-40828). Read and write through `Unsafe.ReadUnaligned` / `WriteUnaligned` or byte
+  copies wherever an offset can be unaligned (`layouts.md`, unaligned fields by reflection; `emulation.md`, Arm32).
+- Debug an IL2CPP-only failure in the benchmark player (unity.yml with `benchmark`, `-ninoBenchmark`), since CoreCLR
+  and Mono cannot show it: log each fact in its own line as soon as it exists, the memory first, before any Nino call,
+  because a write past a value corrupts the heap and the player crashes (SIGSEGV, or NUnit's `StringBuilder` failing)
+  before later output or the results XML is written. Read the lines from the artifact
+  `test-results-unity-<version>/player/standalone-player.log`, not the job log. Never read Nino.Core's internal
+  generic statics by reflection there (runs 44019990430 and 44063778182 lost their results to crashes).
 - IL2CPP has no `Reflection.Emit` and shares generic code: no runtime code generation, and the mirror-class rules of
   `runtime-internals` (static code only).
 - WebGL had no Burst until Burst 1.8.26 (Web) and Unity 6000.6 (WebAssembly64), which run no kernel of Nino's (next
