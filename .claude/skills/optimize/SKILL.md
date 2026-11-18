@@ -81,7 +81,11 @@ says which CPUs and cases moved.
   instead of the same decision copied into each collection (the audit behind #345-#355 found dozens). DRY first:
   optimize the shared path, so every type on it gains, then give a type's own faster way (the fresh-build tricks above)
   an extra layer over it that falls back to it, never a branch in the shared loop or a copy of it (`audit-perf`,
-  Method).
+  Method). Within such a series, each step's pull request only has to keep `main` correct and no slower (its A/B and
+  `asm.py compare` guard against a loss, they do not ask for tuning); do not polish code a later step replaces, and
+  measure and optimize the whole layer against the `main` before the series once it is in (the owner's rule, #346
+  step 2). A fix a step needs anyway counts when it is the shape the layer keeps: `NinoLoops<TFormatter>`, the queries
+  per formatter that fold in shared code, is where the layer's once-per-type decision lives.
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks
