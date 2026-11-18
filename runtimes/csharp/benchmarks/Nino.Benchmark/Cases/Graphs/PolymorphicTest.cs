@@ -14,8 +14,8 @@ namespace Nino.Benchmark;
 /// <c>[ProtoInclude]</c> (a nested message per level of the hierarchy), Google.Protobuf's messages of the same schema
 /// (a <c>oneof</c> per level, cases.proto) and System.Text.Json's <c>[JsonDerivedType]</c> (a <c>"$type"</c> property):
 /// one class holding 1,000 elements of 20 subtypes (one to nine levels below their base), an array of 1,000 such
-/// elements, an array of 100 classes holding 50 each, and an array of 1,000 C# union values (Nino only: no other
-/// library writes C# unions). The timed methods are PolymorphicTest.Cases.g.cs, generated
+/// elements, an array of 100 classes holding 50 each, and two arrays of 1,000 C# union values, one
+/// TypeScript writes as a plain union and one it tags (Nino only: no other library writes C# unions). The timed methods are PolymorphicTest.Cases.g.cs, generated
 /// from the cases below and the adapters (Adapters/, runtimes/csharp/tools/BenchGen); the v3 build times Nino 3.3.13
 /// and MemoryPack on the same values.
 /// </summary>
@@ -24,6 +24,7 @@ namespace Nino.Benchmark;
 [BenchCase("PolymorphicFooArray", Proto = "PolymorphicFooList", Json = "PolymorphicFooBaseArray")]
 [BenchCase("PolymorphicClassArray", Quick = true, Proto = "PolymorphicClassList", Json = "PolymorphicClassBaseArray")]
 [BenchCase("UnionArray", Libraries = "Nino", Builds = "v4")]
+[BenchCase("TaggedUnionArray", Libraries = "Nino", Builds = "v4")]
 [PayloadColumn]
 [HideColumns("StdDev", "RatioSD", "Error")]
 [MinColumn, MaxColumn]
@@ -43,6 +44,7 @@ public partial class PolymorphicTest
     private static readonly PolymorphicClassBase[] PolymorphicClassArray = CreateClassArray();
 #if !NINO_BENCH_V3
     private static readonly UnionValue[] UnionArray = CreateUnionArray();
+    private static readonly UnionTagged[] TaggedUnionArray = CreateTaggedUnionArray();
 #endif
 
     /// <summary>One polymorphic class holding 1,000 polymorphic elements.</summary>
@@ -86,6 +88,14 @@ public partial class PolymorphicTest
         2 => new UnionValue("value " + i),
         3 => new UnionValue(new UnionPoint { X = i, Y = -i, Z = i * 0.5f }),
         _ => new UnionValue(new UnionItem { Id = i, Name = "item " + i, Score = i * 1.25 }),
+    }).ToArray();
+
+    /// <summary>1,000 values of a union TypeScript tags: an int, a short and a string in turn.</summary>
+    private static UnionTagged[] CreateTaggedUnionArray() => Enumerable.Range(0, 1000).Select(i => (i % 3) switch
+    {
+        0 => new UnionTagged(i * 7),
+        1 => new UnionTagged((short)(i - 500)),
+        _ => new UnionTagged("tag " + i),
     }).ToArray();
 #endif
 

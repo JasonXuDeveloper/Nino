@@ -83,6 +83,7 @@
     {"class":"PolymorphicTest","case":"PolymorphicFooArray","quick":false,"libraries":{"v3":["Nino","MemoryPack"],"v4":["Nino","MemoryPack","MessagePack","Protobuf","GoogleProtobuf","Json","LuminPack"]},"broken":[]},
     {"class":"PolymorphicTest","case":"PolymorphicClassArray","quick":true,"libraries":{"v3":["Nino","MemoryPack"],"v4":["Nino","MemoryPack","MessagePack","Protobuf","GoogleProtobuf","Json","LuminPack"]},"broken":[]},
     {"class":"PolymorphicTest","case":"UnionArray","quick":false,"libraries":{"v4":["Nino"]},"broken":[]},
+    {"class":"PolymorphicTest","case":"TaggedUnionArray","quick":false,"libraries":{"v4":["Nino"]},"broken":[]},
     {"class":"RawArraysTest","case":"IntLongPairs32","quick":false,"libraries":{"v3":["Nino","MemoryPack"],"v4":["Nino","MemoryPack","MessagePack","Protobuf","LuminPack"]},"broken":[]},
     {"class":"RawArraysTest","case":"IntLongPairs1000","quick":false,"libraries":{"v3":["Nino","MemoryPack"],"v4":["Nino","MemoryPack","MessagePack","Protobuf","LuminPack"]},"broken":[]},
     {"class":"RawArraysTest","case":"IntLongPairs100000","quick":true,"libraries":{"v3":["Nino","MemoryPack"],"v4":["Nino","MemoryPack","MessagePack","Protobuf","LuminPack"]},"broken":[]},

@@ -13,6 +13,15 @@ namespace Nino.Benchmark
     [NinoType]
     public union UnionValue(int, long, string, UnionPoint, UnionItem);
 
+    /// <summary>
+    /// A C# union whose cases TypeScript cannot tell apart by value (an int and a short are both numbers), so nino-gen
+    /// writes it as a tagged union (<c>{ case, value }</c>) there, and Go wraps every case in a struct
+    /// (PolymorphicTest's TaggedUnionArray); <see cref="UnionValue"/> is a plain TypeScript union, with a class case Go
+    /// writes as the type itself.
+    /// </summary>
+    [NinoType]
+    public union UnionTagged(int, short, string);
+
     /// <summary>A raw struct case of <see cref="UnionValue"/>.</summary>
     [NinoType]
     public struct UnionPoint
