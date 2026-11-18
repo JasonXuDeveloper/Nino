@@ -83,13 +83,11 @@ namespace Nino.UnitTests
             Assert.IsTrue(NinoKind<StringFormatter>.IsString);
             Assert.IsFalse(NinoKind<Utf8StringFormatter>.IsString);
             Assert.IsFalse(NinoKind<SealedFormatter>.IsString);
-            // A polymorphic base's generated formatter dispatches and has the loops; a sealed class's neither.
+            // A polymorphic base's generated formatter dispatches and has the run loop; a sealed class's neither.
             Assert.AreNotEqual(0, NinoKind<RootFormatter>.Traits & NinoBodyTraits.Dispatches);
-            Assert.IsTrue(NinoKind<RootFormatter>.Elements);
-            Assert.IsTrue(NinoKind<RootFormatter>.Pairs);
+            Assert.IsTrue(NinoKind<RootFormatter>.Runs);
             Assert.AreEqual(0, NinoKind<SealedFormatter>.Traits & NinoBodyTraits.Dispatches);
-            Assert.IsFalse(NinoKind<SealedFormatter>.Elements);
-            Assert.IsFalse(NinoKind<SealedFormatter>.Pairs);
+            Assert.IsFalse(NinoKind<SealedFormatter>.Runs);
             // A sealed class of strings and raw members opens no class body: written through a local writer.
             Assert.AreEqual(0, NinoKind<SealedFormatter>.Traits & NinoBodyTraits.Nests);
             Assert.IsTrue(NinoKind<KindSealed, SealedFormatter>.FlatClass);

@@ -62,7 +62,7 @@ namespace Nino.UnitTests
 
         /// <summary>
         /// Arrays, lists and dictionary values of <typeparamref name="T"/> write each element as it writes alone (the
-        /// element loops go through the generated WriteElements, the dispatch inline).
+        /// element loops go through the generated WriteRun, the dispatch inline).
         /// </summary>
         private static void ElementsMatch<T>(params T[] values)
         {
@@ -84,7 +84,7 @@ namespace Nino.UnitTests
                 dictionary.Add(i, values[i]);
             CollectionAssert.AreEqual(pairs.ToArray(), NinoSerializer.Serialize(dictionary));
 
-            // Every kind of key the generated pair loops take (HasPairLoop), and one they do not (short).
+            // Keys the generated run loop takes (HasRunLoop: their memory is their wire form, or strings).
             PairsMatch(values, i => "key" + i);
             PairsMatch(values, i => (long)i << 40);
             PairsMatch(values, i => (uint)i);
