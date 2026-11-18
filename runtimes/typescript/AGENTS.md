@@ -24,7 +24,7 @@ src/
     error.ts                 shared NinoError
     keys.ts                  hash-flooding guard
     numbers.ts               typed arrays, endianness, shared buffer for numeric blocks
-  grid.ts                    rectangular array shape and dimension limits
+    grid.ts                  rectangular array shape and dimension limits
     scalars.ts               date and GUID constants
     subtypes.ts              registry by type id and by class
     text.ts                  Node and JavaScript text paths, Wasm text kernels and loader
