@@ -419,4 +419,6 @@
 # 4263eb17 keeps main's one-at-a-time loop below 4 pairs; probe cae37658 = that + PolyDictProbe. Base main a2de9944.
 # done (run 44246428900): int >= 12 pairs 1.14-1.28x EPYC 9V74, 1.02-1.13x N2; int x1 1.02-1.08x EPYC but 0.93-0.95x N2 (try/catch in ReadGuarded); strings on par: a2de9944 cae37658 3 *PolyDictProbe.NinoDeserialize*
 # 774d93a8 moves the try/catch to ReadEntriesGuarded; probe 2cd7ac00. Base main a2de9944.
-a2de9944 2cd7ac00 3 *PolyDictProbe.NinoDeserialize*
+# done (run 44248647739, #390 merged): a2de9944 2cd7ac00 3 *PolyDictProbe.NinoDeserialize*
+# #305 (claude/poly-reads-305 922d37a3): flat subtypes read inline, the rest out of line by value. Base main c2c6920b.
+c2c6920b 922d37a3 3 *PolymorphicTest.NinoDeserialize* *PolymorphicTest.LuminPackDeserialize* *GenericPolymorphicTest.NinoDeserialize* *WorkloadTest.NinoDeserialize*
