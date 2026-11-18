@@ -48,8 +48,10 @@ value, a kernel hook or a kernel threshold. How to build and run Unity is `platf
   `NinoBlockCollections.WriteEach<(int, long), ...>` boxed the formatter and made an interface call per element whenever
   no Burst kernel ran, and `NinoSized.Is`/`Serialize` boxed one to three times per top-level `Serialize` (87 and 174
   `Box()` sites); after (run 40969941689, exp/devirt-unity) no `Box()` there, a static field load and one interface
-  call. The .NET 8+ FullOpts listings stayed identical (1,048 methods). No call at all needs the loop inside the
-  formatter (a public `INinoBlockFormatter` member, the owner's decision). The test `default(TFormatter) is IFoo`
+  call. The .NET 8+ FullOpts listings stayed identical (1,048 methods). #346 removed that call: the block and slot
+  members are members of `INinoFormatter<T>` itself (defaults reporting none), so `WriteValue`/`ReadValue` and the
+  boxed `NinoBlockPlan.Formatter` and `NinoSlots.Formatter` fields are gone and every block or slot call is a
+  constrained call on the struct, on every target. The test `default(TFormatter) is IFoo`
   boxes too, and it runs for every formatter that reaches it, not only the ones that implement `IFoo`: e178937c
   added `default(TFormatter) is INinoElementsFormatter<T>` and the cast to `NinoElements.Write` in every build, so
   the netstandard2.1 build boxed once or twice per array or list of any non-block element; it now reads

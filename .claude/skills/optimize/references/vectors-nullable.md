@@ -433,7 +433,7 @@ Contents: [Rules](#rules), [Layout and presence flags](#layout-and-presence-flag
 - Never read or write slots one at a time through the slot formatter: each goes through its interface and the
   run's kernel (about 7 ns). A collection that takes elements one by one reads the run into a rented array
   (`NinoCollections.AddSlots`) or, where a slot is its value's memory, moves it as raw elements are
-  (`INinoSlotFormatter.SlotsAreMemory`: a `HashSet<int?>` out of and into its entries, write 1,140 -> 225 ns, read
+  (`INinoFormatter<T>.SlotsAreMemory`: a `HashSet<int?>` out of and into its entries, write 1,140 -> 225 ns, read
   into a new set 5,848 -> 4,100, local; one at a time it read in 12,174).
 - Not taken: a presence bitmap with dense values in place of the slots. Both tuned (4-way unrolled, aligned,
   143,000 round-trip checks), 1,008 elements, local: it halves the bytes and writes 9 to 30 % faster where slots
