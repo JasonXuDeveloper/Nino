@@ -78,7 +78,7 @@ fn benches(c: &mut Criterion) {
                 drop(black_box(nino::deserialize::<Vec<u8>>(black_box(input)).unwrap()));
             });
         });
-        if align_payload {
+        if align_payload || name == "control" {
             let mut outputs = Vec::with_capacity(variants);
             let mut residues = Vec::new();
             for input in &inputs {
