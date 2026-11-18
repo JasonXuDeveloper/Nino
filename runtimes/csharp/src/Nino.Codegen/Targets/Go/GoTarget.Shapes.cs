@@ -51,8 +51,8 @@ namespace Nino.Codegen.Targets
                     {
                         Type = definition, Items = value.Arguments.Select(a => Shape(a, false)).ToList(),
                         Slots = value.SlotArguments.Select(a => Shape(a, false)).ToList(),
-                        MinSize = definition.IsValueType ? 0 : 1,
                     };
+                    SetGenericMinimum(shape);
                     if (_context != null && value.IsSelf(_context.Type))
                     {
                         shape.Field = "c.self";
@@ -243,7 +243,7 @@ namespace Nino.Codegen.Targets
                 return Raw(type.RawValue!);
             return type.Header switch
             {
-                HeaderKind.None => new GoShape("struct") { Type = type, MinSize = StructMinSize(type) },
+                HeaderKind.None => new GoShape("struct") { Type = type, MinSize = MinimumBody(type, Array.Empty<WireMinimum>()).Bytes },
                 HeaderKind.Presence => new GoShape("class") { Type = type, MinSize = type.TrackReferences ? 4 : 1 },
                 _ => new GoShape("slot") { Type = type, MinSize = 4 },
             };
@@ -251,25 +251,72 @@ namespace Nino.Codegen.Targets
 
         private readonly HashSet<TypeModel> _sizing = new();
 
-        /// <summary>The fewest bytes a struct's body takes (a collection's elements are checked against it).</summary>
-        private int StructMinSize(TypeModel type)
+        /// <summary>The least size of a generic struct, in terms of the codecs it was given.</summary>
+        internal string GenericBodyMinimum(TypeModel type) => MinimumBody(type, type.TypeParameters
+            .Select((_, i) => new WireMinimum(0, "c.p" + i.ToString(CultureInfo.InvariantCulture) + ".MinSize"))
+            .ToArray()).Text;
+
+        private void SetGenericMinimum(GoShape shape)
+        {
+            var minimum = MinimumType(shape.Type!,
+                shape.Items.Select(s => new WireMinimum(s.MinSize, s.MinExpression)).ToArray());
+            shape.MinSize = minimum.Bytes;
+            shape.MinExpression = minimum.Expression == null ? null : minimum.Text;
+        }
+
+        /// <summary>
+        /// The fewest bytes the body can take. Size its members without creating codecs. In particular, a collection
+        /// of a recursive generic struct takes a length, so this never needs the half-built codec of the struct.
+        /// </summary>
+        private WireMinimum MinimumBody(TypeModel type, IReadOnlyList<WireMinimum> arguments)
         {
             // A union: its case's type id at least.
             if (type.Format != BodyFormat.Positional || type.IsUnion)
-                return 4;
-            // A generic struct's members are sized by its arguments: none is counted on.
-            if (type.IsGenericDefinition)
-                return 0;
+                return new WireMinimum(4);
             if (!_sizing.Add(type))
-                return 0;
+                return default;
             try
             {
-                return type.Members.Sum(m => Shape(m.Value, false).MinSize);
+                return CodegenModel.OwnValues(type).Aggregate(default(WireMinimum),
+                    (size, v) => size.Add(MinimumValue(v, arguments)));
             }
             finally
             {
                 _sizing.Remove(type);
             }
+        }
+
+        private WireMinimum MinimumType(TypeModel type, IReadOnlyList<WireMinimum> arguments) => type.Raw
+            ? new WireMinimum(Math.Max(type.RawValue!.Size, 1))
+            : type.Header switch
+            {
+                HeaderKind.TypeId => new WireMinimum(4),
+                HeaderKind.Presence => new WireMinimum(type.TrackReferences ? 4 : 1),
+                _ => MinimumBody(type, arguments),
+            };
+
+        private WireMinimum MinimumValue(ValueModel value, IReadOnlyList<WireMinimum> arguments) => value.Kind switch
+        {
+            ValueKind.Parameter => arguments[value.Parameter],
+            ValueKind.Type => MinimumType(value.Type!, Array.Empty<WireMinimum>()),
+            ValueKind.Generic => MinimumType(value.Type!, value.Arguments.Select(v => MinimumValue(v, arguments)).ToArray()),
+            ValueKind.Tuple => value.Items.Aggregate(default(WireMinimum), (size, v) => size.Add(MinimumValue(v, arguments))),
+            ValueKind.String or ValueKind.Utf8 or ValueKind.Nullable => new WireMinimum(1),
+            ValueKind.Sequence or ValueKind.Map or ValueKind.Grid or ValueKind.Named or ValueKind.Object
+                or ValueKind.BigInteger or ValueKind.Version => new WireMinimum(4),
+            ValueKind.DateTimeOffset => new WireMinimum(10),
+            ValueKind.RawStruct => new WireMinimum(Math.Max(value.Struct!.Size, 1)),
+            _ => new WireMinimum(Math.Max(value.Size, 0)),
+        };
+
+        private readonly record struct WireMinimum(int Bytes, string? Expression = null)
+        {
+            private string Constant => Bytes.ToString(CultureInfo.InvariantCulture);
+
+            internal string Text => Expression == null ? Constant : Bytes == 0 ? Expression : Constant + " + " + Expression;
+
+            internal WireMinimum Add(WireMinimum size) => new(Bytes + size.Bytes,
+                Expression == null ? size.Expression : size.Expression == null ? Expression : Expression + " + " + size.Expression);
         }
 
         private static readonly Dictionary<PrimitiveKind, (string Name, bool Block, bool Validated)> Primitives = new()
