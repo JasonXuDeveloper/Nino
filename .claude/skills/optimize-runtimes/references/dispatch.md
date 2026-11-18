@@ -63,6 +63,10 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   and the tagged union is the faster form (12.1 µs serialize, 7.5 deserialize against 23.1 and 13.0 on EPYC 9V45, with
   fewer and smaller values); Go deserializes in about three times its serialize time (35.7 against 11.9 µs, EPYC
   9V74) with an allocation per non-int case (808 for UnionArray). The gaps are #387.
+- Construct the Rust union variant directly in its read, and record a deferred trail only for cases that can open
+  deferred bodies. Against 44d49866 on runtime A/B 44333395182, `UnionArray` / `TaggedUnionArray` deserialize
+  medians fell 38 % / 51 % on EPYC 9V74, 43 % / 55 % on Xeon 6975P-C and 33 % / 44 % on Neoverse-N2.
+  Both serialize controls stayed on par. Count struct depth around each non-null case, including a failed read.
 - Treat the dynamic type of a generated Go union case as part of its API: callers assert the concrete value wrapper.
   `go build -gcflags=-m ./model` in the Go bench module reports heap escape for `UnionValueInt32`,
   `UnionValueInt64`, `UnionValueUnionPoint`, `UnionTaggedInt32` and `UnionTaggedInt16`. Go's small-integer
