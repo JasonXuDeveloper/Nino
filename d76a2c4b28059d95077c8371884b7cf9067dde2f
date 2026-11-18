@@ -1,0 +1,1 @@
+Performance: New dictionaries whose keys or values are not raw (Dictionary<int, IFoo>, Dictionary<string, T[]>) read 4 pairs and more straight into their entries and link the buckets after: 12 to 100 int-keyed pairs 1.01–1.14x faster on Intel x64 and 1.02–1.18x on Neoverse-N2 runners, ahead of LuminPack at every size; smaller dictionaries and string keys on par.
