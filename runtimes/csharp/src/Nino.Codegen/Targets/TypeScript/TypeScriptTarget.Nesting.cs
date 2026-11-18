@@ -42,33 +42,6 @@ namespace Nino.Codegen.Targets
             type.Members.Select(m => (ValueModel?)m.Value).Append(type.Elements)
                 .Concat(type.Cases.Select(c => c.Value)).Where(v => v != null).Select(v => v!);
 
-        /// <summary>
-        /// Whether a struct can hold itself without a class body between (through collections, nullables,
-        /// <c>object</c> or interfaces): its nesting is counted (<c>Reader.EnterStruct</c> in .NET), so deep data throws
-        /// instead of overflowing the stack.
-        /// </summary>
-        internal bool HoldsItself(TypeModel type)
-        {
-            var seen = new HashSet<TypeModel>();
-            var pending = new Stack<TypeModel>();
-            pending.Push(type);
-            while (pending.Count != 0)
-            {
-                var next = pending.Pop();
-                if (!_supported.Contains(next))
-                    continue;
-                foreach (var reached in BodyValues(next).SelectMany(v => ShapeIn(next, v).Reaches))
-                {
-                    if (reached == type)
-                        return true;
-                    if (seen.Add(reached))
-                        pending.Push(reached);
-                }
-            }
-
-            return false;
-        }
-
         private readonly HashSet<TypeModel> _warnedDeferrable = new();
 
         /// <summary>

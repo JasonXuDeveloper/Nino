@@ -309,22 +309,6 @@ namespace Nino.Codegen.Targets
         }
 
         /// <summary>
-        /// The non-raw structs a value holds without a class body between: itself, or (behind a type id, in an
-        /// <c>object</c> or interface slot) any struct the slot allows.
-        /// </summary>
-        internal IEnumerable<TypeModel> StructsIn(ValueModel value)
-        {
-            var candidates = value.Kind switch
-            {
-                ValueKind.Type when value.Type!.Header == HeaderKind.TypeId => Allowed(value.Type),
-                ValueKind.Type => new List<TypeModel> { value.Type! },
-                ValueKind.Object => ObjectTypes().ToList(),
-                _ => new List<TypeModel>(),
-            };
-            return candidates.Where(t => t.IsValueType && !t.Raw && _supported.Contains(t));
-        }
-
-        /// <summary>
         /// The cases of a union in Go. A case whose value is a generated struct or class that is not generic (its Go
         /// type <c>X</c> or <c>*X</c>) is that type, marked with the union's method: the value is not wrapped again,
         /// and one type can be a case of several unions (a method each). Two cases of one union cannot share a named

@@ -25,6 +25,8 @@ namespace Nino.Codegen.Targets
 
         protected CodegenTarget(CodegenModel model) => _model = model;
 
+        internal bool HoldsItself(TypeModel type) => _model.HoldsItself(type, _supported.Contains);
+
         /// <summary>
         /// The number in the names of the functions shared by every value of one shape (by its identity), the same for
         /// all of them (reading, writing...): the next one when the shape has none yet.
