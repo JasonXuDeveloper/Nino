@@ -61,11 +61,7 @@ macro_rules! set {
 
         impl<T: NinoWrite> NinoWrite for $set<T> {
             fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-                w.length(self.len())?;
-                for v in self {
-                    v.write(w)?;
-                }
-                Ok(())
+                write_set(self.iter(), w)
             }
 
             fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
@@ -104,3 +100,21 @@ pub(crate) fn fill_set<T: NinoRead, S: FillSet<T>>(set: &mut S, r: &mut Reader<'
 
 set!(HashSet, Eq + Hash);
 set!(BTreeSet, Ord);
+
+/// Writes a set's length and elements in iteration order, taking one reservation for fixed-size elements.
+#[inline]
+pub(crate) fn write_set<'a, T: NinoWrite + 'a>(
+    values: impl ExactSizeIterator<Item = &'a T>,
+    w: &mut Writer<'a>,
+) -> Result<()> {
+    if T::FIXED_SIZE != 0 && T::FIXED_SIZE <= crate::simd::FIXED_STACK {
+        let count = i32::try_from(values.len()).map_err(|_| Error::too_large())?;
+        crate::simd::extend_fixed_iter(w.buffer(), count.to_le_bytes(), values, T::FIXED_SIZE, T::encode_fixed);
+        return Ok(());
+    }
+    w.length(values.len())?;
+    for value in values {
+        value.write(w)?;
+    }
+    Ok(())
+}

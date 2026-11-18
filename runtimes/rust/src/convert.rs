@@ -292,7 +292,7 @@ mod indexmap_impl {
 
     use crate::defer::Step;
     use crate::error::{Error, ErrorKind, Result};
-    use crate::impls::{fill_set, read_key, FillSet};
+    use crate::impls::{fill_set, read_key, write_set, FillSet};
     use crate::reader::Reader;
     use crate::traits::{NinoRead, NinoWrite};
     use crate::writer::Writer;
@@ -409,11 +409,7 @@ mod indexmap_impl {
 
     impl<T: NinoWrite, S> NinoWrite for IndexSet<T, S> {
         fn write<'a>(&'a self, w: &mut Writer<'a>) -> Result<()> {
-            w.length(self.len())?;
-            for v in self {
-                v.write(w)?;
-            }
-            Ok(())
+            write_set(self.iter(), w)
         }
 
         fn write_option<'a>(value: Option<&'a Self>, w: &mut Writer<'a>) -> Result<()> {
