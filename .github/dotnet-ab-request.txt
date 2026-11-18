@@ -421,4 +421,6 @@
 # 774d93a8 moves the try/catch to ReadEntriesGuarded; probe 2cd7ac00. Base main a2de9944.
 # done (run 44248647739, #390 merged): a2de9944 2cd7ac00 3 *PolyDictProbe.NinoDeserialize*
 # #305 (claude/poly-reads-305 922d37a3): flat subtypes read inline, the rest out of line by value. Base main c2c6920b.
-c2c6920b 922d37a3 3 *PolymorphicTest.NinoDeserialize* *PolymorphicTest.LuminPackDeserialize* *GenericPolymorphicTest.NinoDeserialize* *WorkloadTest.NinoDeserialize*
+# done (run 44255510084): class-holding subtypes 0.68-0.81x, not landed: c2c6920b 922d37a3 3 *PolymorphicTest.NinoDeserialize* *PolymorphicTest.LuminPackDeserialize* *GenericPolymorphicTest.NinoDeserialize* *WorkloadTest.NinoDeserialize*
+# #305 baseline: main c2c6920b on both sides, Nino against LuminPack on the cases #305 lists (head's columns).
+c2c6920b c2c6920b 1 *PolymorphicTest.Nino* *PolymorphicTest.LuminPack* *CollectionsTest.*Set *CollectionsTest.*IntDictionary *CommonTypesTest.*StringDictionary *CommonTypesTest.*Inventory *BclTypesTest.*Immutable* *BclTypesTest.*StringBuilder *BclTypesTest.*TimeZoneInfo *BclTypesTest.*ReadOnlyCollection *SimpleTest.Nino* *SimpleTest.LuminPack*
