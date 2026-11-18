@@ -53,7 +53,7 @@ func TestFreshRawRead(t *testing.T) {
 }
 
 func BenchmarkFreshRawRead(b *testing.B) {
-	for _, n := range []int{2048, 2113, 4096} {
+	for _, n := range []int{128, 2048, 2113, 4096} {
 		payload := make([]byte, n)
 		for i := range payload {
 			payload[i] = byte(i*73 + i/64)
@@ -65,6 +65,9 @@ func BenchmarkFreshRawRead(b *testing.B) {
 		b.Run(strconv.Itoa(n)+"/HotSource", func(b *testing.B) {
 			benchmarkFreshRawRead(b, [][]byte{wire}, payload)
 		})
+		if n == 128 {
+			continue // Control the call-site overhead below the SIMD range.
+		}
 		b.Run(strconv.Itoa(n)+"/Rotating64MiB", func(b *testing.B) {
 			// Keep about 64 MiB of distinct source buffers live, with phase-varying alignment.
 			// The read always allocates its own destination, including in the hot-source control.
