@@ -67,6 +67,10 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   deferred bodies. Against 44d49866 on runtime A/B 44333395182, `UnionArray` / `TaggedUnionArray` deserialize
   medians fell 38 % / 51 % on EPYC 9V74, 43 % / 55 % on Xeon 6975P-C and 33 % / 44 % on Neoverse-N2.
   Both serialize controls stayed on par. Count struct depth around each non-null case, including a failed read.
+- Reserve the case ID and fixed payload together in TypeScript union writers. Use the same offset writer and padding
+  policy as other fixed shapes. On runtime A/B 44333395182, Node's `UnionArray` / `TaggedUnionArray` serialize
+  medians fell 17 % / 22 % on Neoverse-N2. The plain union wrote its 1,000 values in 37.1 µs against JSON's 38.8 µs
+  on that CPU, within 5 %. The sampled x64 medians fell 10–14 % / 17–23 %.
 - Treat the dynamic type of a generated Go union case as part of its API: callers assert the concrete value wrapper.
   `go build -gcflags=-m ./model` in the Go bench module reports heap escape for `UnionValueInt32`,
   `UnionValueInt64`, `UnionValueUnionPoint`, `UnionTaggedInt32` and `UnionTaggedInt16`. Go's small-integer
