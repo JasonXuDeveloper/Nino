@@ -417,4 +417,6 @@
 # Run 44241848002 failed before timing: set -f kept net* from expanding (fixed in this push).
 # done (run 44243147222): >= 4 pairs 1.02-1.13x, string keys on par, 1 pair 0.91-0.96x on 6975P-C and N2; head leads LuminPack in every case but int x1 (on par): 24981cf1 f1bab197 3 *PolyDictProbe.NinoDeserialize* *PolyDictProbe.LuminPackDeserialize* *PolyDictProbe.NinoSerializeIntMap100 *PolymorphicTest.NinoDeserializePolymorphicClass
 # 4263eb17 keeps main's one-at-a-time loop below 4 pairs; probe cae37658 = that + PolyDictProbe. Base main a2de9944.
-a2de9944 cae37658 3 *PolyDictProbe.NinoDeserialize*
+# done (run 44246428900): int >= 12 pairs 1.14-1.28x EPYC 9V74, 1.02-1.13x N2; int x1 1.02-1.08x EPYC but 0.93-0.95x N2 (try/catch in ReadGuarded); strings on par: a2de9944 cae37658 3 *PolyDictProbe.NinoDeserialize*
+# 774d93a8 moves the try/catch to ReadEntriesGuarded; probe 2cd7ac00. Base main a2de9944.
+a2de9944 2cd7ac00 3 *PolyDictProbe.NinoDeserialize*
