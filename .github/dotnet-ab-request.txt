@@ -433,4 +433,7 @@
 # #346 step 2 (claude/constrained-elements 0a2275ca): element loops, pair loops and body traits through constrained
 # calls; queries per formatter in NinoLoops<TFormatter>. Checks polymorphic arrays and lists, dictionaries and
 # string arrays for no loss. Base main 44d49866.
-44d49866 0a2275ca 3 *PolymorphicTest.Nino* *GenericPolymorphicTest.Nino* *SimpleTest.Nino* *CollectionsTest.Nino*Dictionary* *CommonTypesTest.Nino* *StringsTest.Nino* *AppDataTest.Nino*
+# done (run 44312770361, #394 merged into feat/storage-layer): geomean 1.003 Xeon 6975P, 1.005 N2: 44d49866 0a2275ca 3 *PolymorphicTest.Nino* *GenericPolymorphicTest.Nino* *SimpleTest.Nino* *CollectionsTest.Nino*Dictionary* *CommonTypesTest.Nino* *StringsTest.Nino* *AppDataTest.Nino*
+# #355 PR 3 probe (claude/step-probe 1ca26846): kernel + generated step against the per-base loop, same commit both
+# sides (shapes compared within one commit): Foo20 and Small3, arrays and lists of 1,000, dictionaries of 12/32/100.
+1ca26846 1ca26846 3 *StepProbe* *StepDictProbe*
