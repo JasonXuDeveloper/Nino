@@ -360,6 +360,77 @@ namespace Nino.Core.Internal
             ObjectFields.At<int>(dictionary, MapCount) = index + 1;
         }
 
+        /// <summary>
+        /// The entries of a dictionary <see cref="CanInsert{TKey,TValue}"/> accepted, for a read that stores its
+        /// <c>count</c> pairs into them in order and then calls <see cref="Link{TKey,TValue}"/>: the pairs read into
+        /// their places, with no call per pair, and the buckets built in one pass afterwards.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static NinoDictionaryEntry<TKey, TValue>[] Entries<TKey, TValue>(Dictionary<TKey, TValue> dictionary) =>
+            Unsafe.As<NinoDictionaryEntry<TKey, TValue>[]>(ObjectFields.At<object>(dictionary, MapEntries));
+
+        /// <summary>
+        /// Builds the buckets of a dictionary whose first <paramref name="count"/> entries a read filled
+        /// (<see cref="Entries{TKey,TValue}"/>), as <see cref="Insert{TKey,TValue}"/> would have one key at a time: a
+        /// null key, a key twice, or more than <see cref="NinoSettings.MaxHashCollisions"/> keys in a bucket are
+        /// invalid data (the caller then empties the dictionary: <see cref="Unlink{TKey,TValue}"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Link<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count)
+        {
+            var buckets = ObjectFields.At<int[]>(dictionary, MapBuckets);
+            var entries = Entries(dictionary);
+            ulong multiplier = MapFastMod >= 0 ? ObjectFields.At<ulong>(dictionary, MapFastMod) : 0;
+            uint length = (uint)buckets.Length;
+            int mask = MapMask, bias = MapBias;
+            ref int firstBucket = ref buckets[0];
+            ref var entry = ref entries[0];
+            for (int i = 0; i < count; i++)
+            {
+                TKey key = entry.Key;
+                if (key == null)
+                    NinoThrow.NullKey(dictionary);
+                int hash = EqualityComparer<TKey>.Default.GetHashCode(key) & mask;
+                ref int bucket = ref Unsafe.Add(ref firstBucket, (IntPtr)Bucket((uint)hash, length, multiplier));
+                // Only a key whose bucket is not empty counts (the common case, an empty bucket, does nothing more).
+                int at = bucket - bias;
+                if (at >= 0)
+                {
+                    int left = NinoLimits.MaxHashCollisions;
+                    do
+                    {
+                        if (--left < 0)
+                            NinoThrow.HashFlood(dictionary.GetType());
+                        ref var other = ref Unsafe.Add(ref entry, (IntPtr)(at - i));
+                        if (other.HashCode == hash && EqualityComparer<TKey>.Default.Equals(other.Key, key))
+                            NinoThrow.DuplicateKey(dictionary.GetType());
+                        at = other.Next;
+                    } while (at >= 0);
+                }
+
+                entry.HashCode = hash;
+                entry.Next = bucket - bias;
+                bucket = i + bias;
+                entry = ref Unsafe.Add(ref entry, 1);
+            }
+
+            ObjectFields.At<int>(dictionary, MapBound) = count;
+            ObjectFields.At<int>(dictionary, MapCount) = count;
+        }
+
+        /// <summary>
+        /// Leaves a dictionary whose entries a read filled (<see cref="Entries{TKey,TValue}"/>) empty, as it was before:
+        /// its entries and buckets cleared, so no reference the read stored stays reachable from it.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Unlink<TKey, TValue>(Dictionary<TKey, TValue> dictionary)
+        {
+            var buckets = ObjectFields.At<int[]>(dictionary, MapBuckets);
+            var entries = Entries(dictionary);
+            Array.Clear(buckets, 0, buckets.Length);
+            Array.Clear(entries, 0, entries.Length);
+        }
+
         /// <summary>As <see cref="CanInsert{TKey,TValue}"/>, for a set.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static bool CanInsert<T>(HashSet<T> set, int count)
