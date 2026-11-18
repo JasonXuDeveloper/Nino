@@ -262,7 +262,8 @@ caller's one writer and reading a segmented sequence) and `ScatteredTest` (a mil
 serialized only, their bytes not kept). Their method names are the ones the charts and the docs site read, and a
 library added there is a method in the class.
 
-A case added to such a class is one attribute and its field; a library added is one adapter (its `Order` places its
+The `benchmark-cases` skill (`.claude/skills/benchmark-cases`) is the checklist for a new case or competitor on every
+platform. A case added to such a class is one attribute and its field; a library added is one adapter (its `Order` places its
 methods, its `Slot` its bytes in an array), then BenchGen, `--verify`, and its globs in `shards.json`.
 
 ### MessagePack and protobuf-net

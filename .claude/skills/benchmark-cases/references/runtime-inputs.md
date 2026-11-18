@@ -1,6 +1,6 @@
 # Benchmark cases outside .NET: what the TypeScript bench taught
 
-Part of the `benchmark` skill: why the TypeScript bench rotates its inputs, keeps only one serializer's data live and
+Part of the `benchmark-cases` skill: why the TypeScript bench rotates its inputs, keeps only one serializer's data live and
 reads new runtime APIs off the module namespace, with the runner numbers behind each. Read it before adding or
 changing a case in `runtimes/*/bench`, or when a TypeScript number moves without a code change.
 

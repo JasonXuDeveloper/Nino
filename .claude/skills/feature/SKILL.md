@@ -60,11 +60,11 @@ generated code, or nino-gen reports NINOGEN002 for it; their own rules are in `r
 - The matrix of `verify`: the netstandard builds, interceptors off, the Roslyn 4.8 generator, no SIMD, Mono, Arm.
 - Tests assert exact exception types (`Assert.ThrowsExactly`).
 
-## 7. Benchmarks (`benchmark`)
+## 7. Benchmarks (`benchmark`, `benchmark-cases`)
 
 A hot-path change is measured on GitHub runners (the A/B workflows), never published from a local run; a new
 type or feature users will compare gets a benchmark case (and a MemoryPack / MessagePack / protobuf-net column where
-those can express it).
+those can express it), declared once in C# so every platform times it (`benchmark-cases`).
 
 ## 8. Docs (`audit-docs`)
 

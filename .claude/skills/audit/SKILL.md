@@ -24,12 +24,14 @@ One round = parallel audits, each in its own worktree and branch off `origin/mai
 | `audit-generated-code` | the templates and emitters of `runtimes/csharp/src/Nino.Generator/Generation/Emit`, nino-gen's templates | generated text and its machine code |
 | `audit-analyzer` | `runtimes/csharp/src/Nino.Generator/Analysis`, `runtimes/csharp/src/Nino.Generator.CodeFixes` | missing rules, false positives, code fixes, tests per rule |
 | `audit-runtimes` | `runtimes/*`, `runtimes/csharp/src/Nino.Codegen` | safety, speed, SIMD, parity with .NET |
+| `benchmark-cases` | the cases and adapters of every platform's benchmark: `Nino.Benchmark` (`Cases/`, `Adapters/`, `Fixtures/`), `runtimes/csharp/tools/BenchGen`, `runtimes/*/bench` | a case or a competitor one platform lacks, a case left out without its reason, adapters that drift |
 | `audit-ci` | `.github/workflows`, `.github/actions` | slow or serial jobs, red risks, pinning |
 | `audit-redundancy` | no files of its own: the sweep across every layer; fixes go to the owners | duplicated or dead code, unused files, overlapping stages, rules, APIs, generated code, skills and docs |
 | `audit-naming` | every name: a report; internal renames in their own commit | ambiguous or inconsistent names, Chinese terms |
 | `audit-docs` | README, README.zh.md, `docs/`, .github/CONTRIBUTING.md, runtime READMEs, `skills/nino-serialization`, nino.docs | docs that disagree with the code or each other, duplication, gaps |
 
-`audit-generator`, `audit-generated-code` and `audit-analyzer` share `runtimes/csharp/src/Nino.Generator`: give the shared files
+`benchmark-cases` shares `runtimes/*/bench` with `audit-runtimes` and the benchmark scripts with `audit-code`: give
+those files to one of them per round. `audit-generator`, `audit-generated-code` and `audit-analyzer` share `runtimes/csharp/src/Nino.Generator`: give the shared files
 (`NinoSymbols.cs`, `Model*.cs`) to one of them, or run them in different rounds. `optimize`, `optimize-runtimes` and
 `audit-perf` report findings to the owner of the file unless the round gives them the file. `audit-naming` reports only, so it
 runs beside any of them; `audit-redundancy` reports its findings to each owner, or fixes them itself in a round where
