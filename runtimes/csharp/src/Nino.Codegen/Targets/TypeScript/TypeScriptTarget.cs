@@ -126,6 +126,12 @@ namespace Nino.Codegen.Targets
                 aliases.Add(alias);
                 return alias + "<" + inner + ">";
             }));
+            renderer.Function("grid_type", new Func<string, string>(data =>
+            {
+                // A .NET type may also be named NinoGrid. Its generated name never contains a dollar sign.
+                aliases.Add("NinoGrid as NinoGrid$");
+                return "NinoGrid$<" + data + ">";
+            }));
             string text = renderer.Render("types.sbn").TrimEnd('\n') + "\n";
             return text.Replace(MoreImports, string.Concat(aliases.Select(a => ", type " + a)));
         }
@@ -295,13 +301,15 @@ namespace Nino.Codegen.Targets
         /// </summary>
         private string Helper(TsShape shape, string mode)
         {
+            if (mode == "readinto" && (shape.Kind == "grid" || shape.ArrayType != null))
+                mode = "read";
             string key = mode + ":" + shape.Identity;
             if (_helperByKey.TryGetValue(key, out var helper))
                 return helper.Name;
             // The functions the value's code calls come first.
             switch (shape.Kind)
             {
-                case "seq" when !shape.Element!.Fixed:
+                case "seq" or "grid" when !shape.Element!.Fixed:
                     Touch(shape.Element, mode);
                     break;
                 case "map" when !(shape.Key!.Fixed && shape.Value!.Fixed):
@@ -334,6 +342,7 @@ namespace Nino.Codegen.Targets
             {
                 case "seq":
                 case "map":
+                case "grid":
                 case "rawnullable":
                 case "fixedtuple":
                     Helper(shape, mode);

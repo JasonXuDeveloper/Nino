@@ -136,9 +136,10 @@ runs in both, so its two results show how much the machine moved. Heavy runs go 
      took 6 h 17 min (run 41364890698); a filter of 13 cases at 12 rounds took 2 hours (41399172268).
    - **Skip an A/B whose code is unchanged** (identical generated files or machine code prove it), and prove it per
      runtime before requesting the line: Go, `go test -c` the bench at both commits and diff `go tool objdump` with
-     paths and addresses stripped; TypeScript, runtime-ab runs the head's `bench.ts` on both sides, so the sides differ
-     only in `src/nino.ts`, what nino-gen writes for `bench/Bench.dll` and the data `Bench.dll` writes (diff all
-     three); Rust, `objdump -d` the bench binary each side builds with the line's
+     paths and addresses stripped; in TypeScript, diff each revision's benchmark harness, `src/nino.ts`, and the
+     codecs and data its `bench/generate.sh` writes. Since #374 the runtime A/B workflow runs each revision's own
+     harness and generates its fixtures from the .NET benchmark schema. In Rust, run `objdump -d` on each benchmark
+     binary built with the line's
      `RUSTFLAGS=-Cllvm-args=-align-all-functions=6`, addresses stripped (after items moved between modules, also
      the `::h<hash>` suffixes, the moved paths mapped and the `# <symbol>` comments; criterion's code and a bench's
      own setup can land in other codegen units of the bench crate, so compare every `nino::` function and timed

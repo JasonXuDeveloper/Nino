@@ -8,7 +8,7 @@ namespace Nino.Codegen.Targets
     /// <summary>
     /// How a value is written in TypeScript (<see cref="Kind"/>: <c>prim</c>, <c>enum</c>, <c>rawstruct</c>,
     /// <c>rawnullable</c>, <c>fixedtuple</c>, <c>tuple</c>, <c>string</c>, <c>utf8</c>, <c>object</c>,
-    /// <c>nullable</c>, <c>bytes</c>, <c>seq</c>, <c>map</c>, <c>type</c>, <c>param</c>: a type parameter,
+    /// <c>nullable</c>, <c>bytes</c>, <c>seq</c>, <c>map</c>, <c>grid</c>, <c>type</c>, <c>param</c>: a type parameter,
     /// <c>generic</c>: a generic type with its arguments in <see cref="Items"/>): the template turns it into a type, a
     /// default, and code reading and writing it, alone or at an offset.
     /// </summary>
@@ -63,6 +63,9 @@ namespace Nino.Codegen.Targets
 
         /// <summary>A set (<c>Set</c>) rather than an array.</summary>
         public bool Set { get; internal set; }
+
+        /// <summary>The number of dimensions of a rectangular array.</summary>
+        public int Rank { get; internal set; }
 
         /// <summary>
         /// How a set's element or a map's key of this shape passes through <c>NinoKeyGuard</c> (the runtime's bound on
@@ -144,7 +147,7 @@ namespace Nino.Codegen.Targets
             yield return Struct?.FullName ?? "";
             yield return Type?.FullName ?? "";
             yield return Header ?? "";
-            yield return Set ? "set" : "";
+            yield return Set ? "set" : Rank == 0 ? "" : Rank.ToString(System.Globalization.CultureInfo.InvariantCulture);
             yield return ArrayType ?? "";
             yield return FlagOffset + "/" + ValueOffset + (Clean ? "/clean" : "");
             yield return string.Join("/", Offsets);

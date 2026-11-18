@@ -1,7 +1,7 @@
 # Nino for TypeScript
 
-`src/nino.ts` is the TypeScript runtime of Nino: it reads and writes the bytes Nino writes in .NET (the format is
-[docs/spec/wire-format.md](../../docs/spec/wire-format.md)). nino-gen writes it next to the classes and codecs it
+The TypeScript runtime of Nino reads and writes the bytes Nino writes in .NET (the format is
+[docs/spec/wire-format.md](../../docs/spec/wire-format.md)). nino-gen writes the single file `nino.ts` next to the classes and codecs it
 generates for a project's `[NinoType]`s; each release also publishes it to npm as `nino-serialization`, with Nino's
 version, which generated code imports instead with `Runtime="nino-serialization"` (`npm install nino-serialization@4.0.0-rc.10`).
 How to generate the code and the options are in the guide's
@@ -88,6 +88,16 @@ element. The reader copies from an aligned view of the data when the data is ali
 bytes. What it returns never refers to the data: typed arrays of 65 bytes to 8 KB are views of a shared 64 KB buffer
 (as Node's small `Buffer`s share a pool, since an `ArrayBuffer` for each costs more than the copy).
 
+JavaScript engines may canonicalize a NaN held in a `number`, so a floating-point NaN can round-trip with a
+different sign or payload when read into a plain array.
+
+## Rectangular arrays
+
+A .NET rectangular array of rank 2 to 4 is a `NinoGrid<TData> | null`. Its `lengths` hold the dimensions in order,
+and its `data` is flat, with the last index varying fastest. An `int[,]` uses `NinoGrid<Int32Array>`, and an
+`int?[,]` uses `NinoGrid<NullableSlot<number>[]>`. Numeric grid elements use typed storage in either numeric-array
+mode. The writer checks that the product of the dimensions equals the length of `data`.
+
 ## Guarantees
 
 The reader takes untrusted input: what every runtime guarantees (bounds, depth, type ids, strict bytes, trailing bytes)
@@ -119,10 +129,16 @@ The module is compiled synchronously the first time it is needed, and its paths 
 JavaScript ones.
 
 `npm run build:wasm` assembles `wasm/text.wat` with [wasm-tools](https://github.com/bytecodealliance/wasm-tools)
-(`wasm-tools parse`, then `strip --all`) and writes the module into `nino.ts`, with the SHA-256 of the `text.wat` it
-came from (`wasm/embed.ts`). Install wasm-tools with `cargo install --locked wasm-tools`, or put the binary of a
+(`wasm-tools parse`, then `strip --all`) and writes the module and the SHA-256 of its source into
+`src/runtime/text.ts` (`wasm/embed.ts`), then rebuilds `src/nino.ts`. Install wasm-tools with `cargo install --locked wasm-tools`, or put the binary of a
 [release](https://github.com/bytecodealliance/wasm-tools/releases) on the `PATH`. Only a change to `text.wat` needs
 it: the tests check the hash, and rebuild and compare the module byte for byte where wasm-tools is installed.
+
+## Runtime development
+
+Edit the modules under `src/runtime/`, then run `npm run build:bundle` to refresh the checked-in `src/nino.ts`.
+The npm build compiles this bundle into `dist/nino.js` and `dist/nino.d.ts`. nino-gen embeds the same bundle,
+so building the .NET tool needs only the .NET SDK. Keep the bundle and its source changes in the same commit.
 
 ## Tests
 
@@ -130,7 +146,7 @@ it: the tests check the hash, and rebuild and compare the module byte for byte w
 npm ci && npm test
 ```
 
-type-checks and runs the `node:test` suite in `test/` three times: in Node, then as a browser runs it (the runtime
+checks the bundle, type-checks the source and runs the `node:test` suite in `test/` three times: in Node, then as a browser runs it (the runtime
 evaluated without `Buffer`, `NINO_TEST_RUNTIME=browser`, `test/runtime.ts`), with the WebAssembly module and without
 it (`NINO_WASM=0`). `test/flooding.test.ts` reads sets and maps of keys V8 puts in one bucket. `test/wasm.test.ts` compares the module's paths with the JavaScript ones for every length up to
 256 and longer, with every kind of char at each position. `test/corpus.test.ts` runs the conformance corpus
