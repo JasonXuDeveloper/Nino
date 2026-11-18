@@ -1227,3 +1227,9 @@ go fa55bcaa fa55bcaa . NINO_BENCH_QUICK=1 NINO_BENCH_QUICK=1 # 337 go: the .NET 
 rust d9a715b9 d9a715b9 UnionArray # 328 rust unions, with each side's data
 # failed (run 44220042959: Playwright install hung, now Node only): typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions
 typescript d9a715b9 d9a715b9 *UnionArray # 328 ts unions, Node
+
+# Fixed-size Rust set writes and TypeScript source modularization, each with its runner noise floor.
+rust:blocks 43ad7b11 641cd278 blocks/write/(hash-set-i32|tree-set-i32|hash-set-guid)$ # 354
+rust:blocks 43ad7b11 43ad7b11 blocks/write/(hash-set-i32|tree-set-i32|hash-set-guid)$ # 354 floor
+typescript 3b998c73 2cb7dd0f MixedStrings # 247
+typescript 3b998c73 3b998c73 MixedStrings # 247 floor
