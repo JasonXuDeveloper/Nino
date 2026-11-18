@@ -63,3 +63,8 @@ call, a helper that takes a function, or a `read_into` / `deserializeInto` path.
   and the tagged union is the faster form (12.1 µs serialize, 7.5 deserialize against 23.1 and 13.0 on EPYC 9V45, with
   fewer and smaller values); Go deserializes in about three times its serialize time (35.7 against 11.9 µs, EPYC
   9V74) with an allocation per non-int case (808 for UnionArray). The gaps are #387.
+- Treat the dynamic type of a generated Go union case as part of its API: callers assert the concrete value wrapper.
+  `go build -gcflags=-m ./model` in the Go bench module reports heap escape for `UnionValueInt32`,
+  `UnionValueInt64`, `UnionValueUnionPoint`, `UnionTaggedInt32` and `UnionTaggedInt16`. Go's small-integer
+  conversion table can still supply some of those boxes. The string wrapper has a single pointer field and fits
+  directly in an interface. Returning pointers into a typed slice would change what callers' type assertions accept.
