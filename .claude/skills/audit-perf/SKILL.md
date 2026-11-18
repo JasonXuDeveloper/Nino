@@ -30,10 +30,13 @@ owns the search; measuring is `benchmark`, the code-level techniques are `optimi
 
 ## Method
 
-0. **Unify first, then optimize the one path** (the owner's rule). A gap in one type is closed in the shared path
-   that type should take (`optimize`, "One storage layer for every collection"), so every type on that path gains;
-   never a fast path of its own for the one case measured. When the shared path does not exist yet, build it first
-   (#355 before the rest of #305): a special case written now is one more copy the unification removes later.
+0. **DRY first, then layers on top of it** (the owner's rule). Build the one shared path a kind of type takes
+   (`optimize`, "One storage layer for every collection") and make that path fast: every type on it gains at once.
+   Then a type with a faster way of its own (often hacky: `Dictionary` filling its entries and linking the buckets
+   after, `SortedSet` building its tree in one pass) gets it as an extra layer over the shared path: one place
+   holding only that trick, taken when its condition holds and falling back to the shared path otherwise, never
+   written into the shared loop and never a second copy of the whole path. Where the shared path does not exist yet,
+   build it first (#355 before the rest of #305), so the extra layers have one base to sit on.
 1. **Read first.** What does the code do now, what would change, which benchmark shows it, what did earlier attempts
    find (commit messages of reverted tries)? Look up the technique in `optimize` or
    `optimize-runtimes` before inventing one.
