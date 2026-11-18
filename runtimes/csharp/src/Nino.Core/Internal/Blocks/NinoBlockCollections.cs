@@ -8,7 +8,7 @@ using System.Runtime.Intrinsics.X86;
 
 namespace Nino.Core.Internal
 {
-    /// <summary>Collections of values written by an <see cref="INinoBlockFormatter{T}"/>.</summary>
+    /// <summary>Collections of values a formatter writes as blocks (<see cref="INinoFormatter{T}.BlockMap"/>).</summary>
     internal static partial class NinoBlockCollections
     {
 #if NET8_0_OR_GREATER
@@ -23,8 +23,8 @@ namespace Nino.Core.Internal
 #endif
 
         /// <summary>
-        /// The <see cref="INinoFixedSizeFormatter{T}.FixedSize"/> of the block formatter
-        /// <typeparamref name="TFormatter"/>, -1 when it does not implement it. A JIT-time constant; -1 without a
+        /// The <see cref="INinoFormatter{T}.FixedSize"/> of <typeparamref name="TFormatter"/> when its values are
+        /// blocks, else -1. A JIT-time constant; -1 without a
         /// lookup for references (shared code).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -158,7 +158,7 @@ namespace Nino.Core.Internal
                 int n = count - i;
                 do
                 {
-                    WriteValue<T, TFormatter>(ref to, in from);
+                    default(TFormatter).WriteFixed(in from, ref to);
                     from = ref Unsafe.Add(ref from, 1);
                     to = ref Unsafe.Add(ref to, size);
                 } while (--n != 0);
@@ -357,7 +357,7 @@ namespace Nino.Core.Internal
         {
             if (NinoBlockPlan<T, TFormatter>.Size < Unsafe.SizeOf<T>())
                 Unsafe.InitBlockUnaligned(ref Unsafe.As<T, byte>(ref value), 0, (uint)Unsafe.SizeOf<T>());
-            ReadValue<T, TFormatter>(ref source, ref value);
+            default(TFormatter).ReadBlock(ref value, ref source);
         }
 
 #if !NET8_0_OR_GREATER
@@ -381,26 +381,6 @@ namespace Nino.Core.Internal
                 NinoBlockPlan<T, TFormatter>.KernelTables.ToMemory, count);
         }
 
-#endif
-
-        /// <summary>Writes one value as its block (<see cref="INinoFixedSizeFormatter{T}.WriteFixed"/>).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteValue<T, TFormatter>(ref byte destination, in T value)
-            where TFormatter : struct, INinoFormatter<T> =>
-#if NET8_0_OR_GREATER
-            ((INinoBlockFormatter<T>)default(TFormatter)).WriteFixed(in value, ref destination);
-#else
-            NinoBlockPlan<T, TFormatter>.Formatter.WriteFixed(in value, ref destination);
-#endif
-
-        /// <summary>Reads one value from its block (<see cref="INinoBlockFormatter{T}.ReadBlock"/>).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void ReadValue<T, TFormatter>(ref byte source, ref T value)
-            where TFormatter : struct, INinoFormatter<T> =>
-#if NET8_0_OR_GREATER
-            ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref value, ref source);
-#else
-            NinoBlockPlan<T, TFormatter>.Formatter.ReadBlock(ref value, ref source);
 #endif
 
 #if NET8_0_OR_GREATER

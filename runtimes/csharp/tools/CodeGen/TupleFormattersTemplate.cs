@@ -74,7 +74,7 @@ namespace Nino.CodeGen
         {
             string type = $"ValueTuple<{List(arity, "T{0}")}>";
             sb.Append($"    /// <summary><c>ValueTuple&lt;{List(arity, "T{0}")}&gt;</c>: the items in order.</summary>\n");
-            sb.Append($"    public struct ValueTupleFormatter<{TypeParameters(arity)}> : INinoFormatter<{type}>, INinoBlockFormatter<{type}>\n");
+            sb.Append($"    public struct ValueTupleFormatter<{TypeParameters(arity)}> : INinoFormatter<{type}>\n");
             AppendConstraints(sb, arity);
             sb.Append("    {\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
@@ -117,13 +117,13 @@ namespace Nino.CodeGen
             sb.Append("        }\n");
             sb.Append("\n");
             string allRaw = AllRaw(arity), notAllRaw = arity > 1 ? $"!({allRaw})" : "!" + allRaw;
-            sb.Append($"        int INinoFixedSizeFormatter<{type}>.FixedSize\n");
+            sb.Append($"        int INinoFormatter<{type}>.FixedSize\n");
             sb.Append("        {\n");
             sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
             sb.Append($"            get => {allRaw} ? {Sum(arity)} : -1;\n");
             sb.Append("        }\n");
             sb.Append("\n");
-            sb.Append($"        NinoBlockMap INinoBlockFormatter<{type}>.BlockMap()\n");
+            sb.Append($"        NinoBlockMap INinoFormatter<{type}>.BlockMap()\n");
             sb.Append("        {\n");
             sb.Append($"            if ({notAllRaw})\n");
             sb.Append("                return null;\n");
@@ -135,14 +135,14 @@ namespace Nino.CodeGen
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        void INinoFixedSizeFormatter<{type}>.WriteFixed(in {type} value, ref byte destination)\n");
+            sb.Append($"        void INinoFormatter<{type}>.WriteFixed(in {type} value, ref byte destination)\n");
             sb.Append("        {\n");
             foreach (int i in Items(arity))
                 sb.Append($"            NinoLayout<T{i}>.Write(ref {At("destination", i)}, in value.Item{i});\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
-            sb.Append($"        void INinoBlockFormatter<{type}>.ReadBlock(ref {type} value, ref byte source)\n");
+            sb.Append($"        void INinoFormatter<{type}>.ReadBlock(ref {type} value, ref byte source)\n");
             sb.Append("        {\n");
             foreach (int i in Items(arity))
                 sb.Append($"            value.Item{i} = NinoLayout<T{i}>.Read(ref {At("source", i)});\n");

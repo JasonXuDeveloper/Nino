@@ -47,12 +47,8 @@ internal static class FormatterEmitter
             : $"{CoreCompilerServices}INinoBodyFormatter<{t}>";
         if (m.RawStruct)
             iface += $", {CoreCompilerServices}INinoRawFormatter";
-        if (m.FixedSize)
-            iface += $", {CoreCompilerServices}INinoFixedSizeFormatter<{t}>";
         if (m.RawBody)
             iface += $", {CoreCompilerServices}INinoRawBodyFormatter<{t}>";
-        if (m.Block)
-            iface += $", {CoreCompilerServices}INinoBlockFormatter<{t}>";
         iface += Prefetch(m);
 
         w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.FormatterConstraints}");

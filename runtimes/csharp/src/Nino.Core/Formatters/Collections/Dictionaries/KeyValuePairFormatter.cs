@@ -11,7 +11,7 @@ namespace Nino.Core
 {
     /// <summary><c>KeyValuePair&lt;TKey, TValue&gt;</c>: key, then value.</summary>
     public struct KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>
-        : INinoFormatter<KeyValuePair<TKey, TValue>>, INinoBlockFormatter<KeyValuePair<TKey, TValue>>
+        : INinoFormatter<KeyValuePair<TKey, TValue>>
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
@@ -21,14 +21,14 @@ namespace Nino.Core
             get => RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>();
         }
 
-        int INinoFixedSizeFormatter<KeyValuePair<TKey, TValue>>.FixedSize
+        int INinoFormatter<KeyValuePair<TKey, TValue>>.FixedSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => Raw ? NinoLayout<TKey>.Size + NinoLayout<TValue>.Size : -1;
         }
 
         // Its fields are private: found by marking each item's bytes.
-        NinoBlockMap INinoBlockFormatter<KeyValuePair<TKey, TValue>>.BlockMap()
+        NinoBlockMap INinoFormatter<KeyValuePair<TKey, TValue>>.BlockMap()
         {
             if (!Raw)
                 return null;
@@ -40,11 +40,11 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoFixedSizeFormatter<KeyValuePair<TKey, TValue>>.WriteFixed(in KeyValuePair<TKey, TValue> value,
+        void INinoFormatter<KeyValuePair<TKey, TValue>>.WriteFixed(in KeyValuePair<TKey, TValue> value,
             ref byte destination) => WriteRaw(ref destination, in value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref KeyValuePair<TKey, TValue> value,
+        void INinoFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref KeyValuePair<TKey, TValue> value,
             ref byte source) => value = ReadRaw(ref source);
 
         /// <summary>The key and the value of a pair of raw items, at <paramref name="destination"/>.</summary>

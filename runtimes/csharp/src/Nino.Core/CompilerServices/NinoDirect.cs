@@ -34,11 +34,11 @@ namespace Nino.Core.CompilerServices
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] SerializeFixed<T, TFormatter>(in T value)
-            where TFormatter : struct, INinoFixedSizeFormatter<T> =>
+            where TFormatter : struct, INinoFormatter<T> =>
             WriteFixed<T, TFormatter>(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static byte[] WriteFixed<T, TFormatter>(in T value) where TFormatter : struct, INinoFixedSizeFormatter<T>
+        internal static byte[] WriteFixed<T, TFormatter>(in T value) where TFormatter : struct, INinoFormatter<T>
         {
             // Bytes are written little-endian, as Writer does (which rejects other hosts); a JIT-time constant.
             if (!BitConverter.IsLittleEndian)

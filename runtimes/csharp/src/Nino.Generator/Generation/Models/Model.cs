@@ -256,9 +256,9 @@ internal sealed record TypeModel(
     PartialModel Partial,
     RegistrationModel Registrations,
     // Whether every (non-null) value is written in the same number of bytes (TypeFacts.IsFixedSize): the formatter
-    // implements INinoFixedSizeFormatter.
+    // implements FixedSize and WriteFixed.
     bool FixedSize,
-    // Whether the formatter implements INinoBlockFormatter (TypeFacts.IsBlock): a struct of fixed size whose
+    // Whether the formatter implements BlockMap and ReadBlock (TypeFacts.IsBlock): a struct of fixed size whose
     // collections are read and written as blocks.
     bool Block,
     // Whether ReadBody reads a new instance (created by `new T()`, not taken from a pool or a factory) apart from

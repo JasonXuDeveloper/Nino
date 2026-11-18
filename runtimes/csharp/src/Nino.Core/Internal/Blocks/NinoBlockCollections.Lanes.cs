@@ -205,8 +205,8 @@ namespace Nino.Core.Internal
             where TDirection : struct, INinoDirection
         {
             if (typeof(TDirection) == typeof(NinoWrites))
-                WriteValue<T, TFormatter>(ref Unsafe.Add(ref destination, (nint)i * size),
-                    in Unsafe.Add(ref Unsafe.As<byte, T>(ref source), i));
+                default(TFormatter).WriteFixed(in Unsafe.Add(ref Unsafe.As<byte, T>(ref source), i),
+                    ref Unsafe.Add(ref destination, (nint)i * size));
             else
                 ReadOne<T, TFormatter>(ref Unsafe.Add(ref source, (nint)i * size),
                     ref Unsafe.Add(ref Unsafe.As<byte, T>(ref destination), i));

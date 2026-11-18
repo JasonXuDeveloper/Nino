@@ -16,7 +16,7 @@ public struct Padded { public int A; public short B; public bool C; public long 
 [NinoType]
 public struct Small { public int A; public short B; public bool C; }
 
-// Of fixed size, not raw (a value tuple, a pair, auto-properties): written as blocks (INinoBlockFormatter).
+// Of fixed size, not raw (a value tuple, a pair, auto-properties): written as blocks (INinoFormatter.BlockMap).
 [NinoType]
 public struct Waypoint { public float X; public (int Tick, short Zone) Stamp; public bool Visited; }
 

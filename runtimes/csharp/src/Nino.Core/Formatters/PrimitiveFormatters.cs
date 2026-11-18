@@ -246,7 +246,7 @@ namespace Nino.Core
     /// alignment, then T, zero when absent: <see cref="NinoNullables{T}"/>), so every collection of them is one
     /// block, as <c>T?[]</c> and <c>List&lt;T?&gt;</c> are (<see cref="NullableArrayFormatter{T}"/>).
     /// </summary>
-    public struct UnmanagedNullableFormatter<[NinoRaw] T> : INinoFormatter<T?>, INinoSlotFormatter<T?> where T : unmanaged
+    public struct UnmanagedNullableFormatter<[NinoRaw] T> : INinoFormatter<T?> where T : unmanaged
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T? value, ref Writer writer) => writer.WriteNullableRaw(value);
@@ -254,19 +254,19 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref Reader reader, ref T? value) => reader.ReadNullableRaw(ref value);
 
-        int INinoSlotFormatter<T?>.SlotStride => NinoNullables<T>.Stride;
+        int INinoFormatter<T?>.SlotStride => NinoNullables<T>.Stride;
 
-        void INinoSlotFormatter<T?>.WriteSlots(ref byte destination, ReadOnlySpan<T?> values) =>
+        void INinoFormatter<T?>.WriteSlots(ref byte destination, ReadOnlySpan<T?> values) =>
             NinoNullables<T>.WriteSlots(ref destination, values);
 
-        void INinoSlotFormatter<T?>.ReadSlots(Span<T?> values, ref Reader reader) =>
+        void INinoFormatter<T?>.ReadSlots(Span<T?> values, ref Reader reader) =>
             NinoNullables<T>.ReadPrechecked(values, ref reader);
 
-        bool INinoSlotFormatter<T?>.SlotsAreMemory => NinoNullables<T>.Raw;
+        bool INinoFormatter<T?>.SlotsAreMemory => NinoNullables<T>.Raw;
 
-        bool INinoSlotFormatter<T?>.SlotsWriteInPlace => NinoNullables<T>.InPlace;
+        bool INinoFormatter<T?>.SlotsWriteInPlace => NinoNullables<T>.InPlace;
 
-        void INinoSlotFormatter<T?>.CheckSlots(ref byte slots, int count) =>
+        void INinoFormatter<T?>.CheckSlots(ref byte slots, int count) =>
             NinoChecks.Flags(ref slots, count, NinoNullables<T>.Stride);
     }
 

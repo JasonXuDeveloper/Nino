@@ -29,7 +29,7 @@ namespace Nino.Core.CompilerServices
         /// to write into an array of that size.
         /// </summary>
         public static void RegisterFixed<T, TFormatter>(int id)
-            where TFormatter : struct, INinoBodyFormatter<T>, INinoFixedSizeFormatter<T>
+            where TFormatter : struct, INinoBodyFormatter<T>
         {
             if (!NinoFormatterCache<T>.IsRegistered)
                 NinoFormatterCache<T>.TryRegister(new FixedStructFormatter<T, TFormatter>());
