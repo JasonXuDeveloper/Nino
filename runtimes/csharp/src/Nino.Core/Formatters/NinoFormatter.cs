@@ -9,8 +9,8 @@ using Nino.Core.Internal;
 namespace Nino.Core
 {
     /// <summary>
-    /// The capabilities of every <see cref="INinoFormatter{T}"/> that do not depend on <c>T</c>: the element and pair
-    /// loops of generated formatters of polymorphic bases, the prefetch of long collections of classes, and the queries
+    /// The capabilities of every <see cref="INinoFormatter{T}"/> that do not depend on <c>T</c>: the run loop of
+    /// generated formatters of polymorphic bases, the prefetch of long collections of classes, and the queries
     /// of the top-level writes of Nino.Core's own collection formatters. Never implemented alone. Their queries are read
     /// once per formatter type, into fields of a class generic over the formatter alone, which fold even where the code
     /// asking them is shared generic code over a class <c>T</c> (a field of a class generic over <c>T</c> too would be a
@@ -31,38 +31,22 @@ namespace Nino.Core
         int BodyTraits => NinoBodyTraits.Nests;
 
         /// <summary>
-        /// Whether <see cref="INinoFormatter{T}.WriteElements"/> writes an array's or a list's elements in one loop
-        /// (false, the default): generated formatters of polymorphic bases, whose loop has the subtype dispatch inline
+        /// Whether <see cref="WriteRun"/> writes the values of a run of a collection's storage in one loop (false, the
+        /// default): generated formatters of non-generic polymorphic bases, whose loop has the subtype dispatch inline
         /// and the writer in a local. Called once.
         /// </summary>
-        bool HasElementLoop => false;
+        bool HasRunLoop => false;
 
         /// <summary>
-        /// Whether <see cref="WritePairs32"/>, <see cref="WritePairs64"/> and <see cref="WriteStringPairs"/> write the
-        /// pairs of a <c>Dictionary&lt;TKey, T&gt;</c> (T the formatter's) in one loop (false, the default): generated
-        /// formatters of polymorphic bases in .NET 8+ builds, the dispatch inline and the writer in a local. Each is
-        /// called with the dictionary not empty and its count already written, and writes each value as
-        /// <see cref="INinoFormatter{T}.Serialize"/> does. They are not generic: a generic method is looked up on every
-        /// call (the JIT does not devirtualize those), where these are direct calls on the formatter even from shared
-        /// code. Called once.
+        /// Writes each value of <paramref name="run"/> (a reference of the formatter's type: an array's, a list's, a
+        /// ring half's, a set's or a dictionary's values, each after its key where <see cref="NinoRun.Key"/> says one
+        /// is there) as <see cref="INinoFormatter{T}.Serialize"/> writes one, skipping free entries. Called only where
+        /// <see cref="HasRunLoop"/> is true, with the run not empty and the count already written. Not generic: one
+        /// member serves every collection and every key Nino.Core writes as its bytes or a string, through a
+        /// constrained call even from code shared over a class (IL2CPP 2022.3 cannot build a generic default member,
+        /// #405).
         /// </summary>
-        bool HasPairLoop => false;
-
-        /// <summary>
-        /// Pairs whose keys are 4 bytes written as they lie in memory (a <c>Dictionary&lt;int, T&gt;</c>, or one whose
-        /// keys are another primitive or enum of that size, read as an <c>int</c>). Called only where
-        /// <see cref="HasPairLoop"/> is true.
-        /// </summary>
-        void WritePairs32(object dictionary, ref Writer writer) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WritePairs32));
-
-        /// <summary>As <see cref="WritePairs32"/>, for keys of 8 bytes (read as a <c>long</c>).</summary>
-        void WritePairs64(object dictionary, ref Writer writer) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WritePairs64));
-
-        /// <summary>As <see cref="WritePairs32"/>, for string keys in the default encoding.</summary>
-        void WriteStringPairs(object dictionary, ref Writer writer) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WriteStringPairs));
+        void WriteRun(NinoRun run, ref Writer writer) => NinoThrow.MissingCapability(GetType(), nameof(WriteRun));
 
         /// <summary>
         /// The bytes an element of a long array or list brings into the cache (a constant: its object, and a line of
@@ -118,8 +102,8 @@ namespace Nino.Core
     /// <see cref="Serialize"/> and <see cref="Deserialize"/> are all a formatter has to implement. The other members
     /// are capabilities with defaults that report none: values of a fixed size (<see cref="FixedSize"/>,
     /// <see cref="WriteFixed"/>), blocks a collection moves as one run (<see cref="BlockMap"/>,
-    /// <see cref="ReadBlock"/>), what a class body does (<see cref="INinoFormatter.BodyTraits"/>), the element and pair loops of
-    /// polymorphic bases (<see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>) and the
+    /// <see cref="ReadBlock"/>), what a class body does (<see cref="INinoFormatter.BodyTraits"/>), the run loop of
+    /// polymorphic bases (<see cref="INinoFormatter.HasRunLoop"/>) and the
     /// prefetch of long collections of classes (<see cref="INinoFormatter.PrefetchBytes"/>), implemented by generated
     /// formatters and Nino.Core's own where they apply; Nino.Core's collection formatters also have internal ones (slots,
     /// sized and external top-level writes).
@@ -127,7 +111,7 @@ namespace Nino.Core
     /// <para>
     /// The rule that keeps the defaults free: a call to a default a struct does not override boxes the struct
     /// (CoreCLR, Mono, IL2CPP). So only the queries (<see cref="FixedSize"/>, <see cref="BlockMap"/>,
-    /// <see cref="INinoFormatter.BodyTraits"/>, <see cref="INinoFormatter.HasElementLoop"/>, <see cref="INinoFormatter.HasPairLoop"/>,
+    /// <see cref="INinoFormatter.BodyTraits"/>, <see cref="INinoFormatter.HasRunLoop"/>,
     /// <see cref="INinoFormatter.PrefetchBytes"/>, <see cref="INinoFormatter.HasMemberPrefetch"/> and the internal
     /// ones) are ever called on a formatter that may lack a capability, once per type into a
     /// <c>static readonly</c> field the JIT folds; the hot members are called only where that field says the
@@ -182,14 +166,6 @@ namespace Nino.Core
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         void ReadBlock(ref T value, ref byte source) => NinoThrow.MissingCapability(GetType(), nameof(ReadBlock));
-
-        /// <summary>
-        /// Writes every element of <paramref name="values"/> (not empty) as <see cref="Serialize"/> writes one.
-        /// Called only where <see cref="INinoFormatter.HasElementLoop"/> is true.
-        /// </summary>
-        [EditorBrowsable(EditorBrowsableState.Never)]
-        void WriteElements(ReadOnlySpan<T> values, ref Writer writer) =>
-            NinoThrow.MissingCapability(GetType(), nameof(WriteElements));
 
         /// <summary>
         /// The bytes of a slot, or -1 (the default): values whose element in a collection is a slot of a fixed size,

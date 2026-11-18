@@ -10,8 +10,8 @@ are optional capabilities with defaults. Implement `FixedSize`, `WriteFixed`, `B
 struct of a fixed size that collections should move as blocks, all four, writing the same bytes as `Serialize`;
 `BlockMap` names each field in wire order with its formatter, `new NinoBlockMap().Item<int,
 UnmanagedFormatter<int>>(NinoBlocks.Offset(ref v, ref v.X))...`. Tuples and pairs of such values are blocks too. The
-rest (`BodyTraits`, `WriteElements`, and on the non-generic `INinoFormatter` it extends `HasElementLoop`,
-`HasPairLoop`, the pair writes and the prefetch members `PrefetchBytes`, `HasMemberPrefetch` and `PrefetchMembers`) are
+rest (on the non-generic `INinoFormatter` it extends: `BodyTraits`, the run loop `HasRunLoop` and `WriteRun`, and the
+prefetch members `PrefetchBytes`, `HasMemberPrefetch` and `PrefetchMembers`) are
 what generated formatters of classes and polymorphic bases implement; leave them alone.
 
 - One member: `[NinoMemberFormatter(typeof(F))]`, `F` for exactly the member type (NINO008).

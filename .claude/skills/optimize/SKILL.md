@@ -108,7 +108,13 @@ says which CPUs and cases moved.
   (`DateTimeOffset`: a read checks the range and widens the minutes) leaves the composite moved value by value. Why:
   `(int, DateTimeOffset)` and `KeyValuePair<int, BlockStruct>` were written element by element because each composite
   tested `RawFormatter.Is` per item and `DateTimeOffset` was a `typeof` in four places. Add no generic member to `INinoFormatter<T>`: Unity
-  2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`).
+  2022.3's IL2CPP fails to build a player with a generic default member (#405's `WritePairs<TKey, TKeyFormatter>`). The
+  view is one cursor, `NinoRun` (#355 PR 3: the first value, count, stride, a dictionary key's offset and write, the
+  in-use test of free entries, whose rule each runtime proves at startup), and the loops are `NinoRuns`, one per kind:
+  every contiguous collection builds a run and calls them, never a loop of its own. A polymorphic base's values go
+  through its generated `WriteRun`, whose body is Nino.Core's pieces with the base's compare chain inside (a step
+  carried into a Core loop lost: dispatch.md). A composite carries `NinoBodyTraits.Dispatches` where an item's
+  formatter does (`NinoBlocks.Dispatches`: pairs, tuples, generated generic structs).
 - **CPU policy in one place.** A choice of path tuned for a CPU family (Arm64, an x64 vendor or generation) reads
   `NinoSimd`'s properties (`HasArm64`, `Prefer512`), and a size band shared by several call sites is
   one named predicate with its constants and its evidence (`NinoUnsafe.IsArm64Short`); only an intrinsic call checks

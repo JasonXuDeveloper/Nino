@@ -139,13 +139,12 @@ public struct NotePlainFormatter : INinoFormatter<Note>
 }
 
 /// <summary>
-/// The bytes of <see cref="NotePlainFormatter"/>, with the members a generated formatter of a polymorphic base has:
-/// an element loop, pair loops (each counting its calls), and a body that opens no class body.
+/// The bytes of <see cref="NotePlainFormatter"/>, with the members a generated formatter of a polymorphic base has: a
+/// loop over a run of any collection's storage (counting its calls), and a body that opens no class body.
 /// </summary>
 public struct NoteLoopFormatter : INinoFormatter<Note>
 {
-    [ThreadStatic] public static int ElementLoops;
-    [ThreadStatic] public static int PairLoops;
+    [ThreadStatic] public static int RunLoops;
 
     public void Serialize(Note value, ref Writer writer) => default(NotePlainFormatter).Serialize(value, ref writer);
 
@@ -154,38 +153,13 @@ public struct NoteLoopFormatter : INinoFormatter<Note>
 
     public int BodyTraits => 0;
 
-    public bool HasElementLoop => true;
+    public bool HasRunLoop => true;
 
-    public void WriteElements(ReadOnlySpan<Note> values, ref Writer writer)
+    // Nino.Core's own loop over the run (each key as the run says, each value through Serialize).
+    public void WriteRun(NinoRun run, ref Writer writer)
     {
-        ElementLoops++;
-        foreach (var value in values)
-            Serialize(value, ref writer);
-    }
-
-    public bool HasPairLoop => true;
-
-    public void WritePairs32(object dictionary, ref Writer writer) => WritePairs<int>(dictionary, ref writer);
-
-    public void WritePairs64(object dictionary, ref Writer writer) => WritePairs<long>(dictionary, ref writer);
-
-    public void WriteStringPairs(object dictionary, ref Writer writer) => WritePairs<string>(dictionary, ref writer);
-
-    // A dictionary whose keys are another word (uint, an enum) comes as one of int or long keys, as Nino.Core reads it.
-    private void WritePairs<TKey>(object dictionary, ref Writer writer)
-    {
-        PairLoops++;
-        foreach (var pair in Unsafe.As<Dictionary<TKey, Note>>(dictionary))
-        {
-            switch (pair.Key)
-            {
-                case string text: writer.Write(text); break;
-                case int word: writer.Write(word); break;
-                case long word: writer.Write(word); break;
-            }
-
-            Serialize(pair.Value, ref writer);
-        }
+        RunLoops++;
+        NinoRun.WriteEach<Note, NotePlainFormatter>(run, ref writer);
     }
 }
 
@@ -331,17 +305,15 @@ public class ElementFormatterTests
     [TestMethod]
     public void LoopFormatterAsElementOfEveryCollection()
     {
-        Assert.IsFalse(NinoKind<NotePlainFormatter>.Elements);
-        Assert.IsFalse(NinoKind<NotePlainFormatter>.Pairs);
-        Assert.IsTrue(NinoKind<NoteLoopFormatter>.Elements);
-        Assert.IsTrue(NinoKind<NoteLoopFormatter>.Pairs);
+        Assert.IsFalse(NinoKind<NotePlainFormatter>.Runs);
+        Assert.IsTrue(NinoKind<NoteLoopFormatter>.Runs);
         Assert.IsFalse(NinoElements.WritesOnLocal<Note, NotePlainFormatter>());
         Assert.IsTrue(NinoElements.WritesOnLocal<Note, NoteLoopFormatter>());
 
         var notes = Enumerable.Range(0, 9).Select(i => new Note { Code = i * 7 - 20, Text = "n" + i }).ToArray();
         static bool Same(IEnumerable<Note> a, IEnumerable<Note> b) =>
             a.Select(x => (x.Code, x.Text)).SequenceEqual(b.Select(x => (x.Code, x.Text)));
-        int elements = NoteLoopFormatter.ElementLoops, pairs = NoteLoopFormatter.PairLoops;
+        int runs = NoteLoopFormatter.RunLoops;
 
         Check<List<Note>, ListFormatter<List<Note>, Note, NoteLoopFormatter>,
             ListFormatter<List<Note>, Note, NotePlainFormatter>>(notes.ToList(), x => x);
@@ -350,12 +322,15 @@ public class ElementFormatterTests
             new Queue<Note>(notes), x => x);
         Check<Stack<Note>, StackFormatter<Note, NoteLoopFormatter>, StackFormatter<Note, NotePlainFormatter>>(
             new Stack<Note>(notes), x => x);
+        Check<HashSet<Note>, HashSetFormatter<HashSet<Note>, Note, NoteLoopFormatter>,
+            HashSetFormatter<HashSet<Note>, Note, NotePlainFormatter>>(new HashSet<Note>(notes), x => x);
         Check<LinkedList<Note>, CollectionFormatter<LinkedList<Note>, Note, NoteLoopFormatter>,
             CollectionFormatter<LinkedList<Note>, Note, NotePlainFormatter>>(new LinkedList<Note>(notes), x => x);
-        Assert.IsTrue(NoteLoopFormatter.ElementLoops >= elements + 2, "arrays and lists write through the loop");
+        Assert.IsTrue(NoteLoopFormatter.RunLoops >= runs + 3, "arrays, lists and sets write through the loop");
 
-        // Every kind of key the pair loops take, one they do not (short), and a dictionary with a removed entry (the
-        // formatter's loop decides how to walk it).
+        // Every key whose memory is its wire form, and strings, take the run loop, a dictionary with a removed entry
+        // too (the run skips the free entry); a key of no fixed size does not.
+        runs = NoteLoopFormatter.RunLoops;
         Check<Dictionary<int, Note>, DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NoteLoopFormatter>,
             DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NotePlainFormatter>>(
             notes.ToDictionary(x => x.Code), x => x.Values);
@@ -368,7 +343,6 @@ public class ElementFormatterTests
         Check<Dictionary<string, Note>, DictionaryFormatter<string, Note, StringFormatter, NoteLoopFormatter>,
             DictionaryFormatter<string, Note, StringFormatter, NotePlainFormatter>>(
             notes.ToDictionary(x => x.Text), x => x.Values);
-        Assert.AreEqual(pairs + 4, NoteLoopFormatter.PairLoops, "int, uint, long and string keys");
         Check<Dictionary<short, Note>, DictionaryFormatter<short, Note, UnmanagedFormatter<short>, NoteLoopFormatter>,
             DictionaryFormatter<short, Note, UnmanagedFormatter<short>, NotePlainFormatter>>(
             notes.ToDictionary(x => (short)x.Code), x => x.Values);
@@ -376,7 +350,11 @@ public class ElementFormatterTests
         removed.Remove(notes[3].Code);
         Check<Dictionary<int, Note>, DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NoteLoopFormatter>,
             DictionaryFormatter<int, Note, UnmanagedFormatter<int>, NotePlainFormatter>>(removed, x => x.Values);
-        Assert.AreEqual(pairs + 5, NoteLoopFormatter.PairLoops, "short keys take the shared loop");
+        Assert.AreEqual(runs + 6, NoteLoopFormatter.RunLoops, "int, uint, long, string and short keys, an entry removed");
+        Check<Dictionary<string, Note>, DictionaryFormatter<string, Note, Utf8StringFormatter, NoteLoopFormatter>,
+            DictionaryFormatter<string, Note, Utf8StringFormatter, NotePlainFormatter>>(
+            notes.ToDictionary(x => x.Text), x => x.Values);
+        Assert.AreEqual(runs + 6, NoteLoopFormatter.RunLoops, "UTF-8 keys go value by value");
 
         // The same bytes and values through both formatters, and read back.
         void Check<T, TLoop, TPlain>(T value, Func<T, IEnumerable<Note>> items)

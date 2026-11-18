@@ -108,14 +108,12 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   nothing of their own since #355 PR 2 (#348): the tuple and `KeyValuePairFormatter` formatters and generated generic
   structs read each item through `NinoBlocks.ItemSize` / `WriteItem` / `ReadItem` (raw by `RawFormatter`, a block by
   its constrained `WriteFixed` / `ReadBlock`) and build their maps with `NinoBlockMap.Item`, and `DateTimeOffset` is a
-  block formatter (its `typeof` tests in `NinoKind` and `NinoElements` are gone). Left deciding for themselves, each
-  for its step: `WordKey` and the .NET 8+ `WritePairs32` / `WritePairs64` /
-  `WriteStringPairs` entry points and `WriteElements` (the one loop over the view drops them), the dedicated raw and
-  nullable array and list formatters chosen by binding, `CollectionFields`' entry block formatters (a set's and a
-  dictionary's, each built from `NinoBlockMap.Item`, and `SetEntryBytes` for slots: one `EntryBlock` needs the
-  view's entry layouts) and
-  `PriorityQueueHeap`'s int pair (the storage view), and Nino.Immutable's `Slots<T>.Possible` and `ImmutableArray`'s
-  reference loop (it sees only the public API, and its loops join the layer). What stays is not a
+  block formatter (its `typeof` tests in `NinoKind` and `NinoElements` are gone). #355 PR 3 put every contiguous collection on
+  one cursor (`NinoRun`) and one write loop per kind (`NinoRuns`): `WordKey`, `WriteElements` and the pair entry points
+  went for `WriteRun`, the set's and the dictionary's entry blocks are one `EntryBlock` with the items it moves, and
+  `ImmutableArray` writes its array. Left deciding for themselves, each for its step: the dedicated raw and nullable
+  array and list formatters chosen by binding, `PriorityQueueHeap`'s int pair (the storage view), and Nino.Immutable's
+  `Slots<T>.Possible`. What stays is not a
   formatter type parameter: `INinoRawArrayFormatter` (below) and the marker `INinoRawFormatter`, tested as a type. (4) The
   user-extensible points
   above. Per top-level call, not per value: calls the interceptors leave alone (generic methods, another assembly's
@@ -230,10 +228,35 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   0.68–0.81x, GenericOpenClassTupleBase 0.73–0.80x, WorkloadTest CardBattleLog 0.74–0.79x, PolymorphicFooArray and
   PolymorphicClass on par (0.96–1.06x); not landed.
 
-- Write an array or a list of a polymorphic base through the base's generated element loop
-  (`INinoFormatter<T>.WriteElements` where `HasElementLoop`, read once into `NinoKind<TFormatter>.Elements`;
-  `DispatchEmitter.EmitWriteElements`): the chain of type checks inline in
-  the loop, the writer in a local, the depth checked once before it. Why: written one element at a time through
+- Let a step never carry a large dispatch into a Nino.Core loop: Nino.Core owns the skeleton of a loop over a run
+  (the cursor `NinoRun`, its steps, the in-use test, the key's write, the count, the depth checked once, the deep path
+  `NinoRun.WriteEach`) and the generator writes the base's compare chain inside it, in one non-generic member per
+  polymorphic base (`INinoFormatter.WriteRun` where `HasRunLoop`, read once into `NinoKind<TFormatter>.Runs`;
+  `DispatchEmitter.EmitWriteRun`), which every contiguous collection of the base reaches through `NinoRuns`. Why: a
+  kernel in Nino.Core generic over a generated step struct lost on large hierarchies, and a Core-generic pair step over
+  a class value is shared code, an indirect call (`call rax`) per pair. Evidence (#355's probe, `claude/step-probe`
+  1ca26846, `StepProbe`/`StepDictProbe`, run 44379569172, 3 rounds; median time against the per-base generated loop
+  then, 1.00, Xeon 6975P-C / Neoverse-N2): Foo20 (20 subtypes) array and list of 1,000, step with the bodies out of
+  line 1.48 / 1.80, step with the bodies inline 1.40 / 1.44 (the JIT refused to inline it, #305's limit: RyuJIT sizes
+  the budget from the root), per-value `Serialize` 1.38 / 1.47; Foo20 dictionary of 12, 32 and 100 pairs, step
+  1.73-1.79 / 1.62-1.65, composed pair step 2.18-2.35 / 1.96-2.13; Small3 (3 subtypes) array and list, step inline
+  0.99 / 1.27, dictionary 0.95-1.02 / 0.84-0.85. The listings: the chain inlined into the kernel but each body cost a
+  call, the kernel's writer on the stack and its address passed to every body (the cursor back in memory per element).
+  The run loop's locals (`stride`, `key`, `inUse`) are read from the run once and the pieces take them as arguments:
+  through the run (a struct the writer's stores may alias) each would be a load per element. A dictionary's key is
+  written by `NinoRun.WriteKey` where its memory is its wire form (raw without padding, a block that is its memory) or
+  it is a string (`NinoRuns.KeyOf`); any other key goes value by value, since a generic member would trip Unity 2022.3's
+  IL2CPP (#405). The inline-body step for hierarchies of up to 3-4 subtypes (on par or faster above) is not emitted:
+  one member serves every hierarchy until the landing A/B says otherwise. The listings of `WriteRun` against the
+  loops it replaced (`asm.py dump --filter Polymorphic`, x64 Tier1, PolymorphicFooBase): no call per element on
+  either side; arrays keep `WriteElements`' shape (the writer in memory, its address reaching only the registry's
+  fallback) plus the `inUse` and `key` tests and two locals spilled (the count, the value), while the
+  `Dictionary<int, Foo>` member lost the old pair loop's writer in registers: the pair loop's by-value fallback
+  (`writer = __WriteSubtypeDeep(value, writer)`, 15-25 % faster on pairs locally) exposed no address, and one loop
+  for both takes the element loop's by-reference fallback (run 43849791156). The landing A/B decides between them.
+- Write an array or a list of a polymorphic base through the base's generated loop (since #355 PR 3 the run loop
+  above; before it `INinoFormatter<T>.WriteElements`, `DispatchEmitter.EmitWriteElements`): the chain of type checks
+  inline in the loop, the writer in a local, the depth checked once before it. Why: written one element at a time through
   `Serialize`, each element called the dispatch (too large to inline into the collection loop) with the writer in
   memory; that call, not the chain or the tag, was LuminPack's whole lead. Evidence (#305, LuminPack's `List<IFoo>`
   of 1,000 values of 20 subtypes, local x64, bytes identical): a hand-written loop 3.85 us, the same chain called per
@@ -250,9 +273,10 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   (7.2 to 8.8 us, 7.5 to 8.4; two rounds, local x64), their subtypes each holding a class whose nested writes, all
   inlined into one loop, ran out of registers; the other generic bases moved within noise. The closed dispatch stays
   marked to inline into the collection loop, as before.
-- Write a `Dictionary<TKey, Base>` of a polymorphic base through the base's generated pair loop
-  (`INinoFormatter.HasPairLoop`, read once into `NinoKind<TFormatter>.Pairs`; `DispatchEmitter.EmitWriteElements`,
-  generated for .NET 8+ only): one
+- Write a `Dictionary<TKey, Base>` of a polymorphic base through the base's generated loop with the entries walked in
+  place and the writer in a local (since #355 PR 3 the run loop above, a key written by `NinoRun.WriteKey`, free entries
+  skipped; the measurements below are of its predecessor, the pair loop: `INinoFormatter.HasPairLoop`,
+  `DispatchEmitter.EmitWriteElements`, generated for .NET 8+ only): one
   generic loop `__WritePairs<TKey, TKeyFormatter>` in the generated struct, reached through non-generic members of
   the interface per kind of key (`WritePairs32`, `WritePairs64`, `WriteStringPairs`; 4- and 8-byte primitive and enum keys
   are read as `int` and `long`, `WordKey<T>`), the dictionary's entries walked in place

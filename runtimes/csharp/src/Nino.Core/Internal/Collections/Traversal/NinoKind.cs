@@ -63,7 +63,7 @@ namespace Nino.Core.Internal
 
     /// <summary>
     /// What <typeparamref name="TFormatter"/> says of every value, read once: its body traits, whether it writes
-    /// strings, its element and pair loops, its prefetch and its top-level writes. A formatter without a capability
+    /// strings, its run loop, its prefetch and its top-level writes. A formatter without a capability
     /// answers its query through the interface's default, boxed, so the queries are asked here once and the hot paths
     /// read these fields and call a member only where the formatter has it (a constrained call). Generic over the
     /// formatter alone, so a field folds where the code reading it is shared over a class element (whose formatter is
@@ -86,12 +86,9 @@ namespace Nino.Core.Internal
             get => typeof(TFormatter) == typeof(StringFormatter);
         }
 
-        /// <summary><see cref="INinoFormatter.HasElementLoop"/>: an array's or a list's elements in one generated
-        /// loop.</summary>
-        public static readonly bool Elements = default(TFormatter).HasElementLoop;
-
-        /// <summary><see cref="INinoFormatter.HasPairLoop"/>: a dictionary's pairs in one generated loop.</summary>
-        public static readonly bool Pairs = default(TFormatter).HasPairLoop;
+        /// <summary><see cref="INinoFormatter.HasRunLoop"/>: the values of a run (<see cref="NinoRun"/>) in one
+        /// generated loop.</summary>
+        public static readonly bool Runs = default(TFormatter).HasRunLoop;
 
         /// <summary><see cref="INinoFormatter.HasSizedWrite"/>.</summary>
         public static readonly bool SizedWrite = default(TFormatter).HasSizedWrite;

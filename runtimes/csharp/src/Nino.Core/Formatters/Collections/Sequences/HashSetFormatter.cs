@@ -20,113 +20,40 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Raw)
-            {
-                int size = Unsafe.SizeOf<T>();
-                int count = value.Count;
-                ref byte elements = ref writer.ReserveCounted(count, size);
-                if (count == 0)
-                    return;
-
-                // The set's own entries when none is free: a loop over an array, without the enumerator's version
-                // check and reloads of the set's fields on each element. The enumerator out of line, so that its
-                // state does not take registers or inlining budget here.
-                var entries = CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
-                if (entries != null && count <= entries.Length)
-                    // Several entries at a time where the CPU permutes vectors, each value packed out of its entry.
-                    NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBlock<T, TFormatter>>(ref elements,
-                        ref entries[0], count, size);
-                else
-                    WriteEnumerated(value, ref elements, count);
-                return;
-            }
-
-            // An empty set skips the call (as NinoElements.Read).
-            if (value.Count == 0)
+            // An empty set skips the run (as NinoElements.Read).
+            int count = value.Count;
+            if (count == 0)
             {
                 writer.WriteLength(0);
                 return;
             }
 
-            // Slots (raw T?): copied out and written as one block, as an array of them is.
-            if (NinoKind.Of<T, TFormatter>() == NinoElementKind.Slot)
-            {
-                WriteSlots(value, ref writer);
-                return;
-            }
-
-            // Elements with references through the writer parameter, which their formatters' calls take anyway: a copy
-            // in and out of WriteEach for each set cost more (NinoElements.WritesOnLocal).
-            if (NinoElements.WritesOnLocal<T>())
-                writer = WriteEach(value, writer);
+            // The set's own entries as a run: a loop over an array, without the enumerator's version check and reloads
+            // of the set's fields on each element. The enumerator out of line, so that its state does not take
+            // registers or inlining budget here.
+            if (CollectionFields.Run(value, count, out var run))
+                NinoRuns.WriteSet<T, TFormatter>(run, count, ref writer);
             else
-                WriteEach(value, ref writer);
+                writer = WriteEnumerated(value, count, writer);
         }
 
         /// <summary>
-        /// The count and the slots, out of line. Where a run of slots can be written over itself
-        /// (<see cref="INinoFormatter{T}.SlotsWriteInPlace"/>) and the set has no free entry, the values are
-        /// packed out of the entries as raw elements are (<see cref="NinoBlockCollections.WriteAll{T, TFormatter}"/>),
-        /// then written over themselves as slots, which clears their padding and absent values (1,000 <c>int?</c>:
-        /// 227 ns against 1,140 from a rented copy, local); else from a rented copy (CopyTo: enumeration order).
+        /// The count and the elements through the enumerator, where the set's fields are not known: out of line, the
+        /// writer by value and returned.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteSlots(TSet value, ref Writer writer)
+        private static Writer WriteEnumerated(TSet value, int count, Writer writer)
         {
-            int count = value.Count;
-            var entries = default(TFormatter).SlotsWriteInPlace && CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
-            if (entries == null || count > entries.Length)
-            {
-                NinoCollections.WriteCopied<T, TFormatter>(value, null, ref writer);
-                return;
-            }
-
-            int size = Unsafe.SizeOf<T>();
-            ref byte elements = ref writer.ReserveCounted(count, size);
-            NinoBlockCollections.WriteAll<CollectionFields.SetEntry<T>, CollectionFields.SetEntryBytes<T>>(ref elements,
-                ref entries[0], count, size);
-            default(TFormatter).WriteSlots(ref elements,
-                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, T>(ref elements), count));
-        }
-
-        /// <summary>The <paramref name="count"/> raw elements of a set with free entries, in enumeration
-        /// order.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteEnumerated(TSet value, ref byte elements, int count)
-        {
-            int size = Unsafe.SizeOf<T>();
+            writer.WriteLength(count);
             int written = 0;
-            ref byte next = ref elements;
             foreach (var item in value)
             {
                 if (++written > count)
                     NinoThrow.ModifiedDuringWrite();
-                NinoUnsafe.Write(ref next, item);
-                next = ref Unsafe.Add(ref next, size);
+                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
             }
 
-            NinoLayout<T>.ClearPadding(ref elements, count);
-        }
-
-        /// <summary>
-        /// The count and the elements one by one: one loop, out of Serialize (a second loop there made the raw one's
-        /// code slower: HashSet&lt;int&gt; of 1,000 serialized 40% slower on x64 and Arm64). The writer by value and
-        /// returned: a local here, its cursor in registers (HashSet&lt;int?&gt; of 1,000: 5 to 10% faster), where one
-        /// passed by reference would be kept in memory, the caller's too.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Writer WriteEach(TSet value, Writer writer)
-        {
-            WriteEach(value, ref writer);
             return writer;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteEach(TSet value, ref Writer writer)
-        {
-            writer.WriteLength(value.Count);
-            foreach (var item in value)
-                NinoElements.WriteOne<T, TFormatter>(item, ref writer);
         }
 
         public void Deserialize(ref Reader reader, ref TSet value)

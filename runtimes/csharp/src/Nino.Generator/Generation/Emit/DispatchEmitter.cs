@@ -63,7 +63,7 @@ internal static class DispatchEmitter
             {
                 var own = Subtypes(subtypesOf, e.TypeName, e.TypeId);
                 w.Open($"partial struct {e.Self}");
-                EmitBase(w, e.TypeName, own, services, closedForm: false);
+                EmitBase(w, e.TypeName, own, services, closedForm: false, e.Self);
                 w.Close();
                 w.Line();
                 continue;
@@ -80,7 +80,7 @@ internal static class DispatchEmitter
                 foreach (var c in closed)
                 {
                     w.Open($"static class __NinoDispatch{closedCount++}");
-                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true);
+                    EmitBase(w, c, Subtypes(subtypesOf, c, 0), services, closedForm: true, self: null);
                     w.Close();
                     w.Line();
                 }
@@ -204,7 +204,8 @@ internal static class DispatchEmitter
     }
 
     /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
-    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services, bool closedForm)
+    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry>? subtypes, string services, bool closedForm,
+        string? self)
     {
         // value.GetType() == typeof(X) compiles to one method table compare. WriteExactShallow is inlined where the
         // caller's inlining budget allows (the dispatch is inlined into its callers), else called as shared code. A
@@ -234,7 +235,7 @@ internal static class DispatchEmitter
             w.Line(WriteOther(t, services) + ";");
             w.Close();
             if (!closedForm)
-                EmitWriteElements(w, t, subtypes, services);
+                EmitWriteRun(w, t, self!, subtypes, services);
 
             w.Line();
             w.Line($"{GeneratedCode.NoInline} static {Core}Writer __WriteSubtypeDeep({t} value, {Core}Writer writer)");
@@ -290,130 +291,54 @@ internal static class DispatchEmitter
         : $$"""if (value.GetType() == typeof({{s.TypeName}})) { {{services}}NinoObject.WriteExactShallow<{{s.TypeName}}, {{s.FormatterName}}>(value, ref writer); {{exit}} }""";
 
     /// <summary>
-    /// <c>WriteElements</c> (<c>HasElementLoop</c>): the elements of an array or a list of the base in one
-    /// loop with the chain of type checks inline and the writer in a local, which the JIT keeps in registers. Written
-    /// one at a time through <c>Serialize</c>, each element took a call into the dispatch (too large to inline into the
-    /// collection loop) with the writer in memory: LuminPack's List&lt;IFoo&gt; of 1,000 values of 20 subtypes took
-    /// 5.0 us that way and 3.85 in this form (LuminPack 4.4; local x64, #305). The depth is checked once: no element
-    /// changes it. <c>WritePairs32</c> and its kin (<c>HasPairLoop</c>) are the same loop over a dictionary's pairs, each key
-    /// written by its formatter before the value (#308).
+    /// <c>WriteRun</c> (<c>HasRunLoop</c>): the values of a run of any collection's storage (<c>NinoRun</c>: an array's,
+    /// a list's, a ring half's, a set's or a dictionary's entries, each value after its key where the run has keys) in
+    /// one loop with the chain of type checks inline and the writer in a local, which the JIT keeps in registers.
+    /// Nino.Core owns the rest (the count, the depth check once per collection, the steps over the entries, the
+    /// in-use test, the key's write, the deep path); only the chain is the base's. Written one value at a time through
+    /// <c>Serialize</c>, each value took a call into the dispatch (too large to inline into a Nino.Core loop) with the
+    /// writer in memory: LuminPack's List&lt;IFoo&gt; of 1,000 values of 20 subtypes took 5.0 us that way and 3.85 in
+    /// this form (LuminPack 4.4; local x64, #305). A loop in Nino.Core calling a generated step per value lost on
+    /// large hierarchies (#355's probe, run 44379569172: 1.4-1.8x the time of this loop for 20 subtypes), so the
+    /// generator writes the loop and Nino.Core its pieces.
     /// </summary>
-    private static void EmitWriteElements(CodeWriter w, string t, List<DispatchEntry> subtypes, string services)
+    private static void EmitWriteRun(CodeWriter w, string t, string self, List<DispatchEntry> subtypes,
+        string services)
     {
-        string formatter = $"{Core}INinoFormatter<{t}>";
+        string run = $"{services}NinoRun";
         string loops = $"{Core}INinoFormatter";
         w.Line();
-        w.Line($"bool {loops}.HasElementLoop => true;");
+        w.Line($"bool {loops}.HasRunLoop => true;");
         w.Line();
-        w.Open($"void {formatter}.WriteElements(global::System.ReadOnlySpan<{t}> values, ref {Core}Writer target)");
+        w.Open($"void {loops}.WriteRun({run} run, ref {Core}Writer target)");
         w.Line($"if ({services}NinoObject.IsDeep(ref target))");
         w.Open();
-        EmitSlowLoop(w, "foreach (var value in values)", pairs: false);
+        w.Line($"{run}.WriteEach<{t}, {self}>(run, ref target);");
         w.Line("return;");
         w.Close();
         w.Line();
-        EmitDispatchLoop(w, t, subtypes, services, "foreach (var value in values)", pairs: false);
-        w.Close();
-
-        w.Line();
-        // The pair loops only where they pay (.NET 8+): IL2CPP compiles every method of a type, called or not, and
-        // each is instantiated per kind of key.
-        w.Line(PairsBuild);
-        w.Line($"bool {loops}.HasPairLoop => true;");
-        EmitWritePairs(w, t, services, loops, "WritePairs32", "int", $"{Core}UnmanagedFormatter<int>");
-        EmitWritePairs(w, t, services, loops, "WritePairs64", "long", $"{Core}UnmanagedFormatter<long>");
-        EmitWritePairs(w, t, services, loops, "WriteStringPairs", "string", $"{Core}StringFormatter");
-        string pairsSignature = $"<__TKey, __TKeyFormatter>(global::System.Collections.Generic.Dictionary<__TKey, {t}> pairs, ref {Core}Writer target)";
-        string keyConstraint = $"    where __TKeyFormatter : struct, {Core}INinoFormatter<__TKey>";
-        w.Line();
-        w.Line($"private static void __WritePairs{pairsSignature}");
-        w.Line(keyConstraint);
-        w.Open();
-        // The entries in place of the enumerator, whose MoveNext stayed a call per pair. A dictionary with removed
-        // entries, or bodies too deep, go through the enumerator and the dispatch, out of line: in this method their
-        // enumerator and calls took stack and registers from the loop.
-        // A reference and a count left: a span's index kept a bounds check per pair.
-        w.Line($"var entries = {services}NinoDictionaryEntries.InUse(pairs, out int left);");
-        w.Line($"if (entries == null || {services}NinoObject.IsDeep(ref target))");
-        w.Open();
-        w.Line("__WritePairsThroughDispatch<__TKey, __TKeyFormatter>(pairs, ref target);");
-        w.Line("return;");
-        w.Close();
-        w.Line();
-        w.Line("ref var pair = ref global::System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
-        EmitDispatchLoop(w, t, subtypes, services,
-            "for (; left > 0; left--, pair = ref global::System.Runtime.CompilerServices.Unsafe.Add(ref pair, 1))",
-            pairs: true);
-        w.Close();
-        w.Line();
-        w.Line(GeneratedCode.NoInline);
-        w.Line($"private static void __WritePairsThroughDispatch{pairsSignature}");
-        w.Line(keyConstraint);
-        w.Open();
-        EmitSlowLoop(w, "foreach (var pair in pairs)", pairs: true);
-        w.Close();
-        w.Line("#endif");
-    }
-
-    /// <summary>The condition of the pair loops (<c>HasPairLoop</c>): the builds that have them.</summary>
-    private const string PairsBuild = "#if NET8_0_OR_GREATER";
-
-    /// <summary>
-    /// A pair loop of <c>INinoFormatter</c> (<c>WritePairs32</c> and its kin) for keys read as
-    /// <paramref name="key"/>. Each is a line over one generic loop; the interface's methods are not generic, which a
-    /// call from shared code could not devirtualize.
-    /// </summary>
-    private static void EmitWritePairs(CodeWriter w, string t, string services, string formatter, string name,
-        string key, string keyFormatter) =>
-        w.Line($"void {formatter}.{name}(object dictionary, ref {Core}Writer writer) => __WritePairs<{key}, {keyFormatter}>({services}NinoObject.SameType<global::System.Collections.Generic.Dictionary<{key}, {t}>>(dictionary), ref writer);");
-
-    /// <summary>
-    /// A loop headed by <paramref name="loop"/> that writes each value as <c>Serialize</c> does, through the dispatch
-    /// (bodies too deep, or a dictionary not read in place). A pair's key is written first, by its formatter.
-    /// </summary>
-    private static void EmitSlowLoop(CodeWriter w, string loop, bool pairs)
-    {
-        w.Line(loop);
-        w.Open();
-        EmitPairKey(w, pairs, "target");
-        w.Line("if (value == null)");
-        w.Line("    target.UnsafeWrite(0);");
-        w.Line("else");
-        w.Line("    __WriteSubtype(value, ref target);");
-        w.Close();
-    }
-
-    /// <summary>
-    /// A loop headed by <paramref name="loop"/> that writes each value as <c>Serialize</c> does, with the chain inline
-    /// and the writer in a local. A pair's key is written first, by its formatter.
-    /// </summary>
-    private static void EmitDispatchLoop(CodeWriter w, string t, List<DispatchEntry> subtypes, string services,
-        string loop, bool pairs)
-    {
+        w.Line("ref byte entry = ref run.First;");
+        w.Line("int stride = run.Stride, key = run.Key, inUse = run.InUse;");
         w.Line($"{Core}Writer writer = default;");
         w.Line("target.CopyTo(ref writer);");
-        w.Line(loop);
+        w.Line($"for (int left = run.Count; left > 0; left--, entry = ref {run}.Next(ref entry, stride))");
         w.Open();
-        EmitPairKey(w, pairs, "writer");
+        w.Line($"if ({run}.Skips(ref entry, inUse))");
+        w.Line("    continue;");
+        w.Line($"{run}.WriteKey(ref entry, key, ref writer);");
+        w.Line($"var value = {run}.Value<{t}>(ref entry);");
         w.Line("if (value == null) { writer.UnsafeWrite(0); continue; }");
         foreach (var s in subtypes)
             w.Line(WriteShallow(s, services, "continue;"));
-        // A subtype the chain does not know. In the pair loop: out of line with the writer by value, so the local's
-        // address reaches no call and its fields stay in registers across the loop (12-100 pairs 15-25 % faster,
-        // local x64). Not in the element loop: there the same change wrote PolymorphicFooArray (20 subtypes) 12 %
-        // slower on Neoverse-N2 and 5 % on EPYC 9V74, and NonGenericBase 6 % slower on 9V74 (run 43849791156).
-        w.Line(pairs ? "writer = __WriteSubtypeDeep(value, writer);" : WriteOther(t, services) + ";");
+        // A subtype the chain does not know: the registry, with the writer by reference. With the writer by value
+        // (writer = __WriteSubtypeDeep(value, writer)), dictionaries' pair loops wrote 12-100 pairs 15-25 % faster
+        // (local x64), but arrays' element loops PolymorphicFooArray (20 subtypes) 12 % slower on Neoverse-N2 and 5 %
+        // on EPYC 9V74, and NonGenericBase 6 % slower on 9V74 (run 43849791156); one loop now serves both.
+        w.Line(WriteOther(t, services) + ";");
         w.Close();
         w.Line();
         w.Line("writer.CopyTo(ref target);");
-    }
-
-    private static void EmitPairKey(CodeWriter w, bool pairs, string writer)
-    {
-        if (!pairs)
-            return;
-        w.Line($"default(__TKeyFormatter).Serialize(pair.Key, ref {writer});");
-        w.Line("var value = pair.Value;");
+        w.Close();
     }
 
     private static string WriteSubtype(string t) => $"internal static void __WriteSubtype({t} value, ref {Core}Writer writer)";

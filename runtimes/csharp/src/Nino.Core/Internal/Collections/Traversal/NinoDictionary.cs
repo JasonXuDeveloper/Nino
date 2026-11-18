@@ -32,218 +32,49 @@ namespace Nino.Core
             get => NinoKind.Of<TValue, TValueFormatter>();
         }
 
-        /// <summary>Writes the count and the pairs of a dictionary (not null).</summary>
-        // Inlined, with the loops out of line: the writer's address never reaches a call that is not inlined (raw
-        // pairs are written into one reservation taken here; other pairs go through a copy of the writer), so the
-        // caller keeps the writer's fields in registers.
+        /// <summary>
+        /// Writes the count and the pairs of a dictionary (not null): its entries as a run
+        /// (<see cref="NinoRuns.WritePairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>), or through its enumerator
+        /// where this runtime's layout of them is not known.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write(Dictionary<TKey, TValue> value, ref Writer writer)
         {
-            if (KeyKind == NinoElementKind.Raw && ValueKind == NinoElementKind.Raw)
-            {
-                // Raw keys and values: one reservation for the whole dictionary, no per-element bounds checks.
-                int count = value.Count;
-                ref byte pairs = ref writer.ReserveCounted(count, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
-                if (count != 0)
-                    WriteRaw(value, ref pairs, count);
-                return;
-            }
-
-            // A polymorphic value: the base's generated pair loop, the dispatch inline (INinoFormatter.WritePairs32
-            // and its kin, constrained calls), for keys of a word written as it lies in memory, or strings. Asked
-            // before the string pairs below return, so NinoKind is initialized when Tier1 compiles this.
-            if ((NinoKind<TKeyFormatter>.IsString ||
-                 KeyKind == NinoElementKind.Raw && WordKey<TKey>.Size != 0) &&
-                !typeof(TValue).IsValueType && NinoKind<TValueFormatter>.Pairs)
-            {
-                int count = value.Count;
-                writer.WriteLength(count);
-                if (count == 0)
-                    return;
-                Writer pairs = default;
-                writer.CopyTo(ref pairs);
-                if (NinoKind<TKeyFormatter>.IsString)
-                    default(TValueFormatter).WriteStringPairs(value, ref pairs);
-                else if (WordKey<TKey>.Size == sizeof(int))
-                    default(TValueFormatter).WritePairs32(value, ref pairs);
-                else
-                    default(TValueFormatter).WritePairs64(value, ref pairs);
-                pairs.CopyTo(ref writer);
-                return;
-            }
-
-            if ((KeyKind == NinoElementKind.Raw && NinoKind<TValueFormatter>.IsString) ||
-                (NinoKind<TKeyFormatter>.IsString && ValueKind == NinoElementKind.Raw))
-            {
-                // Raw keys and strings, or strings and raw values: written into the free part of the buffer by value;
-                // only when they do not fit does the buffer grow, through the general loop.
-                int written = WriteStringPairs(value, ref writer.FreeSpace(out int available), available);
-                if (written >= 0)
-                {
-                    writer.Commit(written);
-                    return;
-                }
-            }
-
-            // An empty dictionary skips the call and the copies of the writer in and out (as NinoElements.Read).
-            if (value.Count == 0)
+            // Asked first, so NinoKind is initialized when Tier1 compiles this: a polymorphic value's generated loop
+            // writes the run with its keys where Nino.Core says how (NinoRuns.KeyOf).
+            int key = !typeof(TValue).IsValueType && NinoKind<TValueFormatter>.Runs
+                ? NinoRuns.KeyOf<TKey, TKeyFormatter>()
+                : NinoRun.NoKey;
+            int count = value.Count;
+            // An empty dictionary skips the run and the copies of the writer in and out (as NinoElements.Read).
+            if (count == 0)
             {
                 writer.WriteLength(0);
                 return;
             }
 
-            Writer copy = default;
-            writer.CopyTo(ref copy);
-            WritePairs(value, ref copy);
-            copy.CopyTo(ref writer);
-        }
-
-        /// <summary>
-        /// The bytes of <see cref="WritePairs"/> for raw keys and strings, or strings and raw values, written into
-        /// <paramref name="dst"/> (<paramref name="available"/> bytes). Returns the number of bytes written, or -1 when
-        /// they do not fit.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int WriteStringPairs(Dictionary<TKey, TValue> value, ref byte dst, int available)
-        {
-            int count = value.Count;
-            if (available < NinoWire.LengthSize)
-                return -1;
-            NinoUnsafe.Write(ref dst, count);
-            nuint pos = NinoWire.LengthSize;
-            nuint end = (nuint)(uint)available;
-            var entries = CollectionFields.Entries(value, count);
-            if (entries != null)
-            {
-                ref var first = ref NinoUnsafe.GetArrayDataReference(entries);
-                for (int i = 0; i < count; i++)
-                {
-                    ref var pair = ref Unsafe.Add(ref first, i);
-                    if (!TryWriteStringPair(ref dst, ref pos, end, pair.Key, pair.Value))
-                        return -1;
-                }
-
-                return (int)pos;
-            }
-
-            int written = 0;
-            foreach (var pair in value)
-            {
-                if (++written > count)
-                    NinoThrow.ModifiedDuringWrite();
-                if (!TryWriteStringPair(ref dst, ref pos, end, pair.Key, pair.Value))
-                    return -1;
-            }
-
-            return (int)pos;
-        }
-
-        /// <summary>
-        /// A pair of <see cref="WriteStringPairs"/> at <paramref name="pos"/>, when the longest form of its string fits:
-        /// a string key and its raw value, or a raw key and its string.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TryWriteStringPair(ref byte dst, ref nuint pos, nuint end, TKey key, TValue item)
-        {
-            if (NinoKind<TKeyFormatter>.IsString)
-            {
-                string s = Unsafe.As<TKey, string>(ref key);
-                nuint size = (nuint)(uint)(NinoStrings.MaxSize(s) + Unsafe.SizeOf<TValue>());
-                if (size > end - pos)
-                    return false;
-                ref byte entry = ref Unsafe.Add(ref dst, (nint)pos);
-                int length = NinoStrings.Write(ref entry, s);
-                NinoUnsafe.Write(ref entry, length, item);
-                NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref entry, length));
-                pos += (nuint)(uint)(length + Unsafe.SizeOf<TValue>());
-                return true;
-            }
-
-            {
-                string s = Unsafe.As<TValue, string>(ref item);
-                int keySize = Unsafe.SizeOf<TKey>();
-                // Room for the longest form of the string; only what it takes is kept.
-                nuint size = (nuint)(uint)(keySize + NinoStrings.MaxSize(s));
-                if (size > end - pos)
-                    return false;
-                ref byte entry = ref Unsafe.Add(ref dst, (nint)pos);
-                NinoUnsafe.Write(ref entry, 0, key);
-                NinoLayout<TKey>.ClearPadding(ref entry);
-                pos += (nuint)(uint)(keySize + NinoStrings.Write(ref Unsafe.Add(ref entry, keySize), s));
-                return true;
-            }
-        }
-
-        /// <summary>Writes the <paramref name="count"/> raw pairs at <paramref name="pairs"/> (after the
-        /// count).</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteRaw(Dictionary<TKey, TValue> value, ref byte pairs, int count)
-        {
-            int keySize = Unsafe.SizeOf<TKey>();
-            int pairSize = keySize + Unsafe.SizeOf<TValue>();
-            // The dictionary's own entries when none is free (as HashSetFormatter's); the enumerator out of line.
-            var entries = CollectionFields.Entries(value, count);
-            if (entries == null)
-            {
-                WriteEnumerated(value, ref pairs, count);
-                return;
-            }
-
-            // Several entries at a time where the CPU permutes vectors, each key and value packed out of its entry.
-            NinoBlockCollections.WriteAll<NinoDictionaryEntry<TKey, TValue>,
-                CollectionFields.MapEntryBlock<TKey, TValue, TKeyFormatter, TValueFormatter>>(ref pairs, ref entries[0],
-                count, pairSize);
-        }
-
-        /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration
-        /// order.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteEnumerated(Dictionary<TKey, TValue> value, ref byte pairs, int count)
-        {
-            int keySize = Unsafe.SizeOf<TKey>();
-            int pairSize = keySize + Unsafe.SizeOf<TValue>();
-            int written = 0;
-            foreach (var pair in value)
-            {
-                if (++written > count)
-                    NinoThrow.ModifiedDuringWrite();
-                NinoUnsafe.Write(ref pairs, 0, pair.Key);
-                NinoUnsafe.Write(ref pairs, keySize, pair.Value);
-                NinoLayout<TKey>.ClearPadding(ref pairs);
-                NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref pairs, keySize));
-                pairs = ref Unsafe.Add(ref pairs, pairSize);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WritePairs(Dictionary<TKey, TValue> value, ref Writer target)
-        {
-            // A local writer, so its fields stay in registers inside the loop.
-            Writer writer = default;
-            target.CopyTo(ref writer);
-            int count = value.Count;
-            writer.WriteLength(count);
-            var entries = CollectionFields.Entries(value, count);
-            if (entries != null)
-            {
-                ref var first = ref NinoUnsafe.GetArrayDataReference(entries);
-                for (int i = 0; i < count; i++)
-                {
-                    ref var pair = ref Unsafe.Add(ref first, i);
-                    default(TKeyFormatter).Serialize(pair.Key, ref writer);
-                    default(TValueFormatter).Serialize(pair.Value, ref writer);
-                }
-            }
+            if (CollectionFields.Run(value, count, key, out var run))
+                NinoRuns.WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(run, count, ref writer);
             else
+                writer = WriteEnumerated(value, count, writer);
+        }
+
+        /// <summary>The count and the pairs through the enumerator, out of line, the writer by value and
+        /// returned.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteEnumerated(Dictionary<TKey, TValue> value, int count, Writer writer)
+        {
+            writer.WriteLength(count);
+            int written = 0;
+            foreach (var pair in value)
             {
-                foreach (var pair in value)
-                {
-                    default(TKeyFormatter).Serialize(pair.Key, ref writer);
-                    default(TValueFormatter).Serialize(pair.Value, ref writer);
-                }
+                if (++written > count)
+                    NinoThrow.ModifiedDuringWrite();
+                default(TKeyFormatter).Serialize(pair.Key, ref writer);
+                default(TValueFormatter).Serialize(pair.Value, ref writer);
             }
 
-            writer.CopyTo(ref target);
+            return writer;
         }
 
         /// <summary>
@@ -733,23 +564,5 @@ namespace Nino.Core
             HashTables.Link(dictionary, length);
             return reader;
         }
-    }
-
-    /// <summary>
-    /// The size of <typeparamref name="T"/> as a dictionary key the generated pair loops write as an <c>int</c> or a
-    /// <c>long</c> (<see cref="INinoFormatter.HasPairLoop"/>), or 0: a primitive or an enum of 4 or 8 bytes whose
-    /// memory is its wire form. Only these: a dictionary's entries of such a key lie as those of an <c>int</c> or a <c>long</c> key,
-    /// which those of a struct of the same size need not. A field of a class generic over the key alone, so the test
-    /// folds where the pair loop is shared code over a class value.
-    /// </summary>
-    internal static class WordKey<T>
-    {
-        public static readonly int Size =
-            BitConverter.IsLittleEndian && (typeof(T).IsPrimitive || typeof(T).IsEnum) &&
-            NinoLayout<T>.IsCanonical && !NinoLayout<T>.HasPadding &&
-            NinoLayout<T>.WireSize == Unsafe.SizeOf<T>() &&
-            (Unsafe.SizeOf<T>() == sizeof(int) || Unsafe.SizeOf<T>() == sizeof(long))
-                ? Unsafe.SizeOf<T>()
-                : 0;
     }
 }

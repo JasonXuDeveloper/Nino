@@ -59,7 +59,9 @@ value, a kernel hook or a kernel threshold. How to build and run Unity is `platf
   the netstandard2.1 build boxed once or twice per array or list of any non-block element; round 130 read
   `Traits<T, TFormatter>.Elements` (the formatter `as` the interface, once) there, an interface call per collection,
   and #346 made the loop a member of `INinoFormatter<T>` (asked through `INinoFormatter.HasElementLoop` once per
-  formatter, then a constrained call; the pair loops and `BodyTraits` likewise).
+  formatter, then a constrained call; the pair loops and `BodyTraits` likewise); #355 PR 3 made it one non-generic
+  member of `INinoFormatter`, `WriteRun` over a `NinoRun`, generated for every build (the pair loops were .NET 8+ only:
+  each was instantiated per kind of key, and IL2CPP compiles every method of a type).
   Grep `is INino` and `((INino` in `runtimes/csharp/src/Nino.Core` for a test outside `#if NET8_0_OR_GREATER` when adding one.
 
 ## Native kernels

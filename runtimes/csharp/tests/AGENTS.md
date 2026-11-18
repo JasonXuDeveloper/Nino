@@ -68,8 +68,10 @@ Serialization/               round trips of the public API: private members, cus
   Types/                     primitives, BCL types, DateTimeOffset, tuples and pairs, records, generics
   Strings/                   string encodings (StringEncodingTests) and UTF-8 on the wire (Utf8WireTests)
 Collections/                 arrays, BCL and user collections, empty ones, Stack/Queue through their arrays, the
-                             prefetch of long top-level arrays and lists of scattered objects and the interceptors that
-                             route them there (PrefetchTests)
+                             runs every contiguous collection writes through (RunTests: every collection with every
+                             element kind, free entries, the polymorphic run loop's keys and bytes, composites'
+                             dispatch bit), the prefetch of long top-level arrays and lists of scattered objects and the
+                             interceptors that route them there (PrefetchTests)
   FastPaths/                 the collection fast paths (arrays, blocks, dictionaries, linked lists, priority queues,
                              sorted collections and lists; CollectionFastPathFixtures) and the HashTables fill
 Layout/                      raw structs, padding, the portable (canonical) layout, BCL structs inside raw structs

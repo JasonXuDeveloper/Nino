@@ -113,6 +113,20 @@ namespace Nino.CodeGen
             sb.Append("\n");
         }
 
+        /// <summary>
+        /// <c>BodyTraits</c>: a tuple whose item dispatches subtypes dispatches them too (an OR over its items' bits).
+        /// </summary>
+        private static void AppendBodyTraits(StringBuilder sb, Shape s)
+        {
+            sb.Append("        // A tuple whose item dispatches subtypes dispatches them too (its items' bits).\n");
+            sb.Append("        int INinoFormatter.BodyTraits =>\n");
+            sb.Append("            NinoBodyTraits.Nests");
+            foreach (int i in s.Items)
+                sb.Append($" | NinoBlocks.Dispatches<TF{i}>()");
+            sb.Append(";\n");
+            sb.Append("\n");
+        }
+
         /// <summary>The items of <paramref name="value"/> at their offsets in the block at <paramref name="block"/>.</summary>
         private static void AppendItemWrites(StringBuilder sb, Shape s, string indent, string value, string block)
         {
@@ -133,6 +147,7 @@ namespace Nino.CodeGen
             AppendConstraints(sb, s);
             sb.Append("    {\n");
             AppendSizes(sb, s, $"!NinoUnsafe.IsReferenceOrContainsReferences<{type}>()");
+            AppendBodyTraits(sb, s);
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
             sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
             sb.Append("        {\n");
@@ -211,6 +226,7 @@ namespace Nino.CodeGen
             AppendConstraints(sb, s);
             sb.Append("    {\n");
             AppendSizes(sb, s, noReferences);
+            AppendBodyTraits(sb, s);
             sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
             sb.Append("        {\n");
             sb.Append("            if (!writer.WritePresence(value))\n");

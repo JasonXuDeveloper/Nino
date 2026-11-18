@@ -53,7 +53,6 @@ public interface INinoFormatter<T> : INinoFormatter
     void WriteFixed(in T value, ref byte destination) => ...; // throws: called only when FixedSize is not -1
     NinoBlockMap BlockMap() => null;                          // collections move values as blocks
     void ReadBlock(ref T value, ref byte source) => ...;      // throws: called only when BlockMap is not null
-    void WriteElements(ReadOnlySpan<T> values, ref Writer writer) => ...; // throws: only when HasElementLoop
     // internal: SlotStride and the slot members of a raw T? (UnmanagedNullableFormatter); Size, WriteSized and
     // TryWriteExternal of collection formatters (top-level calls write into an array of the exact size, or straight
     // into a caller's IBufferWriter<byte>)
@@ -62,9 +61,8 @@ public interface INinoFormatter<T> : INinoFormatter
 public interface INinoFormatter                               // what does not depend on T (hidden)
 {
     int BodyTraits => NinoBodyTraits.Nests;                   // a body: opens class bodies? deferrable? dispatches?
-    bool HasElementLoop => false;                             // arrays and lists of a polymorphic base in one loop
-    bool HasPairLoop => false;                                // Dictionary<TKey, base> in one loop (.NET 8+)
-    void WritePairs32(object dictionary, ref Writer writer) => ...;  // throws; WritePairs64, WriteStringPairs
+    bool HasRunLoop => false;                                 // a polymorphic base's values in one loop over a run
+    void WriteRun(NinoRun run, ref Writer writer) => ...;     // throws: only when HasRunLoop
     int PrefetchBytes => 0;                                   // long collections of a class prefetch its objects
     bool HasMemberPrefetch => false;                          // ... and the objects its members point to
     int PrefetchMembers(object value) => ...;                 // throws: only when HasMemberPrefetch
@@ -72,10 +70,21 @@ public interface INinoFormatter                               // what does not d
 }
 ```
 
+Every contiguous collection (arrays, lists, spans, `Memory<T>`, `ArraySegment<T>`, `ImmutableArray<T>`, each half of
+a `Queue<T>`'s ring, `Stack<T>`, and the entries of `HashSet<T>` and `Dictionary<TKey, TValue>`, whose element is the
+pair) writes its elements as a run (`NinoRun`): the first value, the count, the stride between entries, where the key
+of a dictionary's entry is and how it is written, and how a free entry is told apart (a set and a dictionary that
+removed elements; the rule is found at startup). One loop per element kind writes a run (`NinoRuns`): raw elements and
+blocks as one block (gathered out of the entries by the block kernels through one entry block formatter), slots
+through the slot kernels, others value by value; a polymorphic base's values through its generated `WriteRun`, the
+compare chain of its subtypes inline in a loop whose steps, in-use test, key write and deep path are Nino.Core's. The
+member is not generic, so one serves every collection and every key written as its bytes or a string; any other key
+goes value by value (#355).
+
 A formatter implements `Serialize` and `Deserialize`; a struct formatter that has a capability implements its members
 too (generated formatters of fixed-size and block structs, of class bodies and of polymorphic bases, the tuple and
 pair formatters). Calling a default on a struct boxes it (CoreCLR, Mono, IL2CPP), so Nino.Core calls only the queries
-(`FixedSize`, `BlockMap`, `BodyTraits`, `HasElementLoop`, `HasPairLoop`, `PrefetchBytes`, `HasMemberPrefetch`, the
+(`FixedSize`, `BlockMap`, `BodyTraits`, `HasRunLoop`, `PrefetchBytes`, `HasMemberPrefetch`, the
 slot stride, `HasSizedWrite`, `HasExternalWrite`) on a formatter that may lack the capability, once per type into a
 `static readonly` field (`NinoBlockPlan<T, TFormatter>.Size`, `NinoKind<T, TFormatter>`, `NinoKind<TFormatter>`),
 and the other members only where that field says the

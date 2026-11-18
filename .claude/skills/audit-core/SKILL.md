@@ -37,7 +37,7 @@ AGENTS.md's principles apply; speed is `optimize`, hostile input `audit-security
   source)`: a block struct is a fixed-size type, one write for both. These are capability members of
   `INinoFormatter<T>` with defaults reporting none (#346): only the queries are called on a formatter that may lack
   them, once per type into a `static readonly` field, since calling a default boxes the struct; so are `BodyTraits`
-  and the element and pair loops of polymorphic bases (`HasElementLoop`, `HasPairLoop`), the prefetch of long
+  and the run loop of polymorphic bases (`HasRunLoop`, `WriteRun` over a `NinoRun`), the prefetch of long
   collections of classes (`PrefetchBytes`, `HasMemberPrefetch`, `PrefetchMembers`) and the internal top-level writes
   of collection formatters (`HasSizedWrite` with `Size(value)`, a size per value rather than a constant;
   `HasExternalWrite` with `TryWriteExternal`). A capability reached by an `is` test, a cast or a boxed interface field

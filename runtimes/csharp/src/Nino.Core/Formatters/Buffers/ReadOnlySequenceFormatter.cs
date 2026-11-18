@@ -55,7 +55,7 @@ namespace Nino.Core
             }
             writer.WriteLength(length);
             foreach (var segment in value)
-                NinoElements.Write<T, TFormatter>(segment.Span, ref writer);
+                NinoRuns.Write<T, TFormatter>(segment.Span, ref writer);
             return writer;
         }
 

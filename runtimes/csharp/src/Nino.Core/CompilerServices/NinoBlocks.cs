@@ -57,6 +57,15 @@ namespace Nino.Core.CompilerServices
                 default(TFormatter).ReadBlock(ref value, ref source);
         }
 
+        /// <summary>
+        /// <see cref="NinoBodyTraits.Dispatches"/> where <typeparamref name="TFormatter"/> (an item's) dispatches its
+        /// values' subtypes, else 0: a composite with such an item carries the bit in its own
+        /// <see cref="INinoFormatter.BodyTraits"/> (an OR over its items). Read once per formatter type.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Dispatches<TFormatter>() where TFormatter : struct, INinoFormatter =>
+            NinoKind<TFormatter>.Traits & NinoBodyTraits.Dispatches;
+
         /// <summary>The byte offset of <paramref name="field"/> inside <paramref name="value"/>.</summary>
         public static int Offset<T, TField>(ref T value, ref TField field) =>
             (int)Unsafe.ByteOffset(ref Unsafe.As<T, byte>(ref value), ref Unsafe.As<TField, byte>(ref field));

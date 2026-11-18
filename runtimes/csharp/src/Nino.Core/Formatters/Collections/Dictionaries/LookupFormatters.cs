@@ -66,7 +66,7 @@ namespace Nino.Core
         {
             writer.WriteLength(elements.Length);
             default(TKeyFormatter).Serialize(key, ref writer);
-            NinoElements.Write<TElement, TElementFormatter>(elements, ref writer);
+            NinoRuns.Write<TElement, TElementFormatter>(elements, ref writer);
             return writer;
         }
 

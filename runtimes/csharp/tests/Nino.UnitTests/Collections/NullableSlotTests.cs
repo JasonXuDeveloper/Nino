@@ -347,7 +347,7 @@ public class NullableSlotTests
 
         var buffer = new NinoArrayBufferWriter();
         var writer = new Writer(buffer);
-        NinoElements.Write<T, TFormatter>(items, ref writer);
+        NinoRuns.Write<T, TFormatter>(items, ref writer);
         writer.Flush();
         byte[] block = buffer.WrittenSpan.ToArray();
         Assert.AreEqual(items.Length * stride, block.Length);
