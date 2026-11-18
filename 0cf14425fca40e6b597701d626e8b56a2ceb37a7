@@ -1,0 +1,1 @@
+Fixed: In Unity with the Burst kernels, a `HashSet<T?>` of a raw `T` with 16 values or more is no longer written as zeros after its first value (SSSE3 kernels, and AVX2 below 256 values).
