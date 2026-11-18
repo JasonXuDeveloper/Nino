@@ -311,6 +311,12 @@ public static class Program
             Case("Dictionary<int,Padded>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => i, i => padded[i]));
             Case("HashSet<Guid>[" + n + "]", new HashSet<Guid>(Enumerable.Range(0, n).Select(i => new Guid(i, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10))));
             Case("HashSet<short>[" + n + "]", new HashSet<short>(Enumerable.Range(0, n).Select(i => (short)(i * 3))));
+            // Read into a new set's or dictionary's entries through their run, then linked (HashTables.Link): blocks
+            // scattered by the block kernels, others value by value.
+            Case("HashSet<Small>[" + n + "]", new HashSet<Small>(Enumerable.Range(0, n).Select(i => new Small { A = i * 7, B = (short)-i, C = i % 3 == 0 })));
+            Case("HashSet<(int,short)>[" + n + "]", new HashSet<(int, short)>(Enumerable.Range(0, n).Select(i => (i * 9, (short)-i))));
+            Case("HashSet<(int,str)>[" + n + "]", new HashSet<(int, string)>(Enumerable.Range(0, n).Select(i => (i, "s" + i))));
+            Case("Dictionary<(int,short),Waypoint>[" + n + "]", Enumerable.Range(0, n).ToDictionary(i => (i * 3, (short)i), i => new Waypoint { X = i / 3f, Stamp = (i * 5, (short)-i), Visited = i % 3 == 0 }));
         }
         // A string read into an instance that holds one of the same length is compared with it (and kept when equal,
         // ASCII text on every runtime): a difference at any position must give the new string.

@@ -164,7 +164,7 @@ public class RefReuseTests
     [TestMethod]
     public void SetReadIntoIsRefilledAndStaysUsableWhenTheDataIsRejected()
     {
-        // A plain set read into is cleared and filled directly (HashTables.TryRefill), keeping its arrays.
+        // A plain set read into is cleared and filled through its entries, then linked (HashTables.Link), keeping its arrays.
         var set = new HashSet<int> { -1, -2, -3 };
         for (int i = 0; i < 1000; i++)
             set.Add(i + 10);

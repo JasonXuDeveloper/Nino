@@ -10,7 +10,7 @@ using Nino.Core;
 namespace Nino.UnitTests;
 
 /// <summary>
-/// Empty collections skip the out-of-line element loops (NinoElements.Read, the dictionary, set and enumerable writes)
+/// Empty collections skip the out-of-line element loops (NinoRuns.Read, the dictionary, set and enumerable writes)
 /// and build no immutable builder: the same bytes as before, and the same values back.
 /// </summary>
 [TestClass]
