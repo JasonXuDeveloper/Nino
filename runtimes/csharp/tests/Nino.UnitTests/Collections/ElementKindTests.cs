@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 using Nino.Core.CompilerServices;
@@ -43,11 +44,21 @@ namespace Nino.UnitTests
             // Slot: a raw T? as the element of a collection.
             Kind<int?, UnmanagedNullableFormatter<int>>(NinoElementKind.Slot, 8);
             // Block: a tuple of raw items (auto layout on CoreCLR: never raw), a user's block formatter,
-            // DateTimeOffset.
+            // DateTimeOffset (a block formatter), and composites of raw and block items (#348): a tuple and a pair
+            // holding a DateTimeOffset, a pair holding a user's block, a tuple holding a tuple.
             Kind<(int, long), ValueTupleFormatter<int, long, UnmanagedFormatter<int>, UnmanagedFormatter<long>>>(
                 NinoElementKind.Block, 12);
             Kind<Cell, CellBlockFormatter>(NinoElementKind.Block, 6);
             Kind<DateTimeOffset, DateTimeOffsetFormatter>(NinoElementKind.Block, 10);
+            Kind<(int, DateTimeOffset), ValueTupleFormatter<int, DateTimeOffset, UnmanagedFormatter<int>,
+                DateTimeOffsetFormatter>>(NinoElementKind.Block, 14);
+            Kind<KeyValuePair<int, DateTimeOffset>, KeyValuePairFormatter<int, DateTimeOffset, UnmanagedFormatter<int>,
+                DateTimeOffsetFormatter>>(NinoElementKind.Block, 14);
+            Kind<KeyValuePair<int, Cell>, KeyValuePairFormatter<int, Cell, UnmanagedFormatter<int>,
+                CellBlockFormatter>>(NinoElementKind.Block, 10);
+            Kind<(Guid, (int, bool)), ValueTupleFormatter<Guid, (int, bool), UnmanagedFormatter<Guid>,
+                ValueTupleFormatter<int, bool, UnmanagedFormatter<int>, UnmanagedFormatter<bool>>>>(
+                NinoElementKind.Block, 21);
             // Per value: strings, classes (a polymorphic base and a sealed class), a managed struct, a user's
             // formatter, a T? of a type that is not raw.
             Kind<string, StringFormatter>(NinoElementKind.PerValue, -1);
@@ -57,6 +68,11 @@ namespace Nino.UnitTests
             Kind<Label, LabelFormatter>(NinoElementKind.PerValue, -1);
             Kind<Cell, CellPlainFormatter>(NinoElementKind.PerValue, -1);
             Kind<DateTimeOffset?, NullableFormatter<DateTimeOffset, DateTimeOffsetFormatter>>(
+                NinoElementKind.PerValue, -1);
+            // A composite with an item of no fixed size: a slot, or a string.
+            Kind<(int, int?), ValueTupleFormatter<int, int?, UnmanagedFormatter<int>, UnmanagedNullableFormatter<int>>>(
+                NinoElementKind.PerValue, -1);
+            Kind<KeyValuePair<int, string>, KeyValuePairFormatter<int, string, UnmanagedFormatter<int>, StringFormatter>>(
                 NinoElementKind.PerValue, -1);
         }
 

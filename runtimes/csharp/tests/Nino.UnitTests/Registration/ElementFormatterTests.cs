@@ -87,8 +87,8 @@ public struct CellBlockFormatter : INinoFormatter<Cell>
     public NinoBlockMap BlockMap()
     {
         var cell = default(Cell);
-        return new NinoBlockMap().Raw<int>(NinoBlocks.Offset(ref cell, ref cell.X), 0)
-            .Raw<short>(NinoBlocks.Offset(ref cell, ref cell.Y), 4);
+        return new NinoBlockMap().Item<int, UnmanagedFormatter<int>>(NinoBlocks.Offset(ref cell, ref cell.X))
+            .Item<short, UnmanagedFormatter<short>>(NinoBlocks.Offset(ref cell, ref cell.Y));
     }
 
     public void ReadBlock(ref Cell value, ref byte source)

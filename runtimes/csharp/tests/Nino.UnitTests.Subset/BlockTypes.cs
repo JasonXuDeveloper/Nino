@@ -104,3 +104,33 @@ namespace Nino.UnitTests.Subset.Blocks
         }
     }
 }
+
+// Generic structs whose members typed by a type parameter are items composed at run time (NinoBlocks.ItemSize): a
+// block where every item is raw or a block on this runtime, written member by member otherwise.
+namespace Nino.UnitTests.Subset.Blocks
+{
+    // 4 + T's bytes + 1: a block of 13 bytes for a long, of 15 for a DateTimeOffset, none for a string.
+    [NinoType]
+    public struct GenericBlock<T>
+    {
+        public int A;
+        public T Item;
+        public bool B;
+    }
+
+    // Two type parameters, one inside a tuple, as auto-properties: TKey's bytes + TValue's + 2.
+    [NinoType]
+    public struct GenericBlockPair<TKey, TValue>
+    {
+        public TKey Key { get; set; }
+        public (TValue, short) Value { get; set; }
+    }
+
+    // A generic block inside a generic block: 1 + GenericBlock<T>'s bytes.
+    [NinoType]
+    public struct GenericBlockNested<T>
+    {
+        public byte Tag;
+        public GenericBlock<T> Inner;
+    }
+}

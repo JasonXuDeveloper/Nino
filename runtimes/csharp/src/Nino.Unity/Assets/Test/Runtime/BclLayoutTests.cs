@@ -92,6 +92,12 @@ namespace Test.Runtime
             Check("Around<IntPtr>", new Around<IntPtr> { A = 1, B = new IntPtr(-1), C = -1 });
             Check("Around<(int,long)?>", new Around<(int, long)?> { A = 1, B = (1, 2L), C = -1 });
             Check("(int,long)[]", new[] { (1, 2L), (-3, long.MinValue) });
+            Check("(int,long)", (1, -2L));
+            // Composed blocks (#348): a copy only where this runtime lays them out as the wire does.
+            Check("(int,int)[]", new[] { (1, -2), (int.MaxValue, int.MinValue) });
+            Check("KVP<int,int>[]", new[] { new KeyValuePair<int, int>(1, -2), new KeyValuePair<int, int>(3, int.MinValue) });
+            Check("(int,DateTimeOffset)[]", new[] { (1, Dto1), (-2, Dto1) });
+            Check("KVP<int,DateTimeOffset>[]", new[] { new KeyValuePair<int, DateTimeOffset>(7, Dto1) });
             Check("List<(byte,long,int)>", new List<(byte, long, int)> { (1, 2, 3), (255, -1, int.MaxValue) });
             Check("KVP<int,long>[]", new[] { new KeyValuePair<int, long>(1, 2), new KeyValuePair<int, long>(-3, -4) });
             Check("Dictionary<int,(byte,long)>", new Dictionary<int, (byte, long)> { [1] = (2, 3), [-4] = (5, -6) });
