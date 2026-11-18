@@ -78,3 +78,7 @@ value check in a runtime or a template.
   and the unaligned NEON copies cost 15–25 % more through 64 KiB. The lower threshold reproduces the AMD
   `rep movsb` transition. The current loader still has its own upper stop threshold, so the 1 MiB row does
   not reproduce every historical glibc configuration.
+- Keep `TypedArray.set` for ordinary TypeScript buffers. In 44339615693, copying through Wasm memory with both
+  staging copies took 82–339 % more time than `TypedArray.set` across the default and historical threshold
+  runs. For views already backed by Wasm memory, `memory.copy` varied from 8 % lower to 17 % higher by size and
+  CPU. These views avoid the staging cost and are timed separately from ordinary arrays.
