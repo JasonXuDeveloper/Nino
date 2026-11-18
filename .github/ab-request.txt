@@ -1245,3 +1245,10 @@ rust:blocks cf4b7e77 cf4b7e77 ^blocks/read/dateonly$ # 248 floor
 # Go fixed-width collections, including padded pairs and duplicate-check controls.
 go:internal/generated/shapes#12 81592edf 05588650 ^BenchmarkFixedCollections353$ # 353
 go:internal/generated/shapes#12 81592edf 81592edf ^BenchmarkFixedCollections353$ # 353 floor
+
+# Block-copy probes with same-revision controls and the legacy glibc lower threshold.
+go:.#6 28073fbf 28073fbf ^BenchmarkBlockCopyProbe$/^(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ GOFLAGS=-tags=ninocopyprobe GOFLAGS=-tags=ninocopyprobe # 263 Go
+rust:copy 28073fbf 28073fbf block-copy/.*/(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ - GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy threshold
+rust:copy 28073fbf 28073fbf block-copy/.*/(2048-offset4|2113-offset4|4096-offset0|4096-offset4|65536-offset4|262144-offset4|1048576-offset4)$ # 263 Rust floor
+typescript 28073fbf 28073fbf BlockCopy - GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 TypeScript legacy threshold
+typescript 28073fbf 28073fbf BlockCopy # 263 TypeScript floor
