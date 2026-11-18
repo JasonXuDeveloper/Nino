@@ -1256,3 +1256,12 @@ typescript 28073fbf 28073fbf BlockCopy # 263 TypeScript floor
 # Retry the Go fixed-collection comparison with both independent commits in this branch ancestry.
 go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 055886501892cf14c87fcd87b9e3be48dfeff553 ^BenchmarkFixedCollections353$ # 353 reachable refs
 go:internal/generated/shapes#12 81592edfd9217b28fa1eb2ab24fbac8506752a99 81592edfd9217b28fa1eb2ab24fbac8506752a99 ^BenchmarkFixedCollections353$ # 353 reachable refs floor
+
+# End-to-end Go byte-array deserialization with hot and rotating source buffers.
+go:.#12 c56669ec a5353306 ^BenchmarkFreshRawRead$ # 263 Go end to end
+go:.#12 c56669ec c56669ec ^BenchmarkFreshRawRead$ # 263 Go end to end floor
+
+# End-to-end Rust byte-array reads and writes, running both sides with the same libc setting.
+rust:bytes 617de844 a2f76de0 byte-copy GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy codec
+rust:bytes 617de844 a2f76de0 byte-copy # 263 Rust modern codec
+rust:bytes 617de844 617de844 byte-copy GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112 # 263 Rust legacy codec floor
