@@ -71,6 +71,10 @@ value check in a runtime or a template.
   rotated buffers, including a destination offset of four bytes. Go's candidate lowered the Neoverse-N2 time
   by 10–33 % at 2–4 KiB but raised it by 21 % at 256 KiB with that offset. On the x64 runners it lowered the
   hot 1 MiB time by 20–44 %, while the 2–4 KiB results varied by CPU and alignment.
+  Keep Go's built-in copy in `Reader.ByteArray`. The Arm64 candidate for fresh 2–4 KiB reads took 5–9 %
+  longer with a hot input and 24–26 % longer with a 64 MiB source rotation on Neoverse-N2
+  ([44347813411](https://github.com/JasonXuDeveloper/Nino/actions/runs/44347813411), `DeserializeExact`).
+  The 128-byte fallback control also took 30 % longer. The hot 1 MiB x64 copy result remains a microbenchmark.
 - Compare Rust's standard copy under the default loader and with
   `GLIBC_TUNABLES=glibc.cpu.x86_rep_movsb_threshold=2112`. In the same run, forcing the historical lower
   threshold made the unaligned 2,113-byte standard copy 7.1× its default time on EPYC 7763 and 5.8× on 9V74.
