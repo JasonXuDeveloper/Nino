@@ -22,19 +22,30 @@ namespace Nino.Immutable
                 return;
             }
 
-            // Enumerated top to bottom: counted, then copied into a T[] from its end (raw elements then go as one
-            // block), without a list to grow and reverse.
+            // One walk of the nodes, top to bottom, into a rented array that grows as it fills, then reversed in place:
+            // counting them first walked the linked nodes twice, and the walk, not the copy, is what costs (#305:
+            // ImmutableStack<int> of 1,000 written at 0.48x LuminPack's speed on EPYC 7763, 0.81x on Neoverse-N2).
+            var array = ArrayPool<T>.Shared.Rent(16);
             int count = 0;
-            for (var rest = value; !rest.IsEmpty; rest = rest.Pop())
-                count++;
-            var array = ArrayPool<T>.Shared.Rent(count);
-            ref T slot = ref Unsafe.Add(ref MemoryMarshal.GetReference(array.AsSpan()), count);
             foreach (var item in value)
             {
-                slot = ref Unsafe.Subtract(ref slot, 1);
-                slot = item;
+                if (count == array.Length)
+                    array = Grow(array);
+                array[count++] = item;
             }
+
+            array.AsSpan(0, count).Reverse();
             ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
+        }
+
+        /// <summary>A rented array twice the size of <paramref name="full"/>, holding its elements; returns it.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static T[] Grow(T[] full)
+        {
+            var larger = ArrayPool<T>.Shared.Rent(full.Length * 2);
+            full.AsSpan().CopyTo(larger);
+            ImmutableCollections.Return(full);
+            return larger;
         }
 
         public void Deserialize(ref Reader reader, ref ImmutableStack<T> value)

@@ -796,6 +796,27 @@ public class BclTypeTests
     }
 
     [TestMethod]
+    public void ImmutableStacksOfEverySizeWriteAsStacks()
+    {
+        // ImmutableStackFormatter copies the nodes top to bottom into a rented array that doubles from 16, then reverses
+        // it: sizes around each growth, raw and reference elements, the same bytes as a Stack<T>.
+        foreach (int n in new[] { 1, 2, 15, 16, 17, 31, 32, 33, 100, 1000 })
+        {
+            var ints = Enumerable.Range(0, n).Select(i => i * 7 - 3).ToArray();
+            var intStack = ImmutableStack.CreateRange(ints);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(new Stack<int>(ints)), NinoSerializer.Serialize(intStack),
+                $"n = {n}");
+            CollectionAssert.AreEqual(intStack.ToArray(), RoundTrip(intStack).ToArray(), $"n = {n}");
+
+            var strings = ints.Select(i => i % 3 == 0 ? null : "s" + i).ToArray();
+            var stringStack = ImmutableStack.CreateRange(strings);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(new Stack<string>(strings)),
+                NinoSerializer.Serialize(stringStack), $"n = {n}");
+            CollectionAssert.AreEqual(stringStack.ToArray(), RoundTrip(stringStack).ToArray(), $"n = {n}");
+        }
+    }
+
+    [TestMethod]
     public void ImmutableDuplicatesAreAClearError()
     {
         var twice = NinoSerializer.Serialize(new List<int> { 1, 1 });
