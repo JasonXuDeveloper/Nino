@@ -133,4 +133,5 @@ reports/                     what a release publishes: the results of runners as
 
 ## Running them
 
-How to run, A/B on runners and what may be published: the `benchmark` skill.
+How to run, A/B on runners and what may be published: the `benchmark` skill. Adding a case or a competitor, here and
+on every other platform: the `benchmark-cases` skill.

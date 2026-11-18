@@ -146,7 +146,7 @@ The owner reads every failure email: CI stays green, and a red run is fixed at o
   (`release_assets.py has`: the manifest, or the old body's heading). Its publish jobs (publish, publish-runtimes,
   publish-generator, publish-unity) run one after another, since each rewrites the manifest and the body, and each
   checks out this commit with credentials: `release_body.py publish` pushes its charts to the release-notes branch
-  (`benchmark`, Adding a case). A job that checks out the release's tag (report.yml's bench jobs,
+  (`benchmark-cases`, Adding a case on .NET). A job that checks out the release's tag (report.yml's bench jobs,
   `unity.yml` called with `tag`, ab-bench.yml's `head/`) runs this commit's workflow on that tag's files: it uses
   actions and scripts by their pinned SHA, never `./.github/actions/...` or a script the tag may lack (tags up to
   v4.0.0-rc.7 have no `.github/actions/setup-dotnet`); steps such a workflow repeats across its jobs share one YAML
