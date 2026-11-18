@@ -20,7 +20,7 @@ if (!present && process.env.NINO_CORPUS_REQUIRED === "1")
 /** The types the generator leaves out of TypeScript (its warnings), and the types holding them. */
 const notGenerated = new Set([
   "Conformance.Floats", "Conformance.Scalars", "Conformance.Dates", "Conformance.BigValues",
-  "Conformance.Collections", "Conformance.TreeHolder", "Conformance.EmptyStruct", "Conformance.Empties",
+  "Conformance.TreeHolder", "Conformance.EmptyStruct", "Conformance.Empties",
   "Conformance.Targets.BigSlot", "Conformance.Targets.VersionSlot",
   "Conformance.BclRawOffset",
 ]);
