@@ -156,12 +156,16 @@ namespace Nino.Codegen.Targets
         protected override void DeclareRaw(TypeModel type) => Raw(type.RawValue!);
 
         /// <summary>A closed generic type in a slot: the shapes of its arguments, its codec built in <c>init</c>.</summary>
-        private GoShape ClosedShape(ClosedTypeModel closed) => new("generic")
+        private GoShape ClosedShape(ClosedTypeModel closed)
         {
-            Type = closed.Definition, Items = closed.Value.Arguments.Select(a => Shape(a, false)).ToList(),
-            Slots = closed.Value.SlotArguments.Select(a => Shape(a, false)).ToList(),
-            MinSize = closed.IsValueType ? 0 : 1,
-        };
+            var shape = new GoShape("generic")
+            {
+                Type = closed.Definition, Items = closed.Value.Arguments.Select(a => Shape(a, false)).ToList(),
+                Slots = closed.Value.SlotArguments.Select(a => Shape(a, false)).ToList(),
+            };
+            SetGenericMinimum(shape);
+            return shape;
+        }
 
         /// <summary>The slots of closed generic types and the types and closed types each allows.</summary>
         internal List<GoType> SlotAllowed(GoSlot slot) => slot.Model.Assignable.Where(_supported.Contains)
@@ -306,22 +310,6 @@ namespace Nino.Codegen.Targets
             var allowed = Allowed(type);
             return !(allowed.Count == 1 && allowed[0] == type &&
                      !type.ClosedAssignable.Any(_closedSupported.Contains));
-        }
-
-        /// <summary>
-        /// The non-raw structs a value holds without a class body between: itself, or (behind a type id, in an
-        /// <c>object</c> or interface slot) any struct the slot allows.
-        /// </summary>
-        internal IEnumerable<TypeModel> StructsIn(ValueModel value)
-        {
-            var candidates = value.Kind switch
-            {
-                ValueKind.Type when value.Type!.Header == HeaderKind.TypeId => Allowed(value.Type),
-                ValueKind.Type => new List<TypeModel> { value.Type! },
-                ValueKind.Object => ObjectTypes().ToList(),
-                _ => new List<TypeModel>(),
-            };
-            return candidates.Where(t => t.IsValueType && !t.Raw && _supported.Contains(t));
         }
 
         /// <summary>

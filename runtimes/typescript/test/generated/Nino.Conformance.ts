@@ -3529,8 +3529,9 @@ function writeChoice(w: NinoWriter, v: Choice | null): void {
   }
   w.enterStruct();
   if (typeof v === "number") {
-    w.i32(546808484);
-    w.i32(v);
+    const at = w.reserve(8);
+    w.view.setInt32(at, 546808484, true);
+    w.view.setInt32(at + 4, v, true);
   }
   else if (typeof v === "string") {
     w.i32(-65934901);
@@ -3550,9 +3551,10 @@ function writeChoice(w: NinoWriter, v: Choice | null): void {
     write$9(w, v);
   }
   else if (typeof v === "bigint") {
-    w.i32(1279255967);
-    w.u8(1);
-    w.i64(v);
+    const at = w.reserve(13);
+    w.view.setInt32(at, 1279255967, true);
+    w.view.setUint8(at + 4, 1);
+    w.view.setBigInt64(at + 5, v, true);
   }
   else throw types.unwritable(v as object);
   w.exitStruct();
@@ -4035,8 +4037,9 @@ function writeUnionTree(w: NinoWriter, v: UnionTree | null): void {
     write$64(w, v);
   }
   else if (typeof v === "bigint") {
-    w.i32(337757159);
-    w.i64(v);
+    const at = w.reserve(12);
+    w.view.setInt32(at, 337757159, true);
+    w.view.setBigInt64(at + 4, v, true);
   }
   else throw types.unwritable(v as object);
   w.exitStruct();

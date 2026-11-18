@@ -297,6 +297,13 @@ namespace Nino.Codegen.Tests
             Assert.IsFalse(tsOutput.Contains("NullableSlots", StringComparison.Ordinal), tsOutput);
         }
 
+        [TestMethod]
+        public void ClosedGenericStructsGiveGoCollectionsTheirMinimumSize()
+        {
+            var (go, _) = Run("go", "nino_types.go");
+            Assert.IsTrue(Regex.IsMatch(go, @"func readV\d+\(r \*nino.Reader\) \[\]nino.Entry\[string, Pair\[int32, int32\]\] \{\n\tn := r.Length\(9\)"));
+        }
+
         /// <summary>
         /// A <c>NinoNullable&lt;T&gt;</c> has a type of its own in Go and Rust (<c>nino.NinoNullable[T]</c>, a value
         /// and whether it has one; <c>nino::NinoNullable&lt;T&gt;</c>, an <c>Option&lt;T&gt;</c> with those bytes),

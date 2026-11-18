@@ -1448,22 +1448,28 @@ function writeMeasure(w: NinoWriter, v: Measure | null): void {
   }
   w.enterStruct();
   switch (v.case) {
-    case "Int32":
-      w.i32(546808484);
-      w.i32(v.value);
+    case "Int32": {
+      const at = w.reserve(8);
+      w.view.setInt32(at, 546808484, true);
+      w.view.setInt32(at + 4, v.value, true);
       break;
-    case "Double":
-      w.i32(-1251563749);
-      w.f64(v.value);
+    }
+    case "Double": {
+      const at = w.reserve(12);
+      w.view.setInt32(at, -1251563749, true);
+      w.view.setFloat64(at + 4, v.value, true);
       break;
-    case "ListInt32":
+    }
+    case "ListInt32": {
       w.i32(-217079013);
       write$35(w, v.value);
       break;
-    case "ListString":
+    }
+    case "ListString": {
       w.i32(-1803246716);
       write$36(w, v.value);
       break;
+    }
     default:
       throw types.unwritable(v);
   }
@@ -1575,12 +1581,14 @@ function writePick(w: NinoWriter, v: Pick | null): void {
     writeEmpty(w, v);
   }
   else if (v instanceof PickPair) {
-    w.i32(-2134742284);
-    writePickPair(w, w.reserve(8), v);
+    const at = w.reserve(12);
+    w.view.setInt32(at, -2134742284, true);
+    writePickPair(w, at + 4, v);
   }
   else if (typeof v === "number") {
-    w.i32(31168724);
-    w.u8(v);
+    const at = w.reserve(5);
+    w.view.setInt32(at, 31168724, true);
+    w.view.setUint8(at + 4, v);
   }
   else throw types.unwritable(v as object);
   w.exitStruct();

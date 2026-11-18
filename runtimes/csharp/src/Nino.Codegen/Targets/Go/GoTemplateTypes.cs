@@ -433,12 +433,10 @@ namespace Nino.Codegen.Targets
         /// A struct whose nesting is counted: one that can hold itself through no class body, or a generic struct
         /// (whose .NET formatter counts every one).
         /// </summary>
-        public bool Counted => Model.IsValueType && (Model.IsGenericDefinition || HoldsItself());
+        public bool Counted => Model.IsValueType && (Model.IsGenericDefinition || _target.HoldsItself(Model));
 
         /// <summary>The fewest bytes of a generic struct's body: its members', its arguments' as its codec has them.</summary>
-        public string MinBody => Model.Format != BodyFormat.Positional ? "4"
-            : Members.Count == 0 ? "0"
-            : string.Join(" + ", Members.Select(m => m.Shape.Min));
+        public string MinBody => _target.GenericBodyMinimum(Model);
 
         public List<GoMember> Members => _members ??= BuildMembers();
 
@@ -552,25 +550,5 @@ namespace Nino.Codegen.Targets
 
         public string RuntimeName => Model.RuntimeName;
 
-        private bool HoldsItself()
-        {
-            var seen = new HashSet<TypeModel>();
-            var pending = new Stack<TypeModel>();
-            pending.Push(Model);
-            while (pending.Count != 0)
-            {
-                var next = pending.Pop();
-                foreach (var reached in next.Members.Select(m => m.Value).Concat(next.Cases.Select(c => c.Value))
-                             .SelectMany(v => v.Walk()).SelectMany(_target.StructsIn))
-                {
-                    if (reached == Model)
-                        return true;
-                    if (seen.Add(reached))
-                        pending.Push(reached);
-                }
-            }
-
-            return false;
-        }
     }
 }
