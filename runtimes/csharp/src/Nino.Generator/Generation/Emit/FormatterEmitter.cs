@@ -409,8 +409,19 @@ internal static class FormatterEmitter
     private static void EmitBodyTraits(CodeWriter w, TypeModel m)
     {
         int traits = (m.Depth.Nests ? 1 : 0) | (m.Depth.Deferrable ? 2 : 0) | (m.DispatchesSubtypes ? 4 : 0);
-        w.Line($"public int BodyTraits => {traits};");
+        // A generic struct is a composite of its type arguments: it dispatches where a member's formatter does
+        // (NinoBlocks.Dispatches, read once per formatter type), the members whose formatter may (not raw, a string or
+        // a flat one), as a tuple or a pair does.
+        string members = m.Kind == FormatterKind.Struct && m.IsGeneric
+            ? string.Concat(m.Members.Where(MayDispatch)
+                .Select(x => $" | {CoreCompilerServices}NinoBlocks.Dispatches<{x.Formatter}>()"))
+            : "";
+        w.Line($"public int BodyTraits => {traits}{members};");
     }
+
+    private static bool MayDispatch(MemberModel member) => member.Raw == null &&
+        (member.Traits & (FormatterTraits.String | FormatterTraits.Utf8String | FormatterTraits.Raw |
+                          FormatterTraits.Flat | FormatterTraits.Object)) == 0;
 
     /// <summary>Whether a body nested too deep can be read later, and the empty instance it is read into.</summary>
     private static void EmitDeferral(CodeWriter w, TypeModel m, FormatterNames names, bool forwardCreate = false)
