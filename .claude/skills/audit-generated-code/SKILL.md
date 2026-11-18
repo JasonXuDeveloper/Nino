@@ -191,7 +191,8 @@ read its [emit-text.md](../audit-generator/references/emit-text.md),
   - Keep the write dispatch a chain of type checks: a hashed jump table and a delegate per subtype both measured
     slower (`optimize`'s [references/dispatch.md](../optimize/references/dispatch.md)).
   - Arrays and lists of a polymorphic base go through the base's generated `WriteElements` loop (the chain inline, the
-    writer local); any other collection loop that calls a large formatter per element is a candidate for the same
+    writer local; an explicit member of `INinoFormatter<T>` beside `INinoFormatter.HasElementLoop`, as the pair loops
+    beside `HasPairLoop`); any other collection loop that calls a large formatter per element is a candidate for the same
     form (`optimize`'s jit.md, the rule on generated loops).
 - **Reach an interface member a struct implements explicitly through a generic accessor constrained to the
   interface** (`MemberAccess.Interface`: `__G_X<__TI>(ref __TI o) where __TI : IFoo => o.X` in the formatter), a

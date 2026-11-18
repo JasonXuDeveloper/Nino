@@ -89,7 +89,11 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   (3) Gone (#346): the netstandard builds' block loops called each value through `NinoBlockPlan.Formatter` (a boxed
   `INinoBlockFormatter`), and slots through `NinoSlots.Formatter`; the block and slot members are now members of
   `INinoFormatter<T>` with defaults reporting none, read as queries once per type, so each value is a constrained call
-  on the struct on every target. (4) The user-extensible points
+  on the struct on every target. The element and pair loops of polymorphic bases and the flat-body test followed
+  (#346 step 2): `WriteElements` and `BodyTraits` are members of `INinoFormatter<T>`, `HasElementLoop`, `HasPairLoop`
+  and the pair writes of the non-generic `INinoFormatter` it extends, where the netstandard builds called a boxed
+  `INinoElementsFormatter<T>` field per collection and the .NET 8+ builds tested `is INinoElementsFormatter<T>` and
+  `is INinoPairsFormatter`. (4) The user-extensible points
   above. Per top-level call, not per value: calls the interceptors leave alone (generic methods, another assembly's
   types, Unity's Roslyn 4.3, raw values and arrays of raw elements) read `NinoTopFormatter<T>`, `NinoRaw<T>` and
   `NinoRawArray<T>` as loads, so an array of raw elements is one `INinoRawArrayFormatter` interface call per call
@@ -134,6 +138,19 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   field as its exact type and inline it. A per-element or per-value interface or virtual call where the type is known
   is the one to remove (round 103: kept after review; no form without an indirect call exists).
 
+- Read a capability query a loop over a class element asks into a `static readonly` field of a class generic over the
+  formatter alone (`NinoLoops<TFormatter>`, whose queries sit on the non-generic `INinoFormatter` for it), never over
+  `<T, TFormatter>`, and ask it before any path of the method that returns earlier. Why: with `T` a class the loop is
+  shared generic code, where a class generic over `T` is a dictionary lookup and a static base helper per collection,
+  while the formatter is still its exact struct; and a field the JIT has not seen initialized when Tier1 compiles the
+  caller stays a helper call, with the default the formatter lacks (boxed, a call) left in the code beside it.
+  Evidence (#346 step 2, `asm.py compare origin/main`): the queries as fields of `<T, TFormatter>` classes listed 29
+  methods: every `ArrayFormatter<__Canon, F>` (strings, `[NinoType]` classes) gained the lookup and a call to the
+  default `WriteElements`, and `Dictionary<int, string>` members (`SimpleClass`, `TolerantClass`, `AppData.Lookup`, up
+  to 30 % more code and 18 more stack accesses) kept `CORINFO_HELP_GET_NONGCSTATIC_BASE`, a box and the default pair
+  writes, the pair query sitting after the string pairs' early return so never initialized; with `NinoLoops` asked
+  first only the renamed `WriteElements` calls and, in code fully shared over the formatter too (`Box<(class, int)>`),
+  one lookup per collection beside the per-element indirect call it already makes.
 - Write each subtype inline in a generated dispatch (`DispatchEmitter.EmitBase`), nesting ones included; never move
   them into `NoInlining` `__WriteExact<n>` methods to keep the dispatch small. Why: the call per element costs more than
   the repeated depth handling saves. Evidence: a70aab2c outlined nesting subtypes in dispatches of four or more; the
@@ -189,7 +206,8 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   PolymorphicClass on par (0.96–1.06x); not landed.
 
 - Write an array or a list of a polymorphic base through the base's generated element loop
-  (`INinoElementsFormatter.WriteElements`, `DispatchEmitter.EmitWriteElements`): the chain of type checks inline in
+  (`INinoFormatter<T>.WriteElements` where `HasElementLoop`, read once into `NinoLoops<TFormatter>.Elements`;
+  `DispatchEmitter.EmitWriteElements`): the chain of type checks inline in
   the loop, the writer in a local, the depth checked once before it. Why: written one element at a time through
   `Serialize`, each element called the dispatch (too large to inline into the collection loop) with the writer in
   memory; that call, not the chain or the tag, was LuminPack's whole lead. Evidence (#305, LuminPack's `List<IFoo>`
@@ -199,7 +217,7 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   an end pointer in place of `Writer._avail` (one store fewer per write) left the list at 4.9-5.0, the same.
   Keep the loop in generated code; never move it into Nino.Core as a loop calling a generated single-element write
   marked `AggressiveInlining`: the JIT refused to inline a 20-subtype chain even so (a call per element again, 4.9 us),
-  and a test for a generic interface (`default(TFormatter) is INinoElementsFormatter<T>`) per element in a loop over
+  and a test for a generic interface (`default(TFormatter) is INinoElementsFormatter<T>`, removed in #346) per element in a loop over
   a reference type is shared code that looks the interface up and boxes each time: 20 us for the same list (a
   non-generic interface folds). Dictionaries: the next bullet.
   Generic bases keep the element loop out too: the same loop in each closed dispatch class (`__NinoDispatch<n>`),
@@ -208,9 +226,10 @@ adding a formatter lookup, a delegate or an interface call to a hot path. Go, Ru
   inlined into one loop, ran out of registers; the other generic bases moved within noise. The closed dispatch stays
   marked to inline into the collection loop, as before.
 - Write a `Dictionary<TKey, Base>` of a polymorphic base through the base's generated pair loop
-  (`INinoPairsFormatter`, `DispatchEmitter.EmitWriteElements`, called from `NinoDictionary.Write` on .NET 8+): one
-  generic loop `__WritePairs<TKey, TKeyFormatter>` in the generated struct, reached through non-generic interface
-  methods per kind of key (`WritePairs32`, `WritePairs64`, `WriteStringPairs`; 4- and 8-byte primitive and enum keys
+  (`INinoFormatter.HasPairLoop`, read once into `NinoLoops<TFormatter>.Pairs`; `DispatchEmitter.EmitWriteElements`,
+  generated for .NET 8+ only): one
+  generic loop `__WritePairs<TKey, TKeyFormatter>` in the generated struct, reached through non-generic members of
+  the interface per kind of key (`WritePairs32`, `WritePairs64`, `WriteStringPairs`; 4- and 8-byte primitive and enum keys
   are read as `int` and `long`, `WordKey<T>`), the dictionary's entries walked in place
   (`NinoDictionaryEntries.InUse`: a reference and a count, no enumerator), the writer in a local. Why: in Nino.Core
   the loop is shared code over the class value, so each value was a call into the dispatch with the writer in memory,
